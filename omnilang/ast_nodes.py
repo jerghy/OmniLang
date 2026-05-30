@@ -509,4 +509,6 @@ class Program:
     structs: list[StructDef] = field(default_factory=list)
     tagged_unions: list[TaggedUnionDef] = field(default_factory=list)
     classes: list[ClassDef] = field(default_factory=list)
+    imports: list[ImportStmt] = field(default_factory=list)
+    exports: list[ExportStmt] = field(default_factory=list)
     span: Span | None = None

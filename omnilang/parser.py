@@ -99,6 +99,8 @@ class OmniTransformer(Transformer):
         structs = []
         tagged_unions = []
         classes = []
+        imports = []
+        exports = []
         for item in items:
             if isinstance(item, FunctionDef):
                 funcs.append(item)
@@ -107,8 +109,9 @@ class OmniTransformer(Transformer):
             elif isinstance(item, TaggedUnionDef):
                 tagged_unions.append(item)
             elif isinstance(item, ImportStmt):
-                pass  # stored in separate list (future: Program.imports)
+                imports.append(item)
             elif isinstance(item, ExportStmt):
+                exports.append(item)
                 if item.item and isinstance(item.item, FunctionDef):
                     funcs.append(item.item)
                 elif item.item and isinstance(item.item, StructDef):
@@ -123,6 +126,7 @@ class OmniTransformer(Transformer):
                         break
         return Program(functions=funcs, structs=structs,
                        tagged_unions=tagged_unions, classes=classes,
+                       imports=imports, exports=exports,
                        span=self._span(*items))
 
     def function_def(self, items):

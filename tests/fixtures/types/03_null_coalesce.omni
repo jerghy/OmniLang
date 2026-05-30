@@ -1,0 +1,13 @@
+fn get_name() -> String? {
+    return "Alice";
+}
+
+fn greet() -> String {
+    let name: String? = get_name();
+    let display: String = name ?? "Guest";
+    return "Hello, " + display + "!";
+}
+
+fn main() {
+    println(greet());
+}

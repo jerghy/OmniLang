@@ -124,19 +124,45 @@ def build_default_registry() -> RuleRegistry:
     registry = RuleRegistry()
 
     # P01xx portability rules
-    from omnilang.analyze.rules.portability import p0101_idiv, p0102_float_cmp, p0103_nan, p0104_string_enc, p0106_closure_capture, p0109_overflow, p0110_divzero, p0111_generics_js
-    from omnilang.analyze.rules.type import e0105_match_exhaust
-    from omnilang.analyze.rules.async_rules import e0201_await_non_async
-    from omnilang.analyze.rules.style import s0107_structural
+    from omnilang.analyze.rules.portability import (
+        p0101_idiv, p0102_float_cmp, p0103_nan, p0104_string_enc,
+        p0105_float_precision, p0106_closure_capture, p0107_async_scheduling,
+        p0109_overflow, p0110_divzero, p0111_generics_js,
+    )
+    from omnilang.analyze.rules.type import (
+        e0101_type_mismatch, e0102_missing_field, e0103_extra_field,
+        e0105_match_exhaust,
+    )
+    from omnilang.analyze.rules.async_rules import (
+        e0201_await_non_async, e0202_async_without_await, e0203_unhandled_await,
+    )
+    from omnilang.analyze.rules.ownership import e0306_closure_escape
+    from omnilang.analyze.rules.style import s0101_unused_variable, s0102_unused_import, s0107_structural, s0108_backslash_path
     from omnilang.analyze.rules.performance import f0101_large_copy
     from omnilang.analyze.rules.security import sec0101_sql_inject
-    for rule_cls in [p0101_idiv.P0101Rule, p0102_float_cmp.P0102Rule, p0103_nan.P0103Rule,
-                      p0104_string_enc.P0104Rule, p0106_closure_capture.P0106Rule,
-                      p0109_overflow.P0109Rule, p0110_divzero.P0110Rule, p0111_generics_js.P0111Rule,
-                      e0105_match_exhaust.E0105Rule, e0201_await_non_async.E0201Rule,
-                      s0107_structural.S0107Rule, f0101_large_copy.F0101Rule,
-                      sec0101_sql_inject.SEC0101Rule]:
+
+    for rule_cls in [
+        # Type errors
+        e0101_type_mismatch.E0101Rule, e0102_missing_field.E0102Rule,
+        e0103_extra_field.E0103Rule, e0105_match_exhaust.E0105Rule,
+        # Async rules
+        e0201_await_non_async.E0201Rule, e0202_async_without_await.E0202Rule,
+        e0203_unhandled_await.E0203Rule,
+        # Ownership
+        e0306_closure_escape.E0306Rule,
+        # Portability
+        p0101_idiv.P0101Rule, p0102_float_cmp.P0102Rule, p0103_nan.P0103Rule,
+        p0104_string_enc.P0104Rule, p0105_float_precision.P0105Rule,
+        p0106_closure_capture.P0106Rule, p0107_async_scheduling.P0107Rule,
+        p0109_overflow.P0109Rule, p0110_divzero.P0110Rule, p0111_generics_js.P0111Rule,
+        # Performance
+        f0101_large_copy.F0101Rule,
+        # Style
+        s0101_unused_variable.S0101Rule, s0102_unused_import.S0102Rule,
+        s0107_structural.S0107Rule, s0108_backslash_path.S0108Rule,
+        # Security
+        sec0101_sql_inject.SEC0101Rule,
+    ]:
         registry.register(rule_cls())
 
-    # More rules will be registered in Phase 7
     return registry

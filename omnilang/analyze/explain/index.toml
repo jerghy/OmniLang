@@ -59,3 +59,268 @@ description = """
 Division by literal zero is always a programming error and should be prevented.
 """
 fix = "Add a guard check: `if divisor != 0 { result = a / b; } else { /* handle error */ }`"
+
+[E0101]
+title = "Type mismatch"
+category = "type"
+severity = "error"
+summary = "A value of one type is used where a different type is expected."
+description = """
+OmniLang checks that expression types match the declared or inferred types at:
+- Variable declarations (`let x: i32 = "hello"` → error)
+- Return statements (`return "str"` in `fn foo() -> i32` → error)
+- Assignment targets (if type is known from declaration)
+
+Type-Erased Targets: JS ignores this error. Dart/Python/Rust enforce at compile time.
+"""
+fix = "Ensure the expression type matches the declared type. Use explicit conversions if needed."
+
+[E0102]
+title = "Missing required field in struct literal"
+category = "type"
+severity = "error"
+summary = "A struct literal is missing one or more required fields that have no default value."
+description = """
+When constructing a struct literal like `Point { x: 1 }`, all fields without defaults
+must be explicitly provided. Missing required fields will cause compile errors in
+all target languages.
+"""
+fix = "Provide values for all required fields, or add default values in the struct definition."
+
+[E0103]
+title = "Unknown field in struct literal"
+category = "type"
+severity = "error"
+summary = "A struct literal contains a field name that is not defined in the struct."
+description = """
+Struct literals can only contain fields that are defined in the struct.
+Extra/unknown fields likely indicate a typo or reference to a different type.
+"""
+fix = "Remove the unknown field or check if you meant a different struct type."
+
+[E0105]
+title = "Non-exhaustive match"
+category = "type"
+severity = "error"
+summary = "A match expression does not cover all possible variants of a tagged union."
+description = """
+When matching on a tagged union (enum-style type), every variant must be handled
+or a wildcard `_` pattern must be present. Non-exhaustive matches can cause
+runtime errors in all target languages:
+- Rust: compile error (enforced by compiler)
+- Dart: runtime error from incomplete switch
+- JS/Python: potential undefined behavior
+"""
+fix = "Add missing variant arms to the match expression, or use a wildcard `_` pattern."
+
+[E0201]
+title = "await in non-async function"
+category = "async"
+severity = "error"
+summary = "The `await` keyword is used inside a function that is not declared `async`."
+description = """
+`await` can only be used within `async fn` bodies. Using it in a regular function
+will cause a compile error in all target languages.
+"""
+fix = "Either declare the function as `async fn` or remove the `await` call."
+
+[E0202]
+title = "Async function without await"
+category = "async"
+severity = "warning"
+summary = "An async function contains no await expression."
+description = """
+An `async fn` that never calls `await` serves no purpose and may indicate:
+- A forgotten `await` call
+- A function that should not be async
+- Dead code that was intended to be async
+"""
+fix = "Either add an `await` call inside the function or remove the `async` modifier."
+
+[E0203]
+title = "Unhandled await in Rust"
+category = "async"
+severity = "warning"
+summary = "An await expression in Rust target may need explicit error handling."
+description = """
+In Rust, `.await` on a `Result`-returning future propagates errors via `?`.
+Unhandled Results silently drop errors. Always handle errors with:
+- `expr.await?` to propagate
+- `.unwrap()` to panic
+- `match` for explicit handling
+"""
+fix = "Add `?` after the await expression, or use `.unwrap()`/`match` for explicit error handling."
+
+[E0306]
+title = "Closure escapes with captured variables"
+category = "ownership"
+severity = "warning"
+summary = "A closure that captures variables is returned from or stored outside its defining function."
+description = """
+When a closure captures local variables and escapes (is returned or stored globally),
+the captured variables must live longer than the enclosing function. In Rust, this requires:
+- `Cell<T>` for Copy types that are mutated
+- `RefCell<T>` for non-Copy types that are mutated
+- `move` keyword for ownership transfer
+
+Other targets (JS/Dart/Python) handle this via garbage collection and don't need special treatment.
+"""
+fix = "Consider using `move` closures or refactoring to avoid escaping captures. The compiler automatically wraps captured variables in Cell/RefCell for Rust."
+
+[F0101]
+title = "Unnecessary large copy"
+category = "performance"
+severity = "perf"
+summary = "A large value is being copied when a reference would suffice."
+description = """
+Copying large structs or arrays can be expensive, especially in Rust where it implies
+a deep copy. Using `&` reference or passing by pointer avoids the copy overhead.
+"""
+fix = "Use `&value` to pass by reference instead of copying, or consider restructuring to avoid the copy."
+
+[P0103]
+title = "NaN handling differences"
+category = "portability"
+severity = "port"
+summary = "NaN (Not a Number) comparisons behave differently across language runtimes."
+description = """
+IEEE 754 specifies that NaN != NaN (NaN is never equal to anything, including itself).
+However:
+- Some JS engines may optimize NaN checks inconsistently
+- Dart VM and dart2js may differ
+- Python's `math.isnan()` is recommended over `==`
+- Rust uses `f64::is_nan()`
+"""
+fix = "Use `is_nan(x)` from `omni/math` for portable NaN checking instead of `x == nan`."
+
+[P0104]
+title = "String encoding differences"
+category = "portability"
+severity = "port"
+summary = "String encoding and byte representation differ across target platforms."
+description = """
+- JS: UTF-16 encoded strings
+- Dart: UTF-16 strings
+- Python: Unicode strings (internal representation varies)
+- Rust: UTF-8 encoded strings (String/&str)
+
+Length calculation and byte-level operations produce different results.
+"""
+fix = "Use `omni/string` utilities for portable string length and byte operations."
+
+[P0105]
+title = "Float precision comparison"
+category = "portability"
+severity = "port"
+summary = "Direct float equality comparison may fail due to precision differences across targets."
+description = """
+Different language runtimes accumulate floating-point rounding differently:
+- JS uses 64-bit floats exclusively
+- Python uses C doubles (usually 64-bit)
+- Dart VM vs dart2js may differ
+- Rust debug vs release mode may differ
+"""
+fix = "Use epsilon-based comparison: `abs(a - b) < epsilon` with an appropriate epsilon value."
+
+[P0106]
+title = "Closure capture semantics"
+category = "portability"
+severity = "port"
+summary = "Closure capture (by-reference vs by-value) semantics differ across targets."
+description = """
+- JS: Captures by reference (mutable)
+- Dart: Captures by reference
+- Python: Captures by reference; use `nonlocal` for mutation
+- Rust: Explicit capture with `move` or borrow; Cell/RefCell for mutation
+
+Code that mutates captured variables behaves differently without explicit annotation.
+"""
+fix = "The OmniLang compiler automatically handles capture semantics. Be aware of the differences when reading generated code."
+
+[P0107]
+title = "Async task scheduling order"
+category = "portability"
+severity = "port"
+summary = "Async task execution order differs across async runtimes."
+description = """
+- JS: Microtask queue (Promise callbacks run before next event loop tick)
+- Dart: Microtask queue with zone support
+- Python (asyncio): Tasks yield at await points; order depends on event loop
+- Rust (tokio): Work-stealing scheduler; no ordering guarantee
+
+Code depending on specific task ordering is non-portable.
+"""
+fix = "Use `all()` or `race()` for explicit task coordination. Do not depend on implicit ordering."
+
+[P0111]
+title = "Generic type erasure in JavaScript"
+category = "portability"
+severity = "port"
+summary = "Generic type parameters are erased in JavaScript plain mode."
+description = """
+In JS plain mode, generic type parameters `<T>` are fully erased at compile time.
+This means:
+- No runtime type checking for generic arguments
+- Type constraints are compile-time only
+- Cross-module generic calls lose type information
+"""
+fix = "Switch to TypeScript mode (`target.js.mode = \"typescript\"`) to preserve generic type information."
+
+[S0101]
+title = "Unused variable"
+category = "style"
+severity = "warning"
+summary = "A variable is declared but never read."
+description = """
+Unused variables clutter code and may indicate:
+- A misspelled variable name in later usage
+- Leftover code from refactoring
+- A logic error where the variable should have been used
+"""
+fix = "Remove the unused variable declaration, or use it in an expression."
+
+[S0102]
+title = "Unused import"
+category = "style"
+severity = "warning"
+summary = "An import is never used in the file."
+description = """
+Unused imports add unnecessary dependencies, slow compilation, and may confuse readers.
+They also increase the chance of circular dependency issues.
+"""
+fix = "Remove the unused import statement."
+
+[S0107]
+title = "Structural type coincidence"
+category = "style"
+severity = "hint"
+summary = "A nominal struct is being used in a structurally-compatible position without explicit annotation."
+description = """
+OmniLang supports both structural typing (by shape) and nominal typing (by name).
+When a `nominal` struct type is used where a structurally-compatible type is expected,
+it might be unintentional. Consider using explicit type annotation.
+"""
+fix = "Use `as` cast or add explicit type annotation if the structural match is intentional."
+
+[S0108]
+title = "Backslash in import path"
+category = "style"
+severity = "warning"
+summary = "Import path uses backslash (`\\`) instead of forward slash (`/`)."
+description = """
+OmniLang normalizes all import paths to use forward slashes for cross-platform compatibility.
+Backslashes in import paths will fail on Unix/macOS systems.
+"""
+fix = "Replace `\\` with `/` in import paths."
+
+[SEC0101]
+title = "Potential SQL/command injection"
+category = "security"
+severity = "sec"
+summary = "Template string used in a context that may be vulnerable to injection attacks."
+description = """
+Template strings that interpolate user-provided values into SQL queries, shell commands,
+or HTML output can be exploited for injection attacks. This is especially dangerous in
+cross-language code where escaping rules differ per target.
+"""
+fix = "Use parameterized queries, proper escaping, or sanitization functions from `omni/secure`."
