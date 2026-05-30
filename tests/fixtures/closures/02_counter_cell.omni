@@ -1,0 +1,19 @@
+// Test 2: Counter closure — captures i32 mutably, escapes
+// Expected Rust: Cell<i32> wrapping
+// Expected output: 1, 2
+
+fn make_counter() -> fn() -> i32 {
+    let mut count: i32 = 0;
+    return || -> i32 {
+        count = count + 1;
+        return count;
+    };
+}
+
+fn main() {
+    let c: fn() -> i32 = make_counter();
+    let a: i32 = c();
+    println(a.to_string());
+    let b: i32 = c();
+    println(b.to_string());
+}

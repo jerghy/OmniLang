@@ -1,0 +1,19 @@
+// Test 3: String concatenation — captures String mutably, escapes
+// Expected Rust: RefCell<String> wrapping
+// Expected output: HelloWorld, HelloWorldAgain
+
+fn make_appender() -> fn(String) -> String {
+    let mut prefix: String = "Hello";
+    return |suffix: String| -> String {
+        prefix = prefix + suffix;
+        return prefix;
+    };
+}
+
+fn main() {
+    let app: fn(String) -> String = make_appender();
+    let r1: String = app("World");
+    println(r1);
+    let r2: String = app("Again");
+    println(r2);
+}

@@ -1,0 +1,61 @@
+[P0101]
+title = "Cross-language integer division behavior"
+category = "portability"
+severity = "port"
+summary = "Integer division `/` on `i32` types behaves differently across target languages."
+description = """
+In OmniLang, `a / b` on `i32` types compiles to different operations per target:
+
+- **JS**: Returns a JavaScript `number` (float). 5 / 2 = 2.5
+- **Dart**: Truncates toward zero. 5 / 2 = 2, -5 / 2 = -2
+- **Rust**: Truncates toward zero. Same as Dart.
+- **Python**: Floors toward negative infinity. 5 / 2 = 2, -5 / 2 = -3
+
+This behavior divergence can cause subtle bugs when code is compiled to multiple targets.
+"""
+fix = "Use `_idiv(a, b)` from `omni/math` for portable integer division with consistent truncation-toward-zero behavior."
+
+[P0102]
+title = "Float comparison precision differences"
+category = "portability"
+severity = "port"
+summary = "Floating-point equality (`==`, `!=`) may produce different results across platforms."
+description = """
+IEEE 754 floating-point operations can differ slightly across:
+- Different hardware architectures (x86 vs ARM)
+- Different language runtimes (JS V8 vs Dart VM vs CPython)
+- Different optimization levels (Rust debug vs release)
+
+Direct `f64 == f64` comparisons are fragile for cross-language code.
+"""
+fix = "Use an epsilon-based comparison: `abs(a - b) < 1e-10` instead of `a == b`."
+
+[P0109]
+title = "Integer overflow behavior"
+category = "portability"
+severity = "port"
+summary = "Integer arithmetic may overflow differently across target languages."
+description = """
+- **JS**: Automatically switches to floating-point for large integers (up to 2^53).
+- **Dart**: Wraps on overflow (like C unsigned).
+- **Rust**: Panics in debug mode, wraps in release (two's complement).
+- **Python**: Auto-extends to arbitrary precision (BigInt).
+
+An `i32` addition that overflows in Rust debug will panic, while the same code in Python will silently produce the correct result.
+"""
+fix = "Use checked arithmetic operations or `saturating_add`/`saturating_mul` pattern for portable overflow handling."
+
+[P0110]
+title = "Division by zero"
+category = "portability"
+severity = "error"
+summary = "Division by zero produces different results or errors in each target."
+description = """
+- **JS**: Returns `Infinity` or `NaN` (silently).
+- **Dart**: Throws `IntegerDivisionByZeroException`.
+- **Python**: Raises `ZeroDivisionError`.
+- **Rust**: Panics at runtime.
+
+Division by literal zero is always a programming error and should be prevented.
+"""
+fix = "Add a guard check: `if divisor != 0 { result = a / b; } else { /* handle error */ }`"

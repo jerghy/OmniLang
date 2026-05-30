@@ -1,0 +1,6 @@
+fn main() {
+    let arr: Array<i32> = [1, 2, 3];
+    for item in arr {
+        arr.push(4);
+    }
+}

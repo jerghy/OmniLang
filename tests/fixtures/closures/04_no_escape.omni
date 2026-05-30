@@ -1,0 +1,13 @@
+// Test 4: Non-escaping closure — captures i32 mutably but does NOT escape
+// Expected Rust: plain &mut reference, no Cell
+// Expected output: 15
+
+fn main() {
+    let mut total: i32 = 0;
+    let add_to_total = |val: i32| {
+        total = total + val;
+    };
+    add_to_total(5);
+    add_to_total(10);
+    println(total.to_string());
+}

@@ -1,0 +1,16 @@
+// Test 6: Read-only capture — captures String immutably, escapes
+// Expected Rust: direct `move` (String ownership transfer), no RefCell needed
+// Expected output: Hello, World
+
+fn make_greeter(name: String) -> fn() -> String {
+    return || -> String {
+        return name;
+    };
+}
+
+fn main() {
+    let g: fn() -> String = make_greeter("World");
+    let msg: String = g();
+    println("Hello, ");
+    print(msg);
+}

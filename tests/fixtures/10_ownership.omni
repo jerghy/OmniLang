@@ -1,0 +1,12 @@
+fn main() {
+    let s1: String = "hello";
+    let s2: String = s1;
+    println(s1);
+    println(s2);
+
+    let a1: Array<i32> = [1, 2];
+    let a2: Array<i32> = a1;
+    a2.push(3);
+    println(a1.len().to_string());
+    println(a2.len().to_string());
+}

@@ -1,0 +1,19 @@
+// Test 5: Mixed capture — mutable i32 + immutable String, both escape
+// Expected Rust: Cell<i32> + String (move), RefCell not needed for readonly String
+// Expected output: 42, hello
+
+fn make_mixed() -> fn(i32) -> String {
+    let mut num: i32 = 0;
+    let label: String = "hello";
+    return |val: i32| -> String {
+        num = num + 1;
+        return label;
+    };
+}
+
+fn main() {
+    let f: fn(i32) -> String = make_mixed();
+    let r: String = f(42);
+    println(42.to_string());
+    println(r);
+}

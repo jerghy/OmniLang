@@ -1,0 +1,12 @@
+fn process(s: String) {
+    println(s);
+}
+
+fn main() {
+    let arr: Array<String> = ["a", "b"];
+
+    for item in arr {
+        let owned: String = item;
+        println(owned);
+    }
+}

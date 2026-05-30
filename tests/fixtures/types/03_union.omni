@@ -1,0 +1,9 @@
+fn get_default() -> String? {
+    return null;
+}
+
+fn main() {
+    let val: String? = get_default();
+    let msg: String = "ok";
+    println(msg);
+}

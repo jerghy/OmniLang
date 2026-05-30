@@ -1,0 +1,5 @@
+fn main() {
+    let a: f64 = 3.0;
+    let b: f64 = 2.0;
+    let c: f64 = a % b;
+}

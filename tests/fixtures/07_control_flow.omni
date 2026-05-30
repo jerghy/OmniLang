@@ -1,0 +1,19 @@
+fn main() {
+    let x: i32 = 10;
+
+    if x > 5 {
+        println("big");
+    } else if x == 0 {
+        println("zero");
+    } else {
+        println("small");
+    }
+
+    let mut i: i32 = 0;
+    while i < 3 {
+        print(i.to_string());
+        i = i + 1;
+    }
+
+    println("done");
+}

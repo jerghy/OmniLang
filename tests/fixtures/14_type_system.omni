@@ -1,0 +1,17 @@
+fn main() {
+    let a: i32 = 42;
+    let b: f64 = 3.14;
+    let c: bool = true;
+    let d: String = "test";
+
+    println(a.to_string());
+    println(b.to_string());
+    println(c.to_string());
+    println(d.to_string());
+
+    let arr: Array<bool> = [true, false];
+    println(arr.len().to_string());
+
+    let m: Map<String, String> = {"k": "v"};
+    println(m.len().to_string());
+}

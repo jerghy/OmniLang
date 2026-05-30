@@ -1,0 +1,14 @@
+fn main() {
+    let arr: Array<i32> = [1, 2, 3];
+    println(arr.len().to_string());
+    println(arr.is_empty().to_string());
+
+    let mut arr2: Array<i32> = arr;
+    arr2.push(4);
+    arr2.push(5);
+    println(arr2.get(0).to_string());
+    println(arr2.get(4).to_string());
+    println(arr2.len().to_string());
+    println(arr.len().to_string());
+    println(arr2.pop().to_string());
+}
