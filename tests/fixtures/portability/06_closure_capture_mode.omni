@@ -1,0 +1,9 @@
+// Closure capture mode differences
+fn main() {
+    let x: i32 = 42;
+    let cl: fn() -> i32 = || -> i32 {
+        return x;
+    };
+    let result: i32 = cl();
+    println(result.to_string());
+}

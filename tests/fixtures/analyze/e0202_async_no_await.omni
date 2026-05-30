@@ -1,0 +1,8 @@
+// E0202: Async function without await
+async fn fetch_data() -> String {
+    return "data";
+}
+
+fn main() {
+    println("hello");
+}

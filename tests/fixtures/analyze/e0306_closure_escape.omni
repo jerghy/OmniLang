@@ -1,0 +1,9 @@
+// E0306: Closure escape
+fn main() {
+    let x: i32 = 42;
+    let f = || -> i32 {
+        return x;
+    };
+    let result: i32 = f();
+    println(result.to_string());
+}

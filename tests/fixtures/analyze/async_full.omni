@@ -1,0 +1,22 @@
+// Comprehensive async test fixture
+async fn fetch(url: String) -> String {
+    return "response from " + url;
+}
+
+async fn process(items: Array<String>) -> Array<String> {
+    let mut results: Array<String> = [];
+    let i: i32 = 0;
+    while i < items.len() {
+        let item: String = items.get(i);
+        let response: String = await fetch(item);
+        results.push(response);
+        i = i + 1;
+    }
+    return results;
+}
+
+async fn main() {
+    let urls: Array<String> = ["http://a.com", "http://b.com"];
+    let responses: Array<String> = await process(urls);
+    println(responses.len().to_string());
+}

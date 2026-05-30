@@ -1,0 +1,9 @@
+// S0105: Non-idiomatic naming
+fn calculateValue() -> i32 {
+    return 42;
+}
+
+fn main() {
+    let result: i32 = calculateValue();
+    println(result.to_string());
+}

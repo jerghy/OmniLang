@@ -1,0 +1,7 @@
+// E0309: Use after move
+fn main() {
+    let s1: String = "hello";
+    let s2: String = s1;
+    println(s1);
+    println(s2);
+}

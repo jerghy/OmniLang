@@ -1,0 +1,6 @@
+// E0104: Annotation needed
+fn main() {
+    let x: i32 = 42;
+    let y: i32 = x + 1;
+    println(y.to_string());
+}

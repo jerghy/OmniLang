@@ -1,0 +1,10 @@
+// Optional chaining test fixture
+struct Config {
+    name: String,
+    version: i32,
+}
+
+fn main() {
+    let cfg: Config = Config { name: "app", version: 1 };
+    println("ok");
+}

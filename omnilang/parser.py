@@ -12,7 +12,8 @@ from omnilang.ast_nodes import (
     Program, FunctionDef, Param, StructDef, StructField,
     TaggedUnionDef, Variant,
     ClassDef, ClassMember,
-    ImportStmt, ExportStmt,
+    InterfaceDef, InterfaceMember,
+    ImportStmt, ImportTypeStmt, ExportStmt,
     # Statements
     Block, VarDecl, Destructure, Assign, IfStmt, WhileStmt, ForInStmt,
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
@@ -110,6 +111,8 @@ class OmniTransformer(Transformer):
                 tagged_unions.append(item)
             elif isinstance(item, ImportStmt):
                 imports.append(item)
+            elif isinstance(item, ImportTypeStmt):
+                pass  # import type — stored separately, erased in JS plain mode
             elif isinstance(item, ExportStmt):
                 exports.append(item)
                 if item.item and isinstance(item.item, FunctionDef):
@@ -118,6 +121,8 @@ class OmniTransformer(Transformer):
                     structs.append(item.item)
             elif isinstance(item, ClassDef):
                 classes.append(item)
+            elif isinstance(item, InterfaceDef):
+                pass  # interfaces stored in Program (future: Program.interfaces)
             elif isinstance(item, tuple) and len(item) == 3 and item[0] == "impl":
                 _, struct_name, methods = item
                 for s in structs:
@@ -1149,6 +1154,50 @@ class OmniTransformer(Transformer):
                           func_def=func_def, is_override=is_override,
                           span=self._span(*items))
 
+    # ── Interface definition ────────────────────────
+
+    def interface_def(self, items):
+        """Handle interface_def: 'interface' CNAME '{' interface_member* '}'"""
+        name = ""
+        members = []
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                name = str(item)
+            elif isinstance(item, InterfaceMember):
+                members.append(item)
+            elif isinstance(item, list):
+                for sub in item:
+                    if isinstance(sub, InterfaceMember):
+                        members.append(sub)
+        return InterfaceDef(name=name, members=members, span=self._span(*items))
+
+    def interface_member(self, items):
+        """Handle interface_member: CNAME ':' type ';' | FN CNAME '(' params ')' ['->' return_type] ';'"""
+        name = ""
+        type_ann = None
+        params = []
+        return_type = None
+        is_method = False
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME" and not name:
+                name = str(item)
+            elif isinstance(item, Token) and item.type == "FN":
+                is_method = True
+            elif isinstance(item, TypeAnnotation) or isinstance(item, UnionType):
+                if is_method and not return_type:
+                    return_type = item
+                elif not is_method:
+                    type_ann = item
+            elif isinstance(item, Param):
+                params.append(item)
+            elif isinstance(item, list):
+                for sub in item:
+                    if isinstance(sub, Param):
+                        params.append(sub)
+        return InterfaceMember(name=name, type_ann=type_ann, params=params,
+                              return_type=return_type, is_method=is_method,
+                              span=self._span(*items))
+
     # ── Tagged union definition ────────────────────
 
     def tagged_union_def(self, items):
@@ -1183,6 +1232,18 @@ class OmniTransformer(Transformer):
                 elif item.type == "STRING_LIT":
                     path = str(item)[1:-1]  # strip quotes
         return ImportStmt(names=names, path=path, span=self._span(*items))
+
+    def import_type_stmt(self, items):
+        """Handle import_type_stmt: 'import' 'type' '{' CNAME (',' CNAME)* '}' 'from' STRING_LIT ';'"""
+        names = []
+        path = ""
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "CNAME":
+                    names.append(str(item))
+                elif item.type == "STRING_LIT":
+                    path = str(item)[1:-1]
+        return ImportTypeStmt(names=names, path=path, span=self._span(*items))
 
     def export_stmt(self, items):
         """Handle export_stmt: 'export' function_def"""

@@ -11,7 +11,7 @@ from omnilang.ast_nodes import (
     ClosureExpr, SpreadExpr, StructLiteral, StructDef,
     MatchExpr, MatchArm, OrPattern, StructPattern,
     ArrayPattern, ObjectPattern, VarPattern, IgnorePattern, RestPattern,
-    TypeAnnotation, UnionType,
+    TypeAnnotation, UnionType, AwaitExpr,
 )
 
 
@@ -21,6 +21,7 @@ class PythonGenerator(CodeGenerator):
         super().__init__()
         self.needs_idiv = False
         self.needs_irem = False
+        self.needs_try_catch = False
 
     # ── Top level ─────────────────────────────────
 
@@ -50,7 +51,7 @@ class PythonGenerator(CodeGenerator):
             self._dedent()
 
         # Prepend helpers if needed
-        if self.needs_idiv or self.needs_irem:
+        if self.needs_idiv or self.needs_irem or self.needs_try_catch:
             helpers = self._gen_helpers()
             self.output = helpers + self.output
 
@@ -64,6 +65,14 @@ class PythonGenerator(CodeGenerator):
         if self.needs_irem:
             lines.append("def _irem(a, b):")
             lines.append("    return a - _idiv(a, b) * b")
+            lines.append("")
+        if self.needs_try_catch:
+            lines.append("async def _omni_try_catch(__omni_future):")
+            lines.append("    try:")
+            lines.append("        __omni_val = await __omni_future")
+            lines.append('        return {"_tag": "Ok", "value": __omni_val}')
+            lines.append("    except BaseException as __omni_err:")
+            lines.append('        return {"_tag": "Err", "error": __omni_err}')
             lines.append("")
         return lines
 
@@ -261,6 +270,26 @@ class PythonGenerator(CodeGenerator):
 
         elif isinstance(expr, FuncCall):
             func_name = self._gen_expr(expr.func)
+            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+            # ── Async built-in functions ─────────────
+            if raw_name == "all":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"asyncio.gather({items})"
+                inner = self._gen_expr(expr.args[0])
+                return f"asyncio.gather(*{inner})"
+            if raw_name == "race":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"asyncio.wait([{items}], return_when=asyncio.FIRST_COMPLETED)"
+                inner = self._gen_expr(expr.args[0])
+                return f"asyncio.wait({inner}, return_when=asyncio.FIRST_COMPLETED)"
+            if raw_name == "tryCatch":
+                self.needs_try_catch = True
+                future = self._gen_expr(expr.args[0])
+                return f"_omni_try_catch({future})"
+
             args = ", ".join(self._gen_expr(a) for a in expr.args)
             return f"{func_name}({args})"
 

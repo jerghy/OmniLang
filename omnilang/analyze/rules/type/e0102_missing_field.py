@@ -54,7 +54,13 @@ class E0102Rule(AnalyzeRule):
         if isinstance(expr, StructLiteral):
             defn = struct_defs.get(expr.type_name)
             if defn:
-                provided = set(expr.fields.keys())
+                fields = expr.fields
+                if isinstance(fields, dict):
+                    provided = set(fields.keys())
+                elif isinstance(fields, list):
+                    provided = set(fields)
+                else:
+                    provided = set()
                 for field in defn.fields:
                     if field.default is None and field.name not in provided:
                         span = expr.span

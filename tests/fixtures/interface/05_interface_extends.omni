@@ -1,0 +1,26 @@
+// Interface composition via class implements
+interface Printable {
+    fn print() -> void;
+}
+
+interface Serializable {
+    fn to_json() -> String;
+    fn from_json(data: String) -> void;
+}
+
+class Document implements Printable, Serializable {
+    content: String = "text";
+    fn print() -> void {
+        println("document");
+    }
+    fn to_json() -> String {
+        return "{}";
+    }
+    fn from_json(data: String) -> void {
+        println(data);
+    }
+}
+
+fn main() {
+    println("ok");
+}

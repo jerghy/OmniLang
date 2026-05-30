@@ -1,0 +1,10 @@
+// Match expression test fixture
+fn main() {
+    let x: i32 = 3;
+    let desc: String = match x {
+        1 => "one",
+        2 => "two",
+        _ => "other",
+    };
+    println(desc);
+}

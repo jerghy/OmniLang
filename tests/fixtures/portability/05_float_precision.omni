@@ -1,0 +1,5 @@
+// Float precision differences between f64 and JS number
+fn main() {
+    let precise: f64 = 0.1234567890123456789;
+    println(precise.to_string());
+}

@@ -1,0 +1,6 @@
+// P0104: String encoding portability
+fn main() {
+    let s: String = "Hello, World!";
+    let len: i32 = s.len();
+    println(len.to_string());
+}

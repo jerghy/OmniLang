@@ -6,10 +6,11 @@ start: program
 
 // ── Top Level ───────────────────────────────────────
 
-program: (function_def | struct_def | tagged_union_def | class_def | import_stmt | export_stmt | impl_block)*
+program: (function_def | struct_def | tagged_union_def | class_def | interface_def | import_stmt | import_type_stmt | export_stmt | impl_block)*
 
 import_stmt: "import" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
-export_stmt: "export" (function_def | struct_def | class_def | tagged_union_def)
+import_type_stmt: "import" "type" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
+export_stmt: "export" (function_def | struct_def | class_def | tagged_union_def | interface_def)
 
 function_def: [ASYNC] FN CNAME ["<" generic_params ">"] "(" [params] ")" ["->" return_type] block
 
@@ -189,6 +190,12 @@ class_member: [STATIC] [PRIVATE] CNAME ":" type ["=" expr] ";"
 STATIC: "static"
 PRIVATE: "private"
 OVERRIDE: "@override"
+
+// ── Interface definition ─────────────────────────────
+
+interface_def: "interface" CNAME "{" interface_member* "}"
+interface_member: CNAME ":" type ";"
+                 | FN CNAME "(" [params] ")" ["->" return_type] ";"
 
 // ── Struct literal (merged with cname_expr for LALR compat) ──
 

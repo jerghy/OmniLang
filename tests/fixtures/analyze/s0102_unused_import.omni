@@ -1,0 +1,6 @@
+// S0102: Unused import
+import { foo } from "./utils";
+
+fn main() {
+    println("hello");
+}

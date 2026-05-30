@@ -1,0 +1,9 @@
+// P0107: Async scheduling portability
+async fn fetch() -> String {
+    return "data";
+}
+
+async fn main() {
+    let result: String = await fetch();
+    println(result);
+}

@@ -1,0 +1,10 @@
+// E0109: Generic constraint
+// Note: generic bounds use + syntax (T + Display, not T: Display)
+fn display<T>(value: T) -> String {
+    return value.to_string();
+}
+
+fn main() {
+    let msg: String = display(42);
+    println(msg);
+}

@@ -1,0 +1,6 @@
+// E0107: Recursive type
+type TreeNode<T> = Node { value: T, left: TreeNode<T>, right: TreeNode<T> } | Leaf
+
+fn main() {
+    println("ok");
+}

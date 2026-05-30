@@ -1,0 +1,9 @@
+// E0205: Blocking call in async context
+async fn fetch_data() -> String {
+    return "data";
+}
+
+async fn main() {
+    let result: String = await fetch_data();
+    println(result);
+}

@@ -1,0 +1,7 @@
+// F0106: Range check overhead
+fn main() {
+    let arr: Array<i32> = [1, 2, 3, 4, 5];
+    let idx: i32 = 3;
+    let val: i32 = arr.get(idx);
+    println(val.to_string());
+}

@@ -1,0 +1,9 @@
+// Basic interface definition
+interface Drawable {
+    fn draw() -> void;
+    fn get_area() -> f64;
+}
+
+fn main() {
+    println("interfaces are defined");
+}

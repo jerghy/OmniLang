@@ -1,0 +1,16 @@
+// Class implementing an interface
+interface Drawable {
+    fn draw() -> void;
+}
+
+class Circle implements Drawable {
+    radius: f64 = 1.0;
+    fn draw() -> void {
+        println("Drawing circle with radius " + radius.to_string());
+    }
+}
+
+fn main() {
+    let c: Circle = Circle { radius: 2.5 };
+    c.draw();
+}

@@ -1,0 +1,9 @@
+// E0105: Match exhaustiveness
+fn main() {
+    let x: i32 = 3;
+    match x {
+        1 => { println("one"); },
+        2 => { println("two"); },
+        _ => { println("other"); },
+    }
+}

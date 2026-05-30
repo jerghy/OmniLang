@@ -1,0 +1,7 @@
+// E0307: Borrow conflict
+fn main() {
+    let mut s: String = "hello";
+    let r1: String = s;
+    let r2: String = s;
+    println(r1);
+}

@@ -1,0 +1,9 @@
+// SEC0101: SQL injection risk
+fn build_query(user_input: String) -> String {
+    return "SELECT * FROM users WHERE name = '" + user_input + "'";
+}
+
+fn main() {
+    let query: String = build_query("admin");
+    println(query);
+}

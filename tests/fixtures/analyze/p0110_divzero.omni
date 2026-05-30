@@ -1,0 +1,7 @@
+// P0110: Division by zero
+fn main() {
+    let a: i32 = 5;
+    let b: i32 = 0;
+    let c: i32 = a / b;
+    println(c.to_string());
+}

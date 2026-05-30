@@ -1,0 +1,4 @@
+// Platform-specific API access
+fn main() {
+    println("platform-neutral code here");
+}

@@ -1,0 +1,6 @@
+// P0109: Integer overflow
+fn main() {
+    let a: i32 = 2147483647;
+    let b: i32 = a + 1;
+    println(b.to_string());
+}

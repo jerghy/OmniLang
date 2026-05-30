@@ -437,6 +437,29 @@ class RustGenerator(CodeGenerator):
 
         elif isinstance(expr, FuncCall):
             func_name = self._gen_expr(expr.func)
+            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+            # ── Async built-in functions ─────────────
+            if raw_name == "all":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(
+                        self._gen_expr(e) for e in expr.args[0].elements
+                    )
+                    return f"futures::future::join_all(vec![{items}]).await"
+                inner = self._gen_expr(expr.args[0])
+                return f"futures::future::join_all({inner}).await"
+            if raw_name == "race":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    branches = ",\n".join(
+                        f"        result = {self._gen_expr(e)} => result"
+                        for e in expr.args[0].elements
+                    )
+                    return f"tokio::select! {{\n{branches},\n    }}"
+                inner = self._gen_expr(expr.args[0])
+                return f"tokio::select! {{\n        result = {inner} => result,\n    }}"
+            if raw_name == "tryCatch":
+                future = self._gen_expr(expr.args[0])
+                return f"async {{ Ok({future}.await) }}"
 
             # Use _emit_call_arg for proper reference handling
             # Find the function definition in the program

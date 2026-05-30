@@ -1,0 +1,10 @@
+// Interface with multiple methods
+interface Serializer {
+    fn serialize() -> String;
+    fn deserialize(data: String) -> void;
+    fn get_format() -> String;
+}
+
+fn main() {
+    println("ok");
+}

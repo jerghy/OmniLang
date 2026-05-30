@@ -1,0 +1,9 @@
+// P0111: Generics in JavaScript portability
+fn identity<T>(value: T) -> T {
+    return value;
+}
+
+fn main() {
+    let x: i32 = identity(42);
+    println(x.to_string());
+}

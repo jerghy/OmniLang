@@ -90,15 +90,9 @@ def test_s0102_unused_import():
 
 def test_rules_registered():
     registry = build_default_registry()
-    assert registry.count >= 24, f"Expected at least 24 rules, got {registry.count}"
-    assert registry.get("P0101") is not None
-    assert registry.get("P0110") is not None
-    assert registry.get("P0102") is not None
-    assert registry.get("E0105") is not None
-    assert registry.get("E0201") is not None
-    assert registry.get("E0306") is not None
-    assert registry.get("S0101") is not None
-    assert registry.get("S0102") is not None
-    assert registry.get("S0108") is not None
-    assert registry.get("P0105") is not None
-    assert registry.get("P0107") is not None
+    assert registry.count >= 54, f"Expected at least 54 rules, got {registry.count}"
+    for code in ["P0101","P0110","P0102","E0105","E0201","E0306",
+                  "S0101","S0102","S0108","P0105","P0107","E0401",
+                  "E0101","F0101","SEC0101","E0202","E0104","E0110",
+                  "F0105","S0103","S0110","SEC0102","P0108","E0309"]:
+        assert registry.get(code) is not None, f"Rule {code} not found"

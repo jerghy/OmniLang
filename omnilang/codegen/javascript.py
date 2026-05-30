@@ -12,7 +12,7 @@ from omnilang.ast_nodes import (
     MatchExpr, MatchArm, OrPattern, StructPattern,
     TaggedUnionDef, Variant, AwaitExpr,
     ArrayPattern, ObjectPattern, VarPattern, IgnorePattern, RestPattern,
-    TypeAnnotation, UnionType,
+    TypeAnnotation, UnionType, ImportTypeStmt,
 )
 
 
@@ -56,6 +56,8 @@ class JavaScriptGenerator(CodeGenerator):
         super().__init__()
         self.needed_helpers: set[str] = set()
         self.var_types: dict[str, str] = {}  # variable name → type name
+        self._ts_mode = False  # TypeScript mode: generates .ts with type annotations
+        self._ts_import_types: set[str] = set()  # type-only imports in TS mode
 
     def _get_var_type(self, name: str):
         """Get the OmniLang type of a variable by name."""
@@ -65,6 +67,33 @@ class JavaScriptGenerator(CodeGenerator):
         """Track a variable's type."""
         if type_ann:
             self.var_types[name] = type_ann
+
+    def _ts_type(self, ty) -> str:
+        """Convert OmniLang type annotation to TypeScript type string."""
+        if ty is None:
+            return "any"
+        from omnilang.ast_nodes import UnionType
+        if isinstance(ty, UnionType):
+            non_null = [t for t in ty.types if t.name != "null"]
+            if non_null:
+                base = self._ts_type(non_null[0])
+                return f"{base} | null"
+            return "any"
+        name = ty.name
+        mapping = {
+            "i32": "number", "f64": "number", "bool": "boolean",
+            "String": "string", "void": "void", "null": "null",
+        }
+        if name in mapping:
+            return mapping[name]
+        if name == "Array" and ty.type_args:
+            inner = self._ts_type(ty.type_args[0])
+            return f"{inner}[]"
+        if name == "Map" and len(ty.type_args) >= 2:
+            k = self._ts_type(ty.type_args[0])
+            v = self._ts_type(ty.type_args[1])
+            return f"Map<{k}, {v}>"
+        return ty.name  # User-defined types
 
     # ── Top level ─────────────────────────────────
 
@@ -91,8 +120,25 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_function(self, func: FunctionDef):
         prefix = "async " if func.is_async else ""
-        params_str = ", ".join(p.name for p in func.params)
-        self._emit(f"{prefix}function {func.name}({params_str}) {{")
+        if self._ts_mode:
+            params_parts = []
+            for p in func.params:
+                param_type = self._ts_type(p.type_ann)
+                params_parts.append(f"{p.name}: {param_type}")
+            params_str = ", ".join(params_parts)
+            ret_type = "void"
+            if func.return_type:
+                ret_type = self._ts_type(func.return_type)
+            if func.is_async:
+                ret_type = f"Promise<{ret_type}>" if ret_type != "void" else "Promise<void>"
+            generic_str = ""
+            if func.generic_params:
+                gens = [gp.name for gp in func.generic_params]
+                generic_str = f"<{', '.join(gens)}>"
+            self._emit(f"{prefix}function {func.name}{generic_str}({params_str}): {ret_type} {{")
+        else:
+            params_str = ", ".join(p.name for p in func.params)
+            self._emit(f"{prefix}function {func.name}({params_str}) {{")
         self._indent()
         if func.body:
             self._gen_block(func.body)
@@ -135,7 +181,11 @@ class JavaScriptGenerator(CodeGenerator):
                 )
                 init = f"new Map([{entries}])"
 
-            self._emit(f"{keyword} {stmt.name} = {init};")
+            if self._ts_mode and stmt.type_ann:
+                type_str = self._ts_type(stmt.type_ann)
+                self._emit(f"{keyword} {stmt.name}: {type_str} = {init};")
+            else:
+                self._emit(f"{keyword} {stmt.name} = {init};")
 
         elif isinstance(stmt, Assign):
             value = self._gen_expr(stmt.value)
@@ -274,6 +324,28 @@ class JavaScriptGenerator(CodeGenerator):
 
         elif isinstance(expr, FuncCall):
             func_name = self._gen_expr(expr.func)
+            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+            # ── Async built-in functions ─────────────
+            if raw_name == "all":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"Promise.all([{items}])"
+                inner = self._gen_expr(expr.args[0])
+                return f"Promise.all({inner})"
+            if raw_name == "race":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"Promise.race([{items}])"
+                inner = self._gen_expr(expr.args[0])
+                return f"Promise.race({inner})"
+            if raw_name == "tryCatch":
+                future = self._gen_expr(expr.args[0])
+                return (
+                    f"{future}.then(v => ({{_tag: \"Ok\", value: v}}))"
+                    f".catch(e => ({{_tag: \"Err\", error: e}}))"
+                )
+
             args = ", ".join(self._gen_expr(a) for a in expr.args)
             return f"{func_name}({args})"
 
@@ -471,8 +543,15 @@ class JavaScriptGenerator(CodeGenerator):
         return self._gen_expr(arm.body)
 
     def _gen_closure(self, ce: ClosureExpr) -> str:
-        """Generate JavaScript arrow function from ClosureExpr."""
-        params = ", ".join(p.name for p in ce.params)
+        """Generate JavaScript/TypeScript arrow function from ClosureExpr."""
+        if self._ts_mode:
+            params_parts = []
+            for p in ce.params:
+                param_type = self._ts_type(p.type_ann) if p.type_ann else "any"
+                params_parts.append(f"{p.name}: {param_type}")
+            params = ", ".join(params_parts)
+        else:
+            params = ", ".join(p.name for p in ce.params)
         if isinstance(ce.body, Block):
             # Multi-statement body
             body_code = self._gen_block_to_str(ce.body)
@@ -524,46 +603,82 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_imports_exports(self, prog: Program):
         """Generate JS ES module import/export statements."""
-        from omnilang.ast_nodes import ImportStmt, ExportStmt
-        # Scan for imports/exports at the top level
-        imports_done = set()
-        for func in list(prog.functions):
-            pass  # Handled inline in _gen_program
-        # Emit ES module imports if any .omni source had them
-        # (simplified: imports handled at parse time via module loader)
+        from omnilang.ast_nodes import ImportStmt, ImportTypeStmt, ExportStmt
+        # Emit imports
+        for imp in getattr(prog, 'imports', []):
+            if isinstance(imp, ImportTypeStmt) and self._ts_mode:
+                names = ", ".join(imp.names)
+                self._emit(f'import type {{ {names} }} from "{imp.path}";')
+            elif isinstance(imp, ImportStmt):
+                names = ", ".join(imp.names)
+                self._emit(f'import {{ {names} }} from "{imp.path}";')
+        # Exports are handled inline in struct/union/function generators
+        for exp in getattr(prog, 'exports', []):
+            pass
 
     def _gen_tagged_union(self, tu: TaggedUnionDef):
         """JS: tagged unions are discriminated union objects with _tag field."""
-        # JS doesn't have native tagged unions — represent as plain objects
-        # with a _tag discriminator field
-        self._emit(f"// Tagged union: {tu.name}")
-        for v in tu.variants:
-            fields = ", ".join(f"{f.name}: {f.name}" for f in v.fields)
-            params = ", ".join(f.name for f in v.fields)
-            self._emit(f"function {tu.name}_{v.name}({params}) {{")
+        if self._ts_mode:
+            generic_str = ""
+            if tu.generic_params:
+                gens = [gp.name for gp in tu.generic_params]
+                generic_str = f"<{', '.join(gens)}>"
+            self._emit(f"export type {tu.name}{generic_str} =")
             self._indent()
-            self._emit(f'this._tag = "{v.name}";')
-            for f in v.fields:
-                self._emit(f"this.{f.name} = {f.name};")
+            for i, v in enumerate(tu.variants):
+                sep = " |" if i > 0 else ""
+                if v.fields:
+                    fields = ", ".join(
+                        f"{f.name}: {self._ts_type(f.type_ann)}" for f in v.fields
+                    )
+                    self._emit(f'{sep} {{ _tag: "{v.name}"; {fields} }}')
+                else:
+                    self._emit(f'{sep} {{ _tag: "{v.name}" }}')
             self._dedent()
-            self._emit("}")
+            self._emit(";")
+        else:
+            # JS doesn't have native tagged unions — represent as plain objects
+            # with a _tag discriminator field
+            self._emit(f"// Tagged union: {tu.name}")
+            for v in tu.variants:
+                fields = ", ".join(f"{f.name}: {f.name}" for f in v.fields)
+                params = ", ".join(f.name for f in v.fields)
+                self._emit(f"function {tu.name}_{v.name}({params}) {{")
+                self._indent()
+                self._emit(f'this._tag = "{v.name}";')
+                for f in v.fields:
+                    self._emit(f"this.{f.name} = {f.name};")
+                self._dedent()
+                self._emit("}")
         self._emit()
 
     def _gen_struct_def(self, sd: StructDef):
-        """Generate JavaScript class from OmniLang struct definition."""
-        self._emit(f"class {sd.name} {{")
-        self._indent()
-        # Constructor
-        params = ", ".join(f.name for f in sd.fields)
-        self._emit(f"constructor({params}) {{")
-        self._indent()
-        for f in sd.fields:
-            self._emit(f"this.{f.name} = {f.name};")
-        self._dedent()
-        self._emit("}")
-        # Methods from impl blocks
-        for method in sd.methods:
-            self._gen_function(method)
-        self._dedent()
-        self._emit("}")
+        """Generate JavaScript class or TypeScript interface from OmniLang struct definition."""
+        if self._ts_mode:
+            generic_str = ""
+            if sd.generic_params:
+                gens = [gp.name for gp in sd.generic_params]
+                generic_str = f"<{', '.join(gens)}>"
+            self._emit(f"export interface {sd.name}{generic_str} {{")
+            self._indent()
+            for f in sd.fields:
+                self._emit(f"{f.name}: {self._ts_type(f.type_ann)};")
+            self._dedent()
+            self._emit("}")
+        else:
+            self._emit(f"class {sd.name} {{")
+            self._indent()
+            # Constructor
+            params = ", ".join(f.name for f in sd.fields)
+            self._emit(f"constructor({params}) {{")
+            self._indent()
+            for f in sd.fields:
+                self._emit(f"this.{f.name} = {f.name};")
+            self._dedent()
+            self._emit("}")
+            # Methods from impl blocks
+            for method in sd.methods:
+                self._gen_function(method)
+            self._dedent()
+            self._emit("}")
         self._emit()

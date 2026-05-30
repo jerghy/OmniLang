@@ -487,10 +487,33 @@ class ClassMember:
     span: Span | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
+class InterfaceMember:
+    """A member of an interface definition."""
+    name: str = ""
+    type_ann: TypeAnnotation | None = None  # field: type
+    params: list['Param'] = field(default_factory=list)  # method params
+    return_type: TypeAnnotation | UnionType | None = None
+    is_method: bool = False
+    span: Span | None = None
+
+@dataclass(frozen=True)
+class InterfaceDef:
+    """Interface definition: interface Foo { ... }"""
+    name: str = ""
+    members: list[InterfaceMember] = field(default_factory=list)
+    span: Span | None = None
+
 @dataclass(frozen=True)
 class ImportStmt:
     """Import statement: import { A, B } from "./module" """
+    names: list[str] = field(default_factory=list)
+    path: str = ""
+    span: Span | None = None
+
+@dataclass(frozen=True)
+class ImportTypeStmt:
+    """Import type statement: import type { A, B } from "./module" """
     names: list[str] = field(default_factory=list)
     path: str = ""
     span: Span | None = None

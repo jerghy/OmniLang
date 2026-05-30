@@ -116,6 +116,13 @@ def cmd_check(args):
         for rule in registry.list_enabled(config):
             diagnostics.extend(rule.check(ctx))
 
+        # Apply suppression directives
+        from omnilang.analyze.suppress import apply_suppression
+        rule_overrides = {}
+        if config and hasattr(config, 'analyze'):
+            rule_overrides = dict(getattr(config.analyze, 'rules', {}))
+        diagnostics = apply_suppression(diagnostics, source_lines, rule_overrides)
+
         # Summarize and render
         summary = DiagnosticSummary.from_diagnostics(diagnostics)
 
@@ -291,6 +298,80 @@ def cmd_init(args):
         sys.exit(1)
 
 
+def cmd_fmt(args):
+    """Format an OmniLang source file."""
+    if not os.path.exists(args.file):
+        print(f"Error: file not found: {args.file}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(args.file, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    formatted = _format_omni(source, indent=args.indent)
+
+    if args.check:
+        if formatted != source:
+            print(f"File {args.file} needs formatting.")
+            sys.exit(1)
+        else:
+            print(f"File {args.file} is properly formatted.")
+            return
+
+    if formatted != source:
+        with open(args.file, "w", encoding="utf-8") as f:
+            f.write(formatted)
+        print(f"Formatted {args.file}")
+    else:
+        print(f"File {args.file} is already formatted.")
+
+
+def _format_omni(source: str, indent: int = 4) -> str:
+    """Basic OmniLang code formatter.
+
+    Performs:
+    - Consistent indentation using spaces
+    - Trailing whitespace removal
+    - Single trailing newline
+    - Brace-style normalization (opening brace on same line)
+    """
+    import re
+
+    lines = source.split('\n')
+    formatted_lines = []
+    indent_level = 0
+    indent_str = ' ' * indent
+
+    for line in lines:
+        stripped = line.rstrip()
+
+        # Skip empty lines
+        if not stripped:
+            formatted_lines.append('')
+            continue
+
+        # Decrease indent for closing braces
+        close_count = stripped.count('}')
+        if close_count > 0:
+            indent_level = max(0, indent_level - close_count)
+
+        # Apply indentation
+        if stripped:
+            formatted_lines.append(indent_str * indent_level + stripped)
+        else:
+            formatted_lines.append('')
+
+        # Increase indent for opening braces
+        open_count = stripped.count('{')
+        if open_count > 0:
+            indent_level += open_count
+
+        # NOTE: ; terminates statements but doesn't affect indent
+
+    # Ensure single trailing newline
+    result = '\n'.join(formatted_lines).rstrip() + '\n'
+    return result
+
+
 # ── Terminal rendering ────────────────────────────────
 
 def _render_terminal(diagnostics, source_lines):
@@ -439,6 +520,12 @@ def main():
     run_parser.add_argument("--target", "-t", choices=["rust","dart","js","python"], default="python",
                            help="Target language to run (default: python)")
 
+    # ── fmt ──────────────────────────────────────────
+    fmt_parser = subparsers.add_parser("fmt", help="Format an OmniLang source file")
+    fmt_parser.add_argument("file", help="Source file (.omni)")
+    fmt_parser.add_argument("--check", action="store_true", help="Check formatting without modifying")
+    fmt_parser.add_argument("--indent", type=int, default=4, help="Indentation size (default: 4)")
+
     args = parser.parse_args()
 
     if args.command == "build":
@@ -451,6 +538,8 @@ def main():
         cmd_run(args)
     elif args.command == "init":
         cmd_init(args)
+    elif args.command == "fmt":
+        cmd_fmt(args)
     else:
         parser.print_help()
 

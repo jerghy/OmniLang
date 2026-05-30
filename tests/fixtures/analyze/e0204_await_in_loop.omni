@@ -1,0 +1,13 @@
+// E0204: Await in loop
+async fn process_item(item: i32) -> i32 {
+    return item * 2;
+}
+
+async fn main() {
+    let mut i: i32 = 0;
+    while i < 5 {
+        let result: i32 = await process_item(i);
+        println(result.to_string());
+        i = i + 1;
+    }
+}

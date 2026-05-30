@@ -1,0 +1,8 @@
+// E0402: Dynamic trait overhead
+interface Processor {
+    fn process(data: String) -> String;
+}
+
+fn main() {
+    println("interface defined");
+}

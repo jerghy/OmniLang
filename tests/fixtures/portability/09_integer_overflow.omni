@@ -1,0 +1,6 @@
+// Integer overflow behavior differs (wrap, saturate, error)
+fn main() {
+    let max_i32: i32 = 2147483647;
+    let overflow: i32 = max_i32 + 1;
+    println(overflow.to_string());
+}

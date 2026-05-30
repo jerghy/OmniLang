@@ -1,0 +1,6 @@
+// String encoding: UTF-8 vs UTF-16
+fn main() {
+    let s: String = "Hello, 世界!";
+    let len: i32 = s.len();
+    println(len.to_string());
+}

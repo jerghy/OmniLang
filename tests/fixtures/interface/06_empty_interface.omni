@@ -1,0 +1,7 @@
+// Empty interface (marker trait)
+interface Marker {
+}
+
+fn main() {
+    println("ok");
+}

@@ -1,0 +1,6 @@
+// S0101: Unused variable
+fn main() {
+    let used: i32 = 42;
+    let unused: i32 = 10;
+    println(used.to_string());
+}

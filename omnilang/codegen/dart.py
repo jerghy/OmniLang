@@ -294,6 +294,25 @@ class DartGenerator(CodeGenerator):
 
         elif isinstance(expr, FuncCall):
             func_name = self._gen_expr(expr.func)
+            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+            # ── Async built-in functions ─────────────
+            if raw_name == "all":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"Future.wait([{items}])"
+                inner = self._gen_expr(expr.args[0])
+                return f"Future.wait({inner})"
+            if raw_name == "race":
+                if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                    return f"Future.any([{items}])"
+                inner = self._gen_expr(expr.args[0])
+                return f"Future.any({inner})"
+            if raw_name == "tryCatch":
+                future = self._gen_expr(expr.args[0])
+                return f"{future}.then((v) => Ok(v)).catchError((e) => Err(e))"
+
             args = ", ".join(self._gen_expr(a) for a in expr.args)
             return f"{func_name}({args})"
 

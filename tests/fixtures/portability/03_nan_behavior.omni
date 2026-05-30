@@ -1,0 +1,7 @@
+// NaN behavior differs across target languages
+fn main() {
+    let zero: f64 = 0.0;
+    let neg: f64 = -1.0;
+    let nan: f64 = neg.sqrt();
+    println(nan.to_string());
+}
