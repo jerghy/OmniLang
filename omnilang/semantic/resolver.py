@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from omnilang.ast_nodes import (
-    Program, FunctionDef, Block, VarDecl, VarRef, ForInStmt,
+    Program, Block, VarDecl, VarRef, ForInStmt,
     Assign, IfStmt, WhileStmt, Stmt
 )
 from omnilang.utils import ErrorCollector
@@ -137,7 +137,7 @@ def _resolve_expr(expr, scope: Scope, func_names: set, errors: ErrorCollector):
         return
 
     from omnilang.ast_nodes import (
-        VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
+        BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
         ArrayLiteral, MapLiteral, IfExpr,
     )
 

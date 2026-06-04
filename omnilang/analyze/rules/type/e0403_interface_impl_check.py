@@ -4,7 +4,7 @@ Checks that every class implementing an interface provides all required methods.
 """
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import ClassDef, InterfaceDef
+from omnilang.ast_nodes import InterfaceDef
 
 
 class E0403Rule(AnalyzeRule):
@@ -20,10 +20,6 @@ class E0403Rule(AnalyzeRule):
         diagnostics = []
 
         # Collect all interfaces (from tagged unions that serve as interfaces, and explicit InterfaceDef)
-        interfaces: dict[str, InterfaceDef] = {}
-        for item in ctx.program.tagged_unions:
-            # Tagged unions with variants that have no fields act like interfaces
-            pass
 
         # Collect class method names
         for cls in ctx.program.classes:

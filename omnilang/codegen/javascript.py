@@ -7,12 +7,10 @@ from omnilang.ast_nodes import (
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
     Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
     ArrayLiteral, MapLiteral, IfExpr,
-    TemplateString, TemplatePart, NullCoalesce, OptionalChain, ChainLink,
-    ClosureExpr, SpreadExpr, StructLiteral, StructDef,
-    MatchExpr, MatchArm, OrPattern, StructPattern,
-    TaggedUnionDef, Variant, AwaitExpr,
+    TemplateString, NullCoalesce, OptionalChain, ClosureExpr, SpreadExpr, StructLiteral, StructDef,
+    MatchExpr, MatchArm, OrPattern, TaggedUnionDef, AwaitExpr,
     ArrayPattern, ObjectPattern, VarPattern, IgnorePattern, RestPattern,
-    TypeAnnotation, UnionType, ImportTypeStmt,
+    UnionType, ImportTypeStmt,
 )
 
 
@@ -72,7 +70,6 @@ class JavaScriptGenerator(CodeGenerator):
         """Convert OmniLang type annotation to TypeScript type string."""
         if ty is None:
             return "any"
-        from omnilang.ast_nodes import UnionType
         if isinstance(ty, UnionType):
             non_null = [t for t in ty.types if t.name != "null"]
             if non_null:
@@ -159,130 +156,144 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_stmt(self, stmt):
         if isinstance(stmt, VarDecl):
-            keyword = "const" if not stmt.mutable else "let"
-            init = self._gen_expr(stmt.init)
-            self._track_var(stmt.name, stmt.type_ann)
-
-            # Handle container clone from variable
-            if isinstance(stmt.init, VarRef):
-                ty = self.type_map.get(id(stmt.init))
-                if ty:
-                    if ty.name == "Array":
-                        init = f"_arrClone({init})"
-                        self.needed_helpers.add("_arrClone")
-                    elif ty.name == "Map":
-                        init = f"_mapClone({init})"
-                        self.needed_helpers.add("_mapClone")
-            elif isinstance(stmt.init, MapLiteral):
-                # JS Map literal: new Map([[k,v],...])
-                entries = ", ".join(
-                    f"[{self._gen_expr(k)}, {self._gen_expr(v)}]"
-                    for k, v in stmt.init.entries
-                )
-                init = f"new Map([{entries}])"
-
-            if self._ts_mode and stmt.type_ann:
-                type_str = self._ts_type(stmt.type_ann)
-                self._emit(f"{keyword} {stmt.name}: {type_str} = {init};")
-            else:
-                self._emit(f"{keyword} {stmt.name} = {init};")
-
+            self._gen_var_decl_stmt(stmt)
         elif isinstance(stmt, Assign):
-            value = self._gen_expr(stmt.value)
-
-            if stmt.op == "=":
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    # Check container type by looking at the target
-                    target_ty = self._get_var_type(stmt.target)
-                    if target_ty and target_ty.name == "Array":
-                        self.needed_helpers.add("_arrset")
-                        self._emit(f"_arrset({stmt.target}, {idx}, {value});")
-                    elif target_ty and target_ty.name == "Map":
-                        self._emit(f"{stmt.target}.set({idx}, {value});")
-                    else:
-                        self._emit(f"{stmt.target}[{idx}] = {value};")
-                else:
-                    self._emit(f"{stmt.target} = {value};")
-            elif stmt.op in ("/=", "%="):
-                self.needed_helpers.add("_idiv")
-                self.needed_helpers.add("_irem")
-                func = "_idiv" if stmt.op == "/=" else "_irem"
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    self._emit(f"{stmt.target}[{idx}] = {func}({stmt.target}[{idx}], {value});")
-                else:
-                    self._emit(f"{stmt.target} = {func}({stmt.target}, {value});")
-            else:
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    self._emit(f"{stmt.target}[{idx}] {stmt.op} {value};")
-                else:
-                    self._emit(f"{stmt.target} {stmt.op} {value};")
-
+            self._gen_assign_stmt(stmt)
         elif isinstance(stmt, IfStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"if ({cond}) {{")
-            self._indent()
-            self._gen_block(stmt.then_body)
-            self._dedent()
-            for elif_cond, elif_body in stmt.else_ifs:
-                c = self._gen_expr(elif_cond)
-                self._emit(f"}} else if ({c}) {{")
-                self._indent()
-                self._gen_block(elif_body)
-                self._dedent()
-            if stmt.else_body:
-                self._emit("} else {")
-                self._indent()
-                self._gen_block(stmt.else_body)
-                self._dedent()
-            self._emit("}")
-
+            self._gen_if_stmt(stmt)
         elif isinstance(stmt, WhileStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"while ({cond}) {{")
-            self._indent()
-            self._gen_block(stmt.body)
-            self._dedent()
-            self._emit("}")
-
+            self._gen_while_stmt(stmt)
         elif isinstance(stmt, ForInStmt):
-            iterable = self._gen_expr(stmt.iterable)
-            self._emit(f"for (const {stmt.var_name} of {iterable}) {{")
-            self._indent()
-            self._gen_block(stmt.body)
-            self._dedent()
-            self._emit("}")
-
+            self._gen_for_in_stmt(stmt)
         elif isinstance(stmt, BreakStmt):
             self._emit("break;")
-
         elif isinstance(stmt, ContinueStmt):
             self._emit("continue;")
-
         elif isinstance(stmt, ReturnStmt):
-            if stmt.value:
-                val = self._gen_expr(stmt.value)
-                self._emit(f"return {val};")
-            else:
-                self._emit("return;")
-
+            self._gen_return_stmt(stmt)
         elif isinstance(stmt, PrintStmt):
-            arg = self._gen_expr(stmt.arg)
-            if stmt.newline:
-                self._emit(f"console.log({arg});")
-            else:
-                self._emit(f"process.stdout.write({arg});")
-
+            self._gen_print_stmt(stmt)
         elif isinstance(stmt, ExprStmt):
-            code = self._gen_expr(stmt.expr)
-            # If the expression is a MethodCall with side effects, emit it
-            if isinstance(stmt.expr, MethodCall) and stmt.expr.method in ("push", "insert", "pop"):
-                self._emit(f"{code};")
-
+            self._gen_expr_stmt(stmt)
         elif isinstance(stmt, Destructure):
             self._gen_destructure(stmt)
+
+    def _gen_var_decl_stmt(self, stmt):
+        keyword = "const" if not stmt.mutable else "let"
+        init = self._gen_expr(stmt.init)
+        self._track_var(stmt.name, stmt.type_ann)
+
+        # Handle container clone from variable
+        if isinstance(stmt.init, VarRef):
+            ty = self.type_map.get(id(stmt.init))
+            if ty:
+                if ty.name == "Array":
+                    init = f"_arrClone({init})"
+                    self.needed_helpers.add("_arrClone")
+                elif ty.name == "Map":
+                    init = f"_mapClone({init})"
+                    self.needed_helpers.add("_mapClone")
+        elif isinstance(stmt.init, MapLiteral):
+            # JS Map literal: new Map([[k,v],...])
+            entries = ", ".join(
+                f"[{self._gen_expr(k)}, {self._gen_expr(v)}]"
+                for k, v in stmt.init.entries
+            )
+            init = f"new Map([{entries}])"
+
+        if self._ts_mode and stmt.type_ann:
+            type_str = self._ts_type(stmt.type_ann)
+            self._emit(f"{keyword} {stmt.name}: {type_str} = {init};")
+        else:
+            self._emit(f"{keyword} {stmt.name} = {init};")
+
+    def _gen_assign_stmt(self, stmt):
+        value = self._gen_expr(stmt.value)
+
+        if stmt.op == "=":
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                # Check container type by looking at the target
+                target_ty = self._get_var_type(stmt.target)
+                if target_ty and target_ty.name == "Array":
+                    self.needed_helpers.add("_arrset")
+                    self._emit(f"_arrset({stmt.target}, {idx}, {value});")
+                elif target_ty and target_ty.name == "Map":
+                    self._emit(f"{stmt.target}.set({idx}, {value});")
+                else:
+                    self._emit(f"{stmt.target}[{idx}] = {value};")
+            else:
+                self._emit(f"{stmt.target} = {value};")
+        elif stmt.op in ("/=", "%="):
+            self.needed_helpers.add("_idiv")
+            self.needed_helpers.add("_irem")
+            func = "_idiv" if stmt.op == "/=" else "_irem"
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                self._emit(f"{stmt.target}[{idx}] = {func}({stmt.target}[{idx}], {value});")
+            else:
+                self._emit(f"{stmt.target} = {func}({stmt.target}, {value});")
+        else:
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                self._emit(f"{stmt.target}[{idx}] {stmt.op} {value};")
+            else:
+                self._emit(f"{stmt.target} {stmt.op} {value};")
+
+    def _gen_if_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"if ({cond}) {{")
+        self._indent()
+        self._gen_block(stmt.then_body)
+        self._dedent()
+        for elif_cond, elif_body in stmt.else_ifs:
+            c = self._gen_expr(elif_cond)
+            self._emit(f"}} else if ({c}) {{")
+            self._indent()
+            self._gen_block(elif_body)
+            self._dedent()
+        if stmt.else_body:
+            self._emit("} else {")
+            self._indent()
+            self._gen_block(stmt.else_body)
+            self._dedent()
+        self._emit("}")
+
+    def _gen_while_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"while ({cond}) {{")
+        self._indent()
+        self._gen_block(stmt.body)
+        self._dedent()
+        self._emit("}")
+
+    def _gen_for_in_stmt(self, stmt):
+        iterable = self._gen_expr(stmt.iterable)
+        self._emit(f"for (const {stmt.var_name} of {iterable}) {{")
+        self._indent()
+        self._gen_block(stmt.body)
+        self._dedent()
+        self._emit("}")
+
+    def _gen_return_stmt(self, stmt):
+        if stmt.value:
+            val = self._gen_expr(stmt.value)
+            self._emit(f"return {val};")
+        else:
+            self._emit("return;")
+
+    def _gen_print_stmt(self, stmt):
+        arg = self._gen_expr(stmt.arg)
+        if stmt.newline:
+            self._emit(f"console.log({arg});")
+        else:
+            self._emit(f"process.stdout.write({arg});")
+
+    def _gen_expr_stmt(self, stmt):
+        code = self._gen_expr(stmt.expr)
+        # If the expression is a MethodCall with side effects, emit it
+        if isinstance(stmt.expr, MethodCall) and stmt.expr.method in ("push", "insert", "pop"):
+            self._emit(f"{code};")
 
     # ── Expressions ───────────────────────────────
 
@@ -291,176 +302,198 @@ class JavaScriptGenerator(CodeGenerator):
             return "undefined"
 
         if isinstance(expr, Literal):
-            if expr.kind == "String":
-                escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
-                return f'"{escaped}"'
-            elif expr.kind == "bool":
-                return "true" if expr.value else "false"
-            return str(expr.value)
-
+            return self._gen_literal_expr(expr)
         elif isinstance(expr, VarRef):
-            return expr.name
-
+            return self._gen_var_ref_expr(expr)
         elif isinstance(expr, BinaryOp):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-
-            if expr.op == "/":
-                left_ty = self.type_map.get(id(expr.left))
-                if left_ty and left_ty.name == "i32":
-                    self.needed_helpers.add("_idiv")
-                    return f"_idiv({left}, {right})"
-            elif expr.op == "%":
-                left_ty = self.type_map.get(id(expr.left))
-                if left_ty and left_ty.name == "i32":
-                    self.needed_helpers.add("_irem")
-                    return f"_irem({left}, {right})"
-
-            return f"({left} {expr.op} {right})"
-
+            return self._gen_binary_op_expr(expr)
         elif isinstance(expr, UnaryOp):
-            operand = self._gen_expr(expr.operand)
-            return f"({expr.op} {operand})"
-
+            return self._gen_unary_op_expr(expr)
         elif isinstance(expr, FuncCall):
-            func_name = self._gen_expr(expr.func)
-            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
-
-            # ── Async built-in functions ─────────────
-            if raw_name == "all":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
-                    return f"Promise.all([{items}])"
-                inner = self._gen_expr(expr.args[0])
-                return f"Promise.all({inner})"
-            if raw_name == "race":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
-                    return f"Promise.race([{items}])"
-                inner = self._gen_expr(expr.args[0])
-                return f"Promise.race({inner})"
-            if raw_name == "tryCatch":
-                future = self._gen_expr(expr.args[0])
-                return (
-                    f"{future}.then(v => ({{_tag: \"Ok\", value: v}}))"
-                    f".catch(e => ({{_tag: \"Err\", error: e}}))"
-                )
-
-            args = ", ".join(self._gen_expr(a) for a in expr.args)
-            return f"{func_name}({args})"
-
+            return self._gen_func_call_expr(expr)
         elif isinstance(expr, MethodCall):
-            obj = self._gen_expr(expr.object)
-            method = expr.method
-
-            if method == "len":
-                obj_ty = self.type_map.get(id(expr.object))
-                if obj_ty and obj_ty.name == "Array":
-                    self.needed_helpers.add("_arrlen")
-                    return f"_arrlen({obj})"
-                elif obj_ty and obj_ty.name == "Map":
-                    self.needed_helpers.add("_maplen")
-                    return f"_maplen({obj})"
-                return f"{obj}.length"
-            elif method == "is_empty":
-                obj_ty = self.type_map.get(id(expr.object))
-                if obj_ty and obj_ty.name == "Array":
-                    self.needed_helpers.add("_arrisempty")
-                    return f"_arrisempty({obj})"
-                elif obj_ty and obj_ty.name == "Map":
-                    self.needed_helpers.add("_maplen")
-                    return f"_maplen({obj}) === 0"
-                return f"({obj}.length === 0)"
-            elif method == "get":
-                obj_ty = self.type_map.get(id(expr.object))
-                arg = ", ".join(self._gen_expr(a) for a in expr.args)
-                if obj_ty and obj_ty.name == "Array":
-                    self.needed_helpers.add("_arrget")
-                    return f"_arrget({obj}, {arg})"
-                elif obj_ty and obj_ty.name == "Map":
-                    self.needed_helpers.add("_mapget")
-                    return f"_mapget({obj}, {arg})"
-                return f"{obj}[{arg}]"
-            elif method == "push":
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}.push({args})"
-            elif method == "pop":
-                obj_ty = self.type_map.get(id(expr.object))
-                if obj_ty and obj_ty.name == "Array":
-                    self.needed_helpers.add("_arrpop")
-                    return f"_arrpop({obj})"
-                return f"{obj}.pop()"
-            elif method == "contains":
-                arg = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}.has({arg})"
-            elif method == "insert":
-                k = self._gen_expr(expr.args[0])
-                v = self._gen_expr(expr.args[1])
-                return f"{obj}.set({k}, {v})"
-            elif method == "to_string":
-                return f"String({obj})"
-            else:
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}.{method}({args})"
-
+            return self._gen_method_call_expr(expr)
         elif isinstance(expr, IndexGet):
-            obj = self._gen_expr(expr.object)
-            idx = self._gen_expr(expr.index)
-
-            obj_ty = self.type_map.get(id(expr.object))
-            if obj_ty and obj_ty.name == "Array":
-                self.needed_helpers.add("_arrget")
-                return f"_arrget({obj}, {idx})"
-            elif obj_ty and obj_ty.name == "Map":
-                self.needed_helpers.add("_mapget")
-                return f"_mapget({obj}, {idx})"
-            return f"{obj}[{idx}]"
-
+            return self._gen_index_get_expr(expr)
         elif isinstance(expr, ArrayLiteral):
-            elems = ", ".join(self._gen_expr(e) for e in expr.elements)
-            return f"[{elems}]"
-
+            return self._gen_array_literal_expr(expr)
         elif isinstance(expr, MapLiteral):
-            entries = ", ".join(
-                f"[{self._gen_expr(k)}, {self._gen_expr(v)}]"
-                for k, v in expr.entries
-            )
-            return f"new Map([{entries}])"
-
+            return self._gen_map_literal_expr(expr)
         elif isinstance(expr, IfExpr):
-            cond = self._gen_expr(expr.condition)
-            then = self._gen_expr(expr.then_expr)
-            else_ = self._gen_expr(expr.else_expr)
-            return f"({cond} ? {then} : {else_})"
-
+            return self._gen_if_expr(expr)
         elif isinstance(expr, TemplateString):
             return self._gen_template_string(expr)
-
         elif isinstance(expr, NullCoalesce):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-            return f"({left} ?? {right})"
-
+            return self._gen_null_coalesce_expr(expr)
         elif isinstance(expr, OptionalChain):
             return self._gen_optional_chain(expr)
-
         elif isinstance(expr, SpreadExpr):
-            inner = self._gen_expr(expr.expr)
-            return f"...{inner}"
-
+            return self._gen_spread_expr(expr)
         elif isinstance(expr, StructLiteral):
             return self._gen_struct_literal(expr)
-
         elif isinstance(expr, ClosureExpr):
             return self._gen_closure(expr)
-
         elif isinstance(expr, MatchExpr):
             return self._gen_match(expr)
-
         elif isinstance(expr, AwaitExpr):
-            return f"await {self._gen_expr(expr.expr)}"
+            return self._gen_await_expr(expr)
 
         return "undefined"
+
+    def _gen_literal_expr(self, expr):
+        if expr.kind == "String":
+            escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+            return f'"{escaped}"'
+        elif expr.kind == "bool":
+            return "true" if expr.value else "false"
+        return str(expr.value)
+
+    def _gen_var_ref_expr(self, expr):
+        return expr.name
+
+    def _gen_binary_op_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+
+        if expr.op == "/":
+            left_ty = self.type_map.get(id(expr.left))
+            if left_ty and left_ty.name == "i32":
+                self.needed_helpers.add("_idiv")
+                return f"_idiv({left}, {right})"
+        elif expr.op == "%":
+            left_ty = self.type_map.get(id(expr.left))
+            if left_ty and left_ty.name == "i32":
+                self.needed_helpers.add("_irem")
+                return f"_irem({left}, {right})"
+
+        return f"({left} {expr.op} {right})"
+
+    def _gen_unary_op_expr(self, expr):
+        operand = self._gen_expr(expr.operand)
+        return f"({expr.op} {operand})"
+
+    def _gen_func_call_expr(self, expr):
+        func_name = self._gen_expr(expr.func)
+        raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+        # ── Async built-in functions ─────────────
+        if raw_name == "all":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                return f"Promise.all([{items}])"
+            inner = self._gen_expr(expr.args[0])
+            return f"Promise.all({inner})"
+        if raw_name == "race":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                return f"Promise.race([{items}])"
+            inner = self._gen_expr(expr.args[0])
+            return f"Promise.race({inner})"
+        if raw_name == "tryCatch":
+            future = self._gen_expr(expr.args[0])
+            return (
+                f"{future}.then(v => ({{_tag: \"Ok\", value: v}}))"
+                f".catch(e => ({{_tag: \"Err\", error: e}}))"
+            )
+
+        args = ", ".join(self._gen_expr(a) for a in expr.args)
+        return f"{func_name}({args})"
+
+    def _gen_method_call_expr(self, expr):
+        obj = self._gen_expr(expr.object)
+        method = expr.method
+
+        if method == "len":
+            obj_ty = self.type_map.get(id(expr.object))
+            if obj_ty and obj_ty.name == "Array":
+                self.needed_helpers.add("_arrlen")
+                return f"_arrlen({obj})"
+            elif obj_ty and obj_ty.name == "Map":
+                self.needed_helpers.add("_maplen")
+                return f"_maplen({obj})"
+            return f"{obj}.length"
+        elif method == "is_empty":
+            obj_ty = self.type_map.get(id(expr.object))
+            if obj_ty and obj_ty.name == "Array":
+                self.needed_helpers.add("_arrisempty")
+                return f"_arrisempty({obj})"
+            elif obj_ty and obj_ty.name == "Map":
+                self.needed_helpers.add("_maplen")
+                return f"_maplen({obj}) === 0"
+            return f"({obj}.length === 0)"
+        elif method == "get":
+            obj_ty = self.type_map.get(id(expr.object))
+            arg = ", ".join(self._gen_expr(a) for a in expr.args)
+            if obj_ty and obj_ty.name == "Array":
+                self.needed_helpers.add("_arrget")
+                return f"_arrget({obj}, {arg})"
+            elif obj_ty and obj_ty.name == "Map":
+                self.needed_helpers.add("_mapget")
+                return f"_mapget({obj}, {arg})"
+            return f"{obj}[{arg}]"
+        elif method == "push":
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}.push({args})"
+        elif method == "pop":
+            obj_ty = self.type_map.get(id(expr.object))
+            if obj_ty and obj_ty.name == "Array":
+                self.needed_helpers.add("_arrpop")
+                return f"_arrpop({obj})"
+            return f"{obj}.pop()"
+        elif method == "contains":
+            arg = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}.has({arg})"
+        elif method == "insert":
+            k = self._gen_expr(expr.args[0])
+            v = self._gen_expr(expr.args[1])
+            return f"{obj}.set({k}, {v})"
+        elif method == "to_string":
+            return f"String({obj})"
+        else:
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}.{method}({args})"
+
+    def _gen_index_get_expr(self, expr):
+        obj = self._gen_expr(expr.object)
+        idx = self._gen_expr(expr.index)
+
+        obj_ty = self.type_map.get(id(expr.object))
+        if obj_ty and obj_ty.name == "Array":
+            self.needed_helpers.add("_arrget")
+            return f"_arrget({obj}, {idx})"
+        elif obj_ty and obj_ty.name == "Map":
+            self.needed_helpers.add("_mapget")
+            return f"_mapget({obj}, {idx})"
+        return f"{obj}[{idx}]"
+
+    def _gen_array_literal_expr(self, expr):
+        elems = ", ".join(self._gen_expr(e) for e in expr.elements)
+        return f"[{elems}]"
+
+    def _gen_map_literal_expr(self, expr):
+        entries = ", ".join(
+            f"[{self._gen_expr(k)}, {self._gen_expr(v)}]"
+            for k, v in expr.entries
+        )
+        return f"new Map([{entries}])"
+
+    def _gen_if_expr(self, expr):
+        cond = self._gen_expr(expr.condition)
+        then = self._gen_expr(expr.then_expr)
+        else_ = self._gen_expr(expr.else_expr)
+        return f"({cond} ? {then} : {else_})"
+
+    def _gen_null_coalesce_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+        return f"({left} ?? {right})"
+
+    def _gen_spread_expr(self, expr):
+        inner = self._gen_expr(expr.expr)
+        return f"...{inner}"
+
+    def _gen_await_expr(self, expr):
+        return f"await {self._gen_expr(expr.expr)}"
 
     # ── v0.2 helpers ──────────────────────────────
 
@@ -506,14 +539,14 @@ class JavaScriptGenerator(CodeGenerator):
         tmp = f"_m{self._match_counter}"
 
         # Build as IIFE: (() => { const _m = scr; if (...) return ...; })()
-        parts = [f"(() => {{"]
+        parts = ["(() => {"]
         parts.append(f"  const {tmp} = {scrutinee};")
         for arm in me.arms:
             cond = self._gen_match_condition(tmp, arm)
             body_code = self._gen_arm_body(arm)
             parts.append(f"  if ({cond}) return {body_code};")
-        parts.append(f"  return undefined;")
-        parts.append(f"}})()")
+        parts.append("  return undefined;")
+        parts.append("})()")
         return "\n".join(parts)
 
     def _gen_match_condition(self, tmp: str, arm: MatchArm) -> str:
@@ -603,7 +636,7 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_imports_exports(self, prog: Program):
         """Generate JS ES module import/export statements."""
-        from omnilang.ast_nodes import ImportStmt, ImportTypeStmt, ExportStmt
+        from omnilang.ast_nodes import ImportStmt
         # Emit imports
         for imp in getattr(prog, 'imports', []):
             if isinstance(imp, ImportTypeStmt) and self._ts_mode:

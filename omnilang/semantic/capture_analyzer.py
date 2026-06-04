@@ -9,11 +9,10 @@ This information is used by:
 - Analyze rules: P0106 (capture semantics), E0306 (escape warnings)
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from omnilang.ast_nodes import (
     Program, FunctionDef, Block, VarDecl, Assign,
     ClosureExpr, VarRef, Expr,
-    ArrayPattern, VarPattern, IgnorePattern, RestPattern,
 )
 
 

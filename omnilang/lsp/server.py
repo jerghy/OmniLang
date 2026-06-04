@@ -6,17 +6,12 @@ Supports: hover, definition, completion, references, codeAction, rename.
 
 import json
 import sys
-import os
 from typing import Any
 
 from omnilang.parser import parse
 from omnilang.ast_nodes import (
-    Program, FunctionDef, VarDecl, StructDef, ClassDef,
-    InterfaceDef, TaggedUnionDef, Param, Block, Stmt,
-    Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
-    ArrayLiteral, MapLiteral, IfExpr,
-    Assign, IfStmt, WhileStmt, ForInStmt,
-    BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
+    Program, FunctionDef, VarDecl, Block, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, Assign, IfStmt, WhileStmt, ForInStmt,
+    ReturnStmt, PrintStmt, ExprStmt,
     TypeAnnotation, UnionType,
 )
 
@@ -313,7 +308,7 @@ class OmniLangServer:
         except json.JSONDecodeError:
             return
         method = msg.get("method", "")
-        msg_id = msg.get("id")
+        _msg_id = msg.get("id")
 
         if method == "initialize":
             self._handle_initialize(msg)
@@ -429,13 +424,7 @@ class OmniLangServer:
 
     def _handle_hover(self, msg: dict):
         """Return type information and documentation for the symbol under cursor."""
-        params = msg.get("params", {})
-        td = params.get("textDocument", {})
-        pos = params.get("position", {})
-        uri = td.get("uri", "")
-        line = pos.get("line", 0) + 1       # convert 0-based -> 1-based
-        col = pos.get("character", 0) + 1
-
+        uri, line, col = self._extract_hover_position(msg)
         prog = self._get_or_parse(uri)
         if prog is None:
             self._send_result(msg.get("id"), None)
@@ -443,91 +432,117 @@ class OmniLangServer:
 
         result = _find_symbol_at(prog, line, col)
         if result is None:
-            # Check if the cursor is on a keyword
-            source = self.documents.get(uri, "")
-            lines = source.split("\n")
-            if 0 <= line - 1 < len(lines):
-                src_line = lines[line - 1]
-                # Try to extract the word at cursor
-                word = ""
-                idx = col - 1
-                if 0 <= idx < len(src_line):
-                    c = src_line[idx]
-                    if c.isalnum() or c == "_":
-                        start = idx
-                        while start > 0 and (src_line[start - 1].isalnum() or src_line[start - 1] == "_"):
-                            start -= 1
-                        end = idx
-                        while end < len(src_line) and (src_line[end].isalnum() or src_line[end] == "_"):
-                            end += 1
-                        word = src_line[start:end]
-
-                if word in BUILTIN_TYPE_DOCS:
-                    self._send_result(msg.get("id"), {
-                        "contents": {
-                            "kind": "markdown",
-                            "value": f"**{word}** — {BUILTIN_TYPE_DOCS[word]}",
-                        },
-                        "range": _make_lsp_range(line, col, line, col + len(word)),
-                    })
-                    return
-                elif word in KEYWORD_DETAILS:
-                    detail = KEYWORD_DETAILS[word]
-                    self._send_result(msg.get("id"), {
-                        "contents": {
-                            "kind": "markdown",
-                            "value": f"**`{word}`** keyword\n\n```omnilang\n{detail}\n```",
-                        },
-                        "range": _make_lsp_range(line, col, line, col + len(word)),
-                    })
-                    return
-
-            self._send_result(msg.get("id"), None)
+            self._handle_hover_word(msg, uri, line, col)
             return
 
         name, kind = result
 
-        # Build hover content
         if kind == "function":
-            func = _find_function_def(prog, name)
-            if func:
-                parts = [f"**Function `{name}`**\n\n"]
-                params_str = ", ".join(
-                    f"{p.name}: {p.type_ann}" if p.type_ann else p.name
-                    for p in func.params
-                )
-                ret_str = f" -> {func.return_type}" if func.return_type else ""
-                sig = f"```omnilang\nfn {name}({params_str}){ret_str}\n```"
-                parts.append(sig)
-                if func.is_async:
-                    parts.append("\n*async function*")
-                self._send_result(msg.get("id"), {
-                    "contents": {
-                        "kind": "markdown",
-                        "value": "\n".join(parts),
-                    },
-                })
-                return
-
+            self._handle_hover_function(msg, prog, name)
         elif kind == "type":
+            self._handle_hover_type(msg, name)
+        elif kind == "variable":
+            self._handle_hover_variable(msg, name)
+        else:
+            self._send_result(msg.get("id"), None)
+
+    def _extract_hover_position(self, msg: dict) -> tuple[str, int, int]:
+        """Extract (uri, line, col) from hover message, converting to 1-based."""
+        params = msg.get("params", {})
+        td = params.get("textDocument", {})
+        pos = params.get("position", {})
+        uri = td.get("uri", "")
+        line = pos.get("line", 0) + 1
+        col = pos.get("character", 0) + 1
+        return uri, line, col
+
+    def _extract_word_at(self, uri: str, line: int, col: int) -> str:
+        """Extract the word at the given cursor position in a document."""
+        source = self.documents.get(uri, "")
+        lines = source.split("\n")
+        if not (0 <= line - 1 < len(lines)):
+            return ""
+        src_line = lines[line - 1]
+        idx = col - 1
+        if not (0 <= idx < len(src_line)):
+            return ""
+        c = src_line[idx]
+        if not (c.isalnum() or c == "_"):
+            return ""
+        start = idx
+        while start > 0 and (src_line[start - 1].isalnum() or src_line[start - 1] == "_"):
+            start -= 1
+        end = idx
+        while end < len(src_line) and (src_line[end].isalnum() or src_line[end] == "_"):
+            end += 1
+        return src_line[start:end]
+
+    def _handle_hover_word(self, msg: dict, uri: str, line: int, col: int):
+        """Handle hover when the cursor is on a keyword or builtin type."""
+        word = self._extract_word_at(uri, line, col)
+
+        if word in BUILTIN_TYPE_DOCS:
             self._send_result(msg.get("id"), {
                 "contents": {
                     "kind": "markdown",
-                    "value": f"**Type `{name}`**\n\nCustom type defined in this module.",
+                    "value": f"**{word}** — {BUILTIN_TYPE_DOCS[word]}",
                 },
+                "range": _make_lsp_range(line, col, line, col + len(word)),
             })
             return
-
-        elif kind == "variable":
+        elif word in KEYWORD_DETAILS:
+            detail = KEYWORD_DETAILS[word]
             self._send_result(msg.get("id"), {
                 "contents": {
                     "kind": "markdown",
-                    "value": f"**Variable `{name}`**",
+                    "value": f"**`{word}`** keyword\n\n```omnilang\n{detail}\n```",
                 },
+                "range": _make_lsp_range(line, col, line, col + len(word)),
             })
             return
 
         self._send_result(msg.get("id"), None)
+
+    def _handle_hover_function(self, msg: dict, prog: Program, name: str):
+        """Handle hover on a function symbol."""
+        func = _find_function_def(prog, name)
+        if func:
+            parts = [f"**Function `{name}`**\n\n"]
+            params_str = ", ".join(
+                f"{p.name}: {p.type_ann}" if p.type_ann else p.name
+                for p in func.params
+            )
+            ret_str = f" -> {func.return_type}" if func.return_type else ""
+            sig = f"```omnilang\nfn {name}({params_str}){ret_str}\n```"
+            parts.append(sig)
+            if func.is_async:
+                parts.append("\n*async function*")
+            self._send_result(msg.get("id"), {
+                "contents": {
+                    "kind": "markdown",
+                    "value": "\n".join(parts),
+                },
+            })
+            return
+        self._send_result(msg.get("id"), None)
+
+    def _handle_hover_type(self, msg: dict, name: str):
+        """Handle hover on a type symbol."""
+        self._send_result(msg.get("id"), {
+            "contents": {
+                "kind": "markdown",
+                "value": f"**Type `{name}`**\n\nCustom type defined in this module.",
+            },
+        })
+
+    def _handle_hover_variable(self, msg: dict, name: str):
+        """Handle hover on a variable symbol."""
+        self._send_result(msg.get("id"), {
+            "contents": {
+                "kind": "markdown",
+                "value": f"**Variable `{name}`**",
+            },
+        })
 
     # ── textDocument/definition ──────────────────────
 
@@ -647,7 +662,7 @@ class OmniLangServer:
 
         for diag in diags:
             code = diag.get("code", "")
-            message = diag.get("message", "")
+            _message = diag.get("message", "")
             range_val = diag.get("range", {})
 
             # P0101: integer division -> suggest float cast or explicit idiv

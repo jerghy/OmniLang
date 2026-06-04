@@ -7,7 +7,7 @@ In Rust, this requires Cell/RefCell or move semantics.
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import ClosureExpr, ReturnStmt, VarDecl, Assign, Block, FunctionDef
+from omnilang.ast_nodes import ClosureExpr, ReturnStmt, Block
 
 
 class E0306Rule(AnalyzeRule):
@@ -76,7 +76,7 @@ class E0306Rule(AnalyzeRule):
         """Recurse into expressions to find closures."""
         if isinstance(expr, ClosureExpr):
             # Check if this closure captures free variables
-            captures = self._get_free_vars(expr)
+            _captures = self._get_free_vars(expr)
             pass  # Escaping detection is done in ReturnStmt traversal
 
         for field_name in getattr(expr, '__dataclass_fields__', {}):

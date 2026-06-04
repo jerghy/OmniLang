@@ -10,7 +10,7 @@ from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
     Assign, BinaryOp, VarRef, ForInStmt, WhileStmt,
-    Block, VarDecl,
+    Block,
 )
 
 

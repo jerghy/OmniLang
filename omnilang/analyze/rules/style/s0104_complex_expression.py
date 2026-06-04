@@ -9,9 +9,7 @@ variables or helper functions.
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
-    Block, BinaryOp, UnaryOp, FuncCall, MethodCall, IndexGet,
-    IfExpr, MatchExpr, NullCoalesce, OptionalChain,
-    AwaitExpr, SpreadExpr, ArrayLiteral, MapLiteral, TemplateString,
+    Block,
 )
 
 
@@ -71,7 +69,7 @@ class S0104Rule(AnalyzeRule):
             return _depth
 
         # Fields known to hold child expressions directly
-        direct_fields = frozenset({
+        _direct_fields = frozenset({
             "left", "right", "operand", "func", "object", "index",
             "condition", "then_expr", "else_expr", "expr",
         })

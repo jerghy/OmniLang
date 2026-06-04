@@ -10,7 +10,7 @@ All paths use forward slash `/` internally; pathlib handles platform conversion.
 """
 
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

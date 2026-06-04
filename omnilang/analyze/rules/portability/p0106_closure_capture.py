@@ -1,11 +1,14 @@
 """P0106: Closure capture semantics differ across targets."""
-from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
+from omnilang.analyze.registry import AnalyzeRule
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import ClosureExpr
 from omnilang.semantic.capture_analyzer import analyze_captures, CaptureKind
 
 class P0106Rule(AnalyzeRule):
-    code = "P0106"; name = "closure_capture_semantics"; severity = Severity.PORT; category = "portability"
+    code = "P0106"
+    name = "closure_capture_semantics"
+    severity = Severity.PORT
+    category = "portability"
     message = "Closure capture semantics differ: JS/Dart/Python use reference capture; Rust uses move+Cell/RefCell"
     help = "For mutable captures in cross-target code, avoid relying on shared mutable state in closures."
     def check(self, ctx):
@@ -24,12 +27,15 @@ class P0106Rule(AnalyzeRule):
         return diags
     def _find_closures(self, block, target_id):
         results = []
-        if block is None: return results
+        if block is None:
+            return results
         for stmt in getattr(block,'stmts',[]):
             for attr in ['init','value','condition','iterable','arg','expr']:
                 v = getattr(stmt,attr,None)
-                if isinstance(v, ClosureExpr) and id(v) == target_id: results.append(v)
+                if isinstance(v, ClosureExpr) and id(v) == target_id:
+                    results.append(v)
             for attr in ['body','then_body','else_body']:
                 c = getattr(stmt,attr,None)
-                if c: results.extend(self._find_closures(c, target_id))
+                if c:
+                    results.extend(self._find_closures(c, target_id))
         return results

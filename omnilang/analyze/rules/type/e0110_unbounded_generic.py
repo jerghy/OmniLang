@@ -13,9 +13,6 @@ The preferred style is to always provide at least one trait bound
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
-    FunctionDef,
-    StructDef,
-    TaggedUnionDef,
     GenericParam,
 )
 

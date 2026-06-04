@@ -6,7 +6,7 @@ Supports three output formats:
     - github: GitHub Actions workflow annotations
 """
 
-from omnilang.analyze.diagnostic import Diagnostic, DiagnosticSummary, Severity
+from omnilang.analyze.diagnostic import Diagnostic, DiagnosticSummary
 
 
 def render_terminal(diagnostics: list[Diagnostic], source_lines: dict[str, list[str]]):

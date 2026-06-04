@@ -1,9 +1,12 @@
 """P0111: Generic type erasure in JS plain mode."""
-from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
+from omnilang.analyze.registry import AnalyzeRule
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 
 class P0111Rule(AnalyzeRule):
-    code = "P0111"; name = "generics_erasure_js"; severity = Severity.PORT; category = "portability"
+    code = "P0111"
+    name = "generics_erasure_js"
+    severity = Severity.PORT
+    category = "portability"
     message = "Generic types are erased in JS plain mode — no runtime type checking"
     help = "Use TypeScript mode for generic type preservation, or add runtime type guards."
     def check(self, ctx):

@@ -4,7 +4,7 @@ import argparse
 import sys
 import os
 
-from omnilang.parser import parse_file, parse
+from omnilang.parser import parse
 from omnilang.semantic import analyze
 from omnilang.codegen import generate
 
@@ -71,7 +71,7 @@ def cmd_check(args):
 
     try:
         from omnilang.analyze.diagnostic import (
-            Diagnostic, DiagnosticSummary, Severity, SourceLocation,
+            Diagnostic, DiagnosticSummary,
         )
 
         # Read source
@@ -94,7 +94,6 @@ def cmd_check(args):
         from omnilang.analyze.registry import build_default_registry, AnalyzeContext
         from omnilang.analyze.renderer import (
             render_terminal_plain, render_json, render_github,
-            render_summary,
         )
         from omnilang.config import load_config
 
@@ -223,7 +222,9 @@ def cmd_fix(args):
 
 def cmd_run(args):
     """Compile and immediately run an OmniLang file."""
-    import subprocess, tempfile, os
+    import subprocess
+    import tempfile
+    import os
     if not os.path.exists(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
         sys.exit(1)
@@ -242,18 +243,18 @@ def cmd_run(args):
         f.write(code)
 
     if args.target == "python":
-        result = subprocess.run(["python", out], capture_output=False)
+        _result = subprocess.run(["python", out], capture_output=False)
     elif args.target == "js":
-        result = subprocess.run(["node", out], capture_output=False)
+        _result = subprocess.run(["node", out], capture_output=False)
     elif args.target == "dart":
-        result = subprocess.run(["dart", "run", out], capture_output=False)
+        _result = subprocess.run(["dart", "run", out], capture_output=False)
     elif args.target == "rust":
         import shutil
         rust_dir = os.path.join(tmpdir, "rust_proj")
         os.makedirs(os.path.join(rust_dir, "src"), exist_ok=True)
         shutil.copy(out, os.path.join(rust_dir, "src", "main.rs"))
         with open(os.path.join(rust_dir, "Cargo.toml"), "w") as f:
-            f.write(f'[package]\nname = "omni_run"\nversion = "0.1.0"\nedition = "2021"\n')
+            f.write('[package]\nname = "omni_run"\nversion = "0.1.0"\nedition = "2021"\n')
         subprocess.run(["cargo", "run", "--quiet"], cwd=rust_dir, capture_output=False)
     else:
         print(f"Unknown target: {args.target}", file=sys.stderr)
@@ -289,7 +290,7 @@ def cmd_init(args):
         print(f"  Source: {src_dir}/")
 
         if errors:
-            print(f"\nConfig warnings:")
+            print("\nConfig warnings:")
             for err in errors:
                 print(f"  - {err}")
 
@@ -334,7 +335,6 @@ def _format_omni(source: str, indent: int = 4) -> str:
     - Single trailing newline
     - Brace-style normalization (opening brace on same line)
     """
-    import re
 
     lines = source.split('\n')
     formatted_lines = []
@@ -377,13 +377,11 @@ def _format_omni(source: str, indent: int = 4) -> str:
 def _render_terminal(diagnostics, source_lines):
     """Render diagnostics with colored terminal output."""
     for diag in diagnostics:
-        sev_color = diag.severity.color()
-        sev_short = diag.severity.short()
         label = f"{diag.severity.name}: {diag.code}"
 
         print(f"{label}")
         print(f"  --> {diag.location}")
-        print(f"   |")
+        print("   |")
         if diag.location.file in source_lines:
             file_lines = source_lines[diag.location.file]
             line_no = diag.location.line

@@ -29,8 +29,6 @@ from omnilang.ast_nodes import (
     VarDecl,
     Assign,
     ReturnStmt,
-    FuncCall,
-    MethodCall,
     VarRef,
     Block,
     ExprStmt,

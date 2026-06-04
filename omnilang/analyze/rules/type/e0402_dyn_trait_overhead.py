@@ -7,7 +7,7 @@ trait-object patterns visible at the OmniLang AST level.
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import VarDecl, ClassDef, MethodCall, VarRef
+from omnilang.ast_nodes import VarDecl, MethodCall, VarRef
 
 
 class E0402Rule(AnalyzeRule):

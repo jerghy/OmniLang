@@ -19,7 +19,7 @@ Expected patterns that suppress the diagnostic:
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import FunctionDef, FuncCall, VarRef, MethodCall, Block
+from omnilang.ast_nodes import FuncCall, VarRef, MethodCall, Block
 
 
 # Wrapper-call method names that indicate a runtime is present

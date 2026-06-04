@@ -2,12 +2,11 @@
 
 from omnilang.ast_nodes import (
     Program, FunctionDef, Block, VarDecl, Assign, Destructure,
-    IfStmt, WhileStmt, ForInStmt, UnaryOp,
-    BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
+    IfStmt, WhileStmt, ForInStmt, ReturnStmt, PrintStmt, ExprStmt,
     Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
     ArrayLiteral, MapLiteral, IfExpr,
-    TypeAnnotation, UnionType, Param,
-    ClosureExpr, MatchExpr, MatchArm, Block as BlockNode,
+    TypeAnnotation, UnionType, ClosureExpr, MatchExpr, Block as BlockNode,
+    Expr,
 )
 from omnilang.utils import ErrorCollector
 from omnilang.semantic.resolver import ScopeInfo, Scope, lookup_var
@@ -169,7 +168,7 @@ class _TypeChecker:
         init_ty = self.infer_expr(stmt.init)
         if init_ty is None:
             return
-        from omnilang.ast_nodes import VarPattern, IgnorePattern
+        from omnilang.ast_nodes import VarPattern
         if isinstance(stmt.pattern, VarPattern):
             self.type_map[id(stmt)] = init_ty
             return
@@ -258,7 +257,7 @@ class _TypeChecker:
             if stmt.op in ("/=", "%="):
                 # Check for float division
                 if target_ty and target_ty.name == "f64":
-                    self._error(f"Float division/modulo is forbidden", stmt.span)
+                    self._error("Float division/modulo is forbidden", stmt.span)
                     return
             if not self._types_match(value_ty, target_ty):
                 self._error(f"Type mismatch in compound assignment: {value_ty} vs {target_ty}",
@@ -292,7 +291,7 @@ class _TypeChecker:
             self._error(f"For-in requires Array, got {iter_ty}", stmt.span)
             return
         if not iter_ty.type_args:
-            self._error(f"For-in requires a typed array", stmt.span)
+            self._error("For-in requires a typed array", stmt.span)
             return
 
         elem_ty = iter_ty.type_args[0]
@@ -306,7 +305,6 @@ class _TypeChecker:
                 for_scope = child
                 break
         if for_scope and stmt.var_name in for_scope.symbols:
-            placeholder = for_scope.symbols[stmt.var_name]
             for_scope.symbols[stmt.var_name] = VarDecl(
                 mutable=False, name=stmt.var_name, type_ann=elem_ty,
                 init=None, span=stmt.span
@@ -345,240 +343,264 @@ class _TypeChecker:
             return None
 
         if isinstance(expr, Literal):
-            return self._add_type(expr, TypeAnnotation(name=expr.kind, span=expr.span))
-
+            return self._infer_literal(expr)
         elif isinstance(expr, VarRef):
-            decl = lookup_var(expr.name, self.current_scope)
-            if decl:
-                ty = decl.type_ann
-                self._add_type(expr, ty)
-                return ty
-            return None
-
+            return self._infer_var_ref(expr)
         elif isinstance(expr, BinaryOp):
-            left_ty = self.infer_expr(expr.left)
-            right_ty = self.infer_expr(expr.right)
-            if left_ty is None or right_ty is None:
-                return None
-
-            if expr.op in ("+", "-", "*", "/", "%"):
-                # Arithmetic: both operands must be same numeric type
-                if left_ty.name != right_ty.name:
-                    self._error(f"Type mismatch: {left_ty} {expr.op} {right_ty}", expr.span)
-                    return None
-                if expr.op in ("/", "%"):
-                    if left_ty.name == "f64":
-                        self._error("Float division is forbidden", expr.span)
-                        return None
-                    if left_ty.name == "String":
-                        self._error("Division not allowed on String", expr.span)
-                        return None
-                    # Integer division/mod returns i32
-                    return self._add_type(expr, TypeAnnotation(name="i32", span=expr.span))
-                if expr.op == "+" and left_ty.name == "String":
-                    return self._add_type(expr, TypeAnnotation(name="String", span=expr.span))
-                # Numeric operations return their operand type
-                return self._add_type(expr, left_ty)
-
-            elif expr.op in ("==", "!=", "<", ">", "<=", ">="):
-                if left_ty.name != right_ty.name:
-                    self._error(f"Cannot compare {left_ty} with {right_ty}", expr.span)
-                    return None
-                return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
-
-            elif expr.op in ("&&", "||"):
-                if left_ty.name != "bool" or right_ty.name != "bool":
-                    self._error(f"Logical operators require bool operands, got {left_ty} and {right_ty}",
-                               expr.span)
-                    return None
-                return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
-
-            return None
-
-        elif isinstance(expr, ClosureExpr):
-            from omnilang.ast_nodes import Block
-            if isinstance(expr.body, Block) and expr.body.trailing_expr:
-                ret_ty = self.infer_expr(expr.body.trailing_expr)
-            elif not isinstance(expr.body, Block):
-                ret_ty = self.infer_expr(expr.body)
-            else:
-                ret_ty = None
-            if ret_ty is None:
-                ret_ty = TypeAnnotation(name="void", span=expr.span)
-            return self._add_type(expr, ret_ty)
-
-        elif isinstance(expr, MatchExpr):
-            if expr.arms:
-                first = expr.arms[0]
-                if isinstance(first.body, BlockNode) and first.body.trailing_expr:
-                    ret_ty = self.infer_expr(first.body.trailing_expr)
-                elif not isinstance(first.body, BlockNode):
-                    ret_ty = self.infer_expr(first.body)
-                else:
-                    ret_ty = None
-                return self._add_type(expr, ret_ty or TypeAnnotation(name="void", span=expr.span))
-            return self._add_type(expr, TypeAnnotation(name="void", span=expr.span))
-
+            return self._infer_binary_op(expr)
         elif isinstance(expr, UnaryOp):
-            operand_ty = self.infer_expr(expr.operand)
-            if operand_ty is None:
-                return None
-            if expr.op == "!":
-                if operand_ty.name != "bool":
-                    self._error(f"! requires bool operand, got {operand_ty}", expr.span)
-                    return None
-                return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
-            elif expr.op == "-":
-                if operand_ty.name not in ("i32", "f64"):
-                    self._error(f"Unary - requires numeric operand, got {operand_ty}", expr.span)
-                    return None
-                return self._add_type(expr, operand_ty)
-            return None
-
+            return self._infer_unary_op(expr)
         elif isinstance(expr, FuncCall):
-            func_name = None
-            if isinstance(expr.func, VarRef):
-                func_name = expr.func.name
-            if func_name is None:
-                self._error("Cannot call non-function expression", expr.span)
-                return None
-
-            target_func = self.func_map.get(func_name)
-            if target_func is None:
-                # Check if it's a variable holding a closure/function
-                decl = lookup_var(func_name, self.current_scope)
-                if decl:
-                    # Variable exists — skip type checking for now (Phase 3)
-                    return self._add_type(expr, TypeAnnotation(name="i32", span=expr.span))
-                self._error(f"Undefined function '{func_name}'", expr.span)
-                return None
-
-            # Check argument count
-            if len(expr.args) != len(target_func.params):
-                self._error(
-                    f"Function '{func_name}' expects {len(target_func.params)} args, got {len(expr.args)}",
-                    expr.span
-                )
-                return None
-
-            # Check argument types
-            for i, (arg, param) in enumerate(zip(expr.args, target_func.params)):
-                arg_ty = self.infer_expr(arg)
-                if arg_ty and not self._types_match(arg_ty, param.type_ann):
-                    self._error(
-                        f"Argument {i} of '{func_name}': expected {param.type_ann}, got {arg_ty}",
-                        expr.span
-                    )
-
-            ret_ty = target_func.return_type
-            if ret_ty is None:
-                ret_ty = TypeAnnotation(name="void", span=expr.span)
-            return self._add_type(expr, ret_ty)
-
+            return self._infer_func_call(expr)
         elif isinstance(expr, MethodCall):
-            obj_ty = self.infer_expr(expr.object)
-            if obj_ty is None:
-                return None
-
-            base_name = obj_ty.name
-            if base_name not in BUILTIN_METHODS:
-                self._error(f"No methods available for type {obj_ty}", expr.span)
-                return None
-
-            methods = BUILTIN_METHODS[base_name]
-            if expr.method not in methods:
-                self._error(f"Type {obj_ty} has no method '{expr.method}'", expr.span)
-                return None
-
-            sig_fn = methods[expr.method]
-            try:
-                if base_name == "Array" and obj_ty.type_args:
-                    param_types, ret_name, is_mut = sig_fn(obj_ty.type_args[0].name)
-                elif base_name == "Map" and len(obj_ty.type_args) >= 2:
-                    param_types, ret_name, is_mut = sig_fn(
-                        obj_ty.type_args[0].name, obj_ty.type_args[1].name
-                    )
-                else:
-                    param_types, ret_name, is_mut = sig_fn()
-            except TypeError:
-                param_types, ret_name, is_mut = sig_fn()
-
-            # Check argument count
-            if len(expr.args) != len(param_types):
-                self._error(f"Method '{expr.method}' expects {len(param_types)} args, got {len(expr.args)}",
-                           expr.span)
-                return None
-
-            # Check argument types
-            for i, (arg, expected) in enumerate(zip(expr.args, param_types)):
-                arg_ty = self.infer_expr(arg)
-                expected_ty = TypeAnnotation(name=expected, span=expr.span)
-                if arg_ty and arg_ty.name != expected:
-                    self._error(f"Method '{expr.method}' arg {i}: expected {expected}, got {arg_ty}",
-                               expr.span)
-
-            ret_ty = TypeAnnotation(name=ret_name, span=expr.span)
-            return self._add_type(expr, ret_ty)
-
+            return self._infer_method_call(expr)
         elif isinstance(expr, IndexGet):
-            obj_ty = self.infer_expr(expr.object)
-            index_ty = self.infer_expr(expr.index)
-            if obj_ty is None:
-                return None
-
-            if obj_ty.name == "Array":
-                if index_ty and index_ty.name != "i32":
-                    self._error(f"Array index must be i32, got {index_ty}", expr.span)
-                if obj_ty.type_args:
-                    return self._add_type(expr, obj_ty.type_args[0])
-                return None
-
-            elif obj_ty.name == "Map":
-                if obj_ty.type_args and index_ty:
-                    key_ty = obj_ty.type_args[0]
-                    if index_ty.name != key_ty.name:
-                        self._error(f"Map key type mismatch: expected {key_ty}, got {index_ty}", expr.span)
-                    if len(obj_ty.type_args) >= 2:
-                        return self._add_type(expr, obj_ty.type_args[1])
-                return None
-
-            else:
-                self._error(f"Cannot index into type {obj_ty}", expr.span)
-                return None
-
+            return self._infer_index_get(expr)
         elif isinstance(expr, ArrayLiteral):
-            # Infer element type from context (caller should pass expected type)
-            # For now, infer from the elements themselves
-            if expr.elements:
-                elem_ty = self.infer_expr(expr.elements[0])
-                return self._add_type(expr, TypeAnnotation(
-                    name="Array", type_args=(elem_ty,) if elem_ty else (),
-                    span=expr.span
-                ))
-            return self._add_type(expr, TypeAnnotation(name="Array", type_args=(), span=expr.span))
-
+            return self._infer_array_literal(expr)
         elif isinstance(expr, MapLiteral):
-            if expr.entries:
-                key_ty = self.infer_expr(expr.entries[0][0])
-                val_ty = self.infer_expr(expr.entries[0][1])
-                return self._add_type(expr, TypeAnnotation(
-                    name="Map",
-                    type_args=(key_ty, val_ty) if key_ty and val_ty else (),
-                    span=expr.span
-                ))
-            return self._add_type(expr, TypeAnnotation(name="Map", type_args=(), span=expr.span))
-
+            return self._infer_map_literal(expr)
         elif isinstance(expr, IfExpr):
-            cond_ty = self.infer_expr(expr.condition)
-            then_ty = self.infer_expr(expr.then_expr)
-            else_ty = self.infer_expr(expr.else_expr)
-            if cond_ty and cond_ty.name != "bool":
-                self._error(f"If expression condition must be bool", expr.condition.span)
-            if then_ty and else_ty and then_ty.name != else_ty.name:
-                self._error(f"If expression branches must have same type: {then_ty} vs {else_ty}", expr.span)
-            return self._add_type(expr, then_ty) if then_ty else None
+            return self._infer_if_expr(expr)
+        elif isinstance(expr, ClosureExpr):
+            return self._infer_closure(expr)
+        elif isinstance(expr, MatchExpr):
+            return self._infer_match_expr(expr)
 
         return None
+
+    def _infer_literal(self, expr):
+        return self._add_type(expr, TypeAnnotation(name=expr.kind, span=expr.span))
+
+    def _infer_var_ref(self, expr):
+        decl = lookup_var(expr.name, self.current_scope)
+        if decl:
+            ty = decl.type_ann
+            self._add_type(expr, ty)
+            return ty
+        return None
+
+    def _infer_binary_op(self, expr):
+        left_ty = self.infer_expr(expr.left)
+        right_ty = self.infer_expr(expr.right)
+        if left_ty is None or right_ty is None:
+            return None
+
+        if expr.op in ("+", "-", "*", "/", "%"):
+            # Arithmetic: both operands must be same numeric type
+            if left_ty.name != right_ty.name:
+                self._error(f"Type mismatch: {left_ty} {expr.op} {right_ty}", expr.span)
+                return None
+            if expr.op in ("/", "%"):
+                if left_ty.name == "f64":
+                    self._error("Float division is forbidden", expr.span)
+                    return None
+                if left_ty.name == "String":
+                    self._error("Division not allowed on String", expr.span)
+                    return None
+                # Integer division/mod returns i32
+                return self._add_type(expr, TypeAnnotation(name="i32", span=expr.span))
+            if expr.op == "+" and left_ty.name == "String":
+                return self._add_type(expr, TypeAnnotation(name="String", span=expr.span))
+            # Numeric operations return their operand type
+            return self._add_type(expr, left_ty)
+
+        elif expr.op in ("==", "!=", "<", ">", "<=", ">="):
+            if left_ty.name != right_ty.name:
+                self._error(f"Cannot compare {left_ty} with {right_ty}", expr.span)
+                return None
+            return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
+
+        elif expr.op in ("&&", "||"):
+            if left_ty.name != "bool" or right_ty.name != "bool":
+                self._error(f"Logical operators require bool operands, got {left_ty} and {right_ty}",
+                           expr.span)
+                return None
+            return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
+
+        return None
+
+    def _infer_unary_op(self, expr):
+        operand_ty = self.infer_expr(expr.operand)
+        if operand_ty is None:
+            return None
+        if expr.op == "!":
+            if operand_ty.name != "bool":
+                self._error(f"! requires bool operand, got {operand_ty}", expr.span)
+                return None
+            return self._add_type(expr, TypeAnnotation(name="bool", span=expr.span))
+        elif expr.op == "-":
+            if operand_ty.name not in ("i32", "f64"):
+                self._error(f"Unary - requires numeric operand, got {operand_ty}", expr.span)
+                return None
+            return self._add_type(expr, operand_ty)
+        return None
+
+    def _infer_closure(self, expr):
+        from omnilang.ast_nodes import Block
+        if isinstance(expr.body, Block) and expr.body.trailing_expr:
+            ret_ty = self.infer_expr(expr.body.trailing_expr)
+        elif not isinstance(expr.body, Block):
+            ret_ty = self.infer_expr(expr.body)
+        else:
+            ret_ty = None
+        if ret_ty is None:
+            ret_ty = TypeAnnotation(name="void", span=expr.span)
+        return self._add_type(expr, ret_ty)
+
+    def _infer_match_expr(self, expr):
+        if expr.arms:
+            first = expr.arms[0]
+            if isinstance(first.body, BlockNode) and first.body.trailing_expr:
+                ret_ty = self.infer_expr(first.body.trailing_expr)
+            elif not isinstance(first.body, BlockNode):
+                ret_ty = self.infer_expr(first.body)
+            else:
+                ret_ty = None
+            return self._add_type(expr, ret_ty or TypeAnnotation(name="void", span=expr.span))
+        return self._add_type(expr, TypeAnnotation(name="void", span=expr.span))
+
+    def _infer_func_call(self, expr):
+        func_name = None
+        if isinstance(expr.func, VarRef):
+            func_name = expr.func.name
+        if func_name is None:
+            self._error("Cannot call non-function expression", expr.span)
+            return None
+
+        target_func = self.func_map.get(func_name)
+        if target_func is None:
+            # Check if it's a variable holding a closure/function
+            decl = lookup_var(func_name, self.current_scope)
+            if decl:
+                # Variable exists — skip type checking for now (Phase 3)
+                return self._add_type(expr, TypeAnnotation(name="i32", span=expr.span))
+            self._error(f"Undefined function '{func_name}'", expr.span)
+            return None
+
+        # Check argument count
+        if len(expr.args) != len(target_func.params):
+            self._error(
+                f"Function '{func_name}' expects {len(target_func.params)} args, got {len(expr.args)}",
+                expr.span
+            )
+            return None
+
+        # Check argument types
+        for i, (arg, param) in enumerate(zip(expr.args, target_func.params)):
+            arg_ty = self.infer_expr(arg)
+            if arg_ty and not self._types_match(arg_ty, param.type_ann):
+                self._error(
+                    f"Argument {i} of '{func_name}': expected {param.type_ann}, got {arg_ty}",
+                    expr.span
+                )
+
+        ret_ty = target_func.return_type
+        if ret_ty is None:
+            ret_ty = TypeAnnotation(name="void", span=expr.span)
+        return self._add_type(expr, ret_ty)
+
+    def _infer_method_call(self, expr):
+        obj_ty = self.infer_expr(expr.object)
+        if obj_ty is None:
+            return None
+
+        base_name = obj_ty.name
+        if base_name not in BUILTIN_METHODS:
+            self._error(f"No methods available for type {obj_ty}", expr.span)
+            return None
+
+        methods = BUILTIN_METHODS[base_name]
+        if expr.method not in methods:
+            self._error(f"Type {obj_ty} has no method '{expr.method}'", expr.span)
+            return None
+
+        sig_fn = methods[expr.method]
+        try:
+            if base_name == "Array" and obj_ty.type_args:
+                param_types, ret_name, is_mut = sig_fn(obj_ty.type_args[0].name)
+            elif base_name == "Map" and len(obj_ty.type_args) >= 2:
+                param_types, ret_name, is_mut = sig_fn(
+                    obj_ty.type_args[0].name, obj_ty.type_args[1].name
+                )
+            else:
+                param_types, ret_name, is_mut = sig_fn()
+        except TypeError:
+            param_types, ret_name, is_mut = sig_fn()
+
+        # Check argument count
+        if len(expr.args) != len(param_types):
+            self._error(f"Method '{expr.method}' expects {len(param_types)} args, got {len(expr.args)}",
+                       expr.span)
+            return None
+
+        # Check argument types
+        for i, (arg, expected) in enumerate(zip(expr.args, param_types)):
+            arg_ty = self.infer_expr(arg)
+            if arg_ty and arg_ty.name != expected:
+                self._error(f"Method '{expr.method}' arg {i}: expected {expected}, got {arg_ty}",
+                           expr.span)
+
+        ret_ty = TypeAnnotation(name=ret_name, span=expr.span)
+        return self._add_type(expr, ret_ty)
+
+    def _infer_index_get(self, expr):
+        obj_ty = self.infer_expr(expr.object)
+        index_ty = self.infer_expr(expr.index)
+        if obj_ty is None:
+            return None
+
+        if obj_ty.name == "Array":
+            if index_ty and index_ty.name != "i32":
+                self._error(f"Array index must be i32, got {index_ty}", expr.span)
+            if obj_ty.type_args:
+                return self._add_type(expr, obj_ty.type_args[0])
+            return None
+
+        elif obj_ty.name == "Map":
+            if obj_ty.type_args and index_ty:
+                key_ty = obj_ty.type_args[0]
+                if index_ty.name != key_ty.name:
+                    self._error(f"Map key type mismatch: expected {key_ty}, got {index_ty}", expr.span)
+                if len(obj_ty.type_args) >= 2:
+                    return self._add_type(expr, obj_ty.type_args[1])
+            return None
+
+        else:
+            self._error(f"Cannot index into type {obj_ty}", expr.span)
+            return None
+
+    def _infer_array_literal(self, expr):
+        # Infer element type from context (caller should pass expected type)
+        # For now, infer from the elements themselves
+        if expr.elements:
+            elem_ty = self.infer_expr(expr.elements[0])
+            return self._add_type(expr, TypeAnnotation(
+                name="Array", type_args=(elem_ty,) if elem_ty else (),
+                span=expr.span
+            ))
+        return self._add_type(expr, TypeAnnotation(name="Array", type_args=(), span=expr.span))
+
+    def _infer_map_literal(self, expr):
+        if expr.entries:
+            key_ty = self.infer_expr(expr.entries[0][0])
+            val_ty = self.infer_expr(expr.entries[0][1])
+            return self._add_type(expr, TypeAnnotation(
+                name="Map",
+                type_args=(key_ty, val_ty) if key_ty and val_ty else (),
+                span=expr.span
+            ))
+        return self._add_type(expr, TypeAnnotation(name="Map", type_args=(), span=expr.span))
+
+    def _infer_if_expr(self, expr):
+        cond_ty = self.infer_expr(expr.condition)
+        then_ty = self.infer_expr(expr.then_expr)
+        else_ty = self.infer_expr(expr.else_expr)
+        if cond_ty and cond_ty.name != "bool":
+            self._error("If expression condition must be bool", expr.condition.span)
+        if then_ty and else_ty and then_ty.name != else_ty.name:
+            self._error(f"If expression branches must have same type: {then_ty} vs {else_ty}", expr.span)
+        return self._add_type(expr, then_ty) if then_ty else None
 
     def _types_match(self, a: TypeAnnotation | None, b: TypeAnnotation | None) -> bool:
         if a is None or b is None:

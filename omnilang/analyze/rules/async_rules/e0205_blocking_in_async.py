@@ -24,7 +24,6 @@ from omnilang.ast_nodes import (
     MethodCall,
     VarRef,
     Block,
-    FunctionDef,
 )
 
 

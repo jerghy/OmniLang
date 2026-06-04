@@ -1,16 +1,20 @@
 """SEC0101: Potential string-based injection vulnerability."""
-from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
+from omnilang.analyze.registry import AnalyzeRule
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import BinaryOp, TemplateString, FuncCall
+from omnilang.ast_nodes import TemplateString
 
 class SEC0101Rule(AnalyzeRule):
-    code = "SEC0101"; name = "potential_injection"; severity = Severity.SEC; category = "security"
+    code = "SEC0101"
+    name = "potential_injection"
+    severity = Severity.SEC
+    category = "security"
     message = "String concatenation or template with user input may be vulnerable to injection"
     help = "Use parameterized queries or sanitize user input before string interpolation."
     def check(self, ctx):
         diags = []
         for func in ctx.program.functions:
-            if func.body: self._check(func.body, diags)
+            if func.body:
+                self._check(func.body, diags)
         return diags
     def _check(self, block, diags):
         for stmt in getattr(block,'stmts',[]):
@@ -26,4 +30,5 @@ class SEC0101Rule(AnalyzeRule):
                                 break
             for attr in ['body','then_body','else_body']:
                 c = getattr(stmt,attr,None)
-                if c: self._check(c, diags)
+                if c:
+                    self._check(c, diags)

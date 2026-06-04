@@ -5,9 +5,8 @@ diagnostic rule is registered by code and can be looked up, enabled,
 or disabled through configuration.
 """
 
-import re
 from dataclasses import dataclass, field
-from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
+from omnilang.analyze.diagnostic import Diagnostic, Severity
 
 
 class AnalyzeRule:

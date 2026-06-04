@@ -2,16 +2,15 @@
 
 from omnilang.codegen.base import CodeGenerator
 from omnilang.ast_nodes import (
-    Program, FunctionDef, Param, Block,
+    Program, FunctionDef, Block,
     VarDecl, Assign, Destructure, IfStmt, WhileStmt, ForInStmt,
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
     Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
     ArrayLiteral, MapLiteral, IfExpr,
-    TemplateString, TemplatePart, NullCoalesce, OptionalChain, ChainLink,
-    ClosureExpr, SpreadExpr, StructLiteral, StructDef,
+    TemplateString, NullCoalesce, OptionalChain, ClosureExpr, SpreadExpr, StructLiteral, StructDef,
     MatchExpr, MatchArm, OrPattern, StructPattern,
     ArrayPattern, ObjectPattern, VarPattern, IgnorePattern, RestPattern,
-    TypeAnnotation, UnionType, AwaitExpr,
+    TypeAnnotation, AwaitExpr,
 )
 
 
@@ -79,7 +78,7 @@ class PythonGenerator(CodeGenerator):
     def _gen_function(self, func: FunctionDef):
         if func.generic_params:
             for gp in func.generic_params:
-                self._emit(f"from typing import TypeVar")
+                self._emit("from typing import TypeVar")
                 bounds_str = f", {', '.join(gp.bounds)}" if gp.bounds else ""
                 self._emit(f"_{gp.name} = TypeVar('_{gp.name}'{bounds_str})")
 
@@ -128,112 +127,126 @@ class PythonGenerator(CodeGenerator):
 
     def _gen_stmt(self, stmt):
         if isinstance(stmt, VarDecl):
-            init = self._gen_expr(stmt.init)
-            # Container clone from variable: use list()/dict()
-            if isinstance(stmt.init, VarRef) and stmt.type_ann:
-                if stmt.type_ann.name == "Array":
-                    init = f"list({init})"
-                elif stmt.type_ann.name == "Map":
-                    init = f"dict({init})"
-            name = self._rename(stmt.name)
-            self._emit(f"{name} = {init}")
-
+            self._gen_var_decl_stmt(stmt)
         elif isinstance(stmt, Assign):
-            target_name = self._rename(stmt.target)
-            value = self._gen_expr(stmt.value)
-            if stmt.op != "=":
-                if stmt.op in ("/=", "%="):
-                    self.needs_idiv = True
-                    self.needs_irem = True
-                    op_func = "_idiv" if stmt.op == "/=" else "_irem"
-                    if stmt.index:
-                        sub = self._gen_expr(stmt.index)
-                        self._emit(f"{target_name}[{sub}] = {op_func}({target_name}[{sub}], {value})")
-                    else:
-                        self._emit(f"{target_name} = {op_func}({target_name}, {value})")
+            self._gen_assign_stmt(stmt)
+        elif isinstance(stmt, IfStmt):
+            self._gen_if_stmt(stmt)
+        elif isinstance(stmt, WhileStmt):
+            self._gen_while_stmt(stmt)
+        elif isinstance(stmt, ForInStmt):
+            self._gen_for_in_stmt(stmt)
+        elif isinstance(stmt, BreakStmt):
+            self._emit("break")
+        elif isinstance(stmt, ContinueStmt):
+            self._emit("continue")
+        elif isinstance(stmt, ReturnStmt):
+            self._gen_return_stmt(stmt)
+        elif isinstance(stmt, PrintStmt):
+            self._gen_print_stmt(stmt)
+        elif isinstance(stmt, ExprStmt):
+            self._gen_expr(stmt.expr)
+        elif isinstance(stmt, Destructure):
+            self._gen_destructure_stmt(stmt)
+
+    def _gen_var_decl_stmt(self, stmt):
+        init = self._gen_expr(stmt.init)
+        # Container clone from variable: use list()/dict()
+        if isinstance(stmt.init, VarRef) and stmt.type_ann:
+            if stmt.type_ann.name == "Array":
+                init = f"list({init})"
+            elif stmt.type_ann.name == "Map":
+                init = f"dict({init})"
+        name = self._rename(stmt.name)
+        self._emit(f"{name} = {init}")
+
+    def _gen_assign_stmt(self, stmt):
+        target_name = self._rename(stmt.target)
+        value = self._gen_expr(stmt.value)
+        if stmt.op != "=":
+            if stmt.op in ("/=", "%="):
+                self.needs_idiv = True
+                self.needs_irem = True
+                op_func = "_idiv" if stmt.op == "/=" else "_irem"
+                if stmt.index:
+                    sub = self._gen_expr(stmt.index)
+                    self._emit(f"{target_name}[{sub}] = {op_func}({target_name}[{sub}], {value})")
                 else:
-                    if stmt.index:
-                        sub = self._gen_expr(stmt.index)
-                        self._emit(f"{target_name}[{sub}] {stmt.op} {value}")
-                    else:
-                        self._emit(f"{target_name} {stmt.op} {value}")
+                    self._emit(f"{target_name} = {op_func}({target_name}, {value})")
             else:
                 if stmt.index:
                     sub = self._gen_expr(stmt.index)
-                    self._emit(f"{target_name}[{sub}] = {value}")
+                    self._emit(f"{target_name}[{sub}] {stmt.op} {value}")
                 else:
-                    self._emit(f"{target_name} = {value}")
-
-        elif isinstance(stmt, IfStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"if {cond}:")
-            self._indent()
-            self._enter_scope()
-            self._gen_block(stmt.then_body)
-            self._leave_scope()
-            self._dedent()
-            for elif_cond, elif_body in stmt.else_ifs:
-                c = self._gen_expr(elif_cond)
-                self._emit(f"elif {c}:")
-                self._indent()
-                self._enter_scope()
-                self._gen_block(elif_body)
-                self._leave_scope()
-                self._dedent()
-            if stmt.else_body:
-                self._emit("else:")
-                self._indent()
-                self._enter_scope()
-                self._gen_block(stmt.else_body)
-                self._leave_scope()
-                self._dedent()
-
-        elif isinstance(stmt, WhileStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"while {cond}:")
-            self._indent()
-            self._enter_scope()
-            self._gen_block(stmt.body)
-            self._leave_scope()
-            self._dedent()
-
-        elif isinstance(stmt, ForInStmt):
-            iterable = self._gen_expr(stmt.iterable)
-            var_name = self._rename(stmt.var_name)
-            self._emit(f"for {var_name} in {iterable}:")
-            self._indent()
-            self._enter_scope()
-            self._gen_block(stmt.body)
-            self._leave_scope()
-            self._dedent()
-
-        elif isinstance(stmt, BreakStmt):
-            self._emit("break")
-
-        elif isinstance(stmt, ContinueStmt):
-            self._emit("continue")
-
-        elif isinstance(stmt, ReturnStmt):
-            if stmt.value:
-                val = self._gen_expr(stmt.value)
-                self._emit(f"return {val}")
+                    self._emit(f"{target_name} {stmt.op} {value}")
+        else:
+            if stmt.index:
+                sub = self._gen_expr(stmt.index)
+                self._emit(f"{target_name}[{sub}] = {value}")
             else:
-                self._emit("return")
+                self._emit(f"{target_name} = {value}")
 
-        elif isinstance(stmt, PrintStmt):
-            arg = self._gen_expr(stmt.arg)
-            if stmt.newline:
-                self._emit(f"print({arg})")
-            else:
-                self._emit(f"print({arg}, end='')")
+    def _gen_if_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"if {cond}:")
+        self._indent()
+        self._enter_scope()
+        self._gen_block(stmt.then_body)
+        self._leave_scope()
+        self._dedent()
+        for elif_cond, elif_body in stmt.else_ifs:
+            c = self._gen_expr(elif_cond)
+            self._emit(f"elif {c}:")
+            self._indent()
+            self._enter_scope()
+            self._gen_block(elif_body)
+            self._leave_scope()
+            self._dedent()
+        if stmt.else_body:
+            self._emit("else:")
+            self._indent()
+            self._enter_scope()
+            self._gen_block(stmt.else_body)
+            self._leave_scope()
+            self._dedent()
 
-        elif isinstance(stmt, ExprStmt):
-            self._gen_expr(stmt.expr)
+    def _gen_while_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"while {cond}:")
+        self._indent()
+        self._enter_scope()
+        self._gen_block(stmt.body)
+        self._leave_scope()
+        self._dedent()
 
-        elif isinstance(stmt, Destructure):
-            pattern = self._gen_pattern(stmt.pattern)
-            init = self._gen_expr(stmt.init)
-            self._emit(f"{pattern} = {init}")
+    def _gen_for_in_stmt(self, stmt):
+        iterable = self._gen_expr(stmt.iterable)
+        var_name = self._rename(stmt.var_name)
+        self._emit(f"for {var_name} in {iterable}:")
+        self._indent()
+        self._enter_scope()
+        self._gen_block(stmt.body)
+        self._leave_scope()
+        self._dedent()
+
+    def _gen_return_stmt(self, stmt):
+        if stmt.value:
+            val = self._gen_expr(stmt.value)
+            self._emit(f"return {val}")
+        else:
+            self._emit("return")
+
+    def _gen_print_stmt(self, stmt):
+        arg = self._gen_expr(stmt.arg)
+        if stmt.newline:
+            self._emit(f"print({arg})")
+        else:
+            self._emit(f"print({arg}, end='')")
+
+    def _gen_destructure_stmt(self, stmt):
+        pattern = self._gen_pattern(stmt.pattern)
+        init = self._gen_expr(stmt.init)
+        self._emit(f"{pattern} = {init}")
 
     # ── Expressions ───────────────────────────────
 
@@ -242,141 +255,163 @@ class PythonGenerator(CodeGenerator):
             return "None"
 
         if isinstance(expr, Literal):
-            if expr.kind == "String":
-                escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
-                return f'"{escaped}"'
-            elif expr.kind == "bool":
-                return "True" if expr.value else "False"
-            return str(expr.value)
-
+            return self._gen_literal_expr(expr)
         elif isinstance(expr, VarRef):
-            return self._rename(expr.name)
-
+            return self._gen_var_ref_expr(expr)
         elif isinstance(expr, BinaryOp):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-            if expr.op in ("/", "%"):
-                left_ty = self.type_map.get(id(expr.left))
-                if left_ty and left_ty.name == "i32":
-                    self.needs_idiv = True if expr.op == "/" else self.needs_idiv
-                    self.needs_irem = True if expr.op == "%" else self.needs_irem
-                    func = "_idiv" if expr.op == "/" else "_irem"
-                    return f"{func}({left}, {right})"
-            return f"({left} {expr.op} {right})"
-
+            return self._gen_binary_op_expr(expr)
         elif isinstance(expr, UnaryOp):
-            operand = self._gen_expr(expr.operand)
-            return f"({expr.op} {operand})"
-
+            return self._gen_unary_op_expr(expr)
         elif isinstance(expr, FuncCall):
-            func_name = self._gen_expr(expr.func)
-            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
-
-            # ── Async built-in functions ─────────────
-            if raw_name == "all":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
-                    return f"asyncio.gather({items})"
-                inner = self._gen_expr(expr.args[0])
-                return f"asyncio.gather(*{inner})"
-            if raw_name == "race":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
-                    return f"asyncio.wait([{items}], return_when=asyncio.FIRST_COMPLETED)"
-                inner = self._gen_expr(expr.args[0])
-                return f"asyncio.wait({inner}, return_when=asyncio.FIRST_COMPLETED)"
-            if raw_name == "tryCatch":
-                self.needs_try_catch = True
-                future = self._gen_expr(expr.args[0])
-                return f"_omni_try_catch({future})"
-
-            args = ", ".join(self._gen_expr(a) for a in expr.args)
-            return f"{func_name}({args})"
-
+            return self._gen_func_call_expr(expr)
         elif isinstance(expr, MethodCall):
-            obj = self._gen_expr(expr.object)
-            method = expr.method
-
-            # Map method mappings
-            if method == "len":
-                return f"len({obj})"
-            elif method == "is_empty":
-                return f"len({obj}) == 0"
-            elif method == "get":
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}[{args}]"
-            elif method == "push":
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                self._emit(f"{obj}.append({args})")
-                return "None"
-            elif method == "pop":
-                return f"{obj}.pop()"
-            elif method == "contains":
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"({args} in {obj})"
-            elif method == "insert":
-                k, v = (self._gen_expr(a) for a in expr.args)
-                self._emit(f"{obj}[{k}] = {v}")
-                return "None"
-            elif method == "to_string":
-                obj_ty = self.type_map.get(id(expr.object))
-                if obj_ty and obj_ty.name == "bool":
-                    return f"str({obj}).lower()"
-                return f"str({obj})"
-            else:
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}.{method}({args})"
-
+            return self._gen_method_call_expr(expr)
         elif isinstance(expr, IndexGet):
-            obj = self._gen_expr(expr.object)
-            idx = self._gen_expr(expr.index)
-            return f"{obj}[{idx}]"
-
+            return self._gen_index_get_expr(expr)
         elif isinstance(expr, ArrayLiteral):
-            elems = ", ".join(self._gen_expr(e) for e in expr.elements)
-            return f"[{elems}]"
-
+            return self._gen_array_literal_expr(expr)
         elif isinstance(expr, MapLiteral):
-            entries = ", ".join(
-                f"{self._gen_expr(k)}: {self._gen_expr(v)}"
-                for k, v in expr.entries
-            )
-            return f"{{{entries}}}"
-
+            return self._gen_map_literal_expr(expr)
         elif isinstance(expr, IfExpr):
-            cond = self._gen_expr(expr.condition)
-            then = self._gen_expr(expr.then_expr)
-            else_ = self._gen_expr(expr.else_expr)
-            return f"({then} if {cond} else {else_})"
-
+            return self._gen_if_expr(expr)
         elif isinstance(expr, TemplateString):
             return self._gen_template_string(expr)
-
         elif isinstance(expr, NullCoalesce):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-            return f"({left} if {left} is not None else {right})"
-
+            return self._gen_null_coalesce_expr(expr)
         elif isinstance(expr, OptionalChain):
             return self._gen_optional_chain(expr)
-
         elif isinstance(expr, SpreadExpr):
-            inner = self._gen_expr(expr.expr)
-            return f"*{inner}"
-
+            return self._gen_spread_expr(expr)
         elif isinstance(expr, StructLiteral):
             return self._gen_struct_literal(expr)
-
         elif isinstance(expr, ClosureExpr):
             return self._gen_closure(expr)
-
         elif isinstance(expr, MatchExpr):
             return self._gen_match(expr)
-
         elif isinstance(expr, AwaitExpr):
-            return f"await {self._gen_expr(expr.expr)}"
+            return self._gen_await_expr(expr)
 
         return "None"
+
+    def _gen_literal_expr(self, expr):
+        if expr.kind == "String":
+            escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+            return f'"{escaped}"'
+        elif expr.kind == "bool":
+            return "True" if expr.value else "False"
+        return str(expr.value)
+
+    def _gen_var_ref_expr(self, expr):
+        return self._rename(expr.name)
+
+    def _gen_binary_op_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+        if expr.op in ("/", "%"):
+            left_ty = self.type_map.get(id(expr.left))
+            if left_ty and left_ty.name == "i32":
+                self.needs_idiv = True if expr.op == "/" else self.needs_idiv
+                self.needs_irem = True if expr.op == "%" else self.needs_irem
+                func = "_idiv" if expr.op == "/" else "_irem"
+                return f"{func}({left}, {right})"
+        return f"({left} {expr.op} {right})"
+
+    def _gen_unary_op_expr(self, expr):
+        operand = self._gen_expr(expr.operand)
+        return f"({expr.op} {operand})"
+
+    def _gen_func_call_expr(self, expr):
+        func_name = self._gen_expr(expr.func)
+        raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+        # ── Async built-in functions ─────────────
+        if raw_name == "all":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                return f"asyncio.gather({items})"
+            inner = self._gen_expr(expr.args[0])
+            return f"asyncio.gather(*{inner})"
+        if raw_name == "race":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                items = ", ".join(self._gen_expr(e) for e in expr.args[0].elements)
+                return f"asyncio.wait([{items}], return_when=asyncio.FIRST_COMPLETED)"
+            inner = self._gen_expr(expr.args[0])
+            return f"asyncio.wait({inner}, return_when=asyncio.FIRST_COMPLETED)"
+        if raw_name == "tryCatch":
+            self.needs_try_catch = True
+            future = self._gen_expr(expr.args[0])
+            return f"_omni_try_catch({future})"
+
+        args = ", ".join(self._gen_expr(a) for a in expr.args)
+        return f"{func_name}({args})"
+
+    def _gen_method_call_expr(self, expr):
+        obj = self._gen_expr(expr.object)
+        method = expr.method
+
+        # Map method mappings
+        if method == "len":
+            return f"len({obj})"
+        elif method == "is_empty":
+            return f"len({obj}) == 0"
+        elif method == "get":
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}[{args}]"
+        elif method == "push":
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            self._emit(f"{obj}.append({args})")
+            return "None"
+        elif method == "pop":
+            return f"{obj}.pop()"
+        elif method == "contains":
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"({args} in {obj})"
+        elif method == "insert":
+            k, v = (self._gen_expr(a) for a in expr.args)
+            self._emit(f"{obj}[{k}] = {v}")
+            return "None"
+        elif method == "to_string":
+            obj_ty = self.type_map.get(id(expr.object))
+            if obj_ty and obj_ty.name == "bool":
+                return f"str({obj}).lower()"
+            return f"str({obj})"
+        else:
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}.{method}({args})"
+
+    def _gen_index_get_expr(self, expr):
+        obj = self._gen_expr(expr.object)
+        idx = self._gen_expr(expr.index)
+        return f"{obj}[{idx}]"
+
+    def _gen_array_literal_expr(self, expr):
+        elems = ", ".join(self._gen_expr(e) for e in expr.elements)
+        return f"[{elems}]"
+
+    def _gen_map_literal_expr(self, expr):
+        entries = ", ".join(
+            f"{self._gen_expr(k)}: {self._gen_expr(v)}"
+            for k, v in expr.entries
+        )
+        return f"{{{entries}}}"
+
+    def _gen_if_expr(self, expr):
+        cond = self._gen_expr(expr.condition)
+        then = self._gen_expr(expr.then_expr)
+        else_ = self._gen_expr(expr.else_expr)
+        return f"({then} if {cond} else {else_})"
+
+    def _gen_null_coalesce_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+        return f"({left} if {left} is not None else {right})"
+
+    def _gen_spread_expr(self, expr):
+        inner = self._gen_expr(expr.expr)
+        return f"*{inner}"
+
+    def _gen_await_expr(self, expr):
+        return f"await {self._gen_expr(expr.expr)}"
 
     # ── v0.2 helpers ──────────────────────────────
 
@@ -428,7 +463,7 @@ class PythonGenerator(CodeGenerator):
                 self._gen_stmt(stmt)
             if arm.body.trailing_expr:
                 self._emit(f"return {self._gen_expr(arm.body.trailing_expr)}")
-            result = "; ".join(l.strip() for l in self.output if l.strip())
+            result = "; ".join(line.strip() for line in self.output if line.strip())
             self.output = old
             return result
         return self._gen_expr(arm.body)

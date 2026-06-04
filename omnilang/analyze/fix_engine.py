@@ -4,7 +4,7 @@ Provides automatic source code fixes for diagnostic rules.
 Target: 80% of diagnostics should have auto-fix suggestions.
 """
 
-from omnilang.analyze.diagnostic import Diagnostic, CodeAction
+from omnilang.analyze.diagnostic import Diagnostic
 
 
 class FixEngine:

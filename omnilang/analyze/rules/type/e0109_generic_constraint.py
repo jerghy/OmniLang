@@ -13,11 +13,7 @@ that targets enforce (e.g. Rust's `Sized` or JS's `PlainObject`).
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
-    FunctionDef,
-    StructDef,
-    TaggedUnionDef,
     GenericParam,
-    TypeAnnotation,
 )
 
 

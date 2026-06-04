@@ -10,9 +10,7 @@ Rename plan format:
 """
 
 from omnilang.ast_nodes import (
-    Program, FunctionDef, Block, VarDecl, ForInStmt, Stmt,
-    IfStmt, WhileStmt, VarRef, MethodCall, FuncCall, IndexGet,
-    BinaryOp, UnaryOp, ArrayLiteral, MapLiteral, IfExpr,
+    Program, Block, VarDecl, ForInStmt, IfStmt, WhileStmt,
 )
 from omnilang.utils import ErrorCollector
 from omnilang.semantic.resolver import ScopeInfo, Scope

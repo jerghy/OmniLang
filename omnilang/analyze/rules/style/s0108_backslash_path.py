@@ -6,7 +6,6 @@ Using backslash (`\\`) in import paths will fail on Unix/macOS.
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import ImportStmt
 
 
 class S0108Rule(AnalyzeRule):

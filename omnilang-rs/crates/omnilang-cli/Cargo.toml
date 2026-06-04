@@ -1,0 +1,15 @@
+[package]
+name = "omnilang-cli"
+version = "0.2.0"
+edition = "2021"
+description = "OmniLang compiler CLI — omnic command-line tool"
+
+[[bin]]
+name = "omnic"
+path = "src/main.rs"
+
+[dependencies]
+omnilang-core = { path = "../omnilang-core" }
+clap = { workspace = true }
+anyhow = "1"
+serde_json = { workspace = true }

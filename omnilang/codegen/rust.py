@@ -7,11 +7,11 @@ from omnilang.ast_nodes import (
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
     Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
     ArrayLiteral, MapLiteral, IfExpr,
-    TemplateString, TemplatePart, NullCoalesce, OptionalChain, ChainLink,
-    ClosureExpr, AwaitExpr, SpreadExpr, StructLiteral, StructDef,
+    TemplateString, NullCoalesce, ClosureExpr, AwaitExpr, SpreadExpr, StructLiteral, StructDef,
     MatchExpr, MatchArm, OrPattern, StructPattern,
-    ArrayPattern, ObjectPattern, VarPattern, IgnorePattern, RestPattern,
-    TypeAnnotation, UnionType,
+    ArrayPattern, VarPattern, IgnorePattern, RestPattern,
+    TaggedUnionDef,
+    TypeAnnotation,
 )
 
 RUST_TYPE_MAP = {
@@ -189,164 +189,181 @@ class RustGenerator(CodeGenerator):
 
     def _gen_stmt(self, stmt):
         if isinstance(stmt, VarDecl):
-            is_container = stmt.type_ann and stmt.type_ann.name in ("Array", "Map", "String")
-            needs_mut = stmt.mutable or (is_container and not stmt.mutable)
-            keyword = "let mut" if needs_mut else "let"
-            ty_str = self._rust_type(stmt.type_ann)
-
-            # Cell/RefCell wrapping for captured mutable variables
-            if stmt.name in self.cell_vars:
-                ty_str = f"Cell<{ty_str}>"
-                keyword = "let"
-            elif stmt.name in self.refcell_vars:
-                ty_str = f"RefCell<{ty_str}>"
-                keyword = "let"
-
-            init = self._gen_expr(stmt.init, need_ownership=True)
-
-            # Wrap initializer for Cell/RefCell
-            if stmt.name in self.cell_vars:
-                init = f"Cell::new({init})"
-            elif stmt.name in self.refcell_vars:
-                init = f"RefCell::new({init})"
-
-            # Handle cloning from variable
-            if isinstance(stmt.init, VarRef) and is_container:
-                var_ty = self._lookup_var_type(stmt.init.name)
-                if var_ty:
-                    if var_ty.name == "String":
-                        init = self._gen_expr(stmt.init) + ".to_string()"
-                    elif var_ty.name in ("Array", "Map"):
-                        init = self._gen_expr(stmt.init) + ".clone()"
-
-            self._emit(f"{keyword} {stmt.name}: {ty_str} = {init};")
-            self._register_var(stmt.name, stmt.type_ann)
-
+            self._gen_var_decl_stmt(stmt)
         elif isinstance(stmt, Assign):
-            if stmt.op == "=":
-                # Cell/RefCell: use .set() or .borrow_mut() assignment
-                if stmt.target in self.cell_vars:
-                    val = self._emit_call_arg_expr(stmt.value)
-                    self._emit(f"{stmt.target}.set({val});")
-                    return
-                elif stmt.target in self.refcell_vars:
-                    val = self._emit_call_arg_expr(stmt.value)
-                    self._emit(f"*{stmt.target}.borrow_mut() = {val};")
-                    return
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    val = self._emit_call_arg_expr(stmt.value)
-                    target_ty = self._lookup_var_type(stmt.target)
-                    if target_ty and target_ty.name == "Map":
-                        # For insert, key is taken by value, not reference
-                        k = self._gen_expr(stmt.index)
-                        if isinstance(stmt.index, VarRef):
-                            var_ty = self._lookup_var_type(stmt.index.name)
-                            if var_ty and var_ty.name == "String":
-                                k = f"{k}.clone()"
-                        self._emit(f"{stmt.target}.insert({k}, {val});")
-                    else:
-                        self._emit(f"{stmt.target}[{idx} as usize] = {val};")
-                else:
-                    val = self._gen_expr(stmt.value)
-                    self._emit(f"{stmt.target} = {val};")
-            elif stmt.op in ("/=", "%="):
-                val = self._gen_expr(stmt.value)
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    self._emit(f"{stmt.target}[{idx} as usize] {stmt.op} {val};")
-                else:
-                    # Cell/RefCell: use .set() or .borrow_mut()
-                    if stmt.target in self.cell_vars:
-                        self._emit(f"{stmt.target}.set({stmt.target}.get() {stmt.op} {val});")
-                    elif stmt.target in self.refcell_vars:
-                        self._emit(f"{stmt.target}.borrow_mut().{stmt.op.lstrip('=' )} {val};")
-                    else:
-                        self._emit(f"{stmt.target} {stmt.op} {val};")
-            else:
-                val = self._gen_expr(stmt.value)
-                if stmt.index:
-                    idx = self._gen_expr(stmt.index)
-                    self._emit(f"{stmt.target}[{idx} as usize] {stmt.op} {val};")
-                else:
-                    op_map = {"+=": "+=", "-=": "-=", "*=": "*="}
-                    self._emit(f"{stmt.target} {op_map.get(stmt.op, stmt.op)} {val};")
-
+            self._gen_assign_stmt(stmt)
         elif isinstance(stmt, IfStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"if {cond} {{")
-            self._indent()
-            self._gen_block(stmt.then_body)
-            self._dedent()
-            for elif_cond, elif_body in stmt.else_ifs:
-                c = self._gen_expr(elif_cond)
-                self._emit(f"}} else if {c} {{")
-                self._indent()
-                self._gen_block(elif_body)
-                self._dedent()
-            if stmt.else_body:
-                self._emit("} else {")
-                self._indent()
-                self._gen_block(stmt.else_body)
-                self._dedent()
-            self._emit("}")
-
+            self._gen_if_stmt(stmt)
         elif isinstance(stmt, WhileStmt):
-            cond = self._gen_expr(stmt.condition)
-            self._emit(f"while {cond} {{")
-            self._indent()
-            self._gen_block(stmt.body)
-            self._dedent()
-            self._emit("}")
-
+            self._gen_while_stmt(stmt)
         elif isinstance(stmt, ForInStmt):
-            iterable_expr = self._gen_expr(stmt.iterable)
-            # Register loop variable and track for deref
-            iter_ty = self.type_map.get(id(stmt))
-            self._register_var(stmt.var_name, iter_ty)
-            self.for_vars.add(stmt.var_name)
-
-            # Reference the array
-            iter_ref = f"&{iterable_expr}"
-            self._emit(f"for {stmt.var_name} in {iter_ref} {{")
-            self._indent()
-            self._gen_block(stmt.body)
-            self._dedent()
-            self._emit("}")
-
-            self.for_vars.discard(stmt.var_name)
-
+            self._gen_for_in_stmt(stmt)
         elif isinstance(stmt, BreakStmt):
             self._emit("break;")
-
         elif isinstance(stmt, ContinueStmt):
             self._emit("continue;")
-
         elif isinstance(stmt, ReturnStmt):
-            if stmt.value:
-                val = self._gen_expr(stmt.value, need_ownership=True)
-                self._emit(f"return {val};")
-            else:
-                self._emit("return;")
-
+            self._gen_return_stmt(stmt)
         elif isinstance(stmt, PrintStmt):
-            arg = self._gen_expr(stmt.arg)
-            if stmt.newline:
-                self._emit(f'println!("{{}}", {arg});')
-            else:
-                self._emit(f'print!("{{}}", {arg});')
-
+            self._gen_print_stmt(stmt)
         elif isinstance(stmt, ExprStmt):
-            # Generate expression statement (with semicolon)
-            expr_code = self._gen_expr(stmt.expr)
-            self._emit(f"{expr_code};")
-
+            self._gen_expr_stmt(stmt)
         elif isinstance(stmt, Destructure):
-            # Lower destructuring to manual index access
-            init = self._gen_expr(stmt.init)
-            tmp = self._new_temp()
-            self._emit(f"let {tmp} = {init};")
-            self._gen_destructure_lowered(stmt, tmp)
+            self._gen_destructure_stmt(stmt)
+
+    def _gen_var_decl_stmt(self, stmt):
+        is_container = stmt.type_ann and stmt.type_ann.name in ("Array", "Map", "String")
+        needs_mut = stmt.mutable or (is_container and not stmt.mutable)
+        keyword = "let mut" if needs_mut else "let"
+        ty_str = self._rust_type(stmt.type_ann)
+
+        # Cell/RefCell wrapping for captured mutable variables
+        if stmt.name in self.cell_vars:
+            ty_str = f"Cell<{ty_str}>"
+            keyword = "let"
+        elif stmt.name in self.refcell_vars:
+            ty_str = f"RefCell<{ty_str}>"
+            keyword = "let"
+
+        init = self._gen_expr(stmt.init, need_ownership=True)
+
+        # Wrap initializer for Cell/RefCell
+        if stmt.name in self.cell_vars:
+            init = f"Cell::new({init})"
+        elif stmt.name in self.refcell_vars:
+            init = f"RefCell::new({init})"
+
+        # Handle cloning from variable
+        if isinstance(stmt.init, VarRef) and is_container:
+            var_ty = self._lookup_var_type(stmt.init.name)
+            if var_ty:
+                if var_ty.name == "String":
+                    init = self._gen_expr(stmt.init) + ".to_string()"
+                elif var_ty.name in ("Array", "Map"):
+                    init = self._gen_expr(stmt.init) + ".clone()"
+
+        self._emit(f"{keyword} {stmt.name}: {ty_str} = {init};")
+        self._register_var(stmt.name, stmt.type_ann)
+
+    def _gen_assign_stmt(self, stmt):
+        if stmt.op == "=":
+            # Cell/RefCell: use .set() or .borrow_mut() assignment
+            if stmt.target in self.cell_vars:
+                val = self._emit_call_arg_expr(stmt.value)
+                self._emit(f"{stmt.target}.set({val});")
+                return
+            elif stmt.target in self.refcell_vars:
+                val = self._emit_call_arg_expr(stmt.value)
+                self._emit(f"*{stmt.target}.borrow_mut() = {val};")
+                return
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                val = self._emit_call_arg_expr(stmt.value)
+                target_ty = self._lookup_var_type(stmt.target)
+                if target_ty and target_ty.name == "Map":
+                    # For insert, key is taken by value, not reference
+                    k = self._gen_expr(stmt.index)
+                    if isinstance(stmt.index, VarRef):
+                        var_ty = self._lookup_var_type(stmt.index.name)
+                        if var_ty and var_ty.name == "String":
+                            k = f"{k}.clone()"
+                    self._emit(f"{stmt.target}.insert({k}, {val});")
+                else:
+                    self._emit(f"{stmt.target}[{idx} as usize] = {val};")
+            else:
+                val = self._gen_expr(stmt.value)
+                self._emit(f"{stmt.target} = {val};")
+        elif stmt.op in ("/=", "%="):
+            val = self._gen_expr(stmt.value)
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                self._emit(f"{stmt.target}[{idx} as usize] {stmt.op} {val};")
+            else:
+                # Cell/RefCell: use .set() or .borrow_mut()
+                if stmt.target in self.cell_vars:
+                    self._emit(f"{stmt.target}.set({stmt.target}.get() {stmt.op} {val});")
+                elif stmt.target in self.refcell_vars:
+                    self._emit(f"{stmt.target}.borrow_mut().{stmt.op.lstrip('=' )} {val};")
+                else:
+                    self._emit(f"{stmt.target} {stmt.op} {val};")
+        else:
+            val = self._gen_expr(stmt.value)
+            if stmt.index:
+                idx = self._gen_expr(stmt.index)
+                self._emit(f"{stmt.target}[{idx} as usize] {stmt.op} {val};")
+            else:
+                op_map = {"+=": "+=", "-=": "-=", "*=": "*="}
+                self._emit(f"{stmt.target} {op_map.get(stmt.op, stmt.op)} {val};")
+
+    def _gen_if_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"if {cond} {{")
+        self._indent()
+        self._gen_block(stmt.then_body)
+        self._dedent()
+        for elif_cond, elif_body in stmt.else_ifs:
+            c = self._gen_expr(elif_cond)
+            self._emit(f"}} else if {c} {{")
+            self._indent()
+            self._gen_block(elif_body)
+            self._dedent()
+        if stmt.else_body:
+            self._emit("} else {")
+            self._indent()
+            self._gen_block(stmt.else_body)
+            self._dedent()
+        self._emit("}")
+
+    def _gen_while_stmt(self, stmt):
+        cond = self._gen_expr(stmt.condition)
+        self._emit(f"while {cond} {{")
+        self._indent()
+        self._gen_block(stmt.body)
+        self._dedent()
+        self._emit("}")
+
+    def _gen_for_in_stmt(self, stmt):
+        iterable_expr = self._gen_expr(stmt.iterable)
+        # Register loop variable and track for deref
+        iter_ty = self.type_map.get(id(stmt))
+        self._register_var(stmt.var_name, iter_ty)
+        self.for_vars.add(stmt.var_name)
+
+        # Reference the array
+        iter_ref = f"&{iterable_expr}"
+        self._emit(f"for {stmt.var_name} in {iter_ref} {{")
+        self._indent()
+        self._gen_block(stmt.body)
+        self._dedent()
+        self._emit("}")
+
+        self.for_vars.discard(stmt.var_name)
+
+    def _gen_return_stmt(self, stmt):
+        if stmt.value:
+            val = self._gen_expr(stmt.value, need_ownership=True)
+            self._emit(f"return {val};")
+        else:
+            self._emit("return;")
+
+    def _gen_print_stmt(self, stmt):
+        arg = self._gen_expr(stmt.arg)
+        if stmt.newline:
+            self._emit(f'println!("{{}}", {arg});')
+        else:
+            self._emit(f'print!("{{}}", {arg});')
+
+    def _gen_expr_stmt(self, stmt):
+        # Generate expression statement (with semicolon)
+        expr_code = self._gen_expr(stmt.expr)
+        self._emit(f"{expr_code};")
+
+    def _gen_destructure_stmt(self, stmt):
+        # Lower destructuring to manual index access
+        init = self._gen_expr(stmt.init)
+        tmp = self._new_temp()
+        self._emit(f"let {tmp} = {init};")
+        self._gen_destructure_lowered(stmt, tmp)
 
     # ── Helper: argument generation for calls ─────
 
@@ -369,7 +386,6 @@ class RustGenerator(CodeGenerator):
             # Expression — need temporary variable to hold the value, then reference it
             val = self._gen_expr(expr)
             tmp = self._new_temp()
-            ty_name = param_type.name if param_type else "String"
             rust_ty = self._rust_type(param_type)
             self._emit(f"let {tmp}: {rust_ty} = {val};")
             return f"&{tmp}"
@@ -393,208 +409,231 @@ class RustGenerator(CodeGenerator):
             return "()"
 
         if isinstance(expr, Literal):
-            if expr.kind == "String":
-                escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
-                return f'String::from("{escaped}")'
-            elif expr.kind == "bool":
-                return "true" if expr.value else "false"
-            return str(expr.value)
-
+            return self._gen_literal_expr(expr)
         elif isinstance(expr, VarRef):
-            name = expr.name
-            var_ty = self._lookup_var_type(name)
-            # Cell/RefCell: use .get() or .borrow() for read access
-            if name in self.cell_vars and ctx != "method_receiver":
-                return f"{name}.get()"
-            elif name in self.refcell_vars and ctx != "method_receiver":
-                return f"{name}.borrow()"
-            # Auto-deref for-in loop variables (Copy types only, for non-method-receiver use)
-            if name in self.for_vars and var_ty and self._is_copy(var_ty) and ctx != "method_receiver":
-                return f"(*{name})"
-            if need_ownership and var_ty and self._is_non_copy(var_ty):
-                if var_ty.name == "String":
-                    return f"{name}.to_string()"
-                elif var_ty.name in ("Array", "Map"):
-                    return f"{name}.clone()"
-            # Auto-deref for-in loop variables (Copy types only, for non-method-receiver use)
-            if name in self.for_vars and var_ty and self._is_copy(var_ty) and ctx != "method_receiver":
-                return f"(*{name})"
-            return name
-
+            return self._gen_var_ref_expr(expr, need_ownership=need_ownership, ctx=ctx)
         elif isinstance(expr, BinaryOp):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-
-            if expr.op == "+":
-                left_ty = self.type_map.get(id(expr.left))
-                if left_ty and left_ty.name == "String":
-                    return f'format!("{{}}{{}}", {left}, {right})'
-            return f"({left} {expr.op} {right})"
-
+            return self._gen_binary_op_expr(expr)
         elif isinstance(expr, UnaryOp):
-            operand = self._gen_expr(expr.operand)
-            return f"({expr.op} {operand})"
-
+            return self._gen_unary_op_expr(expr)
         elif isinstance(expr, FuncCall):
-            func_name = self._gen_expr(expr.func)
-            raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
-
-            # ── Async built-in functions ─────────────
-            if raw_name == "all":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    items = ", ".join(
-                        self._gen_expr(e) for e in expr.args[0].elements
-                    )
-                    return f"futures::future::join_all(vec![{items}]).await"
-                inner = self._gen_expr(expr.args[0])
-                return f"futures::future::join_all({inner}).await"
-            if raw_name == "race":
-                if expr.args and isinstance(expr.args[0], ArrayLiteral):
-                    branches = ",\n".join(
-                        f"        result = {self._gen_expr(e)} => result"
-                        for e in expr.args[0].elements
-                    )
-                    return f"tokio::select! {{\n{branches},\n    }}"
-                inner = self._gen_expr(expr.args[0])
-                return f"tokio::select! {{\n        result = {inner} => result,\n    }}"
-            if raw_name == "tryCatch":
-                future = self._gen_expr(expr.args[0])
-                return f"async {{ Ok({future}.await) }}"
-
-            # Use _emit_call_arg for proper reference handling
-            # Find the function definition in the program
-            func_def = None
-            if isinstance(expr.func, VarRef):
-                for f in self.program.functions if hasattr(self, 'program') else []:
-                    if f.name == expr.func.name:
-                        func_def = f
-                        break
-
-            args = []
-            for i, arg in enumerate(expr.args):
-                param_type = None
-                if func_def and i < len(func_def.params):
-                    param_type = func_def.params[i].type_ann
-                args.append(self._emit_call_arg(arg, param_type))
-
-            args_str = ", ".join(args)
-            return f"{func_name}({args_str})"
-
+            return self._gen_func_call_expr(expr)
         elif isinstance(expr, MethodCall):
-            obj = self._gen_expr(expr.object, ctx="method_receiver")
-            method = expr.method
-            obj_ty = self.type_map.get(id(expr.object))
-
-            if method == "len":
-                return f"({obj}.len() as i32)"
-            elif method == "is_empty":
-                return f"{obj}.is_empty()"
-            elif method == "get":
-                if obj_ty and obj_ty.name == "Array":
-                    arg = ", ".join(self._gen_expr(a) for a in expr.args)
-                    if obj_ty.type_args:
-                        elem_ty = obj_ty.type_args[0]
-                        if elem_ty.name == "String":
-                            return f"{obj}[{arg} as usize].to_string()"
-                        return f"{obj}[{arg} as usize]"
-                    return f"{obj}[{arg} as usize]"
-                elif obj_ty and obj_ty.name == "Map":
-                    key = self._emit_map_key(expr.args[0])
-                    if obj_ty.type_args:
-                        elem_ty = obj_ty.type_args[1] if len(obj_ty.type_args) > 1 else None
-                        if elem_ty and elem_ty.name == "String":
-                            return f"{obj}[{key}].to_string()"
-                        return f"{obj}[{key}]"
-                    return f"{obj}[{key}]"
-                return f"{obj}[...]"
-            elif method == "push":
-                arg = self._emit_call_arg_expr(expr.args[0])
-                return f"{obj}.push({arg})"
-            elif method == "pop":
-                return f'{obj}.pop().expect("empty")'
-            elif method == "contains":
-                arg = self._emit_map_key(expr.args[0])
-                return f"{obj}.contains_key({arg})"
-            elif method == "insert":
-                # insert takes ownership of key and value
-                k = self._gen_expr(expr.args[0])
-                if isinstance(expr.args[0], VarRef):
-                    var_ty = self._lookup_var_type(expr.args[0].name)
-                    if var_ty and var_ty.name == "String":
-                        k = f"{k}.clone()"
-                v = self._emit_call_arg_expr(expr.args[1])
-                return f"{obj}.insert({k}, {v})"
-            elif method == "to_string":
-                return f"{obj}.to_string()"
-            else:
-                args = ", ".join(self._gen_expr(a) for a in expr.args)
-                return f"{obj}.{method}({args})"
-
+            return self._gen_method_call_expr(expr)
         elif isinstance(expr, IndexGet):
-            obj = self._gen_expr(expr.object)
-            idx = self._gen_expr(expr.index)
-            obj_ty = self.type_map.get(id(expr.object))
-
-            if obj_ty and obj_ty.type_args:
-                elem_ty = obj_ty.type_args[0]
-                if obj_ty.name == "Array":
-                    if elem_ty.name == "String":
-                        return f"{obj}[{idx} as usize].to_string()"
-                    return f"{obj}[{idx} as usize]"
-                elif obj_ty.name == "Map":
-                    key = self._emit_map_key(expr.index)
-                    if elem_ty.name == "String":
-                        return f"{obj}[{key}].to_string()"
-                    return f"{obj}[{key}]"
-            return f"{obj}[{idx} as usize]"
-
+            return self._gen_index_get_expr(expr)
         elif isinstance(expr, ArrayLiteral):
-            elems = ", ".join(
-                self._emit_call_arg_expr(e) if isinstance(e, VarRef)
-                else self._gen_expr(e)
-                for e in expr.elements
-            )
-            return f"vec![{elems}]"
-
+            return self._gen_array_literal_expr(expr)
         elif isinstance(expr, MapLiteral):
-            entries = ", ".join(
-                f"({self._gen_expr(k)}, {self._gen_expr(v)})"
-                for k, v in expr.entries
-            )
-            self.has_map = True
-            return f"HashMap::from([{entries}])"
-
+            return self._gen_map_literal_expr(expr)
         elif isinstance(expr, IfExpr):
-            cond = self._gen_expr(expr.condition)
-            then = self._gen_expr(expr.then_expr)
-            else_ = self._gen_expr(expr.else_expr)
-            return f"if {cond} {{ {then} }} else {{ {else_} }}"
-
+            return self._gen_if_expr(expr)
         elif isinstance(expr, TemplateString):
             return self._gen_template_string(expr)
-
         elif isinstance(expr, NullCoalesce):
-            left = self._gen_expr(expr.left)
-            right = self._gen_expr(expr.right)
-            return f"{left}.unwrap_or({right})"
-
+            return self._gen_null_coalesce_expr(expr)
         elif isinstance(expr, SpreadExpr):
-            inner = self._gen_expr(expr.expr)
-            return inner  # In array context: vec![...inner]
-
+            return self._gen_spread_expr(expr)
         elif isinstance(expr, StructLiteral):
             return self._gen_struct_literal(expr)
-
         elif isinstance(expr, ClosureExpr):
             return self._gen_closure(expr)
-
         elif isinstance(expr, MatchExpr):
             return self._gen_match(expr)
-
         elif isinstance(expr, AwaitExpr):
-            return f"{self._gen_expr(expr.expr)}.await"
+            return self._gen_await_expr(expr)
 
         return "()"
+
+    def _gen_literal_expr(self, expr):
+        if expr.kind == "String":
+            escaped = expr.value.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
+            return f'String::from("{escaped}")'
+        elif expr.kind == "bool":
+            return "true" if expr.value else "false"
+        return str(expr.value)
+
+    def _gen_var_ref_expr(self, expr, need_ownership: bool = False, ctx: str = "default"):
+        name = expr.name
+        var_ty = self._lookup_var_type(name)
+        # Cell/RefCell: use .get() or .borrow() for read access
+        if name in self.cell_vars and ctx != "method_receiver":
+            return f"{name}.get()"
+        elif name in self.refcell_vars and ctx != "method_receiver":
+            return f"{name}.borrow()"
+        # Auto-deref for-in loop variables (Copy types only, for non-method-receiver use)
+        if name in self.for_vars and var_ty and self._is_copy(var_ty) and ctx != "method_receiver":
+            return f"(*{name})"
+        if need_ownership and var_ty and self._is_non_copy(var_ty):
+            if var_ty.name == "String":
+                return f"{name}.to_string()"
+            elif var_ty.name in ("Array", "Map"):
+                return f"{name}.clone()"
+        # Auto-deref for-in loop variables (Copy types only, for non-method-receiver use)
+        if name in self.for_vars and var_ty and self._is_copy(var_ty) and ctx != "method_receiver":
+            return f"(*{name})"
+        return name
+
+    def _gen_binary_op_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+
+        if expr.op == "+":
+            left_ty = self.type_map.get(id(expr.left))
+            if left_ty and left_ty.name == "String":
+                return f'format!("{{}}{{}}", {left}, {right})'
+        return f"({left} {expr.op} {right})"
+
+    def _gen_unary_op_expr(self, expr):
+        operand = self._gen_expr(expr.operand)
+        return f"({expr.op} {operand})"
+
+    def _gen_func_call_expr(self, expr):
+        func_name = self._gen_expr(expr.func)
+        raw_name = expr.func.name if isinstance(expr.func, VarRef) else None
+
+        # ── Async built-in functions ─────────────
+        if raw_name == "all":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                items = ", ".join(
+                    self._gen_expr(e) for e in expr.args[0].elements
+                )
+                return f"futures::future::join_all(vec![{items}]).await"
+            inner = self._gen_expr(expr.args[0])
+            return f"futures::future::join_all({inner}).await"
+        if raw_name == "race":
+            if expr.args and isinstance(expr.args[0], ArrayLiteral):
+                branches = ",\n".join(
+                    f"        result = {self._gen_expr(e)} => result"
+                    for e in expr.args[0].elements
+                )
+                return f"tokio::select! {{\n{branches},\n    }}"
+            inner = self._gen_expr(expr.args[0])
+            return f"tokio::select! {{\n        result = {inner} => result,\n    }}"
+        if raw_name == "tryCatch":
+            future = self._gen_expr(expr.args[0])
+            return f"async {{ Ok({future}.await) }}"
+
+        # Use _emit_call_arg for proper reference handling
+        # Find the function definition in the program
+        func_def = None
+        if isinstance(expr.func, VarRef):
+            for f in self.program.functions if hasattr(self, 'program') else []:
+                if f.name == expr.func.name:
+                    func_def = f
+                    break
+
+        args = []
+        for i, arg in enumerate(expr.args):
+            param_type = None
+            if func_def and i < len(func_def.params):
+                param_type = func_def.params[i].type_ann
+            args.append(self._emit_call_arg(arg, param_type))
+
+        args_str = ", ".join(args)
+        return f"{func_name}({args_str})"
+
+    def _gen_method_call_expr(self, expr):
+        obj = self._gen_expr(expr.object, ctx="method_receiver")
+        method = expr.method
+        obj_ty = self.type_map.get(id(expr.object))
+
+        if method == "len":
+            return f"({obj}.len() as i32)"
+        elif method == "is_empty":
+            return f"{obj}.is_empty()"
+        elif method == "get":
+            if obj_ty and obj_ty.name == "Array":
+                arg = ", ".join(self._gen_expr(a) for a in expr.args)
+                if obj_ty.type_args:
+                    elem_ty = obj_ty.type_args[0]
+                    if elem_ty.name == "String":
+                        return f"{obj}[{arg} as usize].to_string()"
+                    return f"{obj}[{arg} as usize]"
+                return f"{obj}[{arg} as usize]"
+            elif obj_ty and obj_ty.name == "Map":
+                key = self._emit_map_key(expr.args[0])
+                if obj_ty.type_args:
+                    elem_ty = obj_ty.type_args[1] if len(obj_ty.type_args) > 1 else None
+                    if elem_ty and elem_ty.name == "String":
+                        return f"{obj}[{key}].to_string()"
+                    return f"{obj}[{key}]"
+                return f"{obj}[{key}]"
+            return f"{obj}[...]"
+        elif method == "push":
+            arg = self._emit_call_arg_expr(expr.args[0])
+            return f"{obj}.push({arg})"
+        elif method == "pop":
+            return f'{obj}.pop().expect("empty")'
+        elif method == "contains":
+            arg = self._emit_map_key(expr.args[0])
+            return f"{obj}.contains_key({arg})"
+        elif method == "insert":
+            # insert takes ownership of key and value
+            k = self._gen_expr(expr.args[0])
+            if isinstance(expr.args[0], VarRef):
+                var_ty = self._lookup_var_type(expr.args[0].name)
+                if var_ty and var_ty.name == "String":
+                    k = f"{k}.clone()"
+            v = self._emit_call_arg_expr(expr.args[1])
+            return f"{obj}.insert({k}, {v})"
+        elif method == "to_string":
+            return f"{obj}.to_string()"
+        else:
+            args = ", ".join(self._gen_expr(a) for a in expr.args)
+            return f"{obj}.{method}({args})"
+
+    def _gen_index_get_expr(self, expr):
+        obj = self._gen_expr(expr.object)
+        idx = self._gen_expr(expr.index)
+        obj_ty = self.type_map.get(id(expr.object))
+
+        if obj_ty and obj_ty.type_args:
+            elem_ty = obj_ty.type_args[0]
+            if obj_ty.name == "Array":
+                if elem_ty.name == "String":
+                    return f"{obj}[{idx} as usize].to_string()"
+                return f"{obj}[{idx} as usize]"
+            elif obj_ty.name == "Map":
+                key = self._emit_map_key(expr.index)
+                if elem_ty.name == "String":
+                    return f"{obj}[{key}].to_string()"
+                return f"{obj}[{key}]"
+        return f"{obj}[{idx} as usize]"
+
+    def _gen_array_literal_expr(self, expr):
+        elems = ", ".join(
+            self._emit_call_arg_expr(e) if isinstance(e, VarRef)
+            else self._gen_expr(e)
+            for e in expr.elements
+        )
+        return f"vec![{elems}]"
+
+    def _gen_map_literal_expr(self, expr):
+        entries = ", ".join(
+            f"({self._gen_expr(k)}, {self._gen_expr(v)})"
+            for k, v in expr.entries
+        )
+        self.has_map = True
+        return f"HashMap::from([{entries}])"
+
+    def _gen_if_expr(self, expr):
+        cond = self._gen_expr(expr.condition)
+        then = self._gen_expr(expr.then_expr)
+        else_ = self._gen_expr(expr.else_expr)
+        return f"if {cond} {{ {then} }} else {{ {else_} }}"
+
+    def _gen_null_coalesce_expr(self, expr):
+        left = self._gen_expr(expr.left)
+        right = self._gen_expr(expr.right)
+        return f"{left}.unwrap_or({right})"
+
+    def _gen_spread_expr(self, expr):
+        inner = self._gen_expr(expr.expr)
+        return inner  # In array context: vec![...inner]
+
+    def _gen_await_expr(self, expr):
+        return f"{self._gen_expr(expr.expr)}.await"
 
     # ── v0.2 helpers ──────────────────────────────
 

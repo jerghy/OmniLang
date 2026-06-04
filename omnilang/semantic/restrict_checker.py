@@ -3,9 +3,9 @@
 from omnilang.ast_nodes import (
     Program, FunctionDef, Block, VarDecl, Assign, IfStmt, WhileStmt, ForInStmt,
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
-    Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
+    VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
     ArrayLiteral, MapLiteral, IfExpr,
-    TypeAnnotation, Stmt,
+    Stmt, Expr,
 )
 from omnilang.utils import ErrorCollector
 from omnilang.semantic.resolver import ScopeInfo

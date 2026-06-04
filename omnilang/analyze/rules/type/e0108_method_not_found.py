@@ -4,7 +4,7 @@ A method call references a method that doesn't exist on the receiver's type.
 """
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import MethodCall, Block
+from omnilang.ast_nodes import MethodCall
 
 
 class E0108Rule(AnalyzeRule):

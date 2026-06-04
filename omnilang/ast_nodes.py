@@ -255,10 +255,6 @@ class OrPattern:
     span: Span | None = None
 
 
-# MatchPattern type alias — defined after all pattern classes below
-# MatchPattern = Literal | VarPattern | IgnorePattern | StructPattern | OrPattern
-
-
 @dataclass(frozen=True)
 class StructLiteral(Expr):
     """Struct literal expression: TypeName { field: value, ... }"""
@@ -309,6 +305,9 @@ class ObjectPattern:
 
 # Union type alias for pattern matching
 Pattern = VarPattern | IgnorePattern | RestPattern | ArrayPattern | ObjectPattern
+
+# MatchPattern type alias for match expression patterns
+MatchPattern = Literal | VarPattern | IgnorePattern | StructPattern | OrPattern
 
 
 # ── Statements ────────────────────────────────────────

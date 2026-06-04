@@ -102,8 +102,8 @@ class E0307Rule(AnalyzeRule):
         if isinstance(stmt, VarDecl):
             # A mutable variable declaration establishes a new owner
             if stmt.mutable:
-                old_mut = mut_borrowed.pop(stmt.name, None)
-                old_imm = imm_borrowed.pop(stmt.name, None)
+                _old_mut = mut_borrowed.pop(stmt.name, None)
+                _old_imm = imm_borrowed.pop(stmt.name, None)
 
                 if stmt.init:
                     # The initializer may reference other variables

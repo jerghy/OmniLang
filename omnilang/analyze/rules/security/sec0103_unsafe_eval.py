@@ -122,7 +122,6 @@ class SEC0103Rule(AnalyzeRule):
     def _has_string_arg(args: list) -> bool:
         """Check whether at least one argument is a string literal or
         a string-valued template."""
-        from omnilang.ast_nodes import Literal, TemplateString
 
         for arg in args:
             if isinstance(arg, Literal) and arg.kind in ("String", "str", "char"):

@@ -9,8 +9,7 @@ Rust and Dart) can skip bounds-checking overhead.
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
-    IndexGet, VarRef, Literal, BinaryOp, ForInStmt,
-    WhileStmt, VarDecl,
+    IndexGet, VarRef, Literal, BinaryOp,
 )
 
 

@@ -60,3 +60,18 @@ def format_error(err: CompilerError, source_lines: dict[str, list[str]] | None =
     elif err.filename:
         return f"Error: {err.filename}: {err.message}"
     return f"Error: {err.message}"
+
+
+def span_from_token(t) -> Span:
+    """Extract span from a Lark token or tree node."""
+    return Span(line=t.line or 1, col=t.column or 1,
+                end_line=t.end_line or 0, end_col=t.end_column or 0)
+
+
+def mk_span(obj) -> Span | None:
+    """Create a Span from a lark object if possible."""
+    try:
+        return Span(line=obj.line or 1, col=obj.column or 1,
+                    end_line=obj.end_line or 0, end_col=obj.end_column or 0)
+    except (AttributeError, TypeError):
+        return None

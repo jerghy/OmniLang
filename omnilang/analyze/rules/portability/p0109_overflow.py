@@ -27,10 +27,12 @@ class P0109Rule(AnalyzeRule):
         for stmt in getattr(block, 'stmts', []):
             for attr in ['init', 'value', 'condition', 'iterable', 'arg', 'expr']:
                 val = getattr(stmt, attr, None)
-                if val: self._walk_expr(val, diags)
+                if val:
+                    self._walk_expr(val, diags)
             for attr in ['body', 'then_body', 'else_body']:
                 child = getattr(stmt, attr, None)
-                if child: self._walk_block(child, diags)
+                if child:
+                    self._walk_block(child, diags)
 
     def _walk_expr(self, expr, diags):
         if isinstance(expr, BinaryOp) and expr.op in ("+", "-", "*"):

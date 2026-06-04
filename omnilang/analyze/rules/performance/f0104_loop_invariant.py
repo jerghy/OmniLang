@@ -10,7 +10,7 @@ from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
     ForInStmt, WhileStmt, BinaryOp, MethodCall, VarRef,
-    Literal, FuncCall, Block,
+    Literal, Block,
 )
 
 _COMPUTED_METHODS = {"len", "length", "size", "count", "is_empty"}

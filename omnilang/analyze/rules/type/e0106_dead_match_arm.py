@@ -56,13 +56,13 @@ class E0106Rule(AnalyzeRule):
                 self._check_expr(val, diagnostics)
 
     def _check_match(self, match: MatchExpr, diagnostics):
-        has_wildcard = False
+        _has_wildcard = False
         for i, arm in enumerate(match.arms):
             pattern = arm.pattern
             pname = getattr(pattern, 'name', getattr(pattern, 'value', None))
             pcls = type(pattern).__name__
             if pcls == 'IgnorePattern' or pname == '_':
-                has_wildcard = True
+                _has_wildcard = True
                 if i + 1 < len(match.arms):
                     span = match.arms[i + 1].span or match.span
                     loc = SourceLocation(file=self._filename(), line=span.line if span else 1,

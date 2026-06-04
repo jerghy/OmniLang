@@ -5,8 +5,7 @@ Detects when a value of one type is used where a different type is expected.
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
 from omnilang.ast_nodes import (
-    VarDecl, Assign, ReturnStmt, FunctionDef, FnType,
-    TypeAnnotation, UnionType, Block, FuncCall,
+    VarDecl, ReturnStmt, FunctionDef, UnionType, Block,
 )
 
 

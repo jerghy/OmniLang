@@ -1,12 +1,7 @@
 """Base class for code generators with shared utilities."""
 
 from omnilang.ast_nodes import (
-    Program, FunctionDef, Param, Block,
-    VarDecl, Assign, IfStmt, WhileStmt, ForInStmt,
-    BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
-    Literal, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, IndexGet,
-    ArrayLiteral, MapLiteral, IfExpr,
-    TypeAnnotation,
+    Program, FunctionDef, Block,
 )
 
 

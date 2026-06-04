@@ -6,7 +6,7 @@ and may indicate a logic error (forgot to await something).
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import AwaitExpr, Block, FunctionDef
+from omnilang.ast_nodes import AwaitExpr, Block
 
 
 class E0202Rule(AnalyzeRule):

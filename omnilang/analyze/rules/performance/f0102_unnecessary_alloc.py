@@ -8,7 +8,7 @@ or calling .to_array()/.collect() then iterating immediately.
 
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import ArrayLiteral, MapLiteral, ForInStmt, MethodCall, FuncCall
+from omnilang.ast_nodes import ArrayLiteral, MapLiteral, ForInStmt, MethodCall
 
 
 class F0102Rule(AnalyzeRule):

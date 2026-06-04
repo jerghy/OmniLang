@@ -17,7 +17,7 @@ Convention table:
 import re
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import VarDecl, FunctionDef, Block
+from omnilang.ast_nodes import VarDecl, Block
 
 
 # ── Regex patterns ────────────────────────────────────────

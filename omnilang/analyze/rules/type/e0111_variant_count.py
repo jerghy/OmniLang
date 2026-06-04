@@ -1,7 +1,7 @@
 """E0111: Variant count mismatch between tagged union and match arms."""
 from omnilang.analyze.registry import AnalyzeRule, AnalyzeContext
 from omnilang.analyze.diagnostic import Diagnostic, Severity, SourceLocation
-from omnilang.ast_nodes import MatchExpr, TaggedUnionDef
+from omnilang.ast_nodes import MatchExpr
 
 
 class E0111Rule(AnalyzeRule):
