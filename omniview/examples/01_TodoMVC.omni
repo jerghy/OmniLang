@@ -1,0 +1,46 @@
+store TodoStore {
+    signal task_count: i32 = 0;
+    getter display_count: i32 = task_count;
+    action add_task() { task_count = task_count + 1; }
+}
+
+component TodoApp {
+    @store TodoStore;
+    signal input_text: String = "";
+    signal filter: String = "all";
+
+    @mount { input_text = ""; }
+
+    fn handle_add() { input_text = ""; }
+    fn show_all() { filter = "all"; }
+    fn show_active() { filter = "active"; }
+    fn show_done() { filter = "done"; }
+
+    view {
+        <Container>
+            <Heading>Todos</Heading>
+            <Flex direction="row" gap="8px">
+                <Input bind:value={input_text} placeholder="What needs to be done?" test-id="todo-input" />
+                <Button onPress={handle_add} test-id="btn-add">Add</Button>
+            </Flex>
+            <Flex direction="row" gap="16px" test-id="filter-bar">
+                <Button onPress={show_all} test-id="filter-all">All</Button>
+                <Button onPress={show_active} test-id="filter-active">Active</Button>
+                <Button onPress={show_done} test-id="filter-done">Done</Button>
+            </Flex>
+            @if filter == "all" { <Text test-id="content-all">Showing ALL tasks</Text> }
+            @if filter == "active" { <Text test-id="content-active">Showing ACTIVE tasks</Text> }
+            @if filter == "done" { <Text test-id="content-done">Showing DONE tasks</Text> }
+            <List test-id="todo-list">
+                <ListItem key="1" test-id="list-item"><Text>Sample Task</Text></ListItem>
+            </List>
+            <Flex direction="row" gap="16px">
+                <Text test-id="counter-label">Total: {store.display_count} items</Text>
+            </Flex>
+        </Container>
+    }
+    style {
+        .container { layout: column; gap: 16px; padding: 24px; }
+        .heading { font_size: 32px; font_weight: bold; }
+    }
+}

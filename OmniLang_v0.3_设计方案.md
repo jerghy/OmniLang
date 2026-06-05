@@ -1,14 +1,15 @@
 # OmniLang v0.3 — OmniView 前端语言设计方案
 
-> **版本：** v3.0-final（**已冻结** — 不可变设计基线）  
-> **状态：** Phase 0 实施依据  
+> **版本：** v3.0-final + Council 修正 (2026-06-05)  
+> **状态：** Phase 0 实施依据 — **§〇 为 Council 修正新增，§八/§十四 已同步**  
 > **IR 版本：** `0.3`（Phase 0 中任何调整通过 `IRVersion` 次版本号迭代，不回修改本文档）  
-> **摘要：** 本方案设计了 OmniView——一套以**意图 IR、抽象元素、@指令、语义样式、Store 状态管理**为核心的前端组件语言。通过**三阶段 codegen 管道**（模式匹配→惯用法选择→代码展开）实现「一次编写组件，编译到 React/Vue/Dioxus/Flutter 的 L2 地道代码」。Phase 0 聚焦 React + Zustand + 20 个核心元素 + L2 地道生成。
+> **摘要：** 本方案设计了 OmniView——一套以**意图 IR、抽象元素、@指令、语义样式、Store 状态管理**为核心的前端组件语言。通过**三阶段 codegen 管道**（模式匹配→惯用法选择→代码展开）实现「一次编写组件，编译到 React/Vue/Dioxus/Flutter 的 L2 地道代码」。**OmniView 依赖 OmniLang 作为其逻辑语言基底**——表达式解析、类型系统、语义分析均由 OmniLang 提供。Phase 0 聚焦 React + Zustand + 20 个核心元素 + L2 地道生成。
 
 ---
 
 ## 目录
 
+0. [OmniLang 与 OmniView 的关系](#〇omnilang-与-omniview-的关系)
 1. [设计哲学](#一设计哲学)
 2. [OmniView 组件模型](#二omniview-组件模型)
 3. [抽象元素系统](#三抽象元素系统)
@@ -50,6 +51,72 @@
 21. [附录 A：完整元素映射表](#附录-a完整元素映射表)
 22. [附录 B：Store 编译映射](#附录-bstore-编译映射)
 23. [附录 C：依赖追踪策略](#附录-c依赖追踪策略)
+
+---
+
+## 〇、OmniLang 与 OmniView 的关系
+
+### 类比：Dart → Flutter ≈ OmniLang → OmniView
+
+Flutter 不是独立存在的——它建立在 Dart 语言之上。Flutter 负责 Widget 树、布局、渲染，Dart 负责类型系统、控制流、表达式求值、异步模型。**同样，OmniView 是 OmniLang 上的 UI 领域 DSL，不独立于 OmniLang 存在。**
+
+| 维度 | Dart → Flutter | OmniLang → OmniView |
+|------|---------------|-------------------|
+| **语言层** | Dart 是通用编程语言 | OmniLang 是通用编程语言 |
+| **UI 层** | Flutter 是用 Dart 写的 UI 框架 | OmniView 是用 OmniLang 表达式构建的 UI DSL |
+| **组件模型** | `StatelessWidget`/`StatefulWidget` | `component { signal/computed/view/style }` |
+| **状态管理** | `setState` / `ChangeNotifier` | `signal` / `store`（框架无关意图） |
+| **声明式 UI** | `Widget build()` 返回 Widget 树 | `view { <Element> }` 声明元素树 |
+| **编译产物** | Dart → 原生代码（ARM/x86） | `.omni` → React/Vue/Dioxus/Flutter 源码 |
+| **工具链** | `flutter` CLI + Dart VM | `omnic` CLI + OmniLang 编译器 |
+
+### 依赖边界
+
+```
+.omni 源文件
+    │
+    ├── 遇到 UI 结构 ──→ OmniView Parser 处理
+    │   component / store / view / style / theme
+    │   @if / @for / @slot / @native / @fallback
+    │   <Element> 标签 + 属性
+    │
+    ├── 遇到表达式 ──→ OmniLang Parser 处理
+    │   {expr} 文本插值、属性值、@if 条件
+    │
+    └── 遇到语句块 ──→ OmniLang Parser 处理
+        fn body、action body、computed body
+        @mount / @unmount / @effect 块
+```
+
+### OmniView 从 OmniLang 获取的能力
+
+| 能力 | 来源 | 说明 |
+|------|------|------|
+| 表达式解析 | `omnilang.parser` | 字面量、变量引用、二元/一元运算、三元、函数调用、方法调用、字段访问、数组/Map 字面量、展开语法 |
+| 类型系统 | `omnilang.semantic.type_checker` | 类型推断、类型检查、泛型约束 |
+| 语义分析 | `omnilang.semantic` | 符号解析、作用域分析、依赖收集、错误诊断 |
+| AST 节点 | `omnilang.ast_nodes` | `Expr`, `VarRef`, `Literal`, `BinaryOp`, `FuncCall`, `MethodCall`, `ArrayLiteral`, `SpreadExpr`, `TypeAnnotation` 等 |
+| 诊断框架 | `omnilang.analyze` | 诊断级别（ERROR/WARNING/INFO/S）、规则注册、修复建议 |
+| LSP 支持 | `omnilang.lsp` | 代码补全、跳转定义、悬停类型提示（稍后用 OmniLang LSP + OmniView 扩展） |
+
+### OmniView 自己的职责
+
+| 能力 | 说明 |
+|------|------|
+| UI 语法解析 | 组件/Store 定义、@指令、元素标签、属性绑定 |
+| 抽象元素系统 | 55+ 语义元素 → 各框架映射 |
+| 意图 IR | 14 个意图类型，表达 UI 渲染意图 |
+| 三阶段 Codegen | 模式匹配 → 惯用法选择 → 代码展开 |
+| 语义样式 | 50+ 语义属性 → CSS/Widget 属性查找表 |
+| @native 降级 | 框架特定代码块的透传与校验 |
+| 跨框架一致性 | 行为测试矩阵、可移植性分数 |
+
+### 设计红线（不可违反）
+
+1. **OmniView 不重复实现 OmniLang 已有的任何能力。** 表达式解析、类型检查、语义分析全部委托给 OmniLang。
+2. **OmniView 的语法文件只包含 UI 结构。** `grammar.lark` 中不得出现 `expr`, `binary_op`, `block`, `stmt` 等逻辑规则——它们由嵌入点 `{OMNI_EXPR}` 接入 OmniLang。
+3. **OmniView 的 codegen 只处理 UI 意图。** 表达式翻译由 OmniLang 的 codegen（`omnilang/codegen/`）完成，OmniView 负责将它们嵌入到目标框架的模板中。
+4. **`.omni` 文件不能脱离 OmniLang 编译。** OmniView CLI（`omnic`）内部调用 OmniLang 编译器完成表达式和类型的处理。
 
 ---
 
@@ -666,16 +733,40 @@ Phase 0 仅支持纯 CSS。SCSS/Less/Stylus 延至 Phase 3，通过桥接用户�
 
 ## 八、跨框架编译策略
 
-### 编译流程：三阶段管道
+### 编译流程：双引擎 + 三阶段管道
 
 ```
-.omni → Parser → AST → Semantic Analysis → 意图 IR → Codegen（三阶段）→ 目标代码
-                                                         ├─ 模式匹配
-                                                         ├─ 惯用法选择
-                                                         └─ 代码展开
+.omni 源文件
+    │
+    ├── UI 结构 ──→ OmniView Parser ──→ OmniView AST (component/store/element)
+    │
+    ├── 表达式   ──→ OmniLang Parser ──→ OmniLang AST (Expr/Stmt)
+    │
+    └── 语义分析 ──→ OmniLang Semantic ──→ 类型标注 + 诊断
+                    (类型检查、符号解析、依赖收集)
+
+        两棵 AST 合并 ──→ 统一语义 AST
+                              │
+                              ▼
+                       Intent IR
+                              │
+               ┌──────────────┼──────────────┬──────────────┐
+               ▼              ▼              ▼              ▼
+           React CGI      Vue CGI      Dioxus CGI    Flutter CGI
+          (三阶段)        (三阶段)       (三阶段)       (三阶段)
+          模式匹配        模式匹配       模式匹配       模式匹配
+          → 惯用法选择    → 惯用法选择   → 惯用法选择   → 惯用法选择
+          → 代码展开      → 代码展开     → 代码展开     → 代码展开
+               │              │              │              │
+               ▼              ▼              ▼              ▼
+           React TSX      Vue SFC       Dioxus RSX    Flutter Dart
+          + Zustand      + Pinia       + GlobalSignal + ChangeNotifier
+          + CSS Modules  + <style scoped>             + Widget tree
 ```
 
 **关键转变：** Codegen 不是简单的 1:1 模板翻译，而是一个**多目标优化编译器**。每个目标框架的 codegen 从同一个意图 IR 出发，经过模式匹配→惯用法选择→代码展开三个阶段，生成该框架的地道代码。
+
+**OmniLang 在管道中的角色：** 所有表达式（`{expr}`、属性值）和语句块（fn body、action body）的解析和类型分析由 OmniLang 编译器完成。OmniView 只负责 UI 结构的解析和意图 IR 的构建。Codegen 阶段，OmniView 调用 OmniLang 的表达式 codegen（`omnilang/codegen/{target}.py`）将表达式翻译为目标语言，然后嵌入到 UI 模板中。
 
 ### 三阶段详解
 
@@ -973,7 +1064,7 @@ OmniView 的 IR 存储的是**渲染意图**——即开发者想要达成的 UI
 | `@if cond { <A/> } @else { <B/> }` | `IfElse { cond, then_branch, else_branch }` | `ConditionalIntent { branches: [(cond, A), (default, B)] }` |
 | `style { .card { layout: column; } }` | `StyleRule { selector, properties }` | `LayoutIntent { direction: Column, element: card }` |
 
-**15 个核心意图类型（Phase 0 定义）：**
+**14 个意图类型（Phase 0 定义。其中 8 个顶层意图类型进入 Phase 0 IR：StateIntent, ComputedIntent, ListRenderingIntent, ConditionalIntent, BindIntent, EventIntent, StyleIntent, LayoutIntent。子类型 MutationIntent/EffectIntent/LifecycleIntent/SlotIntent 随父类型进入。StoreIntent/ExternIntent/FallbackIntent 延至后续 Phase）：**
 
 ```
 StateIntent              — 响应式状态声明与修改（→ useState / ref / use_signal / setState）
@@ -1401,7 +1492,7 @@ OmniView 的编译器是 AOT 设计——`.omni` 源文件在构建时编译为�
 
 ### IR 版本化与渐进实现原则
 
-当前 IR 中预留了 27 个跨框架预埋字段，覆盖动画、虚拟滚动、错误边界、i18n、SSR 等远期能力。为防止"过度设计前置"导致返工：
+当前 IR 中预留了跨框架预埋字段（经 Council 精简至 ≤8 个必需字段），覆盖动画、虚拟滚动、错误边界、i18n、SSR 等远期能力。其余 19 个已删除并改为 `# reserved for P{X}` 注释。为防止"过度设计前置"导致返工：
 
 **原则：**
 - **Phase 0 只实现已激活字段的序列化和反序列化**。所有远期字段（如 `animation_def`、`virtual_list_config`）以 `Optional[...] = None` 定义，不为空字段生成代码分支
@@ -1614,13 +1705,15 @@ ComponentIR 预留 `composables: list[ComposableIR] = []`。
 
 ## 十四、Phase 0 精确范围与任务清单
 
+> **★ Council 修正（2026-06-05）：** 本章为 Phase 0 的范围定义和设计目标。**详细的任务分解、时间线和交付物见执行计划 §二**。执行计划的更新时间线（10 周）和委托架构（§1.0 OmniView→OmniLang）覆盖本章中任何过时的数字。
+
 ### 目标
 
 > **一个 OmniView 组件 → 一个 L2 地道质量的 React + Zustand 应用**
 >
 > 生成代码的评审标准：一个资深 React 开发者是否能自然地阅读和维护这些代码。
 
-### 范围
+### 范围（参见执行计划 §二 获取最新任务分解）
 
 ✅ React + Zustand + 20 核心元素 + CSS Modules + 3 生命周期 + 意图 IR + L2 地道生成  
 ✅ 安全表达式子集（属性值和文本插值中的三元/比较/属性访问）  
@@ -1642,7 +1735,7 @@ ComponentIR 预留 `composables: list[ComposableIR] = []`。
 
 **目标：** 差异率 < 5%（即 95% 以上的生成代码无需修改即可通过代码审查）。
 
-### 任务清单（12 周，含 2 周缓冲）
+### 任务清单（详见执行计划 §二，10 周）
 
 ```
 □ 0.1 语法解析 — component/store/theme/view/style + @if/@for/@slot/@empty/@native
@@ -1652,11 +1745,11 @@ ComponentIR 预留 `composables: list[ComposableIR] = []`。
 □ 0.2 语义分析 — Props 类型检查 + P0214(bind约束) + P0201(key) + P0203(依赖)
                + 依赖收集(3级) + 安全表达式校验 + @native 严格规则校验
 
-□ 0.3 意图 IR 设计 — ★ 15 个核心意图类型（StateIntent/ComputedIntent/ListRenderingIntent/
+□ 0.3 意图 IR 设计 — ★ 14 个核心意图类型（Phase 0 使用 8 个：StateIntent/ComputedIntent/ListRenderingIntent/
                     ConditionalIntent/BindIntent/EventIntent/StyleIntent/LayoutIntent/
                     StoreIntent/LifecycleIntent/EffectIntent/SlotIntent/ExternIntent/
                     FallbackIntent）
-                    + 27 个跨框架预埋字段（Optional[...] = None）
+                    + ≤8 个跨框架预埋字段（经 Council 精简，其余 19 个已删除并改为注释）
                     + IRVersion("0.3") 版本号
     【新增：意图 IR 设计 — 3 周】
 
@@ -1675,7 +1768,7 @@ ComponentIR 预留 `composables: list[ComposableIR] = []`。
     - test-id→data-testid
     【新增：三阶段 codegen 管道 — 3 周】
 
-□ 0.5 Store Codegen（Zustand L2）— StoreIntent→create<T>()(set, get => ({}))
+□ 0.5 Store Codegen（Zustand L2）— 直接从 StoreAST 生成（不经过 StoreIntent IR，该类型延至 Phase 1）
     - signal→state 字段 + set() 包装
     - getter→fn（自动访问器展开）+ 精确选择器
     - action→set() 包裹 + 异步批处理
@@ -1711,14 +1804,14 @@ ComponentIR 预留 `composables: list[ComposableIR] = []`。
 
 | Phase | 内容 | 地道性目标 | 周期 |
 |-------|------|-----------|------|
-| **0** | React + Zustand + 20元素 + CSS + **意图 IR** + **L2 地道生成**（不含任何深化能力） | React → L2 | **12 周** |
+| **0** | React + Zustand + 20元素 + CSS + **意图 IR** + **L2 地道生成**（不含任何深化能力） | React → L2 | **10 周** |
 | **1** | Vue 3 Template + Pinia + Vite plugin + HMR + source map + Map P0215 + @native大括号校验 + 测试工具(React/Vue) + A11y 基础 | Vue → L2 | **8 周** |
 | **2** | Dioxus RSX + Global Signals + Ref\<T\> + @error + 泛型Store(单态化) + gen-extern + **i18n基础** + **类型增强(泛型组件)** + **生态系统(omni.json/publish)** + **日期/数字格式化** + 测试工具(Dioxus) | Dioxus → L2 | **10 周** |
 | **2a** | **★ Flutter 基础 Codegen 验证** — 10 核心元素 + signal/computed/@if/@for/@slot/bind 的 L1 生成 + Widget 测试 + 5 行为用例验证。**目的：尽早暴露 IR 布局意图→Flutter Widget 约束模型的映射缺陷，避免 P4 返工** | Flutter → L1 | **6 周** |
 | **3** | 复合元素(Modal/Toast/Tabs等) + Redux/Jotai Store + SCSS桥接 + **动画系统** + bind:扩展 + **表单验证(FormField+rules)** + **Suspense/@load/lazy** + **KeepAlive** + **Portal/Teleport** + **VirtualList** + **Composable语法** + **主题深化** + Flutter L1 持续完善 | Flutter → L1 | **10 周** |
 | **4** | Flutter L2 地道生成 + Riverpod/BLoC + 完整元素映射(55+) + **框架辅助库(omni_flutter_helpers)** + Composable完善 + 测试工具(Flutter) + 动画Flutter适配 + L3视觉回归测试 + 文档 | Flutter → L2 | **8 周** |
 
-> **粗体** = 能力深化项。**★ Phase 2a 是关键风险缓解**——在 Dioxus 完成后立即启动 Flutter 基础验证（仅 L1，仅 10 元素+5 行为用例），目的是尽早暴露意图 IR 的设计缺陷，避免到 P4 才发现需要回修改 IR，波及所有目标 codegen。如果资源有限，P2a 可缩减到 4 周（仅 5 个核心元素）。总周期：46→**54 周**（增加了 6 周 Flutter 提前验证 + P3 延长 2 周）。
+> **粗体** = 能力深化项。**★ Phase 2a 是关键风险缓解**——在 Dioxus 完成后立即启动 Flutter 基础验证（仅 L1，仅 10 元素+5 行为用例），目的是尽早暴露意图 IR 的设计缺陷，避免到 P4 才发现需要回修改 IR，波及所有目标 codegen。如果资源有限，P2a 可缩减到 4 周（仅 5 个核心元素）。总周期：46→**52 周**（10+8+10+6+10+8。Phase 0 从 12→10 周，其余不变）。
 
 ---
 
@@ -2765,7 +2858,7 @@ v3.0-final 是**动态活文档**，而非一次性发布的静态规范。版�
 | 17 | **远期备忘** | 各框架事件映射表的完备性 | 远期可行性 | P1-4 | 当前覆盖 6 个核心事件。Dioxus/Flutter 完整映射延至各 Phase |
 | 18 | **远期备忘** | 文档活文档机制 | 指导性 | 持续 | 各 Phase 启动前提取实施规范，完成后回写细节 |
 
-**关键承诺：** 4 项 P0 阻断项必须在 Phase 0 代码冻结前彻底解决——它们直接影响 React codegen 的正确性和测试覆盖。其余 14 项不阻塞 P0 交付。
+**关键承诺：** 5 项 P0 阻断项必须在 Phase 0 代码冻结前彻底解决——它们直接影响 React codegen 的正确性和测试覆盖。其余 14 项不阻塞 P0 交付。
 
 ---
 

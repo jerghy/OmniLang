@@ -1,0 +1,121 @@
+// TodoApp.omni — TodoMVC application in OmniView
+// Compiles to React + Zustand + CSS Modules
+
+store TodoStore {
+    signal todos: Array<Todo> = [];
+    signal next_id: i32 = 1;
+
+    getter active_count: i32 = 0;
+    getter done_count: i32 = 0;
+
+    action add_todo(text: String) {
+        todos = [...todos, { id: next_id, text: text, done: false }];
+        next_id = next_id + 1;
+    }
+
+    action toggle_todo(id: i32) {
+        todos = todos.map(fn(t) {
+            if t.id == id { { ...t, done: !t.done } } else { t }
+        });
+    }
+
+    action remove_todo(id: i32) {
+        todos = todos.filter(fn(t) { t.id != id });
+    }
+}
+
+component TodoApp {
+    @store TodoStore;
+
+    signal input_text: String = "";
+    signal filter: String = "all";
+
+    computed filtered_todos: Array<Todo> = [];
+
+    fn handle_submit() {
+        if input_text != "" {
+            store.add_todo(input_text);
+            input_text = "";
+        }
+    }
+
+    @mount {
+        // Initialize with sample data if empty
+    }
+
+    view {
+        <Container>
+            <Heading>todos</Heading>
+
+            <Flex direction="row" gap="8px">
+                <Input
+                    bind:value={input_text}
+                    placeholder="What needs to be done?"
+                />
+                <Button onPress={fn() { handle_submit(); }}>
+                    Add
+                </Button>
+            </Flex>
+
+            <Flex direction="row" gap="16px">
+                <Button onPress={fn() { filter = "all"; }}>
+                    All
+                </Button>
+                <Button onPress={fn() { filter = "active"; }}>
+                    Active
+                </Button>
+                <Button onPress={fn() { filter = "done"; }}>
+                    Completed
+                </Button>
+            </Flex>
+
+            <List>
+                @for todo in filtered_todos {
+                    <ListItem key={todo.id}>
+                        <Checkbox
+                            bind:checked={todo.done}
+                            onChange={fn() { store.toggle_todo(todo.id); }}
+                        />
+                        <Text>{todo.text}</Text>
+                        <Button onPress={fn() { store.remove_todo(todo.id); }}>
+                            Delete
+                        </Button>
+                    </ListItem>
+                }
+                @empty {
+                    <Text>No todos yet!</Text>
+                }
+            </List>
+
+            <Flex direction="row" gap="16px">
+                <Text>{active_count} items left</Text>
+            </Flex>
+        </Container>
+    }
+
+    style {
+        .container {
+            layout: column;
+            gap: 16px;
+            padding: 24px;
+        }
+        .heading {
+            font_size: 32px;
+            font_weight: bold;
+        }
+        .input_row {
+            layout: row;
+            gap: 8px;
+        }
+        .todo_item {
+            layout: row;
+            gap: 8px;
+            align: center;
+        }
+        .filter_row {
+            layout: row;
+            gap: 16px;
+            padding: 8px;
+        }
+    }
+}

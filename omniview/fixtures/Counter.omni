@@ -1,0 +1,56 @@
+// Counter.omni — Simple counter application
+// Phase 0 canonical example
+
+component Counter {
+    prop initial: i32 = 0;
+    signal count: i32 = 0;
+
+    computed label: String = "Count: " + count;
+
+    @mount {
+        count = initial;
+    }
+
+    fn increment() {
+        count = count + 1;
+    }
+
+    fn decrement() {
+        count = count - 1;
+    }
+
+    fn reset() {
+        count = initial;
+    }
+
+    view {
+        <Container>
+            <Heading>{label}</Heading>
+
+            <Flex direction="row" gap="8px">
+                <Button onPress={fn() { count = count - 1; }}>
+                    -1
+                </Button>
+                <Button onPress={fn() { count = count + 1; }}>
+                    +1
+                </Button>
+                <Button onPress={fn() { count = initial; }}>
+                    Reset
+                </Button>
+            </Flex>
+        </Container>
+    }
+
+    style {
+        .container {
+            layout: column;
+            gap: 16px;
+            padding: 24px;
+            align: center;
+        }
+        .button_row {
+            layout: row;
+            gap: 8px;
+        }
+    }
+}

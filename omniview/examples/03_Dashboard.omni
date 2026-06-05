@@ -1,0 +1,64 @@
+// 示例3: Dashboard — @if/lifecycle/store
+
+store UserStore {
+    signal name: String = "Guest";
+    signal role: String = "user";
+    signal logged_in: bool = false;
+
+    action login(user: String) { name = user; logged_in = true; }
+    action logout() { name = "Guest"; logged_in = false; }
+}
+
+component Dashboard {
+    @store UserStore;
+    signal sidebar_open: bool = true;
+
+    @mount { sidebar_open = true; }
+
+    fn handle_login() { store.login("Admin"); }
+    fn handle_logout() { store.logout(); }
+    fn close_sidebar() { sidebar_open = false; }
+    fn open_sidebar() { sidebar_open = true; }
+
+    view {
+        <Container>
+            <Flex direction="row" gap="16px" test-id="header">
+                <Heading>Dashboard</Heading>
+                <Spacer />
+                <Text test-id="user-name">{store.name}</Text>
+                <Text test-id="user-role">{store.role}</Text>
+                @if store.logged_in {
+                    <Button onPress={handle_logout} test-id="btn-logout">Logout</Button>
+                }
+                @else {
+                    <Button onPress={handle_login} test-id="btn-login">Login</Button>
+                }
+            </Flex>
+            <Flex direction="row" gap="24px">
+                @if sidebar_open {
+                    <Container test-id="sidebar">
+                        <Button onPress={close_sidebar} test-id="nav-close">Close Sidebar</Button>
+                    </Container>
+                }
+                <Container test-id="main-content">
+                    <Grid test-id="stats-grid">
+                        <Card test-id="stat-visitors">
+                            <Text>Welcome</Text>
+                            <Heading>{store.name}</Heading>
+                        </Card>
+                    </Grid>
+                    @if !sidebar_open {
+                        <Button onPress={open_sidebar} test-id="btn-open-sidebar">Open Sidebar</Button>
+                    }
+                </Container>
+            </Flex>
+        </Container>
+    }
+
+    style {
+        .container { layout: column; gap: 16px; }
+        .header { layout: row; gap: 16px; padding: 16px; align: center; shadow: sm; }
+        .sidebar { padding: 16px; shadow: md; }
+        .stat_card { padding: 24px; border_radius: 12px; shadow: md; layout: column; align: center; }
+    }
+}

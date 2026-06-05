@@ -1,16 +1,16 @@
 # OmniLang v0.3 — OmniView 执行计划
 
-> **基于：** `OmniLang_v0.3_设计方案.md` v3.0-final（已冻结） + Council 评审（2026-06-04）  
+> **基于：** `OmniLang_v0.3_设计方案.md` v3.0-final + Council 评审（2026-06-04）+ **第二次 Council 修正（2026-06-05）**  
 > **IR 版本：** `0.3`  
 > **模式：** 里程碑驱动（非固定周期）——每个 Phase 通过用户验证后才解锁下一 Phase  
-> **编制日期：** 2026-06-04 | **修订日期：** 2026-06-04（Council 评审后调整）
+> **编制日期：** 2026-06-04 | **修订日期：** 2026-06-05（第二次 Council 修正：委托架构 + 风险 R12-R19 + 时间线调整）
 
 ---
 
 ## 目录
 
 1. [启动前准备 + IR 原型验证](#一启动前准备--ir-原型验证)
-2. [Phase 0：React L2 地道生成（8 周 MVP）](#二phase-0react-l2-地道生成8-周-mvp)
+2. [Phase 0：React L2 地道生成（10 周）](#二phase-0react-l2-地道生成10-周含-omnilang-委托基础设施)
 3. [Phase 1：Vue 3 L2 地道生成（8 周）](#三phase-1vue-3-l2-地道生成8-周)
 4. [Phase 2：Dioxus L2 地道生成（10 周）](#四phase-2dioxus-l2-地道生成10-周)
 5. [Phase 2a：Flutter 基础验证（6 周）](#五phase-2aflutter-基础验证6-周)
@@ -29,6 +29,37 @@
 
 > **周期：** 2 周（含 1 周 IR 原型验证） | **人员：** 技术负责人 + 核心团队 + 前端架构师  
 > **★ 关键调整：** Council 评审指出——在 Intent IR 冻结之前，必须用最难映射的目标框架做最早的原型验证。Flutter `ListView.builder` 和 `TextEditingController` 生命周期是两个金丝雀 case：如果 Intent IR 连这两个都映射不好，整个方案需要重新评估。
+
+### 1.0 架构基础：OmniView→OmniLang 依赖关系定调（第 1 周第 1 天）
+
+> **★ 核心原则：OmniView 不是独立语言——它是 OmniLang 上的 UI 领域 DSL。类比：Dart→Flutter ≈ OmniLang→OmniView。**
+
+#### 依赖定调
+
+| 决定 | 内容 |
+|------|------|
+| **表达式解析** | 全部由 OmniLang Parser 完成。OmniView 的语法文件不包含 `expr`/`stmt`/`block` 规则——改为嵌入点 `{OMNI_EXPR}` 接入 OmniLang |
+| **类型系统** | 复用 OmniLang 的类型系统（`omnilang.semantic.type_checker`）。signal/computed/prop 的类型标注由 OmniLang 检查 |
+| **语义分析** | 符号解析、作用域分析、依赖收集全部委托给 `omnilang.semantic`。OmniView 只做 UI 特有的约束校验（P0214 bind 约束、P0201 @for key 等） |
+| **表达式 Codegen** | 表达式→目标语言的翻译由 `omnilang/codegen/{target}.py` 完成。OmniView 的 codegen 负责将翻译结果嵌入到 UI 模板中 |
+| **诊断框架** | 复用 `omnilang.analyze` 的诊断基础设施（级别、规则注册、修复建议） |
+| **CLI** | `omnic` 内部调用 `omnilang` 编译器。用户不会直接运行 `omnilang` 来编译 `.omni` 文件 |
+
+#### 设计红线
+
+1. **OmniView 不重复实现 OmniLang 已有的任何能力。** 表达式解析、类型检查、语义分析全部委托给 OmniLang。
+2. **OmniView 的语法文件只包含 UI 结构。** `grammar.lark` 中不得出现 `expr`, `binary_op`, `block`, `stmt` 等逻辑规则。
+3. **OmniView 不能脱离 OmniLang 工作。** `.omni` 文件必须经过 OmniLang 编译器处理表达式和类型后才能编译。
+4. **Codegen 职责分离。** OmniLang codegen 处理表达式翻译，OmniView codegen 处理 UI 模板展开和惯用法选择。
+
+#### 对当前实现的影响
+
+| 现状 | 目标 | 改造项 |
+|------|------|--------|
+| `grammar.lark` 包含 expr/block/stmt 规则 (311 规则) | 剥离为仅 UI 结构 (~150 规则) | 表达式/语句规则移除，改为 OmniLang 嵌入点 |
+| `OmniViewTransformer` 处理表达式解析 | 表达式交给 `omnilang.parser` | Transformer 中的 expr/stmt 方法移除 |
+| `omniview/semantic/analyzer.py` 独立实现 | 委托给 `omnilang.semantic` + 仅保留 UI 约束 | 类型相关逻辑迁移到 OmniLang，保留 P0214/P0201 等 UI 规则 |
+| `omniview/codegen/react.py` 包含表达式翻译 | 表达式翻译委托给 `omnilang/codegen/javascript.py` | codegen 中的 `_expr_to_js` 委托给 OmniLang |
 
 ### 1.1 IR 原型验证 — 金丝雀测试（第 1 周，必须先于任何 IR 冻结）
 
@@ -132,13 +163,13 @@ is_pure → P2 添加
 
 ---
 
-## 二、Phase 0：React L2 地道生成（8 周 MVP）
+## 二、Phase 0：React L2 地道生成（10 周，含 OmniLang 委托基础设施）
 
 > **目标：** 一个 OmniView 组件 → 一个 L2 地道质量的 React + Zustand 应用  
 > **范围：** React + Zustand + 20 核心元素 + CSS Modules + 3 生命周期 + 精简意图 IR（8 类型）  
 > **人员：** 2-3 编译器实现者 + 1 React 架构师（从 0.1 阶段即前置介入）  
 > **IR 版本：** `0.3`（起始）  
-> **★ 核心调整：** Council 评审后从 12 周压缩至 8 周。IR 设计不再作为独立 3 周阶段——改为与 codegen 交叉进行（用 codegen 发现的问题驱动 IR 调整）。MVP 交付标准不变：TodoMVC 完整可运行 + L2 地道输出。
+> **★ 核心调整：** Council 评审后从 12 周压缩至 8 周，第二次 Council (2026-06-05) 因 OmniLang 委托基础设施调整为 10 周。IR 设计不再作为独立 3 周阶段——改为与 codegen 交叉进行（用 codegen 发现的问题驱动 IR 调整）。MVP 交付标准不变：TodoMVC 完整可运行 + L2 地道输出。
 
 ---
 
@@ -148,31 +179,50 @@ is_pure → P2 添加
 
 **目标：** `.omni` 源文件 → 带类型标注和诊断的 AST
 
-#### 0.1.1 Lexer + Parser（5 天）
+#### 0.1.1 Parser — UI 结构（2 周，表达式/语句由 OmniLang 处理）
+
+> **★ 架构调整：** OmniView 的 Lark 语法文件**只解析 UI 结构**。表达式和语句块通过嵌入点委托给 `omnilang.parser` 解析。
+> **★ Council 修正：** 原计划 3 天过于乐观。实际需要 2 周（含委托基础设施）。见 §1.0 改造表。
+
+**0.1.1a 委托基础设施（3 天）**
 
 | 交付物 | 说明 |
 |--------|------|
-| Token 定义 | 关键字、运算符、字面量、标识符、`@` 前缀指令 |
-| 组件解析 | `component Name { prop/signal/computed/event/fn/view/style }` 完整语法 |
-| Store 解析 | `store Name { signal/getter/action/async action }` |
-| 视图解析 | `@if`/`@else if`/`@else`、`@for`/`@empty`、`@slot`/`@slot:name`、`@native(target)`/`@fallback` |
-| 安全表达式 | 属性值和文本插值中的三元、比较、逻辑、属性访问、字面量、`class_map({...})`、`style={{}}` 内联 |
-| 事件处理器 | `onEvent={fn(params) { ... }}` 内联闭包、`onEvent={method_ref}`、`onEvent={store.action}` |
-| bind 语法 | `bind:value={signal}`、`bind:checked={signal}` |
-| **错误恢复** | 未闭合块、缺失 `}`、错误关键字等场景下产出局部 AST + 诊断列表 |
-| AST 定义 | `ComponentAST`、`StoreAST`、`ViewTree`、`ElementAST`、`FnAST`、`BlockAST`、`ExprAST` 联合体 |
-| AST 位置信息 | 每个节点携带 `(start_line, start_col, end_line, end_col)` |
+| 大括号平衡预处理器 | 扫描 `.omni` 源文本，识别 `{...}` 插值和语句块区域，用占位符令牌替换，收集原始文本供 OmniLang 解析 |
+| 解析器缓存 | `omnilang.parser` 实例复用。单例或惰性初始化，避免每次嵌入表达式都重建 Lark 解析器 |
+| `parse_inline_block()` | 新增辅助函数，利用 `omnilang.parser_helpers.parse_inline_expr` 的模式，处理语句块解析 |
+| 错误位置映射 | OmniLang 诊断的起始行/列 → `.omni` 源行/列。预处理程序记录每个嵌入点的偏移量 |
 
-#### 0.1.2 语义分析（4 天，与 Parser 交叉进行）
+**0.1.1b 语法与 Transformer 改造（4 天）**
 
 | 交付物 | 说明 |
 |--------|------|
-| 符号解析 | 组件作用域 / Store 作用域 / 视图作用域。`IdentifierExpr` 解析到具体符号 |
-| Props 类型检查 + bind 约束 (P0214) + @for key (P0201) | 触发用例 + 正确行号 |
-| 依赖收集 | Layer 1（内联表达式精确收集）+ Layer 2（函数调用参数推断）+ Layer 3（`#[deps]` 显式标注） |
-| Store 读取分析 | 识别组件中读取的 Store 字段，生成精确选择器字段列表 |
-| 安全表达式校验 | 属性值/文本插值中禁止副作用和函数调用；事件处理器内不限制 |
-| computed 链式扁平化 | `B→A→signal` 展开为 `B→signal` |
+| Token 定义 | 关键字（`component`, `store`, `signal`, `view`, `style` 等）、`@` 前缀指令终端 |
+| 表达式/语句规则移除 | 从 `grammar.lark` 中删除 ~30 行 expr/stmt/block 产生式规则。添加嵌入终端 `RAW_BLOCK`/`RAW_EXPR` |
+| 组件解析 | `component Name { prop/signal/computed/event/fn/view/style }` 语法——fn body 替换为原始块占位符 |
+| Store 解析 | `store Name { signal/getter/action }` 语法——action body 替换为原始块占位符 |
+| 视图解析 | `@if`/`@else`/`@for`/`@empty`/`@slot`/`@native`/`@fallback`——条件表达式替换为原始表达式占位符 |
+| 委托调用 | Transformer 中的 `_parse_omnilang_expr()` 和 `_parse_omnilang_block()` 方法 |
+| AST 定义 | `ComponentAST`、`StoreAST`、`ViewTree`、`ElementAST`、`FnAST`——**所有表达式相关类型复用 `omnilang.ast_nodes`** |
+| AST 位置信息 | 每个节点携带 `Span`（复用 `omnilang.utils.Span`） |
+
+#### 0.1.2 语义分析（1.5 周，委托给 OmniLang + OmniView UI 约束）
+
+> **★ 架构调整：** 类型检查、符号解析、依赖收集全部由 `omnilang.semantic` 完成。OmniView 只做 UI 特有的约束校验。
+> **★ Council 修正：** 原计划 3 天过于乐观。OmniLang 现有 API（`check(Program)`）需要扩展以支持表达式级调用。实际需要 1.5 周。
+
+| 交付物 | 负责 | 说明 |
+|--------|------|------|
+| 符号解析 | **OmniLang** | 组件作用域 / Store 作用域 / 视图作用域。`IdentifierExpr` 解析到具体符号 |
+| 类型检查 | **OmniLang** | Props 类型检查、signal/computed 类型推断、fn 返回类型检查 |
+| 依赖收集 | **OmniLang** | Layer 1（内联表达式精确收集）+ Layer 2（函数调用参数推断）+ Layer 3（`#[deps]` 显式标注） |
+| Store 读取分析 | **OmniLang** | 识别组件中读取的 Store 字段，生成精确选择器字段列表 |
+| 安全表达式校验 | **OmniLang** | 属性值/文本插值中禁止副作用和函数调用；事件处理器内不限制 |
+| computed 链式扁平化 | **OmniLang** | `B→A→signal` 展开为 `B→signal` |
+| bind 约束 (P0214) | **OmniView** | bind: 只能绑定 signal，不能绑定 prop——UI 特有规则 |
+| @for key 要求 (P0201) | **OmniView** | @for 必须提供 key——UI 特有规则 |
+| class 混用提示 (S0110) | **OmniView** | `style.xxx` + 字符串 class 混用提醒——UI 特有规则 |
+| @native 校验 | **OmniView** | 非匹配目标时 ERROR——UI 特有规则 |
 
 **0.1 验收标准：**
 - [ ] TodoMVC 完整源码可无错误解析为 AST
@@ -190,6 +240,8 @@ is_pure → P2 添加
 **目标：** 语义 AST → 精简意图 IR → L2 地道 React TypeScript 代码
 
 #### 0.2.1 精简 IR 类型定义（½ 周，与 codegen 交叉）
+
+> **IR 所有权：** Intent IR 由 OmniView 拥有（`omniview/ir_types.py`）。语言级基础类型（`ExprIR`, `TypeIR`, `BlockIR`, `StatementIR` 等）从 OmniLang 导入。当 OmniLang 的表达式 AST 发生变化时，OmniView 的 IR 适配层（`lowering.py`）负责转换。IR 版本号 `IRVersion` 由 OmniView 管理，不受 OmniLang 版本影响。
 
 | 交付物 | 对应设计文档 | 关键字段 |
 |--------|------------|---------|
@@ -329,16 +381,22 @@ is_pure → P2 添加
 
 ---
 
-### Phase 0 总时间线（8 周）
+### Phase 0 总时间线（10 周，含 OmniLang 委托基础设施）
+
+> **★ Council 修正（2026-06-05）：** 原计划 8 周未计入 OmniView→OmniLang 委托基础设施的构建成本。§1.0 定调后，0.1 需要额外 1 周（大括号预处理器 + 解析器缓存 + `parse_inline_block` + 错误映射）。
 
 ```
-Week 1-2.5:  □ 0.1 语法解析 + 语义分析（2.5 周）
-Week 2.5-5:  □ 0.2 精简 IR 设计 + React Codegen（2.5 周）
-Week 5-5.5:  □ 0.3 Store Codegen — Zustand L2（0.5 周）
-Week 5.5-6:  □ 0.4 CSS 生成（0.5 周）
-Week 6-7:    □ 0.5 测试（1 周）
-Week 7-8:    □ 0.6 Fixtures + CLI（1 周）
+Week 1:      □ 0.0 委托基础设施（大括号预处理器/缓存/API桥接）— 1 周
+Week 2-3:    □ 0.1a 语法改造 + Transformer 委托（1 周）
+Week 3-4.5:  □ 0.1b 语义委托 + OmniLang API 扩展（1.5 周）
+Week 4.5-7:  □ 0.2 精简 IR 设计 + React Codegen（2.5 周）
+Week 7-7.5:  □ 0.3 Store Codegen — Zustand L2（0.5 周）
+Week 7.5-8:  □ 0.4 CSS 生成（0.5 周）
+Week 8-9:    □ 0.5 测试（1 周）
+Week 9-10:   □ 0.6 Fixtures + CLI（1 周）
 ```
+
+> **注意：** 0.0 委托基础设施可与 IR 原型验证（§1.1）并行，减少关键路径阻塞。任务工作量合计约 9 周，10 日历周中包含 ~1 周缓冲/重叠。
 
 ### Phase 0 完成门控 → 解锁 Phase 1
 
@@ -594,7 +652,7 @@ IRVersion "1.0"  →  Phase 4 完成后（稳定版）
 
 ## 十、风险登记册
 
-> **★ Council 评审新增 3 项风险（R9-R11）。**
+> **★ Council 评审新增 11 项风险（R9-R19）。** R1-R8 为原始风险，R9-R11 为首次 Council (2026-06-04) 新增，R12-R19 为第二次 Council (2026-06-05) 新增（OmniView→OmniLang 委托架构相关）。
 
 | # | 风险 | 严重度 | 可能性 | 缓解措施 | Phase |
 |---|------|--------|--------|---------|-------|
@@ -609,6 +667,14 @@ IRVersion "1.0"  →  Phase 4 完成后（稳定版）
 | **R9** | **★ 渐进 L2→L1 质量滑落** — 团队在 Dioxus/Flutter 遇到困难时选择降级到 L1，"后续再优化"变成永久 L1 | **高** | 高 | 每个 Phase 门控条件强制 L2 差异率 < 5%。L1 降级必须记录在 `DECISIONS.md` 中并设定修复期限。连续 2 个 Phase L1 降级 → 触发决策点 | 2+ |
 | **R10** | **★ 生态预期不匹配** — 用户发现"写组件一次，写胶水代码 N 次"（路由/Store 配置/控制器生命周期）与"跨框架"承诺不符 | **高** | 中 | 文档首页明确声明"OmniView 是设计系统描述语言，非通用前端语言"。Phase 0 发布时在 README 中诚实列出"你需要手动做什么"清单 | 0+ |
 | **R11** | **★ 27→8 个预埋字段精简后，远期 Phase 重新添加时引入破坏性变更** | **中** | 低 | 新字段添加规则：① 对应 Phase 启动前作为独立 PR 添加 ② 附带 JSON Schema 更新 ③ 所有已有 codegen 的 `match/if let` 分支必须显式处理新字段（不允许通配 fallthrough） | 1-4 |
+| **R12** | **★ OmniLang 语义 API 不匹配** — `check(Program)` 期望完整 Program 对象，不支持单个表达式/语句块的类型检查 | **高** | 高 | ① 新增 `check_expr(expr, scope)` 公共 API ② 或在 OmniView 侧组装合成 Program。见 §0.1.2 语义委托 | 0.1 |
+| **R13** | **★ 大括号平衡预处理器复杂度** — 嵌套 `{}`（如 `{ items.filter(fn(i) { i > 0 }) }`）需要基于字符的扫描器，不能简单用正则匹配 | **中** | 高 | ① 实现括号深度跟踪的字符级扫描器 ② 注释和字符串字面量内的 `{}` 需要正确处理 ③ `@native` 块内容完全跳过 | 0.1 |
+| **R14** | **★ OmniLang→OmniView 错误位置映射断裂** — 当 OmniLang 解析器失败时，错误行号指向合成 `fn __tpl()` 包装器，而非原始 `.omni` 行 | **中** | 高 | 预处理器记录每个嵌入点的 `(start_line, start_col)` 偏移量。诊断输出时应用偏移量反向映射 | 0.1 |
+| **R15** | **解析器缓存缺失导致性能退化** — 当前 `parse_inline_expr` 每次调用都创建新 Lark 实例（读取语法文件 + 构建解析表），每组件 10-50 次调用 | **中** | 高 | 实现单例解析器缓存。首次调用时初始化，后续调用复用。需处理并发安全（`threading.Lock`） | 0.1 |
+| **R16** | **OmniLang 类型检查依赖完整程序上下文** — 嵌入表达式 `{items.filter(fn(t){!t.done}).len()}` 的类型检查需要知道 `items` 的类型、各方法的签名。此信息跨 OmniView-OmniLang 边界 | **中** | 中 | ① OmniView 向 OmniLang 提供合成类型定义（signal/prop/store 字段类型）② 共享类型环境对象跨边界传递 | 0.1 |
+| **R17** | **模板字符串 `${}` 嵌套在 `.omni` 的 `{}` 插值中** — 两层大括号导致预处理器需要区分 "OmniView 的插值边界" 和 "OmniLang 模板字符串的插值边界" | **低** | 低 | 预处理器识别模板字符串终端 `TEMPLATE_STRING` 后，跳过其内部的 `${}` | 0.1 |
+| **R18** | **`@effect(dep) { ... }` 的混合语法** — `(dep)` 是 OmniView 语法，`{ ... }` 是 OmniLang 块。委托边界在单条 Lark 规则的中间 | **低** | 中 | 将 `@effect` 规则拆分为两部分：OmniView 解析 `(dep)` 部分，原始块占位符保留给 OmniLang | 0.1 |
+| **R19** | **Python→Rust 技术栈切换导致委托架构重写两次** — 如果后续从 Python/Lark 迁移到 Rust/Lelwel，嵌入机制和委托 API 需要完全重新实现 | **中** | 低 | Phase 0-2 保持 Python，不做中期切换。若 Ph3+ 迁移到 Rust，定义 JSON Schema 作为跨语言 IR 合约 | 3+ |
 
 ---
 
@@ -644,7 +710,7 @@ IRVersion "1.0"  →  Phase 4 完成后（稳定版）
 
 ### 11.3 关键人员备份与知识共享
 
-54 周的项目周期对关键人员的依赖巨大。若技术负责人或核心架构师意外缺席，项目面临极高停摆风险。
+52 周的项目周期对关键人员的依赖巨大。若技术负责人或核心架构师意外缺席，项目面临极高停摆风险。
 
 | 机制 | 说明 |
 |------|------|
@@ -693,7 +759,7 @@ Phase 实施中                Phase 完成后
 ---
 
 > **本执行计划基于 `OmniLang_v0.3_设计方案.md` v3.0-final（已冻结），经 Council 评审后调整（2026-06-04）。**  
-> **关键调整：** ① Phase 0 从 12 周压缩至 8 周 MVP ② IR 原型验证前置至启动期 ③ IR 预埋字段从 27 精简至 8 ④ 新增里程碑门控机制 ⑤ 新增 3 项风险（R9-R11）  
+> **关键调整：** ① Phase 0 从 12 周压缩至 8 周→**Council 修正为 10 周**（增加 OmniLang 委托基础设施） ② IR 原型验证前置至启动期 ③ IR 预埋字段从 27 精简至 8 ④ 新增里程碑门控机制 ⑤ 新增 11 项风险（R9-R19） ⑥ **新增 §1.0 OmniView→OmniLang 架构依赖定调** ⑦ **新增 §〇 设计文档依赖关系章节**  
 > **Phase 0 启动前请完成 §一 的 IR 原型验证和准备工作。**  
 > **任何对本计划的调整需通过双周设计偏差审查会议讨论。**
 
@@ -706,14 +772,16 @@ Phase 实施中                Phase 完成后
 
 ### B.1 编译器实现语言选择
 
-Phase 0 设计文档和 IR 定义使用 Python（`@dataclass`），但实际编译器实现语言需根据 Phase 0 启动时团队技术栈确定。两个可行路径：
+**★ 重要前提：OmniLang 编译器已用 Python 实现（`omnilang/` 目录），包括 Parser、Lexer、类型检查器、Codegen。OmniView 在此基础上构建，不重复实现语言层功能。**
+
+Phase 0 设计文档和 IR 定义使用 Python（`@dataclass`），与 OmniLang 实现语言一致。两个可行路径：
 
 | 路径 | 实现语言 | 优势 | 劣势 |
 |------|---------|------|------|
-| **A: Python** | Python 3.12+ | 与设计文档一致，快速原型，`dataclasses` 直接用作 IR | 性能上限低，不适合大规模 codegen，发布为 CLI 需 PyInstaller |
-| **B: Rust** | Rust 1.80+ | 极致性能，`serde` 序列化 IR，可直接编译为原生 CLI 二进制，跨平台分发零依赖 | 学习曲线陡峭，开发速度慢于 Python |
+| **A: Python（当前）** | Python 3.12+ | 与 OmniLang 同语言，直接调用 `omnilang.parser`/`omnilang.semantic`/`omnilang.codegen`，零额外对接成本 | 性能上限低，发布为 CLI 需 PyInstaller |
+| **B: Rust（远期）** | Rust 1.80+ | 极致性能，`serde` 序列化 IR，可直接编译为原生 CLI 二进制 | OmniLang 也需迁移到 Rust。IR 定义使用 JSON Schema 作为跨语言合约 |
 
-**建议：** Phase 0 原型用 Python 快速验证，若团队有 Rust 经验则 Phase 1 起迁移核心编译管线到 Rust。IR 定义使用 JSON Schema 作为跨语言合约。
+**建议：** Phase 0-2 保持 Python（与 OmniLang 共享代码库，避免跨语言 IPC 开销）。若 Phase 3 后性能成为瓶颈，OmniLang + OmniView 同步迁移到 Rust。
 
 ### B.2 解析器 / Lexer 技术选型
 

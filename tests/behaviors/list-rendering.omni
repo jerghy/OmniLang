@@ -1,0 +1,22 @@
+// list-rendering.omni — @for 列表渲染、@empty 空状态
+
+component ListRendering {
+    signal show_items: bool = true;
+
+    view {
+        <Container>
+            <List test-id="item-list">
+                <ListItem key="a" test-id="list-item">
+                    <Text>Apple</Text>
+                </ListItem>
+                <ListItem key="b" test-id="list-item">
+                    <Text>Banana</Text>
+                </ListItem>
+                <ListItem key="c" test-id="list-item">
+                    <Text>Cherry</Text>
+                </ListItem>
+            </List>
+            <Text test-id="item-count">Show: {show_items}</Text>
+        </Container>
+    }
+}

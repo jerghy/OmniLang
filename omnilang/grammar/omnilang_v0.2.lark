@@ -102,7 +102,7 @@ index: "[" expr "]"
 ?null_coalesce: or_expr ("??" or_expr)*
 
 ?or_expr: and_expr (OR and_expr)*
-?and_expr: comp_expr ("&&" comp_expr)*
+?and_expr: comp_expr (AND comp_expr)*
 ?comp_expr: add_expr (COMP_OP add_expr)*
 ?add_expr: mul_expr (ADD_OP mul_expr)*
 ?mul_expr: unary_expr (MUL_OP unary_expr)*
@@ -164,7 +164,7 @@ if_expr: "if" expr "{" expr "}" "else" "{" expr "}"
 var_ref: CNAME
 struct_lit: CNAME "{" struct_lit_field ("," struct_lit_field)* [","] "}"
 
-method_call: DOT CNAME "(" [call_args] ")"
+method_call: DOT CNAME ["(" [call_args] ")"]
 func_call: "(" [call_args] ")"
 call_args: expr ("," expr)*
 
@@ -223,6 +223,7 @@ COMP_OP: "==" | "!=" | "<" | ">" | "<=" | ">="
 ADD_OP: "+" | "-"
 MUL_OP: "*" | "/" | "%"
 UNARY_OP: "-" | "!"
+AND: "&&"
 OR: "||"
 PIPE: "|"
 ARROW: "=>"

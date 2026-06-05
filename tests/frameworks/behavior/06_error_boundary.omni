@@ -1,0 +1,21 @@
+// Behavior Test 06: Error Boundary — @error directive
+// Tests: @error syntax + cross-framework fallback UI
+component SafeView {
+  signal count: i32 = 0;
+
+  fn increment() {
+    count = count + 1;
+  }
+
+  view {
+    <Container>
+      <Heading level="1">Safe Content</Heading>
+      @error(content) {
+        <Container test-id="error-fallback">
+          <Heading level="2">Something went wrong</Heading>
+          <Text>Please try again later</Text>
+        </Container>
+      }
+    </Container>
+  }
+}

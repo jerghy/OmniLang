@@ -1,0 +1,44 @@
+// Behavior Test 03: Conditional Rendering — @if/@else
+// Tests: @if + @else if + @else + boolean signal toggle
+component ToggleView {
+  signal tab: i32 = 1;
+
+  fn show_tab1() {
+    tab = 1;
+  }
+
+  fn show_tab2() {
+    tab = 2;
+  }
+  fn show_tab3() {
+    tab = 3;
+  }
+
+  view {
+    <Container>
+      <Flex direction="row" gap="8px" test-id="tab-bar">
+        <Button onPress={show_tab1} test-id="tab-1">Tab 1</Button>
+        <Button onPress={show_tab2} test-id="tab-2">Tab 2</Button>
+        <Button onPress={show_tab3} test-id="tab-3">Tab 3</Button>
+      </Flex>
+      @if tab == 1 {
+        <Container test-id="content-1">
+          <Heading level="3">Tab 1 Content</Heading>
+          <Text>This is the first tab</Text>
+        </Container>
+      }
+      @else if tab == 2 {
+        <Container test-id="content-2">
+          <Heading level="3">Tab 2 Content</Heading>
+          <Text>This is the second tab</Text>
+        </Container>
+      }
+      @else {
+        <Container test-id="content-3">
+          <Heading level="3">Tab 3 Content</Heading>
+          <Text>This is the third tab</Text>
+        </Container>
+      }
+    </Container>
+  }
+}

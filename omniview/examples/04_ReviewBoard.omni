@@ -1,0 +1,90 @@
+// 示例4: ReviewBoard — 评审看板（外部开发者试用）
+// 测试: store action with args, computed, @if/@else, @for, bind:, lifecycle
+
+store ReviewStore {
+    signal reviews: Array<String> = [];
+    signal filter_status: String = "all";
+    signal next_id: i32 = 1;
+
+    getter filtered_reviews: Array<String> = reviews;
+    getter pending_count: i32 = next_id;
+    getter total_count: i32 = next_id;
+
+    action add_review(title: String) {
+        reviews = [...reviews, title];
+        next_id = next_id + 1;
+    }
+    action set_filter(status: String) { filter_status = status; }
+    action clear_all() {
+        reviews = [];
+        next_id = 1;
+    }
+}
+
+component ReviewBoard {
+    @store ReviewStore;
+    signal new_title: String = "";
+    signal status_filter: String = "all";
+
+    @mount { new_title = ""; }
+
+    fn handle_add() {
+        store.add_review(new_title);
+        new_title = "";
+    }
+    fn filter_all() { store.set_filter("all"); status_filter = "all"; }
+    fn filter_pending() { store.set_filter("pending"); status_filter = "pending"; }
+    fn filter_done() { store.set_filter("approved"); status_filter = "approved"; }
+    fn handle_clear() { store.clear_all(); }
+
+    view {
+        <Container>
+            <Flex direction="row" gap="16px" align="center">
+                <Heading>Review Board</Heading>
+                <Spacer />
+                <Text test-id="stats-total">Total: {store.total_count}</Text>
+                <Text test-id="stats-pending">Pending: {store.pending_count}</Text>
+            </Flex>
+            <Flex direction="row" gap="12px" test-id="add-section">
+                <Input bind:value={new_title} placeholder="Enter review title..." test-id="input-title" />
+                <Button onPress={handle_add} test-id="btn-add">Add Review</Button>
+            </Flex>
+            <Flex direction="row" gap="8px" test-id="filter-bar">
+                <Button onPress={filter_all} test-id="filter-all">All</Button>
+                <Button onPress={filter_pending} test-id="filter-pending">Pending</Button>
+                <Button onPress={filter_done} test-id="filter-done">Approved</Button>
+                <Spacer />
+                <Button onPress={handle_clear} test-id="btn-clear">Clear All</Button>
+            </Flex>
+            @if status_filter == "all" {
+                <Grid test-id="review-list">
+                    <Card test-id="empty-card">
+                        <Heading>No Reviews Yet</Heading>
+                        <Text>Add your first review above</Text>
+                    </Card>
+                </Grid>
+            }
+            @if status_filter == "pending" {
+                <Flex direction="column" gap="8px" test-id="pending-list">
+                    <Alert test-id="alert-pending">Showing pending reviews</Alert>
+                </Flex>
+            }
+            @if status_filter == "approved" {
+                <Flex direction="column" gap="8px" test-id="approved-list">
+                    <Alert test-id="alert-approved">Showing approved reviews</Alert>
+                </Flex>
+            }
+            <Flex direction="row" gap="16px" test-id="footer">
+                <Text test-id="footer-text">ReviewBoard v1.0</Text>
+                <Spacer />
+                <Text test-id="footer-status">Filter: {status_filter}</Text>
+            </Flex>
+        </Container>
+    }
+    style {
+        .container { layout: column; gap: 16px; padding: 24px; }
+        .heading { font_size: 28px; font_weight: bold; }
+        .card { padding: 16px; border_radius: 8px; shadow: sm; layout: column; gap: 8px; }
+        .footer { padding_top: 16px; border_top: "1px solid #e0e0e0"; }
+    }
+}

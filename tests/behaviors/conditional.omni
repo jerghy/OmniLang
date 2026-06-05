@@ -1,0 +1,31 @@
+// conditional.omni — @if/@else if/@else 条件分支；验证分支切换
+
+component Conditional {
+    signal tab: String = "home";
+
+    view {
+        <Container>
+            <Flex direction="row" gap="8px">
+                <Button onPress={fn() { tab = "home"; }} test-id="tab-home">
+                    Home
+                </Button>
+                <Button onPress={fn() { tab = "profile"; }} test-id="tab-profile">
+                    Profile
+                </Button>
+                <Button onPress={fn() { tab = "settings"; }} test-id="tab-settings">
+                    Settings
+                </Button>
+            </Flex>
+
+            @if tab == "home" {
+                <Text test-id="content-home">Welcome Home</Text>
+            }
+            @else if tab == "profile" {
+                <Text test-id="content-profile">Your Profile</Text>
+            }
+            @else {
+                <Text test-id="content-settings">Settings Page</Text>
+            }
+        </Container>
+    }
+}

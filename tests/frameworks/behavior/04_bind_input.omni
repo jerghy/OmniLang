@@ -1,0 +1,43 @@
+// Behavior Test 04: Bind Input — two-way binding
+// Tests: bind:value + bind:checked + signal sync
+component FormBinding {
+  signal name: String = "";
+  signal email: String = "";
+  signal agreed: bool = false;
+  signal submitted: bool = false;
+
+  fn submit() {
+    if (name != "" && email != "" && agreed) {
+      submitted = true;
+    }
+  }
+
+  fn reset_form() {
+    name = "";
+    email = "";
+    agreed = false;
+    submitted = false;
+  }
+
+  view {
+    <Container>
+      <Heading level="2" test-id="form-title">Registration</Heading>
+      <Flex direction="column" gap="16px">
+        <Input bind:value={name} placeholder="Your name" test-id="input-name" />
+        <Input bind:value={email} placeholder="your@email.com" test-id="input-email" />
+        <Flex direction="row" gap="8px">
+          <Checkbox bind:checked={agreed} test-id="check-agree" />
+          <Text>I agree to the terms</Text>
+        </Flex>
+        <Button onPress={submit} test-id="btn-submit">Submit</Button>
+        <Button onPress={reset_form} test-id="btn-reset">Reset</Button>
+      </Flex>
+      @if submitted {
+        <Container test-id="success-message">
+          <Heading level="3">Submitted!</Heading>
+          <Text>Welcome, {name}!</Text>
+        </Container>
+      }
+    </Container>
+  }
+}

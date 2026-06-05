@@ -1,0 +1,94 @@
+// TodoList.omni — Simplified TodoMVC application
+// Uses only grammar constructs supported in Phase 0
+
+store TodoStore {
+    signal todos: Array<String> = [];
+    signal filter: String = "all";
+
+    getter count: i32 = 0;
+
+    action add(text: String) {
+        todos = [text];
+    }
+
+    action clear() {
+        todos = [];
+    }
+}
+
+component TodoApp {
+    @store TodoStore;
+    signal text: String = "";
+    signal filter: String = "all";
+
+    view {
+        <Container>
+            <Heading>Todos</Heading>
+
+            <Flex direction="row" gap="8px">
+                <Input bind:value={text} placeholder="What needs to be done?" />
+                <Button onPress={fn() { store.add(text); text = ""; }}>
+                    Add
+                </Button>
+            </Flex>
+
+            <Flex direction="row" gap="16px">
+                <Button onPress={fn() { filter = "all"; }}>
+                    All
+                </Button>
+                <Button onPress={fn() { filter = "active"; }}>
+                    Active
+                </Button>
+                <Button onPress={fn() { filter = "done"; }}>
+                    Done
+                </Button>
+            </Flex>
+
+            <List>
+                @for item in store.todos {
+                    <ListItem key={item}>
+                        <Text>{item}</Text>
+                    </ListItem>
+                }
+                @empty {
+                    <Text>No todos yet!</Text>
+                }
+            </List>
+
+            <Flex direction="row" gap="16px">
+                <Text>{store.count} items</Text>
+                <Button onPress={fn() { store.clear(); }}>
+                    Clear All
+                </Button>
+            </Flex>
+        </Container>
+    }
+
+    style {
+        .container {
+            layout: column;
+            gap: 16px;
+            padding: 24px;
+        }
+        .heading {
+            font_size: 28px;
+            font_weight: bold;
+        }
+        .input_row {
+            layout: row;
+            gap: 8px;
+        }
+        .filter_row {
+            layout: row;
+            gap: 16px;
+            padding: 8px;
+        }
+        .todo_item {
+            layout: row;
+            gap: 8px;
+            padding: 12px;
+            border_radius: 8px;
+            shadow: sm;
+        }
+    }
+}

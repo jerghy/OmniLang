@@ -91,3 +91,32 @@ def parse_inline_expr(expr_text: str) -> Expr:
         if stmts and isinstance(stmts[0], ExprStmt):
             return stmts[0].expr
     return Literal(value=expr_text, kind="String")
+
+
+def parse_inline_block(block_text: str) -> 'Block':
+    """Parse an inline statement block for OmniView delegation.
+
+    Used by OmniView to parse fn bodies, action bodies, and lifecycle hook bodies
+    that were extracted as {{...}} blocks from .omni source.
+
+    Args:
+        block_text: The statement text inside the braces (without the braces themselves)
+
+    Returns:
+        Block node containing the parsed statements. Empty block text returns Block(stmts=[]).
+    """
+    from omnilang.lexer import create_parser
+    from omnilang.parser import OmniTransformer
+    from omnilang.ast_nodes import Block
+
+    if not block_text.strip():
+        return Block(stmts=[], span=None)
+
+    parser = create_parser()
+    source = f"fn __tpl() {{ {block_text} }}"
+    tree = parser.parse(source)
+    transformer = OmniTransformer()
+    prog = transformer.transform(tree)
+    if prog.functions and prog.functions[0].body:
+        return prog.functions[0].body
+    return Block(stmts=[], span=None)

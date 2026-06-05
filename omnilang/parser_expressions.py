@@ -58,7 +58,7 @@ class ExpressionMixin:
         result = items[0]
         i = 1
         while i < len(items):
-            if isinstance(items[i], Token) and str(items[i]) == "&&":
+            if isinstance(items[i], Token) and (str(items[i]) == "&&" or items[i].type == "AND"):
                 result = BinaryOp(left=result, op="&&", right=items[i + 1],
                                   span=self._span(result, items[i + 1]))
                 i += 2
