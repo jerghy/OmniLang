@@ -533,4 +533,9 @@ class Program:
     classes: list[ClassDef] = field(default_factory=list)
     imports: list[ImportStmt] = field(default_factory=list)
     exports: list[ExportStmt] = field(default_factory=list)
+    lib_imports: list[str] = field(default_factory=list)  # e.g. ["omniview"]
     span: Span | None = None
+
+    @property
+    def has_omniview(self) -> bool:
+        return "omniview" in self.lib_imports

@@ -1,6 +1,5 @@
 """Tests for the OmniView parser."""
 import pytest
-from lark import Lark
 from omniview.parser import OmniViewTransformer
 from omniview.ast_nodes import (
     Program, ComponentDef, StoreDef, ThemeDef,
@@ -14,12 +13,9 @@ from omniview.ast_nodes import (
 
 @pytest.fixture(scope="module")
 def parser():
-    """Load the OmniView grammar and return a Lark parser."""
-    import os
-    grammar_path = os.path.join(os.path.dirname(__file__), "..", "grammar.lark")
-    with open(grammar_path, "r", encoding="utf-8") as f:
-        grammar = f.read()
-    return Lark(grammar, parser="earley", start="start")
+    """Create parser via unified OmniLang lexer entry point."""
+    from omnilang.lexer import create_omniview_parser
+    return create_omniview_parser()
 
 
 @pytest.fixture

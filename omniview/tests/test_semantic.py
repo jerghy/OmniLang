@@ -1,17 +1,14 @@
 """Tests for the OmniView semantic analyzer."""
 import pytest
-from lark import Lark
+
 from omniview.parser import OmniViewTransformer
 from omniview.semantic.analyzer import SemanticAnalyzer
 
 
 @pytest.fixture(scope="module")
 def parser():
-    import os
-    grammar_path = os.path.join(os.path.dirname(__file__), "..", "grammar.lark")
-    with open(grammar_path, "r", encoding="utf-8") as f:
-        grammar = f.read()
-    return Lark(grammar, parser="earley", start="start")
+    from omnilang.lexer import create_omniview_parser
+    return create_omniview_parser()
 
 
 @pytest.fixture

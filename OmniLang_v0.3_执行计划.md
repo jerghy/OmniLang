@@ -1,5 +1,7 @@
 # OmniLang v0.3 — OmniView 执行计划
 
+> 📦 **已存档 (2026-06-09)** — 被 [执行计划 v0.4](docs/EXECUTION_PLAN_V0.4.md) 取代  
+> **存档原因：** 架构 pivot 到统一项目、统一语法、import 门控模型。旧计划的 52 周 Phase 0-4 时间线不再适用。  
 > **基于：** `OmniLang_v0.3_设计方案.md` v3.0-final + Council 评审（2026-06-04）+ **第二次 Council 修正（2026-06-05）**  
 > **IR 版本：** `0.3`  
 > **模式：** 里程碑驱动（非固定周期）——每个 Phase 通过用户验证后才解锁下一 Phase  

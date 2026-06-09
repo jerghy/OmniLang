@@ -51,6 +51,8 @@ _BLOCK_CONTEXT_PATTERNS = [
     (re.compile(r'\baction\s+\w+\s*\([^)]*\)\s*(?:->\s*[\w<>|]+\s*)?\{'), 'action_body'),
     # async action name(params) -> type {
     (re.compile(r'\basync\s+action\s+\w+\s*\([^)]*\)\s*(?:->\s*[\w<>|]+\s*)?\{'), 'action_body'),
+    # fn (params) {     inline event handler (no function name)
+    (re.compile(r'\bfn\s*\(\s*[^)]*\)\s*\{'), 'event_handler'),
     # @mount {
     (re.compile(r'@mount\s*\{'), 'lifecycle_body'),
     # @unmount {

@@ -66,22 +66,39 @@ def build_command(args: list[str]) -> int:
         with open(input_file, "r", encoding="utf-8") as f:
             source = f.read()
 
-        # Preprocessor: extract statement blocks for OmniLang delegation
+        # Detect mode: has import omniview or UI keywords → UI mode, else pure logic
+        has_ui_keywords = any(kw in source for kw in
+            ("component ", "store ", "theme ", "view {", "@if", "@for", "<", "signal ", "computed "))
+        has_import_omniview = "import omniview" in source
+
+        if not has_import_omniview and not has_ui_keywords:
+            # Pure logic mode: use OmniLang parser + codegen
+            from omnilang.lexer import create_parser
+            from omnilang.parser import OmniTransformer
+            parser = create_parser()
+            tree = parser.parse(source)
+            program = OmniTransformer().transform(tree)
+            print(f"Pure logic mode (target={target}). OmniLang constructs detected.")
+            print(f"Pure logic codegen is under development. AST parsed successfully.")
+            return 0
+
+        # UI mode: use OmniView parser
         from omniview.preprocessor import preprocess
         pp_result = preprocess(source)
 
-        # Parse
-        from lark import Lark
+        from omnilang.lexer import create_omniview_parser
         from omniview.parser import OmniViewTransformer
 
-        grammar_path = find_grammar_path()
-        with open(grammar_path, "r", encoding="utf-8") as f:
-            grammar = f.read()
-
-        parser = Lark(grammar, parser="earley", start="start")
+        parser = create_omniview_parser()
         tree = parser.parse(pp_result.processed_source)
         transformer = OmniViewTransformer(block_map=pp_result.blocks)
         program = transformer.transform(tree)
+
+        # Codegen routing: has_omniview → UI codegen
+        # Backward compat: no import + components present → implicit omniview (warning)
+        if not program.has_omniview:
+            if program.components or program.stores:
+                print(f"  Warning: Add 'import omniview;' at the top of the file. Assuming implicit omniview for now.", file=sys.stderr)
 
         # Semantic analysis
         from omniview.semantic.analyzer import SemanticAnalyzer
@@ -206,7 +223,7 @@ def check_command(args: list[str]) -> int:
         with open(grammar_path, "r", encoding="utf-8") as f:
             grammar = f.read()
 
-        parser = Lark(grammar, parser="earley", start="start")
+        parser = create_omniview_parser()
         tree = parser.parse(source)
         transformer = OmniViewTransformer()
         program = transformer.transform(tree)

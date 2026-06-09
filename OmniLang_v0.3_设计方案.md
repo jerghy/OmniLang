@@ -1,7 +1,9 @@
 # OmniLang v0.3 — OmniView 前端语言设计方案
 
 > **版本：** v3.0-final + Council 修正 (2026-06-05)  
-> **状态：** Phase 0 实施依据 — **§〇 为 Council 修正新增，§八/§十四 已同步**  
+> **状态：** 📦 **已存档 (2026-06-09)** — 被 [ADR-001](docs/adr/001-omnilang-omniview-unification.md) 和 [执行计划 v0.4](docs/EXECUTION_PLAN_V0.4.md) 取代  
+> **存档原因：** 7 轮 Council 审议决定将 OmniLang 和 OmniView 合并为统一项目、统一语法、import 门控架构。本文档中的 Dart/Flutter 类比（§〇）、双项目委托架构（§八）、独立 Phase 计划（§十四-十五）已被新架构取代。  
+> **保留用途：** IR 规范（§十）、抽象元素系统（§三）、@指令系统（§四）、响应式状态（§五）、Store 管理（§六）、语义样式（§七）的设计原理在新架构中仍然有效。  
 > **IR 版本：** `0.3`（Phase 0 中任何调整通过 `IRVersion` 次版本号迭代，不回修改本文档）  
 > **摘要：** 本方案设计了 OmniView——一套以**意图 IR、抽象元素、@指令、语义样式、Store 状态管理**为核心的前端组件语言。通过**三阶段 codegen 管道**（模式匹配→惯用法选择→代码展开）实现「一次编写组件，编译到 React/Vue/Dioxus/Flutter 的 L2 地道代码」。**OmniView 依赖 OmniLang 作为其逻辑语言基底**——表达式解析、类型系统、语义分析均由 OmniLang 提供。Phase 0 聚焦 React + Zustand + 20 个核心元素 + L2 地道生成。
 

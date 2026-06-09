@@ -47,15 +47,10 @@ def _compile_fixture(fixture_name: str, target: str) -> dict[str, str]:
     pp_result = preprocess(source)
 
     # Parse
-    from lark import Lark
+    from omnilang.lexer import create_omniview_parser
     from omniview.parser import OmniViewTransformer
-    import omniview.cli as cli_mod
 
-    grammar_path = cli_mod.find_grammar_path()
-    with open(grammar_path, "r", encoding="utf-8") as f:
-        grammar = f.read()
-
-    parser = Lark(grammar, parser="earley", start="start")
+    parser = create_omniview_parser()
     tree = parser.parse(pp_result.processed_source)
     transformer = OmniViewTransformer(block_map=pp_result.blocks)
     program = transformer.transform(tree)

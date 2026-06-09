@@ -1,40 +1,42 @@
-"""Lexer wrapper for OmniLang — thin wrapper around lark.Lark."""
+"""Lexer wrapper for OmniLang — thin wrapper around lark.Lark.
+
+Provides parser creation for both base OmniLang and OmniView (UI extension).
+"""
 
 from pathlib import Path
 from lark import Lark
 
 
-_GRAMMAR_PATH = Path(__file__).parent / "grammar" / "omnilang.lark"
-_GRAMMAR_V02_PATH = Path(__file__).parent / "grammar" / "omnilang_v0.2.lark"
+_GRAMMAR_DIR = Path(__file__).parent / "grammar"
+_GRAMMAR_PATH = _GRAMMAR_DIR / "omnilang.lark"
+_OMNIVIEW_GRAMMAR_PATH = Path(__file__).parent.parent / "omniview" / "grammar.lark"
 
 
-def create_parser(use_v02: bool = True) -> Lark:
-    """Create a Lark parser with the OmniLang grammar.
+def create_parser() -> Lark:
+    """Create a Lark parser with the base OmniLang grammar (Earley mode)."""
+    return Lark.open(
+        str(_GRAMMAR_PATH),
+        parser="earley",
+        propagate_positions=True,
+        maybe_placeholders=False,
+    )
 
-    Args:
-        use_v02: If True (default), use the v0.2 grammar with Phase 1+ features.
-                 If False, use the original v0.1 grammar (LALR mode).
+
+def create_omniview_parser() -> Lark:
+    """Create a Lark parser with the OmniView UI grammar (Earley mode).
+
+    Note: OmniView grammar includes its own expression/statement rules
+    for backward compatibility. Phase A will progressively remove these
+    duplicates and delegate to base OmniLang grammar.
     """
-    grammar_path = str(_GRAMMAR_V02_PATH if use_v02 else _GRAMMAR_PATH)
-
-    if use_v02:
-        # v0.2: struct_lit + var_ref ambiguity requires Earley parser.
-        # Earley handles the CNAME ambiguity natively; LALR state merging
-        # creates unrecoverable conflicts in for-loop body contexts.
-        # Performance: Earley parses ~1000 lines in <200ms (acceptable per plan).
-        return Lark.open(
-            grammar_path,
-            parser="earley",
-            propagate_positions=True,
-            maybe_placeholders=False,
-        )
-    else:
-        return Lark.open(
-            grammar_path,
-            parser="lalr",
-            propagate_positions=True,
-            maybe_placeholders=False,
-        )
+    if not _OMNIVIEW_GRAMMAR_PATH.exists():
+        return create_parser()
+    return Lark.open(
+        str(_OMNIVIEW_GRAMMAR_PATH),
+        parser="earley",
+        propagate_positions=True,
+        maybe_placeholders=False,
+    )
 
 
 def tokenize(source: str) -> list:

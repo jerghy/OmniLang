@@ -3,8 +3,11 @@
 Uses the Lark Transformer pattern with the grammar in omniview/grammar.lark.
 
 Delegation: Expression and statement parsing can be delegated to OmniLang
-via the omnilang_bridge module. When preprocessor output is available,
+via OmniLang's parser_helpers module. When preprocessor output is available,
 RAW_BLOCK tokens are resolved by calling OmniLang's parse_inline_block().
+
+LINE BUDGET: ≤1600 lines (Council R9, 2026-06-09). Current: ~1305.
+If approaching 1600, split into parser_core.py + parser_ui.py.
 """
 
 from lark import Transformer, Token
@@ -106,6 +109,7 @@ class OmniViewTransformer(Transformer):
         components = []
         stores = []
         themes = []
+        lib_imports = []
         for item in items:
             if isinstance(item, ComponentDef):
                 components.append(item)
@@ -113,11 +117,20 @@ class OmniViewTransformer(Transformer):
                 stores.append(item)
             elif isinstance(item, ThemeDef):
                 themes.append(item)
+            elif isinstance(item, str):
+                lib_imports.append(item)
         return Program(
             components=tuple(components),
             stores=tuple(stores),
             themes=tuple(themes),
+            lib_imports=tuple(lib_imports),
         )
+
+    def import_lib(self, items):
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                return str(item)
+        return ""
 
     def start(self, items):
         # 'start' wraps 'program' — program is already transformed
@@ -1191,7 +1204,7 @@ class OmniViewTransformer(Transformer):
             # No preprocessor data available — return empty block
             return Block(statements=())
 
-        from omniview.omnilang_bridge import parse_block
+        from omnilang.parser_helpers import parse_inline_block as parse_block
         try:
             omni_block = parse_block(slot.original_text)
             self._delegated_blocks[placeholder_id] = omni_block

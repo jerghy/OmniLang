@@ -87,6 +87,7 @@ class OmniTransformer(ExpressionMixin, Transformer):
         classes = []
         imports = []
         exports = []
+        lib_imports = []
         for item in items:
             if isinstance(item, FunctionDef):
                 funcs.append(item)
@@ -97,7 +98,7 @@ class OmniTransformer(ExpressionMixin, Transformer):
             elif isinstance(item, ImportStmt):
                 imports.append(item)
             elif isinstance(item, ImportTypeStmt):
-                pass  # import type — stored separately, erased in JS plain mode
+                pass
             elif isinstance(item, ExportStmt):
                 exports.append(item)
                 if item.item and isinstance(item.item, FunctionDef):
@@ -107,16 +108,20 @@ class OmniTransformer(ExpressionMixin, Transformer):
             elif isinstance(item, ClassDef):
                 classes.append(item)
             elif isinstance(item, InterfaceDef):
-                pass  # interfaces stored in Program (future: Program.interfaces)
+                pass
             elif isinstance(item, tuple) and len(item) == 3 and item[0] == "impl":
                 _, struct_name, methods = item
                 for s in structs:
                     if s.name == struct_name:
                         s.methods.extend(methods)
                         break
+            elif isinstance(item, str):
+                # import_lib returns a string (the library name)
+                lib_imports.append(item)
         return Program(functions=funcs, structs=structs,
                        tagged_unions=tagged_unions, classes=classes,
                        imports=imports, exports=exports,
+                       lib_imports=lib_imports,
                        span=self._span(*items))
 
     def function_def(self, items):
@@ -689,6 +694,13 @@ class OmniTransformer(ExpressionMixin, Transformer):
                         variants.append(sub)
         return TaggedUnionDef(name=name, generic_params=generic_params,
                                variants=variants, span=self._span(*items))
+
+    def import_lib(self, items):
+        """Handle import_lib: 'import' CNAME ';' — library import like 'import omniview;'"""
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                return str(item)
+        return ""
 
     def import_stmt(self, items):
         """Handle import_stmt: 'import' '{' CNAME (',' CNAME)* '}' 'from' STRING_LIT ';'"""

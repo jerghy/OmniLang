@@ -63,7 +63,12 @@ class Program:
     components: tuple[ComponentDef, ...] = ()
     stores: tuple[StoreDef, ...] = ()
     themes: tuple[ThemeDef, ...] = ()
+    lib_imports: tuple[str, ...] = ()
     span: Span | None = None
+
+    @property
+    def has_omniview(self) -> bool:
+        return "omniview" in self.lib_imports
 
 
 # ── Component Definition ──────────────────────────────

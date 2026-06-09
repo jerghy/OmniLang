@@ -1,9 +1,24 @@
 // OmniView v0.3 — Frontend Component DSL Grammar
 // Target: Lark Earley parser
+//
+// Architecture (2026-06-09 Council R9):
+//   Dual-grammar model via omnilang.lexer unified entry.
+//   Physical merge blocked by Lark constraints (%import, generic_params conflict).
+//
+//   expr rules (lines 129-160): KEPT PERMANENTLY — used inline in element props,
+//     style entries, directive guards, etc. Cannot be pre-extracted.
+//   stmt rules (lines 164-178): FALLBACK ONLY — all blocks go through preprocessor
+//     → RAW_BLOCK → OmniLang delegation. These rules are only hit when preprocessor
+//     misses a block context (should not happen in normal flow).
+//   block rule (line 182): primary path is RAW_BLOCK; stmt* alternative is fallback.
+//
+//   See ADR-001 §8 for acceptance criteria.
 
 start: program
 
-program: (component_def | store_def | theme_def)*
+program: import_lib* (component_def | store_def | theme_def)*
+
+import_lib: "import" CNAME ";"
 
 // ── Component ────────────────────────────────────────
 
