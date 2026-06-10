@@ -390,6 +390,16 @@ class OmniTransformer(ExpressionMixin, Transformer):
                 condition = item
             elif isinstance(item, Block) and then_body is None:
                 then_body = item
+            elif isinstance(item, Block):
+                # else_tail returning a single Block (may contain nested if_stmt)
+                else_body = item
+            elif isinstance(item, IfStmt):
+                # else_tail returning a single IfStmt (else if without block wrapper)
+                else_ifs.append((item.condition, item.then_body))
+                if item.else_ifs:
+                    else_ifs.extend(item.else_ifs)
+                if item.else_body:
+                    else_body = item.else_body
             elif isinstance(item, list):
                 chain = item
                 while chain:

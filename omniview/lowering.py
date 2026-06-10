@@ -388,8 +388,12 @@ class IRFixture:
                 # Translation function: t("key") → TranslateCall
                 key = expr.args[0].value if expr.args and hasattr(expr.args[0], 'value') else "unknown"
                 return {"_kind": "TranslateCall", "key": key}
-            # Generic function call — keep function name for codegen
-            return IdentifierExpr(name=func_name)
+            # Generic function call — preserve name and args for codegen
+            return {
+                "_kind": "FuncCallIR",
+                "func": func_name,
+                "args": [self._lower_expr(a) for a in (expr.args or [])],
+            }
         if isinstance(expr, MethodCall):
             # MethodCall serves dual purpose: field access (no args) and method call (with args)
             obj = self._lower_expr(expr.object)

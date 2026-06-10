@@ -210,6 +210,10 @@ class ReactCodegen(CodegenBase):
             # Derive dependencies from signal references in fn body
             signal_names = {s.get("name", "") for s in self._get(comp, "states", [])}
             deps = sorted(self._detect_signal_refs(body_ir, signal_names))
+            # Exclude signals that are only written (via setter), not read
+            body_code = self._gen_block_body(body_ir)
+            deps = [d for d in deps if d in body_code and f"set{self._pascal(d)}" not in body_code
+                    or body_code.count(d) > body_code.count(f"set{self._pascal(d)}")]
             deps_str = ", ".join(deps)
             L.append(self.indent(f"const {fname} = useCallback(({param_str}) => {{"))
             L.append(self.indent(body, 2))
@@ -262,13 +266,28 @@ class ReactCodegen(CodegenBase):
 
     # ── Store Detection ────────────────────────────────
 
-    def _resolve_store_name(self, alias: str) -> str:
-        """Resolve 'store' alias to the actual store name."""
-        # Find stores only (those with 'signals' key, not components)
-        for sname, sir in self._all_stores.items():
-            if "signals" in sir and "view" not in sir:
-                return sname
-        return alias.capitalize()
+    def _resolve_store_name(self, alias: str, field_or_action: str = "") -> str:
+        """Resolve 'store' alias to the actual store name.
+
+        When field_or_action is provided, finds the specific store that owns
+        that field/action. Otherwise returns the first store (backward compat).
+        """
+        stores = {sname: sir for sname, sir in self._all_stores.items()
+                  if "signals" in sir and "view" not in sir}
+        if not stores:
+            return alias.capitalize()
+        # If a specific field/action name is given, find the owning store
+        if field_or_action:
+            for sname, sir in stores.items():
+                signals = self._get(sir, "signals", {})
+                getters = self._get(sir, "getters", {})
+                actions = self._get(sir, "actions", [])
+                action_names = {self._get(a, "name", "") for a in actions}
+                if (field_or_action in signals or field_or_action in getters
+                        or field_or_action in action_names):
+                    return sname
+        # Fallback: return the first store
+        return next(iter(stores))
 
     def _detect_store_refs(self, comp: dict) -> set[str]:
         """Detect which stores are referenced in the component."""
@@ -302,12 +321,21 @@ class ReactCodegen(CodegenBase):
                 self._scan_store_refs(node["view"], refs)
 
     def _detect_store_fields(self, comp: dict, store_name: str) -> list[str]:
-        """Detect which store fields are accessed."""
-        fields = set()
+        """Detect which store fields are accessed from a specific store.
+
+        Only returns fields that actually belong to store_name (exist in its
+        signals or getters), avoiding cross-store field pollution.
+        """
+        all_fields = set()
         view = self._get(comp, "view")
         if view:
-            self._scan_store_fields(view, fields)
-        return sorted(fields)
+            self._scan_store_fields(view, all_fields)
+        # Filter: only return fields that belong to THIS store
+        store_ir = self._all_stores.get(store_name, {})
+        store_signals = set(self._get(store_ir, "signals", {}).keys())
+        store_getters = set(self._get(store_ir, "getters", {}).keys())
+        valid_fields = store_signals | store_getters
+        return sorted(f for f in all_fields if f in valid_fields)
 
     def _scan_store_fields(self, node, fields: set):
         if isinstance(node, list):
@@ -318,6 +346,9 @@ class ReactCodegen(CodegenBase):
                 obj = self._get(node, "object")
                 if isinstance(obj, dict) and self._get(obj, "name") == "store":
                     fields.add(self._get(node, "field", "unknown"))
+            # Also check StoreFieldAccessExpr (used for store action calls)
+            if "store_alias" in node and "field_name" in node:
+                fields.add(self._get(node, "field_name", "unknown"))
             for val in node.values():
                 self._scan_store_fields(val, fields)
 
@@ -388,8 +419,20 @@ class ReactCodegen(CodegenBase):
             html_name = A11Y_MAP.get(pname, pname)
             js_val = self._expr_to_js(pval)
             if js_val.startswith('"') and js_val.endswith('"'):
-                # String literal — use quoted attribute
-                attrs.append(f'{html_name}={js_val}')
+                # String literal
+                if pname == "style":
+                    # Convert CSS string to React style object
+                    style_obj = self._parse_css_string_to_react(js_val[1:-1])
+                    if style_obj:
+                        style_parts = ", ".join(
+                            f"{k}: {v if v.isdigit() or v.replace('.','').replace('-','').isdigit() else repr(v)}"
+                            for k, v in style_obj.items()
+                        )
+                        attrs.append(f"style={{{{{style_parts}}}}}")
+                    else:
+                        attrs.append(f'{html_name}={js_val}')
+                else:
+                    attrs.append(f'{html_name}={js_val}')
             else:
                 attrs.append(f'{html_name}={{{js_val}}}')
 
@@ -421,7 +464,8 @@ class ReactCodegen(CodegenBase):
             attrs.append(f"style={{{{{style_parts}}}}}")
 
         # Auto-apply CSS module class from style block
-        # Priority: 1) test-id exact match  2) element tag exact match
+        # Priority: 1) test-id exact match  2) test-id hyphen→underscore
+        #           3) element tag match (only if NOT "container" — too generic)
         if styles:
             style_names = [r.get("class_name", "") for r in styles if isinstance(r, dict)]
             tag_lower = tag.lower()
@@ -429,8 +473,13 @@ class ReactCodegen(CodegenBase):
             # 1) test-id exact match (e.g. test-id="sidebar" → .sidebar)
             if test_id and test_id in style_names:
                 matched = test_id
-            # 2) Exact tag match (e.g. Container → .container, Card → .card)
-            if not matched and tag_lower in style_names:
+            # 2) test-id with hyphens→underscores (e.g. test-id="card-typo" → .card_typo)
+            if not matched and test_id:
+                test_id_underscored = test_id.replace("-", "_")
+                if test_id_underscored in style_names:
+                    matched = test_id_underscored
+            # 3) Tag match — only for specific tags, skip "container" (too generic)
+            if not matched and tag_lower in style_names and tag_lower != "container":
                 matched = tag_lower
             if matched:
                 attrs.append(f"className={{styles.{matched}}}")
@@ -518,7 +567,24 @@ class ReactCodegen(CodegenBase):
         for branch in reversed(branches):
             c = self._expr_to_js(self._get(branch, "condition"))
             body = self._gen_view_tree(self._get(branch, "body"), styles)
-            result = f"{c} ? ({body}) : ({result})"
+            # Strip outer braces from result (fallback) too
+            result_stripped = result.strip()
+            if result_stripped.startswith("{") and result_stripped.endswith("}"):
+                result = result_stripped[1:-1].strip()
+            # Wrap multi-child body — if it starts with { (JSX expr), keep it inside <>
+            # otherwise strip {} first since <> will provide JSX context
+            has_multiple = "\n" in body
+            if has_multiple:
+                body_stripped = body.strip()
+                # If body is wrapped in {expr}, keep the braces inside <>
+                if body_stripped.startswith("{") and body_stripped.endswith("}"):
+                    body = f"<>\n{body_stripped}\n</>"
+                else:
+                    # Strip outer braces from single-expression wrappers
+                    if body_stripped.startswith("{") and body_stripped.endswith("}"):
+                        body = body_stripped[1:-1].strip()
+                    body = f"<>\n{body}\n</>"
+            result = f"{c} ? {body} : ({result})"
         return f"{{{result}}}"
 
     def _gen_error_boundary(self, boundary: dict, styles: list, indent_level: int) -> str:
@@ -557,7 +623,7 @@ class ReactCodegen(CodegenBase):
         map_body = f"{iterable}.map({item_name} => (\n{body}\n))"
         if empty_body:
             empty_jsx = self._gen_view_tree(empty_body, styles)
-            return f"{{{iterable}.length === 0 ? ({empty_jsx}) : {map_body}}}"
+            return f"{{{iterable}.length === 0 ? {empty_jsx} : {map_body}}}"
         return f"{{{map_body}}}"
 
     # ── Event Handlers ─────────────────────────────────
@@ -571,8 +637,8 @@ class ReactCodegen(CodegenBase):
             parts = ref.split(".")
             if len(parts) == 2:
                 alias, action = parts
-                # Resolve alias to actual store name from store_refs
-                actual_store = self._resolve_store_name(alias)
+                # Find which store owns this action
+                actual_store = self._resolve_store_name(alias, field_or_action=action)
                 return f"use{actual_store}.getState().{action}"
             return ref
         # Inline function
@@ -667,7 +733,7 @@ class ReactCodegen(CodegenBase):
                 store_alias = self._get(expr, "store_alias", "store")
                 field = self._get(expr, "field_name", "")
                 args = self._get(expr, "call_args", [])
-                actual_store = self._resolve_store_name(store_alias)
+                actual_store = self._resolve_store_name(store_alias, field_or_action=field)
                 args_str = ", ".join(self._expr_to_js(a) for a in args)
                 return f"use{actual_store}.getState().{field}({args_str})"
             if kind == "ArrayExpr" or ("elements" in expr and "_kind" not in expr):
@@ -682,6 +748,11 @@ class ReactCodegen(CodegenBase):
                 return "..." + self._expr_to_js(self._get(expr, "expr"))
             if kind == "FormatCall":
                 return self._gen_format_call(expr)
+            if kind == "FuncCallIR":
+                func_name = self._get(expr, "func", "")
+                args = self._get(expr, "args", [])
+                args_str = ", ".join(self._expr_to_js(a) for a in args)
+                return f"{func_name}({args_str})"
             if kind == "TranslateCall":
                 key = self._get(expr, "key", "unknown")
                 return f"t('{key}')"
@@ -890,13 +961,19 @@ class ReactCodegen(CodegenBase):
                     L.append(f"  {sig_name}: {default_val},")
 
         # Getters → functions that access state
+        # Build return type map for f64 rounding
+        getter_types = {}
+        for getter_name, getter_body in getters.items():
+            getter_types[getter_name] = self._infer_getter_return_type(getter_body, signals)
         for getter_name, getter_body in getters.items():
             body_str = self._expr_to_js(getter_body)
-            # If body references a signal, prefix with state. Otherwise use raw value
-            if isinstance(getter_body, dict) and getter_body.get("_kind") == "IdentifierExpr":
-                getter_expr = f"state.{body_str}"
-            else:
-                getter_expr = body_str
+            # Prefix signal references with state. to access Zustand state
+            getter_expr = body_str
+            for sig_name in sorted(signals.keys(), key=len, reverse=True):
+                getter_expr = self._replace_identifier(getter_expr, sig_name, f"state.{sig_name}")
+            # Round f64 (number) getters to 2 decimal places
+            if getter_types.get(getter_name) == "number" and "/" in getter_expr:
+                getter_expr = f"Math.round(({getter_expr}) * 100) / 100"
             L.append(f"  {getter_name}: () => {{")
             L.append(f"    const state = get();")
             L.append(f"    return {getter_expr};")
@@ -910,6 +987,8 @@ class ReactCodegen(CodegenBase):
             params = self._get(action, "params", [])
             pstr = ", ".join(self._get(p, "name", "x") for p in params)
             body = self._gen_block_body(self._get(action, "body"))
+            if not body.strip():
+                body = f"console.warn('Action \"{aname}\" is not implemented');"
             L.append(f"  {aname}: ({pstr}) => {{")
             L.append(self.indent(body))
             L.append(f"  }},")
@@ -930,6 +1009,15 @@ class ReactCodegen(CodegenBase):
             return M.get(type_ir, type_ir)
         if isinstance(type_ir, dict):
             k = self._get(type_ir, "kind", self._get(type_ir, "name", "any"))
+            type_args = self._get(type_ir, "type_args", [])
+            # Handle generic types: Array<String> → string[], Map<String, i32> → Record<string, number>
+            if k in ("Array", "ARRAY") and type_args:
+                inner = self._map_type_to_ts(type_args[0]) if type_args else "any"
+                return f"{inner}[]"
+            if k in ("Map", "MAP") and type_args and len(type_args) >= 2:
+                kt = self._map_type_to_ts(type_args[0])
+                vt = self._map_type_to_ts(type_args[1])
+                return f"Record<{kt}, {vt}>"
             M = {"i32": "number", "I32": "number", "f64": "number", "F64": "number",
                  "bool": "boolean", "BOOL": "boolean", "String": "string", "STRING": "string",
                  "void": "void", "VOID": "void", "null": "null", "NULL": "null",
@@ -956,6 +1044,40 @@ class ReactCodegen(CodegenBase):
             if sig_name in signals:
                 return self._map_type_to_ts(signals[sig_name])
         return "any"
+
+    @staticmethod
+    def _parse_css_string_to_react(css_str: str) -> dict:
+        """Parse a CSS string like 'text_decoration: line-through; color: red'
+        into a React camelCase style dict like {'textDecoration': 'line-through', 'color': 'red'}.
+        """
+        result = {}
+        for part in css_str.split(";"):
+            part = part.strip()
+            if not part or ":" not in part:
+                continue
+            key, val = part.split(":", 1)
+            key = key.strip()
+            val = val.strip()
+            if not key or not val:
+                continue
+            # Convert snake_case/kebab-case CSS property to camelCase
+            camel_key = key.replace("_", " ").replace("-", " ")
+            camel_key = "".join(
+                word.capitalize() if i > 0 else word.lower()
+                for i, word in enumerate(camel_key.split())
+            )
+            result[camel_key] = val
+        return result
+
+    @staticmethod
+    def _replace_identifier(expr: str, name: str, replacement: str) -> str:
+        """Replace identifier `name` with `replacement` at word boundaries.
+
+        Avoids partial matches (e.g., 'count' should NOT match 'count_active').
+        """
+        import re
+        pattern = r'(?<![a-zA-Z0-9_])' + re.escape(name) + r'(?![a-zA-Z0-9_])'
+        return re.sub(pattern, replacement, expr)
 
     @staticmethod
     def _pascal(s: str) -> str:

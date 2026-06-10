@@ -1,0 +1,124 @@
+import omniview;
+
+// ── Form Store ─────────────────────────────────────────
+
+store FormStore {
+    signal submitted: bool = false;
+    signal submit_count: i32 = 0;
+
+    action submit() {
+        submitted = true;
+        submit_count = submit_count + 1;
+    }
+
+    action reset() {
+        submitted = false;
+    }
+}
+
+// ── Form Component ─────────────────────────────────────
+
+component SignupForm {
+    @store FormStore;
+    signal name: String = "";
+    signal email: String = "";
+    signal age_val: String = "";
+    signal plan: String = "basic";
+    signal accepted_terms: bool = false;
+    signal errors: String = "";
+
+    fn handle_submit() {
+        if name == "" {
+            errors = "Name is required";
+        }
+        if name != "" && email == "" {
+            errors = "Email is required";
+        }
+        if name != "" && email != "" {
+            errors = "";
+            store.submit();
+        }
+    }
+
+    fn handle_reset() {
+        name = "";
+        email = "";
+        age_val = "";
+        plan = "basic";
+        accepted_terms = false;
+        errors = "";
+        store.reset();
+    }
+
+    fn get_error() {
+        errors = errors;
+    }
+
+    view {
+        <Container test-id="signup-form">
+            <Heading level="1" test-id="form-title">Sign Up</Heading>
+
+            @if store.submitted {
+                <Container test-id="success-message">
+                    <Heading level="2">Welcome, {name}!</Heading>
+                    <Text test-id="success-email">We sent a confirmation to {email}</Text>
+                    <Button onPress={handle_reset} test-id="btn-new-signup">New Signup</Button>
+                </Container>
+            }
+
+            @if !store.submitted {
+                <Flex direction="column" gap="4px">
+                    <Text test-id="label-name">Name *</Text>
+                    <Input bind:value={name} placeholder="Enter your name" test-id="input-name" />
+                </Flex>
+            }
+
+            @if !store.submitted {
+                <Flex direction="column" gap="4px">
+                    <Text test-id="label-email">Email *</Text>
+                    <Input bind:value={email} placeholder="Enter your email" test-id="input-email" />
+                </Flex>
+            }
+
+            @if !store.submitted {
+                <Flex direction="column" gap="4px">
+                    <Text test-id="label-age">Age</Text>
+                    <Input bind:value={age_val} placeholder="Your age" test-id="input-age" />
+                </Flex>
+            }
+
+            @if !store.submitted {
+                <Flex direction="column" gap="4px">
+                    <Text test-id="label-plan">Plan</Text>
+                    <Text test-id="selected-plan">Selected: {plan}</Text>
+                </Flex>
+            }
+
+            @if !store.submitted {
+                <Flex direction="row" gap="8px" align="center">
+                    <Button onPress={fn() { accepted_terms = !accepted_terms; }} test-id="btn-terms">
+                        @if accepted_terms { <Text>YES</Text> } @else { <Text>NO</Text> }
+                    </Button>
+                    <Text test-id="label-terms">I accept the terms</Text>
+                </Flex>
+
+                @if errors != "" {
+                    <Text test-id="form-error" style={{color: "#e74c3c"}}>{errors}</Text>
+                }
+
+                <Flex direction="row" gap="8px">
+                    <Button onPress={handle_submit} test-id="btn-submit">Submit</Button>
+                    <Button onPress={handle_reset} test-id="btn-reset">Reset</Button>
+                </Flex>
+
+                <Text test-id="submit-count">Submissions: {store.submit_count}</Text>
+            }
+        </Container>
+    }
+
+    style {
+        .container { layout: column; gap: 20px; padding: 32px; max_width: 500px; background: #ffffff; }
+        .heading { font_size: 28px; font_weight: bold; }
+        .field_label { font_size: 14px; font_weight: 500; color: #333; }
+    }
+}

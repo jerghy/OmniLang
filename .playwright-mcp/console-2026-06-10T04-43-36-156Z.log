@@ -1,0 +1,3 @@
+[    1251ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5203/node_modules/.vite/deps/chunk-XPR23Y44.js?v=dd5f5403:21548
+[    1253ms] [LOG] [OmniLang Todo] Store state: {tasks: Array(0), completed: Array(0), activeCount: 0, totalCount: 0} @ http://localhost:5203/main.jsx:5
+[    1312ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5203/favicon.ico:0

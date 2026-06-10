@@ -1,0 +1,4 @@
+[      58ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://127.0.0.1:5187/node_modules/.vite/deps/chunk-XPR23Y44.js?v=dbbea8b5:21548
+[      58ms] [LOG] [OmniLang Todo] Store state: {tasks: Array(0), completed: Array(0), activeCount: 0, totalCount: 0} @ http://127.0.0.1:5187/main.jsx?t=1781059753563:5
+[   40133ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://127.0.0.1:5187/node_modules/.vite/deps/chunk-XPR23Y44.js?v=dbbea8b5:21548
+[   40134ms] [LOG] [OmniLang Todo] Store state: {tasks: Array(0), completed: Array(0), activeCount: 0, totalCount: 0} @ http://127.0.0.1:5187/main.jsx?t=1781059804504:5

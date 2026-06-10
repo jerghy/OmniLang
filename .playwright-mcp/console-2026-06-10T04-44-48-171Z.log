@@ -1,0 +1,3 @@
+[    1129ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5204/node_modules/.vite/deps/chunk-XPR23Y44.js?v=357f9dd8:21548
+[    1157ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5204/favicon.ico:0
+[  768338ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5204/node_modules/.vite/deps/chunk-XPR23Y44.js?v=357f9dd8:21548

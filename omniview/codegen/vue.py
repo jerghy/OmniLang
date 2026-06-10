@@ -307,13 +307,18 @@ class VueCodegen(CodegenBase):
             attrs.append(f'style="{style_str}"')
 
         # CSS class from style block
+        # Priority: 1) test-id exact  2) test-id hyphen→underscore  3) tag (skip "container")
         if styles:
             style_names = [r.get("class_name", "") for r in styles if isinstance(r, dict)]
             tag_lower = tag.lower()
             matched = None
             if test_id and test_id in style_names:
                 matched = test_id
-            if not matched and tag_lower in style_names:
+            if not matched and test_id:
+                test_id_underscored = test_id.replace("-", "_")
+                if test_id_underscored in style_names:
+                    matched = test_id_underscored
+            if not matched and tag_lower in style_names and tag_lower != "container":
                 matched = tag_lower
             if matched:
                 attrs.append(f'class="{matched}"')

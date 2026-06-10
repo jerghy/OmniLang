@@ -1,0 +1,542 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - button "国内版":
+          - generic: 国内版
+      - button "国际版" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: 国际版
+    - button "跳至内容" [ref=e8] [cursor=pointer]:
+      - generic [ref=e10]: 跳至内容
+    - button "辅助功能反馈" [ref=e11] [cursor=pointer]:
+      - generic [ref=e13]: 辅助功能反馈
+    - generic [ref=e14]:
+      - link "返回到必应搜索" [ref=e15] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "返回到必应搜索" [level=1] [ref=e16]
+      - search [ref=e17]:
+        - button "搜索" [ref=e20] [cursor=pointer]
+        - searchbox "在此处输入你的搜索 — 输入时会显示搜索建议" [ref=e21]: latest news
+    - complementary "帐户奖励和偏好设置" [ref=e25]:
+      - button "Microsoft Rewards" [ref=e26] [cursor=pointer]
+      - button "昊彤" [ref=e27] [cursor=pointer]:
+        - img "个人资料图片" [ref=e28]
+    - navigation "主菜单" [ref=e29]:
+      - list [ref=e30]:
+        - listitem [ref=e31]:
+          - link "网页" [ref=e32] [cursor=pointer]:
+            - /url: /?scope=web&FORM=HDRSC1
+        - listitem [ref=e33]:
+          - link "图片" [ref=e34] [cursor=pointer]:
+            - /url: /images/search?q=latest+news&FORM=HDRSC2
+        - listitem [ref=e35]:
+          - link "视频" [ref=e36] [cursor=pointer]:
+            - /url: /videos/search?q=latest+news&FORM=HDRSC3
+        - listitem [ref=e37]:
+          - link "学术" [ref=e38] [cursor=pointer]:
+            - /url: /academic/search?q=latest+news&FORM=HDRSC4
+        - listitem [ref=e39]:
+          - link "词典" [ref=e40] [cursor=pointer]:
+            - /url: /dict/search?q=latest+news&FORM=HDRSC6
+        - listitem [ref=e41]:
+          - link "地图" [ref=e42] [cursor=pointer]:
+            - /url: /maps?q=latest+news&FORM=HDRSC7
+        - listitem [ref=e43]:
+          - button "更多" [ref=e44] [cursor=pointer]:
+            - img [ref=e46]
+            - text: 更多
+  - main "搜索结果" [ref=e49]:
+    - generic [ref=e50]:
+      - list [ref=e51]:
+        - listitem [ref=e52]:
+          - generic [ref=e53]:
+            - list [ref=e59]:
+              - listitem [ref=e60]:
+                - generic [ref=e61]:
+                  - link "China Daily" [ref=e63] [cursor=pointer]:
+                    - /url: https://www.chinadaily.com.cn/china/
+                    - generic [ref=e68]:
+                      - generic [ref=e69]: China Daily
+                      - generic [ref=e71]: https://www.chinadaily.com.cn › china
+                  - heading "China News - Headlines, Stories & Videos - Chinadaily.com.cn" [level=2] [ref=e72]:
+                    - link "China News - Headlines, Stories & Videos - Chinadaily.com.cn" [ref=e73] [cursor=pointer]:
+                      - /url: https://www.chinadaily.com.cn/china/
+                      - strong [ref=e74]: China News - Headlines, Stories
+                      - text: "& Videos - Chinadaily.com.cn"
+                  - list [ref=e75]:
+                    - listitem [ref=e76]:
+                      - generic [ref=e77]:
+                        - link "Get the latest China news, breaking China news, China business news, as well as information on China politics, China culture, and China military from the China Daily and …" [ref=e79] [cursor=pointer]:
+                          - /url: https://www.chinadaily.com.cn/china/
+                          - text: Get the
+                          - strong [ref=e80]: latest
+                          - text: China
+                          - strong [ref=e81]: news
+                          - text: ", breaking China news, China business news, as well as information on China politics, China culture, and China military from the China Daily and …"
+                        - generic [ref=e82]:
+                          - generic [ref=e83]:
+                            - generic [ref=e84]:
+                              - link "双语" [ref=e85] [cursor=pointer]:
+                                - /url: https://language.chinadaily.com.cn/
+                                - generic [ref=e86]: 双语
+                              - generic [ref=e87]: 每日一词 每日一词 | 中欧建交50周年 5月6日，国家主席习近平同欧洲理事会 …
+                            - generic [ref=e88]:
+                              - link "Environment" [ref=e89] [cursor=pointer]:
+                                - /url: https://www.chinadaily.com.cn/china/environment
+                                - generic [ref=e90]: Environment
+                              - generic [ref=e91]: Xiamen's Wuyuan Bay highlights ecological revival for World …
+                            - generic [ref=e92]:
+                              - link "Cover Story" [ref=e93] [cursor=pointer]:
+                                - /url: https://www.chinadaily.com.cn/china/coverstory
+                                - generic [ref=e94]: Cover Story
+                              - generic [ref=e95]: Decades of diligence fuel development in deepest Yunnan province 2026-05-08 …
+                          - generic [ref=e96]:
+                            - generic [ref=e97]:
+                              - link "Military" [ref=e98] [cursor=pointer]:
+                                - /url: https://www.chinadaily.com.cn/china/59b8d010a3108c54ed7dfc25
+                                - generic [ref=e99]: Military
+                              - generic [ref=e100]: PLA monitors and tracks Dutch shipborne helicopter throughout its transit in …
+                            - generic [ref=e101]:
+                              - link "China to strengthen management of off-campus education through national platform" [ref=e102] [cursor=pointer]:
+                                - /url: https://www.chinadaily.com.cn/a/202503/27/WS67e4bb98a3101d4e4dc2b24e.html
+                                - generic [ref=e103]: China to strengthen management of off-campus education through national platform
+                              - generic [ref=e104]: Beijing -- China's Ministry of Education on Wednesday unveiled a set of …
+                            - generic [ref=e105]:
+                              - link "Editor's Picks" [ref=e106] [cursor=pointer]:
+                                - /url: https://www.chinadaily.com.cn/china/editorpicks
+                                - generic [ref=e107]: Editor's Picks
+                              - generic [ref=e108]: Ganzi launches probe into scenic area over road access and toll complaints …
+              - listitem [ref=e109]:
+                - generic [ref=e112]:
+                  - link "腾讯网-要闻" [ref=e113] [cursor=pointer]:
+                    - /url: https://news.qq.com/
+                  - generic [ref=e114]:
+                    - generic [ref=e115]:
+                      - heading "腾讯网-要闻" [level=2] [ref=e117]
+                      - paragraph [ref=e118]:
+                        - text: 腾讯网下设
+                        - strong [ref=e119]: 新闻
+                        - text: 、科技、财经、娱乐、体育、汽车、时尚等多个频道，充分满足用户对不同类型资讯的需求。 同时专注不同领域内容，打造精品栏目，并顺应技术发展趋势，推出网络直播等创新形式，改变了用 …
+                    - generic [ref=e123]: 腾讯网
+                - generic [ref=e126]:
+                  - link "CGTN | Breaking News, China News, World News and Video" [ref=e127] [cursor=pointer]:
+                    - /url: https://www.cgtn.com/
+                  - generic [ref=e128]:
+                    - generic [ref=e129]:
+                      - heading "CGTN | Breaking News, China News, World News and Video" [level=2] [ref=e131]:
+                        - text: CGTN | Breaking
+                        - strong [ref=e132]: News
+                        - text: ", China"
+                        - strong [ref=e133]: News
+                        - text: ", World"
+                        - strong [ref=e134]: News
+                        - text: and Video
+                      - paragraph [ref=e135]:
+                        - text: Get the
+                        - strong [ref=e136]: news
+                        - text: as it breaks and go behind the day's top stories, from politics, business, culture and sports to nature, travel and technology. CGTN delivers a C…
+                    - generic [ref=e140]: CGTN
+              - listitem [ref=e141]:
+                - generic [ref=e144]:
+                  - link "新华网_让新闻离你更近" [ref=e145] [cursor=pointer]:
+                    - /url: https://www.news.cn/
+                  - generic [ref=e146]:
+                    - generic [ref=e147]:
+                      - heading "新华网_让新闻离你更近" [level=2] [ref=e149]
+                      - paragraph [ref=e150]:
+                        - text: 中国主要重点
+                        - strong [ref=e151]: 新闻
+                        - text: 网站,依托新华社遍布全球的采编网络,记者遍布世界100多个国家和地区,地方频道分布全国31个省市自治 …
+                    - generic [ref=e155]: 新华网
+                - generic [ref=e158]:
+                  - link "中国新闻网_梳理天下新闻" [ref=e159] [cursor=pointer]:
+                    - /url: https://www.chinanews.com.cn/
+                  - generic [ref=e160]:
+                    - generic [ref=e161]:
+                      - heading "中国新闻网_梳理天下新闻" [level=2] [ref=e163]
+                      - paragraph [ref=e164]:
+                        - strong [ref=e165]: Latest
+                        - text: Xi returns to Beijing after state visit to DPRK China's intangible cultural heritage scores …
+                    - generic [ref=e169]: 中国新闻网
+            - generic [ref=e170]:
+              - generic [ref=e171]: 反馈
+              - button "反馈点赞" [ref=e172] [cursor=pointer]
+              - button "反馈不喜欢" [ref=e173] [cursor=pointer]
+      - list [ref=e174]:
+        - listitem [ref=e175]:
+          - link "腾讯网" [ref=e177] [cursor=pointer]:
+            - /url: https://news.qq.com/
+            - generic [ref=e182]:
+              - generic [ref=e183]: 腾讯网
+              - generic [ref=e186]: https://news.qq.com
+          - heading "腾讯网-要闻" [level=2] [ref=e187]:
+            - link "腾讯网-要闻" [ref=e188] [cursor=pointer]:
+              - /url: https://news.qq.com/
+          - generic [ref=e189]:
+            - list [ref=e193]:
+              - listitem [ref=e194]:
+                - link "网页相关图像" [ref=e197] [cursor=pointer]:
+                  - /url: /images/search?view=detailV2&ccid=Vz8j2/DR&id=781B06351FBDBF6FE1E45598478EB391F350B6F1&thid=OIP.Vz8j2_DRHSLKAm5cNTbxYwHaD0&mediaurl=http://inews.gtimg.com/newsapp_ls/0/15051123412_640330/0&exph=330&expw=640&q=latest news&ck=94DF0F077CC67678BD971F2781F2830E&idpp=rc&form=rc2idp
+              - listitem [ref=e199]:
+                - link "网页相关图像" [ref=e202] [cursor=pointer]:
+                  - /url: /images/search?view=detailV2&ccid=7aT6UOnF&id=781B06351FBDBF6FE1E4A1EF3B3F2196C46DDB99&thid=OIP.7aT6UOnFxlhM1WSO6pbBiQHaNK&mediaurl=https://tnfe.gtimg.com/image/wsmdijfoxw_1674026216728.jpg&exph=1920&expw=1080&q=latest news&ck=F29B74A044355569C9B9354CCB055C35&idpp=rc&form=rc2idp
+              - listitem [ref=e204]:
+                - link "网页相关图像" [ref=e207] [cursor=pointer]:
+                  - /url: /images/search?view=detailV2&ccid=zq22THqY&id=781B06351FBDBF6FE1E449112E5925E52B9F4F3F&thid=OIP.zq22THqYi2Dlsbo7usT_wgHaD0&mediaurl=http://inews.gtimg.com/newsapp_ls/0/15165273872_640330/0&exph=330&expw=640&q=latest news&ck=4B7BFD13B37787D2E1176866DC70D4BB&idpp=rc&form=rc2idp
+              - listitem [ref=e209]:
+                - generic [ref=e210] [cursor=pointer]:
+                  - link "网页相关图像" [ref=e212]:
+                    - /url: /images/search?q=url:https%3A%2F%2Fnews.qq.com%2F&FORM=rc2irp
+                  - generic:
+                    - text: 查看更多
+                    - img
+            - paragraph [ref=e214]: 腾讯网下设新闻、科技、财经、娱乐、体育、汽车、时尚等多个频道，充分满足用户对不同类型资讯的需求。 同时专注不同领域内容，打造精品栏目，并顺应技术发展趋势，推出网络直播等创新形式，改 …
+        - listitem [ref=e215]:
+          - link "CGTN" [ref=e217] [cursor=pointer]:
+            - /url: https://www.cgtn.com/
+            - generic [ref=e222]:
+              - generic [ref=e223]: CGTN
+              - generic [ref=e226]: https://www.cgtn.com
+          - heading "CGTN | Breaking News, China News, World News and Video" [level=2] [ref=e227]:
+            - link "CGTN | Breaking News, China News, World News and Video" [ref=e228] [cursor=pointer]:
+              - /url: https://www.cgtn.com/
+              - text: CGTN | Breaking
+              - strong [ref=e229]: News
+              - text: ", China"
+              - strong [ref=e230]: News
+              - text: ", World"
+              - strong [ref=e231]: News
+              - text: and Video
+          - paragraph [ref=e233]: 17 小时之前 · Get the news as it breaks and go behind the day's top stories, from politics, business, culture and sports to nature, travel and technology. CGTN delivers a Chinese perspective on global …
+          - list "请使用箭头键进行导航" [ref=e240]:
+            - listitem [ref=e241]:
+              - generic [ref=e242]:
+                - link [ref=e245] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2022-11-29/7-killed-as-extreme-weather-hits-China-s-Xinjiang-1flvGlRltPG/index.html
+                  - img [ref=e246]
+                - list [ref=e248]:
+                  - listitem [ref=e249]:
+                    - link [ref=e250] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2022-11-29/7-killed-as-extreme-weather-hits-China-s-Xinjiang-1flvGlRltPG/index.html
+                      - text: 7 killed as extreme weather hits China's Xinjiang
+                  - listitem [ref=e251]: cgtn.com
+            - listitem [ref=e252]:
+              - generic [ref=e253]:
+                - link [ref=e256] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2022-11-30/Chinese-tea-making-joins-UNESCO-list-1fnlKJ9kTsc/index.html
+                  - img [ref=e257]
+                - list [ref=e259]:
+                  - listitem [ref=e260]:
+                    - link [ref=e261] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2022-11-30/Chinese-tea-making-joins-UNESCO-list-1fnlKJ9kTsc/index.html
+                      - text: Chinese tea making joins UNESCO list
+                  - listitem [ref=e262]: cgtn.com
+            - listitem [ref=e263]:
+              - generic [ref=e264]:
+                - link [ref=e267] [cursor=pointer]:
+                  - /url: https://newseu.cgtn.com/news/2023-06-09/Explainer-Why-the-Gaokao-is-China-s-most-important-exam-1ktJvpLdgdO/index.html
+                  - img [ref=e268]
+                - list [ref=e270]:
+                  - listitem [ref=e271]:
+                    - link [ref=e272] [cursor=pointer]:
+                      - /url: https://newseu.cgtn.com/news/2023-06-09/Explainer-Why-the-Gaokao-is-China-s-most-important-exam-1ktJvpLdgdO/index.html
+                      - text: "Explainer: Why the Gaokao is China's most important exam"
+                  - listitem [ref=e273]: cgtn.com
+            - listitem [ref=e274]:
+              - generic [ref=e275]:
+                - link [ref=e278] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2023-01-12/Unlock-the-aesthetics-of-the-Song-Dynasty-through-the-CGTN-Art-Series-1gwNV3AF12E/index.html
+                  - img [ref=e279]
+                - list [ref=e281]:
+                  - listitem [ref=e282]:
+                    - link [ref=e283] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2023-01-12/Unlock-the-aesthetics-of-the-Song-Dynasty-through-the-CGTN-Art-Series-1gwNV3AF12E/index.html
+                      - text: Unlock the aesthetics of the Song Dynasty through the CGTN A…
+                  - listitem [ref=e284]: cgtn.com
+            - listitem [ref=e285]:
+              - generic [ref=e286]:
+                - link [ref=e289] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2021-06-12/What-is-China-doing-to-pass-on-its-traditional-culture--10YEWqAqJVe/index.html
+                - list [ref=e292]:
+                  - listitem [ref=e293]:
+                    - link [ref=e294] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2021-06-12/What-is-China-doing-to-pass-on-its-traditional-culture--10YEWqAqJVe/index.html
+                      - text: What is China doing to pass on its traditional culture?
+                  - listitem [ref=e295]: cgtn.com
+            - listitem [ref=e296]:
+              - generic [ref=e297]:
+                - link [ref=e300] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2023-04-02/China-s-new-energy-vehicle-industry-accelerates-green-transformation-1iFILaDkTMQ/index.html
+                - list [ref=e303]:
+                  - listitem [ref=e304]:
+                    - link [ref=e305] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2023-04-02/China-s-new-energy-vehicle-industry-accelerates-green-transformation-1iFILaDkTMQ/index.html
+                      - text: China's new energy vehicle industry accelerates green tr…
+                  - listitem [ref=e306]: cgtn.com
+            - listitem [ref=e307]:
+              - generic [ref=e308]:
+                - link [ref=e311] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2021-05-22/Yuan-Longping-the-man-who-fed-the-Chinese-people-10tyyP9ZnMY/index.html
+                - list [ref=e314]:
+                  - listitem [ref=e315]:
+                    - link [ref=e316] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2021-05-22/Yuan-Longping-the-man-who-fed-the-Chinese-people-10tyyP9ZnMY/index.html
+                      - text: "A lifelong dedication to keep people fed: The life of Yuan Longping"
+                  - listitem [ref=e317]: cgtn.com
+            - listitem [ref=e318]:
+              - generic [ref=e319]:
+                - link [ref=e322] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2021-06-14/Health-or-happiness-What-to-wish-for-on-Dragon-Boat-Festival-1155k2HPGpO/index.html
+                - list [ref=e325]:
+                  - listitem [ref=e326]:
+                    - link [ref=e327] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2021-06-14/Health-or-happiness-What-to-wish-for-on-Dragon-Boat-Festival-1155k2HPGpO/index.html
+                      - text: Health or happiness? What to wish for on Dragon Boat Festival
+                  - listitem [ref=e328]: cgtn.com
+            - listitem [ref=e329]:
+              - generic [ref=e330]:
+                - link [ref=e333] [cursor=pointer]:
+                  - /url: https://news.cgtn.com/news/2023-03-28/China-s-domestic-reality-vs-the-international-rhetoric-1iwl3nfjh4c/index.html
+                - list [ref=e336]:
+                  - listitem [ref=e337]:
+                    - link [ref=e338] [cursor=pointer]:
+                      - /url: https://news.cgtn.com/news/2023-03-28/China-s-domestic-reality-vs-the-international-rhetoric-1iwl3nfjh4c/index.html
+                      - text: "Whole-process people's democracy: China's domestic re…"
+                  - listitem [ref=e339]: cgtn.com
+        - listitem [ref=e340]:
+          - generic [ref=e341]:
+            - link "浏览此图像" [ref=e344] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=zzNKgLGK&id=B44D42C74A5E0EBD299FC6C30E28185465F8D4F6&thid=OIP.zzNKgLGKNAFTpl0fZwOX6QHaKh&mediaurl=http://www.news.cn/titlepic/112991/1129910457_1697010907084_title0h.jpg&q=latest+news&ck=C51C5799DD674D72DFB46AD10694C9EC&idpp=rc&expw=1080&exph=1534&form=rc2idp
+              - img [ref=e345]
+            - generic [ref=e346]:
+              - link "新华网" [ref=e348] [cursor=pointer]:
+                - /url: https://www.news.cn/
+                - generic [ref=e353]:
+                  - generic [ref=e354]: 新华网
+                  - generic [ref=e357]: https://www.news.cn
+              - heading "新华网_让新闻离你更近" [level=2] [ref=e358]:
+                - link "新华网_让新闻离你更近" [ref=e359] [cursor=pointer]:
+                  - /url: https://www.news.cn/
+              - paragraph [ref=e360]: 中国主要重点新闻网站,依托新华社遍布全球的采编网络,记者遍布世界100多个国家和地区,地方频道分布全国31个省市自治区,每天24小时同时使用6种语言滚动发稿, …
+        - listitem [ref=e362]:
+          - generic [ref=e363]:
+            - link "浏览此图像" [ref=e366] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1FKAujIw&id=B04428D697A6F01B027A5231C59EF4314F920C4F&thid=OIP.1FKAujIwu9exmRrEdjTCBAHaEK&mediaurl=https://poss-videocloud.cns.com.cn/oss/2023/02/24/chinanews/MEIZI_YUNSHI/onair/545FDB9194C4454D85C178953ACDFC7E.jpg&q=latest+news&ck=D466B2A35BAD0FA7C2E1589E35A5C1B6&idpp=rc&expw=1280&exph=720&form=rc2idp
+            - generic [ref=e368]:
+              - link "中国新闻网" [ref=e370] [cursor=pointer]:
+                - /url: https://www.chinanews.com.cn/
+                - generic [ref=e375]:
+                  - generic [ref=e376]: 中国新闻网
+                  - generic [ref=e379]: https://www.chinanews.com.cn
+              - heading "中国新闻网_梳理天下新闻" [level=2] [ref=e380]:
+                - link "中国新闻网_梳理天下新闻" [ref=e381] [cursor=pointer]:
+                  - /url: https://www.chinanews.com.cn/
+              - paragraph [ref=e382]: Latest Xi returns to Beijing after state visit to DPRK China's intangible cultural heritage scores a goal at 2026 FIFA World Cup Xi says he reaches important …
+        - listitem [ref=e384]:
+          - link "网易新闻" [ref=e386] [cursor=pointer]:
+            - /url: https://news.163.com/latest/?_pc=1
+            - generic [ref=e391]:
+              - generic [ref=e392]: 网易新闻
+              - generic [ref=e395]: https://news.163.com › latest
+          - heading "最新滚动新闻_网易新闻中心" [level=2] [ref=e396]:
+            - link "最新滚动新闻_网易新闻中心" [ref=e397] [cursor=pointer]:
+              - /url: https://news.163.com/latest/?_pc=1
+          - paragraph [ref=e399]: 网易新闻中心最新新闻,滚动新闻,政界,实用新闻,案件事故,媒体评论,深度报道,政策解读,港澳台,时政新闻,热点新闻
+        - listitem [ref=e400]:
+          - generic [ref=e401]:
+            - link "浏览此图像" [ref=e404] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=LqwPf7bf&id=30CBDE5A77030F023C829843DEBC4118AC26B220&thid=OIP.LqwPf7bfZ4DCUjaHLn80TwHaEu&mediaurl=http://image.cns.com.cn/ecns_editor/transform/20220511/a1Rk-hayhruk0765994.jpg&q=latest+news&ck=00113279C343671D6A3516CEB45916F8&idpp=rc&expw=1688&exph=1076&form=rc2idp
+            - generic [ref=e406]:
+              - link "Ecns.cn" [ref=e408] [cursor=pointer]:
+                - /url: https://www.ecns.cn/
+                - generic [ref=e413]:
+                  - generic [ref=e414]: Ecns.cn
+                  - generic [ref=e417]: https://www.ecns.cn
+              - heading "China News Service Website - Headlines, stories, …" [level=2] [ref=e418]:
+                - link "China News Service Website - Headlines, stories, …" [ref=e419] [cursor=pointer]:
+                  - /url: https://www.ecns.cn/
+                  - text: China
+                  - strong [ref=e420]: News
+                  - text: Service Website - Headlines, stories, …
+              - paragraph [ref=e421]: 17 小时之前 · Ecns.cn is the official English-language website of China News Service (CNS), providing latest news, comments, analysis, photos and videos on …
+        - listitem [ref=e423]:
+          - link "新浪网" [ref=e425] [cursor=pointer]:
+            - /url: https://news.sina.com.cn/?_=_
+            - generic [ref=e430]:
+              - generic [ref=e431]: 新浪网
+              - generic [ref=e434]: https://news.sina.com.cn
+          - heading "新闻中心首页_新浪网" [level=2] [ref=e435]:
+            - link "新闻中心首页_新浪网" [ref=e436] [cursor=pointer]:
+              - /url: https://news.sina.com.cn/?_=_
+          - paragraph [ref=e438]: 2026年3月6日 · “他们踩坏的是我的地，谁来赔?”
+        - listitem [ref=e439]:
+          - link "中国新闻网" [ref=e441] [cursor=pointer]:
+            - /url: https://www.chinanews.com/world/
+            - generic [ref=e446]:
+              - generic [ref=e447]: 中国新闻网
+              - generic [ref=e450]: https://www.chinanews.com › world
+          - heading "中国新闻网_国际 - China News Service" [level=2] [ref=e451]:
+            - link "中国新闻网_国际 - China News Service":
+              - /url: https://www.chinanews.com/world/
+              - text: 中国新闻网_国际 - China
+              - strong [ref=e452] [cursor=pointer]: News
+              - text: Service
+          - paragraph [ref=e454]: 2026年3月3日 · 中国新闻网国际频道是知名的中文新闻门户网站频道，也是全球互联网中文新闻资讯最重要的原创内容供应商之一。 依托中新社遍布全球的采编网络,每天24小时面向广大网民和网络媒体， …
+        - listitem [ref=e455]:
+          - link "央视网" [ref=e457] [cursor=pointer]:
+            - /url: https://news.cctv.cn/
+            - generic [ref=e462]:
+              - generic [ref=e463]: 央视网
+              - generic [ref=e466]: https://news.cctv.cn
+          - heading "新闻频道_央视网 (cctv.com)" [level=2] [ref=e467]:
+            - link "新闻频道_央视网 (cctv.com)":
+              - /url: https://news.cctv.cn/
+          - paragraph [ref=e469]: 央视网 (cctv.com)新闻频道是面向全球，多语种，多终端的立体化新闻信息共享平台。 以视听与互动为核心，24小时不间断提供最快捷，最权威，最全面，最丰富的新闻视听与互动服务，传播中国，了解世 …
+        - listitem [ref=e470]:
+          - generic [ref=e471]:
+            - heading "深入了解 latest news" [level=2] [ref=e472]:
+              - text: 深入了解
+              - strong [ref=e473]: latest news
+            - list [ref=e474]:
+              - listitem [ref=e475]:
+                - link "latest news today" [ref=e476] [cursor=pointer]:
+                  - /url: /search?q=latest+news+today&FORM=QSRE1
+                  - generic [ref=e478]:
+                    - strong [ref=e479]: latest news
+                    - text: today
+              - listitem [ref=e480]:
+                - link "breaking news in China" [ref=e481] [cursor=pointer]:
+                  - /url: /search?q=breaking+news+in+China&FORM=QSRE2
+                  - generic [ref=e483]:
+                    - text: breaking
+                    - strong [ref=e484]: news
+                    - text: in China
+              - listitem [ref=e485]:
+                - link "latest news chinese" [ref=e486] [cursor=pointer]:
+                  - /url: /search?q=latest+news+chinese&FORM=QSRE3
+                  - generic [ref=e488]:
+                    - strong [ref=e489]: latest news
+                    - text: chinese
+              - listitem [ref=e490]:
+                - link "latest" [ref=e491] [cursor=pointer]:
+                  - /url: /search?q=latest&FORM=QSRE4
+                  - strong [ref=e494]: latest
+              - listitem [ref=e495]:
+                - link "breaking news just in today" [ref=e496] [cursor=pointer]:
+                  - /url: /search?q=breaking+news+just+in+today&FORM=QSRE5
+                  - generic [ref=e498]:
+                    - text: breaking
+                    - strong [ref=e499]: news
+                    - text: just in today
+              - listitem [ref=e500]:
+                - link "global news" [ref=e501] [cursor=pointer]:
+                  - /url: /search?q=global+news&FORM=QSRE6
+                  - generic [ref=e503]:
+                    - text: global
+                    - strong [ref=e504]: news
+              - listitem [ref=e505]:
+                - link "breaking news today" [ref=e506] [cursor=pointer]:
+                  - /url: /search?q=breaking+news+today&FORM=QSRE7
+                  - generic [ref=e508]:
+                    - text: breaking
+                    - strong [ref=e509]: news
+                    - text: today
+              - listitem [ref=e510]:
+                - link "top news" [ref=e511] [cursor=pointer]:
+                  - /url: /search?q=top+news&FORM=QSRE8
+                  - generic [ref=e513]:
+                    - text: top
+                    - strong [ref=e514]: news
+        - listitem [ref=e515]:
+          - text: 为回应符合本地法律要求的通知，部分搜索结果未予显示。有关详细信息，请参阅
+          - link "此处" [ref=e516] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=617350
+          - text: 。
+          - generic [ref=e517]: 一些您可能无法访问的结果已被隐去。
+          - link "显示无法访问的结果" [ref=e518] [cursor=pointer]:
+            - /url: /search?q=latest+news&ubiroff=1&FORM=P4041
+        - listitem [ref=e519]:
+          - navigation "latest news 的更多搜索结果":
+            - list:
+              - listitem [ref=e520]:
+                - generic "第 1 页" [ref=e521]: "1"
+              - listitem [ref=e522]:
+                - link "第 2 页" [ref=e523] [cursor=pointer]:
+                  - /url: /search?q=latest+news&FPIG=7CA4B304DFA645C0917BCE6D89F38240&first=9&FORM=PERE
+                  - text: "2"
+              - listitem [ref=e524]:
+                - link "第 3 页" [ref=e525] [cursor=pointer]:
+                  - /url: /search?q=latest+news&FPIG=7CA4B304DFA645C0917BCE6D89F38240&first=19&FORM=PERE1
+                  - text: "3"
+              - listitem [ref=e526]:
+                - link "下一页" [ref=e527] [cursor=pointer]:
+                  - /url: /search?q=latest+news&FPIG=7CA4B304DFA645C0917BCE6D89F38240&first=9&FORM=PORE
+      - complementary "更多结果" [ref=e528]:
+        - list [ref=e529]:
+          - listitem [ref=e530]:
+            - generic [ref=e533]:
+              - heading "深入了解 latest news" [level=2] [ref=e535]:
+                - text: 深入了解
+                - strong [ref=e536]: latest news
+              - generic [ref=e537]:
+                - generic:
+                  - list
+                - generic [ref=e538]:
+                  - link "latest news today" [ref=e540] [cursor=pointer]:
+                    - /url: /search?q=latest+news+today&FORM=R5FD
+                    - generic [ref=e542]:
+                      - strong [ref=e543]: latest news
+                      - text: today
+                  - link "breaking news in China" [ref=e545] [cursor=pointer]:
+                    - /url: /search?q=breaking+news+in+China&FORM=R5FD1
+                    - generic [ref=e547]:
+                      - text: breaking
+                      - strong [ref=e548]: news
+                      - text: in China
+                  - link "latest news chinese" [ref=e550] [cursor=pointer]:
+                    - /url: /search?q=latest+news+chinese&FORM=R5FD2
+                    - generic [ref=e552]:
+                      - strong [ref=e553]: latest news
+                      - text: chinese
+                  - link "latest" [ref=e555] [cursor=pointer]:
+                    - /url: /search?q=latest&FORM=R5FD3
+                    - strong [ref=e558]: latest
+                  - link "breaking news just in today" [ref=e560] [cursor=pointer]:
+                    - /url: /search?q=breaking+news+just+in+today&FORM=R5FD4
+                    - generic [ref=e562]:
+                      - text: breaking
+                      - strong [ref=e563]: news
+                      - text: just in today
+                  - link "global news" [ref=e565] [cursor=pointer]:
+                    - /url: /search?q=global+news&FORM=R5FD5
+                    - generic [ref=e567]:
+                      - text: global
+                      - strong [ref=e568]: news
+                  - link "breaking news today" [ref=e570] [cursor=pointer]:
+                    - /url: /search?q=breaking+news+today&FORM=R5FD6
+                    - generic [ref=e572]:
+                      - text: breaking
+                      - strong [ref=e573]: news
+                      - text: today
+                  - link "top news" [ref=e575] [cursor=pointer]:
+                    - /url: /search?q=top+news&FORM=R5FD7
+                    - generic [ref=e577]:
+                      - text: top
+                      - strong [ref=e578]: news
+  - contentinfo [ref=e579]:
+    - list [ref=e581]:
+      - listitem [ref=e582]:
+        - link "增值电信业务经营许可证：合字B2-20090007" [ref=e583] [cursor=pointer]:
+          - /url: https://dxzhgl.miit.gov.cn/dxxzsp/xkz/xkzgl/resource/qiyereport.jsp?num=caf04fa4-bd8a-4d9e-80b6-2aa1b86c1509&type=yreport
+      - listitem [ref=e584]:
+        - link "京ICP备10036305号-7" [ref=e585] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn
+      - listitem [ref=e586]:
+        - link "京公网安备11010802047360号" [ref=e587] [cursor=pointer]:
+          - /url: https://beian.mps.gov.cn/#/query/webSearch?code=11010802047360
+      - listitem [ref=e588]:
+        - link "隐私" [ref=e589] [cursor=pointer]:
+          - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+      - listitem [ref=e590]:
+        - link "条款" [ref=e591] [cursor=pointer]:
+          - /url: http://go.microsoft.com/fwlink/?LinkID=246338

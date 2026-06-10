@@ -1,0 +1,19 @@
+- generic [ref=e3]:
+  - img "404！您要访问的页面走丢了！" [ref=e4]
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: "404"
+      - text: 您访问的页面走丢在寻找梦想的路上了
+      - text: 不过您还可以和腾讯志愿者一起
+      - generic [ref=e8]: 为孩子们点亮一个梦想
+    - generic [ref=e9]:
+      - link "点击进入支持页面" [ref=e10] [cursor=pointer]:
+        - /url: https://volunteer.cdn-go.cn/404/latest/img/dream4schoolQR.png
+        - img "点击进入支持页面" [ref=e11]
+      - text: 扫码点亮一个梦想
+      - generic [ref=e12]:
+        - text: 照片拍摄于湖南省岳阳市平江县三市镇新村完小
+        - text: 拍摄时间：2023年7月11日
+        - text: （感恩基金会供稿）
+        - link "我要反馈" [ref=e13] [cursor=pointer]:
+          - /url: https://support.qq.com/products/378306

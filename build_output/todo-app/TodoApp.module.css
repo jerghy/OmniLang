@@ -1,0 +1,22 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  max-width: 600px;
+}
+
+.heading {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.task_text {
+  font-size: 16px;
+}
+
+.done_text {
+  font-size: 16px;
+  color: #999999;
+}

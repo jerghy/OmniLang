@@ -206,6 +206,81 @@ def _extract_balanced_braces(source: str, open_pos: int) -> tuple[str | None, in
     return source[open_pos + 1:i], i
 
 
+def _strip_comments(source: str) -> str:
+    """Strip single-line comments (//) and block comments (/* */) from source.
+
+    Preserves string literals and doesn't strip comments inside them.
+    """
+    result = []
+    i = 0
+    in_string = False
+    in_char = False
+    escape_next = False
+    while i < len(source):
+        ch = source[i]
+
+        if escape_next:
+            escape_next = False
+            result.append(ch)
+            i += 1
+            continue
+
+        if in_string:
+            result.append(ch)
+            if ch == '\\':
+                escape_next = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if in_char:
+            result.append(ch)
+            if ch == '\\':
+                escape_next = True
+            elif ch == "'":
+                in_char = False
+            i += 1
+            continue
+
+        # String start
+        if ch == '"':
+            in_string = True
+            result.append(ch)
+            i += 1
+            continue
+        if ch == "'":
+            in_char = True
+            result.append(ch)
+            i += 1
+            continue
+
+        # Single-line comment
+        if ch == '/' and i + 1 < len(source) and source[i + 1] == '/':
+            # Skip until end of line
+            while i < len(source) and source[i] != '\n':
+                i += 1
+            if i < len(source):
+                result.append('\n')
+                i += 1
+            continue
+
+        # Block comment
+        if ch == '/' and i + 1 < len(source) and source[i + 1] == '*':
+            i += 2  # skip /*
+            while i + 1 < len(source):
+                if source[i] == '*' and source[i + 1] == '/':
+                    i += 2
+                    break
+                i += 1
+            continue
+
+        result.append(ch)
+        i += 1
+
+    return ''.join(result)
+
+
 def preprocess(source: str) -> PreprocessorOutput:
     """Preprocess .omni source: extract statement blocks, replace with placeholders.
 
@@ -217,6 +292,8 @@ def preprocess(source: str) -> PreprocessorOutput:
     Returns:
         PreprocessorOutput with processed source and block mapping
     """
+    # Strip comments first — they should never appear in output
+    source = _strip_comments(source)
     blocks = _find_blocks(source)
 
     if not blocks:

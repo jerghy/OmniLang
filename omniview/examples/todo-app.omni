@@ -1,0 +1,121 @@
+import omniview;
+
+// ── Todo Store ────────────────────────────────────────
+
+store TodoStore {
+    signal tasks: Array<String> = [];
+    signal completed: Array<String> = [];
+    signal next_id: i32 = 1;
+
+    getter active_count: i32 = tasks.length;
+    getter done_count: i32 = completed.length;
+    getter total_count: i32 = tasks.length + completed.length;
+
+    action add_task(text: String) {
+        tasks = [...tasks, text];
+    }
+
+    action complete_task(text: String) {
+        completed = [...completed, text];
+    }
+
+    action uncomplete_task(text: String) {
+        tasks = [...tasks, text];
+    }
+
+    action remove_task(text: String) {
+        // simplified: just mark as done
+    }
+
+    action clear_completed() {
+        completed = [];
+    }
+}
+
+// ── Todo App Component ─────────────────────────────────
+
+component TodoApp {
+    @store TodoStore;
+    signal input_text: String = "";
+    signal filter: String = "all";
+
+    fn handle_add() {
+        if input_text != "" {
+            store.add_task(input_text);
+            input_text = "";
+        }
+    }
+
+    fn handle_complete(text: String) {
+        store.complete_task(text);
+    }
+
+    fn handle_restore(text: String) {
+        store.uncomplete_task(text);
+    }
+
+    fn handle_clear_done() {
+        store.clear_completed();
+    }
+
+    fn show_all() { filter = "all"; }
+    fn show_active() { filter = "active"; }
+    fn show_done() { filter = "done"; }
+
+    view {
+        <Container>
+            <Heading level="1" test-id="app-title">OmniLang Todo</Heading>
+
+            <Flex direction="row" gap="8px">
+                <Input bind:value={input_text} placeholder="What needs to be done?" test-id="todo-input" />
+                <Button onPress={handle_add} test-id="btn-add">Add</Button>
+            </Flex>
+
+            <Flex direction="row" gap="8px" test-id="filter-bar">
+                <Button onPress={show_all} test-id="filter-all">All ({store.total_count})</Button>
+                <Button onPress={show_active} test-id="filter-active">Active ({store.active_count})</Button>
+                <Button onPress={show_done} test-id="filter-done">Done ({store.done_count})</Button>
+            </Flex>
+
+            <List test-id="task-list">
+                @if filter == "all" || filter == "active" {
+                    @for task in store.tasks {
+                        <ListItem key={task} test-id="task-item">
+                            <Flex direction="row" gap="8px" align="center">
+                                <Button onPress={fn() { handle_complete(task); }} test-id="btn-complete">✓</Button>
+                                <Text test-id="task-text">{task}</Text>
+                            </Flex>
+                        </ListItem>
+                    }
+                }
+                @if filter == "all" || filter == "done" {
+                    @for task in store.completed {
+                        <ListItem key={task} test-id="done-item">
+                            <Flex direction="row" gap="8px" align="center">
+                                <Button onPress={fn() { handle_restore(task); }} test-id="btn-restore">↩</Button>
+                                <Text test-id="done-text" style={{text_decoration: "line-through"}}>{task}</Text>
+                            </Flex>
+                        </ListItem>
+                    }
+                }
+                @if store.total_count == 0 {
+                    <Text test-id="empty-message">No tasks yet. Add one above!</Text>
+                }
+            </List>
+
+            @if store.done_count > 0 {
+                <Flex direction="row" gap="16px" test-id="footer">
+                    <Text test-id="summary">{store.active_count} active, {store.done_count} done</Text>
+                    <Button onPress={handle_clear_done} test-id="btn-clear-done">Clear Done</Button>
+                </Flex>
+            }
+        </Container>
+    }
+
+    style {
+        .container { layout: column; gap: 16px; padding: 24px; max_width: 600px; }
+        .heading { font_size: 28px; font_weight: bold; color: #1a1a2e; }
+        .task_text { font_size: 16px; }
+        .done_text { font_size: 16px; color: #999999; }
+    }
+}

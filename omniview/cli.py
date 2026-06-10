@@ -10,6 +10,7 @@ import sys
 import os
 import json
 from pathlib import Path
+import re as _re  # avoid name conflict with Lark parser internals
 
 
 def find_grammar_path() -> str:
@@ -28,6 +29,37 @@ def _find_line_numbers(source: str) -> dict[str, int]:
                 line_map[name] = i
                 break
     return line_map
+
+
+def _check_common_mistakes(source: str, filename: str) -> None:
+    """Scan source for common syntax mistakes and emit helpful error messages."""
+    checks = [
+        # Logical operators (Python-style → C-style)
+        (r'\bif\b.*\bor\b', '"or" → use "||" for logical OR (e.g., if x == 1 || y == 2)'),
+        (r'\bif\b.*\band\b', '"and" → use "&&" for logical AND (e.g., if x > 0 && y > 0)'),
+        (r'\bnot\s+', '"not" → use "!" for logical NOT (e.g., if !done { ... })'),
+        # Common spelling errors
+        (r'\bcomponnent\b', 'Typo: "componnent" → "component"'),
+        (r'\bcomponet\b', 'Typo: "componet" → "component"'),
+        (r'\bsignel\b', 'Typo: "signel" → "signal"'),
+        (r'\bstor\s+', 'Typo: "stor" → "store"'),
+        # Non-OmniView keywords
+        (r'\b(const|var|function)\s', '"const"/"var"/"function" → use "let" or "fn" in OmniLang'),
+        (r'\b(elif|elsif|elseif)\b', '"elif"/"elsif" → use "else" with another "if"'),
+    ]
+
+    warnings_found = 0
+    for pattern, message in checks:
+        matches = list(_re.finditer(pattern, source, _re.MULTILINE))
+        if matches:
+            for m in matches:
+                line = source[:m.start()].count('\n') + 1
+                warnings_found += 1
+                if warnings_found <= 5:  # Limit output
+                    print(f"Hint ({filename}:{line}): {message}", file=sys.stderr)
+
+    if warnings_found > 5:
+        print(f"  ... and {warnings_found - 5} more hints. Fix the above first.", file=sys.stderr)
 
 
 def build_command(args: list[str]) -> int:
@@ -66,9 +98,14 @@ def build_command(args: list[str]) -> int:
         with open(input_file, "r", encoding="utf-8") as f:
             source = f.read()
 
+        # ── Friendly error detection ───────────────────
+        _check_common_mistakes(source, input_file)
+
         # Detect mode: has import omniview or UI keywords → UI mode, else pure logic
         has_ui_keywords = any(kw in source for kw in
-            ("component ", "store ", "theme ", "view {", "@if", "@for", "<", "signal ", "computed "))
+            ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed "))
+        # Check for JSX-like tags: < followed by an alpha char (avoid <=, <>, etc.)
+        has_ui_keywords = has_ui_keywords or bool(_re.search(r'<[A-Z]', source))
         has_import_omniview = "import omniview" in source
 
         if not has_import_omniview and not has_ui_keywords:
@@ -78,8 +115,46 @@ def build_command(args: list[str]) -> int:
             parser = create_parser()
             tree = parser.parse(source)
             program = OmniTransformer().transform(tree)
-            print(f"Pure logic mode (target={target}). OmniLang constructs detected.")
-            print(f"Pure logic codegen is under development. AST parsed successfully.")
+
+            # Route to target codegen via direct imports (avoid importlib issues)
+            generators = {}
+            try:
+                from omnilang.codegen.python import PythonGenerator
+                generators["python"] = PythonGenerator
+            except ImportError:
+                pass
+            try:
+                from omnilang.codegen.javascript import JavaScriptGenerator
+                generators["javascript"] = JavaScriptGenerator
+            except ImportError:
+                pass
+            try:
+                from omnilang.codegen.rust import RustGenerator
+                generators["rust"] = RustGenerator
+            except ImportError:
+                pass
+            try:
+                from omnilang.codegen.dart import DartGenerator
+                generators["dart"] = DartGenerator
+            except ImportError:
+                pass
+
+            if target not in generators:
+                supported = [k for k in generators.keys()] or ["python", "javascript", "rust", "dart"]
+                print(f"Error: Pure logic target '{target}' not supported.", file=sys.stderr)
+                print(f"  Supported: {', '.join(supported)}", file=sys.stderr)
+                return 1
+
+            generator = generators[target]()
+            code = generator.generate(program, rename_map={}, type_map={})
+
+            os.makedirs(output_dir, exist_ok=True)
+            ext = {"python": ".py", "javascript": ".js", "rust": ".rs", "dart": ".dart"}[target]
+            out_path = os.path.join(output_dir, f"output{ext}")
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            print(f"  Generated: {out_path}")
+            print(f"Build complete. Output: {output_dir}/")
             return 0
 
         # UI mode: use OmniView parser
@@ -163,7 +238,7 @@ def build_command(args: list[str]) -> int:
                     )
                     # Map each line of generated code back to .omni source
                     import re
-                    omni_comment_re = re.compile(r"\.omni:(\d+)")
+                    omni_comment_re = _re.compile(r"\.omni:(\d+)")
                     for gen_line_no, gen_line in enumerate(content.split("\n")):
                         # Look for .omni:N comments in various formats:
                         #   // .omni:7 -- component Foo
@@ -263,9 +338,8 @@ def check_command(args: list[str]) -> int:
 
 def _format_parse_error(error_msg: str) -> str:
     """Translate Lark parser errors into user-friendly messages."""
-    import re
     # "No terminal matches 'X' in the current parser context"
-    m = re.search(r"No terminal matches '([^']+)'", error_msg)
+    m = _re.search(r"No terminal matches '([^']+)'", error_msg)
     if m:
         char = m.group(1)
         if char == '.':
@@ -275,7 +349,7 @@ def _format_parse_error(error_msg: str) -> str:
     if "Unexpected token" in error_msg:
         return f"Syntax error: {error_msg.split(chr(10))[0]}"
     # "Expected one of"
-    m = re.search(r"at line (\d+)", error_msg)
+    m = _re.search(r"at line (\d+)", error_msg)
     if m:
         line = m.group(1)
         return f"Syntax error at line {line}: {error_msg.split(chr(10))[0]}"
@@ -422,11 +496,56 @@ def init_command(args: list[str]) -> int:
         f.write('dist\n')
         f.write('.DS_Store\n')
 
-    print(f"OmniView React project created: {project_dir}/")
+    # Generate .omni template
+    with open(project_dir / "src" / "App.omni", "w", encoding="utf-8") as f:
+        f.write('import omniview;\n')
+        f.write('\n')
+        f.write('component App {\n')
+        f.write('    signal count: i32 = 0;\n')
+        f.write('\n')
+        f.write('    fn increment() {\n')
+        f.write('        count = count + 1;\n')
+        f.write('    }\n')
+        f.write('\n')
+        f.write('    view {\n')
+        f.write('        <Container>\n')
+        f.write('            <Heading level="1">OmniView App</Heading>\n')
+        f.write('            <Text test-id="counter">Count: {count}</Text>\n')
+        f.write('            <Button onPress={increment} test-id="btn-inc">+1</Button>\n')
+        f.write('        </Container>\n')
+        f.write('    }\n')
+        f.write('\n')
+        f.write('    style {\n')
+        f.write('        .container { layout: column; gap: 16px; padding: 32px; align: center; justify: center; max_width: 400px; }\n')
+        f.write('        .heading { font_size: 28px; font_weight: bold; }\n')
+        f.write('    }\n')
+        f.write('}\n')
+
+    # Build the template to generate App.tsx + styles
+    import subprocess
+    subprocess.run(
+        [sys.executable, "-m", "omniview.cli", "build",
+         str(project_dir / "src" / "App.omni"),
+         "--target", target, "--output", str(project_dir / "src")],
+        capture_output=True,
+    )
+
+    # Update main.tsx to import the generated component
+    with open(project_dir / "src" / "main.tsx", "w", encoding="utf-8") as f:
+        f.write('import React from "react";\n')
+        f.write('import ReactDOM from "react-dom/client";\n')
+        f.write('import { App } from "./App";\n')
+        f.write('\n')
+        f.write('ReactDOM.createRoot(document.getElementById("root")!).render(\n')
+        f.write('  <React.StrictMode>\n')
+        f.write('    <App />\n')
+        f.write('  </React.StrictMode>\n')
+        f.write(');\n')
+
+    print(f"OmniView project created: {project_dir}/")
     print(f"")
     print(f"  cd {project_name}")
     print(f"  npm install")
-    print(f"  omnic build your-component.omni --output src/")
     print(f"  npm run dev")
     return 0
 

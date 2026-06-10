@@ -1,0 +1,7 @@
+[     737ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5187/TodoApp.tsx:0
+[     802ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5187/favicon.ico:0
+[  218949ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5187/TodoApp.tsx?t=1781059536159:0
+[  331371ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://127.0.0.1:5187/node_modules/.vite/deps/chunk-XPR23Y44.js?v=dbbea8b5:21548
+[  331372ms] [LOG] [OmniLang Todo] Store state: {tasks: Array(0), completed: Array(0), activeCount: 0, totalCount: 0} @ http://127.0.0.1:5187/main.jsx?t=1781059648461:5
+[  436283ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://127.0.0.1:5187/node_modules/.vite/deps/chunk-XPR23Y44.js?v=dbbea8b5:21548
+[  436284ms] [LOG] [OmniLang Todo] Store state: {tasks: Array(0), completed: Array(0), activeCount: 0, totalCount: 0} @ http://127.0.0.1:5187/main.jsx?t=1781059753563:5

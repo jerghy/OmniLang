@@ -241,12 +241,14 @@ AT_MOUNT: "@mount"
 AT_UNMOUNT: "@unmount"
 AT_EFFECT: "@effect"
 
-// ── Whitespace and Comments ──────────────────────────
+// ── Comments (declared before TEXT_PLAIN for priority) ─
+
+COMMENT_SINGLE: /\/\/[^\n]*/
+COMMENT_BLOCK: /\/\*[\s\S]*?\*\//
+
+// ── Whitespace ──────────────────────────────────────
 
 %import common.WS
 %ignore WS
 %ignore COMMENT_SINGLE
 %ignore COMMENT_BLOCK
-
-COMMENT_SINGLE: /\/\/[^\n]*/
-COMMENT_BLOCK: /\/\*[\s\S]*?\*\//

@@ -1,0 +1,19 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+  max-width: 500px;
+  background: #ffffff;
+}
+
+.heading {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.field_label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
