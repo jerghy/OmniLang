@@ -4,7 +4,7 @@ version = "0.2.0.dev0"
 description = "OmniLang — compile once, run everywhere. Transpile to Rust, Dart, JS, and Python with cross-language static analysis."
 requires-python = ">=3.10"
 dependencies = [
-    "lark-parser>=1.1",
+    "lark>=1.1",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -15,6 +15,10 @@ dev = [
 
 [project.scripts]
 omnic = "omnilang.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["omnilang*", "omniview*"]
+exclude = ["build*", "tests*", "tools*", "scripts*", "docs*"]
 
 [build-system]
 requires = ["setuptools>=64"]

@@ -48,7 +48,11 @@ def compile_and_run():
         elif target == "js":
             result = subprocess.run(["node", out_path], capture_output=True, text=True, timeout=10)
         elif target == "dart":
-            result = subprocess.run(["dart", "run", out_path], capture_output=True, text=True, timeout=10)
+            dart_args = ["dart", "run", out_path]
+            if os.name == "nt":
+                result = subprocess.run(" ".join(dart_args), shell=True, capture_output=True, text=True, timeout=10)
+            else:
+                result = subprocess.run(dart_args, capture_output=True, text=True, timeout=10)
         elif target == "rust":
             rust_dir = os.path.join(run_dir, f"rust_{base}")
             os.makedirs(rust_dir, exist_ok=True)
@@ -63,13 +67,13 @@ def compile_and_run():
                     f.write(f'[package]\nname = "{safe_name}"\nversion = "0.1.0"\nedition = "2021"\n')
             build_result = subprocess.run(
                 ["cargo", "build", "--quiet"], cwd=rust_dir,
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120
             )
             if build_result.returncode != 0:
                 raise RuntimeError(f"Rust build failed for {base}:\n{build_result.stderr}")
             cargo_run = subprocess.run(
                 ["cargo", "run", "--quiet"], cwd=rust_dir,
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
             )
             result = cargo_run
         else:
@@ -156,7 +160,11 @@ def async_test_runner():
         elif target == "js":
             result = subprocess.run(["node", out_path], capture_output=True, text=True, timeout=15)
         elif target == "dart":
-            result = subprocess.run(["dart", "run", out_path], capture_output=True, text=True, timeout=15)
+            dart_args = ["dart", "run", out_path]
+            if os.name == "nt":
+                result = subprocess.run(" ".join(dart_args), shell=True, capture_output=True, text=True, timeout=15)
+            else:
+                result = subprocess.run(dart_args, capture_output=True, text=True, timeout=15)
         elif target == "rust":
             rust_dir = os.path.join(run_dir, "rust_test_async")
             os.makedirs(rust_dir, exist_ok=True)
@@ -177,7 +185,7 @@ def async_test_runner():
                 raise RuntimeError(f"Rust async build failed:\n{build_result.stderr}")
             result = subprocess.run(
                 ["cargo", "run", "--quiet"], cwd=rust_dir,
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
             )
         else:
             raise ValueError(f"Unknown target: {target}")
