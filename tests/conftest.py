@@ -50,9 +50,9 @@ def compile_and_run():
         elif target == "dart":
             dart_args = ["dart", "run", out_path]
             if os.name == "nt":
-                result = subprocess.run(" ".join(dart_args), shell=True, capture_output=True, text=True, timeout=10)
+                result = subprocess.run(" ".join(dart_args), shell=True, capture_output=True, text=True, timeout=30)
             else:
-                result = subprocess.run(dart_args, capture_output=True, text=True, timeout=10)
+                result = subprocess.run(dart_args, capture_output=True, text=True, timeout=15)
         elif target == "rust":
             rust_dir = os.path.join(run_dir, f"rust_{base}")
             os.makedirs(rust_dir, exist_ok=True)

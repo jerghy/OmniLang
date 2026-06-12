@@ -25,6 +25,8 @@ from omnilang.utils import Span
 from omniview.ast_nodes import (
     # Top-level
     Program, ComponentDef, StoreDef, ThemeDef,
+    # Import
+    ImportStmt,
     # Component
     PropDecl, SignalDecl, ComputedDecl, EventDecl, RefDecl, StoreRef,
     # Store
@@ -110,6 +112,7 @@ class OmniViewTransformer(Transformer):
         stores = []
         themes = []
         lib_imports = []
+        imports = []
         for item in items:
             if isinstance(item, ComponentDef):
                 components.append(item)
@@ -117,12 +120,15 @@ class OmniViewTransformer(Transformer):
                 stores.append(item)
             elif isinstance(item, ThemeDef):
                 themes.append(item)
+            elif isinstance(item, ImportStmt):
+                imports.append(item)
             elif isinstance(item, str):
                 lib_imports.append(item)
         return Program(
             components=tuple(components),
             stores=tuple(stores),
             themes=tuple(themes),
+            imports=tuple(imports),
             lib_imports=tuple(lib_imports),
         )
 
@@ -131,6 +137,18 @@ class OmniViewTransformer(Transformer):
             if isinstance(item, Token) and item.type == "CNAME":
                 return str(item)
         return ""
+
+    def import_stmt(self, items):
+        """import { Name1, Name2 } from "./path.omni" ;"""
+        names = []
+        path = ""
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "CNAME":
+                    names.append(str(item))
+                elif item.type == "STRING_LIT":
+                    path = self._strip_quotes(str(item))
+        return ImportStmt(names=tuple(names), path=path)
 
     def start(self, items):
         # 'start' wraps 'program' — program is already transformed
@@ -570,10 +588,15 @@ class OmniViewTransformer(Transformer):
         return ElementProp(name=name, value=value)
 
     def bind_prop(self, items) -> ElementProp:
-        # "bind:" CNAME "=" "{" CNAME "}"
+        # "bind:" CNAME "=" "{" CNAME ("." CNAME)? "}"
         prop_name_raw = self._tok_str(items[0])
         prop_name = prop_name_raw.replace('bind:', '') if prop_name_raw.startswith('bind:') else prop_name_raw
-        signal_ref = self._tok_str(items[1]) if len(items) > 1 else ""
+        # Collect CNAME tokens after "{" — may be simple or dotted (store.field)
+        names = []
+        for item in items[1:]:
+            if isinstance(item, Token) and item.type == 'CNAME':
+                names.append(str(item))
+        signal_ref = ".".join(names) if names else ""
         return ElementProp(name=prop_name, value=BindProp(signal_ref=signal_ref))
 
     def event_prop(self, items) -> ElementProp:
@@ -720,38 +743,48 @@ class OmniViewTransformer(Transformer):
             item = items[i]
             s = self._tok_str(item) if isinstance(item, Token) else ""
             if s in ('@if',):
-                # Next items: guard_expr view_block_body
-                cond = None
-                body = ()
-                j = i + 1
-                while j < len(items):
-                    sj = self._tok_str(items[j]) if isinstance(items[j], Token) else None
-                    if sj in ('@else',):
-                        break
-                    if isinstance(items[j], tuple):
-                        body = items[j]
-                        break
-                    if not isinstance(items[j], Token):
-                        cond = items[j]
-                    j += 1
+                cond, body, next_i = self._extract_branch(items, i + 1)
                 if cond is not None:
                     branches.append(IfBranch(condition=cond, body=body))
-                i = j - 1
+                i = next_i
             elif s in ('@else',):
                 # Look ahead: is it @else if or @else?
                 next_s = self._tok_str(items[i + 1]) if i + 1 < len(items) and isinstance(items[i + 1], Token) else ""
                 if next_s == 'if':
-                    # @else if — next iteration handles it as @if
-                    pass
+                    # @else if — extract condition and body, skip the "if" token
+                    cond, body, next_i = self._extract_branch(items, i + 2)
+                    if cond is not None:
+                        branches.append(IfBranch(condition=cond, body=body))
+                    i = next_i
                 else:
-                    # Find the @else view_block_body
+                    # Plain @else — find the view_block_body
                     for j in range(i + 1, len(items)):
                         if isinstance(items[j], tuple):
                             else_body = items[j]
+                            i = j
                             break
             i += 1
 
         return IfDirective(branches=tuple(branches), else_body=else_body)
+
+    def _extract_branch(self, items, start_idx):
+        """Extract guard_expr and view_block_body starting at start_idx.
+        Returns (cond, body, next_idx)."""
+        cond = None
+        body = ()
+        j = start_idx
+        while j < len(items):
+            sj = self._tok_str(items[j]) if isinstance(items[j], Token) else None
+            if sj in ('@else', '@if'):
+                break
+            if isinstance(items[j], tuple):
+                body = items[j]
+                j += 1
+                break
+            if not isinstance(items[j], Token):
+                cond = items[j]
+            j += 1
+        return cond, body, j - 1
 
     def for_directive(self, items) -> ForDirective:
         # AT_FOR CNAME "in" expr view_block_body [AT_EMPTY view_block_body]
@@ -928,8 +961,7 @@ class OmniViewTransformer(Transformer):
         while i < len(items):
             item = items[i]
             if isinstance(item, FieldAccess):
-                item.object = result
-                result = item
+                result = FieldAccess(object=result, field=item.field, span=item.span)
             elif isinstance(item, Token) and str(item) == '.':
                 # Inlined DOT CNAME: next item is the field name
                 if i + 1 < len(items):
@@ -1088,15 +1120,24 @@ class OmniViewTransformer(Transformer):
         return VarDeclStmt(name=name, type=type_ann, value=value, is_mutable=is_mutable)
 
     def assign(self, items) -> AssignStmt:
-        target = self._tok_str(items[0])
+        # CNAME ("." CNAME)? ASSIGN_OP expr ";"
+        # Simple: count = 1;  Dotted: store.field = value;
+        target_parts = []
         op = "="
         value = None
-        for item in items[1:]:
+        found_op = False
+        for item in items:
             s = self._tok_str(item) if isinstance(item, Token) else ""
-            if s in ('=', '+=', '-=', '*=', '/=', '%='):
+            if isinstance(item, Token) and item.type == 'CNAME' and not found_op:
+                target_parts.append(str(item))
+            elif s in ('=', '+=', '-=', '*=', '/=', '%='):
                 op = s
-            elif s not in (';',):
+                found_op = True
+            elif s == '.':
+                continue
+            elif s not in (';',) and found_op:
                 value = item
+        target = ".".join(target_parts) if target_parts else ""
         return AssignStmt(target=target, op=op, value=value)
 
     def if_stmt(self, items) -> IfStmt:
@@ -1296,9 +1337,25 @@ class OmniViewTransformer(Transformer):
             val = Literal(value=str(val), kind='String')
         return (key, val)
 
+    def style_value_list(self, items):
+        """Multi-value shorthand: 8px 24px → '8px 24px'"""
+        parts = []
+        for item in items:
+            if isinstance(item, Token):
+                parts.append(str(item))
+            elif isinstance(item, Literal):
+                parts.append(str(item.value))
+            elif hasattr(item, 'value'):
+                parts.append(str(item.value))
+            else:
+                parts.append(str(item))
+        return Literal(value=" ".join(parts), kind='String')
+
     def style_value(self, items):
         if len(items) == 1:
             item = items[0]
+            if isinstance(item, Literal):
+                return item
             if isinstance(item, Token):
                 return Literal(value=str(item), kind='String')
             return item

@@ -120,7 +120,11 @@ class ExpressionMixin:
                 result = IndexGet(object=result, index=item.index, span=item.span)
             elif isinstance(item, ChainLink):
                 if isinstance(result, OptionalChain):
-                    result.chain.append(item)
+                    result = OptionalChain(
+                        object=result.object,
+                        chain=list(result.chain) + [item],
+                        span=result.span,
+                    )
                 else:
                     result = OptionalChain(object=result, chain=[item], span=self._span(result, item))
             elif isinstance(item, list):
