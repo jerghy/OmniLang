@@ -83,6 +83,9 @@ class FlutterCodegen(CodegenBase):
         fns = self._get(comp, "fns", [])
         bindings = self._detect_bindings(comp)
 
+        # Build CSS rule lookup: class_name → {prop: value}
+        self._css_rules = self._build_css_rules(comp)
+
         L = []
         L.append("import 'package:flutter/material.dart';")
         L.append("")
@@ -214,6 +217,136 @@ class FlutterCodegen(CodegenBase):
         scan(self._get(comp, "view"))
         return bindings
 
+    # ── CSS → Flutter Mapping ──────────────────────────
+
+    def _build_css_rules(self, comp: dict) -> dict[str, dict[str, str]]:
+        """Parse style IR into class→props lookup table."""
+        rules = {}
+        styles = self._get(comp, "styles", [])
+        for rule in styles:
+            class_name = self._get(rule, "class_name", "")
+            props = self._get(rule, "properties", {})
+            parsed = {}
+            for prop_name, prop_val in props.items():
+                raw = self._get(prop_val, "value", str(prop_val))
+                # Strip quotes from string values
+                if isinstance(raw, str) and raw.startswith('"') and raw.endswith('"'):
+                    raw = raw[1:-1]
+                # Normalize dimension values: "24 px" → "24px"
+                if isinstance(raw, str):
+                    raw = raw.replace(" px", "px").replace(" rem", "rem").replace(" em", "em")
+                parsed[prop_name] = raw
+            rules[class_name] = parsed
+        return rules
+
+    def _strip_unit(self, val: str) -> str:
+        """Strip CSS units from a value for Flutter: 24px→24, 1.5rem→1.5*14."""
+        val = val.strip()
+        if val.endswith("px"):
+            return val[:-2]
+        if val.endswith("rem"):
+            return f"({val[:-3]} * 14.0)"
+        if val.endswith("em"):
+            return f"({val[:-2]} * 14.0)"
+        return val
+
+    def _apply_css_to_container(self, css: dict, params: list, children: list) -> tuple[list, list]:
+        """Apply CSS rules to a Container widget. Returns (params, children)."""
+        # padding → EdgeInsets
+        if "padding" in css:
+            val = css["padding"]
+            if " " in val:
+                parts = [self._strip_unit(p) for p in val.split()]
+                if len(parts) == 2:
+                    params.append(f"padding: EdgeInsets.symmetric(vertical: {parts[0]}, horizontal: {parts[1]})")
+                elif len(parts) == 4:
+                    params.append(f"padding: EdgeInsets.only(left: {parts[3]}, top: {parts[0]}, right: {parts[1]}, bottom: {parts[2]})")
+                else:
+                    params.append(f"padding: EdgeInsets.all({parts[0]})")
+            else:
+                params.append(f"padding: EdgeInsets.all({self._strip_unit(val)})")
+
+        # margin
+        if "margin" in css:
+            val = css["margin"]
+            if " " in val:
+                parts = [self._strip_unit(p) for p in val.split()]
+                params.append(f"margin: EdgeInsets.symmetric(vertical: {parts[0]}, horizontal: {parts[1]})")
+            else:
+                params.append(f"margin: EdgeInsets.all({self._strip_unit(val)})")
+
+        # background-color → decoration
+        decoration_parts = []
+        bg_color = css.get("background-color", "")
+        border_radius = css.get("border-radius", "")
+        box_shadow = css.get("box-shadow", "")
+
+        if bg_color:
+            decoration_parts.append(f"color: Color(0xFF{bg_color.lstrip('#')})")
+        if border_radius:
+            val = self._strip_unit(border_radius)
+            decoration_parts.append(f"borderRadius: BorderRadius.circular({val})")
+        if box_shadow:
+            # Simple shadow — use a default elevation or parse
+            decoration_parts.append("boxShadow: [const BoxShadow(blurRadius: 6, offset: Offset(0, 4), color: Color(0x1A000000))]")
+
+        if decoration_parts:
+            params.append(f"decoration: BoxDecoration({', '.join(decoration_parts)})")
+
+        # Layout: display: flex + flex-direction → Column or Row
+        if css.get("display") == "flex":
+            direction = css.get("flex-direction", "column")
+            if direction == "row":
+                return params, children  # Flex→Row handled by tag
+            # For column, children are already handled
+            if "align-items" in css:
+                align = css["align-items"]
+                align_map = {"center": "CrossAxisAlignment.center", "start": "CrossAxisAlignment.start",
+                             "end": "CrossAxisAlignment.end", "stretch": "CrossAxisAlignment.stretch"}
+                params.append(f"crossAxisAlignment: {align_map.get(align, 'CrossAxisAlignment.center')}")
+
+        return params, children
+
+    def _apply_css_to_text(self, css: dict, params: list) -> list:
+        """Apply CSS text rules to a Text/Heading widget. Returns updated params."""
+        css_parts = []
+        font_size = css.get("font-size", "")
+        font_weight = css.get("font-weight", "")
+        color = css.get("color", "")
+
+        if font_size:
+            css_parts.append(f"fontSize: {self._strip_unit(font_size)}")
+        if font_weight:
+            weight_map = {"400": "FontWeight.normal", "500": "FontWeight.w500",
+                          "600": "FontWeight.w600", "700": "FontWeight.bold",
+                          "bold": "FontWeight.bold", "normal": "FontWeight.normal"}
+            css_parts.append(f"fontWeight: {weight_map.get(font_weight, 'FontWeight.bold')}")
+        if color:
+            css_parts.append(f"color: Color(0xFF{color.lstrip('#')})")
+
+        if css_parts:
+            # Merge with existing style param: CSS values override base values
+            css_keys = set(p.split(":")[0].strip() for p in css_parts)
+            for i, p in enumerate(params):
+                if p.startswith("style:"):
+                    existing = p
+                    remaining = existing[7:].strip()
+                    if remaining.startswith("const "):
+                        remaining = remaining[6:]
+                    if remaining.startswith("TextStyle(") and remaining.endswith(")"):
+                        inner = remaining[10:-1]
+                        # Filter out base values that CSS overrides
+                        base_parts = [bp.strip() for bp in inner.split(",") if bp.strip()]
+                        filtered = [bp for bp in base_parts
+                                    if bp.split(":")[0].strip() not in css_keys]
+                        merged = filtered + css_parts
+                        params[i] = f"style: TextStyle({', '.join(merged)})"
+                    break
+            else:
+                params.append(f"style: TextStyle({', '.join(css_parts)})")
+
+        return params
+
     # ── View Tree → Flutter Widgets ────────────────────
 
     def _gen_view_tree(self, view) -> str:
@@ -249,6 +382,13 @@ class FlutterCodegen(CodegenBase):
         children = self._get(elem, "children", [])
         test_id = self._get(elem, "test_id")
 
+        # CSS class lookup
+        css_rule = {}
+        class_prop = props.pop("class", None)
+        if class_prop:
+            class_name = self._get(class_prop, "value", str(class_prop))
+            css_rule = self._css_rules.get(class_name, {})
+
         # Build widget params
         params = []
 
@@ -271,12 +411,14 @@ class FlutterCodegen(CodegenBase):
             return "const Spacer(flex: 1)"
 
         if tag == "Container":
-            # Build Container with padding, decoration
             container_params = []
+            # Apply inline props + CSS rules
             for pname, pval in props.items():
                 if pname == "padding":
                     val = self._extract_style_val(pval)
                     container_params.append(f"padding: const EdgeInsets.all({val})")
+            if css_rule:
+                container_params, children = self._apply_css_to_container(css_rule, container_params, children)
             # Wrap multiple children in Column
             if len(children) > 1:
                 inner_parts = []
@@ -294,14 +436,17 @@ class FlutterCodegen(CodegenBase):
             level = self._get(level_prop, "value", "2")
             sizes = {"1": "32", "2": "24", "3": "20", "4": "18", "5": "16", "6": "14"}
             size = sizes.get(level, "24")
-            params.append(f"style: const TextStyle(fontSize: {size}, fontWeight: FontWeight.bold)")
+            params.append(f"style: TextStyle(fontSize: {size}, fontWeight: FontWeight.bold)")
+            if css_rule:
+                params = self._apply_css_to_text(css_rule, params)
             text_content = self._build_text_content(children)
             if text_content:
                 params.append(text_content)
             return self._build_widget("Text", params, [], test_id)
 
         if tag == "Text":
-            # Flutter Text takes a single string expression, not children
+            if css_rule:
+                params = self._apply_css_to_text(css_rule, params)
             text_content = self._build_text_content(children)
             if text_content:
                 params.append(text_content)

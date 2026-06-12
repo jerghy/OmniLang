@@ -199,12 +199,14 @@ RAW_BLOCK: /__OMNI_BLOCK_\d+__/
 
 style_block: "style" "{" style_rule* "}"
 style_rule: "." CNAME "{" style_property (";" style_property)* [";"] "}"
-style_property: CNAME ":" style_value
+style_property: CSS_PROP_NAME ":" style_value
+CSS_PROP_NAME: /[a-zA-Z_][a-zA-Z0-9_-]*/
 
-?style_value: style_value_list | STRING_LIT | CSS_DIMENSION | NUMBER | CNAME | HEX_COLOR
-// Multi-value CSS shorthands: 8px 24px, 1px solid #ccc, 1rem auto
-// Each value can be: dimension, keyword (CNAME), number, or hex color
-style_value_part: CSS_DIMENSION | CNAME | HEX_COLOR
+?style_value: CSS_DIMENSION | HEX_COLOR | style_value_list | STRING_LIT | NUMBER | CNAME
+// Multi-value CSS shorthands: 8px 24px, 1px solid #ccc, 1rem auto, 0 4px 6px rgba(...)
+// Each value part can be: dimension, keyword (CNAME), number, or hex color
+// Use STRING_LIT for complex values with function calls: "0 4px 6px rgba(0,0,0,0.1)"
+style_value_part: CSS_DIMENSION | CNAME | NUMBER | HEX_COLOR
 style_value_list: style_value_part style_value_part+
 CSS_DIMENSION: /\d+(\.\d+)?(px|rem|em|vh|vw|%|ch|ex|vmin|vmax)/
 HEX_COLOR: /#[0-9a-fA-F]{3,8}/

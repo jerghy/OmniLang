@@ -1374,3 +1374,6 @@ class OmniViewTransformer(Transformer):
 
     def CSS_DIMENSION(self, token: Token) -> Literal:
         return Literal(value=str(token), kind='String')
+
+    def CSS_PROP_NAME(self, token: Token) -> Token:
+        return token  # Pass through as-is; the style_property handler extracts the name
