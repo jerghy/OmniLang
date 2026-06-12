@@ -43,6 +43,7 @@ class FlutterCodegen(CodegenBase):
         self._bind_controllers: set = set()  # signal names needing TextEditingController
         self._cross_file_imports: dict[str, str] = {}
         self._store_aliases: set = set()  # store variable names in component state
+        self._for_item_names: set = set()  # @for loop item variable names (no _ prefix)
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):
@@ -113,7 +114,7 @@ class FlutterCodegen(CodegenBase):
             L.append(f"  {dart_type} _{sig_name} = {init_val};")
 
         # TextEditingControllers for bind:value
-        for bname, sig_name in bindings.items():
+        for bname, sig_name in bindings:
             if bname in ("value",):
                 init = ""
                 for s in states:
@@ -193,13 +194,18 @@ class FlutterCodegen(CodegenBase):
         L.append("}")
         return "\n".join(L)
 
-    def _detect_bindings(self, comp: dict) -> dict[str, str]:
-        """Find bind:value signals needing TextEditingController."""
-        bindings = {}
+    def _detect_bindings(self, comp: dict) -> list[tuple[str, str]]:
+        """Find bind:value signals needing TextEditingController.
+        Returns list of (prop_name, signal_name) tuples."""
+        bindings = []
+        seen = set()
         def scan(node):
             if isinstance(node, dict):
                 for bname, bref in self._get(node, "bindings", {}).items():
-                    bindings[bname] = self._get(bref, "name", "")
+                    sig = self._get(bref, "name", "")
+                    if (bname, sig) not in seen:
+                        bindings.append((bname, sig))
+                        seen.add((bname, sig))
                 for val in node.values():
                     scan(val)
             if isinstance(node, list):
@@ -322,9 +328,9 @@ class FlutterCodegen(CodegenBase):
             return self._build_widget("ElevatedButton", params, [], test_id)
 
         if tag == "Input":
-            for bname in bindings:
+            for bname, bref in bindings.items():
                 if bname == "value":
-                    sig_name = self._get(bindings[bname], "name", "")
+                    sig_name = self._get(bref, "name", "")
                     params.append(f"controller: _{sig_name}Controller")
             for pname, pval in props.items():
                 if pname in ("placeholder",):
@@ -380,6 +386,9 @@ class FlutterCodegen(CodegenBase):
             if cs.strip():
                 child_strs.append(cs)
 
+        # Widget-specific child parameter naming
+        _CHILD_PARAM = {"ListTile": "title", "ListItem": "title"}
+
         if child_strs:
             if widget in self._CHILDREN_WIDGETS or len(child_strs) > 1:
                 children_str = ", ".join(child_strs)
@@ -387,12 +396,13 @@ class FlutterCodegen(CodegenBase):
             else:
                 # Single child — wrap in Text if it's a plain string
                 child_content = child_strs[0]
-                if widget in ("ElevatedButton", "TextButton", "OutlinedButton",
+                child_param = _CHILD_PARAM.get(widget, "child")
+                if child_param == "child" and widget in ("ElevatedButton", "TextButton", "OutlinedButton",
                               "GestureDetector", "Container", "Card", "Form"):
                     if not child_content.startswith(('Text(', 'Icon(', 'const ', 'SizedBox', 'Column(',
                                                       'Row(', 'ListView(', 'Stack(')) and '"' in child_content:
                         child_content = f"Text({child_content})"
-                parts.append(f"child: {child_content}")
+                parts.append(f"{child_param}: {child_content}")
 
         param_str = ", ".join(parts) if parts else ""
         return f"{widget}({param_str})" if param_str else f"const {widget}()"
@@ -451,6 +461,11 @@ class FlutterCodegen(CodegenBase):
             c = self._expr_to_dart(self._get(branches[0], "condition"))
             then_body = self._gen_view_tree(self._get(branches[0], "body"))
             else_body = self._gen_view_tree(fallback)
+            # Flutter: null can't be assigned to Widget — use SizedBox.shrink()
+            if else_body.strip() == "null":
+                else_body = "const SizedBox.shrink()"
+            elif then_body.strip() == "null":
+                then_body = "const SizedBox.shrink()"
             return f"({c}) ? {then_body} : {else_body}"
         # Multiple branches: use immediate anonymous function
         L = []
@@ -461,6 +476,8 @@ class FlutterCodegen(CodegenBase):
         if fallback:
             fb = self._gen_view_tree(fallback)
             L.append(f"return {fb};")
+        else:
+            L.append("return const SizedBox.shrink();")
         inner = " ".join(L)
         return f"(() {{ {inner} }})()"
 
@@ -483,7 +500,9 @@ class FlutterCodegen(CodegenBase):
         iterable = self._expr_to_dart(self._get(lst, "iterable"))
         binding = self._get(lst, "item_binding", {})
         item_name = self._get(binding, "name", "item")
+        self._for_item_names.add(item_name)
         body = self._gen_view_tree(self._get(lst, "body"))
+        self._for_item_names.discard(item_name)
         key_expr = self._expr_to_dart(self._get(lst, "key_expr"))
         # L2 optimization hint
         return (
@@ -525,6 +544,15 @@ class FlutterCodegen(CodegenBase):
             kind = self._get(expr, "_kind", "")
             if kind == "StoreFieldAccessExpr" or ("store_alias" in expr and "field_name" in expr):
                 store_alias = self._get(expr, "store_alias", "store")
+                # Resolve "store" → actual store variable name
+                if store_alias == "store":
+                    store_names = [k for k, v in self._all_stores.items()
+                                  if isinstance(v, dict) and "signals" in v and "view" not in v]
+                    if store_names:
+                        alias = store_names[0].lower()
+                        if alias.endswith("store"):
+                            alias = alias[:-5]
+                        store_alias = alias
                 field = self._get(expr, "field_name", "")
                 args = self._get(expr, "call_args", [])
                 args_str = ", ".join(self._expr_to_dart(a) for a in args)
@@ -542,13 +570,21 @@ class FlutterCodegen(CodegenBase):
             if kind == "IdentifierExpr" or ("name" in expr and "op" not in expr and "value" not in expr and len(expr) <= 2):
                 name = self._get(expr, "name", "")
                 if name == "store":
-                    store_refs = list(self._all_stores.keys())
-                    if store_refs:
-                        return store_refs[0].lower()
+                    # Resolve to the actual store variable name (derived alias)
+                    # Only look at actual stores (have signals, no view — not components)
+                    store_names = [k for k, v in self._all_stores.items()
+                                  if isinstance(v, dict) and "signals" in v and "view" not in v]
+                    if store_names:
+                        alias = store_names[0].lower()
+                        if alias.endswith("store"):
+                            alias = alias[:-5]
+                        return alias
                     return "store"
-                # Store aliases and store action scope — no underscore prefix
+                # Store aliases and @for item names — no underscore prefix
                 if name in self._store_aliases:
                     return name
+                if name in self._for_item_names:
+                    return name  # @for loop item variable
                 if self._in_store_action:
                     return name  # Store fields are public, no underscore
                 return f"_{name}" if name else "null"
@@ -563,6 +599,14 @@ class FlutterCodegen(CodegenBase):
                 if isinstance(val, bool):
                     return "true" if val else "false"
                 return str(val) if val is not None else "null"
+            if kind == "ArrayExpr" or ("elements" in expr and "_kind" not in expr):
+                parts = []
+                for elem in self._get(expr, "elements", []):
+                    if isinstance(elem, dict) and elem.get("_kind") == "SpreadExpr":
+                        parts.append("..." + self._expr_to_dart(elem.get("expr")))
+                    else:
+                        parts.append(self._expr_to_dart(elem))
+                return "[" + ", ".join(parts) + "]"
             if kind == "BinaryOpExpr" or ("op" in expr and "left" in expr):
                 left = self._expr_to_dart(self._get(expr, "left"))
                 right = self._expr_to_dart(self._get(expr, "right"))
