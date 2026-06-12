@@ -89,6 +89,7 @@ class IRFixture:
 
     def __init__(self):
         self._current_store_name: str | None = None
+        self._comp_store_aliases: set[str] = set()
 
     # ── Top Level ──────────────────────────────────────
 
@@ -105,6 +106,17 @@ class IRFixture:
 
     def lower_component(self, comp: ComponentDef) -> ComponentIR:
         """Lower a ComponentDef AST node to ComponentIR."""
+        # Resolve store aliases: UIStore→ui, CartStore→cart
+        self._comp_store_aliases = set()
+        for sr in comp.stores:
+            sname = sr.store_name
+            alias = sname.lower()
+            if alias.endswith("store"):
+                alias = alias[:-5]
+            self._comp_store_aliases.add(alias)
+        # Always include "store" for backward compatibility
+        self._comp_store_aliases.add("store")
+
         props = {}
         for p in comp.props:
             props[p.name] = self._lower_type(p.type)
@@ -481,9 +493,16 @@ class IRFixture:
                 value=self._lower_expr(stmt.value),
             )
         if isinstance(stmt, AssignStmt):
+            # Detect store.field = value (dotted target)
+            target_name = stmt.target
+            owner = self._current_store_name
+            if "." in target_name:
+                parts = target_name.split(".", 1)
+                owner = parts[0]  # store alias → store name
+                target_name = parts[1]  # field name
             target_ref = SignalRefIR(
-                name=stmt.target,
-                owner=self._current_store_name,  # "StoreName" if in store action, else None
+                name=target_name,
+                owner=owner,  # store alias or None for component signals
             )
             op = MutationOp.DIRECT_ASSIGN
             if stmt.op == "+=":
@@ -507,21 +526,35 @@ class IRFixture:
         if isinstance(stmt, ExprStmt):
             # Detect store.action() / store.action(args) — dispatch to StoreFieldAccessExpr
             expr = stmt.expr
-            # Case 1: FuncCall(FieldAccess(VarRef("store"), "action"), args)
-            if isinstance(expr, FuncCall) and isinstance(expr.func, FieldAccess):
-                fa = expr.func
-                if isinstance(fa.object, VarRef) and fa.object.name == "store":
+            # Case 1: FuncCall(MethodCall(VarRef(alias), "action"), args)
+            if isinstance(expr, FuncCall):
+                inner = expr.func
+                if isinstance(inner, MethodCall) and isinstance(inner.object, VarRef):
+                    alias = inner.object.name
+                    if alias in self._comp_store_aliases:
+                        return ExprStmtIR(expr=StoreFieldAccessExpr(
+                            store_alias=alias,
+                            field_name=inner.method,
+                            call_args=[self._lower_expr(a) for a in (expr.args or [])],
+                        ))
+                # FuncCall(FieldAccess(VarRef(alias), "action"), args) — from OmniView parser
+                if isinstance(inner, FieldAccess) and isinstance(inner.object, VarRef):
+                    alias = inner.object.name
+                    if alias in self._comp_store_aliases:
+                        return ExprStmtIR(expr=StoreFieldAccessExpr(
+                            store_alias=alias,
+                            field_name=inner.field,
+                            call_args=[self._lower_expr(a) for a in (expr.args or [])],
+                        ))
+            # Case 2: MethodCall(VarRef(alias), "action") — may or may not have args
+            if isinstance(expr, MethodCall) and isinstance(expr.object, VarRef):
+                alias = expr.object.name
+                if alias in self._comp_store_aliases:
                     return ExprStmtIR(expr=StoreFieldAccessExpr(
-                        store_alias="store",
-                        field_name=fa.field,
+                        store_alias=alias,
+                        field_name=expr.method,
                         call_args=[self._lower_expr(a) for a in (expr.args or [])],
                     ))
-            # Case 2: FieldAccess(VarRef("store"), "action") — empty parens dropped by Lark
-            if isinstance(expr, FieldAccess) and isinstance(expr.object, VarRef) and expr.object.name == "store":
-                return ExprStmtIR(expr=StoreFieldAccessExpr(
-                    store_alias="store",
-                    field_name=expr.field,
-                ))
             return ExprStmtIR(expr=self._lower_expr(stmt.expr))
         if isinstance(stmt, EventEmitStmt):
             return EventEmitStmtIR(

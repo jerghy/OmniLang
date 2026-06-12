@@ -16,9 +16,10 @@
 
 start: program
 
-program: import_lib* (component_def | store_def | theme_def)*
+program: (import_lib | import_stmt)* (component_def | store_def | theme_def)*
 
 import_lib: "import" CNAME ";"
+import_stmt: "import" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 
 // ── Component ────────────────────────────────────────
 
@@ -92,7 +93,7 @@ element_body: element_prop*
 ?element_prop: ref_prop | bind_prop | event_prop | class_prop | class_map_prop | style_prop | test_id_prop | static_prop
 
 static_prop: CNAME "=" (STRING_LIT | "{" expr "}")
-bind_prop: "bind:" CNAME "=" "{" CNAME "}"
+bind_prop: "bind:" CNAME "=" "{" CNAME ("." CNAME)? "}"
 event_prop: CNAME "=" "{" event_handler "}"
 class_prop: "class" "=" "{" class_value "}"
 class_map_prop: "class" "=" "{" "class_map" "(" "{" class_map_entries "}" ")" "}"
@@ -131,7 +132,7 @@ view_block_body: "{" view_content* "}"
 // ── Text Content ─────────────────────────────────────
 
 ?text_content: TEXT_PLAIN | interpolation
-TEXT_PLAIN: /[^{}<>@\n\r]+/
+TEXT_PLAIN: /(?u)[^{}<>@\n\r]+/
 interpolation: "{" expr "}"
 
 // ── Expressions ──────────────────────────────────────
@@ -176,7 +177,7 @@ stmt: var_decl | assign | if_stmt | while_stmt | for_stmt
     | event_emit_stmt | expr_stmt
 
 var_decl: "let" ["mut"] CNAME [":" type] "=" expr ";"
-assign: CNAME ASSIGN_OP expr ";"
+assign: CNAME ("." CNAME)? ASSIGN_OP expr ";"
 if_stmt: "if" expr block ["else" (if_stmt | block)]
 while_stmt: "while" expr block
 for_stmt: "for" CNAME "in" expr block
@@ -200,7 +201,11 @@ style_block: "style" "{" style_rule* "}"
 style_rule: "." CNAME "{" style_property (";" style_property)* [";"] "}"
 style_property: CNAME ":" style_value
 
-?style_value: STRING_LIT | CSS_DIMENSION | NUMBER | CNAME | HEX_COLOR
+?style_value: style_value_list | STRING_LIT | CSS_DIMENSION | NUMBER | CNAME | HEX_COLOR
+// Multi-value CSS shorthands: 8px 24px, 1px solid #ccc, 1rem auto
+// Each value can be: dimension, keyword (CNAME), number, or hex color
+style_value_part: CSS_DIMENSION | CNAME | HEX_COLOR
+style_value_list: style_value_part style_value_part+
 CSS_DIMENSION: /\d+(\.\d+)?(px|rem|em|vh|vw|%|ch|ex|vmin|vmax)/
 HEX_COLOR: /#[0-9a-fA-F]{3,8}/
 

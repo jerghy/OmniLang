@@ -46,6 +46,9 @@ class ReactCodegen(CodegenBase):
         self._in_store_action = False  # context flag for store vs component mutations
         self._store_name = ""
         self._error_boundaries: set = set()  # track ErrorBoundary class names
+        self._cross_file_imports: dict[str, str] = {}  # component_name → relative_import_path
+        self._for_depth: int = 0  # @for nesting depth for scoped keys (G3 fix)
+        self._for_item_name: str = ""  # current @for item name for key scoping
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):
@@ -110,6 +113,13 @@ class ReactCodegen(CodegenBase):
         if store_refs:
             for sname in store_refs:
                 L.append(f'import {{ use{sname} }} from "./use{sname}";')
+
+        # Cross-file component imports (from other .omni files)
+        if self._cross_file_imports:
+            for comp_name, import_path in self._cross_file_imports.items():
+                if comp_name != name:  # Don't self-import
+                    L.append(f'import {{ {comp_name} }} from "{import_path}";')
+
         L.append("")
 
         # Props interface
@@ -385,7 +395,11 @@ class ReactCodegen(CodegenBase):
             level = self._get(level_prop, "value", "2")
             html_tag = f"h{level}"
         else:
-            html_tag = self.ELEMENT_MAP.get(tag, tag)  # known elements→html, custom→PascalCase
+            # Cross-file imported components keep PascalCase, built-ins map to HTML
+            if tag in self._cross_file_imports:
+                html_tag = tag  # imported component, keep PascalCase
+            else:
+                html_tag = self.ELEMENT_MAP.get(tag, tag)
 
         # Spacer: flex grow
         if tag == "Spacer":
@@ -487,12 +501,26 @@ class ReactCodegen(CodegenBase):
         # Bindings → value + onChange
         for bname, bref in bindings.items():
             sig_name = self._get(bref, "name", "")
-            if bname == "value":
-                attrs.append(f"value={{{sig_name}}}")
-                attrs.append(f"onChange={{e => set{self._pascal(sig_name)}(e.target.value)}}")
-            elif bname == "checked":
-                attrs.append(f"checked={{{sig_name}}}")
-                attrs.append(f"onChange={{e => set{self._pascal(sig_name)}(e.target.checked)}}")
+            # Detect store.field bindings (e.g., bind:value={store.email})
+            is_store_binding = "." in sig_name
+            if is_store_binding:
+                parts = sig_name.split(".", 1)
+                store_alias, field = parts[0], parts[1]
+                store_name = self._resolve_store_name(store_alias, field)
+                store_hook = f"use{store_name}"
+                if bname == "value":
+                    attrs.append(f"value={{{field}}}")
+                    attrs.append(f"onChange={{e => {store_hook}.setState({{ {field}: e.target.value }})}}")
+                elif bname == "checked":
+                    attrs.append(f"checked={{{field}}}")
+                    attrs.append(f"onChange={{e => {store_hook}.setState({{ {field}: e.target.checked }})}}")
+            else:
+                if bname == "value":
+                    attrs.append(f"value={{{sig_name}}}")
+                    attrs.append(f"onChange={{e => set{self._pascal(sig_name)}(e.target.value)}}")
+                elif bname == "checked":
+                    attrs.append(f"checked={{{sig_name}}}")
+                    attrs.append(f"onChange={{e => set{self._pascal(sig_name)}(e.target.checked)}}")
 
         # Events
         for ename, ehandler in events.items():
@@ -616,9 +644,26 @@ class ReactCodegen(CodegenBase):
         iterable = self._expr_to_js(self._get(lst, "iterable"))
         binding = self._get(lst, "item_binding", {})
         item_name = self._get(binding, "name", "item")
-        body = self._gen_view_tree(self._get(lst, "body"), styles)
         key_expr = self._expr_to_js(self._get(lst, "key_expr"))
         empty_body = self._get(lst, "empty_body")
+
+        # G3 fix: track @for depth for scoped keys
+        self._for_depth += 1
+        prev_item = self._for_item_name
+        self._for_item_name = item_name
+
+        body = self._gen_view_tree(self._get(lst, "body"), styles)
+
+        self._for_depth -= 1
+        self._for_item_name = prev_item
+
+        # G3: generate scoped key when nested to prevent collisions
+        if key_expr:
+            # Use composite key: `${depth}-${item_key}` for nested loops
+            if self._for_depth > 0:
+                key_expr = f"`${{{self._for_item_name}}}-${{{item_name}}}`"
+            else:
+                key_expr = f"{{{item_name}}}"
 
         map_body = f"{iterable}.map({item_name} => (\n{body}\n))"
         if empty_body:
@@ -816,18 +861,34 @@ class ReactCodegen(CodegenBase):
                 item = self._expr_to_js(self._get(intent, "item"))
 
                 if target_owner:
-                    # Store mutation: set(state => ({ field: ... }))
-                    if op in ("increment", "INCREMENT"):
-                        L.append(f"set(state => ({{ {target}: state.{target} + {amount} }}));")
-                    elif op in ("decrement", "DECREMENT"):
-                        L.append(f"set(state => ({{ {target}: state.{target} - {amount} }}));")
-                    elif op in ("spread_append", "SPREAD_APPEND"):
-                        L.append(f"set(state => ({{ {target}: [...state.{target}, {item}] }}));")
+                    if self._in_store_action:
+                        # Inside store action: set(state => ({ field: ... }))
+                        if op in ("increment", "INCREMENT"):
+                            L.append(f"set(state => ({{ {target}: state.{target} + {amount} }}));")
+                        elif op in ("decrement", "DECREMENT"):
+                            L.append(f"set(state => ({{ {target}: state.{target} - {amount} }}));")
+                        elif op in ("spread_append", "SPREAD_APPEND"):
+                            L.append(f"set(state => ({{ {target}: [...state.{target}, {item}] }}));")
+                        else:
+                            val = self._expr_to_js(self._get(intent, "item", self._get(intent, "amount")))
+                            if val.startswith('"[') and val.endswith(']"'):
+                                val = val[1:-1]
+                            L.append(f"set(state => ({{ {target}: {val} }}));")
                     else:
-                        val = self._expr_to_js(self._get(intent, "item", self._get(intent, "amount")))
-                        if val.startswith('"[') and val.endswith(']"'):
-                            val = val[1:-1]
-                        L.append(f"set(state => ({{ {target}: {val} }}));")
+                        # Component-level store.field = value → use{Store}.setState()
+                        actual_store = self._resolve_store_name(target_owner, target)
+                        store_hook = f"use{actual_store}"
+                        if op in ("increment", "INCREMENT"):
+                            L.append(f"{store_hook}.setState(s => ({{ {target}: s.{target} + {amount} }}));")
+                        elif op in ("decrement", "DECREMENT"):
+                            L.append(f"{store_hook}.setState(s => ({{ {target}: s.{target} - {amount} }}));")
+                        elif op in ("spread_append", "SPREAD_APPEND"):
+                            L.append(f"{store_hook}.setState(s => ({{ {target}: [...s.{target}, {item}] }}));")
+                        else:
+                            val = self._expr_to_js(self._get(intent, "item", self._get(intent, "amount")))
+                            if val.startswith('"[') and val.endswith(']"'):
+                                val = val[1:-1]
+                            L.append(f"{store_hook}.setState({{ {target}: {val} }});")
                 else:
                     # Component mutation: setX(newValue)
                     if op in ("increment", "INCREMENT"):

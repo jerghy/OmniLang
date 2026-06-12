@@ -87,7 +87,7 @@ class SemanticAnalyzer:
                 print(d)
     """
 
-    def __init__(self):
+    def __init__(self, source_lines: list[str] | None = None):
         self.symbols: dict[str, SymbolInfo] = {}
         self.dependencies: dict[str, list[str]] = {}
         self.store_reads: dict[str, list[str]] = {}
@@ -95,23 +95,60 @@ class SemanticAnalyzer:
         self._current_component: str | None = None
         self._current_store: str | None = None
         self._loop_vars: set[str] = set()
+        self._source_lines: list[str] = source_lines or []
 
     # ── Main Entry Point ──────────────────────────────
 
     def analyze(self, program: Program) -> AnalysisResult:
-        """Run all analysis passes on the program."""
+        """Run all analysis passes on the program.
+
+        Diagnostics are filtered through _check_suppression to allow
+        users to suppress specific diagnostics with // @suppress CODE comments.
+        """
         self._reset()
         self._collect_symbols(program)
         self._resolve_references(program)
         self._validate_constraints(program)
         self._collect_dependencies(program)
         self._flatten_computed_chains()
+        # Filter diagnostics through suppression
+        filtered = [d for d in self.diagnostics if not self._check_suppression(d)]
         return AnalysisResult(
             symbols=dict(self.symbols),
             dependencies=dict(self.dependencies),
             store_reads=dict(self.store_reads),
-            diagnostics=list(self.diagnostics),
+            diagnostics=filtered,
         )
+
+    def _check_suppression(self, diag: Diagnostic) -> bool:
+        """Check if a diagnostic should be suppressed by a // @suppress comment.
+
+        Scans the line of the diagnostic's span and the line before it
+        for `// @suppress CODE` or `// @suppress-all` comments.
+
+        Returns:
+            True if the diagnostic should be suppressed.
+        """
+        if diag.span is None or not self._source_lines:
+            return False
+        line_idx = diag.span.line - 1  # convert to 0-based
+        if line_idx < 0 or line_idx >= len(self._source_lines):
+            return False
+        # Check current line and previous line
+        for check_idx in (line_idx - 1, line_idx):
+            if check_idx < 0 or check_idx >= len(self._source_lines):
+                continue
+            src_line = self._source_lines[check_idx]
+            if "@suppress-all" in src_line:
+                return True
+            if f"@suppress {diag.code}" in src_line:
+                return True
+            # Broad @suppress without code check (catches partial matches)
+            if "@suppress" in src_line:
+                parts = src_line.split("@suppress", 1)[1].strip()
+                if diag.code in parts:
+                    return True
+        return False
 
     def _reset(self):
         self.symbols.clear()
@@ -150,8 +187,15 @@ class SemanticAnalyzer:
 
         for store_ref in comp.stores:
             self._add_symbol(store_ref.store_name, "store", owner=comp.name)
-            # Register "store" as alias so store.field works
-            self._add_symbol("store", "store_alias", owner=comp.name)
+            # Derive alias: UIStore→ui, CartStore→cart, TodoStore→todo
+            sname = store_ref.store_name
+            alias = sname.lower()
+            if alias.endswith("store"):
+                alias = alias[:-5]
+            # Register both the derived alias and "store" for backward compat
+            self._add_symbol(alias, "store_alias", owner=comp.name)
+            if alias != "store":
+                self._add_symbol("store", "store_alias", owner=comp.name)
 
         for fn_def in comp.fns:
             self._add_symbol(fn_def.name, "fn", fn_def.return_type, owner=comp.name)

@@ -74,7 +74,7 @@ SPREAD: "..."
 PIPE: "|"
 ARROW: "=>"
 
-assign: CNAME index? ASSIGN_OP expr ";"
+assign: CNAME ("." CNAME)* index? ASSIGN_OP expr ";"
 
 if_stmt: "if" expr block else_tail?
 else_tail: "else" (if_stmt | block)

@@ -362,14 +362,20 @@ class OmniTransformer(ExpressionMixin, Transformer):
         return ObjectPattern(fields=fields, span=self._span(*items))
 
     def assign(self, items):
-        # items: name, [index], ASSIGN_OP, expr, ;
-        name = str(items[0])
+        # items: CNAME ("." CNAME)* index? ASSIGN_OP expr ";"
+        # Collect target parts: CNAMEs separated by dots
+        target_parts = []
         index = None
         op = "="
         value = None
-        for item in items[1:]:
-            if isinstance(item, Token) and item.type == "ASSIGN_OP":
-                op = str(item)
+        i = 0
+        while i < len(items):
+            item = items[i]
+            s = str(item) if isinstance(item, Token) else ""
+            if isinstance(item, Token) and item.type == "CNAME":
+                target_parts.append(s)
+            elif isinstance(item, Token) and item.type == "ASSIGN_OP":
+                op = s
             elif self._is_expr(item):
                 value = item
             elif isinstance(item, list) and not isinstance(item, (ArrayLiteral,)):
@@ -377,6 +383,8 @@ class OmniTransformer(ExpressionMixin, Transformer):
                     if not self._is_expr(sub):
                         continue
                     index = sub
+            i += 1
+        name = ".".join(target_parts) if target_parts else ""
         return Assign(target=name, index=index, op=op, value=value,
                      span=self._span(*items))
 

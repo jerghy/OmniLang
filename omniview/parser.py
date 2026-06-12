@@ -1337,6 +1337,17 @@ class OmniViewTransformer(Transformer):
             val = Literal(value=str(val), kind='String')
         return (key, val)
 
+    def style_value_part(self, items):
+        """Single CSS value part: dimension, keyword, number, or color.
+        Converts Lark Tree or Token to a string Token for style_value_list."""
+        if len(items) == 1:
+            item = items[0]
+            if isinstance(item, Token):
+                return Token(item.type, str(item))
+            if isinstance(item, Literal):
+                return Token('CSS_DIMENSION', str(item.value))
+        return Token('CNAME', str(items[0]) if items else '')
+
     def style_value_list(self, items):
         """Multi-value shorthand: 8px 24px → '8px 24px'"""
         parts = []

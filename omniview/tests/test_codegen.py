@@ -19,8 +19,10 @@ def transformer():
 
 def generate(parser, transformer, source: str) -> dict[str, str]:
     """Parse → Analyze → Lower → Generate React code."""
-    tree = parser.parse(source)
-    prog = transformer.transform(tree)
+    from omniview.preprocessor import preprocess
+    pp = preprocess(source)
+    tree = parser.parse(pp.processed_source)
+    prog = OmniViewTransformer(block_map=pp.blocks).transform(tree)
     SemanticAnalyzer().analyze(prog)  # Ensure no errors
     ir_map = IRFixture().lower_program(prog)
     codegen = ReactCodegen()
