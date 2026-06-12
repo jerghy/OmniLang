@@ -41,6 +41,8 @@ class FlutterCodegen(CodegenBase):
         self._store_signal_names: set = set()
         self._all_stores: dict = {}
         self._bind_controllers: set = set()  # signal names needing TextEditingController
+        self._cross_file_imports: dict[str, str] = {}
+        self._store_aliases: set = set()  # store variable names in component state
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):
@@ -124,10 +126,11 @@ class FlutterCodegen(CodegenBase):
         # Store instances
         if store_refs:
             for sname in store_refs:
-                store_type = f"{sname}Store"
+                store_type = sname  # Store name is already the class name (e.g., "CartStore")
                 var_name = sname.lower()
                 if var_name.endswith("store"):
                     var_name = var_name[:-5]
+                self._store_aliases.add(var_name)
                 L.append(f"  final {store_type} {var_name} = {store_type}();")
             L.append("")
 
@@ -268,6 +271,16 @@ class FlutterCodegen(CodegenBase):
                 if pname == "padding":
                     val = self._extract_style_val(pval)
                     container_params.append(f"padding: const EdgeInsets.all({val})")
+            # Wrap multiple children in Column
+            if len(children) > 1:
+                inner_parts = []
+                for child in children:
+                    cs = self._gen_view_tree(child)
+                    if cs.strip():
+                        inner_parts.append(cs)
+                inner = "Column(children: [" + ", ".join(inner_parts) + "])"
+                container_params.append(f"child: {inner}")
+                return self._build_widget("Container", container_params, [], test_id)
             return self._build_widget("Container", container_params, children, test_id)
 
         if tag == "Heading":
@@ -276,16 +289,37 @@ class FlutterCodegen(CodegenBase):
             sizes = {"1": "32", "2": "24", "3": "20", "4": "18", "5": "16", "6": "14"}
             size = sizes.get(level, "24")
             params.append(f"style: const TextStyle(fontSize: {size}, fontWeight: FontWeight.bold)")
-            return self._build_widget("Text", params, children, test_id)
+            text_content = self._build_text_content(children)
+            if text_content:
+                params.append(text_content)
+            return self._build_widget("Text", params, [], test_id)
 
         if tag == "Text":
-            return self._build_widget("Text", params, children, test_id)
+            # Flutter Text takes a single string expression, not children
+            text_content = self._build_text_content(children)
+            if text_content:
+                params.append(text_content)
+            return self._build_widget("Text", params, [], test_id)
+
+        if tag == "Link":
+            # GestureDetector wrapping Text
+            child_content = self._build_text_content(children)
+            text_params = [child_content] if child_content else []
+            inner = f"Text({', '.join(text_params)})" if text_params else "const Text('')"
+            for ename, ehandler in events.items():
+                handler = self._gen_event_handler(ehandler)
+                params.append(f"onTap: {handler}")
+            params.append(f"child: {inner}")
+            return f"GestureDetector({', '.join(params)})" if params else "const GestureDetector()"
 
         if tag == "Button":
             for ename, ehandler in events.items():
                 handler = self._gen_event_handler(ehandler)
                 params.append(f"onPressed: {handler}")
-            return self._build_widget("ElevatedButton", params, children, test_id)
+            # Wrap button label in Text widget
+            label = self._build_text_content(children) if children else '"Button"'
+            params.append(f"child: Text({label})")
+            return self._build_widget("ElevatedButton", params, [], test_id)
 
         if tag == "Input":
             for bname in bindings:
@@ -326,8 +360,15 @@ class FlutterCodegen(CodegenBase):
         # Default: generic widget
         return self._build_widget(self.ELEMENT_MAP.get(tag, "Container"), params, children, test_id)
 
+    # Widgets that accept `children: [...]` (multi-child)
+    _CHILDREN_WIDGETS = {"Row", "Column", "Stack", "ListView", "GridView", "Wrap", "Flex"}
+
     def _build_widget(self, widget: str, params: list, children: list, test_id: str | None = None) -> str:
-        """Build a Flutter widget constructor call."""
+        """Build a Flutter widget constructor call.
+
+        Handles both single-child widgets (Text, Button, Container)
+        and multi-child widgets (Row, Column, Stack, ListView).
+        """
         parts = []
         parts.extend(params)
         if test_id:
@@ -340,14 +381,45 @@ class FlutterCodegen(CodegenBase):
                 child_strs.append(cs)
 
         if child_strs:
-            if len(child_strs) == 1:
-                parts.append(f"child: {child_strs[0]}")
-            else:
+            if widget in self._CHILDREN_WIDGETS or len(child_strs) > 1:
                 children_str = ", ".join(child_strs)
                 parts.append(f"children: [{children_str}]")
+            else:
+                # Single child — wrap in Text if it's a plain string
+                child_content = child_strs[0]
+                if widget in ("ElevatedButton", "TextButton", "OutlinedButton",
+                              "GestureDetector", "Container", "Card", "Form"):
+                    if not child_content.startswith(('Text(', 'Icon(', 'const ', 'SizedBox', 'Column(',
+                                                      'Row(', 'ListView(', 'Stack(')) and '"' in child_content:
+                        child_content = f"Text({child_content})"
+                parts.append(f"child: {child_content}")
 
         param_str = ", ".join(parts) if parts else ""
         return f"{widget}({param_str})" if param_str else f"const {widget}()"
+
+    def _build_text_content(self, children: list) -> str:
+        """Build a Flutter text string expression from text children.
+
+        Joins plain text and interpolations into a single Dart string expression.
+        <Text>Hello {name}!</Text> → 'Hello $name!'
+        """
+        parts = []
+        for child in children:
+            cs = self._gen_view_tree(child)
+            if not cs.strip():
+                continue
+            # Interpolation returns "${expr}" — strip outer quotes for Dart
+            if cs.startswith('"') and cs.endswith('"'):
+                parts.append(cs[1:-1])
+            else:
+                parts.append(cs)
+        if not parts:
+            return ""
+        content = "".join(parts)
+        # If content has variable references, use raw string; otherwise quote it
+        if "$" in content:
+            return f"'{content}'"
+        return f'"{content}"'
 
     def _build_layout_params(self, props: dict, children: list) -> list:
         """Convert layout props to Flutter Row/Column params."""
@@ -474,6 +546,11 @@ class FlutterCodegen(CodegenBase):
                     if store_refs:
                         return store_refs[0].lower()
                     return "store"
+                # Store aliases and store action scope — no underscore prefix
+                if name in self._store_aliases:
+                    return name
+                if self._in_store_action:
+                    return name  # Store fields are public, no underscore
                 return f"_{name}" if name else "null"
             if kind == "LiteralExpr" or ("value" in expr and "op" not in expr and "name" not in expr):
                 val = self._get(expr, "value")
@@ -537,14 +614,14 @@ class FlutterCodegen(CodegenBase):
                 item = self._expr_to_dart(self._get(intent, "item"))
 
                 if target_owner:
-                    # Store mutation — target is a field on the ChangeNotifier
+                    # Store mutation — target is a public field on the ChangeNotifier
                     if op in ("increment", "INCREMENT"):
-                        L.append(f"_{target} += {amount};")
+                        L.append(f"{target} += {amount};")
                     elif op in ("spread_append", "SPREAD_APPEND"):
-                        L.append(f"_{target}.add({item});")
+                        L.append(f"{target}.add({item});")
                     else:
                         val = self._expr_to_dart(self._get(intent, "item", self._get(intent, "amount")))
-                        L.append(f"_{target} = {val};")
+                        L.append(f"{target} = {val};")
                 else:
                     if op in ("increment", "INCREMENT"):
                         L.append(f"_{target} += {amount};")
@@ -597,16 +674,16 @@ class FlutterCodegen(CodegenBase):
         L.append("import 'package:flutter/material.dart';")
         L.append("")
         L.append(f"// .omni:{source_line} -- store {name}")
-        L.append(f"class {name}Store extends ChangeNotifier {{")
+        L.append(f"class {name} extends ChangeNotifier {{")
 
-        # Fields
+        # Fields — public for direct access (ChangeNotifier pattern)
         for sig_name, sig_type in signals.items():
             dart_type = self._map_type_to_dart(sig_type)
             if sig_name in defaults:
                 init_val = self._expr_to_dart(defaults[sig_name])
             else:
                 init_val = self._type_default_dart(sig_type)
-            L.append(f"  {dart_type} _{sig_name} = {init_val};")
+            L.append(f"  {dart_type} {sig_name} = {init_val};")
 
         L.append("")
 
@@ -634,7 +711,9 @@ class FlutterCodegen(CodegenBase):
                 f"{self._map_type_to_dart(self._get(p, 'type'))} {self._get(p, 'name', 'x')}"
                 for p in params
             )
+            self._in_store_action = True
             body = self._gen_block_body_dart(self._get(action, "body"), set(signals.keys()))
+            self._in_store_action = False
             L.append(f"  void {aname}({pstr}) {{")
             for line in body.strip().split("\n"):
                 if line.strip():
