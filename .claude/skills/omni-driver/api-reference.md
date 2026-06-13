@@ -21,7 +21,7 @@
 
 | 方法 | 参数 | 返回值 |
 |------|------|--------|
-| `O.element(id)` | `string` | `ElementHandle \| null` |
+| `O.element(id)` | `string` | `ElementHandle` — 始终返回 handle，用 `.exists()` 检查是否存在 |
 | `O.findByTag(tag)` | `string` | `ElementHandle[]` |
 | `O.find(query)` | `ElementQuery` | `ElementHandle[]` |
 | `O.findByProp(prop, value)` | `string, unknown` | `ElementHandle[]` |
@@ -38,21 +38,21 @@ interface ElementQuery {
 ### 组件创建
 
 ```javascript
-// 通用创建 — 唯一支持 parentId 的方法
+// 通用创建 — 支持 parentId
 O.component("Button", { label: "Submit" }, parentId);
 //           tag       props                  parentId (可选)
 
-// 便捷方法 — 不支持 parentId
-O.button("Submit", { variant: "primary" });   // label, props
-O.text("Hello World");                        // content
-O.heading("Title", "1");                      // text, level
-O.container({ padding: "16px" });             // props
-O.input("Enter name...");                     // placeholder
-O.card({ padding: "12px" });                  // props
-O.flex("row", "16px");                        // direction, gap
-O.image("https://...", "Photo");              // src, alt
-O.list();                                     // 无参数
-O.alert("info", "注意");                       // type, message
+// 便捷方法 — 均支持可选的 parentId 作为最后一个参数
+O.button("Submit", { variant: "primary" }, parentId);   // label, props?, parentId?
+O.text("Hello World", {}, parentId);                    // content, props?, parentId?
+O.heading("Title", "1", parentId);                      // text, level?, parentId?
+O.container({ padding: "16px" }, parentId);             // props?, parentId?
+O.input("Enter name...", {}, parentId);                 // placeholder?, props?, parentId?
+O.card({ padding: "12px" }, parentId);                  // props?, parentId?
+O.flex("row", "16px", {}, parentId);                    // direction?, gap?, props?, parentId?
+O.image("https://...", "Photo", parentId);              // src, alt?, parentId?
+O.list(parentId);                                       // parentId?
+O.alert("info", "注意", parentId);                       // type?, label?, parentId?
 ```
 
 ### 代码块创建
@@ -158,6 +158,10 @@ O.removeElement(id); // 删除单个元素
 ```javascript
 const el = O.element("some-id");
 
+// 存在与文本
+el.exists();                  // boolean — 元素是否在 store 中存在
+el.text();                    // string — 显示文本（回退: label → text → placeholder → ""）
+
 // 属性
 el.setProp(prop, value);      // 设置属性
 el.getProp(prop);             // 读取属性
@@ -181,12 +185,13 @@ await el.waitForLive(timeout);  // 轮询等待元素出现在 store 中
 ```
 
 **没有的方法（常见错误）：**
-- ❌ `el.textContent()` → 用 `el.getProp("label")`
-- ❌ `el.exists()` → 用 `el.data !== undefined`
+- ❌ `el.textContent()` → 用 `el.text()`
+- ❌ `el.innerText()` → 用 `el.text()`
+- ❌ `el.exists()` → ✅ 已内置，直接用 `el.exists()`
 - ❌ `el.isVisible()` → 不存在
 - ❌ `el.waitForSelector()` → 用 `O.waitForElement()`
 - ❌ `el.count()` → 用 `O.findByTag("tag").length`
-- ❌ `el.children = [...]` / `el.children.push(...)` → `children()` 是只读 getter，只能用 `parentId` 建立父子关系
+- ❌ `el.children = [...]` / `el.children.push(...)` → `children()` 是只读 getter，用 `parentId` 建立父子关系
 
 ---
 

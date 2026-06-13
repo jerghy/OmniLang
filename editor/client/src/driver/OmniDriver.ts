@@ -101,12 +101,27 @@ class ElementHandle {
     return new WireHandle(wireId, this._driver);
   }
 
-  /** Get child elements. */
+  /** Check if this element still exists in the store. */
+  exists(): boolean {
+    return this.data !== undefined;
+  }
+
+  /** Get the display text of this element (label or text prop). */
+  text(): string {
+    const d = this.data;
+    if (!d) return "";
+    return String(
+      (d.props as Record<string, unknown>)["label"] ||
+      (d.props as Record<string, unknown>)["text"] ||
+      (d.props as Record<string, unknown>)["placeholder"] ||
+      ""
+    );
+  }
+
+  /** Get child elements (READ-ONLY — use `parentId` on creation to set parent). */
   children(): ElementHandle[] {
     const d = this._require();
-    return d.children
-      .map((cid) => this._driver.element(cid))
-      .filter((h): h is ElementHandle => h !== null);
+    return d.children.map((cid) => this._driver.element(cid));
   }
 
   /** Get the parent element, if any. */
@@ -292,8 +307,18 @@ class OmniDriver {
     return this._store().elements;
   }
 
+  /** Alias for getElements() — all elements on the canvas. */
+  get elements(): ElementData[] {
+    return this._store().elements;
+  }
+
   /** Get all wires currently on the canvas. */
   getWires(): WireData[] {
+    return this._store().wires;
+  }
+
+  /** Alias for getWires() — all wires on the canvas. */
+  get wires(): WireData[] {
     return this._store().wires;
   }
 
@@ -315,10 +340,10 @@ class OmniDriver {
 
   // ── Element Handles (Locator Pattern) ─────────────
 
-  /** Get a handle for a specific element by ID. Returns null if not found. */
-  element(id: string): ElementHandle | null {
-    const el = this._store().elements.find((e) => e.id === id);
-    return el ? new ElementHandle(id, this) : null;
+  /** Get a handle for a specific element by ID.
+   *  Always returns an ElementHandle — use exists() or waitForLive() to check if the element is in the store. */
+  element(id: string): ElementHandle {
+    return new ElementHandle(id, this);
   }
 
   /** Find all elements matching the given tag. */
@@ -402,14 +427,17 @@ class OmniDriver {
 
     this._store().addElement(el);
 
-    // If parent specified, add this to parent's children
+    // If parent specified, add this to parent's children array
     if (parentId) {
       const parent = this._store().elements.find((e) => e.id === parentId);
       if (parent) {
-        this._store().setProp(parentId, "children", [
-          ...parent.children,
-          id,
-        ] as any);
+        useEditorStore.setState({
+          elements: useEditorStore.getState().elements.map((e) =>
+            e.id === parentId
+              ? { ...e, children: [...e.children, id] }
+              : e,
+          ),
+        });
       }
     }
 
@@ -467,53 +495,53 @@ class OmniDriver {
   }
 
   /** Convenience: add a Button component. */
-  button(label: string, props?: Record<string, unknown>): ElementHandle {
-    return this.component("Button", { label, ...props });
+  button(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Button", { label, ...props }, parentId);
   }
 
   /** Convenience: add a Text component. */
-  text(label: string, props?: Record<string, unknown>): ElementHandle {
-    return this.component("Text", { label, ...props });
+  text(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Text", { label, ...props }, parentId);
   }
 
   /** Convenience: add a Heading component. */
-  heading(label: string, level = "1"): ElementHandle {
-    return this.component("Heading", { label, level });
+  heading(label: string, level = "1", parentId?: string | null): ElementHandle {
+    return this.component("Heading", { label, level }, parentId);
   }
 
   /** Convenience: add a Container component. */
-  container(props?: Record<string, unknown>): ElementHandle {
-    return this.component("Container", props);
+  container(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Container", props, parentId);
   }
 
   /** Convenience: add an Input component. */
-  input(placeholder?: string, props?: Record<string, unknown>): ElementHandle {
-    return this.component("Input", { placeholder: placeholder || "", ...props });
+  input(placeholder?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Input", { placeholder: placeholder || "", ...props }, parentId);
   }
 
   /** Convenience: add a Card component. */
-  card(props?: Record<string, unknown>): ElementHandle {
-    return this.component("Card", props);
+  card(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Card", props, parentId);
   }
 
   /** Convenience: add a Flex component. */
-  flex(direction = "row", gap = "8px", props?: Record<string, unknown>): ElementHandle {
-    return this.component("Flex", { direction, gap, ...props });
+  flex(direction = "row", gap = "8px", props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    return this.component("Flex", { direction, gap, ...props }, parentId);
   }
 
   /** Convenience: add an Image component. */
-  image(src: string, alt = ""): ElementHandle {
-    return this.component("Image", { src, alt });
+  image(src: string, alt = "", parentId?: string | null): ElementHandle {
+    return this.component("Image", { src, alt }, parentId);
   }
 
   /** Convenience: add a List component. */
-  list(): ElementHandle {
-    return this.component("List");
+  list(parentId?: string | null): ElementHandle {
+    return this.component("List", undefined, parentId);
   }
 
   /** Convenience: add an Alert component. */
-  alert(type = "info", label = ""): ElementHandle {
-    return this.component("Alert", { type, label });
+  alert(type = "info", label = "", parentId?: string | null): ElementHandle {
+    return this.component("Alert", { type, label }, parentId);
   }
 
   /** Remove an element by ID. */

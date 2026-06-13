@@ -89,22 +89,33 @@ const result = await O.compile();
 
 | 操作 | 代码 | 注意 |
 |------|------|------|
-| 通用创建（可设 parentId） | `O.component("Button", props, parentId)` | **唯一**支持嵌套的方式 |
-| 便捷方法 | `O.button(label, props)`, `O.text(content)`, `O.heading(text, level)` | 不支持 parentId |
+| 通用创建（可设 parentId） | `O.component("Button", props, parentId)` | parentId 可选 |
+| 便捷方法（均支持 parentId） | `O.button(label, props, parentId)` | 最后一个参数可选 |
 | 代码块 | `O.codeBlock("signal", "name", { source, parentStore })` | 预置端口定义 |
 
-### 嵌套子元素（重要！）
+### 嵌套子元素
 
 ```javascript
-// ✅ CORRECT: 用 component() 传 parentId
+// ✅ 所有方法都支持 parentId 参数
 const card = O.card({ padding: "16px" });
-const btn = O.component("Button", { label: "Click" }, card.id);
+const btn = O.button("Click", { variant: "primary" }, card.id); // parentId 作为最后一个参数
+const h1 = O.heading("Title", "1", card.id);
 
 // ❌ WRONG: children() 是只读的
-card.children([btn]); // 无效!
+card.children = [btn]; // 无效!
 
 // ❌ WRONG: connectTo() 是数据流，不是布局嵌套
 btn.connectTo(card);  // 创建的是端口连线，不是父子关系!
+```
+
+### 元素存在与文本
+
+```javascript
+// 检查元素是否存在（推荐方式）
+el.exists();    // boolean — 类似于 Playwright locator.count() > 0
+
+// 获取显示文本（自动回退到 label → text → placeholder）
+el.text();      // string — 类似于 Playwright locator.textContent()
 ```
 
 ### 查找与等待
@@ -197,9 +208,9 @@ O.getComponentInfo("Button"); // 单个组件的详细信息
 | `compile()` 后程序化创建的元素消失了 | `compile()` 从 `.omni` 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
 | 用 `"onPress"` 做端口名连线 | 事件端口是 UUID `"evt-btn-press-001"` | 用 `createEventHandler()` 或查 UUID 表 |
 | 期望 `getSourceCode()` 返回程序化创建的元素 | `getSourceCode()` 返回 `activeFileContent`，不反映 Store | 用 `getElements()` / `getState()` 读 Store |
-| 用 `el.textContent()` 读文本 | OmniDriver 不是 DOM API，没有这个方法 | 用 `el.getProp("label")` |
-| 用 `el.exists()` 检查存在 | 没有这个方法 | 用 `el.data !== undefined` 或 `waitForLive()` |
-| 便捷方法传 `parentId` | `O.button()` 等便捷方法不支持 parentId 参数 | 用 `O.component()` 通用方法 |
+| 用 `el.textContent()` 读文本 | OmniDriver 不是 DOM API | 用 `el.text()` |
+| 用 `el.exists()` 检查存在 | ✅ 已内置 `el.exists()` 方法 | 直接用 `el.exists()` |
+| 便捷方法传 `parentId` | ✅ 已支持！所有便捷方法最后一个参数可选 `parentId` | `O.button("X", {}, cardId)` |
 | 以为 `clearAll()` 会清除源文件内容 | `clearAll()` 只清 Store (elements+wires+selection) | 用 `setSourceCode("")` 清源文件 |
 
 ## Error Handling
