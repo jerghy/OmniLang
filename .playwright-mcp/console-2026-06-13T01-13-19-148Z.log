@@ -1,0 +1,4 @@
+[    4579ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   11676ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   18565ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   25082ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8

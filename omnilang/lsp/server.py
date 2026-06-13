@@ -72,6 +72,96 @@ BUILTIN_TYPE_DOCS = {
     "null":      "Null / absence of value",
 }
 
+# ── OmniView-specific completion data ────────────────────
+
+OMNIVIEW_KEYWORDS = [
+    ("component", "component Name { ... }", 14),
+    ("store", "store Name { ... }", 14),
+    ("theme", "theme { ... }", 14),
+    ("signal", "signal name: Type = value;", 14),
+    ("prop", "prop name: Type;", 14),
+    ("computed", "computed name: Type = expr;", 14),
+    ("event", "event name: Type;", 14),
+    ("ref", "ref name: Type;", 14),
+    ("getter", "getter name: Type = expr;", 14),
+    ("action", "action name(params) { ... }", 14),
+    ("view", "view { ... }", 14),
+    ("style", "style { ... }", 14),
+    ("let", "let name: Type = value;", 14),
+    ("mut", "mut — mutable binding modifier", 14),
+    ("fn", "fn name(params) -> Type { ... }", 14),
+    ("import", 'import omniview; | import { X } from "./path";', 14),
+    ("async", "async fn/action name(...) { ... }", 14),
+]
+
+OMNIVIEW_DIRECTIVES = [
+    ("@store", "@store StoreName; — inject a store into this component", 14),
+    ("@if", "@if condition { ... } — conditional rendering", 14),
+    ("@else", "@else { ... } | @else if condition { ... }", 14),
+    ("@for", "@for item in iterable { ... } — list rendering", 14),
+    ("@empty", "@empty { ... } — fallback when @for iterable is empty", 14),
+    ("@mount", "@mount { ... } — lifecycle: runs after component mounts", 14),
+    ("@unmount", "@unmount { ... } — lifecycle: runs before component unmounts", 14),
+    ("@effect", "@effect(name) { ... } — runs when dependencies change", 14),
+    ("@slot", "@slot [name=\"name\"] — slot definition", 14),
+    ("@native", "@native(target) { code } — target-specific raw code", 14),
+    ("@fallback", "@fallback { ... } — fallback content", 14),
+    ("@error", "@error(name) { ... } — error boundary content", 14),
+]
+
+OMNIVIEW_ELEMENT_TAGS = [
+    ("Container", "div — abstract container element", 7),
+    ("Flex", "div with display:flex — flexbox container", 7),
+    ("Grid", "div with display:grid — grid container", 7),
+    ("Stack", "div — stacked layout container", 7),
+    ("Spacer", "div — flexible spacer", 7),
+    ("Text", "span — inline text element", 7),
+    ("Heading", "h1-h6 — heading text element (use level prop)", 7),
+    ("Image", "img — image element", 7),
+    ("Link", "a — hyperlink element", 7),
+    ("Divider", "hr — horizontal divider", 7),
+    ("Button", "button — clickable button", 7),
+    ("Input", "input — text input field", 7),
+    ("TextArea", "textarea — multi-line text input", 7),
+    ("Checkbox", "input[type=checkbox] — checkbox input", 7),
+    ("Select", "select — dropdown select", 7),
+    ("List", "ul — unordered list", 7),
+    ("ListItem", "li — list item", 7),
+    ("Card", "div — card container", 7),
+    ("Alert", "div — alert/notification container", 7),
+    ("Form", "form — form container", 7),
+    ("Spinner", "div — loading spinner", 7),
+    ("Progress", "progress — progress bar", 7),
+]
+
+OMNIVIEW_ELEMENT_PROPS = [
+    ("bind:value", 'bind:value={signalName} — two-way binding for text input', 10),
+    ("bind:checked", 'bind:checked={signalName} — two-way binding for checkbox', 10),
+    ("key", 'key={expr} — unique key for @for list items', 10),
+    ("ref", 'ref={refName} — DOM element reference', 10),
+    ("class", 'class={style.className} | class="raw-css" — CSS class binding', 10),
+    ("style", 'style={{color: "red", flex: 1}} — inline style object', 10),
+    ("test-id", 'test-id="name" — testing attribute', 10),
+    ("onPress", "onPress={handler} — click event handler", 10),
+    ("onChange", "onChange={handler} — change event handler", 10),
+    ("onSubmit", "onSubmit={handler} — form submit handler", 10),
+    ("onFocus", "onFocus={handler} — focus event handler", 10),
+    ("onBlur", "onBlur={handler} — blur event handler", 10),
+    ("onHover", "onHover={handler} — mouse enter handler", 10),
+    ("onLeave", "onLeave={handler} — mouse leave handler", 10),
+    ("placeholder", 'placeholder="text" — input placeholder', 10),
+    ("level", 'level="1"|"2"|"3" — Heading level', 10),
+    ("direction", 'direction="row"|"column" — Flex direction', 10),
+    ("gap", 'gap="8px" — spacing between flex/grid children', 10),
+    ("align", 'align="start"|"center"|"end" — cross-axis alignment', 10),
+    ("justify", 'justify="start"|"center"|"end"|"between" — main-axis alignment', 10),
+]
+
+# LSP CompletionItemKind values: 1=Text, 2=Method, 3=Function, 4=Constructor,
+# 5=Field, 6=Variable, 7=Class, 8=Interface, 9=Module, 10=Property,
+# 11=Unit, 12=Value, 13=Enum, 14=Keyword, 15=Snippet, 16=Color, 17=File,
+# 18=Reference, 19=Folder, 20=EnumMember, 21=Constant, 22=Struct, 23=Event, 24=Operator, 25=TypeParameter
+
 # ── Helpers ─────────────────────────────────────────────
 
 def _pos_in_span(line: int, col: int, span) -> bool:
@@ -281,12 +371,40 @@ def _make_lsp_location(uri: str, start_line: int, start_col: int, end_line: int,
 # ── Server ──────────────────────────────────────────────
 
 class OmniLangServer:
-    """LSP server for OmniLang language support."""
+    """LSP server for OmniLang and OmniView language support."""
 
     def __init__(self):
         self.workspace_roots: list[str] = []
         self.documents: dict[str, str] = {}       # uri -> source text
         self.document_asts: dict[str, Program] = {}  # uri -> parsed AST
+        self.document_types: dict[str, str] = {}     # uri -> "omnilang" | "omniview"
+
+    def _is_omniview_file(self, uri: str) -> bool:
+        """Detect if a file is an OmniView .omni file."""
+        if uri.endswith('.omni'):
+            return True
+        # Also detect by content: has import omniview or OmniView keywords
+        source = self.documents.get(uri, '')
+        if source:
+            omni_keywords = ("component ", "store ", "view {", "@if", "@for",
+                           "signal ", "computed ", "import omniview")
+            if any(kw in source for kw in omni_keywords):
+                return True
+        return False
+
+    def _parse_omniview(self, source: str, uri: str = "") -> Program | None:
+        """Parse OmniView .omni source using the OmniView pipeline."""
+        from omniview.preprocessor import preprocess
+        from omnilang.lexer import create_omniview_parser
+        from omniview.parser import OmniViewTransformer
+        try:
+            pp = preprocess(source)
+            parser = create_omniview_parser()
+            tree = parser.parse(pp.processed_source)
+            transformer = OmniViewTransformer(block_map=pp.blocks)
+            return transformer.transform(tree)
+        except Exception:
+            return None
 
     def start(self):
         """Start the LSP server on stdio."""
@@ -333,15 +451,87 @@ class OmniLangServer:
         # Unknown method — ignore
 
     def _get_or_parse(self, uri: str) -> Program | None:
-        """Get cached AST or parse the document."""
+        """Get cached AST or parse the document. Auto-detects OmniView files."""
         if uri not in self.documents:
             return None
         if uri not in self.document_asts:
             try:
-                self.document_asts[uri] = parse(self.documents[uri], filename=uri)
+                if self._is_omniview_file(uri):
+                    self.document_types[uri] = "omniview"
+                    ast = self._parse_omniview(self.documents[uri], uri)
+                    if ast is None:
+                        return None
+                    # Wrap OmniView Program as OmniLang-compatible AST
+                    self.document_asts[uri] = self._wrap_omniview_ast(ast)
+                else:
+                    self.document_types[uri] = "omnilang"
+                    self.document_asts[uri] = parse(self.documents[uri], filename=uri)
             except Exception:
                 return None
         return self.document_asts[uri]
+
+    def _wrap_omniview_ast(self, prog) -> Program:
+        """Wrap an OmniView Program so it can be used by OmniLang's LSP helpers.
+
+        Creates a synthetic OmniLang Program with component/store names as
+        function-like symbols for hover and go-to-definition support.
+        """
+        from omnilang.ast_nodes import (
+            Program as OmniProgram, FunctionDef as OmniFnDef,
+            TypeAnnotation as OmniType, Block as OmniBlock, Param as OmniParam,
+        )
+
+        functions = []
+
+        for comp in getattr(prog, 'components', []):
+            comp_name = getattr(comp, 'name', 'Unknown')
+            func = OmniFnDef(
+                name=comp_name,
+                params=[OmniParam(name=p.name, type_ann=p.type) for p in getattr(comp, 'props', [])],
+                return_type=OmniType(name="Component"),
+                body=OmniBlock(stmts=[]),
+                is_async=False,
+                span=getattr(comp, 'span', None),
+            )
+            functions.append(func)
+
+            # Component fns as function declarations
+            for fn in getattr(comp, 'fns', []):
+                func = OmniFnDef(
+                    name=fn.name,
+                    params=[OmniParam(name=p.name, type_ann=getattr(p, 'type', None))
+                            for p in getattr(fn, 'params', [])],
+                    return_type=getattr(fn, 'return_type', None),
+                    body=getattr(fn, 'body', OmniBlock(stmts=[])),
+                    is_async=getattr(fn, 'is_async', False),
+                    span=getattr(fn, 'span', None),
+                )
+                functions.append(func)
+
+        for store in getattr(prog, 'stores', []):
+            store_name = getattr(store, 'name', 'Unknown')
+            for action in getattr(store, 'actions', []):
+                act_name = f"{store_name}.{action.name}"
+                func = OmniFnDef(
+                    name=act_name,
+                    params=[OmniParam(name=p.name, type_ann=getattr(p, 'type', None))
+                            for p in getattr(action, 'params', [])],
+                    return_type=getattr(action, 'return_type', None),
+                    body=getattr(action, 'body', OmniBlock(stmts=[])),
+                    is_async=getattr(action, 'is_async', False),
+                    span=getattr(action, 'span', None),
+                )
+                functions.append(func)
+
+        return OmniProgram(
+            functions=functions,
+            structs=[],
+            tagged_unions=[],
+            classes=[],
+            imports=[],
+            exports=[],
+            lib_imports=list(getattr(prog, 'lib_imports', [])),
+        )
 
     def _invalidate_ast(self, uri: str):
         """Clear cached AST for a document on change."""
@@ -615,27 +805,71 @@ class OmniLangServer:
     # ── textDocument/completion ──────────────────────
 
     def _handle_completion(self, msg: dict):
-        """Return basic keyword completions."""
-        items = []
-        for kw in KEYWORDS:
-            detail = KEYWORD_DETAILS.get(kw, "")
-            insert_text = kw
-            # Determine kind (14 = Keyword, 1 = Text in LSP)
-            items.append({
-                "label": kw,
-                "kind": 14,         # CompletionItemKind.Keyword
-                "detail": detail,
-                "insertText": insert_text,
-            })
+        """Return keyword completions (OmniLang or OmniView based on file type)."""
+        params = msg.get("params", {})
+        td = params.get("textDocument", {})
+        uri = td.get("uri", "")
+        is_omniview = self.document_types.get(uri) == "omniview"
 
-        # Add built-in types
-        for type_name in BUILTIN_TYPE_DOCS:
-            items.append({
-                "label": type_name,
-                "kind": 9,          # CompletionItemKind.Struct
-                "detail": BUILTIN_TYPE_DOCS[type_name],
-                "insertText": type_name,
-            })
+        items = []
+
+        if is_omniview:
+            # OmniView-specific completions
+            for kw, detail, kind in OMNIVIEW_KEYWORDS:
+                items.append({
+                    "label": kw,
+                    "kind": kind,
+                    "detail": detail,
+                    "insertText": kw,
+                })
+            for kw, detail, kind in OMNIVIEW_DIRECTIVES:
+                items.append({
+                    "label": kw,
+                    "kind": kind,
+                    "detail": detail,
+                    "insertText": kw[1:] if kw.startswith("@") else kw,
+                })
+            for tag, detail, kind in OMNIVIEW_ELEMENT_TAGS:
+                items.append({
+                    "label": tag,
+                    "kind": kind,
+                    "detail": detail,
+                    "insertText": tag,
+                })
+            for prop, detail, kind in OMNIVIEW_ELEMENT_PROPS:
+                items.append({
+                    "label": prop,
+                    "kind": kind,
+                    "detail": detail,
+                    "insertText": prop,
+                })
+            # Also include basic OmniLang keywords
+            for kw in KEYWORDS:
+                detail = KEYWORD_DETAILS.get(kw, "")
+                items.append({
+                    "label": kw,
+                    "kind": 14,
+                    "detail": detail,
+                    "insertText": kw,
+                })
+        else:
+            # Pure OmniLang completions
+            for kw in KEYWORDS:
+                detail = KEYWORD_DETAILS.get(kw, "")
+                items.append({
+                    "label": kw,
+                    "kind": 14,
+                    "detail": detail,
+                    "insertText": kw,
+                })
+            # Add built-in types
+            for type_name in BUILTIN_TYPE_DOCS:
+                items.append({
+                    "label": type_name,
+                    "kind": 9,
+                    "detail": BUILTIN_TYPE_DOCS[type_name],
+                    "insertText": type_name,
+                })
 
         self._send_result(msg.get("id"), {
             "isIncomplete": False,

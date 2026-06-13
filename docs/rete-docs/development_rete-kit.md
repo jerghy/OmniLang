@@ -1,0 +1,114 @@
+# Rete Kit
+
+> Source: [https://retejs.org/docs/development/rete-kit](https://retejs.org/docs/development/rete-kit)
+
+# Rete Kit
+
+[Rete Kit](https://github.com/retejs/rete-kit)[Angular](https://angular.io/)[Vue.js](https://vuejs.org/)[React.js](https://react.dev/)[Vite.js](https://vitejs.dev/)[Svelte](https://svelte.dev/)[Lit](https://lit.dev/)[Next.js](https://nextjs.org/)[Nuxt](https://nuxt.com/)
+
+Architecture
+The purpose of this tool is to improve efficiency when developing plugins or projects using this framework.
+
+It offers the following features:
+
+- **Plugin creating**: use this feature to create a basic plugin structure instantly, without the need for setting up a build system, linter, or test runner
+- **Application creation**: choose the framework to build your application, specify the version and desired features and get a ready-to-use application to jumpstart your development process
+- **Batch build**: select copies of repositories containing the source code of the plugins being developed and this tool will start building them in a watch mode, as well as synchronizing their dependencies
+- **AI assistance**: generate context-aware instructions for AI-powered code editors to get intelligent help when learning or developing with Rete.js. See the AI Assistance documentation for details
+
+## Install
+
+```
+bashnpm i -g rete-kit
+
+```
+
+## Create an application
+
+Inquirer mode
+
+```
+bashrete-kit app
+
+```
+
+Or, you can specify the options
+
+```
+bashrete-kit app --name <name> --stack <stack> --stack-version <version> --features <features> --deps-alias <deps-alias>
+
+```
+
+where
+
+- `<stack>` option lets you choose `angular`, `vue`, `vue-vite`, `react`, `react-vite`, `svelte`, `lit-vite`, `vite`, `next` or `nuxt`
+- `<features>` is a comma-separated list of the Rete.js editor features
+- `<deps-alias>` is a JSON file that maps dependencies. By default, it installs the latest version from npmjs, but you can specify a different version using the format `name@version` or a path to the tarball
+
+Additionally, re-executing the command with the same `name`, `stack`, and `stack-version` options enables you to apply supplementary features without having to recreate the application.
+
+After completion, you will have a directory with an application that can usually be started using the command `npm run start` (depending on the stack). When opening the application, you can to specifying a query parameter `template` in the URL with the following values:
+
+- `default`: default, a classic graph with dataflow example
+- `perf`: a graph with a large number of nodes, which can be adjusted using `cols` and `rows` parameters
+- `customization`: custom nodes and connections specific for each render plugin
+- `3d`: three.js-based scene with an integrated editor using rete-area-3d-plugin.
+
+For instance, an Angular customization template can be available at [http://localhost:4200/?template=customization](http://localhost:4200/?template=customization).
+
+## Plugin creation
+
+You can easily create a plugin within your codebase by following the example of other plugins and extending `Scope`, without the need to build it as a separate package.
+
+In case you want to develop a plugin as a separate package, use this command:
+
+```
+bashrete-kit plugin --name <plugin name>
+
+```
+
+where `<plugin name>` is a string that will be transformed into different formats and used in the templates, such as `rete.config.ts` and the `package.json` name.
+
+The generated plugin includes all the essential configs, allowing you to start working with the source code immediately.
+
+## Building dependencies for development
+
+Developing modules that are separated into different packages is a challenging process. In contrast to a single codebase where the build system can detect changes in the directory and apply hot reload, developers need to manually set up the build of each dependency they work on and insert the changes into the project.
+
+Basically, `npm link` and a bash scripts can be used to build required modules in watch mode. However, `npm link` has certain limitations that might not be immediately noticeable. These limitations can stem from the shared dependencies of the project and the dependencies we're working on.
+
+The `rete-kit build` command was created to address such issues. It has two modes:
+
+- **building all project dependencies**: specify your project's path. The tool scans the current directory recursively (up to two levels deep) for repositories that contain the `rete` dependency. In the watch mode, it directly builds them into the `node_modules` directory where they are used
+
+```
+bashrete-kit build --for ./my-project
+
+```
+
+- **performing a build of specific directories**: specify the directories containing the source code for dependencies that should be included during the build process using `--folders` option. Similar to the first mode, the resulting build will be inserted into the `node_modules` directory of the target
+
+```
+bashrete-kit build --folders my-plugin-1,my-plugin-1,my-project
+
+```
+
+Please note that to use the hot reload feature to its fullest, you will need to disable the cache for the relevant dependencies. Otherwise, any changes made will not be applied on the fly. To accomplish this in Webpack, you can specify `snapshot.managedPaths`. If the project still doesn't update, it may be necessary to manually clear the cache of compiled modules.
+
+## AI assistance
+
+Generate context-aware instructions for AI-powered code editors (Cursor, GitHub Copilot, Windsurf, etc.) to get intelligent help when learning or developing with Rete.js. Use your IDE's agent or command execution feature and simply ask your AI assistant:
+
+```
+promptRun npx rete-kit ai for [your intention]
+
+```
+
+Replace `[your intention]` with your actual goal, such as "learning Rete.js", "creating a new app", or "adding to my existing project". The AI agent will automatically determine the right options based on your intent.
+
+See the AI Assistance documentation for complete details.
+
+## Related Documentation
+
+- AI Assistance - Generate context-aware instructions for AI-powered code editors
+- Rete CLI - Build tool for plugin development

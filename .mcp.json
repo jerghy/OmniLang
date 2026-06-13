@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "flutter-skill": {
+      "type": "stdio",
+      "command": "flutter-skill",
+      "args": [
+        "server"
+      ],
+      "env": {}
+    }
+  }
+}

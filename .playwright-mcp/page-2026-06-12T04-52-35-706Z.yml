@@ -1,0 +1,810 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic: 文件
+      - generic: .omni
+      - generic [ref=e26] [cursor=pointer]: 📄 dashboard.omni
+      - generic [ref=e27] [cursor=pointer]: 📄 form-app.omni
+      - generic [ref=e28] [cursor=pointer]: 📄 pure-logic.omni
+      - generic [ref=e29] [cursor=pointer]: 📄 style-showcase.omni
+      - generic [ref=e30] [cursor=pointer]: 📄 todo-app.omni
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: OmniLang Editor
+      - generic [ref=e10]: omniview/examples
+      - button "Compile (Ctrl+Enter)" [ref=e11] [cursor=pointer]
+    - generic [ref=e13]:
+      - textbox [ref=e31]: "import omniview; // ── Todo Store ──────────────────────────────────────── store TodoStore { signal tasks: Array<String> = []; signal completed: Array<String> = []; signal next_id: i32 = 1; getter active_count: i32 = tasks.length; getter done_count: i32 = completed.length; getter total_count: i32 = tasks.length + completed.length; action add_task(text: String) { tasks = [...tasks, text]; } action complete_task(text: String) { completed = [...completed, text]; } action uncomplete_task(text: String) { tasks = [...tasks, text]; } action remove_task(text: String) { // simplified: just mark as done } action clear_completed() { completed = []; } } // ── Todo App Component ───────────────────────────────── component TodoApp { @store TodoStore; signal input_text: String = \"\"; signal filter: String = \"all\"; fn handle_add() { if input_text != \"\" { store.add_task(input_text); input_text = \"\"; } } fn handle_complete(text: String) { store.complete_task(text); } fn handle_restore(text: String) { store.uncomplete_task(text); } fn handle_clear_done() { store.clear_completed(); } fn show_all() { filter = \"all\"; } fn show_active() { filter = \"active\"; } fn show_done() { filter = \"done\"; } view { <Container> <Heading level=\"1\" test-id=\"app-title\">OmniLang Todo</Heading> <Flex direction=\"row\" gap=\"8px\"> <Input bind:value={input_text} placeholder=\"What needs to be done?\" test-id=\"todo-input\" /> <Button onPress={handle_add} test-id=\"btn-add\">Add</Button> </Flex> <Flex direction=\"row\" gap=\"8px\" test-id=\"filter-bar\"> <Button onPress={show_all} test-id=\"filter-all\">All ({store.total_count})</Button> <Button onPress={show_active} test-id=\"filter-active\">Active ({store.active_count})</Button> <Button onPress={show_done} test-id=\"filter-done\">Done ({store.done_count})</Button> </Flex> <List test-id=\"task-list\"> @if filter == \"all\" || filter == \"active\" { @for task in store.tasks { <ListItem key={task} test-id=\"task-item\"> <Flex direction=\"row\" gap=\"8px\" align=\"center\"> <Button onPress={fn() { handle_complete(task); }} test-id=\"btn-complete\">✓</Button> <Text test-id=\"task-text\">{task}</Text> </Flex> </ListItem> } } @if filter == \"all\" || filter == \"done\" { @for task in store.completed { <ListItem key={task} test-id=\"done-item\"> <Flex direction=\"row\" gap=\"8px\" align=\"center\"> <Button onPress={fn() { handle_restore(task); }} test-id=\"btn-restore\">↩</Button> <Text test-id=\"done-text\" style={{text_decoration: \"line-through\"}}>{task}</Text> </Flex> </ListItem> } } @if store.total_count == 0 { <Text test-id=\"empty-message\">No tasks yet. Add one above!</Text> } </List> @if store.done_count > 0 { <Flex direction=\"row\" gap=\"16px\" test-id=\"footer\"> <Text test-id=\"summary\">{store.active_count} active, {store.done_count} done</Text> <Button onPress={handle_clear_done} test-id=\"btn-clear-done\">Clear Done</Button> </Flex> } </Container> } style { .container { layout: column; gap: 16px; padding: 24px; max_width: 600px; } .heading { font_size: 28px; font_weight: bold; color: #1a1a2e; } .task_text { font_size: 16px; } .done_text { font_size: 16px; color: #999999; } } }"
+      - generic [ref=e34]:
+        - generic [ref=e35]: OmniLang Todo
+        - heading "OmniLang Todo" [level=2] [ref=e36]
+        - textbox "What needs to be done?" [ref=e37]: "{bind:input_text}"
+        - generic [ref=e38]: Add
+        - button "Add" [ref=e39] [cursor=pointer]
+        - generic [ref=e40]:
+          - textbox "What needs to be done?" [ref=e41]: "{bind:input_text}"
+          - generic [ref=e42]: Add
+          - button "Add" [ref=e43] [cursor=pointer]
+        - generic [ref=e44]: All (
+        - generic [ref=e45]: "{store.total_count}"
+        - generic [ref=e46]: )
+        - 'button "All ({store.total_count})" [ref=e47] [cursor=pointer]'
+        - generic [ref=e48]: Active (
+        - generic [ref=e49]: "{store.active_count}"
+        - generic [ref=e50]: )
+        - 'button "Active ({store.active_count})" [ref=e51] [cursor=pointer]'
+        - generic [ref=e52]: Done (
+        - generic [ref=e53]: "{store.done_count}"
+        - generic [ref=e54]: )
+        - 'button "Done ({store.done_count})" [ref=e55] [cursor=pointer]'
+        - generic [ref=e56]:
+          - generic [ref=e57]: All (
+          - generic [ref=e58]: "{store.total_count}"
+          - generic [ref=e59]: )
+          - 'button "All ({store.total_count})" [ref=e60] [cursor=pointer]'
+          - generic [ref=e61]: Active (
+          - generic [ref=e62]: "{store.active_count}"
+          - generic [ref=e63]: )
+          - 'button "Active ({store.active_count})" [ref=e64] [cursor=pointer]'
+          - generic [ref=e65]: Done (
+          - generic [ref=e66]: "{store.done_count}"
+          - generic [ref=e67]: )
+          - 'button "Done ({store.done_count})" [ref=e68] [cursor=pointer]'
+        - generic [ref=e69]: ✓
+        - button "✓" [ref=e70] [cursor=pointer]
+        - generic [ref=e71]: "{task}"
+        - generic [ref=e72]: "{task}"
+        - generic [ref=e73]:
+          - generic [ref=e74]: ✓
+          - button "✓" [ref=e75] [cursor=pointer]
+          - generic [ref=e76]: "{task}"
+          - generic [ref=e77]: "{task}"
+        - listitem [ref=e78]:
+          - text: ✓
+          - button "✓" [ref=e79] [cursor=pointer]
+          - text: "{task}"
+          - generic [ref=e80]: "{task}"
+          - generic [ref=e81]:
+            - generic [ref=e82]: ✓
+            - button "✓" [ref=e83] [cursor=pointer]
+            - generic [ref=e84]: "{task}"
+            - generic [ref=e85]: "{task}"
+        - generic [ref=e86]:
+          - generic [ref=e87]: ✓
+          - button "✓" [ref=e88] [cursor=pointer]
+          - generic [ref=e89]: "{task}"
+          - generic [ref=e90]: "{task}"
+          - generic [ref=e91]:
+            - generic [ref=e92]: ✓
+            - button "✓" [ref=e93] [cursor=pointer]
+            - generic [ref=e94]: "{task}"
+            - generic [ref=e95]: "{task}"
+          - listitem [ref=e96]:
+            - text: ✓
+            - button "✓" [ref=e97] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e98]: "{task}"
+            - generic [ref=e99]:
+              - generic [ref=e100]: ✓
+              - button "✓" [ref=e101] [cursor=pointer]
+              - generic [ref=e102]: "{task}"
+              - generic [ref=e103]: "{task}"
+        - generic [ref=e104]:
+          - generic [ref=e105]: ✓
+          - button "✓" [ref=e106] [cursor=pointer]
+          - generic [ref=e107]: "{task}"
+          - generic [ref=e108]: "{task}"
+          - generic [ref=e109]:
+            - generic [ref=e110]: ✓
+            - button "✓" [ref=e111] [cursor=pointer]
+            - generic [ref=e112]: "{task}"
+            - generic [ref=e113]: "{task}"
+          - listitem [ref=e114]:
+            - text: ✓
+            - button "✓" [ref=e115] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e116]: "{task}"
+            - generic [ref=e117]:
+              - generic [ref=e118]: ✓
+              - button "✓" [ref=e119] [cursor=pointer]
+              - generic [ref=e120]: "{task}"
+              - generic [ref=e121]: "{task}"
+          - generic [ref=e122]:
+            - generic [ref=e123]: ✓
+            - button "✓" [ref=e124] [cursor=pointer]
+            - generic [ref=e125]: "{task}"
+            - generic [ref=e126]: "{task}"
+            - generic [ref=e127]:
+              - generic [ref=e128]: ✓
+              - button "✓" [ref=e129] [cursor=pointer]
+              - generic [ref=e130]: "{task}"
+              - generic [ref=e131]: "{task}"
+            - listitem [ref=e132]:
+              - text: ✓
+              - button "✓" [ref=e133] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e134]: "{task}"
+              - generic [ref=e135]:
+                - generic [ref=e136]: ✓
+                - button "✓" [ref=e137] [cursor=pointer]
+                - generic [ref=e138]: "{task}"
+                - generic [ref=e139]: "{task}"
+        - generic [ref=e140]: ↩
+        - button "↩" [ref=e141] [cursor=pointer]
+        - generic [ref=e142]: "{task}"
+        - generic [ref=e143]: "{task}"
+        - generic [ref=e144]:
+          - generic [ref=e145]: ↩
+          - button "↩" [ref=e146] [cursor=pointer]
+          - generic [ref=e147]: "{task}"
+          - generic [ref=e148]: "{task}"
+        - listitem [ref=e149]:
+          - text: ↩
+          - button "↩" [ref=e150] [cursor=pointer]
+          - text: "{task}"
+          - generic [ref=e151]: "{task}"
+          - generic [ref=e152]:
+            - generic [ref=e153]: ↩
+            - button "↩" [ref=e154] [cursor=pointer]
+            - generic [ref=e155]: "{task}"
+            - generic [ref=e156]: "{task}"
+        - generic [ref=e157]:
+          - generic [ref=e158]: ↩
+          - button "↩" [ref=e159] [cursor=pointer]
+          - generic [ref=e160]: "{task}"
+          - generic [ref=e161]: "{task}"
+          - generic [ref=e162]:
+            - generic [ref=e163]: ↩
+            - button "↩" [ref=e164] [cursor=pointer]
+            - generic [ref=e165]: "{task}"
+            - generic [ref=e166]: "{task}"
+          - listitem [ref=e167]:
+            - text: ↩
+            - button "↩" [ref=e168] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e169]: "{task}"
+            - generic [ref=e170]:
+              - generic [ref=e171]: ↩
+              - button "↩" [ref=e172] [cursor=pointer]
+              - generic [ref=e173]: "{task}"
+              - generic [ref=e174]: "{task}"
+        - generic [ref=e175]:
+          - generic [ref=e176]: ↩
+          - button "↩" [ref=e177] [cursor=pointer]
+          - generic [ref=e178]: "{task}"
+          - generic [ref=e179]: "{task}"
+          - generic [ref=e180]:
+            - generic [ref=e181]: ↩
+            - button "↩" [ref=e182] [cursor=pointer]
+            - generic [ref=e183]: "{task}"
+            - generic [ref=e184]: "{task}"
+          - listitem [ref=e185]:
+            - text: ↩
+            - button "↩" [ref=e186] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e187]: "{task}"
+            - generic [ref=e188]:
+              - generic [ref=e189]: ↩
+              - button "↩" [ref=e190] [cursor=pointer]
+              - generic [ref=e191]: "{task}"
+              - generic [ref=e192]: "{task}"
+          - generic [ref=e193]:
+            - generic [ref=e194]: ↩
+            - button "↩" [ref=e195] [cursor=pointer]
+            - generic [ref=e196]: "{task}"
+            - generic [ref=e197]: "{task}"
+            - generic [ref=e198]:
+              - generic [ref=e199]: ↩
+              - button "↩" [ref=e200] [cursor=pointer]
+              - generic [ref=e201]: "{task}"
+              - generic [ref=e202]: "{task}"
+            - listitem [ref=e203]:
+              - text: ↩
+              - button "↩" [ref=e204] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e205]: "{task}"
+              - generic [ref=e206]:
+                - generic [ref=e207]: ↩
+                - button "↩" [ref=e208] [cursor=pointer]
+                - generic [ref=e209]: "{task}"
+                - generic [ref=e210]: "{task}"
+        - generic [ref=e211]: No tasks yet. Add one above!
+        - generic [ref=e212]: No tasks yet. Add one above!
+        - generic [ref=e213]:
+          - generic [ref=e214]: No tasks yet. Add one above!
+          - generic [ref=e215]: No tasks yet. Add one above!
+        - list [ref=e216]:
+          - generic [ref=e217]: ✓
+          - button "✓" [ref=e218] [cursor=pointer]
+          - generic [ref=e219]: "{task}"
+          - generic [ref=e220]: "{task}"
+          - generic [ref=e221]:
+            - generic [ref=e222]: ✓
+            - button "✓" [ref=e223] [cursor=pointer]
+            - generic [ref=e224]: "{task}"
+            - generic [ref=e225]: "{task}"
+          - listitem [ref=e226]:
+            - text: ✓
+            - button "✓" [ref=e227] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e228]: "{task}"
+            - generic [ref=e229]:
+              - generic [ref=e230]: ✓
+              - button "✓" [ref=e231] [cursor=pointer]
+              - generic [ref=e232]: "{task}"
+              - generic [ref=e233]: "{task}"
+          - generic [ref=e234]:
+            - generic [ref=e235]: ✓
+            - button "✓" [ref=e236] [cursor=pointer]
+            - generic [ref=e237]: "{task}"
+            - generic [ref=e238]: "{task}"
+            - generic [ref=e239]:
+              - generic [ref=e240]: ✓
+              - button "✓" [ref=e241] [cursor=pointer]
+              - generic [ref=e242]: "{task}"
+              - generic [ref=e243]: "{task}"
+            - listitem [ref=e244]:
+              - text: ✓
+              - button "✓" [ref=e245] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e246]: "{task}"
+              - generic [ref=e247]:
+                - generic [ref=e248]: ✓
+                - button "✓" [ref=e249] [cursor=pointer]
+                - generic [ref=e250]: "{task}"
+                - generic [ref=e251]: "{task}"
+          - generic [ref=e252]:
+            - generic [ref=e253]: ✓
+            - button "✓" [ref=e254] [cursor=pointer]
+            - generic [ref=e255]: "{task}"
+            - generic [ref=e256]: "{task}"
+            - generic [ref=e257]:
+              - generic [ref=e258]: ✓
+              - button "✓" [ref=e259] [cursor=pointer]
+              - generic [ref=e260]: "{task}"
+              - generic [ref=e261]: "{task}"
+            - listitem [ref=e262]:
+              - text: ✓
+              - button "✓" [ref=e263] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e264]: "{task}"
+              - generic [ref=e265]:
+                - generic [ref=e266]: ✓
+                - button "✓" [ref=e267] [cursor=pointer]
+                - generic [ref=e268]: "{task}"
+                - generic [ref=e269]: "{task}"
+            - generic [ref=e270]:
+              - generic [ref=e271]: ✓
+              - button "✓" [ref=e272] [cursor=pointer]
+              - generic [ref=e273]: "{task}"
+              - generic [ref=e274]: "{task}"
+              - generic [ref=e275]:
+                - generic [ref=e276]: ✓
+                - button "✓" [ref=e277] [cursor=pointer]
+                - generic [ref=e278]: "{task}"
+                - generic [ref=e279]: "{task}"
+              - listitem [ref=e280]:
+                - text: ✓
+                - button "✓" [ref=e281] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e282]: "{task}"
+                - generic [ref=e283]:
+                  - generic [ref=e284]: ✓
+                  - button "✓" [ref=e285] [cursor=pointer]
+                  - generic [ref=e286]: "{task}"
+                  - generic [ref=e287]: "{task}"
+          - generic [ref=e288]: ↩
+          - button "↩" [ref=e289] [cursor=pointer]
+          - generic [ref=e290]: "{task}"
+          - generic [ref=e291]: "{task}"
+          - generic [ref=e292]:
+            - generic [ref=e293]: ↩
+            - button "↩" [ref=e294] [cursor=pointer]
+            - generic [ref=e295]: "{task}"
+            - generic [ref=e296]: "{task}"
+          - listitem [ref=e297]:
+            - text: ↩
+            - button "↩" [ref=e298] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e299]: "{task}"
+            - generic [ref=e300]:
+              - generic [ref=e301]: ↩
+              - button "↩" [ref=e302] [cursor=pointer]
+              - generic [ref=e303]: "{task}"
+              - generic [ref=e304]: "{task}"
+          - generic [ref=e305]:
+            - generic [ref=e306]: ↩
+            - button "↩" [ref=e307] [cursor=pointer]
+            - generic [ref=e308]: "{task}"
+            - generic [ref=e309]: "{task}"
+            - generic [ref=e310]:
+              - generic [ref=e311]: ↩
+              - button "↩" [ref=e312] [cursor=pointer]
+              - generic [ref=e313]: "{task}"
+              - generic [ref=e314]: "{task}"
+            - listitem [ref=e315]:
+              - text: ↩
+              - button "↩" [ref=e316] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e317]: "{task}"
+              - generic [ref=e318]:
+                - generic [ref=e319]: ↩
+                - button "↩" [ref=e320] [cursor=pointer]
+                - generic [ref=e321]: "{task}"
+                - generic [ref=e322]: "{task}"
+          - generic [ref=e323]:
+            - generic [ref=e324]: ↩
+            - button "↩" [ref=e325] [cursor=pointer]
+            - generic [ref=e326]: "{task}"
+            - generic [ref=e327]: "{task}"
+            - generic [ref=e328]:
+              - generic [ref=e329]: ↩
+              - button "↩" [ref=e330] [cursor=pointer]
+              - generic [ref=e331]: "{task}"
+              - generic [ref=e332]: "{task}"
+            - listitem [ref=e333]:
+              - text: ↩
+              - button "↩" [ref=e334] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e335]: "{task}"
+              - generic [ref=e336]:
+                - generic [ref=e337]: ↩
+                - button "↩" [ref=e338] [cursor=pointer]
+                - generic [ref=e339]: "{task}"
+                - generic [ref=e340]: "{task}"
+            - generic [ref=e341]:
+              - generic [ref=e342]: ↩
+              - button "↩" [ref=e343] [cursor=pointer]
+              - generic [ref=e344]: "{task}"
+              - generic [ref=e345]: "{task}"
+              - generic [ref=e346]:
+                - generic [ref=e347]: ↩
+                - button "↩" [ref=e348] [cursor=pointer]
+                - generic [ref=e349]: "{task}"
+                - generic [ref=e350]: "{task}"
+              - listitem [ref=e351]:
+                - text: ↩
+                - button "↩" [ref=e352] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e353]: "{task}"
+                - generic [ref=e354]:
+                  - generic [ref=e355]: ↩
+                  - button "↩" [ref=e356] [cursor=pointer]
+                  - generic [ref=e357]: "{task}"
+                  - generic [ref=e358]: "{task}"
+          - generic [ref=e359]: No tasks yet. Add one above!
+          - generic [ref=e360]: No tasks yet. Add one above!
+          - generic [ref=e361]:
+            - generic [ref=e362]: No tasks yet. Add one above!
+            - generic [ref=e363]: No tasks yet. Add one above!
+        - generic [ref=e364]: "{store.active_count}"
+        - generic [ref=e365]: active,
+        - generic [ref=e366]: "{store.done_count}"
+        - generic [ref=e367]: done
+        - generic [ref=e368]: "{store.active_count} active, {store.done_count} done"
+        - generic [ref=e369]: Clear Done
+        - button "Clear Done" [ref=e370] [cursor=pointer]
+        - generic [ref=e371]:
+          - generic [ref=e372]: "{store.active_count}"
+          - generic [ref=e373]: active,
+          - generic [ref=e374]: "{store.done_count}"
+          - generic [ref=e375]: done
+          - generic [ref=e376]: "{store.active_count} active, {store.done_count} done"
+          - generic [ref=e377]: Clear Done
+          - button "Clear Done" [ref=e378] [cursor=pointer]
+        - generic [ref=e379]:
+          - generic [ref=e380]: "{store.active_count}"
+          - generic [ref=e381]: active,
+          - generic [ref=e382]: "{store.done_count}"
+          - generic [ref=e383]: done
+          - generic [ref=e384]: "{store.active_count} active, {store.done_count} done"
+          - generic [ref=e385]: Clear Done
+          - button "Clear Done" [ref=e386] [cursor=pointer]
+          - generic [ref=e387]:
+            - generic [ref=e388]: "{store.active_count}"
+            - generic [ref=e389]: active,
+            - generic [ref=e390]: "{store.done_count}"
+            - generic [ref=e391]: done
+            - generic [ref=e392]: "{store.active_count} active, {store.done_count} done"
+            - generic [ref=e393]: Clear Done
+            - button "Clear Done" [ref=e394] [cursor=pointer]
+        - generic [ref=e395]:
+          - generic [ref=e396]: OmniLang Todo
+          - heading "OmniLang Todo" [level=2] [ref=e397]
+          - textbox "What needs to be done?" [ref=e398]: "{bind:input_text}"
+          - generic [ref=e399]: Add
+          - button "Add" [ref=e400] [cursor=pointer]
+          - generic [ref=e401]:
+            - textbox "What needs to be done?" [ref=e402]: "{bind:input_text}"
+            - generic [ref=e403]: Add
+            - button "Add" [ref=e404] [cursor=pointer]
+          - generic [ref=e405]: All (
+          - generic [ref=e406]: "{store.total_count}"
+          - generic [ref=e407]: )
+          - 'button "All ({store.total_count})" [ref=e408] [cursor=pointer]'
+          - generic [ref=e409]: Active (
+          - generic [ref=e410]: "{store.active_count}"
+          - generic [ref=e411]: )
+          - 'button "Active ({store.active_count})" [ref=e412] [cursor=pointer]'
+          - generic [ref=e413]: Done (
+          - generic [ref=e414]: "{store.done_count}"
+          - generic [ref=e415]: )
+          - 'button "Done ({store.done_count})" [ref=e416] [cursor=pointer]'
+          - generic [ref=e417]:
+            - generic [ref=e418]: All (
+            - generic [ref=e419]: "{store.total_count}"
+            - generic [ref=e420]: )
+            - 'button "All ({store.total_count})" [ref=e421] [cursor=pointer]'
+            - generic [ref=e422]: Active (
+            - generic [ref=e423]: "{store.active_count}"
+            - generic [ref=e424]: )
+            - 'button "Active ({store.active_count})" [ref=e425] [cursor=pointer]'
+            - generic [ref=e426]: Done (
+            - generic [ref=e427]: "{store.done_count}"
+            - generic [ref=e428]: )
+            - 'button "Done ({store.done_count})" [ref=e429] [cursor=pointer]'
+          - generic [ref=e430]: ✓
+          - button "✓" [ref=e431] [cursor=pointer]
+          - generic [ref=e432]: "{task}"
+          - generic [ref=e433]: "{task}"
+          - generic [ref=e434]:
+            - generic [ref=e435]: ✓
+            - button "✓" [ref=e436] [cursor=pointer]
+            - generic [ref=e437]: "{task}"
+            - generic [ref=e438]: "{task}"
+          - listitem [ref=e439]:
+            - text: ✓
+            - button "✓" [ref=e440] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e441]: "{task}"
+            - generic [ref=e442]:
+              - generic [ref=e443]: ✓
+              - button "✓" [ref=e444] [cursor=pointer]
+              - generic [ref=e445]: "{task}"
+              - generic [ref=e446]: "{task}"
+          - generic [ref=e447]:
+            - generic [ref=e448]: ✓
+            - button "✓" [ref=e449] [cursor=pointer]
+            - generic [ref=e450]: "{task}"
+            - generic [ref=e451]: "{task}"
+            - generic [ref=e452]:
+              - generic [ref=e453]: ✓
+              - button "✓" [ref=e454] [cursor=pointer]
+              - generic [ref=e455]: "{task}"
+              - generic [ref=e456]: "{task}"
+            - listitem [ref=e457]:
+              - text: ✓
+              - button "✓" [ref=e458] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e459]: "{task}"
+              - generic [ref=e460]:
+                - generic [ref=e461]: ✓
+                - button "✓" [ref=e462] [cursor=pointer]
+                - generic [ref=e463]: "{task}"
+                - generic [ref=e464]: "{task}"
+          - generic [ref=e465]:
+            - generic [ref=e466]: ✓
+            - button "✓" [ref=e467] [cursor=pointer]
+            - generic [ref=e468]: "{task}"
+            - generic [ref=e469]: "{task}"
+            - generic [ref=e470]:
+              - generic [ref=e471]: ✓
+              - button "✓" [ref=e472] [cursor=pointer]
+              - generic [ref=e473]: "{task}"
+              - generic [ref=e474]: "{task}"
+            - listitem [ref=e475]:
+              - text: ✓
+              - button "✓" [ref=e476] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e477]: "{task}"
+              - generic [ref=e478]:
+                - generic [ref=e479]: ✓
+                - button "✓" [ref=e480] [cursor=pointer]
+                - generic [ref=e481]: "{task}"
+                - generic [ref=e482]: "{task}"
+            - generic [ref=e483]:
+              - generic [ref=e484]: ✓
+              - button "✓" [ref=e485] [cursor=pointer]
+              - generic [ref=e486]: "{task}"
+              - generic [ref=e487]: "{task}"
+              - generic [ref=e488]:
+                - generic [ref=e489]: ✓
+                - button "✓" [ref=e490] [cursor=pointer]
+                - generic [ref=e491]: "{task}"
+                - generic [ref=e492]: "{task}"
+              - listitem [ref=e493]:
+                - text: ✓
+                - button "✓" [ref=e494] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e495]: "{task}"
+                - generic [ref=e496]:
+                  - generic [ref=e497]: ✓
+                  - button "✓" [ref=e498] [cursor=pointer]
+                  - generic [ref=e499]: "{task}"
+                  - generic [ref=e500]: "{task}"
+          - generic [ref=e501]: ↩
+          - button "↩" [ref=e502] [cursor=pointer]
+          - generic [ref=e503]: "{task}"
+          - generic [ref=e504]: "{task}"
+          - generic [ref=e505]:
+            - generic [ref=e506]: ↩
+            - button "↩" [ref=e507] [cursor=pointer]
+            - generic [ref=e508]: "{task}"
+            - generic [ref=e509]: "{task}"
+          - listitem [ref=e510]:
+            - text: ↩
+            - button "↩" [ref=e511] [cursor=pointer]
+            - text: "{task}"
+            - generic [ref=e512]: "{task}"
+            - generic [ref=e513]:
+              - generic [ref=e514]: ↩
+              - button "↩" [ref=e515] [cursor=pointer]
+              - generic [ref=e516]: "{task}"
+              - generic [ref=e517]: "{task}"
+          - generic [ref=e518]:
+            - generic [ref=e519]: ↩
+            - button "↩" [ref=e520] [cursor=pointer]
+            - generic [ref=e521]: "{task}"
+            - generic [ref=e522]: "{task}"
+            - generic [ref=e523]:
+              - generic [ref=e524]: ↩
+              - button "↩" [ref=e525] [cursor=pointer]
+              - generic [ref=e526]: "{task}"
+              - generic [ref=e527]: "{task}"
+            - listitem [ref=e528]:
+              - text: ↩
+              - button "↩" [ref=e529] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e530]: "{task}"
+              - generic [ref=e531]:
+                - generic [ref=e532]: ↩
+                - button "↩" [ref=e533] [cursor=pointer]
+                - generic [ref=e534]: "{task}"
+                - generic [ref=e535]: "{task}"
+          - generic [ref=e536]:
+            - generic [ref=e537]: ↩
+            - button "↩" [ref=e538] [cursor=pointer]
+            - generic [ref=e539]: "{task}"
+            - generic [ref=e540]: "{task}"
+            - generic [ref=e541]:
+              - generic [ref=e542]: ↩
+              - button "↩" [ref=e543] [cursor=pointer]
+              - generic [ref=e544]: "{task}"
+              - generic [ref=e545]: "{task}"
+            - listitem [ref=e546]:
+              - text: ↩
+              - button "↩" [ref=e547] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e548]: "{task}"
+              - generic [ref=e549]:
+                - generic [ref=e550]: ↩
+                - button "↩" [ref=e551] [cursor=pointer]
+                - generic [ref=e552]: "{task}"
+                - generic [ref=e553]: "{task}"
+            - generic [ref=e554]:
+              - generic [ref=e555]: ↩
+              - button "↩" [ref=e556] [cursor=pointer]
+              - generic [ref=e557]: "{task}"
+              - generic [ref=e558]: "{task}"
+              - generic [ref=e559]:
+                - generic [ref=e560]: ↩
+                - button "↩" [ref=e561] [cursor=pointer]
+                - generic [ref=e562]: "{task}"
+                - generic [ref=e563]: "{task}"
+              - listitem [ref=e564]:
+                - text: ↩
+                - button "↩" [ref=e565] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e566]: "{task}"
+                - generic [ref=e567]:
+                  - generic [ref=e568]: ↩
+                  - button "↩" [ref=e569] [cursor=pointer]
+                  - generic [ref=e570]: "{task}"
+                  - generic [ref=e571]: "{task}"
+          - generic [ref=e572]: No tasks yet. Add one above!
+          - generic [ref=e573]: No tasks yet. Add one above!
+          - generic [ref=e574]:
+            - generic [ref=e575]: No tasks yet. Add one above!
+            - generic [ref=e576]: No tasks yet. Add one above!
+          - list [ref=e577]:
+            - generic [ref=e578]: ✓
+            - button "✓" [ref=e579] [cursor=pointer]
+            - generic [ref=e580]: "{task}"
+            - generic [ref=e581]: "{task}"
+            - generic [ref=e582]:
+              - generic [ref=e583]: ✓
+              - button "✓" [ref=e584] [cursor=pointer]
+              - generic [ref=e585]: "{task}"
+              - generic [ref=e586]: "{task}"
+            - listitem [ref=e587]:
+              - text: ✓
+              - button "✓" [ref=e588] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e589]: "{task}"
+              - generic [ref=e590]:
+                - generic [ref=e591]: ✓
+                - button "✓" [ref=e592] [cursor=pointer]
+                - generic [ref=e593]: "{task}"
+                - generic [ref=e594]: "{task}"
+            - generic [ref=e595]:
+              - generic [ref=e596]: ✓
+              - button "✓" [ref=e597] [cursor=pointer]
+              - generic [ref=e598]: "{task}"
+              - generic [ref=e599]: "{task}"
+              - generic [ref=e600]:
+                - generic [ref=e601]: ✓
+                - button "✓" [ref=e602] [cursor=pointer]
+                - generic [ref=e603]: "{task}"
+                - generic [ref=e604]: "{task}"
+              - listitem [ref=e605]:
+                - text: ✓
+                - button "✓" [ref=e606] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e607]: "{task}"
+                - generic [ref=e608]:
+                  - generic [ref=e609]: ✓
+                  - button "✓" [ref=e610] [cursor=pointer]
+                  - generic [ref=e611]: "{task}"
+                  - generic [ref=e612]: "{task}"
+            - generic [ref=e613]:
+              - generic [ref=e614]: ✓
+              - button "✓" [ref=e615] [cursor=pointer]
+              - generic [ref=e616]: "{task}"
+              - generic [ref=e617]: "{task}"
+              - generic [ref=e618]:
+                - generic [ref=e619]: ✓
+                - button "✓" [ref=e620] [cursor=pointer]
+                - generic [ref=e621]: "{task}"
+                - generic [ref=e622]: "{task}"
+              - listitem [ref=e623]:
+                - text: ✓
+                - button "✓" [ref=e624] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e625]: "{task}"
+                - generic [ref=e626]:
+                  - generic [ref=e627]: ✓
+                  - button "✓" [ref=e628] [cursor=pointer]
+                  - generic [ref=e629]: "{task}"
+                  - generic [ref=e630]: "{task}"
+              - generic [ref=e631]:
+                - generic [ref=e632]: ✓
+                - button "✓" [ref=e633] [cursor=pointer]
+                - generic [ref=e634]: "{task}"
+                - generic [ref=e635]: "{task}"
+                - generic [ref=e636]:
+                  - generic [ref=e637]: ✓
+                  - button "✓" [ref=e638] [cursor=pointer]
+                  - generic [ref=e639]: "{task}"
+                  - generic [ref=e640]: "{task}"
+                - listitem [ref=e641]:
+                  - text: ✓
+                  - button "✓" [ref=e642] [cursor=pointer]
+                  - text: "{task}"
+                  - generic [ref=e643]: "{task}"
+                  - generic [ref=e644]:
+                    - generic [ref=e645]: ✓
+                    - button "✓" [ref=e646] [cursor=pointer]
+                    - generic [ref=e647]: "{task}"
+                    - generic [ref=e648]: "{task}"
+            - generic [ref=e649]: ↩
+            - button "↩" [ref=e650] [cursor=pointer]
+            - generic [ref=e651]: "{task}"
+            - generic [ref=e652]: "{task}"
+            - generic [ref=e653]:
+              - generic [ref=e654]: ↩
+              - button "↩" [ref=e655] [cursor=pointer]
+              - generic [ref=e656]: "{task}"
+              - generic [ref=e657]: "{task}"
+            - listitem [ref=e658]:
+              - text: ↩
+              - button "↩" [ref=e659] [cursor=pointer]
+              - text: "{task}"
+              - generic [ref=e660]: "{task}"
+              - generic [ref=e661]:
+                - generic [ref=e662]: ↩
+                - button "↩" [ref=e663] [cursor=pointer]
+                - generic [ref=e664]: "{task}"
+                - generic [ref=e665]: "{task}"
+            - generic [ref=e666]:
+              - generic [ref=e667]: ↩
+              - button "↩" [ref=e668] [cursor=pointer]
+              - generic [ref=e669]: "{task}"
+              - generic [ref=e670]: "{task}"
+              - generic [ref=e671]:
+                - generic [ref=e672]: ↩
+                - button "↩" [ref=e673] [cursor=pointer]
+                - generic [ref=e674]: "{task}"
+                - generic [ref=e675]: "{task}"
+              - listitem [ref=e676]:
+                - text: ↩
+                - button "↩" [ref=e677] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e678]: "{task}"
+                - generic [ref=e679]:
+                  - generic [ref=e680]: ↩
+                  - button "↩" [ref=e681] [cursor=pointer]
+                  - generic [ref=e682]: "{task}"
+                  - generic [ref=e683]: "{task}"
+            - generic [ref=e684]:
+              - generic [ref=e685]: ↩
+              - button "↩" [ref=e686] [cursor=pointer]
+              - generic [ref=e687]: "{task}"
+              - generic [ref=e688]: "{task}"
+              - generic [ref=e689]:
+                - generic [ref=e690]: ↩
+                - button "↩" [ref=e691] [cursor=pointer]
+                - generic [ref=e692]: "{task}"
+                - generic [ref=e693]: "{task}"
+              - listitem [ref=e694]:
+                - text: ↩
+                - button "↩" [ref=e695] [cursor=pointer]
+                - text: "{task}"
+                - generic [ref=e696]: "{task}"
+                - generic [ref=e697]:
+                  - generic [ref=e698]: ↩
+                  - button "↩" [ref=e699] [cursor=pointer]
+                  - generic [ref=e700]: "{task}"
+                  - generic [ref=e701]: "{task}"
+              - generic [ref=e702]:
+                - generic [ref=e703]: ↩
+                - button "↩" [ref=e704] [cursor=pointer]
+                - generic [ref=e705]: "{task}"
+                - generic [ref=e706]: "{task}"
+                - generic [ref=e707]:
+                  - generic [ref=e708]: ↩
+                  - button "↩" [ref=e709] [cursor=pointer]
+                  - generic [ref=e710]: "{task}"
+                  - generic [ref=e711]: "{task}"
+                - listitem [ref=e712]:
+                  - text: ↩
+                  - button "↩" [ref=e713] [cursor=pointer]
+                  - text: "{task}"
+                  - generic [ref=e714]: "{task}"
+                  - generic [ref=e715]:
+                    - generic [ref=e716]: ↩
+                    - button "↩" [ref=e717] [cursor=pointer]
+                    - generic [ref=e718]: "{task}"
+                    - generic [ref=e719]: "{task}"
+            - generic [ref=e720]: No tasks yet. Add one above!
+            - generic [ref=e721]: No tasks yet. Add one above!
+            - generic [ref=e722]:
+              - generic [ref=e723]: No tasks yet. Add one above!
+              - generic [ref=e724]: No tasks yet. Add one above!
+          - generic [ref=e725]: "{store.active_count}"
+          - generic [ref=e726]: active,
+          - generic [ref=e727]: "{store.done_count}"
+          - generic [ref=e728]: done
+          - generic [ref=e729]: "{store.active_count} active, {store.done_count} done"
+          - generic [ref=e730]: Clear Done
+          - button "Clear Done" [ref=e731] [cursor=pointer]
+          - generic [ref=e732]:
+            - generic [ref=e733]: "{store.active_count}"
+            - generic [ref=e734]: active,
+            - generic [ref=e735]: "{store.done_count}"
+            - generic [ref=e736]: done
+            - generic [ref=e737]: "{store.active_count} active, {store.done_count} done"
+            - generic [ref=e738]: Clear Done
+            - button "Clear Done" [ref=e739] [cursor=pointer]
+          - generic [ref=e740]:
+            - generic [ref=e741]: "{store.active_count}"
+            - generic [ref=e742]: active,
+            - generic [ref=e743]: "{store.done_count}"
+            - generic [ref=e744]: done
+            - generic [ref=e745]: "{store.active_count} active, {store.done_count} done"
+            - generic [ref=e746]: Clear Done
+            - button "Clear Done" [ref=e747] [cursor=pointer]
+            - generic [ref=e748]:
+              - generic [ref=e749]: "{store.active_count}"
+              - generic [ref=e750]: active,
+              - generic [ref=e751]: "{store.done_count}"
+              - generic [ref=e752]: done
+              - generic [ref=e753]: "{store.active_count} active, {store.done_count} done"
+              - generic [ref=e754]: Clear Done
+              - button "Clear Done" [ref=e755] [cursor=pointer]
+    - generic [ref=e18]:
+      - generic [ref=e19]: ✅ Compiled — 12:52:32
+      - generic [ref=e20]: todo-app.omni
+  - complementary [ref=e21]:
+    - generic [ref=e22]:
+      - generic: 🔍
+      - generic: 选择画布元素以编辑属性

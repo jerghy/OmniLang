@@ -1,0 +1,101 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "🎨 Design" [ref=e5] [cursor=pointer]
+      - button "💻 Code" [ref=e6] [cursor=pointer]
+    - complementary [ref=e7]:
+      - generic [ref=e369]:
+        - generic [ref=e370]: 组件面板
+        - generic [ref=e371]:
+          - generic [ref=e372]: 布局
+          - generic "通用容器" [ref=e373]: Container
+          - generic "弹性布局" [ref=e374]: Flex
+          - generic "网格布局" [ref=e375]: Grid
+          - generic "卡片容器" [ref=e376]: Card
+        - generic [ref=e377]:
+          - generic [ref=e378]: 排版
+          - generic "文本" [ref=e379]: Text
+          - generic "标题" [ref=e380]: Heading
+        - generic [ref=e381]:
+          - generic [ref=e382]: 操作
+          - generic "按钮" [ref=e383]: Button
+        - generic [ref=e384]:
+          - generic [ref=e385]: 表单
+          - generic "输入框" [ref=e386]: Input
+          - generic "多行输入" [ref=e387]: TextArea
+          - generic "下拉选择" [ref=e388]: Select
+          - generic "复选框" [ref=e389]: Checkbox
+          - generic "表单" [ref=e390]: Form
+        - generic [ref=e391]:
+          - generic [ref=e392]: 数据
+          - generic "列表" [ref=e393]: List
+          - generic "列表项" [ref=e394]: ListItem
+        - generic [ref=e395]:
+          - generic [ref=e396]: 媒体
+          - generic "图片" [ref=e397]: Image
+        - generic [ref=e398]:
+          - generic [ref=e399]: 反馈
+          - generic "加载动画" [ref=e400]: Spinner
+          - generic "进度条" [ref=e401]: Progress
+          - generic "提示框" [ref=e402]: Alert
+        - generic [ref=e403]:
+          - generic [ref=e404]: 导航
+          - generic "链接" [ref=e405]: Link
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: OmniLang Editor — Design
+        - generic [ref=e246]: space/OmniLang
+        - generic [ref=e13]: "Viewport:"
+        - button "🖥️ Desktop" [ref=e406] [cursor=pointer]
+        - button "📱 Tablet" [ref=e407] [cursor=pointer]
+        - button "📱 Mobile" [ref=e408] [cursor=pointer]
+        - button "🎨 令牌:OFF" [ref=e409] [cursor=pointer]
+        - button "🔗 连线:OFF" [ref=e410] [cursor=pointer]
+        - button "Compile (Ctrl+Enter)" [ref=e17] [cursor=pointer]
+      - generic [ref=e411]:
+        - generic [ref=e413]:
+          - generic [ref=e414]: "{store.message}"
+          - generic [ref=e415]: "{store.count}"
+          - button "+1" [ref=e416] [cursor=pointer]
+        - generic [ref=e417]:
+          - generic [ref=e418]: 🧩 Code Blocks
+          - generic [ref=e420] [cursor=pointer]:
+            - generic [ref=e422]:
+              - generic [ref=e423]: 🗄️
+              - generic [ref=e424]: TestStore
+            - generic [ref=e425]:
+              - generic [ref=e426]:
+                - generic [ref=e429]:
+                  - generic [ref=e430]: ⚡
+                  - generic [ref=e431]: message
+                - generic [ref=e432]: "@ TestStore"
+              - generic [ref=e433]:
+                - generic [ref=e436]:
+                  - generic [ref=e437]: ⚡
+                  - generic [ref=e438]: count
+                - generic [ref=e439]: "@ TestStore"
+              - generic [ref=e440]:
+                - generic [ref=e443]:
+                  - generic [ref=e444]: 🧮
+                  - generic [ref=e445]: info
+                - generic [ref=e446]: "@ TestStore"
+              - generic [ref=e447]:
+                - generic [ref=e450]:
+                  - generic [ref=e451]: 🔄
+                  - generic [ref=e452]: update_message
+                - generic [ref=e453]: "@ TestStore"
+              - generic [ref=e454]:
+                - generic [ref=e457]:
+                  - generic [ref=e458]: 🔄
+                  - generic [ref=e459]: increment
+                - generic [ref=e460]: "@ TestStore"
+      - generic [ref=e135]:
+        - generic [ref=e136]: Ready
+        - generic [ref=e137]: tests/behaviors/bind-input.omni
+    - complementary [ref=e461]:
+      - generic [ref=e462]:
+        - generic [ref=e463]: 🔍
+        - generic [ref=e464]: 选择画布元素以编辑属性
+  - generic [ref=e155]:
+    - alert
+    - alert

@@ -64,20 +64,26 @@ LAYOUT = {
 
 # ── Spacing ───────────────────────────────────────────
 
+def _spacing_value(v: str) -> str:
+    """Format spacing value: 8 → '8px', '8px 24px' → pass through."""
+    if ' ' in str(v):
+        return str(v)  # multi-value shorthand, pass through
+    return f"{v}px"
+
 SPACING = {
-    "gap": {"css": lambda v: f"gap: {v}px"},
-    "padding": {"css": lambda v: f"padding: {v}px"},
-    "padding_top": {"css": lambda v: f"padding-top: {v}px"},
-    "padding_bottom": {"css": lambda v: f"padding-bottom: {v}px"},
-    "padding_left": {"css": lambda v: f"padding-left: {v}px"},
-    "padding_right": {"css": lambda v: f"padding-right: {v}px"},
+    "gap": {"css": lambda v: f"gap: {_spacing_value(v)}"},
+    "padding": {"css": lambda v: f"padding: {_spacing_value(v)}"},
+    "padding_top": {"css": lambda v: f"padding-top: {_spacing_value(v)}"},
+    "padding_bottom": {"css": lambda v: f"padding-bottom: {_spacing_value(v)}"},
+    "padding_left": {"css": lambda v: f"padding-left: {_spacing_value(v)}"},
+    "padding_right": {"css": lambda v: f"padding-right: {_spacing_value(v)}"},
     "padding_horizontal": {"css": lambda v: f"padding-left: {v}px; padding-right: {v}px"},
     "padding_vertical": {"css": lambda v: f"padding-top: {v}px; padding-bottom: {v}px"},
-    "margin": {"css": lambda v: f"margin: {v}px"},
-    "margin_top": {"css": lambda v: f"margin-top: {v}px"},
-    "margin_bottom": {"css": lambda v: f"margin-bottom: {v}px"},
-    "margin_left": {"css": lambda v: f"margin-left: {v}px"},
-    "margin_right": {"css": lambda v: f"margin-right: {v}px"},
+    "margin": {"css": lambda v: f"margin: {_spacing_value(v)}"},
+    "margin_top": {"css": lambda v: f"margin-top: {_spacing_value(v)}"},
+    "margin_bottom": {"css": lambda v: f"margin-bottom: {_spacing_value(v)}"},
+    "margin_left": {"css": lambda v: f"margin-left: {_spacing_value(v)}"},
+    "margin_right": {"css": lambda v: f"margin-right: {_spacing_value(v)}"},
     "margin_horizontal": {"css": lambda v: f"margin-left: {v}px; margin-right: {v}px"},
     "margin_vertical": {"css": lambda v: f"margin-top: {v}px; margin-bottom: {v}px"},
 }

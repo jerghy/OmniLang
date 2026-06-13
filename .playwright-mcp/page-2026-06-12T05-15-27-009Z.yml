@@ -1,0 +1,489 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 文件
+      - generic [ref=e32]: .omni
+      - generic [ref=e33] [cursor=pointer]: 📄 dashboard.omni
+      - generic [ref=e34] [cursor=pointer]: 📄 form-app.omni
+      - generic [ref=e35] [cursor=pointer]: 📄 pure-logic.omni
+      - generic [ref=e36] [cursor=pointer]: 📄 style-showcase.omni
+      - generic [ref=e37] [cursor=pointer]: 📄 todo-app.omni
+  - main [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: OmniLang Editor
+      - generic [ref=e11]: omniview/examples
+      - generic [ref=e12]:
+        - button "Code" [ref=e13] [cursor=pointer]
+        - button "Split" [ref=e14] [cursor=pointer]
+        - button "Design" [ref=e15] [cursor=pointer]
+      - combobox [ref=e16]:
+        - option "react" [selected]
+        - option "vue"
+        - option "dioxus"
+        - option "flutter"
+        - option "python"
+        - option "javascript"
+        - option "rust"
+        - option "dart"
+      - button "Compile (Ctrl+Enter)" [active] [ref=e17] [cursor=pointer]
+    - generic [ref=e19]:
+      - textbox [ref=e38]: "import omniview; // ── Stats Store ──────────────────────────────────────── store StatsStore { signal total_users: i32 = 0; signal active_users: i32 = 0; signal revenue: f64 = 0.0; signal orders: i32 = 0; signal growth_rate: f64 = 0.0; getter conversion_rate: f64 = revenue / total_users; getter avg_order_value: f64 = revenue / orders; getter active_pct: f64 = active_users / total_users * 100.0; action update_stats(users: i32, active: i32, rev: f64, ord: i32, growth: f64) { total_users = users; active_users = active; revenue = rev; orders = ord; growth_rate = growth; } } // ── UI Store ─────────────────────────────────────────── store UIStore { signal sidebar_open: bool = true; signal theme: String = \"light\"; signal selected_page: String = \"dashboard\"; getter is_dark: bool = theme == \"dark\"; action toggle_sidebar() { sidebar_open = !sidebar_open; } action set_page(page: String) { selected_page = page; } } // ── Dashboard Component ──────────────────────────────── component Dashboard { @store StatsStore; @store UIStore; signal period: String = \"today\"; fn handle_period(p: String) { period = p; } fn format_number(n: f64) { // Simplified formatting — real implementation in codegen n = n; } view { <Container test-id=\"dashboard\"> <Flex direction=\"row\" gap=\"16px\" align=\"center\"> <Heading level=\"1\" test-id=\"dash-title\">Dashboard</Heading> <Spacer /> <Button onPress={store.toggle_sidebar} test-id=\"btn-toggle-sidebar\">☰</Button> </Flex> <Flex direction=\"row\" gap=\"8px\" test-id=\"period-bar\"> <Button onPress={fn() { handle_period(\"today\"); }} test-id=\"period-today\">Today</Button> <Button onPress={fn() { handle_period(\"week\"); }} test-id=\"period-week\">Week</Button> <Button onPress={fn() { handle_period(\"month\"); }} test-id=\"period-month\">Month</Button> </Flex> <Grid test-id=\"kpi-grid\"> <Card test-id=\"kpi-users\"> <Heading level=\"3\">Total Users</Heading> <Text test-id=\"kpi-users-value\">{store.total_users}</Text> <Text test-id=\"kpi-users-growth\">Growth: {store.growth_rate}%</Text> </Card> <Card test-id=\"kpi-active\"> <Heading level=\"3\">Active Users</Heading> <Text test-id=\"kpi-active-value\">{store.active_users}</Text> <Text test-id=\"kpi-active-pct\">{store.active_pct}% active</Text> </Card> <Card test-id=\"kpi-revenue\"> <Heading level=\"3\">Revenue</Heading> <Text test-id=\"kpi-revenue-value\">${store.revenue}</Text> <Text test-id=\"kpi-aov\">AOV: ${store.avg_order_value}</Text> </Card> <Card test-id=\"kpi-orders\"> <Heading level=\"3\">Orders</Heading> <Text test-id=\"kpi-orders-value\">{store.orders}</Text> <Text test-id=\"kpi-conversion\">Conversion: {store.conversion_rate}%</Text> </Card> </Grid> @if store.sidebar_open { <Container test-id=\"sidebar\"> <Flex direction=\"column\" gap=\"8px\"> <Button onPress={fn() { store.set_page(\"dashboard\"); }} test-id=\"nav-dashboard\">📊 Dashboard</Button> <Button onPress={fn() { store.set_page(\"analytics\"); }} test-id=\"nav-analytics\">📈 Analytics</Button> <Button onPress={fn() { store.set_page(\"settings\"); }} test-id=\"nav-settings\">⚙ Settings</Button> </Flex> </Container> } @if store.total_users == 0 { <Container test-id=\"empty-state\"> <Heading level=\"2\">Welcome!</Heading> <Text>No data yet. Use the buttons above to load sample data.</Text> <Button onPress={fn() { store.update_stats(1250, 843, 45600.0, 312, 12.5); }} test-id=\"btn-load-data\">Load Sample Data</Button> </Container> } </Container> } style { .container { layout: column; gap: 24px; padding: 24px; max_width: 1200px; background: #f5f7fa; } .heading { font_size: 28px; font_weight: bold; } .card { padding: 20px; border_radius: 12px; shadow: md; background: #ffffff; layout: column; gap: 8px; } .kpi_value { font_size: 32px; font_weight: bold; color: #1a1a2e; } .kpi_label { font_size: 14px; color: #666666; } } }"
+      - generic [ref=e41]:
+        - generic [ref=e42]: Dashboard
+        - heading "Dashboard" [level=2] [ref=e43]
+        - generic [ref=e44]: <Spacer>
+        - generic [ref=e45]: ☰
+        - button "☰" [ref=e46] [cursor=pointer]
+        - generic [ref=e47]:
+          - generic [ref=e48]: Dashboard
+          - heading "Dashboard" [level=2] [ref=e49]
+          - generic [ref=e50]: <Spacer>
+          - generic [ref=e51]: ☰
+          - button "☰" [ref=e52] [cursor=pointer]
+        - generic [ref=e53]: Today
+        - button "Today" [ref=e54] [cursor=pointer]
+        - generic [ref=e55]: Week
+        - button "Week" [ref=e56] [cursor=pointer]
+        - generic [ref=e57]: Month
+        - button "Month" [ref=e58] [cursor=pointer]
+        - generic [ref=e59]:
+          - generic [ref=e60]: Today
+          - button "Today" [ref=e61] [cursor=pointer]
+          - generic [ref=e62]: Week
+          - button "Week" [ref=e63] [cursor=pointer]
+          - generic [ref=e64]: Month
+          - button "Month" [ref=e65] [cursor=pointer]
+        - generic [ref=e66]: Total Users
+        - heading "Total Users" [level=2] [ref=e67]
+        - generic [ref=e68]: "{store.total_users}"
+        - generic [ref=e69]: "{store.total_users}"
+        - generic [ref=e70]: "Growth:"
+        - generic [ref=e71]: "{store.growth_rate}"
+        - generic [ref=e72]: "%"
+        - generic [ref=e73]: "Growth: {store.growth_rate}%"
+        - generic [ref=e74]:
+          - text: Total Users
+          - heading "Total Users" [level=2] [ref=e75]
+          - text: "{store.total_users}"
+          - generic [ref=e76]: "{store.total_users}"
+          - text: "Growth: {store.growth_rate}%"
+          - generic [ref=e77]: "Growth: {store.growth_rate}%"
+        - generic [ref=e78]: Active Users
+        - heading "Active Users" [level=2] [ref=e79]
+        - generic [ref=e80]: "{store.active_users}"
+        - generic [ref=e81]: "{store.active_users}"
+        - generic [ref=e82]: "{store.active_pct}"
+        - generic [ref=e83]: "% active"
+        - generic [ref=e84]: "{store.active_pct}% active"
+        - generic [ref=e85]:
+          - text: Active Users
+          - heading "Active Users" [level=2] [ref=e86]
+          - text: "{store.active_users}"
+          - generic [ref=e87]: "{store.active_users}"
+          - text: "{store.active_pct}% active"
+          - generic [ref=e88]: "{store.active_pct}% active"
+        - generic [ref=e89]: Revenue
+        - heading "Revenue" [level=2] [ref=e90]
+        - generic [ref=e91]: $
+        - generic [ref=e92]: "{store.revenue}"
+        - generic [ref=e93]: "${store.revenue}"
+        - generic [ref=e94]: "AOV: $"
+        - generic [ref=e95]: "{store.avg_order_value}"
+        - generic [ref=e96]: "AOV: ${store.avg_order_value}"
+        - generic [ref=e97]:
+          - text: Revenue
+          - heading "Revenue" [level=2] [ref=e98]
+          - text: "${store.revenue}"
+          - generic [ref=e99]: "${store.revenue}"
+          - text: "AOV: ${store.avg_order_value}"
+          - generic [ref=e100]: "AOV: ${store.avg_order_value}"
+        - generic [ref=e101]: Orders
+        - heading "Orders" [level=2] [ref=e102]
+        - generic [ref=e103]: "{store.orders}"
+        - generic [ref=e104]: "{store.orders}"
+        - generic [ref=e105]: "Conversion:"
+        - generic [ref=e106]: "{store.conversion_rate}"
+        - generic [ref=e107]: "%"
+        - generic [ref=e108]: "Conversion: {store.conversion_rate}%"
+        - generic [ref=e109]:
+          - text: Orders
+          - heading "Orders" [level=2] [ref=e110]
+          - text: "{store.orders}"
+          - generic [ref=e111]: "{store.orders}"
+          - text: "Conversion: {store.conversion_rate}%"
+          - generic [ref=e112]: "Conversion: {store.conversion_rate}%"
+        - generic [ref=e113]:
+          - generic [ref=e114]: Total Users
+          - heading "Total Users" [level=2] [ref=e115]
+          - generic [ref=e116]: "{store.total_users}"
+          - generic [ref=e117]: "{store.total_users}"
+          - generic [ref=e118]: "Growth:"
+          - generic [ref=e119]: "{store.growth_rate}"
+          - generic [ref=e120]: "%"
+          - generic [ref=e121]: "Growth: {store.growth_rate}%"
+          - generic [ref=e122]:
+            - text: Total Users
+            - heading "Total Users" [level=2] [ref=e123]
+            - text: "{store.total_users}"
+            - generic [ref=e124]: "{store.total_users}"
+            - text: "Growth: {store.growth_rate}%"
+            - generic [ref=e125]: "Growth: {store.growth_rate}%"
+          - generic [ref=e126]: Active Users
+          - heading "Active Users" [level=2] [ref=e127]
+          - generic [ref=e128]: "{store.active_users}"
+          - generic [ref=e129]: "{store.active_users}"
+          - generic [ref=e130]: "{store.active_pct}"
+          - generic [ref=e131]: "% active"
+          - generic [ref=e132]: "{store.active_pct}% active"
+          - generic [ref=e133]:
+            - text: Active Users
+            - heading "Active Users" [level=2] [ref=e134]
+            - text: "{store.active_users}"
+            - generic [ref=e135]: "{store.active_users}"
+            - text: "{store.active_pct}% active"
+            - generic [ref=e136]: "{store.active_pct}% active"
+          - generic [ref=e137]: Revenue
+          - heading "Revenue" [level=2] [ref=e138]
+          - generic [ref=e139]: $
+          - generic [ref=e140]: "{store.revenue}"
+          - generic [ref=e141]: "${store.revenue}"
+          - generic [ref=e142]: "AOV: $"
+          - generic [ref=e143]: "{store.avg_order_value}"
+          - generic [ref=e144]: "AOV: ${store.avg_order_value}"
+          - generic [ref=e145]:
+            - text: Revenue
+            - heading "Revenue" [level=2] [ref=e146]
+            - text: "${store.revenue}"
+            - generic [ref=e147]: "${store.revenue}"
+            - text: "AOV: ${store.avg_order_value}"
+            - generic [ref=e148]: "AOV: ${store.avg_order_value}"
+          - generic [ref=e149]: Orders
+          - heading "Orders" [level=2] [ref=e150]
+          - generic [ref=e151]: "{store.orders}"
+          - generic [ref=e152]: "{store.orders}"
+          - generic [ref=e153]: "Conversion:"
+          - generic [ref=e154]: "{store.conversion_rate}"
+          - generic [ref=e155]: "%"
+          - generic [ref=e156]: "Conversion: {store.conversion_rate}%"
+          - generic [ref=e157]:
+            - text: Orders
+            - heading "Orders" [level=2] [ref=e158]
+            - text: "{store.orders}"
+            - generic [ref=e159]: "{store.orders}"
+            - text: "Conversion: {store.conversion_rate}%"
+            - generic [ref=e160]: "Conversion: {store.conversion_rate}%"
+        - generic [ref=e161]: 📊 Dashboard
+        - button "📊 Dashboard" [ref=e162] [cursor=pointer]
+        - generic [ref=e163]: 📈 Analytics
+        - button "📈 Analytics" [ref=e164] [cursor=pointer]
+        - generic [ref=e165]: ⚙ Settings
+        - button "⚙ Settings" [ref=e166] [cursor=pointer]
+        - generic [ref=e167]:
+          - generic [ref=e168]: 📊 Dashboard
+          - button "📊 Dashboard" [ref=e169] [cursor=pointer]
+          - generic [ref=e170]: 📈 Analytics
+          - button "📈 Analytics" [ref=e171] [cursor=pointer]
+          - generic [ref=e172]: ⚙ Settings
+          - button "⚙ Settings" [ref=e173] [cursor=pointer]
+        - generic [ref=e174]:
+          - generic [ref=e175]: 📊 Dashboard
+          - button "📊 Dashboard" [ref=e176] [cursor=pointer]
+          - generic [ref=e177]: 📈 Analytics
+          - button "📈 Analytics" [ref=e178] [cursor=pointer]
+          - generic [ref=e179]: ⚙ Settings
+          - button "⚙ Settings" [ref=e180] [cursor=pointer]
+          - generic [ref=e181]:
+            - generic [ref=e182]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e183] [cursor=pointer]
+            - generic [ref=e184]: 📈 Analytics
+            - button "📈 Analytics" [ref=e185] [cursor=pointer]
+            - generic [ref=e186]: ⚙ Settings
+            - button "⚙ Settings" [ref=e187] [cursor=pointer]
+        - generic [ref=e188]:
+          - generic [ref=e189]: 📊 Dashboard
+          - button "📊 Dashboard" [ref=e190] [cursor=pointer]
+          - generic [ref=e191]: 📈 Analytics
+          - button "📈 Analytics" [ref=e192] [cursor=pointer]
+          - generic [ref=e193]: ⚙ Settings
+          - button "⚙ Settings" [ref=e194] [cursor=pointer]
+          - generic [ref=e195]:
+            - generic [ref=e196]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e197] [cursor=pointer]
+            - generic [ref=e198]: 📈 Analytics
+            - button "📈 Analytics" [ref=e199] [cursor=pointer]
+            - generic [ref=e200]: ⚙ Settings
+            - button "⚙ Settings" [ref=e201] [cursor=pointer]
+          - generic [ref=e202]:
+            - generic [ref=e203]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e204] [cursor=pointer]
+            - generic [ref=e205]: 📈 Analytics
+            - button "📈 Analytics" [ref=e206] [cursor=pointer]
+            - generic [ref=e207]: ⚙ Settings
+            - button "⚙ Settings" [ref=e208] [cursor=pointer]
+            - generic [ref=e209]:
+              - generic [ref=e210]: 📊 Dashboard
+              - button "📊 Dashboard" [ref=e211] [cursor=pointer]
+              - generic [ref=e212]: 📈 Analytics
+              - button "📈 Analytics" [ref=e213] [cursor=pointer]
+              - generic [ref=e214]: ⚙ Settings
+              - button "⚙ Settings" [ref=e215] [cursor=pointer]
+        - generic [ref=e216]: Welcome!
+        - heading "Welcome!" [level=2] [ref=e217]
+        - generic [ref=e218]: No data yet. Use the buttons above to load sample data.
+        - generic [ref=e219]: No data yet. Use the buttons above to load sample data.
+        - generic [ref=e220]: Load Sample Data
+        - button "Load Sample Data" [ref=e221] [cursor=pointer]
+        - generic [ref=e222]:
+          - generic [ref=e223]: Welcome!
+          - heading "Welcome!" [level=2] [ref=e224]
+          - generic [ref=e225]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e226]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e227]: Load Sample Data
+          - button "Load Sample Data" [ref=e228] [cursor=pointer]
+        - generic [ref=e229]:
+          - generic [ref=e230]: Welcome!
+          - heading "Welcome!" [level=2] [ref=e231]
+          - generic [ref=e232]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e233]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e234]: Load Sample Data
+          - button "Load Sample Data" [ref=e235] [cursor=pointer]
+          - generic [ref=e236]:
+            - generic [ref=e237]: Welcome!
+            - heading "Welcome!" [level=2] [ref=e238]
+            - generic [ref=e239]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e240]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e241]: Load Sample Data
+            - button "Load Sample Data" [ref=e242] [cursor=pointer]
+        - generic [ref=e243]:
+          - generic [ref=e244]: Dashboard
+          - heading "Dashboard" [level=2] [ref=e245]
+          - generic [ref=e246]: <Spacer>
+          - generic [ref=e247]: ☰
+          - button "☰" [ref=e248] [cursor=pointer]
+          - generic [ref=e249]:
+            - generic [ref=e250]: Dashboard
+            - heading "Dashboard" [level=2] [ref=e251]
+            - generic [ref=e252]: <Spacer>
+            - generic [ref=e253]: ☰
+            - button "☰" [ref=e254] [cursor=pointer]
+          - generic [ref=e255]: Today
+          - button "Today" [ref=e256] [cursor=pointer]
+          - generic [ref=e257]: Week
+          - button "Week" [ref=e258] [cursor=pointer]
+          - generic [ref=e259]: Month
+          - button "Month" [ref=e260] [cursor=pointer]
+          - generic [ref=e261]:
+            - generic [ref=e262]: Today
+            - button "Today" [ref=e263] [cursor=pointer]
+            - generic [ref=e264]: Week
+            - button "Week" [ref=e265] [cursor=pointer]
+            - generic [ref=e266]: Month
+            - button "Month" [ref=e267] [cursor=pointer]
+          - generic [ref=e268]: Total Users
+          - heading "Total Users" [level=2] [ref=e269]
+          - generic [ref=e270]: "{store.total_users}"
+          - generic [ref=e271]: "{store.total_users}"
+          - generic [ref=e272]: "Growth:"
+          - generic [ref=e273]: "{store.growth_rate}"
+          - generic [ref=e274]: "%"
+          - generic [ref=e275]: "Growth: {store.growth_rate}%"
+          - generic [ref=e276]:
+            - text: Total Users
+            - heading "Total Users" [level=2] [ref=e277]
+            - text: "{store.total_users}"
+            - generic [ref=e278]: "{store.total_users}"
+            - text: "Growth: {store.growth_rate}%"
+            - generic [ref=e279]: "Growth: {store.growth_rate}%"
+          - generic [ref=e280]: Active Users
+          - heading "Active Users" [level=2] [ref=e281]
+          - generic [ref=e282]: "{store.active_users}"
+          - generic [ref=e283]: "{store.active_users}"
+          - generic [ref=e284]: "{store.active_pct}"
+          - generic [ref=e285]: "% active"
+          - generic [ref=e286]: "{store.active_pct}% active"
+          - generic [ref=e287]:
+            - text: Active Users
+            - heading "Active Users" [level=2] [ref=e288]
+            - text: "{store.active_users}"
+            - generic [ref=e289]: "{store.active_users}"
+            - text: "{store.active_pct}% active"
+            - generic [ref=e290]: "{store.active_pct}% active"
+          - generic [ref=e291]: Revenue
+          - heading "Revenue" [level=2] [ref=e292]
+          - generic [ref=e293]: $
+          - generic [ref=e294]: "{store.revenue}"
+          - generic [ref=e295]: "${store.revenue}"
+          - generic [ref=e296]: "AOV: $"
+          - generic [ref=e297]: "{store.avg_order_value}"
+          - generic [ref=e298]: "AOV: ${store.avg_order_value}"
+          - generic [ref=e299]:
+            - text: Revenue
+            - heading "Revenue" [level=2] [ref=e300]
+            - text: "${store.revenue}"
+            - generic [ref=e301]: "${store.revenue}"
+            - text: "AOV: ${store.avg_order_value}"
+            - generic [ref=e302]: "AOV: ${store.avg_order_value}"
+          - generic [ref=e303]: Orders
+          - heading "Orders" [level=2] [ref=e304]
+          - generic [ref=e305]: "{store.orders}"
+          - generic [ref=e306]: "{store.orders}"
+          - generic [ref=e307]: "Conversion:"
+          - generic [ref=e308]: "{store.conversion_rate}"
+          - generic [ref=e309]: "%"
+          - generic [ref=e310]: "Conversion: {store.conversion_rate}%"
+          - generic [ref=e311]:
+            - text: Orders
+            - heading "Orders" [level=2] [ref=e312]
+            - text: "{store.orders}"
+            - generic [ref=e313]: "{store.orders}"
+            - text: "Conversion: {store.conversion_rate}%"
+            - generic [ref=e314]: "Conversion: {store.conversion_rate}%"
+          - generic [ref=e315]:
+            - generic [ref=e316]: Total Users
+            - heading "Total Users" [level=2] [ref=e317]
+            - generic [ref=e318]: "{store.total_users}"
+            - generic [ref=e319]: "{store.total_users}"
+            - generic [ref=e320]: "Growth:"
+            - generic [ref=e321]: "{store.growth_rate}"
+            - generic [ref=e322]: "%"
+            - generic [ref=e323]: "Growth: {store.growth_rate}%"
+            - generic [ref=e324]:
+              - text: Total Users
+              - heading "Total Users" [level=2] [ref=e325]
+              - text: "{store.total_users}"
+              - generic [ref=e326]: "{store.total_users}"
+              - text: "Growth: {store.growth_rate}%"
+              - generic [ref=e327]: "Growth: {store.growth_rate}%"
+            - generic [ref=e328]: Active Users
+            - heading "Active Users" [level=2] [ref=e329]
+            - generic [ref=e330]: "{store.active_users}"
+            - generic [ref=e331]: "{store.active_users}"
+            - generic [ref=e332]: "{store.active_pct}"
+            - generic [ref=e333]: "% active"
+            - generic [ref=e334]: "{store.active_pct}% active"
+            - generic [ref=e335]:
+              - text: Active Users
+              - heading "Active Users" [level=2] [ref=e336]
+              - text: "{store.active_users}"
+              - generic [ref=e337]: "{store.active_users}"
+              - text: "{store.active_pct}% active"
+              - generic [ref=e338]: "{store.active_pct}% active"
+            - generic [ref=e339]: Revenue
+            - heading "Revenue" [level=2] [ref=e340]
+            - generic [ref=e341]: $
+            - generic [ref=e342]: "{store.revenue}"
+            - generic [ref=e343]: "${store.revenue}"
+            - generic [ref=e344]: "AOV: $"
+            - generic [ref=e345]: "{store.avg_order_value}"
+            - generic [ref=e346]: "AOV: ${store.avg_order_value}"
+            - generic [ref=e347]:
+              - text: Revenue
+              - heading "Revenue" [level=2] [ref=e348]
+              - text: "${store.revenue}"
+              - generic [ref=e349]: "${store.revenue}"
+              - text: "AOV: ${store.avg_order_value}"
+              - generic [ref=e350]: "AOV: ${store.avg_order_value}"
+            - generic [ref=e351]: Orders
+            - heading "Orders" [level=2] [ref=e352]
+            - generic [ref=e353]: "{store.orders}"
+            - generic [ref=e354]: "{store.orders}"
+            - generic [ref=e355]: "Conversion:"
+            - generic [ref=e356]: "{store.conversion_rate}"
+            - generic [ref=e357]: "%"
+            - generic [ref=e358]: "Conversion: {store.conversion_rate}%"
+            - generic [ref=e359]:
+              - text: Orders
+              - heading "Orders" [level=2] [ref=e360]
+              - text: "{store.orders}"
+              - generic [ref=e361]: "{store.orders}"
+              - text: "Conversion: {store.conversion_rate}%"
+              - generic [ref=e362]: "Conversion: {store.conversion_rate}%"
+          - generic [ref=e363]: 📊 Dashboard
+          - button "📊 Dashboard" [ref=e364] [cursor=pointer]
+          - generic [ref=e365]: 📈 Analytics
+          - button "📈 Analytics" [ref=e366] [cursor=pointer]
+          - generic [ref=e367]: ⚙ Settings
+          - button "⚙ Settings" [ref=e368] [cursor=pointer]
+          - generic [ref=e369]:
+            - generic [ref=e370]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e371] [cursor=pointer]
+            - generic [ref=e372]: 📈 Analytics
+            - button "📈 Analytics" [ref=e373] [cursor=pointer]
+            - generic [ref=e374]: ⚙ Settings
+            - button "⚙ Settings" [ref=e375] [cursor=pointer]
+          - generic [ref=e376]:
+            - generic [ref=e377]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e378] [cursor=pointer]
+            - generic [ref=e379]: 📈 Analytics
+            - button "📈 Analytics" [ref=e380] [cursor=pointer]
+            - generic [ref=e381]: ⚙ Settings
+            - button "⚙ Settings" [ref=e382] [cursor=pointer]
+            - generic [ref=e383]:
+              - generic [ref=e384]: 📊 Dashboard
+              - button "📊 Dashboard" [ref=e385] [cursor=pointer]
+              - generic [ref=e386]: 📈 Analytics
+              - button "📈 Analytics" [ref=e387] [cursor=pointer]
+              - generic [ref=e388]: ⚙ Settings
+              - button "⚙ Settings" [ref=e389] [cursor=pointer]
+          - generic [ref=e390]:
+            - generic [ref=e391]: 📊 Dashboard
+            - button "📊 Dashboard" [ref=e392] [cursor=pointer]
+            - generic [ref=e393]: 📈 Analytics
+            - button "📈 Analytics" [ref=e394] [cursor=pointer]
+            - generic [ref=e395]: ⚙ Settings
+            - button "⚙ Settings" [ref=e396] [cursor=pointer]
+            - generic [ref=e397]:
+              - generic [ref=e398]: 📊 Dashboard
+              - button "📊 Dashboard" [ref=e399] [cursor=pointer]
+              - generic [ref=e400]: 📈 Analytics
+              - button "📈 Analytics" [ref=e401] [cursor=pointer]
+              - generic [ref=e402]: ⚙ Settings
+              - button "⚙ Settings" [ref=e403] [cursor=pointer]
+            - generic [ref=e404]:
+              - generic [ref=e405]: 📊 Dashboard
+              - button "📊 Dashboard" [ref=e406] [cursor=pointer]
+              - generic [ref=e407]: 📈 Analytics
+              - button "📈 Analytics" [ref=e408] [cursor=pointer]
+              - generic [ref=e409]: ⚙ Settings
+              - button "⚙ Settings" [ref=e410] [cursor=pointer]
+              - generic [ref=e411]:
+                - generic [ref=e412]: 📊 Dashboard
+                - button "📊 Dashboard" [ref=e413] [cursor=pointer]
+                - generic [ref=e414]: 📈 Analytics
+                - button "📈 Analytics" [ref=e415] [cursor=pointer]
+                - generic [ref=e416]: ⚙ Settings
+                - button "⚙ Settings" [ref=e417] [cursor=pointer]
+          - generic [ref=e418]: Welcome!
+          - heading "Welcome!" [level=2] [ref=e419]
+          - generic [ref=e420]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e421]: No data yet. Use the buttons above to load sample data.
+          - generic [ref=e422]: Load Sample Data
+          - button "Load Sample Data" [ref=e423] [cursor=pointer]
+          - generic [ref=e424]:
+            - generic [ref=e425]: Welcome!
+            - heading "Welcome!" [level=2] [ref=e426]
+            - generic [ref=e427]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e428]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e429]: Load Sample Data
+            - button "Load Sample Data" [ref=e430] [cursor=pointer]
+          - generic [ref=e431]:
+            - generic [ref=e432]: Welcome!
+            - heading "Welcome!" [level=2] [ref=e433]
+            - generic [ref=e434]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e435]: No data yet. Use the buttons above to load sample data.
+            - generic [ref=e436]: Load Sample Data
+            - button "Load Sample Data" [ref=e437] [cursor=pointer]
+            - generic [ref=e438]:
+              - generic [ref=e439]: Welcome!
+              - heading "Welcome!" [level=2] [ref=e440]
+              - generic [ref=e441]: No data yet. Use the buttons above to load sample data.
+              - generic [ref=e442]: No data yet. Use the buttons above to load sample data.
+              - generic [ref=e443]: Load Sample Data
+              - button "Load Sample Data" [ref=e444] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e25]: ⚠ Compiled — 13:15:21 (1 warning(s))
+      - generic [ref=e26]: dashboard.omni — 1 error(s)
+  - complementary [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]: 🔍
+      - generic [ref=e31]: 选择画布元素以编辑属性

@@ -1,0 +1,180 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "🎨 Design" [ref=e5] [cursor=pointer]
+      - button "💻 Code" [ref=e6] [cursor=pointer]
+    - complementary [ref=e7]:
+      - generic [ref=e1026]:
+        - generic [ref=e1027]: 组件面板
+        - generic [ref=e1028]:
+          - generic [ref=e1029]: 布局
+          - generic "通用容器" [ref=e1030]: Container
+          - generic "弹性布局" [ref=e1031]: Flex
+          - generic "网格布局" [ref=e1032]: Grid
+          - generic "卡片容器" [ref=e1033]: Card
+        - generic [ref=e1034]:
+          - generic [ref=e1035]: 排版
+          - generic "文本" [ref=e1036]: Text
+          - generic "标题" [ref=e1037]: Heading
+        - generic [ref=e1038]:
+          - generic [ref=e1039]: 操作
+          - generic "按钮" [ref=e1040]: Button
+        - generic [ref=e1041]:
+          - generic [ref=e1042]: 表单
+          - generic "输入框" [ref=e1043]: Input
+          - generic "多行输入" [ref=e1044]: TextArea
+          - generic "下拉选择" [ref=e1045]: Select
+          - generic "复选框" [ref=e1046]: Checkbox
+          - generic "表单" [ref=e1047]: Form
+        - generic [ref=e1048]:
+          - generic [ref=e1049]: 数据
+          - generic "列表" [ref=e1050]: List
+          - generic "列表项" [ref=e1051]: ListItem
+        - generic [ref=e1052]:
+          - generic [ref=e1053]: 媒体
+          - generic "图片" [ref=e1054]: Image
+        - generic [ref=e1055]:
+          - generic [ref=e1056]: 反馈
+          - generic "加载动画" [ref=e1057]: Spinner
+          - generic "进度条" [ref=e1058]: Progress
+          - generic "提示框" [ref=e1059]: Alert
+        - generic [ref=e1060]:
+          - generic [ref=e1061]: 导航
+          - generic "链接" [ref=e1062]: Link
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: OmniLang Editor — Design
+        - generic [ref=e218]: space/OmniLang
+        - generic [ref=e13]: "Viewport:"
+        - button "🖥️ Desktop" [ref=e1063] [cursor=pointer]
+        - button "📱 Tablet" [active] [ref=e1064] [cursor=pointer]
+        - button "📱 Mobile" [ref=e1065] [cursor=pointer]
+        - button "🎨 令牌:OFF" [ref=e1066] [cursor=pointer]
+        - button "🔗 连线:ON" [ref=e1180] [cursor=pointer]
+        - button "Compile (Ctrl+Enter)" [ref=e17] [cursor=pointer]
+      - generic [ref=e1068]:
+        - generic [ref=e1070]:
+          - generic [ref=e1071]: "{store.message}"
+          - generic [ref=e1072]: "{store.count}"
+          - button "+1" [ref=e1073] [cursor=pointer]
+        - generic [ref=e1074]:
+          - generic [ref=e1075]: 🧩 Code Blocks
+          - generic [ref=e1077] [cursor=pointer]:
+            - generic [ref=e1079]:
+              - generic [ref=e1080]: 🗄️
+              - generic [ref=e1081]: TestStore
+            - generic [ref=e1082]:
+              - generic [ref=e1083]:
+                - generic [ref=e1086]:
+                  - generic [ref=e1087]: ⚡
+                  - generic [ref=e1088]: message
+                - generic [ref=e1089]: "@ TestStore"
+              - generic [ref=e1090]:
+                - generic [ref=e1093]:
+                  - generic [ref=e1094]: ⚡
+                  - generic [ref=e1095]: count
+                - generic [ref=e1096]: "@ TestStore"
+              - generic [ref=e1097]:
+                - generic [ref=e1100]:
+                  - generic [ref=e1101]: 🧮
+                  - generic [ref=e1102]: info
+                - generic [ref=e1103]: "@ TestStore"
+              - generic [ref=e1104]:
+                - generic [ref=e1107]:
+                  - generic [ref=e1108]: 🔄
+                  - generic [ref=e1109]: update_message
+                - generic [ref=e1110]: "@ TestStore"
+              - generic [ref=e1111]:
+                - generic [ref=e1114]:
+                  - generic [ref=e1115]: 🔄
+                  - generic [ref=e1116]: increment
+                - generic [ref=e1117]: "@ TestStore"
+      - generic [ref=e135]:
+        - generic [ref=e136]: ✅ Compiled — 14:20:01
+        - generic [ref=e137]: tests/behaviors/store-read.omni
+    - complementary [ref=e1118]:
+      - generic [ref=e1119]:
+        - heading "<Button>" [level=3] [ref=e1122]
+        - generic [ref=e1123]: 属性
+        - generic [ref=e1124]:
+          - generic [ref=e1125]: label
+          - textbox "label" [ref=e1126]: Button
+        - generic [ref=e1127]:
+          - generic [ref=e1128]: variant
+          - combobox "variant" [ref=e1129]:
+            - option "primary" [selected]
+            - option "secondary"
+            - option "danger"
+            - option "ghost"
+        - generic [ref=e1130]:
+          - checkbox "disabled" [ref=e1131]
+          - generic [ref=e1132]: disabled
+        - generic [ref=e1133]:
+          - checkbox "loading" [ref=e1134]
+          - generic [ref=e1135]: loading
+        - generic [ref=e1136]:
+          - generic [ref=e1137]: test-id
+          - textbox "test-id" [ref=e1138]
+        - generic [ref=e1139]: 事件
+        - generic [ref=e1140]:
+          - generic [ref=e1141]:
+            - text: onPress
+            - generic [ref=e1142]: (点击)
+          - combobox "onPress (点击)" [ref=e1143]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - generic [ref=e1144]:
+          - generic [ref=e1145]:
+            - text: onHover
+            - generic [ref=e1146]: (悬停)
+          - combobox "onHover (悬停)" [ref=e1147]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - generic [ref=e1148]:
+          - generic [ref=e1149]:
+            - text: onFocus
+            - generic [ref=e1150]: (焦点)
+          - combobox "onFocus (焦点)" [ref=e1151]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - generic [ref=e1152]: 样式
+        - generic [ref=e1153]:
+          - generic [ref=e1154]: width
+          - textbox "width" [ref=e1155]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1156]:
+          - generic [ref=e1157]: height
+          - textbox "height" [ref=e1158]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1159]:
+          - generic [ref=e1160]: padding
+          - textbox "padding" [ref=e1161]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1162]:
+          - generic [ref=e1163]: margin
+          - textbox "margin" [ref=e1164]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1165]:
+          - generic [ref=e1166]: background_color
+          - generic [ref=e1167]:
+            - textbox "background_color" [ref=e1168] [cursor=pointer]: "#000000"
+            - textbox [ref=e1169]
+        - generic [ref=e1170]:
+          - generic [ref=e1171]: border_radius
+          - textbox "border_radius" [ref=e1172]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1173]:
+          - generic [ref=e1174]: font_size
+          - textbox "font_size" [ref=e1175]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1176]:
+          - generic [ref=e1177]: font_weight
+          - textbox "font_weight" [ref=e1178]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e1179]: "ID: el-Butto..."
+  - generic [ref=e351]:
+    - alert
+    - alert

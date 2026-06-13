@@ -1,0 +1,28 @@
+// Behavior Test 01: Counter — state mutation
+// Tests: signal + mutation + event handler + text interpolation
+component Counter {
+  signal count: i32 = 0;
+
+  fn increment() {
+    count = count + 1;
+  }
+
+  fn decrement() {
+    count = count - 1;
+  }
+
+  fn reset() {
+    count = 0;
+  }
+
+  view {
+    <Container>
+      <Heading level="1" test-id="counter-label">Count: {count}</Heading>
+      <Flex direction="row" gap="8px">
+        <Button onPress={decrement} test-id="btn-decrement">-</Button>
+        <Button onPress={increment} test-id="btn-increment">+</Button>
+        <Button onPress={reset} test-id="btn-reset">Reset</Button>
+      </Flex>
+    </Container>
+  }
+}

@@ -1,0 +1,69 @@
+[      42ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:14336
+[      49ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93
+[  175895ms] Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
+    at finishRenderingHooks (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:4242:36)
+    at renderWithHooks (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:4223:4)
+    at updateFunctionComponent (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:5568:16)
+    at beginWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:6139:20)
+    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:850:66)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8428:92)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8324:37)
+    at renderRootSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8308:6)
+    at performWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7993:27)
+    at performSyncWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9066:4)
+[  175896ms] [WARNING] %s
+
+%s
+ An error occurred in the <LayoutView> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/@vite/client:524
+[  177908ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:14336
+[  177913ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93
+[  295208ms] Error: The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX.
+    at setValueForStyles (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:1809:60)
+    at setProp (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9547:6)
+    at updateProperties (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:10071:200)
+    at commitUpdate (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:10558:4)
+    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:850:66)
+    at commitHostUpdate (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:6774:5)
+    at commitMutationEffectsOnFiber (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7329:108)
+    at recursivelyTraverseMutationEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7232:103)
+    at commitMutationEffectsOnFiber (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7318:6)
+    at recursivelyTraverseMutationEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7232:103)
+[  295209ms] [WARNING] %s
+
+%s
+ An error occurred in the <aside> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/@vite/client:524
+[  303289ms] Error: The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX.
+    at setValueForStyles (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:1809:60)
+    at setProp (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9547:6)
+    at setInitialProperties (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9923:119)
+    at completeWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:6381:19)
+    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:850:66)
+    at completeUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8491:15)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8430:23)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8324:37)
+    at renderRootSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8308:6)
+    at performWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7993:27)
+[  303290ms] [WARNING] %s
+
+%s
+ An error occurred in the <aside> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/@vite/client:524
+[  310199ms] Error: The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX.
+    at setValueForStyles (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:1809:60)
+    at setProp (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9547:6)
+    at setInitialProperties (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9923:119)
+    at completeWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:6381:19)
+    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:850:66)
+    at completeUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8491:15)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8430:23)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8324:37)
+    at renderRootSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8308:6)
+    at performWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7993:27)
+[  310200ms] [WARNING] %s
+
+%s
+ An error occurred in the <aside> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/@vite/client:524
+[  316904ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93

@@ -175,9 +175,48 @@ def build_command(args: list[str]) -> int:
             if program.components or program.stores:
                 print(f"  Warning: Add 'import omniview;' at the top of the file. Assuming implicit omniview for now.", file=sys.stderr)
 
-        # Semantic analysis
+        # ── Multi-file module resolution ───────────────────
+        cross_file_imports = {}  # component_name → relative_import_path
+        loaded_modules = {}
+
+        if program.imports:
+            from omniview.modules.loader import ModuleLoader
+            project_root = os.path.dirname(os.path.abspath(input_file))
+            loader = ModuleLoader(project_root)
+            try:
+                all_modules = loader.load(input_file)
+                export_map = loader.get_export_map()
+
+                # Build cross-file import mapping
+                for name, src_path in export_map.items():
+                    entry_dir = os.path.dirname(os.path.abspath(input_file))
+                    try:
+                        rel_path = os.path.relpath(src_path, entry_dir).replace('\\', '/')
+                    except ValueError:
+                        rel_path = src_path
+                    # Strip .omni extension, ensure ./ prefix for relative imports
+                    import_path = rel_path.replace('.omni', '')
+                    if not import_path.startswith('.') and not import_path.startswith('/'):
+                        import_path = './' + import_path
+                    cross_file_imports[name] = import_path
+
+                # Build loaded_modules dict for codegen (IR maps for all files)
+                for mod in all_modules:
+                    if mod.ir_map:
+                        loaded_modules[mod.path] = mod.ir_map
+                if all_modules:
+                    print(f"  Resolved {len(all_modules)} module(s) from {len(program.imports)} import(s)")
+
+            except FileNotFoundError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+
+        # Semantic analysis (pass source lines for // @suppress support)
         from omniview.semantic.analyzer import SemanticAnalyzer
-        analyzer = SemanticAnalyzer()
+        analyzer = SemanticAnalyzer(source_lines=source.split('\n'))
         result = analyzer.analyze(program)
 
         if result.has_errors:
@@ -209,6 +248,10 @@ def build_command(args: list[str]) -> int:
         else:
             print(f"Error: Unknown target '{target}'. Supported: react, vue, dioxus, flutter", file=sys.stderr)
             return 1
+
+        # Inject cross-file import info into codegen
+        if hasattr(codegen, '_cross_file_imports'):
+            codegen._cross_file_imports = cross_file_imports
 
         # Find source line numbers for accurate /* .omni:N */ comments
         source_lines = _find_line_numbers(source)
@@ -290,20 +333,20 @@ def check_command(args: list[str]) -> int:
         with open(input_file, "r", encoding="utf-8") as f:
             source = f.read()
 
-        from lark import Lark
+        from omniview.preprocessor import preprocess
+        from omnilang.lexer import create_omniview_parser
         from omniview.parser import OmniViewTransformer
         from omniview.semantic.analyzer import SemanticAnalyzer
 
         grammar_path = find_grammar_path()
-        with open(grammar_path, "r", encoding="utf-8") as f:
-            grammar = f.read()
 
+        pp = preprocess(source)
         parser = create_omniview_parser()
-        tree = parser.parse(source)
-        transformer = OmniViewTransformer()
+        tree = parser.parse(pp.processed_source)
+        transformer = OmniViewTransformer(block_map=pp.blocks)
         program = transformer.transform(tree)
 
-        analyzer = SemanticAnalyzer()
+        analyzer = SemanticAnalyzer(source_lines=source.split('\n'))
         result = analyzer.analyze(program)
 
         # Report
@@ -552,16 +595,19 @@ def init_command(args: list[str]) -> int:
 
 def watch_command(args: list[str]) -> int:
     """Watch .omni files and auto-rebuild on changes."""
+    import difflib
     import time
 
     if not args:
         print("Error: No input file specified.", file=sys.stderr)
-        print("Usage: omnic watch <file.omni> [--target react|vue] [--output dir]", file=sys.stderr)
+        print("Usage: omnic watch <file.omni> [--target react|vue] [--output dir] [--diff]", file=sys.stderr)
         return 1
 
     input_file = args[0]
     target = "react"
     output_dir = "build_output"
+    show_diff = False
+    all_targets = False
 
     i = 1
     while i < len(args):
@@ -571,6 +617,12 @@ def watch_command(args: list[str]) -> int:
         elif args[i] == "--output" and i + 1 < len(args):
             output_dir = args[i + 1]
             i += 2
+        elif args[i] == "--diff":
+            show_diff = True
+            i += 1
+        elif args[i] == "--all":
+            all_targets = True
+            i += 1
         else:
             i += 1
 
@@ -584,6 +636,12 @@ def watch_command(args: list[str]) -> int:
 
     last_mtime = os.path.getmtime(input_file)
     build_count = 0
+    previous_outputs: dict[str, str] = {}  # {target: content}
+    targets_to_check = ["react", "vue", "dioxus", "flutter"] if all_targets else [target]
+
+    if show_diff:
+        print(f"  Diff mode: showing changes across {len(targets_to_check)} target(s)")
+        print("")
 
     try:
         while True:
@@ -597,16 +655,64 @@ def watch_command(args: list[str]) -> int:
                 last_mtime = current_mtime
                 build_count += 1
                 timestamp = time.strftime("%H:%M:%S")
-                print(f"[{timestamp}] #{build_count} Rebuilding...", end=" ", flush=True)
 
                 try:
-                    ret = build_command([input_file, "--target", target, "--output", output_dir])
-                    if ret == 0:
-                        print("OK")
-                    else:
-                        print(f"FAILED (exit code {ret})")
-                except Exception as e:
-                    print(f"ERROR: {e}")
+                    source = open(input_file, encoding="utf-8").read()
+                except Exception:
+                    continue
+
+                # Build for each target and compare diffs
+                results: dict[str, str] = {}
+                errors: list[str] = []
+
+                for tgt in targets_to_check:
+                    try:
+                        from omniview.api import compile_omni
+                        result = compile_omni(source, filepath=input_file, target=tgt,
+                                              previous_files=previous_outputs.get(tgt))
+                        if result.success and result.files:
+                            combined = "\n".join(
+                                f"// {fname}\n{content}"
+                                for fname, content in sorted(result.files.items())
+                            )
+                            results[tgt] = combined
+                            previous_outputs[tgt] = combined
+                        elif result.errors:
+                            errors.extend(e.message for e in result.errors)
+                    except Exception as e:
+                        errors.append(f"{tgt}: {e}")
+
+                if errors:
+                    print(f"[{timestamp}] #{build_count} FAILED: {'; '.join(errors[:3])}")
+                    continue
+
+                if show_diff:
+                    print(f"[{timestamp}] #{build_count} Changed:")
+                    for tgt in targets_to_check:
+                        output = results.get(tgt, "")
+                        prev = previous_outputs.get(f"_{tgt}_last_displayed", "")
+                        if output != prev:
+                            # Count changed lines
+                            prev_lines = prev.split("\n") if prev else []
+                            curr_lines = output.split("\n")
+                            diff = list(difflib.unified_diff(
+                                prev_lines, curr_lines,
+                                fromfile=f"{tgt}/prev", tofile=f"{tgt}/current",
+                                lineterm="",
+                            ))
+                            changed = len([l for l in diff if l.startswith("+") and not l.startswith("+++")])
+                            removed = len([l for l in diff if l.startswith("-") and not l.startswith("---")])
+                            if changed or removed:
+                                print(f"  {tgt:12s} +{changed}/-{removed} lines changed")
+                                # Show first few diff lines
+                                for dline in diff[2:8]:  # Skip the ---/+++ headers
+                                    if dline and not dline.startswith("@@"):
+                                        print(f"    {dline[:100]}")
+                            else:
+                                print(f"  {tgt:12s} no change")
+                            previous_outputs[f"_{tgt}_last_displayed"] = output
+                else:
+                    print(f"[{timestamp}] #{build_count} OK ({len(targets_to_check)} targets)")
     except KeyboardInterrupt:
         print(f"\nStopped. ({build_count} build(s))")
 
@@ -614,8 +720,56 @@ def watch_command(args: list[str]) -> int:
 
 
 def fmt_command(args: list[str]) -> int:
-    """Format .omni source files (Phase 1)."""
-    print("omnic fmt: Not yet implemented (Phase 1 feature)")
+    """Format .omni source files using the AST-based formatter."""
+    if not args:
+        print("Error: No input file specified.", file=sys.stderr)
+        print("Usage: omnic fmt <file.omni> [--check] [--write]", file=sys.stderr)
+        return 1
+
+    input_file = args[0]
+    check_only = "--check" in args
+    write_in_place = "--write" in args or not check_only
+
+    if not os.path.exists(input_file):
+        print(f"Error: File not found: {input_file}", file=sys.stderr)
+        return 1
+
+    try:
+        with open(input_file, "r", encoding="utf-8") as f:
+            source = f.read()
+
+        from omniview.formatter import OmniViewFormatter
+        formatter = OmniViewFormatter()
+        formatted = formatter.format(source)
+
+        if check_only:
+            if formatted != source:
+                print(f"File {input_file} is not formatted.", file=sys.stderr)
+                # Show diff
+                import difflib
+                diff = difflib.unified_diff(
+                    source.splitlines(keepends=True),
+                    formatted.splitlines(keepends=True),
+                    fromfile=f"{input_file} (original)",
+                    tofile=f"{input_file} (formatted)",
+                )
+                sys.stderr.writelines(diff)
+                return 1
+            else:
+                print(f"File {input_file} is already formatted.")
+                return 0
+        else:
+            if write_in_place:
+                with open(input_file, "w", encoding="utf-8") as f:
+                    f.write(formatted)
+                print(f"Formatted: {input_file}")
+            else:
+                sys.stdout.write(formatted)
+
+    except Exception as e:
+        print(f"Format failed: {e}", file=sys.stderr)
+        return 1
+
     return 0
 
 
@@ -624,6 +778,7 @@ def main():
         print("OmniView CLI — omnic v0.3.0", file=sys.stderr)
         print("", file=sys.stderr)
         print("Commands:", file=sys.stderr)
+        print("  omnic serve  --dir <path>     Start visual editor server (M1a)", file=sys.stderr)
         print("  omnic init   [name]          Scaffold a new React project", file=sys.stderr)
         print("  omnic build  <file.omni>     Compile to target framework", file=sys.stderr)
         print("  omnic check  <file.omni>     Static analysis", file=sys.stderr)
@@ -639,7 +794,16 @@ def main():
     command = sys.argv[1]
     args = sys.argv[2:]
 
-    if command == "init":
+    if command == "serve":
+        from editor.server.main import cmd_serve
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--dir", required=True)
+        parser.add_argument("--port", type=int, default=5173)
+        ns = parser.parse_args(args)
+        cmd_serve(ns)
+        return 0
+    elif command == "init":
         return init_command(args)
     elif command == "build":
         return build_command(args)
@@ -654,7 +818,7 @@ def main():
         return gen_extern_command(args)
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
-        print("Available: init, build, check, watch, fmt", file=sys.stderr)
+        print("Available: serve, init, build, check, watch, fmt", file=sys.stderr)
         return 1
 
 

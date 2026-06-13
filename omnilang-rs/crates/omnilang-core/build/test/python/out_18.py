@@ -1,16 +1,10 @@
 def main():
-    x = 10
-    if (x > 5):
-        print("big")
-    elif (x == 0):
-        print("zero")
-    else:
-        print("small")
-    i = 0
-    while (i < 3):
-        print(str(i), end='')
-        i = (i + 1)
-    print("done")
+    x_shadow_0 = 1
+    print(str(x_shadow_0))
+    if True:
+        x = 2
+        print(str(x))
+    print(str(x_shadow_0))
 
 
 if __name__ == "__main__":

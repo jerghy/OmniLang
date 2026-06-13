@@ -1,0 +1,93 @@
+- generic [ref=e3]:
+  - generic:
+    - button "🎨 设计" [ref=e4] [cursor=pointer]
+    - button "💻 代码" [ref=e5] [cursor=pointer]
+  - generic [ref=e263]:
+    - generic "文件浏览器 (Ctrl+1)" [ref=e264] [cursor=pointer]: 📁
+    - generic "状态管理 (Ctrl+2)" [ref=e265] [cursor=pointer]: ⚡
+    - generic "函数库 (Ctrl+3)" [ref=e266] [cursor=pointer]: 📦
+  - generic [ref=e270]:
+    - generic [ref=e271]: 文件
+    - generic [ref=e272]: 根目录
+  - generic [ref=e274]:
+    - generic [ref=e275]: ⚡ 状态管理
+    - textbox "🔍 搜索状态..." [ref=e277]
+    - generic [ref=e278]:
+      - generic [ref=e279]: 组件状态
+      - 'generic "拖入画布创建节点 类型: i32 signal" [ref=e280]':
+        - generic [ref=e281]: ⚡
+        - generic [ref=e282]:
+          - text: onPress
+          - generic [ref=e283]: ": i32"
+      - generic [ref=e284]: Store
+      - generic [ref=e285]: 暂无 Store
+    - generic [ref=e286]:
+      - button "➕ Signal" [ref=e287] [cursor=pointer]
+      - button "➕ Computed" [ref=e288] [cursor=pointer]
+      - button "➕ Store" [ref=e289] [cursor=pointer]
+  - generic [ref=e290]:
+    - generic [ref=e291]:
+      - generic [ref=e292]: 📦 函数库
+      - generic [ref=e293]: 暂无函数，点击下方按钮创建
+      - button "➕ 添加函数" [ref=e295] [cursor=pointer]
+    - generic [ref=e296]:
+      - generic [ref=e297]: 💻 代码块
+      - 'generic "编写逻辑代码，处理事件和数据流 输入: 调用入口 输出: 返回结果" [ref=e298] [cursor=pointer]':
+        - generic [ref=e299]: 💻
+        - generic [ref=e300]:
+          - text: 代码块
+          - generic [ref=e301]: 编写逻辑代码，处理事件和数据流
+  - main [ref=e302]:
+    - generic [ref=e303]:
+      - generic [ref=e304]: OmniLang 编辑器 — 代码
+      - generic [ref=e305]: fixtures/simple
+      - generic [ref=e306]: "目标:"
+      - combobox [ref=e307]:
+        - option "react" [selected]
+        - option "vue"
+        - option "dioxus"
+        - option "flutter"
+        - option "python"
+        - option "javascript"
+        - option "rust"
+        - option "dart"
+      - button "🔌 连接器" [ref=e308] [cursor=pointer]
+      - button "编译 (Ctrl+Enter)" [ref=e309] [cursor=pointer]
+    - generic [ref=e312]:
+      - generic:
+        - generic [ref=e315] [cursor=pointer]:
+          - generic [ref=e316]: Click Me
+          - generic [ref=e317]:
+            - generic [ref=e318]: 输出
+            - generic "any" [ref=e322]
+          - generic [ref=e323]:
+            - generic [ref=e324]: "onPress: MouseEvent"
+            - generic "MouseEvent" [ref=e328]
+          - generic [ref=e329]:
+            - generic [ref=e330]: "onHover: 无"
+            - generic "void" [ref=e334]
+          - generic [ref=e335]:
+            - generic [ref=e336]: "onFocus: 无"
+            - generic "void" [ref=e340]
+          - generic [ref=e341]:
+            - generic [ref=e342]: "onLongPress: 无"
+            - generic "void" [ref=e346]
+          - textbox [ref=e349]: 📦 Click Me
+          - generic [ref=e350]:
+            - generic "any" [ref=e354]
+            - generic [ref=e355]: 输入
+        - generic [ref=e358] [cursor=pointer]:
+          - generic [ref=e359]: onPress
+          - generic [ref=e360]:
+            - generic [ref=e361]: 返回结果
+            - generic "any" [ref=e365]
+          - textbox [ref=e368]: ▶️ onPress
+          - generic [ref=e369]:
+            - generic "any" [ref=e373]
+            - generic [ref=e374]: onPress
+        - generic:
+          - generic:
+            - img
+    - generic [ref=e376]:
+      - generic [ref=e377]: 🔌 重连中...
+      - generic [ref=e378]: 未打开

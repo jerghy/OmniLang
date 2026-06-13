@@ -1,0 +1,68 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "🎨 Design" [active] [ref=e5] [cursor=pointer]
+      - button "💻 Code" [ref=e6] [cursor=pointer]
+    - complementary [ref=e7]:
+      - generic [ref=e511]:
+        - generic [ref=e512]: 组件面板
+        - generic [ref=e513]:
+          - generic [ref=e514]: 布局
+          - generic "通用容器" [ref=e515]: Container
+          - generic "弹性布局" [ref=e516]: Flex
+          - generic "网格布局" [ref=e517]: Grid
+          - generic "卡片容器" [ref=e518]: Card
+        - generic [ref=e519]:
+          - generic [ref=e520]: 排版
+          - generic "文本" [ref=e521]: Text
+          - generic "标题" [ref=e522]: Heading
+        - generic [ref=e523]:
+          - generic [ref=e524]: 操作
+          - generic "按钮" [ref=e525]: Button
+        - generic [ref=e526]:
+          - generic [ref=e527]: 表单
+          - generic "输入框" [ref=e528]: Input
+          - generic "多行输入" [ref=e529]: TextArea
+          - generic "下拉选择" [ref=e530]: Select
+          - generic "复选框" [ref=e531]: Checkbox
+          - generic "表单" [ref=e532]: Form
+        - generic [ref=e533]:
+          - generic [ref=e534]: 数据
+          - generic "列表" [ref=e535]: List
+          - generic "列表项" [ref=e536]: ListItem
+        - generic [ref=e537]:
+          - generic [ref=e538]: 媒体
+          - generic "图片" [ref=e539]: Image
+        - generic [ref=e540]:
+          - generic [ref=e541]: 反馈
+          - generic "加载动画" [ref=e542]: Spinner
+          - generic "进度条" [ref=e543]: Progress
+          - generic "提示框" [ref=e544]: Alert
+        - generic [ref=e545]:
+          - generic [ref=e546]: 导航
+          - generic "链接" [ref=e547]: Link
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: OmniLang Editor — Design
+        - generic [ref=e218]: space/OmniLang
+        - generic [ref=e13]: "Viewport:"
+        - button "🖥️ Desktop" [ref=e548] [cursor=pointer]
+        - button "📱 Tablet" [ref=e549] [cursor=pointer]
+        - button "📱 Mobile" [ref=e550] [cursor=pointer]
+        - button "🎨 令牌:OFF" [ref=e551] [cursor=pointer]
+        - button "🔗 连线:OFF" [ref=e552] [cursor=pointer]
+        - button "Compile (Ctrl+Enter)" [ref=e17] [cursor=pointer]
+      - generic [ref=e555]:
+        - textbox "Type here" [ref=e556]: "{bind:text}"
+        - generic [ref=e557]: "{text}"
+        - button "Clear" [ref=e558] [cursor=pointer]
+      - generic [ref=e135]:
+        - generic [ref=e136]: ✅ Compiled — 14:16:48
+        - generic [ref=e137]: tests/behaviors/bind-input.omni
+    - complementary [ref=e559]:
+      - generic [ref=e560]:
+        - generic [ref=e561]: 🔍
+        - generic [ref=e562]: 选择画布元素以编辑属性
+  - generic [ref=e351]:
+    - alert
+    - alert

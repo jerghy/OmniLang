@@ -1,0 +1,23 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 文件
+      - generic [ref=e25]: .omni
+      - generic [ref=e26] [cursor=pointer]: 📄 dashboard.omni
+      - generic [ref=e27] [cursor=pointer]: 📄 form-app.omni
+      - generic [ref=e28] [cursor=pointer]: 📄 pure-logic.omni
+      - generic [ref=e29] [cursor=pointer]: 📄 style-showcase.omni
+      - generic [ref=e30] [cursor=pointer]: 📄 todo-app.omni
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: OmniLang Editor
+      - generic [ref=e10]: omniview/examples
+      - button "Compile (Ctrl+Enter)" [ref=e11] [cursor=pointer]
+    - textbox [ref=e31]: "// Pure OmniLang test — functions, control flow, data structures fn fibonacci(n: i32) -> i32 { if n <= 1 { return n; } let a: i32 = 0; let b: i32 = 1; let i: i32 = 2; while i <= n { let temp: i32 = a + b; a = b; b = temp; i = i + 1; } return b; } fn factorial(n: i32) -> i32 { if n <= 1 { return 1; } return n * factorial(n - 1); } fn is_even(n: i32) -> bool { return n % 2 == 0; } fn greet(name: String) -> String { return \"Hello, \" + name + \"!\"; } fn main() { let fib10: i32 = fibonacci(10); println(fib10); let fact5: i32 = factorial(5); println(fact5); let even: bool = is_even(42); println(even); let msg: String = greet(\"World\"); println(msg); let x: i32 = 10; let y: i32 = 20; if x < y { println(\"x is less than y\"); } else { println(\"x is not less than y\"); } }"
+    - generic [ref=e18]:
+      - generic [ref=e19]: Ready
+      - generic [ref=e20]: pure-logic.omni
+  - complementary [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]: 🔍
+      - generic [ref=e24]: 选择画布元素以编辑属性

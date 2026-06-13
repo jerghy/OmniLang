@@ -1,0 +1,32 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]: 文件
+  - main [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: OmniLang Editor
+      - generic [ref=e11]: omniview/examples
+      - generic [ref=e12]:
+        - button "Code" [ref=e13] [cursor=pointer]
+        - button "Split" [ref=e14] [cursor=pointer]
+        - button "Design" [ref=e15] [cursor=pointer]
+      - combobox [ref=e16]:
+        - option "react" [selected]
+        - option "vue"
+        - option "dioxus"
+        - option "flutter"
+        - option "python"
+        - option "javascript"
+        - option "rust"
+        - option "dart"
+      - button "Compile (Ctrl+Enter)" [ref=e17] [cursor=pointer]
+    - generic [ref=e20]:
+      - generic [ref=e21]: 📄
+      - generic [ref=e22]: 点击左侧文件以编辑
+      - generic [ref=e23]: Ctrl+Enter 编译 · Ctrl+S 保存
+    - generic [ref=e24]:
+      - generic [ref=e25]: 🔌 Reconnecting...
+      - generic [ref=e26]: 未打开文件
+  - complementary [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]: 🔍
+      - generic [ref=e31]: 选择画布元素以编辑属性

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniLang 新贡献者上手之旅",
+  "description": "从项目根目录出发，沿着编译流水线逐步理解解析→语义分析→代码生成→静态分析的完整路径。适合初次接触 OmniLang 的开发者。",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": ".",
+      "title": "项目根目录 — 整体布局",
+      "description": "OmniLang 是一个 Python monorepo，采用 setuptools 平面布局。核心包 omnilang/ 负责语言编译流水线，omniview/ 负责 UI DSL 扩展。pyproject.toml 定义了项目元数据、依赖（lark 解析器）和 CLI 入口 `omnic`。build/ 和 build_output/ 为构建产物，tests/ 为测试套件，docs/ 存放架构决策和参考文档。"
+    },
+    {
+      "file": "omnilang/cli.py",
+      "line": 466,
+      "title": "CLI 入口 — 一切从这里开始",
+      "description": "`main()` 是 `omnic` 命令的入口。它注册了 6 个子命令：build（编译）、check（静态分析）、fix（自动修复）、run（编译并运行）、init（初始化项目）、fmt（格式化）。阅读此文件可以快速理解用户可用的所有操作。每个子命令都遵循相同的模式：parse → analyze → action。"
+    },
+    {
+      "file": "omnilang/grammar/omnilang.lark",
+      "line": 1,
+      "title": "语法定义 — 语言的 DNA",
+      "description": "这是 OmniLang 的 EBNF 语法文件（251 行），使用 Lark Earley 解析器。定义了从顶层结构（program → function_def/struct_def/import_stmt...）到类型系统（union_type、generics）再到表达式和语句的完整语法规则。理解这个文件就能理解 OmniLang 支持的所有语法结构。注意 `_core.lark` 是共享的终端定义文件，需与此保持同步。"
+    },
+    {
+      "file": "omnilang/lexer.py",
+      "line": 15,
+      "title": "解析器工厂 — 双语法入口",
+      "description": "`create_parser()` 加载基础 OmniLang 语法，`create_omniview_parser()` 加载加了 UI 扩展的语法。两者都使用 Earley 模式（支持上下文相关语法）。OmniView 的 parser 在找不到自己的语法文件时 fallback 到基础 parser。这是 OmniLang/OmniView 双语法模型的具体实现点。"
+    },
+    {
+      "file": "omnilang/parser.py",
+      "line": 38,
+      "title": "AST 转换器 — 从 Parse Tree 到 AST",
+      "description": "`OmniTransformer` 继承 Lark 的 `Transformer` 和 `ExpressionMixin`，将 Lark 解析树转换为 OmniLang 的冻结 dataclass AST 节点。这是编译流水线的第二步。Transformer 方法名与语法规则名一一对应（如 `function_def` → `FunctionDef` 节点）。代码规模约 858 行，包含 40+ 种 AST 节点的转换逻辑。表达式处理被抽到 `parser_expressions.py` 的 `ExpressionMixin` 中。"
+    },
+    {
+      "file": "omnilang/ast_nodes.py",
+      "line": 1,
+      "title": "AST 节点定义 — 中间表示的核心",
+      "description": "所有 AST 节点都是 `@dataclass(frozen=True)` — 不可变、带类型注解、带源码位置信息（Span）。包含顶层节点（Program, FunctionDef, StructDef...）、语句节点（Block, VarDecl, IfStmt...）、表达式节点（Literal, BinaryOp, FuncCall...）、类型节点（TypeAnnotation, UnionType, GenericParam）。v0.2 从 20+ 扩展到 40+ 种节点，新增了模板字符串、可选链、解构、Match 等现代语言特性。"
+    },
+    {
+      "file": "omnilang/semantic/__init__.py",
+      "line": 7,
+      "title": "语义分析 — 编译流水线第三步",
+      "description": "`analyze()` 运行 5 个顺序语义检查：resolver（作用域解析）→ type_checker（类型检查）→ shadow_checker（命名冲突检测/重命名映射）→ restrict_checker（限制检查）→ main_checker（入口验证）。如果发现错误，通过 ErrorCollector 收集并通过 report_and_exit 退出。返回 `(type_map, rename_map)` 供代码生成使用。各 checker 模块位于 `semantic/` 子包中。"
+    },
+    {
+      "file": "omnilang/codegen/__init__.py",
+      "line": 10,
+      "title": "代码生成调度 — 一对多的分发",
+      "description": "`generate()` 函数根据 target 参数将分析后的 AST 分发给对应的代码生成器：RustGenerator、DartGenerator、JavaScriptGenerator、PythonGenerator。这是编译流水线的最后一步。注意 Generator 接收 rename_map（处理跨语言的关键字冲突／命名歧义）和 type_map（类型推断结果），确保生成的代码行为正确。"
+    },
+    {
+      "file": "omnilang/codegen/base.py",
+      "line": 8,
+      "title": "代码生成器基类 — 共享约定",
+      "description": "`CodeGenerator` 是所有目标生成器的基类。它提供统一的 generate() 入口、缩进管理（_emit/_indent/_dedent）、以及抽象方法签名（_gen_program/_gen_function/_gen_block/_gen_stmt/_gen_expr）。每个具体生成器（如 `python.py`、`dart.py`）只需实现这些抽象方法。`_gen_expr` 接收 `ctx` 参数来区分 'default' 和 'assign_target' 上下文，处理不同目标语言的语义差异。"
+    },
+    {
+      "file": "omnilang/analyze/registry.py",
+      "line": 116,
+      "title": "静态分析规则注册表 — 52 条规则",
+      "description": "`build_default_registry()` 是分析系统的入口。它注册了 52 条诊断规则，分 6 大类：类型错误 (E01xx)、async 规则 (E02xx)、所有权 (E03xx)、可移植性 (P01xx)、性能 (F01xx)、风格 (S01xx)、安全 (SEC01xx)。每条规则按 `AnalyzeRule` 基类实现，有唯一 code、severity、category。`RuleRegistry` 支持按配置文件的 analyze.level 和规则覆盖启用/禁用规则，类似 rustc 的 lint 系统。"
+    },
+    {
+      "file": "omniview/ir_types.py",
+      "line": 1,
+      "title": "OmniView Intent IR — UI 的中间表示",
+      "description": "当 .omni 文件包含 `import omniview;` 时，UI 组件被 lowered 到这个 Intent IR。它不是语法树的镜像，而是存储渲染意图（intents）：信号（signals）、生命周期（mount/unmount）、绑定方向（bidirectional/text_input...）、变异操作（spread_append/increment...）。每种 UI 框架（React/Vue/Dioxus/Flutter）的 codegen 解释这些意图并生成符合该框架习惯的代码。这是 OmniLang→OmniView 架构解耦的关键设计。"
+    },
+    {
+      "directory": "tests",
+      "title": "测试套件 — 534 个测试保驾护航",
+      "description": "测试使用 pytest 框架，覆盖 4 个编译目标（Python/JS/Dart/Rust）。核心 fixture：`compile_and_run`（编译 omni 源码并执行）、`analyze_fixture`（运行静态分析返回诊断）、`async_test_runner`（测试 async/await 代码生成）、`multi_file_fixture`（多文件项目测试）。`conftest.py` 中的跨平台兼容处理（Windows 上 Dart 需要 shell=True、Rust 编译超时）是之前踩过的坑，新增测试目标时需要留意。"
+    },
+    {
+      "file": "docs/README.md",
+      "line": 1,
+      "title": "文档导航 — 接下来的方向",
+      "description": "docs/ 目录包含架构决策记录（adr/）、语言参考（lang-ref.md、stdlib.md）、迁移指南（migration-v0.1-v0.2.md）、以及差距报告（REAL_WORLD_GAPS.md、GRAMMAR_AUDIT.md）。建议新贡献者按以下顺序阅读：(1) lang-ref.md 了解语言特性，(2) adr/ 了解架构决策，(3) REAL_WORLD_GAPS.md 了解已知差距和待修复问题，(4) 选一个 P01xx 或 S01xx 规则实现来熟悉开发流程。"
+    }
+  ]
+}

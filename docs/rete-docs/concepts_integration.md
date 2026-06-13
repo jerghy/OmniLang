@@ -1,0 +1,77 @@
+# Integration
+
+> Source: [https://retejs.org/docs/concepts/integration](https://retejs.org/docs/concepts/integration)
+
+# Integration
+
+Architecture
+This framework is not bound to any UI rendering framework and can be integrated with the most popular frameworks/libraries such as **Angular**, **Svelte**, **Lit**, **Vue.js**, **React.js**. The following rendering packages are available:
+
+- [rete-react-plugin](https://www.npmjs.com/package/rete-react-plugin)
+- [rete-vue-plugin](https://www.npmjs.com/package/rete-vue-plugin)
+- [rete-angular-plugin](https://www.npmjs.com/package/rete-angular-plugin)
+- [rete-svelte-plugin](https://www.npmjs.com/package/rete-svelte-plugin)
+- [@retejs/lit-plugin](https://www.npmjs.com/package/@retejs/lit-plugin)
+
+The primary objective is to empower you to choose the visualization tools that align with your specific needs. Additionally, if you ever need to use the render plugin for a different framework within your application (such as during a project migration), you can easily do so. Please note that `rete-angular-plugin` is only compatible with Angular applications.
+
+## Classic preset
+
+Presets
+By default, you can use the classic preset that has built-in components for:
+
+- nodes
+- connections
+- some controls (numeric or text input fields)
+
+```
+tsimport { AngularPlugin, AngularArea2D, Presets as AngularPresets } from 'rete-angular-plugin/21'
+
+const angular = new AngularPlugin<Schemes, AngularArea2D<Schemes>>({ injector })
+
+angular.addPreset(AngularPresets.classic.setup())
+
+area.use(angular)
+
+```
+
+The framework allows you to swap out the pre-defined components with any other components as per your needs. The node component, in particular, can be customized extensively. Refer to the Customization guide for more details
+
+## Combining render plugins
+
+Combine
+This framework version has improved approaches for combining various rendering frameworkswhile ensuring TypeScript support. For instance, you can render one node using **Vue.js** and another using **React.js**.
+
+```
+tsimport { createRoot } from "react-dom/client";
+import { ReactArea2D, ReactPlugin, Presets as ReactPresets } from 'rete-react-plugin'
+import { VueArea2D, VuePlugin, Presets as VuePresets } from 'rete-vue-plugin'
+
+type AreaExtra =
+  | ReactArea2D<Schemes>
+  | VueArea2D<Schemes>
+
+const reactPlugin = new ReactPlugin<Schemes, AreaExtra>({ createRoot })
+const vuePlugin = new VuePlugin<Schemes, AreaExtra>()
+
+reactPlugin.addPreset(ReactPresets.classic.setup({ customize: {
+  node(data) {
+    if (data.payload instanceof AddNode) return null // prevent rendering of AddNode by React.js
+    return ReactPresets.classic.Node
+  }
+} }))
+vuePlugin.addPreset(VuePresets.classic.setup({ customize: {
+  node() {
+    return VuePresets.classic.Node // render all nodes that weren't rendered by previously used render plugin
+  }
+} }))
+
+// order matters
+area.use(reactPlugin)
+area.use(vuePlugin)
+
+```
+
+The `AddNode` node in this example is rendered using **Vue.js**, while all other nodes are rendered using **React.js**.
+
+Using multiple frameworks at once may have performance drawbacks, but it can also offer a significant boost to prototyping speed when when time-to-market is critical.

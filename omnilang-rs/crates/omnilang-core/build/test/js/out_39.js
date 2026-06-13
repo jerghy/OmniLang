@@ -1,27 +1,22 @@
+function add(a, b) {
+    return (a + b);
+}
+
+function greet(name) {
+    return ("Hello, " + name);
+}
+
+function do_nothing() {
+    return;
+}
+
 function main() {
-    let i = 0;
-    while ((i < 5)) {
-        if ((i == 2)) {
-            i = (i + 1);
-            continue;
-        }
-        if ((i == 4)) {
-            break;
-        }
-        console.log(String(i));
-        i = (i + 1);
-    }
-    let x = 0;
-    let y = 10;
-    while ((x < 3)) {
-        let inner = 0;
-        while ((inner < 2)) {
-            y = (y + 1);
-            inner = (inner + 1);
-        }
-        x = (x + 1);
-    }
-    console.log(String(y));
+    const sum = add(3, 4);
+    console.log(String(sum));
+    const msg = greet("World");
+    console.log(msg);
+    do_nothing();
+    console.log("ok");
 }
 
 main();

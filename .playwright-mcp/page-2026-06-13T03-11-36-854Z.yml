@@ -1,0 +1,230 @@
+- generic [active] [ref=e1]:
+  - generic: 
+  - generic: 
+  - generic [ref=e3]:
+    - list [ref=e5]:
+      - link "Rete.js" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - text: Rete.js
+      - generic [ref=e18]:
+        - link [ref=e19] [cursor=pointer]:
+          - /url: https://github.com/retejs
+        - link [ref=e23] [cursor=pointer]:
+          - /url: https://www.youtube.com/@rete_js
+        - link [ref=e27] [cursor=pointer]:
+          - /url: https://twitter.com/rete_js
+        - link [ref=e31] [cursor=pointer]:
+          - /url: https://discord.gg/cxSFkPZdsV
+      - generic [ref=e37]:
+        - generic:
+          - link "Docs" [ref=e38] [cursor=pointer]:
+            - /url: /docs
+          - link "Examples" [ref=e39] [cursor=pointer]:
+            - /url: /examples
+          - link "Studio" [ref=e40] [cursor=pointer]:
+            - /url: https://studio.retejs.org
+          - link "Sponsor" [ref=e41] [cursor=pointer]:
+            - /url: /sponsor
+      - generic [ref=e45] [cursor=pointer]: en
+    - list [ref=e49]:
+      - heading "Documentation" [level=1] [ref=e50]:
+        - generic [ref=e51]: Documentation
+      - generic [ref=e53]:
+        - link "Introduction" [ref=e55] [cursor=pointer]:
+          - /url: /docs
+          - generic [ref=e56]: Introduction
+        - link "Getting started" [ref=e58] [cursor=pointer]:
+          - /url: /docs/getting-started
+          - generic [ref=e59]: Getting started
+        - generic [ref=e61]:
+          - listitem [ref=e62]:
+            - generic [ref=e63] [cursor=pointer]: Concepts
+          - generic [ref=e66]:
+            - link "Plugin system" [ref=e68] [cursor=pointer]:
+              - /url: /docs/concepts/plugin-system
+            - link "Presets" [ref=e70] [cursor=pointer]:
+              - /url: /docs/concepts/presets
+            - link "Editor" [ref=e72] [cursor=pointer]:
+              - /url: /docs/concepts/editor
+            - link "Engine" [ref=e74] [cursor=pointer]:
+              - /url: /docs/concepts/engine
+            - link "Integration" [ref=e76] [cursor=pointer]:
+              - /url: /docs/concepts/integration
+        - generic [ref=e78]:
+          - listitem [ref=e79]:
+            - generic [ref=e80] [cursor=pointer]: Guides
+          - generic [ref=e83]:
+            - link "Basic editor" [ref=e85] [cursor=pointer]:
+              - /url: /docs/guides/basic
+            - generic [ref=e87]:
+              - listitem [ref=e88]:
+                - generic [ref=e89] [cursor=pointer]: Renderers
+              - generic [ref=e92]:
+                - link "React.js" [ref=e94] [cursor=pointer]:
+                  - /url: /docs/guides/renderers/react
+                - link "Vue.js" [ref=e96] [cursor=pointer]:
+                  - /url: /docs/guides/renderers/vue
+                - link "Angular" [ref=e98] [cursor=pointer]:
+                  - /url: /docs/guides/renderers/angular
+                - link "Svelte" [ref=e100] [cursor=pointer]:
+                  - /url: /docs/guides/renderers/svelte
+                - link "Lit" [ref=e102] [cursor=pointer]:
+                  - /url: /docs/guides/renderers/lit
+            - generic [ref=e104]:
+              - listitem [ref=e105]:
+                - generic [ref=e106] [cursor=pointer]: Processing
+              - generic [ref=e109]:
+                - link "Dataflow" [ref=e111] [cursor=pointer]:
+                  - /url: /docs/guides/processing/dataflow
+                - link "Control flow" [ref=e113] [cursor=pointer]:
+                  - /url: /docs/guides/processing/control-flow
+                - link "Hybrid Engine" [ref=e115] [cursor=pointer]:
+                  - /url: /docs/guides/processing/hybrid
+                - link "Codegen" [ref=e117] [cursor=pointer]:
+                  - /url: /docs/guides/processing/codegen
+            - generic [ref=e119]:
+              - listitem [ref=e120]:
+                - generic [ref=e121] [cursor=pointer]: 3D
+              - link "3D" [ref=e126] [cursor=pointer]:
+                - /url: /docs/guides/3d
+            - link "Data structures" [ref=e128] [cursor=pointer]:
+              - /url: /docs/guides/data-structures
+            - link "Arrange nodes" [ref=e130] [cursor=pointer]:
+              - /url: /docs/guides/arrange
+            - generic [ref=e132]:
+              - listitem [ref=e133]:
+                - generic [ref=e134] [cursor=pointer]: Selectable
+              - generic [ref=e137]:
+                - link "Selectable" [ref=e139] [cursor=pointer]:
+                  - /url: /docs/guides/selectable
+                - link "Selectable connections" [ref=e141] [cursor=pointer]:
+                  - /url: /docs/guides/selectable/connections
+            - link "Connections" [ref=e143] [cursor=pointer]:
+              - /url: /docs/guides/connections
+            - link "Context menu" [ref=e145] [cursor=pointer]:
+              - /url: /docs/guides/context-menu
+            - link "Readonly" [ref=e147] [cursor=pointer]:
+              - /url: /docs/guides/readonly
+            - link "Modules" [ref=e149] [cursor=pointer]:
+              - /url: /docs/guides/modules
+            - link "Scopes" [ref=e151] [cursor=pointer]:
+              - /url: /docs/guides/scopes
+            - link "Import/export" [ref=e153] [cursor=pointer]:
+              - /url: /docs/guides/import-export
+            - link "Validation" [ref=e155] [cursor=pointer]:
+              - /url: /docs/guides/validation
+            - link "Minimap" [ref=e157] [cursor=pointer]:
+              - /url: /docs/guides/minimap
+            - link "Dock menu" [ref=e159] [cursor=pointer]:
+              - /url: /docs/guides/dock-menu
+            - link "Connection path" [ref=e161] [cursor=pointer]:
+              - /url: /docs/guides/connection-path
+            - link "Reroute" [ref=e163] [cursor=pointer]:
+              - /url: /docs/guides/reroute
+            - link "Undo/Redo" [ref=e165] [cursor=pointer]:
+              - /url: /docs/guides/undo-redo
+            - link "Comments" [ref=e167] [cursor=pointer]:
+              - /url: /docs/guides/comments
+        - generic [ref=e169]:
+          - listitem [ref=e170]:
+            - generic [ref=e171] [cursor=pointer]: Best Practices
+          - link "Performance" [ref=e176] [cursor=pointer]:
+            - /url: /docs/best-practices/performance
+        - link "Quality assurance" [ref=e178] [cursor=pointer]:
+          - /url: /docs/quality-assurance
+          - generic [ref=e179]: Quality assurance
+        - generic [ref=e181]:
+          - listitem [ref=e182]:
+            - generic [ref=e183] [cursor=pointer]: Development
+          - generic [ref=e186]:
+            - link "Development" [ref=e188] [cursor=pointer]:
+              - /url: /docs/development
+            - link "Rete CLI" [ref=e190] [cursor=pointer]:
+              - /url: /docs/development/rete-cli
+            - link "Rete Kit" [ref=e192] [cursor=pointer]:
+              - /url: /docs/development/rete-kit
+            - generic [ref=e194]:
+              - listitem [ref=e195]:
+                - generic [ref=e196] [cursor=pointer]: AI Assistance
+              - generic [ref=e199]:
+                - link "AI Assistance" [ref=e201] [cursor=pointer]:
+                  - /url: /docs/development/ai-assistance
+                - link "LLMs.txt" [ref=e203] [cursor=pointer]:
+                  - /url: /docs/development/ai-assistance/llms
+                - link "Rete Kit AI" [ref=e205] [cursor=pointer]:
+                  - /url: /docs/development/ai-assistance/rete-kit-ai
+        - link "Troubleshooting" [ref=e207] [cursor=pointer]:
+          - /url: /docs/troubleshooting
+          - generic [ref=e208]: Troubleshooting
+        - link "Licensing" [ref=e210] [cursor=pointer]:
+          - /url: /docs/licensing
+          - generic [ref=e211]: Licensing
+        - link "Code of Conduct" [ref=e213] [cursor=pointer]:
+          - /url: /docs/code-of-conduct
+          - generic [ref=e214]: Code of Conduct
+        - link "Contribution" [ref=e216] [cursor=pointer]:
+          - /url: /docs/contribution
+          - generic [ref=e217]: Contribution
+        - generic [ref=e219]:
+          - listitem [ref=e220]:
+            - generic [ref=e221] [cursor=pointer]: API
+          - generic [ref=e224]:
+            - link "API" [ref=e226] [cursor=pointer]:
+              - /url: /docs/api
+            - link "Overview" [ref=e228] [cursor=pointer]:
+              - /url: /docs/api/overview
+            - link "rete" [ref=e230] [cursor=pointer]:
+              - /url: /docs/api/rete
+            - link "rete-area-plugin" [ref=e232] [cursor=pointer]:
+              - /url: /docs/api/rete-area-plugin
+            - link "rete-area-3d-plugin" [ref=e234] [cursor=pointer]:
+              - /url: /docs/api/rete-area-3d-plugin
+            - link "rete-connection-plugin" [ref=e236] [cursor=pointer]:
+              - /url: /docs/api/rete-connection-plugin
+            - link "rete-auto-arrange-plugin" [ref=e238] [cursor=pointer]:
+              - /url: /docs/api/rete-auto-arrange-plugin
+            - link "rete-context-menu-plugin" [ref=e240] [cursor=pointer]:
+              - /url: /docs/api/rete-context-menu-plugin
+            - link "rete-engine" [ref=e242] [cursor=pointer]:
+              - /url: /docs/api/rete-engine
+            - link "rete-history-plugin" [ref=e244] [cursor=pointer]:
+              - /url: /docs/api/rete-history-plugin
+            - link "rete-minimap-plugin" [ref=e246] [cursor=pointer]:
+              - /url: /docs/api/rete-minimap-plugin
+            - link "rete-readonly-plugin" [ref=e248] [cursor=pointer]:
+              - /url: /docs/api/rete-readonly-plugin
+            - link "rete-angular-plugin" [ref=e250] [cursor=pointer]:
+              - /url: /docs/api/rete-angular-plugin
+            - link "@retejs/lit-plugin" [ref=e252] [cursor=pointer]:
+              - /url: /docs/api/rete-lit-plugin
+            - link "rete-react-plugin" [ref=e254] [cursor=pointer]:
+              - /url: /docs/api/rete-react-plugin
+            - link "rete-svelte-plugin" [ref=e256] [cursor=pointer]:
+              - /url: /docs/api/rete-svelte-plugin
+            - link "rete-vue-plugin" [ref=e258] [cursor=pointer]:
+              - /url: /docs/api/rete-vue-plugin
+            - link "rete-render-utils" [ref=e260] [cursor=pointer]:
+              - /url: /docs/api/rete-render-utils
+            - link "rete-scopes-plugin" [ref=e262] [cursor=pointer]:
+              - /url: /docs/api/rete-scopes-plugin
+            - link "rete-dock-plugin" [ref=e264] [cursor=pointer]:
+              - /url: /docs/api/rete-dock-plugin
+            - link "rete-comment-plugin" [ref=e266] [cursor=pointer]:
+              - /url: /docs/api/rete-comment-plugin
+            - link "rete-connection-path-plugin" [ref=e268] [cursor=pointer]:
+              - /url: /docs/api/rete-connection-path-plugin
+            - link "rete-connection-reroute-plugin" [ref=e270] [cursor=pointer]:
+              - /url: /docs/api/rete-connection-reroute-plugin
+        - link "FAQ" [ref=e272] [cursor=pointer]:
+          - /url: /docs/faq
+          - generic [ref=e273]: FAQ
+        - link "Migration" [ref=e275] [cursor=pointer]:
+          - /url: /docs/migration
+          - generic [ref=e276]: Migration
+    - generic [ref=e279]:
+      - generic [ref=e280]:
+        - text: Released under the
+        - link "MIT License" [ref=e281] [cursor=pointer]:
+          - /url: https://opensource.org/license/mit/
+      - generic [ref=e282]: Copyright © 2018-2026 Vitaliy Stoliarov

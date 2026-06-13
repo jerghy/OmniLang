@@ -1,0 +1,19 @@
+[      33ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:14336
+[      39ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93
+[   31653ms] Error: input is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.
+    at setInitialProperties (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9818:39)
+    at completeWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:6381:19)
+    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:850:66)
+    at completeUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8491:15)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8430:23)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8324:37)
+    at renderRootSync (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8308:6)
+    at performWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:7993:27)
+    at performSyncWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:9066:4)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:8983:302)
+[   31653ms] [WARNING] %s
+
+%s
+ An error occurred in the <input> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/@vite/client:524
+[   79584ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93

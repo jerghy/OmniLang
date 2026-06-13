@@ -1,0 +1,18 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: .omni Source
+      - combobox [ref=e5]:
+        - option "React" [selected]
+        - option "Vue"
+        - option "Dioxus"
+        - option "Flutter"
+        - option "Python"
+        - option "JavaScript"
+        - option "Rust"
+        - option "Dart"
+      - button "Compile (Ctrl+Enter)" [ref=e6]
+    - 'textbox "// Write .omni source here... // Or: edit the .omni file on disk, and the watcher will auto-compile. // Ctrl+Enter to compile manually." [ref=e7]':
+      - /placeholder: "// Write .omni source here...\n// Or: edit the .omni file on disk, and the watcher will auto-compile.\n// Ctrl+Enter to compile manually."
+    - generic [ref=e8]: Ready
+  - generic [ref=e11]: Generated Output

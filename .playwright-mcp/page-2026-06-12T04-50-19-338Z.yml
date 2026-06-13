@@ -1,0 +1,18 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]: 文件
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: OmniLang Editor
+      - button "Compile (Ctrl+Enter)" [ref=e10] [cursor=pointer]
+    - generic [ref=e13]:
+      - generic [ref=e14]: 📄
+      - generic [ref=e15]: 点击左侧文件以编辑
+      - generic [ref=e16]: Ctrl+Enter 编译 · Ctrl+S 保存
+    - generic [ref=e17]:
+      - generic [ref=e18]: 🔌 Reconnecting...
+      - generic [ref=e19]: 未打开文件
+  - complementary [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]: 🔍
+      - generic [ref=e23]: 选择画布元素以编辑属性

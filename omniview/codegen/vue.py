@@ -45,6 +45,7 @@ class VueCodegen(CodegenBase):
         self._store_signal_names: set = set()
         self._store_name = ""
         self._all_stores: dict = {}
+        self._cross_file_imports: dict[str, str] = {}
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):

@@ -1,0 +1,217 @@
+- generic [ref=e3]:
+  - generic:
+    - button "🎨 设计" [ref=e4] [cursor=pointer]
+    - button "💻 代码" [ref=e5] [cursor=pointer]
+  - complementary [ref=e6]:
+    - generic [ref=e146]:
+      - generic [ref=e147]:
+        - generic [ref=e148]: 文件
+        - generic [ref=e149]: 根目录
+      - generic [ref=e150]:
+        - generic [ref=e151]: .omni
+        - generic [ref=e152] [cursor=pointer]: 📄 Counter.omni
+        - generic [ref=e153] [cursor=pointer]: 📄 main.omni
+        - generic [ref=e154]: .omni.json
+        - generic [ref=e155] [cursor=pointer]: 🔧 Counter.omni.json
+        - generic [ref=e156] [cursor=pointer]: 🔧 main.omni.json
+    - generic [ref=e157]:
+      - generic [ref=e158]: 🧩 代码块
+      - 'generic "全局状态容器，管理 signals 和 actions 输入: 无 输出: 所有条目" [ref=e159] [cursor=pointer]':
+        - generic [ref=e160]: 🗄️
+        - generic [ref=e161]:
+          - text: Store
+          - generic [ref=e162]: 全局状态容器，管理 signals 和 actions
+      - 'generic "响应式数据源，可绑定到组件属性 输入: 设置值 输出: 当前值" [ref=e163] [cursor=pointer]':
+        - generic [ref=e164]: ⚡
+        - generic [ref=e165]:
+          - text: Signal
+          - generic [ref=e166]: 响应式数据源，可绑定到组件属性
+      - 'generic "从上游 signal/computed 派生计算值 输入: 依赖输入 输出: 计算结果" [ref=e167] [cursor=pointer]':
+        - generic [ref=e168]: 🔄
+        - generic [ref=e169]:
+          - text: Computed
+          - generic [ref=e170]: 从上游 signal/computed 派生计算值
+      - 'generic "接收事件参数，执行业务逻辑 输入: 事件调用 输出: 返回值" [ref=e171] [cursor=pointer]':
+        - generic [ref=e172]: ▶️
+        - generic [ref=e173]:
+          - text: Action
+          - generic [ref=e174]: 接收事件参数，执行业务逻辑
+  - main [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]: OmniLang 编辑器 — 代码
+      - generic [ref=e77]: test/editor-test-project
+      - generic [ref=e50]: "目标:"
+      - combobox [ref=e175]:
+        - option "react" [selected]
+        - option "vue"
+        - option "dioxus"
+        - option "flutter"
+        - option "python"
+        - option "javascript"
+        - option "rust"
+        - option "dart"
+      - button "💡 片段" [ref=e176] [cursor=pointer]
+      - button "🔌 连接器" [ref=e177] [cursor=pointer]
+      - button "编译 (Ctrl+Enter)" [ref=e178] [cursor=pointer]
+    - generic [ref=e61]:
+      - generic [ref=e179]:
+        - generic:
+          - generic [ref=e182] [cursor=pointer]:
+            - generic [ref=e183]: Button
+            - generic [ref=e184]:
+              - generic [ref=e185]: output
+              - generic "any" [ref=e189]
+            - generic [ref=e190]:
+              - generic [ref=e191]: 点击事件
+              - generic "any" [ref=e195]
+            - textbox [ref=e198]: 📦 Button
+            - generic [ref=e199]:
+              - generic "any" [ref=e203]
+              - generic [ref=e204]: input
+          - generic [ref=e207] [cursor=pointer]:
+            - generic [ref=e208]: Counter
+            - generic [ref=e209]:
+              - generic [ref=e210]: items
+              - generic "any" [ref=e214]
+            - textbox [ref=e217]: 🗄️ Counter
+          - generic [ref=e220] [cursor=pointer]:
+            - generic [ref=e221]: count
+            - generic [ref=e222]:
+              - generic [ref=e223]: value
+              - generic "i32" [ref=e227]
+            - textbox [ref=e230]: ⚡ count
+            - generic [ref=e231]:
+              - generic "i32" [ref=e235]
+              - generic [ref=e236]: set
+          - generic [ref=e239] [cursor=pointer]:
+            - generic [ref=e240]: increment
+            - textbox [ref=e243]: ▶️ increment
+            - generic [ref=e244]:
+              - generic "any" [ref=e248]
+              - generic [ref=e249]: call
+          - generic [ref=e252] [cursor=pointer]:
+            - generic [ref=e253]: onPress
+            - generic [ref=e254]:
+              - generic [ref=e255]: 返回值
+              - generic "any" [ref=e259]
+            - textbox [ref=e262]: ▶️ onPress
+            - generic [ref=e263]:
+              - generic "any" [ref=e267]
+              - generic [ref=e268]: onPress
+          - generic:
+            - generic:
+              - img
+      - complementary [ref=e270]:
+        - generic [ref=e271]:
+          - generic [ref=e272]:
+            - generic [ref=e273]: 💡 代码片段
+            - generic [ref=e274]: 顶层声明
+          - textbox "搜索片段..." [ref=e276]
+          - generic [ref=e277]:
+            - generic [ref=e278]:
+              - generic [ref=e279] [cursor=pointer]:
+                - generic [ref=e280]: 📦 顶层声明
+                - generic [ref=e281]: "3"
+              - generic "OmniView component targeting React" [ref=e282] [cursor=pointer]:
+                - generic [ref=e283]: React Component
+                - generic [ref=e284]: OmniView component targeting React
+              - generic "Signal + actions store (like zustand/pinia)" [ref=e285] [cursor=pointer]:
+                - generic [ref=e286]: Counter Store
+                - generic [ref=e287]: Signal + actions store (like zustand/pinia)
+              - generic "async fn with error handling" [ref=e288] [cursor=pointer]:
+                - generic [ref=e289]: Async Function
+                - generic [ref=e290]: async fn with error handling
+            - generic [ref=e291]:
+              - generic [ref=e292] [cursor=pointer]:
+                - generic [ref=e293]: ⚡ 函数体
+                - generic [ref=e294]: "5"
+              - generic "Error handling block" [ref=e295] [cursor=pointer]:
+                - generic [ref=e296]: Try-Catch
+                - generic [ref=e297]: Error handling block
+              - generic "Multi-branch conditional" [ref=e298] [cursor=pointer]:
+                - generic [ref=e299]: If-Else Chain
+                - generic [ref=e300]: Multi-branch conditional
+              - generic "Pattern matching" [ref=e301] [cursor=pointer]:
+                - generic [ref=e302]: Match Expression
+                - generic [ref=e303]: Pattern matching
+              - generic "Iterate over collection" [ref=e304] [cursor=pointer]:
+                - generic [ref=e305]: ForEach Loop
+                - generic [ref=e306]: Iterate over collection
+              - generic "Functional data pipeline" [ref=e307] [cursor=pointer]:
+                - generic [ref=e308]: Map + Filter
+                - generic [ref=e309]: Functional data pipeline
+            - generic [ref=e310]:
+              - generic [ref=e311] [cursor=pointer]:
+                - generic [ref=e312]: 🔄 Store Action
+                - generic [ref=e313]: "3"
+              - generic "Async store action with loading state" [ref=e314] [cursor=pointer]:
+                - generic [ref=e315]: CRUD Action
+                - generic [ref=e316]: Async store action with loading state
+              - generic "Boolean toggle action" [ref=e317] [cursor=pointer]:
+                - generic [ref=e318]: Toggle Action
+                - generic [ref=e319]: Boolean toggle action
+              - generic "Simple setter with validation" [ref=e320] [cursor=pointer]:
+                - generic [ref=e321]: Setter Action
+                - generic [ref=e322]: Simple setter with validation
+            - generic [ref=e323]:
+              - generic [ref=e324] [cursor=pointer]:
+                - generic [ref=e325]: 🧮 Computed
+                - generic [ref=e326]: "3"
+              - generic "Derived filtered list from signal" [ref=e327] [cursor=pointer]:
+                - generic [ref=e328]: Filtered List
+                - generic [ref=e329]: Derived filtered list from signal
+              - generic "Derived count/aggregate" [ref=e330] [cursor=pointer]:
+                - generic [ref=e331]: Count / Aggregation
+                - generic [ref=e332]: Derived count/aggregate
+              - generic "Concatenate fields" [ref=e333] [cursor=pointer]:
+                - generic [ref=e334]: Full Name
+                - generic [ref=e335]: Concatenate fields
+            - generic [ref=e336]:
+              - generic [ref=e337] [cursor=pointer]:
+                - generic [ref=e338]: 🎨 View 模板
+                - generic [ref=e339]: "6"
+              - generic "Two-way binding via bind:value" [ref=e340] [cursor=pointer]:
+                - generic [ref=e341]: Bind Value
+                - generic [ref=e342]: Two-way binding via bind:value
+              - generic "onPress with inline fn" [ref=e343] [cursor=pointer]:
+                - generic [ref=e344]: Event Handler
+                - generic [ref=e345]: onPress with inline fn
+              - generic "List rendering with @for" [ref=e346] [cursor=pointer]:
+                - generic [ref=e347]: For Directive
+                - generic [ref=e348]: List rendering with @for
+              - generic "Conditional with @if" [ref=e349] [cursor=pointer]:
+                - generic [ref=e350]: Conditional Render
+                - generic [ref=e351]: Conditional with @if
+              - generic "Horizontal flex container" [ref=e352] [cursor=pointer]:
+                - generic [ref=e353]: Flex Row
+                - generic [ref=e354]: Horizontal flex container
+              - generic "Card with shadow" [ref=e355] [cursor=pointer]:
+                - generic [ref=e356]: Card
+                - generic [ref=e357]: Card with shadow
+            - generic [ref=e358]:
+              - generic [ref=e359] [cursor=pointer]:
+                - generic [ref=e360]: 🌐 数据获取
+                - generic [ref=e361]: "3"
+              - generic "fetch GET with JSON parse" [ref=e362] [cursor=pointer]:
+                - generic [ref=e363]: GET Request
+                - generic [ref=e364]: fetch GET with JSON parse
+              - generic "fetch POST with JSON body" [ref=e365] [cursor=pointer]:
+                - generic [ref=e366]: POST Request
+                - generic [ref=e367]: fetch POST with JSON body
+              - generic "Periodic data polling" [ref=e368] [cursor=pointer]:
+                - generic [ref=e369]: Poll / Interval
+                - generic [ref=e370]: Periodic data polling
+            - generic [ref=e371]:
+              - generic [ref=e372] [cursor=pointer]:
+                - generic [ref=e373]: 🗄️ 状态管理
+                - generic [ref=e374]: "2"
+              - generic "Async loading / error / data trio" [ref=e375] [cursor=pointer]:
+                - generic [ref=e376]: Loading State Pattern
+                - generic [ref=e377]: Async loading / error / data trio
+              - generic "Signal with localStorage persistence" [ref=e378] [cursor=pointer]:
+                - generic [ref=e379]: Persisted Signal
+                - generic [ref=e380]: Signal with localStorage persistence
+          - generic [ref=e381]: 点击插入 · Tab 跳到占位符
+    - generic [ref=e69]:
+      - generic [ref=e70]: ✅ 已编译 — 10:44:42
+      - generic [ref=e71]: Counter.omni

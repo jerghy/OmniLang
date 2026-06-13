@@ -1,0 +1,2 @@
+[      56ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=477c455a:14336
+[      79ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93

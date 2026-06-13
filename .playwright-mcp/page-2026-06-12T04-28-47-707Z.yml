@@ -1,0 +1,26 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 文件
+      - generic [ref=e25]: .omni
+      - generic [ref=e26] [cursor=pointer]: 📄 dashboard.omni
+      - generic [ref=e27] [cursor=pointer]: 📄 form-app.omni
+      - generic [ref=e28] [cursor=pointer]: 📄 pure-logic.omni
+      - generic [ref=e29] [cursor=pointer]: 📄 style-showcase.omni
+      - generic [ref=e30] [cursor=pointer]: 📄 todo-app.omni
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: OmniLang Editor
+      - generic [ref=e10]: omniview/examples
+      - button "Compile (Ctrl+Enter)" [ref=e11] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]: 📄
+      - generic [ref=e16]: 编译以预览输出
+      - generic [ref=e17]: Ctrl+Enter
+    - generic [ref=e18]:
+      - generic [ref=e19]: Ready
+      - generic [ref=e20]: todo-app.omni
+  - complementary [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]: 🔍
+      - generic [ref=e24]: 选择画布元素以编辑属性

@@ -1,0 +1,50 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - button "🎨 Design" [active] [ref=e5] [cursor=pointer]
+    - button "💻 Code" [ref=e6] [cursor=pointer]
+  - main [ref=e67]:
+    - generic [ref=e68]:
+      - generic [ref=e69]: OmniLang Editor — Design
+      - generic [ref=e70]: omniview/examples
+      - button "Compile (Ctrl+Enter)" [ref=e71] [cursor=pointer]
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - heading "Dashboard" [level=2] [ref=e77]
+        - generic [ref=e78]: <Spacer>
+        - button "☰" [ref=e79] [cursor=pointer]
+      - generic [ref=e80]:
+        - button "Today" [ref=e81] [cursor=pointer]
+        - button "Week" [ref=e82] [cursor=pointer]
+        - button "Month" [ref=e83] [cursor=pointer]
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - heading "Total Users" [level=2] [ref=e86]
+          - generic [ref=e87]: "{store.total_users}"
+          - generic [ref=e88]: "Growth: {store.growth_rate}%"
+        - generic [ref=e89]:
+          - heading "Active Users" [level=2] [ref=e90]
+          - generic [ref=e91]: "{store.active_users}"
+          - generic [ref=e92]: "{store.active_pct}% active"
+        - generic [ref=e93]:
+          - heading "Revenue" [level=2] [ref=e94]
+          - generic [ref=e95]: "${store.revenue}"
+          - generic [ref=e96]: "AOV: ${store.avg_order_value}"
+        - generic [ref=e97]:
+          - heading "Orders" [level=2] [ref=e98]
+          - generic [ref=e99]: "{store.orders}"
+          - generic [ref=e100]: "Conversion: {store.conversion_rate}%"
+      - generic [ref=e103]:
+        - button "📊 Dashboard" [ref=e104] [cursor=pointer]
+        - button "📈 Analytics" [ref=e105] [cursor=pointer]
+        - button "⚙ Settings" [ref=e106] [cursor=pointer]
+      - generic [ref=e108]:
+        - heading "Welcome!" [level=2] [ref=e109]
+        - generic [ref=e110]: No data yet. Use the buttons above to load sample data.
+        - button "Load Sample Data" [ref=e111] [cursor=pointer]
+    - generic [ref=e112]:
+      - generic [ref=e113]: ⚠ Compiled — 13:20:03 (1 warning(s))
+      - generic [ref=e114]: dashboard.omni
+  - complementary [ref=e115]:
+    - generic [ref=e116]:
+      - generic [ref=e117]: 🔍
+      - generic [ref=e118]: 选择画布元素以编辑属性

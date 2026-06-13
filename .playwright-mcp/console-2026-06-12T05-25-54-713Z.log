@@ -1,0 +1,5 @@
+[      35ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=cfd1cd03:14336
+[      44ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93
+[  946651ms] [ERROR] [vite] SyntaxError: The requested module '/node_modules/.vite/deps/@monaco-editor_react.js?v=e3c44b48' does not provide an export named 'BeforeMount' @ http://localhost:5174/@vite/client:524
+[  946652ms] [ERROR] [vite] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:524
+[  946751ms] The requested module '/node_modules/.vite/deps/@monaco-editor_react.js?v=477c455a' does not provide an export named 'BeforeMount'

@@ -12,12 +12,16 @@ dependencies = [
 dev = [
     "pytest>=7",
 ]
+editor = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
 
 [project.scripts]
-omnic = "omnilang.cli:main"
+omnic = "omniview.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["omnilang*", "omniview*"]
+include = ["omnilang*", "omniview*", "editor*"]
 exclude = ["build*", "tests*", "tools*", "scripts*", "docs*"]
 
 [build-system]

@@ -1,0 +1,9 @@
+component App {
+    view {
+        <Container>
+            <Text label="Hello World" />
+            <Button label="Click Me" variant="primary" />
+            <Input placeholder="Enter text..." />
+        </Container>
+    }
+}

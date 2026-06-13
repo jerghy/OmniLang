@@ -1,0 +1,102 @@
+# Plugin system
+
+> Source: [https://retejs.org/docs/concepts/plugin-system](https://retejs.org/docs/concepts/plugin-system)
+
+# Plugin system
+
+[Source code](https://github.com/retejs/rete/blob/main/src/scope.ts)
+
+Plugins offer the ability to add new functionality mostly through a single entry point. They communicate with each other using signals that propagate from parent plugins to child plugins. Since plugins can have multiple child plugins, these signals are passed through in the order they are connected (it can be important when including plugins such as `rete-readonly-plugin`)
+
+Architecture
+The following code example demonstrates the creation of two scopes: the parent and the child. Both scopes log signals.
+
+```
+tsimport { Scope } from 'rete';
+
+const parentScope = new Scope<number>('parent'); // number is produced type
+const childScope = new Scope<string, [number]>('child'); // [number] is expected types of parent chain
+
+parentScope.addPipe((context) => { // add pipe to parent scope
+  console.log('parent', context); // number
+
+  return context;
+});
+
+childScope.addPipe((context) => { // add pipe to child scope
+  console.log('child', context); // string | number
+
+  return context;
+});
+
+parentScope.use(childScope); // forward all signals to child scope
+
+const returnedNumber = await parentScope.emit(1); // can emit number
+const returnedString = await childScope.emit('a'); // can emit string
+
+```
+
+Keep in mind that the order of `use` and `addPipe` affects the order in which the parent and child handlers are called.
+
+Logs:
+
+```
+logparent 1
+child 1
+child a
+
+```
+
+Signals can be modified or prevented in some cases.
+
+Prevent and modify
+```
+tsparentScope.addPipe((context) => {
+  return context * 2;
+});
+childScope.addPipe((context) => {
+  if (context === 'b') return // prevent propagation of 'b'
+  return context;
+});
+
+const doubledNumber = await parentScope.emit(1); // 2
+const expectedString = await childScope.emit('a'); // 'a'
+const expectedUndefined = await childScope.emit('b'); // undefined
+
+```
+
+Static typing is used to ensure that the expected signals of used plugins are compatible with those produced by its parent plugin.
+
+```
+tsimport { Scope } from 'rete';
+
+const parentScope = new Scope<number>('parent');
+const childScope = new Scope<string, [number | boolean]>('child');
+
+parentScope.use(childScope); // Type 'boolean' is not assignable to type 'string | number'.ts(2345)
+
+```
+
+Child plugins can access the instance of the parent plugin both for direct access to its interfaces and for producing signals on behalf of the parent plugin
+
+```
+tsimport { Scope } from 'rete';
+
+class Root extends Scope<number> {
+  isRoot = true
+}
+
+class Root2 extends Scope<number> {
+  isRoot2 = true
+}
+
+const parentScope = new Root('parent');
+const childScope = new Scope<string, [number]>('child');
+
+parentScope.use(childScope);
+
+const parent = childScope.parentScope(); // Root instance, but Scope from TS perspective
+const root = childScope.parentScope<Root>(Root); // Root instance
+const wrongInstance = childScope.parentScope<Root2>(Root2); // throws exception
+
+```

@@ -1,0 +1,206 @@
+- generic [active] [ref=e1]:
+  - generic: 
+  - generic: 
+  - generic: 
+  - generic: 
+  - generic [ref=e3]:
+    - list [ref=e5]:
+      - link "Rete.js" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - text: Rete.js
+      - generic [ref=e18]:
+        - link [ref=e19] [cursor=pointer]:
+          - /url: https://github.com/retejs
+        - link [ref=e23] [cursor=pointer]:
+          - /url: https://www.youtube.com/@rete_js
+        - link [ref=e27] [cursor=pointer]:
+          - /url: https://twitter.com/rete_js
+        - link [ref=e31] [cursor=pointer]:
+          - /url: https://discord.gg/cxSFkPZdsV
+      - button "Search" [ref=e37] [cursor=pointer]:
+        - img [ref=e39]
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e45]: K
+      - generic [ref=e46]:
+        - generic:
+          - link "Docs" [ref=e47] [cursor=pointer]:
+            - /url: /docs
+          - link "Examples" [ref=e48] [cursor=pointer]:
+            - /url: /examples
+          - link "Studio" [ref=e49] [cursor=pointer]:
+            - /url: https://studio.retejs.org
+          - link "Sponsor" [ref=e50] [cursor=pointer]:
+            - /url: /sponsor
+      - generic [ref=e55] [cursor=pointer]: en
+    - generic [ref=e57]:
+      - generic [ref=e58] [cursor=pointer]:
+        - img "sharethis sharing button" [ref=e59]
+        - generic [ref=e60]: Share
+      - generic [ref=e61] [cursor=pointer]:
+        - img "twitter sharing button" [ref=e62]
+        - generic [ref=e63]: Post
+      - img "arrow_right sharing button" [ref=e66] [cursor=pointer]
+    - generic [ref=e68]:
+      - list [ref=e69]:
+        - heading "Documentation" [level=1] [ref=e70]:
+          - generic [ref=e71]: Documentation
+        - list [ref=e73]:
+          - link "Introduction" [ref=e74] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e75]: Introduction
+          - link "Getting started" [ref=e76] [cursor=pointer]:
+            - /url: /docs/getting-started
+            - generic [ref=e77]: Getting started
+          - listitem [ref=e78]:
+            - generic [ref=e80] [cursor=pointer]: Concepts
+          - listitem [ref=e82]:
+            - generic [ref=e84] [cursor=pointer]: Guides
+          - listitem [ref=e86]:
+            - generic [ref=e88] [cursor=pointer]: Best Practices
+          - link "Quality assurance" [ref=e90] [cursor=pointer]:
+            - /url: /docs/quality-assurance
+            - generic [ref=e91]: Quality assurance
+          - listitem [ref=e92]:
+            - generic [ref=e94] [cursor=pointer]: Development
+          - link "Troubleshooting" [ref=e96] [cursor=pointer]:
+            - /url: /docs/troubleshooting
+            - generic [ref=e97]: Troubleshooting
+          - link "Licensing" [ref=e98] [cursor=pointer]:
+            - /url: /docs/licensing
+            - generic [ref=e99]: Licensing
+          - link "Code of Conduct" [ref=e100] [cursor=pointer]:
+            - /url: /docs/code-of-conduct
+            - generic [ref=e101]: Code of Conduct
+          - link "Contribution" [ref=e102] [cursor=pointer]:
+            - /url: /docs/contribution
+            - generic [ref=e103]: Contribution
+          - listitem [ref=e104]:
+            - generic [ref=e106] [cursor=pointer]: API
+          - link "FAQ" [ref=e108] [cursor=pointer]:
+            - /url: /docs/faq
+            - generic [ref=e109]: FAQ
+          - link "Migration" [ref=e110] [cursor=pointer]:
+            - /url: /docs/migration
+            - generic [ref=e111]: Migration
+      - generic [ref=e113]:
+        - heading "Introduction" [level=1] [ref=e114]
+        - generic [ref=e116]:
+          - generic:
+            - img [ref=e117]:
+              - generic "Layer 1" [ref=e118]
+            - generic [ref=e123]: Control
+          - generic:
+            - img [ref=e124]:
+              - generic "Layer 1" [ref=e125]
+            - generic [ref=e130]: Socket
+          - generic:
+            - img [ref=e131]:
+              - generic "Layer 1" [ref=e132]
+            - generic [ref=e137]: Output
+          - generic:
+            - img [ref=e138]:
+              - generic "Layer 1" [ref=e139]
+            - generic [ref=e144]: Input
+          - generic:
+            - img [ref=e145]:
+              - generic "Layer 1" [ref=e146]
+            - generic [ref=e151]: Node
+          - generic:
+            - generic:
+              - img
+            - generic:
+              - img
+            - generic [ref=e155] [cursor=pointer]:
+              - generic [ref=e156]: Number
+              - generic [ref=e157]:
+                - generic [ref=e158]: Number
+                - generic "Number" [ref=e160]
+              - spinbutton [ref=e162]: "1"
+            - generic [ref=e164] [cursor=pointer]:
+              - generic [ref=e165]: Number
+              - generic [ref=e166]:
+                - generic [ref=e167]: Number
+                - generic "Number" [ref=e169]
+              - spinbutton [ref=e171]: "1"
+            - generic [ref=e173] [cursor=pointer]:
+              - generic [ref=e174]: Add
+              - generic [ref=e175]:
+                - generic [ref=e176]: Number
+                - generic "Number" [ref=e178]
+              - spinbutton [ref=e180]: "2"
+              - generic [ref=e181]:
+                - generic "Number" [ref=e183]
+                - generic [ref=e184]: Left
+              - generic [ref=e185]:
+                - generic "Number" [ref=e187]
+                - generic [ref=e188]: Right
+        - paragraph [ref=e189]:
+          - strong [ref=e190]: Rete.js
+          - text: (pronounced /ˈriː.ti/, meaning "network" in Italian) is a framework for creating visual interfaces and workflows. It provides out-of-the-box solutions for visualization using various libraries and frameworks, as well as solutions for processing graphs based on dataflow and control flow approaches.
+        - generic [ref=e192]:
+          - paragraph [ref=e193]:
+            - strong [ref=e194]: You are reading the documentation for Rete.js v2
+          - list [ref=e195]:
+            - listitem [ref=e196]:
+              - text: Rete.js v1 documentation is still available at
+              - link "rete.js.org" [ref=e197] [cursor=pointer]:
+                - /url: https://rete.js.org
+            - listitem [ref=e198]:
+              - text: Upgrading from Rete.js v1? Check out the
+              - link "Migration" [ref=e199] [cursor=pointer]:
+                - /url: /docs/migration
+              - text: guide
+        - paragraph [ref=e200]: "In the interactive example above, you can see the notation of the basic elements of the classic editor view and the graph processing using the Dataflow-based engine. This demonstrates the essential capabilities of the framework:"
+        - list [ref=e201]:
+          - listitem [ref=e202]:
+            - strong [ref=e203]: Visualization
+            - text: ": you can choose React.js, Vue.js, Angular, Svelte or Lit to visualize nodes, sockets, controls, and connections. These visual components can be tailored to your specific needs by creating custom components for each framework, and they can all coexist in a single editor."
+          - listitem [ref=e204]:
+            - strong [ref=e205]: Processing
+            - text: ": the framework offers various types of engines that enable processing diagrams based on their nature, including dataflow and control flow. These types can be combined within the same graph."
+        - iframe [ref=e207]:
+          - generic [active]:
+            - generic: • •
+        - heading "Ecosystem" [level=2] [ref=e208]:
+          - link "Ecosystem" [ref=e209] [cursor=pointer]:
+            - /url: "#ecosystem"
+        - paragraph [ref=e210]:
+          - text: The framework is made up of various packages, including the core
+          - code [ref=e211]: rete
+          - text: package and different plugins.
+        - paragraph [ref=e212]: This approach provides flexibility in choosing only the required packages for your use case, avoiding unnecessary dependencies. It also offers the flexibility to choose different versions (e.g., testing out an RC version of a specific plugin) and substitute these packages with your custom builds (forks or plugins created from scratch).
+        - paragraph [ref=e213]:
+          - text: Each of packages has its own repository, providing development flexibility but also adding overhead. For this reason,
+          - strong [ref=e214]: Rete CLI
+          - text: was created to build TypeScript modules with built-in ESLint and Jest support, reducing boilerplate code and providing basic tools for plugin development and debugging, ultimately saving developers time.
+        - paragraph [ref=e215]: "Rete.js provides various handy resources and tools to get you started quickly:"
+        - list [ref=e216]:
+          - listitem [ref=e217]:
+            - strong [ref=e218]: Examples
+            - text: ": check out the"
+            - link "Examples" [ref=e219] [cursor=pointer]:
+              - /url: /examples
+            - text: page or
+            - link "Codesandbox" [ref=e220] [cursor=pointer]:
+              - /url: https://codesandbox.io/search?refinementList%5Btags%5D%5B0%5D=rete.js
+            - text: for code samples
+          - listitem [ref=e221]:
+            - strong [ref=e222]: Rete Kit
+            - text: ": easily generate a basic project for your framework of choice using this tool. For more details, visit the"
+            - link "Rete Kit" [ref=e223] [cursor=pointer]:
+              - /url: /docs/development/rete-kit
+            - text: page.
+          - listitem [ref=e224]:
+            - strong [ref=e225]: Guides
+            - text: ": get hands-on experience by following the"
+            - link "step-by-step guides" [ref=e226] [cursor=pointer]:
+              - /url: /docs/guides/basic
+            - text: . This will enable you to explore the existing features and learn how to extend and customize the framework to your needs
+    - generic [ref=e228]:
+      - generic [ref=e229]:
+        - text: Released under the
+        - link "MIT License" [ref=e230] [cursor=pointer]:
+          - /url: https://opensource.org/license/mit/
+      - generic [ref=e231]: Copyright © 2018-2026 Vitaliy Stoliarov

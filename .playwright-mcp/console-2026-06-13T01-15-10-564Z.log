@@ -1,0 +1,13 @@
+[    2633ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[    8322ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   14963ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   20116ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   27841ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   33215ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error during WebSocket handshake: Unexpected response code: 403 @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   39561ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   44627ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   49676ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   54721ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   59749ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   64802ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8
+[   69866ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:15999/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:15999/assets/index-DB5mlAC5.js:8

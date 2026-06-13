@@ -1,0 +1,268 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "🎨 Design" [ref=e5] [cursor=pointer]
+      - button "💻 Code" [ref=e6] [cursor=pointer]
+    - complementary [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: 文件
+        - generic [ref=e138] [cursor=pointer]: 📁 build
+        - generic [ref=e139] [cursor=pointer]: 📁 build_output
+        - generic [ref=e140] [cursor=pointer]: 📁 docs
+        - generic [ref=e141] [cursor=pointer]: 📁 DspaceOmniLangscripts
+        - generic [ref=e142] [cursor=pointer]: 📁 editor
+        - generic [ref=e143] [cursor=pointer]: 📁 omnilang
+        - generic [ref=e144] [cursor=pointer]: 📁 omnilang-rs
+        - generic [ref=e145] [cursor=pointer]: 📁 omnilang.egg-info
+        - generic [ref=e146] [cursor=pointer]: 📁 omniview
+        - generic [ref=e147] [cursor=pointer]: 📁 scripts
+        - generic [ref=e148] [cursor=pointer]: 📁 tests
+        - generic [ref=e149] [cursor=pointer]: 📁 tools
+        - generic [ref=e150] [cursor=pointer]: 📁 vscode-extension
+        - generic [ref=e151]: 其他
+        - generic [ref=e152] [cursor=pointer]: 📄 1.png
+        - generic [ref=e153] [cursor=pointer]: 📄 2.png
+        - generic [ref=e154] [cursor=pointer]: 📄 after-connector-load.txt
+        - generic [ref=e155] [cursor=pointer]: 📄 after-init.png
+        - generic [ref=e156] [cursor=pointer]: 📄 bill-dashboard-screenshot.png
+        - generic [ref=e157] [cursor=pointer]: 📄 bill-dashboard.html
+        - generic [ref=e158] [cursor=pointer]: 📄 code-snippets.png
+        - generic [ref=e159] [cursor=pointer]: 📄 connector-panel.png
+        - generic [ref=e160] [cursor=pointer]: 📄 css-showcase-fixed.png
+        - generic [ref=e161] [cursor=pointer]: 📄 css-showcase.png
+        - generic [ref=e162] [cursor=pointer]: 📄 dashboard-after-load.png
+        - generic [ref=e163] [cursor=pointer]: 📄 doc-viewer.html
+        - generic [ref=e164] [cursor=pointer]: 📄 file-list.txt
+        - generic [ref=e165] [cursor=pointer]: 📄 final-test-step1-load.png
+        - generic [ref=e166] [cursor=pointer]: 📄 form-app-submitted.png
+        - generic [ref=e167] [cursor=pointer]: 📄 form-app-success.png
+        - generic [ref=e168] [cursor=pointer]: 📄 layout-broken.png
+        - generic [ref=e169] [cursor=pointer]: 📄 m1a-compiled-fixed.png
+        - generic [ref=e170] [cursor=pointer]: 📄 m1a-compiled-verify.png
+        - generic [ref=e171] [cursor=pointer]: 📄 m1a-dashboard-ui.png
+        - generic [ref=e172] [cursor=pointer]: 📄 m1a-editor-verify.png
+        - generic [ref=e173] [cursor=pointer]: 📄 m1a-pure-logic-python.png
+        - generic [ref=e174] [cursor=pointer]: 📄 m1b-compiled.png
+        - generic [ref=e175] [cursor=pointer]: 📄 m1b-editor-react.png
+        - generic [ref=e176] [cursor=pointer]: 📄 m1b-final.png
+        - generic [ref=e177] [cursor=pointer]: 📄 m1b-react-final.png
+        - generic [ref=e178] [cursor=pointer]: 📄 m1b-react-verify.png
+        - generic [ref=e179] [cursor=pointer]: 📄 m1b-ws-fixed.png
+        - generic [ref=e180] [cursor=pointer]: 📄 m2-button-selected.png
+        - generic [ref=e181] [cursor=pointer]: 📄 m2-canvas-bottom.png
+        - generic [ref=e182] [cursor=pointer]: 📄 m2-canvas-final.png
+        - generic [ref=e183] [cursor=pointer]: 📄 m2-canvas-reload.png
+        - generic [ref=e184] [cursor=pointer]: 📄 m2-canvas-todo.png
+        - generic [ref=e185] [cursor=pointer]: 📄 m2-canvas-working.png
+        - generic [ref=e186] [cursor=pointer]: 📄 m2-code-mode.png
+        - generic [ref=e187] [cursor=pointer]: 📄 m2-design-mode.png
+        - generic [ref=e188] [cursor=pointer]: 📄 m2-full-flow-verified.png
+        - generic [ref=e189] [cursor=pointer]: 📄 m2-labels-fixed.png
+        - generic [ref=e190] [cursor=pointer]: 📄 m2-layout-fixed.png
+        - generic [ref=e191] [cursor=pointer]: 📄 m2-real-test.png
+        - generic [ref=e192] [cursor=pointer]: 📄 m2-resizable-test.png
+        - generic [ref=e193] [cursor=pointer]: 📄 m2-source-loaded.png
+        - generic [ref=e194] [cursor=pointer]: 📄 m2-styled-canvas.png
+        - generic [ref=e195] [cursor=pointer]: 📄 m2-styled-fixed.png
+        - generic [ref=e196] [cursor=pointer]: 📄 m2-view-toggle.png
+        - generic [ref=e197] [cursor=pointer]: 📄 m3-drag-test.png
+        - generic [ref=e198] [cursor=pointer]: 📄 m3-palette.png
+        - generic [ref=e199] [cursor=pointer]: 📄 news-qq-screenshot.png
+        - generic [ref=e200] [cursor=pointer]: 📄 page-after-refresh.png
+        - generic [ref=e201] [cursor=pointer]: 📄 page-snapshot.txt
+        - generic [ref=e202] [cursor=pointer]: 📄 push.bat
+        - generic [ref=e203] [cursor=pointer]: 📄 pyproject.toml
+        - generic [ref=e204] [cursor=pointer]: 📄 QUICKSTART.md
+        - generic [ref=e205] [cursor=pointer]: 📄 README.md
+        - generic [ref=e206] [cursor=pointer]: 📄 tests-dir.txt
+        - generic [ref=e207] [cursor=pointer]: 📄 todo-app-after-add.png
+        - generic [ref=e208] [cursor=pointer]: 📄 todo-app-after-complete.png
+        - generic [ref=e209] [cursor=pointer]: 📄 todo-app-build-error.png
+        - generic [ref=e210] [cursor=pointer]: 📄 todo-app-final.png
+        - generic [ref=e211] [cursor=pointer]: 📄 todo-app-working.png
+        - generic [ref=e212] [cursor=pointer]: 📄 token-panel.png
+        - generic [ref=e213] [cursor=pointer]: 📄 vrfy-css-showcase.png
+        - generic [ref=e214] [cursor=pointer]: 📄 vrfy-dashboard.png
+        - generic [ref=e215] [cursor=pointer]: 📄 vrfy-form.png
+        - generic [ref=e216] [cursor=pointer]: 📄 vrfy-init-template.png
+        - generic [ref=e217] [cursor=pointer]: 📄 vrfy-todo.png
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: OmniLang Editor — Code
+        - generic [ref=e218]: space/OmniLang
+        - generic [ref=e13]: "Target:"
+        - combobox [ref=e14]:
+          - option "react" [selected]
+          - option "vue"
+          - option "dioxus"
+          - option "flutter"
+          - option "python"
+          - option "javascript"
+          - option "rust"
+          - option "dart"
+        - button "💡 片段:ON" [ref=e15] [cursor=pointer]
+        - button "🔌 连接器:OFF" [ref=e16] [cursor=pointer]
+        - button "Compile (Ctrl+Enter)" [active] [ref=e17] [cursor=pointer]
+      - generic [ref=e18]:
+        - code [ref=e220]:
+          - generic [ref=e221]:
+            - textbox "Editor content" [ref=e222]
+            - textbox [ref=e223]
+            - generic [ref=e225]:
+              - generic [ref=e227]: "1"
+              - generic [ref=e229]: "2"
+              - generic [ref=e230]:
+                - generic [ref=e231] [cursor=pointer]: 
+                - generic [ref=e232]: "3"
+              - generic [ref=e234]: "4"
+              - generic [ref=e236]: "5"
+              - generic [ref=e237]:
+                - generic [ref=e238] [cursor=pointer]: 
+                - generic [ref=e239]: "6"
+              - generic [ref=e240]:
+                - generic [ref=e241] [cursor=pointer]: 
+                - generic [ref=e242]: "7"
+              - generic [ref=e244]: "8"
+              - generic [ref=e247]: "9"
+              - generic [ref=e248]:
+                - generic [ref=e249] [cursor=pointer]: 
+                - generic [ref=e250]: "10"
+              - generic [ref=e253]: "11"
+              - generic [ref=e255]: "12"
+              - generic [ref=e257]: "13"
+              - generic [ref=e259]: "14"
+              - generic [ref=e261]: "15"
+              - generic [ref=e264]: "16"
+            - generic [ref=e315]:
+              - generic [ref=e317]: // bind-input.omni — bind:value 双向绑定；验证输入→状态→输出同步
+              - generic [ref=e320]: "component BindInput {"
+              - generic [ref=e322]: "signal text: String = \"\";"
+              - generic [ref=e325]: "view {"
+              - generic [ref=e327]: <Container>
+              - generic [ref=e329]: "<Input bind:value={text} placeholder=\"Type here\""
+              - generic [ref=e331]: test-id="input-field" />
+              - generic [ref=e333]: "<Text test-id=\"output-label\">{text}</Text>"
+              - generic [ref=e335]: "<Button onPress={fn() { text = \"\"; }}"
+              - generic [ref=e337]: test-id="btn-clear">
+              - generic [ref=e339]: Clear
+              - generic [ref=e341]: </Button>
+              - generic [ref=e343]: </Container>
+              - generic [ref=e345]: "}"
+              - generic [ref=e347]: "}"
+        - complementary [ref=e23]:
+          - generic [ref=e24]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: 💡 代码片段
+              - generic [ref=e27]: View 模板
+            - textbox "搜索片段..." [ref=e29]
+            - generic [ref=e30]:
+              - generic [ref=e89]:
+                - generic [ref=e90] [cursor=pointer]:
+                  - generic [ref=e91]: 🎨 View 模板
+                  - generic [ref=e92]: "6"
+                - generic "Two-way binding via bind:value" [ref=e93] [cursor=pointer]:
+                  - generic [ref=e94]: Bind Value
+                  - generic [ref=e95]: Two-way binding via bind:value
+                - generic "onPress with inline fn" [ref=e96] [cursor=pointer]:
+                  - generic [ref=e97]: Event Handler
+                  - generic [ref=e98]: onPress with inline fn
+                - generic "List rendering with @for" [ref=e99] [cursor=pointer]:
+                  - generic [ref=e100]: For Directive
+                  - generic [ref=e101]: List rendering with @for
+                - generic "Conditional with @if" [ref=e102] [cursor=pointer]:
+                  - generic [ref=e103]: Conditional Render
+                  - generic [ref=e104]: Conditional with @if
+                - generic "Horizontal flex container" [ref=e105] [cursor=pointer]:
+                  - generic [ref=e106]: Flex Row
+                  - generic [ref=e107]: Horizontal flex container
+                - generic "Card with shadow" [ref=e108] [cursor=pointer]:
+                  - generic [ref=e109]: Card
+                  - generic [ref=e110]: Card with shadow
+              - generic [ref=e31]:
+                - generic [ref=e32] [cursor=pointer]:
+                  - generic [ref=e33]: 📦 顶层声明
+                  - generic [ref=e34]: "3"
+                - generic "OmniView component targeting React" [ref=e35] [cursor=pointer]:
+                  - generic [ref=e36]: React Component
+                  - generic [ref=e37]: OmniView component targeting React
+                - generic "Signal + actions store (like zustand/pinia)" [ref=e38] [cursor=pointer]:
+                  - generic [ref=e39]: Counter Store
+                  - generic [ref=e40]: Signal + actions store (like zustand/pinia)
+                - generic "async fn with error handling" [ref=e41] [cursor=pointer]:
+                  - generic [ref=e42]: Async Function
+                  - generic [ref=e43]: async fn with error handling
+              - generic [ref=e44]:
+                - generic [ref=e45] [cursor=pointer]:
+                  - generic [ref=e46]: ⚡ 函数体
+                  - generic [ref=e47]: "5"
+                - generic "Error handling block" [ref=e48] [cursor=pointer]:
+                  - generic [ref=e49]: Try-Catch
+                  - generic [ref=e50]: Error handling block
+                - generic "Multi-branch conditional" [ref=e51] [cursor=pointer]:
+                  - generic [ref=e52]: If-Else Chain
+                  - generic [ref=e53]: Multi-branch conditional
+                - generic "Pattern matching" [ref=e54] [cursor=pointer]:
+                  - generic [ref=e55]: Match Expression
+                  - generic [ref=e56]: Pattern matching
+                - generic "Iterate over collection" [ref=e57] [cursor=pointer]:
+                  - generic [ref=e58]: ForEach Loop
+                  - generic [ref=e59]: Iterate over collection
+                - generic "Functional data pipeline" [ref=e60] [cursor=pointer]:
+                  - generic [ref=e61]: Map + Filter
+                  - generic [ref=e62]: Functional data pipeline
+              - generic [ref=e63]:
+                - generic [ref=e64] [cursor=pointer]:
+                  - generic [ref=e65]: 🔄 Store Action
+                  - generic [ref=e66]: "3"
+                - generic "Async store action with loading state" [ref=e67] [cursor=pointer]:
+                  - generic [ref=e68]: CRUD Action
+                  - generic [ref=e69]: Async store action with loading state
+                - generic "Boolean toggle action" [ref=e70] [cursor=pointer]:
+                  - generic [ref=e71]: Toggle Action
+                  - generic [ref=e72]: Boolean toggle action
+                - generic "Simple setter with validation" [ref=e73] [cursor=pointer]:
+                  - generic [ref=e74]: Setter Action
+                  - generic [ref=e75]: Simple setter with validation
+              - generic [ref=e76]:
+                - generic [ref=e77] [cursor=pointer]:
+                  - generic [ref=e78]: 🧮 Computed
+                  - generic [ref=e79]: "3"
+                - generic "Derived filtered list from signal" [ref=e80] [cursor=pointer]:
+                  - generic [ref=e81]: Filtered List
+                  - generic [ref=e82]: Derived filtered list from signal
+                - generic "Derived count/aggregate" [ref=e83] [cursor=pointer]:
+                  - generic [ref=e84]: Count / Aggregation
+                  - generic [ref=e85]: Derived count/aggregate
+                - generic "Concatenate fields" [ref=e86] [cursor=pointer]:
+                  - generic [ref=e87]: Full Name
+                  - generic [ref=e88]: Concatenate fields
+              - generic [ref=e111]:
+                - generic [ref=e112] [cursor=pointer]:
+                  - generic [ref=e113]: 🌐 数据获取
+                  - generic [ref=e114]: "3"
+                - generic "fetch GET with JSON parse" [ref=e115] [cursor=pointer]:
+                  - generic [ref=e116]: GET Request
+                  - generic [ref=e117]: fetch GET with JSON parse
+                - generic "fetch POST with JSON body" [ref=e118] [cursor=pointer]:
+                  - generic [ref=e119]: POST Request
+                  - generic [ref=e120]: fetch POST with JSON body
+                - generic "Periodic data polling" [ref=e121] [cursor=pointer]:
+                  - generic [ref=e122]: Poll / Interval
+                  - generic [ref=e123]: Periodic data polling
+              - generic [ref=e124]:
+                - generic [ref=e125] [cursor=pointer]:
+                  - generic [ref=e126]: 🗄️ 状态管理
+                  - generic [ref=e127]: "2"
+                - generic "Async loading / error / data trio" [ref=e128] [cursor=pointer]:
+                  - generic [ref=e129]: Loading State Pattern
+                  - generic [ref=e130]: Async loading / error / data trio
+                - generic "Signal with localStorage persistence" [ref=e131] [cursor=pointer]:
+                  - generic [ref=e132]: Persisted Signal
+                  - generic [ref=e133]: Signal with localStorage persistence
+            - generic [ref=e134]: 点击插入 · Tab 跳到占位符
+      - generic [ref=e135]:
+        - generic [ref=e136]: ✅ Compiled — 14:16:48
+        - generic [ref=e137]: tests/behaviors/bind-input.omni
+  - generic [ref=e351]:
+    - alert
+    - alert

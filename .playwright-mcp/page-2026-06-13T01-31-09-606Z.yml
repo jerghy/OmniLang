@@ -1,0 +1,76 @@
+- generic [ref=e3]:
+  - generic:
+    - button "🎨 设计" [active] [ref=e4] [cursor=pointer]
+    - button "💻 代码" [ref=e5] [cursor=pointer]
+  - complementary [ref=e6]:
+    - generic [ref=e226]:
+      - generic [ref=e227]: 组件面板
+      - generic [ref=e228]:
+        - generic [ref=e229]: 布局
+        - generic "通用容器" [ref=e230]: Container
+        - generic "弹性布局" [ref=e231]: Flex
+        - generic "网格布局" [ref=e232]: Grid
+        - generic "卡片容器" [ref=e233]: Card
+      - generic [ref=e234]:
+        - generic [ref=e235]: 排版
+        - generic "文本" [ref=e236]: Text
+        - generic "标题" [ref=e237]: Heading
+      - generic [ref=e238]:
+        - generic [ref=e239]: 操作
+        - generic "按钮" [ref=e240]: Button
+      - generic [ref=e241]:
+        - generic [ref=e242]: 表单
+        - generic "输入框" [ref=e243]: Input
+        - generic "多行输入" [ref=e244]: TextArea
+        - generic "下拉选择" [ref=e245]: Select
+        - generic "复选框" [ref=e246]: Checkbox
+        - generic "表单" [ref=e247]: Form
+      - generic [ref=e248]:
+        - generic [ref=e249]: 数据
+        - generic "列表" [ref=e250]: List
+        - generic "列表项" [ref=e251]: ListItem
+      - generic [ref=e252]:
+        - generic [ref=e253]: 媒体
+        - generic "图片" [ref=e254]: Image
+      - generic [ref=e255]:
+        - generic [ref=e256]: 反馈
+        - generic "加载动画" [ref=e257]: Spinner
+        - generic "进度条" [ref=e258]: Progress
+        - generic "提示框" [ref=e259]: Alert
+      - generic [ref=e260]:
+        - generic [ref=e261]: 导航
+        - generic "链接" [ref=e262]: Link
+    - button "🎬 导入动画…" [ref=e264] [cursor=pointer]
+  - main [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]: OmniLang 编辑器 — 设计
+      - generic [ref=e50]: test/editor-test-project
+      - generic [ref=e51]: "视口:"
+      - button "🖥️ 桌面" [ref=e265] [cursor=pointer]
+      - button "📱 平板" [ref=e266] [cursor=pointer]
+      - button "📱 手机" [ref=e267] [cursor=pointer]
+      - button "🎨 令牌" [ref=e268] [cursor=pointer]
+      - button "🔗 连线" [ref=e269] [cursor=pointer]
+      - button "🔍 状态" [ref=e270] [cursor=pointer]
+      - combobox "Component state preview" [ref=e271]:
+        - option "👁 Normal" [selected]
+        - option "🖱 Hover"
+        - option "👆 Active"
+        - option "🎯 Focus"
+        - option "🚫 Disabled"
+        - option "⏳ Loading"
+      - button "↹ 焦点" [ref=e272] [cursor=pointer]
+      - button "🚀 发布" [ref=e273] [cursor=pointer]
+      - button "编译 (Ctrl+Enter)" [ref=e274] [cursor=pointer]
+    - generic [ref=e277]:
+      - generic [ref=e278]: 🎨
+      - generic [ref=e279]: 编译 .omni 或在左侧组件面板拖入组件
+      - generic [ref=e280]: Ctrl+Enter 编译
+    - generic [ref=e70]:
+      - generic [ref=e71]: 就绪
+      - generic [ref=e72]: main.omni
+      - generic [ref=e281]: — fps
+  - complementary [ref=e282]:
+    - generic [ref=e283]:
+      - generic [ref=e284]: 🔍
+      - generic [ref=e285]: 选择画布元素以编辑属性

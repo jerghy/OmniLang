@@ -1,0 +1,161 @@
+- generic [ref=e3]:
+  - generic:
+    - button "🎨 设计" [active] [ref=e4] [cursor=pointer]
+    - button "💻 代码" [ref=e5] [cursor=pointer]
+  - complementary [ref=e379]:
+    - generic [ref=e381]:
+      - generic [ref=e382]: 组件面板
+      - generic [ref=e383]:
+        - generic [ref=e384]: 布局
+        - generic "通用容器" [ref=e385]: Container
+        - generic "弹性布局" [ref=e386]: Flex
+        - generic "网格布局" [ref=e387]: Grid
+        - generic "卡片容器" [ref=e388]: Card
+      - generic [ref=e389]:
+        - generic [ref=e390]: 排版
+        - generic "文本" [ref=e391]: Text
+        - generic "标题" [ref=e392]: Heading
+      - generic [ref=e393]:
+        - generic [ref=e394]: 操作
+        - generic "按钮" [ref=e395]: Button
+      - generic [ref=e396]:
+        - generic [ref=e397]: 表单
+        - generic "输入框" [ref=e398]: Input
+        - generic "多行输入" [ref=e399]: TextArea
+        - generic "下拉选择" [ref=e400]: Select
+        - generic "复选框" [ref=e401]: Checkbox
+        - generic "表单" [ref=e402]: Form
+      - generic [ref=e403]:
+        - generic [ref=e404]: 数据
+        - generic "列表" [ref=e405]: List
+        - generic "列表项" [ref=e406]: ListItem
+      - generic [ref=e407]:
+        - generic [ref=e408]: 媒体
+        - generic "图片" [ref=e409]: Image
+      - generic [ref=e410]:
+        - generic [ref=e411]: 反馈
+        - generic "加载动画" [ref=e412]: Spinner
+        - generic "进度条" [ref=e413]: Progress
+        - generic "提示框" [ref=e414]: Alert
+      - generic [ref=e415]:
+        - generic [ref=e416]: 导航
+        - generic "链接" [ref=e417]: Link
+    - button "🎬 导入动画…" [ref=e419] [cursor=pointer]
+  - main [ref=e420]:
+    - generic [ref=e421]:
+      - generic [ref=e422]: OmniLang 编辑器 — 设计
+      - generic [ref=e423]: fixtures/simple
+      - generic [ref=e424]: "视口:"
+      - button "🖥️ 桌面" [ref=e425] [cursor=pointer]
+      - button "📱 平板" [ref=e426] [cursor=pointer]
+      - button "📱 手机" [ref=e427] [cursor=pointer]
+      - button "🎨 令牌" [ref=e428] [cursor=pointer]
+      - button "🔗 连线" [ref=e429] [cursor=pointer]
+      - button "🔍 状态" [ref=e430] [cursor=pointer]
+      - combobox "Component state preview" [ref=e431]:
+        - option "👁 Normal" [selected]
+        - option "🖱 Hover"
+        - option "👆 Active"
+        - option "🎯 Focus"
+        - option "🚫 Disabled"
+        - option "⏳ Loading"
+      - button "↹ 焦点" [ref=e432] [cursor=pointer]
+      - button "🚀 发布" [ref=e433] [cursor=pointer]
+      - button "编译 (Ctrl+Enter)" [ref=e434] [cursor=pointer]
+    - generic [ref=e438]:
+      - generic [ref=e439]: Hello World
+      - button "Click Me" [ref=e440] [cursor=pointer]
+      - textbox [ref=e441]
+    - generic [ref=e442]:
+      - generic [ref=e443]: 🔌 重连中...
+      - generic [ref=e444]: 未打开
+      - generic [ref=e445]: — fps
+  - complementary [ref=e446]:
+    - generic [ref=e447]:
+      - heading "<Button>" [level=3] [ref=e448]
+      - generic [ref=e449]: 属性
+      - generic [ref=e450]:
+        - generic [ref=e451]: label
+        - textbox "label" [ref=e452]: Click Me
+      - generic [ref=e453]:
+        - generic [ref=e454]: variant
+        - combobox "variant" [ref=e455]:
+          - option "primary" [selected]
+          - option "secondary"
+          - option "danger"
+          - option "ghost"
+      - generic [ref=e456]:
+        - checkbox "disabled" [ref=e457]
+        - generic [ref=e458]: disabled
+      - generic [ref=e459]:
+        - checkbox "loading" [ref=e460]
+        - generic [ref=e461]: loading
+      - generic [ref=e462]:
+        - generic [ref=e463]: test-id
+        - textbox "test-id" [ref=e464]
+      - generic [ref=e465]: 事件
+      - generic [ref=e466]:
+        - generic [ref=e467]:
+          - generic [ref=e468]:
+            - text: onPress
+            - generic [ref=e469]: (点击)
+          - combobox "onPress (点击)" [ref=e470]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - button "🔗 连线到代码块 (onPress)" [ref=e471] [cursor=pointer]
+      - generic [ref=e472]:
+        - generic [ref=e473]:
+          - generic [ref=e474]:
+            - text: onHover
+            - generic [ref=e475]: (悬停)
+          - combobox "onHover (悬停)" [ref=e476]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - button "🔗 连线到代码块 (onHover)" [ref=e477] [cursor=pointer]
+      - generic [ref=e478]:
+        - generic [ref=e479]:
+          - generic [ref=e480]:
+            - text: onFocus
+            - generic [ref=e481]: (焦点)
+          - combobox "onFocus (焦点)" [ref=e482]:
+            - option "无" [selected]
+            - option "＋ 新建函数..."
+            - option "＋ 内联函数..."
+        - button "🔗 连线到代码块 (onFocus)" [ref=e483] [cursor=pointer]
+      - generic [ref=e484]: 样式
+      - generic [ref=e485]:
+        - generic [ref=e486]: width
+        - textbox "width" [ref=e487]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e488]:
+        - generic [ref=e489]: height
+        - textbox "height" [ref=e490]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e491]:
+        - generic [ref=e492]: padding
+        - textbox "padding" [ref=e493]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e494]:
+        - generic [ref=e495]: margin
+        - textbox "margin" [ref=e496]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e497]:
+        - generic [ref=e498]: background_color
+        - generic [ref=e499]:
+          - textbox "background_color" [ref=e500] [cursor=pointer]: "#000000"
+          - textbox [ref=e501]
+      - generic [ref=e502]:
+        - generic [ref=e503]: border_radius
+        - textbox "border_radius" [ref=e504]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e505]:
+        - generic [ref=e506]: font_size
+        - textbox "font_size" [ref=e507]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e508]:
+        - generic [ref=e509]: font_weight
+        - textbox "font_weight" [ref=e510]:
+          - /placeholder: e.g. 16px
+      - generic [ref=e511]: "ID: v3..."

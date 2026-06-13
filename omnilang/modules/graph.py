@@ -13,6 +13,7 @@ class ModuleNode:
     path: str        # Absolute file path
     imports: list[str] = field(default_factory=list)  # Imported module paths
     exported: list[str] = field(default_factory=list)  # Exported symbol names
+    import_lines: dict[str, int] = field(default_factory=dict)  # import_path → source line number
 
 
 class ModuleGraph:
@@ -21,15 +22,30 @@ class ModuleGraph:
     def __init__(self):
         self._nodes: dict[str, ModuleNode] = {}
 
-    def add_module(self, path: str, imports: list[str], exports: list[str] | None = None):
-        """Add or update a module node."""
+    def add_module(self, path: str, imports: list[str], exports: list[str] | None = None,
+                   import_lines: dict[str, int] | None = None):
+        """Add or update a module node.
+
+        Args:
+            path: Absolute file path of the module.
+            imports: List of imported module paths (resolved).
+            exports: List of exported symbol names.
+            import_lines: Dict mapping import_path → source line number for diagnostics.
+        """
         node = self._nodes.get(path)
         if node:
             node.imports = imports
             if exports:
                 node.exported = exports
+            if import_lines:
+                node.import_lines = import_lines
         else:
-            self._nodes[path] = ModuleNode(path=path, imports=imports, exported=exports or [])
+            self._nodes[path] = ModuleNode(
+                path=path,
+                imports=imports,
+                exported=exports or [],
+                import_lines=import_lines or {},
+            )
 
     def detect_cycles(self) -> list[list[str]]:
         """Find circular dependencies using Tarjan's algorithm.

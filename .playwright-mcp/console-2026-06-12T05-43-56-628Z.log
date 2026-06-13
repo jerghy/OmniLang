@@ -1,0 +1,8 @@
+[      40ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=477c455a:14336
+[      55ms] [WARNING] WebSocket connection to 'ws://localhost:5174/api/watch' failed: WebSocket is closed before the connection is established. @ http://localhost:5174/src/api/client.ts:93
+[  181115ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/editor/MonacoEditor.tsx?t=1781243217733:0
+[  181115ms] [ERROR] [vite] Failed to reload /src/editor/MonacoEditor.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:524
+[  190772ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/editor/MonacoEditor.tsx?t=1781243227394:0
+[  190772ms] [ERROR] [vite] Failed to reload /src/editor/MonacoEditor.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:524
+[  194679ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/editor/MonacoEditor.tsx?t=1781243231301:0
+[  194679ms] [ERROR] [vite] Failed to reload /src/editor/MonacoEditor.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:524

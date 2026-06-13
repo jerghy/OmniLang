@@ -44,6 +44,8 @@ class PreprocessorOutput:
 # ── Context patterns ─────────────────────────────────────
 
 # Patterns that indicate a following { is a statement block
+# NOTE: import { ... } from "..." is NOT matched by these patterns
+# (none start with "import"), so cross-file imports pass through safely.
 _BLOCK_CONTEXT_PATTERNS = [
     # fn name(params) -> type {     or   fn name(params) {
     (re.compile(r'\bfn\s+\w+\s*\([^)]*\)\s*(?:->\s*[\w<>|]+\s*)?\{'), 'fn_body'),

@@ -1,0 +1,145 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button "🎨 Design" [ref=e5] [cursor=pointer]
+      - button "💻 Code" [ref=e6] [cursor=pointer]
+    - complementary [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: 文件
+        - generic [ref=e41] [cursor=pointer]: 📁 build
+        - generic [ref=e42] [cursor=pointer]: 📁 build_output
+        - generic [ref=e43] [cursor=pointer]: 📁 docs
+        - generic [ref=e44] [cursor=pointer]: 📁 DspaceOmniLangscripts
+        - generic [ref=e45] [cursor=pointer]: 📁 editor
+        - generic [ref=e46] [cursor=pointer]: 📁 omnilang
+        - generic [ref=e47] [cursor=pointer]: 📁 omnilang-rs
+        - generic [ref=e48] [cursor=pointer]: 📁 omnilang.egg-info
+        - generic [ref=e49] [cursor=pointer]: 📁 omniview
+        - generic [ref=e50] [cursor=pointer]: 📁 scripts
+        - generic [ref=e51] [cursor=pointer]: 📁 tests
+        - generic [ref=e52] [cursor=pointer]: 📁 tools
+        - generic [ref=e53] [cursor=pointer]: 📁 vscode-extension
+        - generic [ref=e54]: 其他
+        - generic [ref=e55] [cursor=pointer]: 📄 1.png
+        - generic [ref=e56] [cursor=pointer]: 📄 2.png
+        - generic [ref=e57] [cursor=pointer]: 📄 bill-dashboard-screenshot.png
+        - generic [ref=e58] [cursor=pointer]: 📄 bill-dashboard.html
+        - generic [ref=e59] [cursor=pointer]: 📄 css-showcase-fixed.png
+        - generic [ref=e60] [cursor=pointer]: 📄 css-showcase.png
+        - generic [ref=e61] [cursor=pointer]: 📄 dashboard-after-load.png
+        - generic [ref=e62] [cursor=pointer]: 📄 doc-viewer.html
+        - generic [ref=e63] [cursor=pointer]: 📄 final-test-step1-load.png
+        - generic [ref=e64] [cursor=pointer]: 📄 form-app-submitted.png
+        - generic [ref=e65] [cursor=pointer]: 📄 form-app-success.png
+        - generic [ref=e66] [cursor=pointer]: 📄 layout-broken.png
+        - generic [ref=e67] [cursor=pointer]: 📄 m1a-compiled-fixed.png
+        - generic [ref=e68] [cursor=pointer]: 📄 m1a-compiled-verify.png
+        - generic [ref=e69] [cursor=pointer]: 📄 m1a-dashboard-ui.png
+        - generic [ref=e70] [cursor=pointer]: 📄 m1a-editor-verify.png
+        - generic [ref=e71] [cursor=pointer]: 📄 m1a-pure-logic-python.png
+        - generic [ref=e72] [cursor=pointer]: 📄 m1b-compiled.png
+        - generic [ref=e73] [cursor=pointer]: 📄 m1b-editor-react.png
+        - generic [ref=e74] [cursor=pointer]: 📄 m1b-final.png
+        - generic [ref=e75] [cursor=pointer]: 📄 m1b-react-final.png
+        - generic [ref=e76] [cursor=pointer]: 📄 m1b-react-verify.png
+        - generic [ref=e77] [cursor=pointer]: 📄 m1b-ws-fixed.png
+        - generic [ref=e78] [cursor=pointer]: 📄 m2-button-selected.png
+        - generic [ref=e79] [cursor=pointer]: 📄 m2-canvas-bottom.png
+        - generic [ref=e80] [cursor=pointer]: 📄 m2-canvas-final.png
+        - generic [ref=e81] [cursor=pointer]: 📄 m2-canvas-reload.png
+        - generic [ref=e82] [cursor=pointer]: 📄 m2-canvas-todo.png
+        - generic [ref=e83] [cursor=pointer]: 📄 m2-canvas-working.png
+        - generic [ref=e84] [cursor=pointer]: 📄 m2-code-mode.png
+        - generic [ref=e85] [cursor=pointer]: 📄 m2-design-mode.png
+        - generic [ref=e86] [cursor=pointer]: 📄 m2-full-flow-verified.png
+        - generic [ref=e87] [cursor=pointer]: 📄 m2-labels-fixed.png
+        - generic [ref=e88] [cursor=pointer]: 📄 m2-layout-fixed.png
+        - generic [ref=e89] [cursor=pointer]: 📄 m2-real-test.png
+        - generic [ref=e90] [cursor=pointer]: 📄 m2-resizable-test.png
+        - generic [ref=e91] [cursor=pointer]: 📄 m2-source-loaded.png
+        - generic [ref=e92] [cursor=pointer]: 📄 m2-styled-canvas.png
+        - generic [ref=e93] [cursor=pointer]: 📄 m2-styled-fixed.png
+        - generic [ref=e94] [cursor=pointer]: 📄 m2-view-toggle.png
+        - generic [ref=e95] [cursor=pointer]: 📄 m3-drag-test.png
+        - generic [ref=e96] [cursor=pointer]: 📄 m3-palette.png
+        - generic [ref=e97] [cursor=pointer]: 📄 news-qq-screenshot.png
+        - generic [ref=e98] [cursor=pointer]: 📄 page-after-refresh.png
+        - generic [ref=e99] [cursor=pointer]: 📄 page-snapshot.txt
+        - generic [ref=e100] [cursor=pointer]: 📄 push.bat
+        - generic [ref=e101] [cursor=pointer]: 📄 pyproject.toml
+        - generic [ref=e102] [cursor=pointer]: 📄 QUICKSTART.md
+        - generic [ref=e103] [cursor=pointer]: 📄 README.md
+        - generic [ref=e104] [cursor=pointer]: 📄 todo-app-after-add.png
+        - generic [ref=e105] [cursor=pointer]: 📄 todo-app-after-complete.png
+        - generic [ref=e106] [cursor=pointer]: 📄 todo-app-build-error.png
+        - generic [ref=e107] [cursor=pointer]: 📄 todo-app-final.png
+        - generic [ref=e108] [cursor=pointer]: 📄 todo-app-working.png
+        - generic [ref=e109] [cursor=pointer]: 📄 vrfy-css-showcase.png
+        - generic [ref=e110] [cursor=pointer]: 📄 vrfy-dashboard.png
+        - generic [ref=e111] [cursor=pointer]: 📄 vrfy-form.png
+        - generic [ref=e112] [cursor=pointer]: 📄 vrfy-init-template.png
+        - generic [ref=e113] [cursor=pointer]: 📄 vrfy-todo.png
+    - main [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: OmniLang Editor — Code
+        - generic [ref=e114]: space/OmniLang
+        - generic [ref=e13]: "Target:"
+        - combobox [ref=e14]:
+          - option "react" [selected]
+          - option "vue"
+          - option "dioxus"
+          - option "flutter"
+          - option "python"
+          - option "javascript"
+          - option "rust"
+          - option "dart"
+        - button "Compile (Ctrl+Enter)" [ref=e15] [cursor=pointer]
+      - code [ref=e24]:
+        - generic [ref=e25]:
+          - textbox "Editor content" [active] [ref=e26]
+          - textbox [ref=e27]
+          - generic [ref=e29]:
+            - generic [ref=e116]: "1"
+            - generic [ref=e118]: "2"
+            - generic [ref=e119]:
+              - generic [ref=e120] [cursor=pointer]: 
+              - generic [ref=e121]: "3"
+            - generic [ref=e123]: "4"
+            - generic [ref=e125]: "5"
+            - generic [ref=e126]:
+              - generic [ref=e127] [cursor=pointer]: 
+              - generic [ref=e128]: "6"
+            - generic [ref=e129]:
+              - generic [ref=e130] [cursor=pointer]: 
+              - generic [ref=e131]: "7"
+            - generic [ref=e133]: "8"
+            - generic [ref=e135]: "9"
+            - generic [ref=e136]:
+              - generic [ref=e137] [cursor=pointer]: 
+              - generic [ref=e138]: "10"
+            - generic [ref=e140]: "11"
+            - generic [ref=e142]: "12"
+            - generic [ref=e144]: "13"
+            - generic [ref=e146]: "14"
+            - generic [ref=e148]: "15"
+            - generic [ref=e151]: "16"
+          - generic [ref=e36]:
+            - generic [ref=e194]: // bind-input.omni — bind:value 双向绑定；验证输入→状态→输出同步
+            - generic [ref=e197]: "component BindInput {"
+            - generic [ref=e199]: "signal text: String = \"\";"
+            - generic [ref=e202]: "view {"
+            - generic [ref=e204]: <Container>
+            - generic [ref=e206]: "<Input bind:value={text} placeholder=\"Type here\" test-id=\"input-field\" />"
+            - generic [ref=e208]: "<Text test-id=\"output-label\">{text}</Text>"
+            - generic [ref=e210]: "<Button onPress={fn() { text = \"\"; }} test-id=\"btn-clear\">"
+            - generic [ref=e212]: Clear
+            - generic [ref=e214]: </Button>
+            - generic [ref=e216]: </Container>
+            - generic [ref=e218]: "}"
+            - generic [ref=e220]: "}"
+      - generic [ref=e20]:
+        - generic [ref=e21]: Ready
+        - generic [ref=e22]: tests/behaviors/bind-input.omni
+  - generic [ref=e40]:
+    - alert
+    - alert

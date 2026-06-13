@@ -1,0 +1,226 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic:
+      - button "🎨 设计" [ref=e4] [cursor=pointer]
+      - button "💻 代码" [ref=e5] [cursor=pointer]
+    - complementary [ref=e6]:
+      - generic [ref=e735]:
+        - generic [ref=e736]:
+          - generic [ref=e737]: 文件
+          - generic [ref=e738]: 根目录
+        - generic [ref=e739]:
+          - generic [ref=e740]: .omni
+          - generic [ref=e741] [cursor=pointer]: 📄 Counter.omni
+    - main [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: OmniLang 编辑器 — 代码
+        - generic [ref=e151]: build/smoketest
+        - generic [ref=e15]: "目标:"
+        - combobox [ref=e742]:
+          - option "react" [selected]
+          - option "vue"
+          - option "dioxus"
+          - option "flutter"
+          - option "python"
+          - option "javascript"
+          - option "rust"
+          - option "dart"
+        - button "💡 片段" [ref=e743] [cursor=pointer]
+        - button "🔌 连接器" [ref=e744] [cursor=pointer]
+        - button "编译 (Ctrl+Enter)" [ref=e745] [cursor=pointer]
+      - generic [ref=e20]:
+        - code [ref=e748]:
+          - generic [ref=e749]:
+            - textbox "Editor content" [active] [ref=e750]
+            - textbox [ref=e751]
+            - generic [ref=e753]:
+              - generic [ref=e756]: "1"
+              - generic [ref=e758]: "2"
+              - generic [ref=e760]:
+                - generic [ref=e761] [cursor=pointer]: 
+                - generic [ref=e762]: "3"
+              - generic [ref=e764]: "4"
+              - generic [ref=e766]: "5"
+              - generic [ref=e767]:
+                - generic [ref=e768] [cursor=pointer]: 
+                - generic [ref=e769]: "6"
+              - generic [ref=e771]: "7"
+              - generic [ref=e773]: "8"
+              - generic [ref=e775]: "9"
+              - generic [ref=e776]:
+                - generic [ref=e777] [cursor=pointer]: 
+                - generic [ref=e778]: "10"
+              - generic [ref=e780]: "11"
+              - generic [ref=e782]: "12"
+              - generic [ref=e784]: "13"
+              - generic [ref=e785]:
+                - generic [ref=e786] [cursor=pointer]: 
+                - generic [ref=e787]: "14"
+              - generic [ref=e789]: "15"
+              - generic [ref=e791]: "16"
+              - generic [ref=e793]: "17"
+              - generic [ref=e794]:
+                - generic [ref=e795] [cursor=pointer]: 
+                - generic [ref=e796]: "18"
+              - generic [ref=e797]:
+                - generic [ref=e798] [cursor=pointer]: 
+                - generic [ref=e799]: "19"
+              - generic [ref=e801]: "20"
+              - generic [ref=e803]:
+                - generic [ref=e804] [cursor=pointer]: 
+                - generic [ref=e805]: "21"
+              - generic [ref=e807]: "22"
+              - generic [ref=e810]: "23"
+              - generic [ref=e813]: "24"
+              - generic [ref=e816]: "25"
+              - generic [ref=e818]: "26"
+              - generic [ref=e820]: "27"
+              - generic [ref=e822]: "28"
+              - generic [ref=e824]: "29"
+            - generic [ref=e920]:
+              - generic [ref=e922]: "// Behavior Test 01: Counter — state mutation"
+              - generic [ref=e924]: "// Tests: signal + mutation + event handler + text"
+              - generic [ref=e926]: interpolation
+              - generic [ref=e928]: "component Counter {"
+              - generic [ref=e930]: "signal count: i32 = 0;"
+              - generic [ref=e933]: "fn increment() {"
+              - generic [ref=e935]: count = count + 1;
+              - generic [ref=e937]: "}"
+              - generic [ref=e940]: "fn decrement() {"
+              - generic [ref=e942]: count = count - 1;
+              - generic [ref=e944]: "}"
+              - generic [ref=e947]: "fn reset() {"
+              - generic [ref=e949]: count = 0;
+              - generic [ref=e951]: "}"
+              - generic [ref=e954]: "view {"
+              - generic [ref=e956]: <Container>
+              - generic [ref=e958]: "<Heading level=\"1\" test-id=\"counter-label\">Count:"
+              - generic [ref=e960]: "{count}</Heading>"
+              - generic [ref=e962]: <Flex direction="row" gap="8px">
+              - generic [ref=e964]: "<Button onPress={decrement}"
+              - generic [ref=e966]: test-id="btn-decrement">-</Button>
+              - generic [ref=e968]: "<Button onPress={increment} test-id=\"btn-increment\">"
+              - generic [ref=e970]: +</Button>
+              - generic [ref=e972]: "<Button onPress={reset} test-id=\"btn-reset\">Reset</"
+              - generic [ref=e974]: Button>
+              - generic [ref=e976]: </Flex>
+              - generic [ref=e978]: </Container>
+              - generic [ref=e980]: "}"
+              - generic [ref=e982]: "}"
+        - complementary [ref=e986]:
+          - generic [ref=e987]:
+            - generic [ref=e988]:
+              - generic [ref=e989]: 💡 代码片段
+              - generic [ref=e990]: 顶层声明
+            - textbox "搜索片段..." [ref=e992]
+            - generic [ref=e993]:
+              - generic [ref=e994]:
+                - generic [ref=e995] [cursor=pointer]:
+                  - generic [ref=e996]: 📦 顶层声明
+                  - generic [ref=e997]: "3"
+                - generic "OmniView component targeting React" [ref=e998] [cursor=pointer]:
+                  - generic [ref=e999]: React Component
+                  - generic [ref=e1000]: OmniView component targeting React
+                - generic "Signal + actions store (like zustand/pinia)" [ref=e1001] [cursor=pointer]:
+                  - generic [ref=e1002]: Counter Store
+                  - generic [ref=e1003]: Signal + actions store (like zustand/pinia)
+                - generic "async fn with error handling" [ref=e1004] [cursor=pointer]:
+                  - generic [ref=e1005]: Async Function
+                  - generic [ref=e1006]: async fn with error handling
+              - generic [ref=e1007]:
+                - generic [ref=e1008] [cursor=pointer]:
+                  - generic [ref=e1009]: ⚡ 函数体
+                  - generic [ref=e1010]: "5"
+                - generic "Error handling block" [ref=e1011] [cursor=pointer]:
+                  - generic [ref=e1012]: Try-Catch
+                  - generic [ref=e1013]: Error handling block
+                - generic "Multi-branch conditional" [ref=e1014] [cursor=pointer]:
+                  - generic [ref=e1015]: If-Else Chain
+                  - generic [ref=e1016]: Multi-branch conditional
+                - generic "Pattern matching" [ref=e1017] [cursor=pointer]:
+                  - generic [ref=e1018]: Match Expression
+                  - generic [ref=e1019]: Pattern matching
+                - generic "Iterate over collection" [ref=e1020] [cursor=pointer]:
+                  - generic [ref=e1021]: ForEach Loop
+                  - generic [ref=e1022]: Iterate over collection
+                - generic "Functional data pipeline" [ref=e1023] [cursor=pointer]:
+                  - generic [ref=e1024]: Map + Filter
+                  - generic [ref=e1025]: Functional data pipeline
+              - generic [ref=e1026]:
+                - generic [ref=e1027] [cursor=pointer]:
+                  - generic [ref=e1028]: 🔄 Store Action
+                  - generic [ref=e1029]: "3"
+                - generic "Async store action with loading state" [ref=e1030] [cursor=pointer]:
+                  - generic [ref=e1031]: CRUD Action
+                  - generic [ref=e1032]: Async store action with loading state
+                - generic "Boolean toggle action" [ref=e1033] [cursor=pointer]:
+                  - generic [ref=e1034]: Toggle Action
+                  - generic [ref=e1035]: Boolean toggle action
+                - generic "Simple setter with validation" [ref=e1036] [cursor=pointer]:
+                  - generic [ref=e1037]: Setter Action
+                  - generic [ref=e1038]: Simple setter with validation
+              - generic [ref=e1039]:
+                - generic [ref=e1040] [cursor=pointer]:
+                  - generic [ref=e1041]: 🧮 Computed
+                  - generic [ref=e1042]: "3"
+                - generic "Derived filtered list from signal" [ref=e1043] [cursor=pointer]:
+                  - generic [ref=e1044]: Filtered List
+                  - generic [ref=e1045]: Derived filtered list from signal
+                - generic "Derived count/aggregate" [ref=e1046] [cursor=pointer]:
+                  - generic [ref=e1047]: Count / Aggregation
+                  - generic [ref=e1048]: Derived count/aggregate
+                - generic "Concatenate fields" [ref=e1049] [cursor=pointer]:
+                  - generic [ref=e1050]: Full Name
+                  - generic [ref=e1051]: Concatenate fields
+              - generic [ref=e1052]:
+                - generic [ref=e1053] [cursor=pointer]:
+                  - generic [ref=e1054]: 🎨 View 模板
+                  - generic [ref=e1055]: "6"
+                - generic "Two-way binding via bind:value" [ref=e1056] [cursor=pointer]:
+                  - generic [ref=e1057]: Bind Value
+                  - generic [ref=e1058]: Two-way binding via bind:value
+                - generic "onPress with inline fn" [ref=e1059] [cursor=pointer]:
+                  - generic [ref=e1060]: Event Handler
+                  - generic [ref=e1061]: onPress with inline fn
+                - generic "List rendering with @for" [ref=e1062] [cursor=pointer]:
+                  - generic [ref=e1063]: For Directive
+                  - generic [ref=e1064]: List rendering with @for
+                - generic "Conditional with @if" [ref=e1065] [cursor=pointer]:
+                  - generic [ref=e1066]: Conditional Render
+                  - generic [ref=e1067]: Conditional with @if
+                - generic "Horizontal flex container" [ref=e1068] [cursor=pointer]:
+                  - generic [ref=e1069]: Flex Row
+                  - generic [ref=e1070]: Horizontal flex container
+                - generic "Card with shadow" [ref=e1071] [cursor=pointer]:
+                  - generic [ref=e1072]: Card
+                  - generic [ref=e1073]: Card with shadow
+              - generic [ref=e1074]:
+                - generic [ref=e1075] [cursor=pointer]:
+                  - generic [ref=e1076]: 🌐 数据获取
+                  - generic [ref=e1077]: "3"
+                - generic "fetch GET with JSON parse" [ref=e1078] [cursor=pointer]:
+                  - generic [ref=e1079]: GET Request
+                  - generic [ref=e1080]: fetch GET with JSON parse
+                - generic "fetch POST with JSON body" [ref=e1081] [cursor=pointer]:
+                  - generic [ref=e1082]: POST Request
+                  - generic [ref=e1083]: fetch POST with JSON body
+                - generic "Periodic data polling" [ref=e1084] [cursor=pointer]:
+                  - generic [ref=e1085]: Poll / Interval
+                  - generic [ref=e1086]: Periodic data polling
+              - generic [ref=e1087]:
+                - generic [ref=e1088] [cursor=pointer]:
+                  - generic [ref=e1089]: 🗄️ 状态管理
+                  - generic [ref=e1090]: "2"
+                - generic "Async loading / error / data trio" [ref=e1091] [cursor=pointer]:
+                  - generic [ref=e1092]: Loading State Pattern
+                  - generic [ref=e1093]: Async loading / error / data trio
+                - generic "Signal with localStorage persistence" [ref=e1094] [cursor=pointer]:
+                  - generic [ref=e1095]: Persisted Signal
+                  - generic [ref=e1096]: Signal with localStorage persistence
+            - generic [ref=e1097]: 点击插入 · Tab 跳到占位符
+      - generic [ref=e137]:
+        - generic [ref=e138]: 🔌 重连中...
+        - generic [ref=e139]: src/Counter.omni
+  - generic [ref=e432]:
+    - alert
+    - alert

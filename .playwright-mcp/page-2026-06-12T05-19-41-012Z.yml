@@ -1,0 +1,20 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - button "🎨 Design" [active] [ref=e5] [cursor=pointer]
+    - button "💻 Code" [ref=e6] [cursor=pointer]
+  - main [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]: OmniLang Editor — Design
+      - generic [ref=e31]: omniview/examples
+      - button "Compile (Ctrl+Enter)" [ref=e32] [cursor=pointer]
+    - generic [ref=e35]:
+      - generic [ref=e36]: 🎨
+      - generic [ref=e37]: 切换到 Code 模式编辑源码，编译后画布自动显示
+      - generic [ref=e38]: Ctrl+Enter 编译
+    - generic [ref=e39]:
+      - generic [ref=e40]: Ready
+      - generic [ref=e41]: dashboard.omni
+  - complementary [ref=e42]:
+    - generic [ref=e43]:
+      - generic [ref=e44]: 🔍
+      - generic [ref=e45]: 选择画布元素以编辑属性

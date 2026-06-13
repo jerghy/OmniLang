@@ -92,7 +92,7 @@ export function TodoApp() {
         <div style={{flexDirection: 'row', gap: '16px', display: 'flex'}} data-testid="footer">
         <span data-testid="summary">
         {active_count}
-        active, 
+         active, 
         {done_count}
          done
         </span>
@@ -101,3 +101,4 @@ export function TodoApp() {
         </> : (null)}
         </div>
     );
+}

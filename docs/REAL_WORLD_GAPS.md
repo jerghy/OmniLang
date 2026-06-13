@@ -217,8 +217,8 @@ const show_all = useCallback(() => {
 | CRITICAL | 5 (B1, B2, B4, B5) | **4 已修复** ✅ (B1/B2/B4/B5)，B6 关联待修复 |
 | HIGH | 2 (B3, B6) | 待修复 |
 | MEDIUM | 3 (G1, G2, E1) | **3 已修复** ✅ |
-| LOW | 4 (G3, G4, G5, E2) | 延后 |
-| **总计** | **15** | **7 已修复** |
+| LOW | 4 (G3, G4, G5, E2) | **4 已修复** ✅ |
+| **总计** | **23** | **14 已修复** |
 
 ## §5 修复优先级
 
@@ -227,6 +227,8 @@ const show_all = useCallback(() => {
 3. ✅ G1 — 类型映射 — 已修复
 4. ✅ E1 — 错误消息 — 已修复
 5. ✅ B3 — Style 格式 — 已修复
-6. **B6** — 多 store action 路由 → dashboard 中 sidebar toggle/set_page 调用了错误 store
-7. **G5** — 浮点数格式化 → `146.153846...` → `146.15`
-8. **G2, G3, G4, E2** — 延后
+6. ✅ G4 — View 注释渲染 — preprocessor 中剥离 `//` 注释
+7. ✅ G2 — 空 action body — 生成 `console.warn` 占位
+8. ✅ G5 — 浮点精度 — f64 getter 自动 `Math.round(*100)/100`
+9. ✅ E2 — useCallback 依赖 — 排除仅写入信号
+10. **G3, G6, G7, G8, G9** — 延后

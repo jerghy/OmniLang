@@ -1,0 +1,130 @@
+# Control flow
+
+> Source: [https://retejs.org/docs/guides/processing/control-flow](https://retejs.org/docs/guides/processing/control-flow)
+
+# Control flow
+
+Not familiar with Control flow concept? Check out the Control flow article to get up to speed
+
+Control flow[Plugin](https://github.com/retejs/engine)
+
+## Install dependencies
+
+Want to start faster? Use Rete Kit to create a fully configured project in minutes!Copy the command npx rete-kit app to clipboardLearn More
+```
+bashnpm i rete rete-engine
+
+```
+
+## Prepare nodes
+
+Let's take a simple example of a graph with two types of nodes: `Log` and `Delay`. These nodes can perform specific operations and pass control to outgoing nodes in a certain way
+
+At the end of the article, you can find a link to the full example that includes visual components.
+
+Defining a node class that logs a message and passes control to outgoing nodes via the `exec` port:
+
+```
+tsconst socket = new ClassicPreset.Socket("socket");
+
+class Log extends ClassicPreset.Node {
+  constructor(public message: string) {
+    super("Log");
+
+    this.addInput("exec", new ClassicPreset.Input(socket, "Exec", true));
+    this.addOutput("exec", new ClassicPreset.Output(socket, "Exec"));
+  }
+
+  execute(input: "exec", forward: (output: "exec") => void) {
+    console.log(this.message);
+    forward("exec");
+  }
+}
+
+```
+
+Defining a class that handles delays, where the only purpose is to pass control to outgoing nodes through the `exec` port after a specified timeout:
+
+```
+tsclass Delay extends ClassicPreset.Node {
+  constructor(private seconds: number) {
+    super("Delay");
+    this.addInput("exec", new ClassicPreset.Input(socket, "Exec", true));
+    this.addOutput("exec", new ClassicPreset.Output(socket, "Exec"));
+  }
+
+  execute(input: "exec" | undefined, forward: (output: "exec") => void) {
+    setTimeout(() => forward("exec"), seconds * 1000)
+  }
+}
+
+class Connection<A extends NodeProps, B extends NodeProps> extends ClassicPreset.Connection<A, B> {}
+
+type NodeProps = Start | Log | Delay;
+type ConnProps =
+  | Connection<Start, Log>
+  | Connection<Delay, Log>
+  | Connection<Log, Delay>
+  | Connection<Log, Log>
+  | Connection<Delay, Delay>;
+type Schemes = GetSchemes<NodeProps, ConnProps>;
+
+```
+
+## Connect
+
+```
+tsimport { ControlFlowEngine } from "rete-engine";
+import { NodeEditor } from "rete";
+
+const editor = new NodeEditor<Schemes>();
+const engine = new ControlFlowEngine<Schemes>();
+
+editor.use(engine);
+
+```
+
+## Add nodes and connections
+
+Let's add a sequence of nodes in the form of Log -> Delay -> Log
+
+```
+tsconst log1 = new Log("log before delay");
+const delay = new Delay(2);
+const log2 = new Log("log after delay");
+
+const con2 = new Connection(log1, "exec", delay, "exec");
+const con3 = new Connection(delay, "exec", log2, "exec");
+
+await editor.addNode(log1);
+await editor.addNode(delay);
+await editor.addNode(log2);
+
+await editor.addConnection(con2);
+await editor.addConnection(con3);
+
+```
+
+## Execution
+
+The node `log1` serves as the starting point for the graph execution.
+
+```
+tsengine.execute(log1.id);
+
+```
+
+This operation triggers the `execute` method of the `Log` class, with `undefined` as the `input` parameter because the node was directly called, without being passed from an incoming node.
+
+Then, calling `forward("exec")` passes control to all the outgoing nodes. In our case, the `Delay` node does the same thing but after a delay using `setTimeout`.
+
+Logs:
+
+```
+log"log before delay"
+// delay for 2 seconds
+"log after delay"
+
+```
+
+Check out the complete result on the Control flow example page.

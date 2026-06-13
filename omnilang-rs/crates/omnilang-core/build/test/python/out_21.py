@@ -1,15 +1,18 @@
-def greet(name) -> str:
-    return ("Hello, " + name)
-
-def add(a, b) -> int:
-    return (a + b)
-
 def main():
-    s = "Alice"
-    msg = greet(s)
-    print(msg)
-    result = add(2, 4)
-    print(str(result))
+    arr = [10, 20, 30]
+    for item in arr:
+        print(str(item))
+    empty = []
+    print(str(len(empty)))
+    sum = 0
+    for n in arr:
+        sum = (sum + n)
+    print(str(sum))
+    arr2 = [1, 2, 3, 4, 5]
+    for x in arr2:
+        if (x > 3):
+            break
+        print(str(x))
 
 
 if __name__ == "__main__":

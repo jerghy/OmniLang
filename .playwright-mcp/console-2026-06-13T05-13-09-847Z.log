@@ -1,0 +1,6 @@
+[     380ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/fs/list:0
+[     377ms] Unexpected token 'I', "Internal S"... is not valid JSON
+[   49264ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/fs/list:0
+[   49261ms] Unexpected token 'I', "Internal S"... is not valid JSON
+[   50854ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/fs/list:0
+[   50851ms] Unexpected token 'I', "Internal S"... is not valid JSON

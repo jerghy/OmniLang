@@ -1,0 +1,167 @@
+- generic [active] [ref=e1]:
+  - generic: 
+  - generic: 
+  - generic: 
+  - generic: 
+  - generic [ref=e3]:
+    - list [ref=e5]:
+      - link "Rete.js" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - text: Rete.js
+      - generic [ref=e18]:
+        - link [ref=e19] [cursor=pointer]:
+          - /url: https://github.com/retejs
+        - link [ref=e23] [cursor=pointer]:
+          - /url: https://www.youtube.com/@rete_js
+        - link [ref=e27] [cursor=pointer]:
+          - /url: https://twitter.com/rete_js
+        - link [ref=e31] [cursor=pointer]:
+          - /url: https://discord.gg/cxSFkPZdsV
+      - button "Search" [ref=e37] [cursor=pointer]:
+        - img [ref=e39]
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e45]: K
+      - generic [ref=e46]:
+        - generic:
+          - link "Docs" [ref=e47] [cursor=pointer]:
+            - /url: /docs
+          - link "Examples" [ref=e48] [cursor=pointer]:
+            - /url: /examples
+          - link "Studio" [ref=e49] [cursor=pointer]:
+            - /url: https://studio.retejs.org
+          - link "Sponsor" [ref=e50] [cursor=pointer]:
+            - /url: /sponsor
+      - generic [ref=e55] [cursor=pointer]: en
+    - generic [ref=e57]:
+      - generic [ref=e58] [cursor=pointer]:
+        - img "sharethis sharing button" [ref=e59]
+        - generic [ref=e60]: Share
+      - generic [ref=e61] [cursor=pointer]:
+        - img "twitter sharing button" [ref=e62]
+        - generic [ref=e63]: Post
+      - img "arrow_left sharing button" [ref=e66] [cursor=pointer]
+    - generic [ref=e68]:
+      - list [ref=e69]:
+        - heading "Documentation" [level=1] [ref=e70]:
+          - generic [ref=e71]: Documentation
+        - list [ref=e73]:
+          - link "Introduction" [ref=e74] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e75]: Introduction
+          - link "Getting started" [ref=e76] [cursor=pointer]:
+            - /url: /docs/getting-started
+            - generic [ref=e77]: Getting started
+          - listitem [ref=e78]:
+            - generic [ref=e80] [cursor=pointer]: Concepts
+          - listitem [ref=e82]:
+            - generic [ref=e84] [cursor=pointer]: Guides
+            - list [ref=e86]:
+              - list [ref=e87]:
+                - link "Basic editor" [ref=e88] [cursor=pointer]:
+                  - /url: /docs/guides/basic
+                  - generic [ref=e89]: Basic editor
+                - listitem [ref=e90]:
+                  - generic [ref=e92] [cursor=pointer]: Renderers
+                - listitem [ref=e94]:
+                  - generic [ref=e96] [cursor=pointer]: Processing
+                  - list [ref=e98]:
+                    - list [ref=e99]:
+                      - link "Dataflow" [ref=e100] [cursor=pointer]:
+                        - /url: /docs/guides/processing/dataflow
+                        - generic [ref=e101]: Dataflow
+                      - link "Control flow" [ref=e102] [cursor=pointer]:
+                        - /url: /docs/guides/processing/control-flow
+                        - generic [ref=e103]: Control flow
+                      - link "Hybrid Engine" [ref=e104] [cursor=pointer]:
+                        - /url: /docs/guides/processing/hybrid
+                        - generic [ref=e105]: Hybrid Engine
+                      - link "Codegen" [ref=e106] [cursor=pointer]:
+                        - /url: /docs/guides/processing/codegen
+                        - generic [ref=e107]: Codegen
+                - listitem [ref=e108]:
+                  - generic [ref=e110] [cursor=pointer]: 3D
+                - link "Data structures" [ref=e112] [cursor=pointer]:
+                  - /url: /docs/guides/data-structures
+                  - generic [ref=e113]: Data structures
+                - link "Arrange nodes" [ref=e114] [cursor=pointer]:
+                  - /url: /docs/guides/arrange
+                  - generic [ref=e115]: Arrange nodes
+                - listitem [ref=e116]:
+                  - generic [ref=e118] [cursor=pointer]: Selectable
+                - link "Connections" [ref=e120] [cursor=pointer]:
+                  - /url: /docs/guides/connections
+                  - generic [ref=e121]: Connections
+                - link "Context menu" [ref=e122] [cursor=pointer]:
+                  - /url: /docs/guides/context-menu
+                  - generic [ref=e123]: Context menu
+                - link "Readonly" [ref=e124] [cursor=pointer]:
+                  - /url: /docs/guides/readonly
+                  - generic [ref=e125]: Readonly
+                - link "Modules" [ref=e126] [cursor=pointer]:
+                  - /url: /docs/guides/modules
+                  - generic [ref=e127]: Modules
+                - link "Scopes" [ref=e128] [cursor=pointer]:
+                  - /url: /docs/guides/scopes
+                  - generic [ref=e129]: Scopes
+                - link "Import/export" [ref=e130] [cursor=pointer]:
+                  - /url: /docs/guides/import-export
+                  - generic [ref=e131]: Import/export
+                - link "Validation" [ref=e132] [cursor=pointer]:
+                  - /url: /docs/guides/validation
+                  - generic [ref=e133]: Validation
+                - link "Minimap" [ref=e134] [cursor=pointer]:
+                  - /url: /docs/guides/minimap
+                  - generic [ref=e135]: Minimap
+                - link "Dock menu" [ref=e136] [cursor=pointer]:
+                  - /url: /docs/guides/dock-menu
+                  - generic [ref=e137]: Dock menu
+                - link "Connection path" [ref=e138] [cursor=pointer]:
+                  - /url: /docs/guides/connection-path
+                  - generic [ref=e139]: Connection path
+                - link "Reroute" [ref=e140] [cursor=pointer]:
+                  - /url: /docs/guides/reroute
+                  - generic [ref=e141]: Reroute
+                - link "Undo/Redo" [ref=e142] [cursor=pointer]:
+                  - /url: /docs/guides/undo-redo
+                  - generic [ref=e143]: Undo/Redo
+                - link "Comments" [ref=e144] [cursor=pointer]:
+                  - /url: /docs/guides/comments
+                  - generic [ref=e145]: Comments
+          - listitem [ref=e146]:
+            - generic [ref=e148] [cursor=pointer]: Best Practices
+          - link "Quality assurance" [ref=e150] [cursor=pointer]:
+            - /url: /docs/quality-assurance
+            - generic [ref=e151]: Quality assurance
+          - listitem [ref=e152]:
+            - generic [ref=e154] [cursor=pointer]: Development
+          - link "Troubleshooting" [ref=e156] [cursor=pointer]:
+            - /url: /docs/troubleshooting
+            - generic [ref=e157]: Troubleshooting
+          - link "Licensing" [ref=e158] [cursor=pointer]:
+            - /url: /docs/licensing
+            - generic [ref=e159]: Licensing
+          - link "Code of Conduct" [ref=e160] [cursor=pointer]:
+            - /url: /docs/code-of-conduct
+            - generic [ref=e161]: Code of Conduct
+          - link "Contribution" [ref=e162] [cursor=pointer]:
+            - /url: /docs/contribution
+            - generic [ref=e163]: Contribution
+          - listitem [ref=e164]:
+            - generic [ref=e166] [cursor=pointer]: API
+          - link "FAQ" [ref=e168] [cursor=pointer]:
+            - /url: /docs/faq
+            - generic [ref=e169]: FAQ
+          - link "Migration" [ref=e170] [cursor=pointer]:
+            - /url: /docs/migration
+            - generic [ref=e171]: Migration
+      - generic [ref=e173]:
+        - heading "Codegen" [level=1] [ref=e174]
+        - generic [ref=e176]: Under development
+    - generic [ref=e178]:
+      - generic [ref=e179]:
+        - text: Released under the
+        - link "MIT License" [ref=e180] [cursor=pointer]:
+          - /url: https://opensource.org/license/mit/
+      - generic [ref=e181]: Copyright © 2018-2026 Vitaliy Stoliarov

@@ -55,6 +55,16 @@ class Block:
     span: Span | None = None
 
 
+# ── Import ─────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ImportStmt:
+    """Cross-file import: import { A, B } from "./module.omni" """
+    names: tuple[str, ...] = ()
+    path: str = ""
+    span: Span | None = None
+
+
 # ── Top-Level ─────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -63,6 +73,7 @@ class Program:
     components: tuple[ComponentDef, ...] = ()
     stores: tuple[StoreDef, ...] = ()
     themes: tuple[ThemeDef, ...] = ()
+    imports: tuple[ImportStmt, ...] = ()
     lib_imports: tuple[str, ...] = ()
     span: Span | None = None
 
@@ -560,6 +571,8 @@ __all__ = [
     "TypeAnnotation", "UnionType", "GenericParam",
     # Shared
     "Param", "Stmt", "Block",
+    # Import
+    "ImportStmt",
     # Top-level
     "Program",
     # Component

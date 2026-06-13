@@ -1,0 +1,135 @@
+# Editor
+
+> Source: [https://retejs.org/docs/concepts/editor](https://retejs.org/docs/concepts/editor)
+
+# Editor
+
+NodeEditor
+`NodeEditor` is a class that implements an interface for interacting with a graph. Similar to other modules, it extends `Scope`: can produce signals and provides the ability to connect plugins.
+
+```
+tsimport { NodeEditor, BaseSchemes } from 'rete'
+
+type Schemes = BaseSchemes // has Node { id: string } and Connection { id: string, source: string, target: string }
+
+const editor = new NodeEditor<Schemes>()
+
+```
+
+The `Schemes` type will be used for further type inference purposes.
+
+There is a classic preset that provides the interfaces for building nodes.
+
+The editor is applicable on both the client and server sides. On the client side, it can provide data for visualization purposes. On the server side, it can provide data for graph processing, for example, through `rete-engine` or other interactions using `rete-structures`.
+
+## Node and Connection management
+
+ClassicPreset
+We can add nodes as a regular object with a mandatory `id` field, or as nodes from `ClassicPreset`
+
+```
+tsimport { ClassicPreset } from 'rete'
+
+const node = new ClassicPreset.Node('Label')
+
+node.addOutput('output', new ClassicPreset.Output(socket, 'Title'))
+
+await editor.addNode(node)
+
+```
+
+Removing can be achieved with `id`
+
+```
+tsawait editor.removeNode(node.id)
+
+```
+
+To create a connection, you can use a basic object with mandatory fields (`id`, `source`, `target`) or a classic preset that requires the source and target nodes to be passed for TypeScript type checking.
+
+```
+tsimport { ClassicPreset } from 'rete'
+
+const connection = new ClassicPreset.Connection(sourceNode, 'portKey', targetNode, 'portKey')
+
+await editor.addConnection(connection)
+
+```
+
+Removing the connection by `id`
+
+```
+tsawait editor.removeConnection(connection.id)
+
+```
+
+## Create a 2D area
+
+AreaPlugin
+In order to visualize on HTML, `rete-area-plugin` is necessary. This plugin is responsible for basic features, such as zooming and dragging, and serves as an entry point for other plugins for visualizing and interacting with users
+
+```
+tsimport { AreaPlugin } from 'rete-area-plugin'
+
+const area = new AreaPlugin<Schemes, AreaExtra>(container) // container is HTMLElement where the area will be inserted
+
+```
+
+The `AreaExtra` type is necessary for incorporating other signal types, such as rendering various types of elements aside from `node` and `connection`
+
+This plugin includes extensions. Some of them implement the functionality of v1, but with one significant difference - they are optional. For instance, the node selection extension not only supports node selection, but it is expandable (check out Comments example), but it can also be substituted with an alternative implementation.
+
+```
+tsimport { AreaExtensions } from 'rete-area-plugin'
+
+AreaExtensions.selectableNodes(area, AreaExtensions.selector(), {
+  accumulating: AreaExtensions.accumulateOnCtrl()
+})
+
+```
+
+## Interaction with connections
+
+ConnectionPlugin
+The `rete-connection-plugin` plugin is responsible for user interaction with connections (creation, deletion)
+
+```
+tsimport { BidirectFlow, ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin'
+
+const connection = new ConnectionPlugin<Schemes, AreaExtra>()
+
+connection.addPreset(ConnectionPresets.classic.setup())
+
+```
+
+Unlike Rete.js v1, this plugin doesn't render connections.
+
+## Rendering
+
+Rendering
+The rendering of the UI is exclusively handled by rendering plugins (with a few exceptions), which provide presets for various kinds of functionality.
+
+Let's take a look at the example using `rete-react-plugin`
+
+```
+tsimport { createRoot } from "react-dom/client";
+import { ReactArea2D, ReactPlugin, Presets as ReactPresets } from 'rete-react-plugin'
+import { MinimapExtra } from 'rete-minimap-plugin'
+import { ContextMenuExtra } from 'rete-context-menu-plugin'
+
+type AreaExtra =
+  | ReactArea2D<Schemes>
+  | ContextMenuExtra
+  | MinimapExtra
+
+const reactPlugin = new ReactPlugin<Schemes, AreaExtra>({ createRoot })
+
+reactPlugin.addPreset(ReactPresets.classic.setup())
+reactPlugin.addPreset(ReactPresets.contextMenu.setup())
+reactPlugin.addPreset(ReactPresets.minimap.setup())
+
+area.use(reactPlugin)
+
+```
+
+Every element in the editor, like node, control, socket, or connection, is technically an independent tree of elements, which offers flexibility in combining different rendering frameworks. More information is available in the Integration article.

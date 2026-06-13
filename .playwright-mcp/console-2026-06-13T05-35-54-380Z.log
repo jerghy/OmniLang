@@ -1,0 +1,14 @@
+[   39321ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   44664ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   50017ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   55370ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   60712ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   66047ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   71393ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   76717ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   82054ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   87392ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   92722ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[   98052ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[  103383ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8
+[  108719ms] [ERROR] WebSocket connection to 'ws://localhost:5173/api/watch' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/assets/index-CoBSm4-P.js:8

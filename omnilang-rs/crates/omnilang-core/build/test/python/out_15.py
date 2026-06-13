@@ -1,16 +1,16 @@
 def main():
-    m = {"a": 1, "b": 2}
-    print(str(len(m)))
-    print(str(len(m) == 0).lower())
-    v = m["a"]
-    print(str(v))
-    print(str("b" in m).lower())
-    m2 = {1: "one"}
-    m2[2] = "two"
-    print(str(len(m2)))
-    print(m2[2])
-    m2[3] = "three"
-    print(m2[3])
+    x = 10
+    if (x > 5):
+        print("big")
+    elif (x == 0):
+        print("zero")
+    else:
+        print("small")
+    i = 0
+    while (i < 3):
+        print(str(i), end='')
+        i = (i + 1)
+    print("done")
 
 
 if __name__ == "__main__":

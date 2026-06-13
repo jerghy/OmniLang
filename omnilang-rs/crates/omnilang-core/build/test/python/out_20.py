@@ -1,16 +1,13 @@
 def main():
-    m = {"a": 1, "b": 2}
-    print(str(len(m)))
-    print(str(len(m) == 0).lower())
-    v = m["a"]
-    print(str(v))
-    print(str("b" in m).lower())
-    m2 = {1: "one"}
-    m2[2] = "two"
-    print(str(len(m2)))
-    print(m2[2])
-    m2[3] = "three"
-    print(m2[3])
+    s1 = "hello"
+    s2 = s1
+    print(s1)
+    print(s2)
+    a1 = [1, 2]
+    a2 = list(a1)
+    a2.append(3)
+    print(str(len(a1)))
+    print(str(len(a2)))
 
 
 if __name__ == "__main__":
