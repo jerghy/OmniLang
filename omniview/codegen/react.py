@@ -384,7 +384,10 @@ class ReactCodegen(CodegenBase):
         if isinstance(view, dict):
             kind = self._get(view, "_kind", "")
             if kind == "Interpolation":
-                return "{" + self._expr_to_js(self._get(view, "expr")) + "}"
+                expr = self._expr_to_js(self._get(view, "expr"))
+                # Wrap in String() so boolean/null/undefined values render visibly.
+                # React does not render boolean, null, or undefined in JSX.
+                return "{String(" + expr + ")}"
             if kind == "ListRenderingIntent" or "iterable" in view:
                 return self._gen_list(view, styles, indent_level)
             if kind == "ConditionalIntent" or "branches" in view:
@@ -484,7 +487,7 @@ class ReactCodegen(CodegenBase):
                 style_obj.setdefault("fontWeight", "500")
             elif v in ("outline", '"outline"'):
                 style_obj.setdefault("backgroundColor", "transparent")
-                style_obj.setdefault("color", "#1F2937")
+                style_obj.setdefault("color", "#E5E7EB")
                 style_obj.setdefault("border", "1px solid #E5E7EB")
                 style_obj.setdefault("borderRadius", "6px")
                 style_obj.setdefault("padding", "8px 16px")
