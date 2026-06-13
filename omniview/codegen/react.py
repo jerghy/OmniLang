@@ -32,22 +32,12 @@ LAYOUT_PROPS = {"direction", "gap", "align", "justify", "wrap", "flex",
                 "color", "fontSize", "fontWeight", "cursor",
                 "position", "top", "left", "right", "bottom", "zIndex"}
 
-# Props that become element text content, not HTML attributes
-LABEL_PROPS = {"label", "text"}
-
-# Props to skip entirely (handled specially or not valid HTML)
-SKIP_PROPS = {"class", "key", "level", "variant", "type", "options",
-              "placeholder", "checked", "size"}
-
 # Event name mapping: OmniView → React
 EVENT_MAP = {
     "onPress": "onClick", "onChange": "onChange",
     "onSubmit": "onSubmit", "onFocus": "onFocus", "onBlur": "onBlur",
     "onHover": "onMouseEnter", "onLeave": "onMouseLeave",
     "onKeyDown": "onKeyDown", "onKeyUp": "onKeyUp",
-    "onDragStart": "onDragStart", "onDragOver": "onDragOver",
-    "onDragEnd": "onDragEnd", "onDrop": "onDrop",
-    "onDragEnter": "onDragEnter", "onDragLeave": "onDragLeave",
 }
 
 
@@ -438,63 +428,13 @@ class ReactCodegen(CodegenBase):
 
         attrs = []
 
-        # Checkbox → always type="checkbox"
-        if tag == "Checkbox":
-            attrs.append('type="checkbox"')
-
         # A11y prop mapping: omni → HTML
         A11Y_MAP = {"accessibilityLabel": "aria-label", "accessibilityRole": "role"}
 
         # Regular props
-        text_content = ""
-        select_options = []
         for pname, pval in regular_props.items():
-            # Detect event handlers passed as props (FuncCallIR with args)
-            # e.g., onPress={handleMove(task)} → onClick={() => handleMove(task)}
-            if isinstance(pval, dict) and self._get(pval, "_kind") == "FuncCallIR":
-                if pname in EVENT_MAP or (pname.startswith("on") and pname[2].isupper()):
-                    react_event = EVENT_MAP.get(pname, pname)
-                    func_name = self._get(pval, "func", "undefined")
-                    args = self._get(pval, "args", [])
-                    args_str = ", ".join(self._expr_to_js(a) for a in args)
-                    attrs.append(f"{react_event}={{() => {func_name}({args_str})}}")
-                    continue
-            # Skip semantic-only props
-            if pname in SKIP_PROPS:
-                # Save label as text content
-                if pname == "label":
-                    js_val = self._expr_to_js(pval)
-                    if js_val.startswith('"') and js_val.endswith('"'):
-                        text_content = js_val[1:-1]
-                    else:
-                        text_content = "{" + js_val + "}"
-                # Save options for Select
-                if pname == "options" and tag == "Select":
-                    select_options = self._extract_options(pval)
-                # variant → data-variant attribute for CSS
-                if pname == "variant":
-                    js_val = self._expr_to_js(pval)
-                    if js_val.startswith('"') and js_val.endswith('"'):
-                        attrs.append(f'data-variant={js_val}')
-                # type on Alert → data-type
-                if pname == "type" and tag == "Alert":
-                    js_val = self._expr_to_js(pval)
-                    if js_val.startswith('"') and js_val.endswith('"'):
-                        attrs.append(f'data-type={js_val}')
-                # checked on Checkbox → defaultChecked
-                if pname == "checked" and tag == "Checkbox":
-                    js_val = self._expr_to_js(pval)
-                    if js_val == "true":
-                        attrs.append("defaultChecked={true}")
-                    elif js_val == "false":
-                        attrs.append("defaultChecked={false}")
-                    else:
-                        attrs.append(f"defaultChecked={{{js_val}}}")
-                # placeholder → text placeholder attribute for Input/TextArea
-                if pname == "placeholder":
-                    js_val = self._expr_to_js(pval)
-                    if tag in ("Input", "TextArea"):
-                        attrs.append(f'placeholder={js_val}')
+            # Skip semantic-only props (not valid HTML attributes)
+            if pname in ("class", "key", "level", "variant", "type"):
                 continue
             # Map A11y props to HTML attributes
             html_name = A11Y_MAP.get(pname, pname)
@@ -505,28 +445,17 @@ class ReactCodegen(CodegenBase):
                     # Convert CSS string to React style object
                     style_obj = self._parse_css_string_to_react(js_val[1:-1])
                     if style_obj:
-                        sp_list = []
-                        for k, v in style_obj.items():
-                            vs = v.strip()
-                            if vs.isdigit() or (vs.startswith('-') and vs[1:].isdigit()):
-                                sp_list.append(f"{k}: {vs}")
-                            else:
-                                sp_list.append(f"{k}: '{vs}'")
-                        style_parts = ", ".join(sp_list)
+                        style_parts = ", ".join(
+                            f"{k}: {v if v.isdigit() or v.replace('.','').replace('-','').isdigit() else repr(v)}"
+                            for k, v in style_obj.items()
+                        )
                         attrs.append(f"style={{{{{style_parts}}}}}")
                     else:
                         attrs.append(f'{html_name}={js_val}')
                 else:
-                    # Skip label-like props that should be text content
-                    if pname in LABEL_PROPS:
-                        text_content = js_val[1:-1]
-                    else:
-                        attrs.append(f'{html_name}={js_val}')
+                    attrs.append(f'{html_name}={js_val}')
             else:
-                if pname in LABEL_PROPS:
-                    text_content = "{" + js_val + "}"
-                else:
-                    attrs.append(f'{html_name}={{{js_val}}}')
+                attrs.append(f'{html_name}={{{js_val}}}')
 
         # Layout props → inline style
         style_obj = {}
@@ -536,6 +465,35 @@ class ReactCodegen(CodegenBase):
             if ":" in css_prop:
                 key, val = css_prop.split(":", 1)
                 style_obj[key.strip()] = val.strip().rstrip(";")
+
+        # Button variant → inline style
+        variant = props.get("variant")
+        if variant and tag == "Button":
+            v = self._extract_style_val(variant)
+            if v in ("primary", '"primary"'):
+                style_obj.setdefault("backgroundColor", "#5252E0")
+                style_obj.setdefault("color", "#FFFFFF")
+                style_obj.setdefault("border", "none")
+                style_obj.setdefault("borderRadius", "6px")
+                style_obj.setdefault("padding", "8px 16px")
+                style_obj.setdefault("cursor", "pointer")
+                style_obj.setdefault("fontSize", "14px")
+                style_obj.setdefault("fontWeight", "500")
+            elif v in ("outline", '"outline"'):
+                style_obj.setdefault("backgroundColor", "transparent")
+                style_obj.setdefault("color", "#1F2937")
+                style_obj.setdefault("border", "1px solid #E5E7EB")
+                style_obj.setdefault("borderRadius", "6px")
+                style_obj.setdefault("padding", "8px 16px")
+                style_obj.setdefault("cursor", "pointer")
+                style_obj.setdefault("fontSize", "14px")
+                style_obj.setdefault("fontWeight", "500")
+
+        # Card default styles
+        if tag == "Card":
+            style_obj.setdefault("backgroundColor", "#FFFFFF")
+            style_obj.setdefault("borderRadius", "8px")
+            style_obj.setdefault("boxShadow", "0 2px 8px rgba(0,0,0,0.08)")
 
         if style_obj or tag in ("Flex", "Grid"):
             if not style_obj:
@@ -549,14 +507,10 @@ class ReactCodegen(CodegenBase):
                 style_obj["gridTemplateColumns"] = "repeat(auto-fill, minmax(250px, 1fr))"
                 if "gap" not in style_obj:
                     style_obj["gap"] = "16px"
-            style_parts_list = []
-            for k, v in style_obj.items():
-                v_stripped = v.strip()
-                if v_stripped.isdigit() or (v_stripped.startswith('-') and v_stripped[1:].isdigit()):
-                    style_parts_list.append(f"{k}: {v_stripped}")
-                else:
-                    style_parts_list.append(f"{k}: '{v_stripped}'")
-            style_parts = ", ".join(style_parts_list)
+            style_parts = ", ".join(
+                f"{k}: {v if v.isdigit() or v.replace('.','').isdigit() else repr(v)}"
+                for k, v in style_obj.items()
+            )
             attrs.append(f"style={{{{{style_parts}}}}}")
 
         # Auto-apply CSS module class from style block
@@ -633,27 +587,13 @@ class ReactCodegen(CodegenBase):
         attr_str = " ".join(attrs)
         tag_open = f"<{html_tag}" + (f" {attr_str}" if attr_str else "") + ">"
 
-        # Select with options: render <option> children
-        if select_options:
-            option_strs = [f'<option value="{opt}">{opt}</option>' for opt in select_options]
-            inner = "\n".join(option_strs)
-            return f"{tag_open}\n{inner}\n</{html_tag}>"
-
-        # Checkbox with label: wrap in <label> for proper a11y
-        if tag == "Checkbox" and text_content:
-            inner = f'<label>{tag_open} {text_content}</label>'
-            return inner
-
-        # Void elements (can't have children or text content)
-        if html_tag in ("img", "hr", "input", "br", "progress"):
+        if html_tag in ("img", "hr", "input", "br") and not children:
             return f"<{html_tag} {attr_str} />"
 
-        if not children and not text_content:
+        if not children:
             return f"{tag_open}</{html_tag}>"
 
         child_lines = []
-        if text_content:
-            child_lines.append(text_content)
         for child in children:
             child_lines.append(self._gen_view_tree(child, styles, indent_level + 1))
 
@@ -663,45 +603,26 @@ class ReactCodegen(CodegenBase):
         return f"{tag_open}{inner}</{html_tag}>"
 
     def _layout_to_css(self, prop: str, val: str) -> str:
-        """Convert semantic layout prop → React camelCase CSS property."""
-        import re
-        # Convert to camelCase for React inline styles
-        def to_camel(s: str) -> str:
-            parts = re.split(r'[-_]', s)
-            return parts[0].lower() + ''.join(p.capitalize() for p in parts[1:])
-        css_prop = to_camel(prop)
+        """Convert semantic layout prop → CSS style string."""
         M = {
-            "direction": {"row": "flexDirection", "column": "flexDirection"},
-            "align": {"center": "alignItems", "start": "alignItems",
-                      "end": "alignItems"},
-            "justify": {"center": "justifyContent",
-                        "space-between": "justifyContent"},
-            "alignItems": {"center": "alignItems", "start": "alignItems",
-                           "end": "alignItems"},
+            "direction": {"row": "flexDirection: row", "column": "flexDirection: column"},
+            "gap": lambda v: f"gap: {v}px",
+            "align": {"center": "alignItems: center", "start": "alignItems: flex-start",
+                      "end": "alignItems: flex-end"},
+            "justify": {"center": "justifyContent: center",
+                        "space-between": "justifyContent: space-between"},
+            "padding": lambda v: f"padding: {v}px",
+            "margin": lambda v: f"margin: {v}px",
+            "flex": lambda v: f"flex: {v}",
         }
-        prop_m = M.get(prop)
-        if prop_m and isinstance(prop_m, dict):
-            css_prop = prop_m.get(val, css_prop)
-        val_m = {
-            "row": "row", "column": "column", "center": "center",
-            "flex-start": "flex-start", "flex-end": "flex-end",
-            "space-between": "space-between", "wrap": "wrap",
-        }
-        css_val = val_m.get(val, val)
-        # Add px for numeric dimension values
-        if css_val.isdigit() and css_prop not in ("flex", "fontWeight", "zIndex", "opacity", "flexGrow", "flexShrink", "order"):
-            css_val = f"{css_val}px"
-        return f"{css_prop}: {css_val}"
-
-    @staticmethod
-    def _extract_options(pval) -> list[str]:
-        """Extract option strings from an options prop value (array or IR node)."""
-        if isinstance(pval, (list, tuple)):
-            return [str(v) for v in pval]
-        if isinstance(pval, dict):
-            elements = pval.get("elements", [])
-            return [str(e.get("value", e)) if isinstance(e, dict) else str(e) for e in elements]
-        return []
+        m = M.get(prop)
+        if m is None:
+            return f"{prop}: {val}"
+        if callable(m):
+            return m(val)
+        if isinstance(m, dict):
+            return m.get(val, f"{prop}: {val}")
+        return f"{prop}: {val}"
 
     def _gen_conditional(self, cond: dict, styles: list, indent_level: int) -> str:
         branches = self._get(cond, "branches", [])
@@ -1154,14 +1075,6 @@ class ReactCodegen(CodegenBase):
             getter_expr = body_str
             for sig_name in sorted(signals.keys(), key=len, reverse=True):
                 getter_expr = self._replace_identifier(getter_expr, sig_name, f"state.{sig_name}")
-            # Prefix getter references with state. + call parens
-            # Handle cross-getter references (e.g., totalCount = todoCount + doneCount)
-            for other_getter in sorted(getters.keys(), key=len, reverse=True):
-                if other_getter != getter_name:
-                    getter_expr = self._replace_identifier(getter_expr, other_getter, f"state.{other_getter}()")
-            # Map .len() → .length for JS arrays
-            getter_expr = getter_expr.replace(".len()", ".length")
-            getter_expr = getter_expr.replace(".len", ".length")
             # Round f64 (number) getters to 2 decimal places
             if getter_types.get(getter_name) == "number" and "/" in getter_expr:
                 getter_expr = f"Math.round(({getter_expr}) * 100) / 100"
