@@ -1,6 +1,6 @@
 ---
 name: omni-driver
-description: Use when programmatically controlling the OmniLang visual editor — creating UI components, wiring dataflow, compiling .omni source, switching design/code modes, or writing E2E tests that automate the editor canvas via window.__OMNI__
+description: Use when working with the OmniLang visual editor programmatically via window.__OMNI__ — writing browser automation scripts, E2E tests with Playwright page.evaluate(), AI agent-driven editor control, or diagnosing canvas state (elements, wires, compile errors)
 ---
 
 # OmniDriver — AI 操控 OmniLang 编辑器的 Playwright 风格 API
@@ -58,8 +58,11 @@ const O = window.__OMNI__;
 O.switchMode("design");
 O.clearAll();
 
-const btn = O.button("Submit", { variant: "primary" });
-const txt = O.text("Hello");
+// 嵌套 UI：parentId 作为最后一个参数
+const card = O.card({ padding: "20px" });
+const btn = O.button("Submit", { variant: "primary" }, card.id);
+const txt = O.text("Hello", {}, card.id);
+// card.children() → [btn, txt]
 
 // 事件处理（3 合 1：创建 handler 元素 + 设置事件属性 + 连线）
 const { handler, wire } = btn.createEventHandler("onPress", {
@@ -114,20 +117,24 @@ btn.connectTo(card);  // 创建的是端口连线，不是父子关系!
 // 检查元素是否存在（推荐方式）
 el.exists();    // boolean — 类似于 Playwright locator.count() > 0
 
-// 获取显示文本（自动回退到 label → text → placeholder）
-el.text();      // string — 类似于 Playwright locator.textContent()
+// 检查是否存在 → `el.exists()`（即使元素不存在也返回 false，不抛异常）
+el.text();      // string — 对不存在的元素返回 ""
 ```
 
 ### 查找与等待
 
 | 操作 | 代码 |
 |------|------|
-| 按 ID | `O.element(id)` → `ElementHandle \| null` |
+| 按 ID | `O.element(id)` → `ElementHandle` — 始终返回 handle，用 `.exists()` 检查 |
 | 按标签 | `O.findByTag("Button")` → `ElementHandle[]` |
 | 按属性 | `O.findByProp("label", "Submit")` → `ElementHandle[]` |
 | 通用查询 | `O.find({ tag, nodeType, props, text })` |
 | 等待出现 | `await O.waitForElement("Button", timeout)` |
 | 等待连线 | `await O.waitForWire("evt-btn-press-001", timeout)` |
+| 所有元素数据 | `O.elements` — `ElementData[]`（等同于 getElements()） |
+| 所有连线数据 | `O.wires` — `WireData[]`（等同于 getWires()） |
+
+> **API 发现提示：** `Object.keys(window.__OMNI__)` 返回 `[]`（Proxy），用 `Object.getOwnPropertyNames(Object.getPrototypeOf(window.__OMNI__))` 枚举方法。
 
 ### ElementHandle 常用操作
 
@@ -144,9 +151,9 @@ await el.waitForLive(5000);    // 等待元素在 store 中出现
 el.data;                       // 原始 ElementData（含 outputValue）
 ```
 
-**注意：没有 `textContent()` 或 `exists()` 方法。**
-- 读取文本 → `el.getProp("label")` 或 `el.getProp("text")`
-- 检查是否存在 → `el.data !== undefined`
+**注意：`O.element(id)` 始终返回 `ElementHandle`（不会返回 null），即使元素不存在。用 `el.exists()` 判断是否存在。**
+- 读取文本 → `el.text()`（自动回退 label → text → placeholder）
+- 检查是否存在 → `el.exists()`
 - 读取运行时值 → `el.data.outputValue`
 
 ## 事件连线
@@ -234,7 +241,7 @@ OmniDriver 方法在失败时**不会抛出异常**，而是返回 `null`/`undef
 | `O.text("Hello")` | `O.component("Text", { label: "Hello" })` |
 | `O.card({ padding })` | `O.component("Card", { padding })` |
 
-> **需要 parentId 时，必须用 `O.component()` 而不是便捷方法。**
+> **所有便捷方法均已支持 parentId 作为最后一个可选参数。**
 
 ## Red Flags — STOP and Check
 
@@ -244,7 +251,7 @@ OmniDriver 方法在失败时**不会抛出异常**，而是返回 `null`/`undef
 - **"我用 'onPress' 做端口名怎么连不上"** → 事件端口是 UUID。用 createEventHandler()
 - **"getSourceCode() 怎么返回的是旧内容"** → getSourceCode() 读的是文件内容，不是 Store
 - **"compile() 后我的元素全没了"** → 正常行为。compile() 从源码重建画布
-- **"O.button('X', {}, parentId) 没嵌套进去"** → 便捷方法不支持 parentId。用 O.component()
+- **"card([children]) 没嵌套进去"** → card() 接受 (props?, parentId?)，不是数组。用 parentId 参数
 - **"el.children = [...] 怎么不生效"** → children() 是只读 getter，不是可赋值属性
 
 ## 可用组件

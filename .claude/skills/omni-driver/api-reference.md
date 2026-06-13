@@ -10,7 +10,9 @@
 |------|--------|------|
 | `O.getState()` | `EditorSnapshot` | 完整快照：mode, elements, wires, selectedElementId, projectDir, activeFilePath, compileErrors, previewUrl |
 | `O.getElements()` | `ElementData[]` | 所有画布元素 |
+| `O.elements` | `ElementData[]` | 同 getElements()（getter 别名） |
 | `O.getWires()` | `WireData[]` | 所有连线 |
+| `O.wires` | `WireData[]` | 同 getWires()（getter 别名） |
 | `O.getMode()` | `"design" \| "code"` | 当前模式 |
 | `O.getSelectedElement()` | `ElementHandle \| null` | 当前选中 |
 | `O.getPreviewUrl()` | `string \| null` | 预览 URL |
@@ -147,7 +149,7 @@ O.getComponentInfo("Button"); // 单个组件的 props, events, styleProperties,
 
 ```javascript
 O.clearAll();   // 清除 Store 中的 elements + wires + selection（不触及源文件）
-O.batch(fn);    // 批量操作包装
+O.batch(fn);    // 批量操作包装：O.batch(O => { O.button("A"); O.button("B"); })
 O.removeElement(id); // 删除单个元素
 ```
 
@@ -291,6 +293,8 @@ interface ComponentInfo {
 
 ## Playwright 集成
 
+> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要直接返回 `ElementHandle` 或 `WireHandle` 对象。返回 `.text()`、`.exists()`、`.data` 或普通对象。
+
 ```javascript
 // test helper
 async function omniEval(page, fn) {
@@ -301,15 +305,15 @@ test("create and verify form", async ({ page }) => {
   await page.goto("http://localhost:5174");
   await page.waitForFunction(() => window.__OMNI__);
 
-  // 创建 UI
+  // 创建 UI（便捷方法均支持 parentId）
   await omniEval(page, () => {
     const O = window.__OMNI__;
     O.clearAll();
     O.switchMode("design");
     const card = O.card({ padding: "24px" });
-    O.component("Heading", { label: "Login" }, card.id);
-    O.component("Input", { label: "Email" }, card.id);
-    O.component("Button", { label: "Submit" }, card.id);
+    O.heading("Login", "2", card.id);
+    O.input("Email", {}, card.id);
+    O.button("Submit", { variant: "primary" }, card.id);
   });
 
   // 验证
