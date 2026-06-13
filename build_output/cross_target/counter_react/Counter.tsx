@@ -5,10 +5,10 @@ export function Counter() {
 
     const [count, setCount] = useState<number>(0);
     const increment = useCallback(() => {
-        setCount((count + 1));
+        setCount(prev => (prev + 1));
     }, []);
     const decrement = useCallback(() => {
-        setCount((count - 1));
+        setCount(prev => (prev - 1));
     }, []);
     const reset = useCallback(() => {
         setCount(0);

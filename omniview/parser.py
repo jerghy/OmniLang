@@ -608,6 +608,13 @@ class OmniViewTransformer(Transformer):
         # Detect ref={name} — "ref" keyword with bare FnRef → treat as RefProp
         if name == "ref" and isinstance(handler, FnRef):
             return ElementProp(name="ref", value=RefProp(ref_name=handler.fn_name))
+        # Detect boolean literal FnRef (grammar ambiguity: event_prop matched before static_prop)
+        # checked={true} should be StaticProp(Literal(true)), not EventProp(FnRef("true"))
+        if isinstance(handler, FnRef) and handler.fn_name in ("true", "false", "null"):
+            return ElementProp(name=name, value=StaticProp(
+                value=Literal(value=(handler.fn_name == "true"), kind="bool")
+                if handler.fn_name != "null" else Literal(value=None, kind="null")
+            ))
         return ElementProp(name=name, value=EventProp(handler=handler))
 
     def class_prop(self, items) -> ElementProp:

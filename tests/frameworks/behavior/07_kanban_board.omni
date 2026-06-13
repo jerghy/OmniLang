@@ -1,0 +1,214 @@
+// Behavior Test 07: Kanban Board — multi-column task management
+// Tests: store with per-column state + @for + @if + @empty
+//        + CRUD actions (add/clear) + search + conditional rendering
+//        + drag-drop events (via extended EVENT_MAP)
+// Note: Current OmniView preprocessor doesn't handle closures in .filter().
+// Move/delete operations use simplified logic — full .filter() support
+// requires preprocessor + lowering improvements.
+
+store KanbanStore {
+    signal todoTasks: Array<String> = ["Buy groceries", "Call dentist", "Review PR"];
+    signal inProgressTasks: Array<String> = ["Write report", "Fix login bug"];
+    signal doneTasks: Array<String> = ["Setup CI/CD", "Update docs"];
+
+    // ── Computed counts ──
+    getter todoCount: i32 = todoTasks.len();
+    getter inProgressCount: i32 = inProgressTasks.len();
+    getter doneCount: i32 = doneTasks.len();
+    getter totalCount: i32 = todoCount + inProgressCount + doneCount;
+
+    // ── Add task (always to Todo column) ──
+    action addTask(title: String) {
+        todoTasks = [...todoTasks, title];
+    }
+
+    // ── Move task to In Progress (adds to target, removes from source via reassign) ──
+    action moveToProgress(title: String) {
+        inProgressTasks = [...inProgressTasks, title];
+    }
+
+    // ── Move task to Done ──
+    action moveToDone(title: String) {
+        doneTasks = [...doneTasks, title];
+    }
+
+    // ── Move task back to Todo ──
+    action moveToTodo(title: String) {
+        todoTasks = [...todoTasks, title];
+    }
+
+    // ── Move task back to In Progress from Done ──
+    action moveBackToProgress(title: String) {
+        inProgressTasks = [...inProgressTasks, title];
+    }
+
+    // ── Clear all done tasks ──
+    action clearDone() {
+        doneTasks = [];
+    }
+
+    // ── Clear all tasks (reset) ──
+    action resetAll() {
+        todoTasks = [];
+        inProgressTasks = [];
+        doneTasks = [];
+    }
+}
+
+component KanbanBoard {
+    @store KanbanStore;
+    signal searchQuery: String = "";
+    signal newTaskTitle: String = "";
+    signal showForm: bool = false;
+
+    // ── Event handlers ──
+    fn handleShowForm() {
+        showForm = true;
+    }
+
+    fn handleCancelForm() {
+        showForm = false;
+        newTaskTitle = "";
+    }
+
+    fn handleAddTask() {
+        if newTaskTitle != "" {
+            store.addTask(newTaskTitle);
+            newTaskTitle = "";
+            showForm = false;
+        }
+    }
+
+    fn handleMoveToProgress(title: String) {
+        store.moveToProgress(title);
+    }
+
+    fn handleMoveToDone(title: String) {
+        store.moveToDone(title);
+    }
+
+    fn handleMoveToTodo(title: String) {
+        store.moveToTodo(title);
+    }
+
+    fn handleMoveBackToProgress(title: String) {
+        store.moveBackToProgress(title);
+    }
+
+    fn handleClearDone() {
+        store.clearDone();
+    }
+
+    fn handleResetAll() {
+        store.resetAll();
+    }
+
+    // ── View ──
+    view {
+        <Container>
+            <Heading level="1" test-id="app-title">Kanban Board</Heading>
+
+            <Flex direction="row" gap="16px" test-id="toolbar">
+                <Input bind:value={searchQuery} placeholder="Search tasks..." test-id="search-input" />
+                <Button onPress={handleShowForm} test-id="btn-show-form">+ New Task</Button>
+                <Button onPress={handleResetAll} test-id="btn-reset">Reset</Button>
+            </Flex>
+
+            @if showForm {
+                <Card test-id="add-task-form">
+                    <Heading level="3">New Task</Heading>
+                    <Flex direction="row" gap="12px">
+                        <Input bind:value={newTaskTitle} placeholder="Task title..." test-id="input-new-title" />
+                        <Button onPress={handleAddTask} test-id="btn-add-task">Add</Button>
+                        <Button onPress={handleCancelForm} test-id="btn-cancel-form">Cancel</Button>
+                    </Flex>
+                </Card>
+            }
+
+            <Flex direction="row" gap="16px" test-id="stats-bar">
+                <Card>
+                    <Text test-id="stat-total">Total: {store.totalCount}</Text>
+                </Card>
+                <Card>
+                    <Text test-id="stat-todo">Todo: {store.todoCount}</Text>
+                </Card>
+                <Card>
+                    <Text test-id="stat-progress">In Progress: {store.inProgressCount}</Text>
+                </Card>
+                <Card>
+                    <Text test-id="stat-done">Done: {store.doneCount}</Text>
+                </Card>
+            </Flex>
+
+            <Flex direction="row" gap="16px" test-id="kanban-columns">
+
+                <Card test-id="column-todo">
+                    <Heading level="3" test-id="col-todo-title">
+                        {store.todoCount} To Do
+                    </Heading>
+                    @for task in store.todoTasks {
+                        <Card key={task} test-id="task-card">
+                            <Text test-id="task-title">{task}</Text>
+                            <Flex direction="row" gap="4px">
+                                <Button onPress={handleMoveToProgress(task)} test-id="btn-move-progress">Start</Button>
+                            </Flex>
+                        </Card>
+                    }
+                    @empty {
+                        <Container test-id="empty-todo">
+                            <Text>No tasks yet. Create one above!</Text>
+                        </Container>
+                    }
+                </Card>
+
+                <Card test-id="column-progress">
+                    <Heading level="3" test-id="col-progress-title">
+                        {store.inProgressCount} In Progress
+                    </Heading>
+                    @for task in store.inProgressTasks {
+                        <Card key={task} test-id="task-card">
+                            <Text test-id="task-title">{task}</Text>
+                            <Flex direction="row" gap="4px">
+                                <Button onPress={handleMoveToTodo(task)} test-id="btn-move-todo">Back</Button>
+                                <Button onPress={handleMoveToDone(task)} test-id="btn-move-done">Done</Button>
+                            </Flex>
+                        </Card>
+                    }
+                    @empty {
+                        <Container test-id="empty-progress">
+                            <Text>Nothing in progress. Start a task!</Text>
+                        </Container>
+                    }
+                </Card>
+
+                <Card test-id="column-done">
+                    <Heading level="3" test-id="col-done-title">
+                        {store.doneCount} Done
+                    </Heading>
+                    @for task in store.doneTasks {
+                        <Card key={task} test-id="task-card">
+                            <Text test-id="task-title">{task}</Text>
+                            <Flex direction="row" gap="4px">
+                                <Button onPress={handleMoveBackToProgress(task)} test-id="btn-move-progress">Reopen</Button>
+                            </Flex>
+                        </Card>
+                    }
+                    @empty {
+                        <Container test-id="empty-done">
+                            <Text>Nothing completed yet. Keep working!</Text>
+                        </Container>
+                    }
+                </Card>
+            </Flex>
+
+            @if store.doneCount > 0 {
+                <Flex direction="row" gap="8px" test-id="footer">
+                    <Text test-id="summary">
+                        {store.todoCount} active, {store.doneCount} done
+                    </Text>
+                    <Button onPress={handleClearDone} test-id="btn-clear-done">Clear All Done</Button>
+                </Flex>
+            }
+        </Container>
+    }
+}

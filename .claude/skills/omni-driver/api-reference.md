@@ -9,9 +9,9 @@
 | 方法 | 返回值 | 说明 |
 |------|--------|------|
 | `O.getState()` | `EditorSnapshot` | 完整快照：mode, elements, wires, selectedElementId, projectDir, activeFilePath, compileErrors, previewUrl |
-| `O.getElements()` | `ElementData[]` | 所有画布元素 |
+| `O.getElements()` | `ElementData[]` | 所有画布元素（纯数据，无方法） |
 | `O.elements` | `ElementData[]` | 同 getElements()（getter 别名） |
-| `O.getWires()` | `WireData[]` | 所有连线 |
+| `O.getWires()` | `WireData[]` | 所有连线（纯数据，无方法） |
 | `O.wires` | `WireData[]` | 同 getWires()（getter 别名） |
 | `O.getMode()` | `"design" \| "code"` | 当前模式 |
 | `O.getSelectedElement()` | `ElementHandle \| null` | 当前选中 |
@@ -23,7 +23,7 @@
 
 | 方法 | 参数 | 返回值 |
 |------|------|--------|
-| `O.element(id)` | `string` | `ElementHandle` — 始终返回 handle，用 `.exists()` 检查是否存在 |
+| `O.element(id)` | `string` | `ElementHandle` — 始终返回 handle，用 `.exists()` 检查 |
 | `O.findByTag(tag)` | `string` | `ElementHandle[]` |
 | `O.find(query)` | `ElementQuery` | `ElementHandle[]` |
 | `O.findByProp(prop, value)` | `string, unknown` | `ElementHandle[]` |
@@ -37,63 +37,108 @@ interface ElementQuery {
 }
 ```
 
-### 组件创建
+### 组件创建 — 参数位置速查
+
+**每个便捷方法的参数位置不同！不要假设它们一致。**
+
+| 方法 | 完整签名 | 调用示例 |
+|------|---------|---------|
+| `component` | `(tag, props?, parentId?)` | `O.component("Button", {label:"OK"}, cardId)` |
+| `button` | `(label, props?, parentId?)` | `O.button("OK", {variant:"primary"}, cardId)` |
+| `text` | `(label, props?, parentId?)` | `O.text("Hello", {}, cardId)` ← **props 不可跳过！** |
+| `heading` | `(label, level?, parentId?)` | `O.heading("Title", "2", cardId)` ← **level 是字符串！** |
+| `input` | `(placeholder?, props?, parentId?)` | `O.input("Email...", {}, cardId)` |
+| `card` | `(props?, parentId?)` | `O.card({padding:"16px"}, parentId)` |
+| `container` | `(props?, parentId?)` | `O.container({}, cardId)` |
+| `flex` | `(direction?, gap?, props?, parentId?)` | `O.flex("row", "8px", {}, cardId)` |
+| `image` | `(src, alt?, parentId?)` | `O.image("url", "Photo", cardId)` ← **alt 在第2位！** |
+| `list` | `(parentId?)` | `O.list(cardId)` |
+| `alert` | `(type?, label?, parentId?)` | `O.alert("info", "Note", cardId)` |
 
 ```javascript
-// 通用创建 — 支持 parentId 和 children 数组
-O.component("Button", { label: "Submit" }, parentId);
-//           tag       props                  parentId (可选)
+// ⚠️ 最容易出错的 3 个方法：
 
-// props 中传 children 数组可实现 Playwright 风格单行嵌套:
+// 1. text() — 第2参数是 props，不能跳过！
+O.text("Hello", cardId);        // ❌ cardId 被当作 props！
+O.text("Hello", {}, cardId);    // ✅ 正确
+
+// 2. image() — 第2参数是 alt，不能跳过！
+O.image("url", cardId);         // ❌ cardId 被当作 alt！
+O.image("url", "", cardId);     // ✅ 正确
+
+// 3. heading() — 第2参数 level 是字符串！
+O.heading("Title", 2, cardId);  // ❌ level 是数字！
+O.heading("Title", "2", cardId);// ✅ 正确
+```
+
+```javascript
+// props 中传 children 数组可实现单行嵌套:
 O.component("Card", {
   padding: "16px",
-  children: [O.button("A"), O.text("B")]  // 自动设置 parentId
+  children: [O.button("A"), O.text("B", {}, null)]  // children 自动设置 parentId
 });
-
-// 便捷方法 — 均支持可选的 parentId 作为最后一个参数
-O.button("Submit", { variant: "primary" }, parentId);   // label, props?, parentId?
-O.text("Hello World", {}, parentId);                    // content, props?, parentId?
-O.heading("Title", "1", parentId);                      // text, level?, parentId?
-O.container({ padding: "16px" }, parentId);             // props?, parentId?
-O.input("Enter name...", {}, parentId);                 // placeholder?, props?, parentId?
-O.card({ padding: "12px" }, parentId);                  // props?, parentId?
-O.flex("row", "16px", {}, parentId);                    // direction?, gap?, props?, parentId?
-O.image("https://...", "Photo", parentId);              // src, alt?, parentId?
-O.list(parentId);                                       // parentId?
-O.alert("info", "注意", parentId);                       // type?, label?, parentId?
 ```
 
 ### 代码块创建
 
 ```javascript
 O.codeBlock("signal", "name", {
-  parentStore?: string;      // 所属 store
-  source?: string;           // 源码
-  ports?: PortDescriptor[];  // 额外端口
-  typeAnnotation?: string;   // 类型注解
-  isFolded?: boolean;        // 是否折叠
+  typeAnnotation: "f64",      // ✅ 有效参数！决定端口类型。支持: i32, f64, bool, String
+  source: "signal name: f64 = 3.14",
+  parentStore: "",            // 所属 store（可选）
+  ports: [],                  // 自定义端口（覆盖默认）
+  isFolded: false,            // 是否折叠
 });
 
-// 类型预设端口:
-// signal:   value(out, TYPE), set(in, TYPE)
-// computed: value(out, TYPE), deps(in, any)
-// action:   call(in, MouseEvent), result(out, any)
-// store:    无预置端口
+// typeAnnotation 驱动端口类型：
+O.codeBlock("signal", "count", { typeAnnotation: "f64" });
+// → 端口类型为 f64 而不是默认的 i32
+
+O.codeBlock("signal", "name", { typeAnnotation: "String" });
+// → 端口类型为 String
+```
+
+**代码块端口参考：**
+
+| 类型 | 输出端口 | 输入端口 | 用途 |
+|------|---------|---------|------|
+| `signal` | `value` (out, TYPE) | `set` (in, TYPE) | 响应式状态。TYPE 来自 typeAnnotation，默认 i32 |
+| `computed` | `value` (out, TYPE) | `deps` (in, any) | 派生计算。TYPE 来自 typeAnnotation，默认 i32 |
+| `action` | `result` (out, any) | `call` (in, event) | 事件处理函数 |
+| `store` | `items` (out, any) | — | 数据集合 |
+
+```javascript
+// ✅ 正确：设置 signal → 连到 set 端口
+O.connect(action.id, "result", signal.id, "set");
+
+// ❌ 错误：signal 没有 "value" 输入（value 是输出！）
+O.connect(action.id, "result", signal.id, "value");
+
+// ❌ 错误：signal 没有 "input" 端口
+action.connectTo(signal, "result", "input");
 ```
 
 ### 事件处理
 
 ```javascript
+// createEventHandler 接受事件名（React 风格，不是 UUID！）
 const { handler, wire } = btn.createEventHandler("onPress", {
-  source?: string;     // action 源码
-  parentStore?: string;
-  ports?: PortDescriptor[];
+  source: "action handleSubmit(event) {\n  // logic\n}",
+  handlerName: "myHandler",   // 可选：自定义 handler 名称
+  parentStore: "",            // 可选：所属 store
+  folded: false,              // 可选：是否折叠
 });
 
-// 等价于手动:
-// 1. 创建 action 元素（事件名对应 UUID 端口）
+// ❌ 错误：传了 UUID
+btn.createEventHandler("evt-btn-press-001"); // 会抛异常！
+
+// ❌ 错误：传了 DOM 风格事件名
+btn.createEventHandler("press"); // 会抛异常！
+
+// 等价于手动操作（手动 connect 才用 UUID）:
+// 1. 创建 action 元素
 // 2. btn.setProp("onPress", handler.id)
-// 3. O.connect(btn.id, UUID, handler.id, "call")
+// 3. O.connect(btn.id, "evt-btn-press-001", handler.id, "call")
 ```
 
 ### 连线
@@ -103,6 +148,9 @@ const { handler, wire } = btn.createEventHandler("onPress", {
 O.connect(fromId, fromPort, toId, toPort);
 // fromPort 若是事件端口，必须是 UUID (如 "evt-btn-press-001")
 
+// ElementHandle 方式（含端口验证）
+el.connectTo(target, "fromPort", "toPort");
+
 // 断开
 O.disconnect(wireId);
 ```
@@ -110,9 +158,9 @@ O.disconnect(wireId);
 ### 模式与编译
 
 ```javascript
-O.switchMode("design" | "code");  // 切换模式（派发 omni-mode-change 事件）
+O.switchMode("design" | "code");
 
-// 编译 — 从 activeFileContent 重建画布，丢弃程序化创建的元素
+// 编译 — 从 activeFileContent 重建画布，丢弃程序化创建的元素！
 const result = await O.compile();
 // { success: boolean, errors: Array<{ code, message, line, severity }> }
 ```
@@ -120,16 +168,16 @@ const result = await O.compile();
 ### 等待机制
 
 ```javascript
-await O.waitForElement("Button", 5000);                // 按 tag 等待
-await O.waitForWire("evt-btn-press-001", 5000);        // 按端口 ID 等待
-await O.waitFor(() => O.getElements().length >= 5, 3000, "等待超时");
+await O.waitForElement("Button", 5000);
+await O.waitForWire("evt-btn-press-001", 5000);
+await O.waitFor(() => O.getElements().length >= 5, 3000, "timeout");
 ```
 
 ### 撤销/重做
 
 ```javascript
-O.undo();   // 撤销（依赖 Command 系统）
-O.redo();   // 重做
+O.undo();
+O.redo();
 ```
 
 ### 文件操作
@@ -151,13 +199,109 @@ O.listComponents();           // ComponentInfo[] — 所有视图组件元数据
 O.getComponentInfo("Button"); // 单个组件的 props, events, styleProperties, hasChildren
 ```
 
+### 画布诊断
+
+```javascript
+// 一键健康检查 — 脚本完成后的必须步骤！
+const report = O.validate();
+// {
+//   orphanElements: string[],         // 无父容器且非根节点的 view 元素
+//   unwiredEvents: Array<{            // 有事件定义但无连线的组件
+//     elementId, tag, eventName, eventPortId
+//   }>,
+//   typeMismatches: Array<{           // 类型不匹配的连线
+//     wireId, fromPort, fromType, toPort, toType
+//   }>,
+//   unreachableBlocks: string[],      // 无数据流入的代码块
+//   isValid: boolean                  // 是否通过所有检查
+// }
+
+// 状态变更追踪 — 比较两个快照
+const before = O.getState();
+// ... 做一些操作 ...
+const change = O.diff(before);
+// {
+//   added: ElementData[],             // 新增的元素
+//   removed: string[],                // 被删除的元素 ID
+//   modified: Array<{ id, changes }>, // 被修改的元素
+//   addedWires: WireData[],           // 新增的连线
+//   removedWires: string[],           // 被删除的连线 ID
+// }
+```
+
+### 状态快照
+
+```javascript
+// 导出完整画布状态为 JSON 字符串
+const json = O.exportState();
+// → '{"version":"1.0","exportedAt":"...","elements":[...],"wires":[...]}'
+
+// 从 JSON 恢复画布状态（替换所有当前元素和连线）
+O.importState(json);
+
+// 使用场景：保存/恢复、状态回滚、测试快照对比
+```
+
+### 预设模板
+
+```javascript
+// 快速创建常见 UI 模式
+O.snippet("login-form");                           // 登录表单
+O.snippet("login-form", { title: "Welcome Back" }); // 自定义标题
+
+O.snippet("data-card");                            // 数据卡片
+O.snippet("data-card", {
+  title: "User Stats",
+  description: "Monthly active users: 1,234",
+  actionLabel: "View Details",                      // 可选按钮
+});
+
+O.snippet("crud-table");                           // CRUD 表格
+O.snippet("crud-table", {
+  title: "Products",
+  columns: ["Name", "Price", "Stock", "Actions"],
+});
+```
+
 ### 其他
 
 ```javascript
-O.help();       // 返回自描述 API 参考（供 AI agent 发现可用方法）
+O.help();       // 🚨 每次会话第一步！返回 portReference、eventUuidTable、criticalRules
 O.clearAll();   // 清除 Store 中的 elements + wires + selection（不触及源文件）
-O.batch(fn);    // 批量操作包装：O.batch(O => { O.button("A"); O.button("B"); })
+O.batch(fn);    // 批量操作：O.batch(O => { O.button("A"); O.button("B"); })
 O.removeElement(id); // 删除单个元素
+```
+
+---
+
+## Dataflow Patterns
+
+> 详细说明见 [SKILL.md](SKILL.md) 的 📐 Dataflow Patterns 章节
+
+### Pattern 1: Button → Handler → Signal
+
+```javascript
+const btn = O.button("+1", {}, card.id);
+const count = O.codeBlock("signal", "count", { typeAnnotation: "i32" });
+const { handler } = btn.createEventHandler("onPress");
+handler.connectTo(count, "result", "set");  // ← 注意：连到 "set"，不是 "value"！
+```
+
+### Pattern 2: Signal → Computed
+
+```javascript
+const price = O.codeBlock("signal", "price", { typeAnnotation: "f64" });
+const total = O.codeBlock("computed", "total", { typeAnnotation: "f64" });
+price.connectTo(total, "value", "deps");  // ← 数据流：value → deps
+```
+
+### ❌ Anti-Pattern
+
+```javascript
+// 一个 handler.result 不能分叉连到多个 signal.set！
+handler.connectTo(sig1, "result", "set");
+handler.connectTo(sig2, "result", "set");  // ← 错误！
+// 正确：在 action 源码中操作多个 signal
 ```
 
 ---
@@ -169,38 +313,41 @@ const el = O.element("some-id");
 
 // 存在与文本
 el.exists();                  // boolean — 元素是否在 store 中存在
-el.text();                    // string — 显示文本（回退: label → text → placeholder → ""）
+el.text();                    // string — 显示文本（label → text → placeholder → ""）
 
 // 属性
 el.setProp(prop, value);      // 设置属性
 el.getProp(prop);             // 读取属性
-el.getPorts();                // 获取端口列表 PortDescriptor[]
-el.getSource();               // 获取代码块源文
+el.getPorts();                // 所有端口（view 元素自动含 COMPONENT_PROTOCOL 事件端口）
+el.getEvents();               // 事件元数据 { onPress: { id, description, payload } }
+el.getSource();               // 代码块源文
 el.setSource("source code");  // 设置代码块源文
 el.data;                      // ElementData 原始数据（含 outputValue）
 
 // 导航
 el.select();                  // 选中元素
 el.remove();                  // 删除元素
-el.children();                // ElementHandle[] — 子元素
+el.children();                // ElementHandle[] — 子元素（只读）
 el.parent();                  // ElementHandle | null — 父元素
 
 // 连线
-el.connectTo(target, "outPort", "inPort");  // 创建数据流连线
-el.createEventHandler("onPress", options);  // 创建事件处理器（3合1）
+el.connectTo(target, "outPort", "inPort");  // 数据流连线（含端口验证）
+el.createEventHandler("onPress", options);  // 事件处理器（3合1）
 
 // 等待
 await el.waitForLive(timeout);  // 轮询等待元素出现在 store 中
 ```
 
+**注意：**
+- `getPorts()` 对 view 元素自动包含事件端口
+- `getEvents()` 直接返回事件元数据，比 `O.getComponentInfo(tag).events` 更直接
+- `O.element(id)` 始终返回 `ElementHandle`（不会返回 null），用 `.exists()` 判断
+
 **没有的方法（常见错误）：**
 - ❌ `el.textContent()` → 用 `el.text()`
 - ❌ `el.innerText()` → 用 `el.text()`
-- ❌ `el.exists()` → ✅ 已内置，直接用 `el.exists()`
-- ❌ `el.isVisible()` → 不存在
+- ❌ `el.children = [...]` → `children()` 是只读 getter
 - ❌ `el.waitForSelector()` → 用 `O.waitForElement()`
-- ❌ `el.count()` → 用 `O.findByTag("tag").length`
-- ❌ `el.children = [...]` / `el.children.push(...)` → `children()` 是只读 getter，用 `parentId` 建立父子关系
 
 ---
 
@@ -218,6 +365,8 @@ wire.data;                  // WireData { id, fromId, fromPort, toId, toPort }
 ---
 
 ## 类型定义
+
+> **⚠️ ElementData ≠ ElementHandle：** `getElements()` / `.elements` 返回纯数据 `ElementData[]`（没有 `.parent()`、`.text()` 等方法）。用 `O.element(id)` 获取 `ElementHandle`。`getWires()` / `.wires` 返回纯 `WireData[]`。
 
 ```typescript
 interface EditorSnapshot {
@@ -298,12 +447,33 @@ interface ComponentInfo {
 
 ---
 
-## Playwright 集成
+## 浏览器 Console & 自动化集成
 
-> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要直接返回 `ElementHandle` 或 `WireHandle` 对象。返回 `.text()`、`.exists()`、`.data` 或普通对象。
+### 浏览器 DevTools Console
+
+打开 `http://localhost:5174`，按 F12 → Console，直接粘贴脚本执行。无需安装、无需 import，`window.__OMNI__` 已在全局作用域中。
 
 ```javascript
-// test helper
+// 复制到浏览器 Console 直接运行
+const O = window.__OMNI__;
+O.help();
+O.switchMode("design");
+O.clearAll();
+
+const card = O.card({ padding: "24px" });
+O.heading("Quick Test", "2", card.id);
+O.button("Click", { variant: "primary" }, card.id);
+
+console.log("Elements:", O.elements.length, "Valid:", O.validate().isValid);
+```
+
+> **序列化约束：** Console 中可以直接使用 Handle 对象（如 `el.text()`、`el.parent()`），无需序列化。只有通过 `page.evaluate()` 调用时才有限制。
+
+### Playwright
+
+> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要返回 `ElementHandle` 或 `WireHandle`。返回 `.text()`、`.exists()`、`.data` 或普通对象。
+
+```javascript
 async function omniEval(page, fn) {
   return page.evaluate(fn);
 }
@@ -312,19 +482,36 @@ test("create and verify form", async ({ page }) => {
   await page.goto("http://localhost:5174");
   await page.waitForFunction(() => window.__OMNI__);
 
-  // 创建 UI（便捷方法均支持 parentId）
   await omniEval(page, () => {
     const O = window.__OMNI__;
-    O.clearAll();
+    O.help();
     O.switchMode("design");
+    O.clearAll();
     const card = O.card({ padding: "24px" });
     O.heading("Login", "2", card.id);
     O.input("Email", {}, card.id);
     O.button("Submit", { variant: "primary" }, card.id);
   });
 
-  // 验证
   const count = await omniEval(page, () => window.__OMNI__.getElements().length);
   expect(count).toBeGreaterThanOrEqual(4);
+});
+```
+
+### Puppeteer
+
+```javascript
+const puppeteer = require('puppeteer');
+const browser = await puppeteer.launch();
+const page = await browser.newPage();
+await page.goto('http://localhost:5174');
+await page.waitForFunction(() => window.__OMNI__);
+
+await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.help();
+  O.switchMode("design");
+  O.clearAll();
+  O.card({ padding: "24px" });
 });
 ```

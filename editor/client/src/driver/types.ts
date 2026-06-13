@@ -80,3 +80,47 @@ export interface EventHandlerOptions {
   /** Mark handler as folded by default */
   folded?: boolean;
 }
+
+// ── Validation report (canvas health check) ────────────
+
+export interface ValidationReport {
+  /** View elements without a parent when multiple root elements exist */
+  orphanElements: string[];
+  /** View elements with defined events that have no wire connected */
+  unwiredEvents: Array<{
+    elementId: string;
+    tag: string;
+    eventName: string;
+    eventPortId: string;
+  }>;
+  /** Wires connecting ports of incompatible types */
+  typeMismatches: Array<{
+    wireId: string;
+    fromPort: string;
+    fromType: string;
+    toPort: string;
+    toType: string;
+  }>;
+  /** Code blocks that have no inbound data wire */
+  unreachableBlocks: string[];
+  /** Whether the canvas passes all health checks */
+  isValid: boolean;
+}
+
+// ── State diff (change tracking between snapshots) ────
+
+export interface StateDiff {
+  /** Elements that were added */
+  added: import("../store/editor").ElementData[];
+  /** IDs of elements that were removed */
+  removed: string[];
+  /** Elements that were modified, with changed properties */
+  modified: Array<{
+    id: string;
+    changes: Record<string, { from: unknown; to: unknown }>;
+  }>;
+  /** Wires that were added */
+  addedWires: import("../store/editor").WireData[];
+  /** IDs of wires that were removed */
+  removedWires: string[];
+}

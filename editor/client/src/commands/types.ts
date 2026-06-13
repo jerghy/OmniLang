@@ -12,6 +12,8 @@ export interface CommandContext {
   getProp: (id: string, prop: string) => unknown;
   addWire: (w: WireData) => void;
   removeWire: (id: string) => void;
+  /** Replace all elements and wires atomically (for save/load + auto-layout undo/redo). */
+  setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
 }
 
 export interface Command {

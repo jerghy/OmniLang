@@ -114,8 +114,7 @@ class OmniFilePoller:
 async def watch_endpoint(ws: WebSocket):
     await ws.accept()
 
-    from editor.server.main import app
-    project_dir_str = getattr(app.state, "project_dir", None)
+    project_dir_str = getattr(ws.app.state, "project_dir", None)
     if not project_dir_str:
         await ws.send_json({"type": "error", "message": "No project directory configured"})
         await ws.close()

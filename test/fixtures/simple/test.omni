@@ -1,9 +1,100 @@
+store TaskStore {
+    signal task_count: i32 = 8;
+    signal active_count: i32 = 3;
+    signal done_count: i32 = 4;
+}
+
 component App {
+    @store TaskStore;
+
+    signal activeFilter: String = "all";
+    signal searchQuery: String = "";
+
+    computed statsTotal: i32 = 8;
+    computed statsActive: i32 = 3;
+    computed statsDone: i32 = 4;
+
+    fn handleFilterAll() {
+        activeFilter = "all";
+    }
+
+    fn handleFilterActive() {
+        activeFilter = "active";
+    }
+
+    fn handleFilterDone() {
+        activeFilter = "done";
+    }
+
+    fn handleAddTask() {
+        activeFilter = "all";
+    }
+
     view {
-        <Container>
-            <Text label="Hello World" />
-            <Button label="Click Me" variant="primary" />
-            <Input placeholder="Enter text..." />
-        </Container>
+        <Card padding="0">
+            <Flex direction="row" gap="0" padding="12 32">
+                <Heading label="Task Manager Pro" level="1" />
+                <Flex direction="row" gap="20" marginLeft="auto">
+                    <Link label="Home" href="#home" />
+                    <Link label="About" href="#about" />
+                </Flex>
+            </Flex>
+            <Flex direction="row" gap="0">
+                <Flex direction="column" gap="8" width="220" padding="24 16">
+                    <Heading label="Filters" level="3" />
+                    <Button label="All Tasks" variant="primary" onPress={handleFilterAll} test-id="btn-all" />
+                    <Button label="Active" variant="outline" onPress={handleFilterActive} test-id="btn-active" />
+                    <Button label="Completed" variant="outline" onPress={handleFilterDone} test-id="btn-done" />
+                    <Alert type="info" label="Select a filter" />
+                </Flex>
+                <Flex direction="column" gap="24" flex="1" padding="32">
+                    <Flex direction="row" gap="16">
+                        <Card flex="1" padding="20">
+                            <Text label="Total Tasks" />
+                            <Text label="8" test-id="stat-total" />
+                        </Card>
+                        <Card flex="1" padding="20">
+                            <Text label="Active" />
+                            <Text label="3" test-id="stat-active" />
+                        </Card>
+                        <Card flex="1" padding="20">
+                            <Text label="Completed" />
+                            <Text label="4" test-id="stat-done" />
+                        </Card>
+                        <Card flex="1" padding="20">
+                            <Text label="Overdue" />
+                            <Text label="1" />
+                        </Card>
+                    </Flex>
+                    <Input placeholder="Search..." type="search" test-id="search-input" />
+                    <Heading label="Tasks" level="2" />
+                    <List>
+                        <ListItem padding="8 0">
+                            <Checkbox label="Buy groceries" checked={true} />
+                        </ListItem>
+                        <ListItem padding="8 0">
+                            <Checkbox label="Finish report" />
+                        </ListItem>
+                        <ListItem padding="8 0">
+                            <Checkbox label="Call dentist" checked={true} />
+                        </ListItem>
+                        <ListItem padding="8 0">
+                            <Checkbox label="Write tests" />
+                        </ListItem>
+                    </List>
+                    <Heading label="Add New Task" level="2" />
+                    <Flex direction="row" gap="12">
+                        <Input placeholder="Task title..." test-id="new-task-input" />
+                        <Select placeholder="Priority" options={["Low","Normal","High","Urgent"]} test-id="priority-select" />
+                        <Button label="+ Add Task" variant="primary" onPress={handleAddTask} test-id="btn-add" />
+                    </Flex>
+                    <Alert type="warning" label="Enter a task title" />
+                    <Progress value={50} max={100} test-id="progress-bar" />
+                    <Text label="50% completed" />
+                    <Spinner />
+                    <TextArea placeholder="Notes..." rows={3} />
+                </Flex>
+            </Flex>
+        </Card>
     }
 }

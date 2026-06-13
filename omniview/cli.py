@@ -800,6 +800,9 @@ def main():
         parser = argparse.ArgumentParser()
         parser.add_argument("--dir", required=True)
         parser.add_argument("--port", type=int, default=5173)
+        parser.add_argument("--vite-port", type=int, default=5174)
+        parser.add_argument("--dev", action="store_true", help="Force Vite dev mode (even if production build exists)")
+        parser.add_argument("--no-frontend", action="store_true", help="Skip auto-starting Vite dev server")
         ns = parser.parse_args(args)
         cmd_serve(ns)
         return 0

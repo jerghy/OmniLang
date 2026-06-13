@@ -20,6 +20,8 @@ export interface ElementData {
   source?: string;
   /** Runtime-computed output value (for code blocks) */
   outputValue?: unknown;
+  /** Visual position on the Rete canvas (set by auto-layout, persisted to .canvas.json) */
+  position?: { x: number; y: number };
 }
 
 export interface WireData {
@@ -77,6 +79,9 @@ interface EditorState {
   setElementSource: (id: string, source: string) => void;
   setElementPorts: (id: string, ports: ElementData["ports"]) => void;
   setBlockValue: (id: string, value: unknown) => void;
+
+  /** Replace all elements and wires atomically (used by save/load + auto-layout). */
+  setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -160,6 +165,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ),
       };
     }),
+
+  setElementsAndWires: (elements, wires) =>
+    set({ elements, wires, selectedElementId: null }),
 }));
 
 // Expose store for E2E tests (Playwright page.evaluate)

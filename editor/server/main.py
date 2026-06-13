@@ -780,6 +780,8 @@ def cmd_serve(args):
     """omnic serve command entry."""
     port = getattr(args, 'port', None) or 5173
     project_dir = getattr(args, 'dir', None)
+    no_frontend = getattr(args, 'no_frontend', False)
+    dev_mode = getattr(args, 'dev', False)
 
     if not project_dir:
         print("Error: --dir is required. Usage: omnic serve --dir ./my-project", file=sys.stderr)
@@ -788,18 +790,53 @@ def cmd_serve(args):
     project_dir = str(Path(project_dir).resolve())
     app.state.project_dir = project_dir
 
+    REACT_DIST = Path(__file__).parent.parent / "client" / "dist"
+    vite_port = getattr(args, 'vite_port', None) or 5174
+
     print(f"  OmniLang Editor")
     print(f"  API:     http://localhost:{port}")
     print(f"  Project: {project_dir}")
-    REACT_DIST = Path(__file__).parent.parent / "client" / "dist"
-    if REACT_DIST.exists():
-        print(f"  Editor:  http://localhost:{port} (production build)")
-    else:
-        print(f"  Editor:  cd editor/client && npm run dev  →  http://localhost:5174")
-        print(f"           (Vite proxies /api → localhost:{port})")
-    print(f"  Press Ctrl+C to stop.")
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+    has_prod_build = (REACT_DIST / "index.html").exists()
+    frontend_proc = None
+
+    if has_prod_build and not dev_mode:
+        print(f"  Editor:  http://localhost:{port} (production build)")
+    elif not no_frontend:
+        # Start Vite dev server (auto when no prod build, or forced via --dev)
+        import subprocess
+        client_dir = Path(__file__).parent.parent / "client"
+        tag = " — forced" if dev_mode and has_prod_build else ""
+        print(f"  Frontend: http://localhost:{vite_port} (Vite dev{tag})")
+        print(f"            (proxies /api → localhost:{port})")
+        try:
+            # Use shell=True on Windows for npx resolution
+            frontend_proc = subprocess.Popen(
+                f'npx vite --port {vite_port} --host',
+                cwd=str(client_dir),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=True,
+            )
+        except Exception as e:
+            print(f"  [WARN] Vite startup failed: {e}")
+            print(f"  Manual: cd editor/client && npm run dev")
+    else:
+        print(f"  Editor:  cd editor/client && npm run dev  →  http://localhost:{vite_port}")
+        print(f"           (Vite proxies /api → localhost:{port})")
+
+    print(f"  Press Ctrl+C to stop.")
+    print()
+
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+    finally:
+        if frontend_proc:
+            frontend_proc.terminate()
+            try:
+                frontend_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                frontend_proc.kill()
 
 
 if __name__ == "__main__":

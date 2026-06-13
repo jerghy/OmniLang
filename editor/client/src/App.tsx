@@ -27,6 +27,7 @@ import { SearchModal } from "./search/SearchModal";
 import { collectFocusOrder, focusOverlayStyles } from "./a11y/FocusOrder";
 import type { SearchResult } from "./search/SearchIndex";
 import type { CommandContext } from "./commands/types";
+import { SetElementsAndWires } from "./commands/SetElementsAndWires";
 
 // ═══════════════════════════════════════════════
 // Styles
@@ -68,6 +69,12 @@ export default function App() {
   const [showAnimation, setShowAnimation] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const codeEditorRef = useRef<MonacoEditorHandle>(null);
+  const [layoutTrigger, setLayoutTrigger] = useState(0);
+
+  // Save/Load state
+  const [loadedCanvasPath, setLoadedCanvasPath] = useState<string | null>(null);
+  const [saveDialog, setSaveDialog] = useState<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: "" });
+  const [loadDialog, setLoadDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
 
   const projectDir = useEditorStore((s) => s.projectDir);
   const activeFilePath = useEditorStore((s) => s.activeFilePath);
@@ -312,6 +319,8 @@ export default function App() {
     getProp: (id, p) => useEditorStore.getState().getProp(id, p) ?? null,
     addWire: (w) => useEditorStore.getState().addWire(w),
     removeWire: (id) => useEditorStore.getState().removeWire(id),
+    setElementsAndWires: (elements, wires) =>
+      useEditorStore.getState().setElementsAndWires(elements, wires),
   };
 
   const compileErrors = useEditorStore((s) => s.compileErrors);
@@ -379,6 +388,111 @@ export default function App() {
     }
   }, []);
 
+  // ── Feature 1: Save/Load canvas state ───────────
+
+  const handleSaveCanvas = useCallback(async (customPath?: string | React.MouseEvent) => {
+    const store = useEditorStore.getState();
+    const activeFile = store.activeFilePath;
+
+    // If customPath is a string (from dialog), use it; otherwise check loadedCanvasPath
+    const explicitPath = typeof customPath === "string" ? customPath : undefined;
+
+    // If already loaded from a file, save directly without dialog
+    let canvasPath = explicitPath || loadedCanvasPath;
+    if (!canvasPath) {
+      // Show save dialog
+      const defaultName = activeFile
+        ? activeFile.replace(/\.omni$/, ".canvas.json")
+        : "canvas.json";
+      setSaveDialog({ visible: true, defaultName });
+      return;
+    }
+
+    const data = JSON.stringify(
+      { elements: store.elements, wires: store.wires },
+      null,
+      2,
+    );
+
+    setStatus({ text: `保存到 ${canvasPath} ...`, isError: false });
+    try {
+      const result = await api.writeFile(canvasPath, data);
+      if (result.ok) {
+        setStatus({ text: `✅ 已保存: ${canvasPath}`, isError: false });
+        setLoadedCanvasPath(canvasPath);
+      } else {
+        setStatus({ text: `❌ 保存失败: ${result.error || "未知错误"}`, isError: true });
+      }
+    } catch (e) {
+      setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
+    }
+  }, [loadedCanvasPath]);
+
+  const handleLoadCanvas = useCallback(async (filePath?: string | React.MouseEvent) => {
+    // If a string is passed (from dialog click), use it directly
+    const explicitPath = typeof filePath === "string" ? filePath : undefined;
+
+    // If a specific file is given, load it directly
+    if (explicitPath) {
+      setStatus({ text: `加载 ${explicitPath} ...`, isError: false });
+      try {
+        const result = await api.readFile(explicitPath);
+        if (!result.content) {
+          setStatus({ text: `❌ 文件不存在: ${explicitPath}`, isError: true });
+          return;
+        }
+        const data = JSON.parse(result.content);
+        if (!data.elements || !data.wires) {
+          setStatus({ text: "画布文件格式无效", isError: true });
+          return;
+        }
+        const cmd = new SetElementsAndWires(data.elements, data.wires, `📂 加载: ${explicitPath}`);
+        undoExec(cmd, ctx);
+        setLoadedCanvasPath(explicitPath);
+        setStatus({ text: `✅ 已加载: ${explicitPath}`, isError: false });
+      } catch (e) {
+        setStatus({
+          text: `❌ 加载失败: ${e instanceof SyntaxError ? "文件格式错误" : String(e)}`,
+          isError: true,
+        });
+      }
+      setLoadDialog({ visible: false, files: [] });
+      return;
+    }
+
+    // Scan for .omni.json files and show dialog (scans root + one level of subdirs)
+    setStatus({ text: "扫描画布文件...", isError: false });
+    try {
+      const listing = await api.listDir(".");
+      const entries = listing?.entries || [];
+      // Collect .omni.json files from root
+      let jsonFiles = entries
+        .filter((e: { name: string }) => e.name.endsWith(".omni.json"))
+        .map((e: { name: string }) => e.name);
+      // Also scan one level of subdirectories for .omni.json files
+      const subdirs = entries.filter((e: { type: string }) => e.type === "directory");
+      for (const dir of subdirs) {
+        try {
+          const subListing = await api.listDir(dir.name);
+          const subEntries = subListing?.entries || [];
+          for (const se of subEntries) {
+            if (se.name.endsWith(".omni.json")) {
+              jsonFiles.push(`${dir.name}/${se.name}`);
+            }
+          }
+        } catch { /* skip inaccessible subdirs */ }
+      }
+
+      if (jsonFiles.length === 0) {
+        setStatus({ text: "❌ 未找到可加载的画布文件", isError: true });
+        return;
+      }
+      setLoadDialog({ visible: true, files: jsonFiles });
+    } catch {
+      setStatus({ text: "❌ 扫描文件失败", isError: true });
+    }
+  }, [undoExec, ctx]);
+
   // ═════════════════════════════════════════════
   // Render
   // ═════════════════════════════════════════════
@@ -439,6 +553,10 @@ export default function App() {
                 style={{...btnStyle, background: showConnector ? "#EEF2FF" : "#fff", borderColor: showConnector ? "#4F46E5" : "#d1d5db" }}>
                 {showConnector ? "🔌 连接器" : "🔌 连接器"}
               </button>
+              <button onClick={() => setLayoutTrigger(v => v + 1)}
+                style={{...btnStyle, background: "#fff"}}>
+                📐 自动布局
+              </button>
               <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
             </div>
             <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -447,6 +565,7 @@ export default function App() {
                   ctx={ctx}
                   showViews={false}
                   highlightedWireId={highlightedWireId}
+                  layoutTrigger={layoutTrigger}
                   onNodeDoubleClick={(id, el) => {
                     const blockSource = el.source || "";
                     setCodePopup({
@@ -570,6 +689,14 @@ export default function App() {
                 style={{...btnStyle, background: "#FFF7ED", borderColor: "#F97316", color: "#EA580C" }}>
                 🚀 发布
               </button>
+              <button onClick={handleSaveCanvas}
+                style={{...btnStyle, background: "#fff"}}>
+                💾 保存画布
+              </button>
+              <button onClick={handleLoadCanvas}
+                style={{...btnStyle, background: "#fff"}}>
+                📂 加载画布
+              </button>
               <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
             </div>
             <div style={{ display: "flex", justifyContent: "center", background: "#f0f0f0", flex: 1, overflow: "auto" }}>
@@ -652,6 +779,103 @@ export default function App() {
           }}
           onDismiss={() => { setShowConflict(false); setConflictInfo(null); }}
         />
+      )}
+
+      {/* ── Save Dialog ────────────────────────── */}
+      {saveDialog.visible && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 10000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setSaveDialog({ visible: false, defaultName: "" })}>
+          <div style={{
+            background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 380,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+              💾 保存画布状态
+            </div>
+            <input
+              id="save-filename-input"
+              defaultValue={saveDialog.defaultName}
+              placeholder="输入文件名..."
+              style={{
+                width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db",
+                borderRadius: 6, boxSizing: "border-box", marginBottom: 16,
+              }}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  const input = (e.target as HTMLInputElement).value.trim();
+                  if (input) {
+                    setSaveDialog({ visible: false, defaultName: "" });
+                    handleSaveCanvas(input);
+                  }
+                }
+                if (e.key === "Escape") setSaveDialog({ visible: false, defaultName: "" });
+              }}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setSaveDialog({ visible: false, defaultName: "" })}
+                style={{ padding: "6px 16px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}>
+                取消
+              </button>
+              <button onClick={() => {
+                const input = (document.getElementById("save-filename-input") as HTMLInputElement)?.value.trim();
+                if (input) {
+                  setSaveDialog({ visible: false, defaultName: "" });
+                  handleSaveCanvas(input);
+                }
+              }}
+                style={{ padding: "6px 16px", fontSize: 13, border: "none", borderRadius: 6, background: "#4F46E5", color: "#fff", cursor: "pointer" }}>
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Load Dialog ────────────────────────── */}
+      {loadDialog.visible && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 10000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setLoadDialog({ visible: false, files: [] })}>
+          <div style={{
+            background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 420, maxHeight: "70vh",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
+              📂 加载画布状态
+            </div>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>
+              选择要恢复的画布快照文件
+            </div>
+            <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
+              {loadDialog.files.map((f, i) => (
+                <div key={f}
+                  onClick={() => handleLoadCanvas(f)}
+                  style={{
+                    padding: "10px 14px", cursor: "pointer", borderRadius: 6,
+                    display: "flex", alignItems: "center", gap: 10,
+                    transition: "background 0.15s", borderBottom: i < loadDialog.files.length - 1 ? "1px solid #f3f4f6" : "none",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#F5F3FF")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{f}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>点击加载</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setLoadDialog({ visible: false, files: [] })}
+              style={{ padding: "6px 16px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", alignSelf: "flex-end" }}>
+              取消
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

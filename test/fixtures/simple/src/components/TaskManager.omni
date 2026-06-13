@@ -1,0 +1,4 @@
+component TaskManager {
+  store TaskStore { items: Task[] }
+  signal counter: i32 = 0
+}

@@ -18,7 +18,9 @@ import { isTypeCompatible, typeMismatchMessage, TYPE_COLORS, EVENT_PORT_COLOR } 
 import { AddWire } from "../commands/AddWire";
 import { RemoveWire } from "../commands/RemoveWire";
 import { AddElement } from "../commands/AddElement";
+import { SetElementsAndWires } from "../commands/SetElementsAndWires";
 import type { CommandContext } from "../commands/types";
+import { AutoArrangePlugin, Presets as ArrangePresets } from "rete-auto-arrange-plugin";
 
 // ── Types ────────────────────────────────────────
 
@@ -54,6 +56,8 @@ interface FlowCanvasProps {
   highlightedWireId?: string | null;
   onNodeDoubleClick?: (nodeId: string, nodeData: ElementData) => void;
   ctx: CommandContext;
+  /** Increment to trigger auto-layout from outside (Feature 2). */
+  layoutTrigger?: number;
 }
 
 // ── Helpers ──────────────────────────────────────
@@ -97,10 +101,11 @@ function parseFnFromString(paramsStr: string): Array<{ name: string; type: strin
 
 // ── Component ────────────────────────────────────
 
-export function FlowCanvas({ showViews = true, highlightedWireId = null, onNodeDoubleClick, ctx }: FlowCanvasProps) {
+export function FlowCanvas({ showViews = true, highlightedWireId = null, onNodeDoubleClick, ctx, layoutTrigger = 0 }: FlowCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<NodeEditor<Schemes> | null>(null);
   const areaRef = useRef<AreaPlugin<Schemes, AreaExtra> | null>(null);
+  const autoArrangeRef = useRef<AutoArrangePlugin<Schemes> | null>(null);
   const nodeMapRef = useRef<Map<string, { reteNode: Node_; el: ElementData }>>(new Map());
   const [, forceTick] = useState(0);
   const [ready, setReady] = useState(false);
@@ -130,6 +135,12 @@ export function FlowCanvas({ showViews = true, highlightedWireId = null, onNodeD
     editor.use(area);
     area.use(render);
     area.use(connection);
+
+    // Auto-arrange plugin (Rete official, elkjs-based layout)
+    const autoArrange = new AutoArrangePlugin<Schemes>();
+    autoArrange.addPreset(ArrangePresets.classic.setup());
+    area.use(autoArrange);
+    autoArrangeRef.current = autoArrange;
 
     // Attach dblclick handlers to Rete node DOM elements via MutationObserver
     const attachedNodes = new Set<string>();
@@ -473,8 +484,11 @@ set(newValue) { value = newValue; }`;
       }
 
       // Style the node with block-type color
+      // Use el.position if set (by auto-layout or loaded canvas state), otherwise default offset
+      const defaultPos = { x: isC ? 50 : 550, y: isC ? 50 + codeIdx * 150 : 50 + viewIdx * 150 };
+      const pos = el.position || defaultPos;
       const p = editor.addNode(node).then(() => {
-        area.translate(node.id, { x: isC ? 50 : 550, y: isC ? 50 + codeIdx * 150 : 50 + viewIdx * 150 });
+        area.translate(node.id, pos);
         forceTick(t => t + 1);
       });
       addNodePromises.push(p);
@@ -495,6 +509,16 @@ set(newValue) { value = newValue; }`;
         const typeAnn = (latest.props.typeAnnotation as string) || "";
         const ctrl = entry.reteNode.controls["label"] as ClassicPreset.InputControl<"text">;
         if (ctrl) ctrl.setValue(`${icon} ${name}${typeAnn ? ` : ${typeAnn}` : ""}${valueStr}`);
+        entry.el = latest; // sync stored el ref
+      }
+
+      // Sync positions for existing nodes (from auto-layout or loaded canvas state)
+      if (latest.position && (
+        !entry.el.position ||
+        latest.position.x !== entry.el.position?.x ||
+        latest.position.y !== entry.el.position?.y
+      )) {
+        area.translate(entry.reteNode.id, latest.position);
         entry.el = latest; // sync stored el ref
       }
     }
@@ -540,6 +564,102 @@ set(newValue) { value = newValue; }`;
       }, 200);
     }
   }, [elements, wires, showViews, ready]);
+
+  // ── Auto-layout (Feature 2) ─────────────────────
+  // Uses Rete's official auto-arrange plugin (elkjs-based, replaces custom dagre).
+  // elkjs produces a proper left-to-right hierarchical layout, handling
+  // port positions, node dimensions, and edge routing correctly.
+
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  const wiresRef = useRef(wires);
+  wiresRef.current = wires;
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+
+  useEffect(() => {
+    const trigger = layoutTrigger ?? 0;
+    if (trigger <= 0) return;
+
+    const area = areaRef.current;
+    const editor = editorRef.current;
+    const autoArrange = autoArrangeRef.current;
+    if (!area || !editor || !autoArrange) return;
+
+    // Wait for any pending node additions to settle
+    const timer = setTimeout(async () => {
+      try {
+        // Read ACTUAL rendered dimensions from the DOM so elkjs gets correct sizes
+        const allNodes = editor.getNodes();
+        for (const node of allNodes) {
+          if (!node.width || node.width < 10 || !node.height || node.height < 10) {
+            const nodeView = area.nodeViews.get(node.id);
+            if (nodeView) {
+              const rect = nodeView.element.getBoundingClientRect();
+              node.width = rect.width || 200;
+              node.height = rect.height || 170;
+            } else {
+              node.width = node.width || 200;
+              node.height = node.height || 170;
+            }
+          }
+        }
+
+        // Run elkjs layout WITHOUT the StandardApplier (which would resize nodes).
+        // Instead, we manually translate nodes to preserve their React-rendered sizes.
+        const layoutResult = await autoArrange.layout();
+
+        // Manually apply positions only (no resize!)
+        const applyPositions = (elkNodes: any[], offsetX = 0, offsetY = 0) => {
+          for (const n of elkNodes) {
+            if (typeof n.x === 'number' && typeof n.y === 'number') {
+              const nodeView = area.nodeViews.get(n.id);
+              if (nodeView) {
+                nodeView.translate(offsetX + n.x, offsetY + n.y);
+              }
+            }
+            if (n.children?.length) {
+              applyPositions(n.children, offsetX + (n.x || 0), offsetY + (n.y || 0));
+            }
+          }
+        };
+        applyPositions(layoutResult.result.children || [layoutResult.result]);
+
+        // Read new positions from Rete node views after layout
+        const newPositions: Record<string, { x: number; y: number }> = {};
+        for (const [elId, entry] of nodeMapRef.current) {
+          const nodeView = area.nodeViews.get(entry.reteNode.id);
+          if (nodeView) {
+            newPositions[elId] = { x: nodeView.position.x, y: nodeView.position.y };
+          }
+        }
+
+        // Bake positions into elements (immutable: spread each element)
+        const currentElements = elementsRef.current;
+        const currentWires = wiresRef.current;
+        const positionedElements = currentElements.map(el => ({
+          ...el,
+          position: newPositions[el.id] || el.position,
+        }));
+
+        // Execute via Command pattern for undo/redo support
+        const cmd = new SetElementsAndWires(
+          positionedElements,
+          currentWires,
+          "📐 自动布局",
+        );
+
+        const currentCtx = ctxRef.current;
+        useUndoStore.getState().execute(cmd, currentCtx);
+
+        forceTick(t => t + 1);
+      } catch (err) {
+        console.error("Auto-arrange failed:", err);
+      }
+    }, 300); // 300ms delay to let Rete finish adding new nodes
+
+    return () => clearTimeout(timer);
+  }, [layoutTrigger]); // ONLY depend on layoutTrigger, not elements/wires
 
   // ── Data flow evaluation ─────────────────────────
 

@@ -31,6 +31,8 @@ import type {
   EditorSnapshot,
   ComponentInfo,
   EventHandlerOptions,
+  ValidationReport,
+  StateDiff,
 } from "./types";
 
 // ═══════════════════════════════════════════════════════
@@ -87,18 +89,66 @@ class ElementHandle {
     return this;
   }
 
-  /** Get port definitions for this element. */
+  /** Get port definitions for this element.
+   *  For view elements, event ports from COMPONENT_PROTOCOL are included automatically. */
   getPorts(): PortDescriptor[] {
-    const d = this._require();
-    return d.ports || [];
+    return this._driver._getAllPorts(this._require());
   }
 
-  /** Connect this element to a target element. */
+  /** Get event metadata for this element from COMPONENT_PROTOCOL.
+   *  Returns a map of event name → { id (UUID), description, payload }.
+   *  Returns empty object for elements without events. */
+  getEvents(): Record<string, { id: string; description: string; payload: string | null }> {
+    const d = this._require();
+    if (d.nodeType !== "view") return {};
+    const meta = COMPONENT_PROTOCOL[d.tag];
+    if (!meta?.events) return {};
+    // Return a shallow copy to prevent mutation
+    return { ...meta.events };
+  }
+
+  /** Connect this element to a target element.
+   *  Validates that ports exist (with console.warn) before creating the wire. */
   connectTo(
     target: ElementHandle,
     fromPort: string,
     toPort: string,
   ): WireHandle {
+    const fromEl = this._require();
+    const toEl = target._require();
+
+    // Validate ports exist (use getPorts() which includes event ports for views)
+    const fromPorts = this.getPorts();
+    const toPorts = target.getPorts();
+
+    if (fromPorts.length > 0 && !fromPorts.some((p) => p.name === fromPort)) {
+      console.warn(
+        `[OmniDriver] connectTo: port "${fromPort}" not found on <${fromEl.tag}>. ` +
+        `Available ports: ${fromPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
+        `If this is an event port, use the UUID (e.g. "evt-btn-press-001"), not the event name.`,
+      );
+    }
+    if (toPorts.length > 0 && !toPorts.some((p) => p.name === toPort)) {
+      console.warn(
+        `[OmniDriver] connectTo: port "${toPort}" not found on <${toEl.tag}>. ` +
+        `Available ports: ${toPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
+      );
+    }
+
+    // Fan-out detection: warn when same (fromId, fromPort) already has wires
+    const existingOutWires = this._driver._store().wires.filter(
+      (w) => w.fromId === this.id && w.fromPort === fromPort,
+    );
+    if (existingOutWires.length > 0) {
+      const existingTargets = existingOutWires.map((w) => `${w.toId}.${w.toPort}`).join(", ");
+      console.warn(
+        `[OmniDriver] connectTo: port "${fromPort}" on <${fromEl.tag}> already connected to ` +
+        `${existingOutWires.length} target(s): ${existingTargets}. ` +
+        `Fan-out from a single output port is often unintended. ` +
+        `If you need to update multiple signals, do it inside the action source code instead.`,
+      );
+    }
+
     const wireId = `wire-${this.id}-${fromPort}-${target.id}-${toPort}`;
     this._driver._store().addWire({
       id: wireId,
@@ -206,13 +256,14 @@ class ElementHandle {
       isFolded: options.folded ?? false,
       source:
         options.source ||
-        `// 💻 代码块: ${handlerName}
-// 接收事件: ${eventCfg.payload ? `${eventName}(payload: ${eventCfg.payload})` : `${eventName}()`}
-// 描述: ${eventCfg.description}
-action ${handlerName}(event) {
-    // 在此编写事件处理逻辑
-    ${eventCfg.payload ? `// 事件数据类型: ${eventCfg.payload}` : "// 无事件数据"}
-}`,
+        (() => {
+          const params = eventCfg.payload && eventCfg.payload !== "any"
+            ? `event: ${eventCfg.payload}`
+            : "event";
+          return `action ${handlerName}(${params}) {
+  // TODO: implement ${handlerName} — receives ${eventName} from <${d.tag}>
+}`;
+        })(),
     };
 
     this._driver._store().addElement(handlerEl);
@@ -292,6 +343,43 @@ class OmniDriver {
   /** @internal Access the undo store. */
   _undo() {
     return useUndoStore.getState();
+  }
+
+  /** @internal Remind AI agents to call help() on first API use. */
+  private _helpShown = false;
+
+  private _ensureHelp(): void {
+    if (!this._helpShown) {
+      console.log(
+        "[OmniDriver] 💡 首次使用？调用 O.help() 查看完整 API 参考、端口结构和事件 UUID 表",
+      );
+      this._helpShown = true;
+    }
+  }
+
+  /** @internal Get all ports for an element, including event ports from COMPONENT_PROTOCOL.
+   *  Used by both connect() validation and ElementHandle.getPorts(). */
+  _getAllPorts(el: ElementData): PortDescriptor[] {
+    const basePorts = [...(el.ports || [])];
+
+    // For view elements, include event ports from COMPONENT_PROTOCOL
+    if (el.nodeType === "view") {
+      const meta = COMPONENT_PROTOCOL[el.tag];
+      if (meta?.events) {
+        for (const [evtName, evtMeta] of Object.entries(meta.events)) {
+          if (!basePorts.some((p) => p.name === evtMeta.id)) {
+            basePorts.push({
+              name: evtMeta.id,
+              direction: "out",
+              type: evtMeta.payload || "any",
+              label: `${evtName}${evtMeta.description ? ` (${evtMeta.description})` : ""}`,
+            });
+          }
+        }
+      }
+    }
+
+    return basePorts;
   }
 
   // ── State Queries ─────────────────────────────────
@@ -417,6 +505,7 @@ class OmniDriver {
     props?: Record<string, unknown>,
     parentId?: string | null,
   ): ElementHandle {
+    this._ensureHelp();
     const meta = COMPONENT_PROTOCOL[tag];
     if (!meta) {
       throw new Error(
@@ -483,17 +572,24 @@ class OmniDriver {
     name: string,
     options: CodeBlockOptions = {},
   ): ElementHandle {
+    this._ensureHelp();
+    // Determine the value type from typeAnnotation, falling back to "i32"
+    const typeAnnotation = options.typeAnnotation?.trim();
+    const valueType = typeAnnotation && typeAnnotation.length > 0
+      ? typeAnnotation
+      : (blockType === "store" ? "any" : "i32");
+
     const portDefs: Record<
       string,
       Array<{ name: string; direction: "in" | "out"; type: string }>
     > = {
-      store: [{ name: "items", direction: "out", type: "any" }],
+      store: [{ name: "items", direction: "out", type: valueType }],
       signal: [
-        { name: "value", direction: "out", type: "i32" },
-        { name: "set", direction: "in", type: "i32" },
+        { name: "value", direction: "out", type: valueType },
+        { name: "set", direction: "in", type: valueType },
       ],
       computed: [
-        { name: "value", direction: "out", type: "i32" },
+        { name: "value", direction: "out", type: valueType },
         { name: "deps", direction: "in", type: "any" },
       ],
       action: [
@@ -532,14 +628,25 @@ class OmniDriver {
     return this.component("Button", { label, ...props }, parentId);
   }
 
-  /** Convenience: add a Text component. */
+  /** Convenience: add a Text component.
+   *  Auto-detects when parentId is mistakenly passed as props (common agent mistake). */
   text(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
+    if (typeof props === "string") {
+      console.warn(
+        `[OmniDriver] text() 第2个参数应为 props 对象，收到了字符串 "${props}"。` +
+        `你可能把 parentId 传到了 props 位置。已自动修复。正确调用: O.text("${label}", {}, "${props}")`,
+      );
+      // Auto-recover: treat the string as parentId
+      return this.component("Text", { label }, props);
+    }
     return this.component("Text", { label, ...props }, parentId);
   }
 
-  /** Convenience: add a Heading component. */
-  heading(label: string, level = "1", parentId?: string | null): ElementHandle {
-    return this.component("Heading", { label, level }, parentId);
+  /** Convenience: add a Heading component.
+   *  Level auto-converts number to string (e.g. 2 → "2"). */
+  heading(label: string, level: string | number = "1", parentId?: string | null): ElementHandle {
+    const levelStr = String(level);
+    return this.component("Heading", { label, level: levelStr }, parentId);
   }
 
   /** Convenience: add a Container component. */
@@ -562,8 +669,15 @@ class OmniDriver {
     return this.component("Flex", { direction, gap, ...props }, parentId);
   }
 
-  /** Convenience: add an Image component. */
+  /** Convenience: add an Image component.
+   *  Auto-detects when parentId is mistakenly passed as alt (common agent mistake). */
   image(src: string, alt = "", parentId?: string | null): ElementHandle {
+    if (alt && alt.startsWith("el-") && !parentId) {
+      console.warn(
+        `[OmniDriver] image() 第2个参数 alt="${alt}" 看起来像元素 ID。` +
+        `你可能把 parentId 传到了 alt 位置。正确调用: O.image("${src}", "", "${alt}")`,
+      );
+    }
     return this.component("Image", { src, alt }, parentId);
   }
 
@@ -589,16 +703,43 @@ class OmniDriver {
       locator: ["element(id)", "findByTag(tag)", "find(query)", "findByProp(prop,value)"],
       creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(props?,parentId?)", "input(placeholder?,props?,parentId?)", "card(props?,parentId?)", "flex(direction?,gap?,props?,parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
       codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, action, store"],
-      elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "createEventHandler(event,options)", "getPorts()", "children()", "parent()", "getSource()", "setSource(src)", "waitForLive(ms)", "data"],
+      elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "createEventHandler(event,options)", "getPorts()", "getEvents()", "children()", "parent()", "getSource()", "setSource(src)", "waitForLive(ms)", "data"],
       wireHandle: ["disconnect()", "source()", "target()", "data"],
-      events: ["createEventHandler(eventName,options)"],
+      events: ["createEventHandler(eventName,options) — pass event NAME (e.g. \"onPress\"), NOT UUID"],
       compile: ["compile() — rebuilds canvas from .omni source, discarding programmatic elements"],
       wait: ["waitForElement(tag,ms)", "waitForWire(port,ms)", "waitFor(predicate,ms,msg)"],
       undo: ["undo()", "redo()"],
       file: ["getSourceCode()", "setSourceCode(content)", "getActiveFilePath()", "save()", "readFile(path)", "writeFile(path,content)", "openFile(path)"],
       discovery_api: ["listComponents()", "getComponentInfo(tag)"],
-      other: ["clearAll()", "batch(fn)", "removeElement(id)", "switchMode('design'|'code')"],
+      other: ["clearAll()", "batch(fn)", "removeElement(id)", "switchMode('design'|'code')", "validate() — canvas health check", "exportState() / importState(json)", "saveSnapshot() / restoreSnapshot(token) — safe rollback", "diff(previousSnapshot)", "snippet(template, options?)", "registerSnippet(name, builder) / unregisterSnippet(name) / listSnippets()", "highlight(id) / highlightAll(tag) / clearHighlights() — visual indicators"],
       componentProtocol: "Use listComponents() to see all 19 view component types and their props/events/styleProperties",
+      portReference: {
+        description: "Code block port structure — use these port names when calling connect()",
+        signal: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "set", direction: "in", type: "TYPE" }] },
+        computed: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "deps", direction: "in", type: "any" }] },
+        action: { outputs: [{ name: "result", direction: "out", type: "any" }], inputs: [{ name: "call", direction: "in", type: "event" }] },
+        store: { outputs: [{ name: "items", direction: "out", type: "any" }], inputs: [] },
+      },
+      eventUuidTable: {
+        description: "Event port UUIDs for manual connect(). createEventHandler() uses event NAME, not UUID.",
+        Button: { onPress: "evt-btn-press-001", onHover: "evt-btn-hover-001", onFocus: "evt-btn-focus-001", onLongPress: "evt-btn-longpress-001" },
+        Input: { onChange: "evt-input-change-001" },
+        TextArea: { onChange: "evt-textarea-change-001" },
+        Select: { onChange: "evt-select-change-001" },
+        Checkbox: { onChange: "evt-checkbox-change-001" },
+        Form: { onSubmit: "evt-form-submit-001" },
+      },
+      criticalRules: [
+        "ALWAYS call O.switchMode('design') before creating elements",
+        "ALWAYS call O.help() first to discover available APIs",
+        "createEventHandler takes event NAME ('onPress'), connect() takes port UUID ('evt-btn-press-001')",
+        "signal input port is 'set' NOT 'value' or 'input'. signal output port is 'value'.",
+        "getElements() returns plain ElementData (no methods). Use O.element(id) for ElementHandle.",
+        "O.container() creates Container (plain div), O.card() creates Card (styled container with border/shadow).",
+        "heading() level is a STRING: '1', '2', '3', '4' — not a number.",
+        "Event names use React convention: onPress, onChange, onHover — NOT press, change, hover.",
+        "compile() discards all programmatic elements — use setSourceCode() first for source-driven mode.",
+      ],
     };
   }
 
@@ -622,6 +763,7 @@ class OmniDriver {
     toPort: string,
     wireId?: string,
   ): WireHandle {
+    this._ensureHelp();
     const id = wireId || `wire-${fromId}-${fromPort}-${toId}-${toPort}`;
     const fromEl = this._store().elements.find((e) => e.id === fromId);
     const toEl = this._store().elements.find((e) => e.id === toId);
@@ -629,21 +771,37 @@ class OmniDriver {
     if (!fromEl) throw new Error(`Source element ${fromId} not found`);
     if (!toEl) throw new Error(`Target element ${toId} not found`);
 
-    // Validate that ports exist on the respective elements
-    const fromPortExists = (fromEl.ports || []).some((p) => p.name === fromPort);
-    const toPortExists = (toEl.ports || []).some((p) => p.name === toPort);
+    // Validate that ports exist (includes event ports from COMPONENT_PROTOCOL for views)
+    const fromPorts = this._getAllPorts(fromEl);
+    const toPorts = this._getAllPorts(toEl);
+    const fromPortExists = fromPorts.some((p) => p.name === fromPort);
+    const toPortExists = toPorts.some((p) => p.name === toPort);
 
-    if (!fromPortExists && (fromEl.ports || []).length > 0) {
+    if (!fromPortExists && fromPorts.length > 0) {
       console.warn(
         `[OmniDriver] connect: port "${fromPort}" not found on <${fromEl.tag}>. ` +
-        `Available ports: ${(fromEl.ports || []).map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
+        `Available ports: ${fromPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
         `If this is an event port, use the UUID (e.g. "evt-btn-press-001"), not the event name.`,
       );
     }
-    if (!toPortExists && (toEl.ports || []).length > 0) {
+    if (!toPortExists && toPorts.length > 0) {
       console.warn(
         `[OmniDriver] connect: port "${toPort}" not found on <${toEl.tag}>. ` +
-        `Available ports: ${(toEl.ports || []).map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
+        `Available ports: ${toPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
+      );
+    }
+
+    // Fan-out detection: warn when same (fromId, fromPort) already has wires
+    const existingOutWires = this._store().wires.filter(
+      (w) => w.fromId === fromId && w.fromPort === fromPort,
+    );
+    if (existingOutWires.length > 0) {
+      const existingTargets = existingOutWires.map((w) => `${w.toId}.${w.toPort}`).join(", ");
+      console.warn(
+        `[OmniDriver] connect: port "${fromPort}" on <${fromEl.tag}> already connected to ` +
+        `${existingOutWires.length} target(s): ${existingTargets}. ` +
+        `Fan-out from a single output port is often unintended. ` +
+        `If you need to update multiple signals, do it inside the action source code instead.`,
       );
     }
 
@@ -764,20 +922,31 @@ class OmniDriver {
       // Parse code blocks
       if (cbData.success && cbData.blocks) {
         const seenIds = new Set<string>();
-        const portDefs: Record<string, PortDescriptor[]> = {
-          store: [{ name: "items", direction: "out", type: "any" }],
-          signal: [
-            { name: "value", direction: "out", type: "i32" },
-            { name: "set", direction: "in", type: "i32" },
-          ],
-          computed: [
-            { name: "value", direction: "out", type: "i32" },
-            { name: "deps", direction: "in", type: "any" },
-          ],
-          action: [
-            { name: "call", direction: "in", type: "any" },
-            { name: "result", direction: "out", type: "any" },
-          ],
+        // Factory: derive port types from typeAnnotation (like codeBlock() does)
+        const buildPorts = (blockType: string, typeAnnotation?: string): PortDescriptor[] => {
+          const t = typeAnnotation?.trim() || "";
+          const vt = t.length > 0 ? t : "i32";
+          switch (blockType) {
+            case "store":
+              return [{ name: "items", direction: "out", type: t || "any" }];
+            case "signal":
+              return [
+                { name: "value", direction: "out", type: vt },
+                { name: "set", direction: "in", type: vt },
+              ];
+            case "computed":
+              return [
+                { name: "value", direction: "out", type: vt },
+                { name: "deps", direction: "in", type: "any" },
+              ];
+            case "action":
+              return [
+                { name: "call", direction: "in", type: "any" },
+                { name: "result", direction: "out", type: "any" },
+              ];
+            default:
+              return [];
+          }
         };
         for (const b of cbData.blocks) {
           if (seenIds.has(b.id)) continue;
@@ -789,13 +958,13 @@ class OmniDriver {
             props: {
               name: b.name,
               parentStore: b.parentStore || "",
-              typeAnnotation: b.typeAnnotation,
+              typeAnnotation: b.typeAnnotation || "",
             },
             children: [],
             parentId: b.parentStore
               ? `cb-store-${b.parentStore}`
               : null,
-            ports: portDefs[b.blockType] || [],
+            ports: buildPorts(b.blockType, b.typeAnnotation),
             isFolded: false,
           });
         }
@@ -810,6 +979,292 @@ class OmniDriver {
       success: !result.errors?.some((e: any) => e.severity === "error"),
       errors: result.errors || [],
     };
+  }
+
+  // ── Validation (Canvas Health Check) ──────────────
+
+  /** Run a canvas health check — find orphan elements, unwired events,
+   *  type mismatches, and unreachable code blocks.
+   *  Use this to diagnose issues in a programmatically-built canvas. */
+  validate(): ValidationReport {
+    const state = this.getState();
+    const elements = state.elements;
+    const wires = state.wires;
+
+    // 1. Orphan elements: view elements without parent (when multiple roots exist)
+    const rootElements = elements.filter((e) => !e.parentId);
+    const orphanElements = rootElements
+      .filter((e) => e.nodeType === "view" && rootElements.length > 1)
+      .map((e) => e.id);
+
+    // 2. Unwired events: view elements with defined events but no connecting wire
+    const unwiredEvents: ValidationReport["unwiredEvents"] = [];
+    for (const el of elements) {
+      if (el.nodeType !== "view") continue;
+      const meta = COMPONENT_PROTOCOL[el.tag];
+      if (!meta?.events) continue;
+      for (const [evtName, evtMeta] of Object.entries(meta.events)) {
+        const hasWire = wires.some(
+          (w) => w.fromId === el.id && w.fromPort === evtMeta.id,
+        );
+        if (!hasWire) {
+          unwiredEvents.push({
+            elementId: el.id,
+            tag: el.tag,
+            eventName: evtName,
+            eventPortId: evtMeta.id,
+          });
+        }
+      }
+    }
+
+    // 3. Type mismatches: wires connecting incompatible port types
+    const typeMismatches: ValidationReport["typeMismatches"] = [];
+    for (const w of wires) {
+      const fromEl = elements.find((e) => e.id === w.fromId);
+      const toEl = elements.find((e) => e.id === w.toId);
+      if (!fromEl || !toEl) continue;
+      const fromPorts = this._getAllPorts(fromEl);
+      const toPorts = this._getAllPorts(toEl);
+      const fromPort = fromPorts.find((p) => p.name === w.fromPort);
+      const toPort = toPorts.find((p) => p.name === w.toPort);
+      if (
+        fromPort && toPort &&
+        fromPort.type !== toPort.type &&
+        fromPort.type !== "any" && toPort.type !== "any" &&
+        fromPort.type !== "event" && toPort.type !== "event"
+      ) {
+        typeMismatches.push({
+          wireId: w.id,
+          fromPort: w.fromPort,
+          fromType: fromPort.type,
+          toPort: w.toPort,
+          toType: toPort.type,
+        });
+      }
+    }
+
+    // 4. Unreachable blocks: code blocks with no inbound data wire
+    const reachableIds = new Set(wires.map((w) => w.toId));
+    const unreachableBlocks = elements
+      .filter((e) => e.nodeType === "codeblock" && !reachableIds.has(e.id))
+      .map((e) => e.id);
+
+    return {
+      orphanElements,
+      unwiredEvents,
+      typeMismatches,
+      unreachableBlocks,
+      isValid: orphanElements.length === 0 && typeMismatches.length === 0,
+    };
+  }
+
+  // ── State Snapshots ───────────────────────────────
+
+  /** Export the full canvas state as a JSON string.
+   *  Use with importState() to save/restore canvas snapshots. */
+  exportState(): string {
+    const state = this.getState();
+    return JSON.stringify({
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      elements: state.elements,
+      wires: state.wires,
+    });
+  }
+
+  /** Import a canvas state previously exported with exportState().
+   *  Replaces all current elements and wires. */
+  importState(json: string): void {
+    const data = JSON.parse(json);
+    if (!data.elements || !data.wires) {
+      console.warn("[OmniDriver] importState: invalid state JSON — expected { elements, wires }");
+      return;
+    }
+    useEditorStore.setState({
+      elements: data.elements,
+      wires: data.wires,
+    });
+  }
+
+  // ── State Diff ────────────────────────────────────
+
+  /** Compare the current canvas against a previous snapshot.
+   *  Returns added/removed/modified elements and wires. */
+  diff(previous: EditorSnapshot): StateDiff {
+    const current = this.getState();
+
+    const prevElIds = new Set(previous.elements.map((e) => e.id));
+    const currElIds = new Set(current.elements.map((e) => e.id));
+
+    // Added elements
+    const added = current.elements.filter((e) => !prevElIds.has(e.id));
+
+    // Removed element IDs
+    const removed = previous.elements
+      .filter((e) => !currElIds.has(e.id))
+      .map((e) => e.id);
+
+    // Modified elements
+    const prevElMap = new Map(previous.elements.map((e) => [e.id, e]));
+    const modified: StateDiff["modified"] = [];
+    for (const currEl of current.elements) {
+      const prevEl = prevElMap.get(currEl.id);
+      if (!prevEl) continue;
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      // Check props
+      if (currEl.props) {
+        for (const [k, v] of Object.entries(currEl.props)) {
+          const prevV = (prevEl.props as Record<string, unknown>)?.[k];
+          if (JSON.stringify(v) !== JSON.stringify(prevV)) {
+            changes[k] = { from: prevV, to: v };
+          }
+        }
+      }
+      // Check source
+      if (currEl.source !== prevEl.source) {
+        changes["source"] = { from: prevEl.source, to: currEl.source };
+      }
+      // Check ports
+      if (JSON.stringify(currEl.ports) !== JSON.stringify(prevEl.ports)) {
+        changes["ports"] = { from: prevEl.ports, to: currEl.ports };
+      }
+      if (Object.keys(changes).length > 0) {
+        modified.push({ id: currEl.id, changes });
+      }
+    }
+
+    // Wire changes
+    const prevWireIds = new Set(previous.wires.map((w) => w.id));
+    const currWireIds = new Set(current.wires.map((w) => w.id));
+    const addedWires = current.wires.filter((w) => !prevWireIds.has(w.id));
+    const removedWires = previous.wires
+      .filter((w) => !currWireIds.has(w.id))
+      .map((w) => w.id);
+
+    return { added, removed, modified, addedWires, removedWires };
+  }
+
+  // ── Snippet Templates ─────────────────────────────
+
+  /** Registry for user-registered snippet builders. */
+  private _snippetRegistry: Map<string, (options?: Record<string, unknown>) => ElementHandle> = new Map();
+
+  /** Register a custom snippet template.
+   *  The builder function receives an optional options object and must return the root ElementHandle.
+   *
+   *  @example
+   *  O.registerSnippet("product-card", (opts) => {
+   *    const card = O.card({ padding: "16px" });
+   *    O.image(opts.image, "Product", card.id);
+   *    O.heading(opts.title, "3", card.id);
+   *    O.text(`$${opts.price}`, {}, card.id);
+   *    const btn = O.button("Buy", { variant: "primary" }, card.id);
+   *    btn.createEventHandler("onPress", {
+   *      handlerName: "handlePurchase",
+   *      source: `action handlePurchase(event) {\n  // TODO: add to cart\n}`,
+   *    });
+   *    return card;
+   *  });
+   *  O.snippet("product-card", { image: "url", title: "Widget", price: "9.99" });
+   */
+  registerSnippet(
+    name: string,
+    builder: (options?: Record<string, unknown>) => ElementHandle,
+  ): void {
+    this._snippetRegistry.set(name, builder);
+  }
+
+  /** Remove a registered snippet template. */
+  unregisterSnippet(name: string): boolean {
+    return this._snippetRegistry.delete(name);
+  }
+
+  /** List all registered snippet names (built-in + custom). */
+  listSnippets(): { builtin: string[]; custom: string[] } {
+    return {
+      builtin: ["login-form", "data-card", "crud-table"],
+      custom: Array.from(this._snippetRegistry.keys()),
+    };
+  }
+
+  /** Create a pre-built UI pattern.
+   *  Built-in templates: "login-form", "data-card", "crud-table".
+   *  Use registerSnippet() to add custom templates. */
+  snippet(
+    template: string,
+    options?: Record<string, unknown>,
+  ): ElementHandle {
+    // Check custom registry first (allows overriding built-ins)
+    const customBuilder = this._snippetRegistry.get(template);
+    if (customBuilder) {
+      return customBuilder(options);
+    }
+
+    switch (template) {
+      case "login-form": {
+        const title = (options?.title as string) || "Sign In";
+        const card = this.card({ padding: "32px" });
+        this.heading(title, "2", card.id);
+        this.input("Email", { type: "email" }, card.id);
+        this.input("Password", { type: "password" }, card.id);
+        const submitBtn = this.button("Sign In", { variant: "primary" }, card.id);
+        // Auto-create event handler so the button works out of the box
+        submitBtn.createEventHandler("onPress", {
+          handlerName: "handleSignIn",
+          source: `action handleSignIn(event) {
+  // TODO: validate email & password, call auth service
+}`,
+        });
+        return card;
+      }
+      case "data-card": {
+        const title = (options?.title as string) || "Card Title";
+        const desc = (options?.description as string) || "Card description here.";
+        const card = this.card({ padding: "24px" });
+        this.heading(title, "3", card.id);
+        this.text(desc, {}, card.id);
+        if (options?.actionLabel) {
+          const actionBtn = this.button(options.actionLabel as string, { variant: "primary" }, card.id);
+          // Auto-create event handler for the action button
+          actionBtn.createEventHandler("onPress", {
+            handlerName: "handleAction",
+            source: `action handleAction(event) {
+  // TODO: implement ${options.actionLabel} logic
+}`,
+          });
+        }
+        return card;
+      }
+      case "crud-table": {
+        const title = (options?.title as string) || "Data";
+        const card = this.card({ padding: "24px" });
+        this.heading(title, "2", card.id);
+        const toolbar = this.flex("row", "8px", {}, card.id);
+        this.input("Search...", {}, toolbar.id);
+        const addBtn = this.button("Add", { variant: "primary" }, toolbar.id);
+        // Auto-create event handler for the Add button
+        addBtn.createEventHandler("onPress", {
+          handlerName: "handleAdd",
+          source: `action handleAdd(event) {
+  // TODO: open add-item form or dialog
+}`,
+        });
+        // Create table header
+        const columns = (options?.columns as string[]) || ["Name", "Status", "Actions"];
+        const headerRow = this.flex("row", "12px", {}, card.id);
+        for (const col of columns) {
+          this.heading(col, "4", headerRow.id);
+        }
+        return card;
+      }
+      default:
+        throw new Error(
+          `Unknown snippet "${template}". Built-in: "login-form", "data-card", "crud-table". ` +
+          `Custom: ${Array.from(this._snippetRegistry.keys()).join(", ") || "(none)"}. ` +
+          `Use O.registerSnippet(name, builder) to add custom templates.`,
+        );
+    }
   }
 
   // ── Component Discovery ───────────────────────────
@@ -841,6 +1296,55 @@ class OmniDriver {
       styleProperties: m.styleProperties,
       hasChildren: m.children,
     };
+  }
+
+  // ── Visual Indicators ─────────────────────────────
+
+  /** Highlight an element on the canvas with a temporary visual indicator.
+   *  Dispatches a custom DOM event that the FlowCanvas can listen to.
+   *  Use clearHighlights() to remove all indicators.
+   *
+   *  @example
+   *  O.highlight("el-123");          // highlight one element
+   *  O.highlightAll("Button");       // highlight all Buttons
+   *  O.clearHighlights();            // remove all highlights
+   */
+  highlight(elementId: string): void {
+    const el = this._store().elements.find((e) => e.id === elementId);
+    if (!el) {
+      console.warn(`[OmniDriver] highlight: element "${elementId}" not found`);
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("omni-highlight", {
+        detail: { elementIds: [elementId], action: "add" },
+      }),
+    );
+  }
+
+  /** Highlight all elements with the given tag on the canvas. */
+  highlightAll(tag: string): void {
+    const ids = this._store()
+      .elements.filter((e) => e.tag === tag)
+      .map((e) => e.id);
+    if (ids.length === 0) {
+      console.warn(`[OmniDriver] highlightAll: no elements with tag "${tag}" found`);
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("omni-highlight", {
+        detail: { elementIds: ids, action: "add" },
+      }),
+    );
+  }
+
+  /** Remove all visual highlights from the canvas. */
+  clearHighlights(): void {
+    window.dispatchEvent(
+      new CustomEvent("omni-highlight", {
+        detail: { elementIds: [], action: "clear" },
+      }),
+    );
   }
 
   // ── Wait Mechanisms ───────────────────────────────
@@ -922,6 +1426,33 @@ class OmniDriver {
       addWire: (w) => store.addWire(w),
       removeWire: (id) => store.removeWire(id),
     });
+  }
+
+  /** Save a snapshot token that can be restored later with restoreSnapshot().
+   *  Use this before risky canvas operations to enable safe rollback.
+   *
+   *  @example
+   *  const token = O.saveSnapshot();
+   *  try {
+   *    // ... risky canvas operations ...
+   *  } catch (e) {
+   *    O.restoreSnapshot(token);  // rollback
+   *  }
+   */
+  saveSnapshot(): string {
+    return this.exportState();
+  }
+
+  /** Restore the canvas to a previously saved snapshot.
+   *  @returns true if restore succeeded, false if the snapshot was invalid. */
+  restoreSnapshot(snapshotToken: string): boolean {
+    try {
+      this.importState(snapshotToken);
+      return true;
+    } catch (e) {
+      console.warn("[OmniDriver] restoreSnapshot: failed to restore — invalid snapshot token", e);
+      return false;
+    }
   }
 
   // ── Batch Operations ─────────────────────────────

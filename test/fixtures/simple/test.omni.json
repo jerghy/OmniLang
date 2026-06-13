@@ -1,0 +1,314 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "projectName": "test",
+    "omniVersion": "0.6.0",
+    "createdAt": "2026-06-13T12:14:20.828001+00:00",
+    "updatedAt": "2026-06-13T12:14:20.834547+00:00",
+    "isHandWritten": false
+  },
+  "components": [
+    {
+      "name": "App",
+      "view": {
+        "_kind": "element",
+        "tag": "Container",
+        "props": {
+          "data-component": "App"
+        },
+        "children": [
+          {
+            "_kind": "element",
+            "tag": "Container",
+            "children": [
+              {
+                "_kind": "text",
+                "tag": "Text",
+                "props": {
+                  "label": "Hello World"
+                },
+                "children": [],
+                "text": "Hello World",
+                "branches": []
+              },
+              {
+                "_kind": "element",
+                "tag": "Button",
+                "props": {
+                  "label": "Click Me",
+                  "variant": "primary"
+                },
+                "children": [],
+                "branches": []
+              },
+              {
+                "_kind": "element",
+                "tag": "Input",
+                "props": {
+                  "placeholder": "Enter text..."
+                },
+                "children": [],
+                "branches": []
+              }
+            ],
+            "branches": []
+          }
+        ],
+        "branches": []
+      }
+    }
+  ],
+  "stores": [
+    {
+      "name": "App"
+    }
+  ],
+  "themes": [],
+  "imports": [],
+  "elements": [
+    {
+      "id": "el-Text-2237410562288",
+      "nodeType": "view",
+      "tag": "Text",
+      "props": {
+        "label": "Hello World"
+      },
+      "children": [],
+      "parentId": "el-Container-2237410563296",
+      "renderMode": "dom",
+      "isFolded": false
+    },
+    {
+      "id": "el-Button-2237410560160",
+      "nodeType": "view",
+      "tag": "Button",
+      "props": {
+        "label": "Click Me",
+        "variant": "primary"
+      },
+      "children": [],
+      "parentId": "el-Container-2237410563296",
+      "renderMode": "dom",
+      "isFolded": false
+    },
+    {
+      "id": "el-Input-2237410558032",
+      "nodeType": "view",
+      "tag": "Input",
+      "props": {
+        "placeholder": "Enter text..."
+      },
+      "children": [],
+      "parentId": "el-Container-2237410563296",
+      "renderMode": "dom",
+      "isFolded": false
+    },
+    {
+      "id": "el-Container-2237410563296",
+      "nodeType": "view",
+      "tag": "Container",
+      "children": [
+        "el-Text-2237410562288",
+        "el-Button-2237410560160",
+        "el-Input-2237410558032"
+      ],
+      "parentId": "comp-App",
+      "renderMode": "dom",
+      "isFolded": false
+    },
+    {
+      "id": "comp-App",
+      "nodeType": "view",
+      "tag": "Container",
+      "props": {
+        "data-component": "App"
+      },
+      "children": [
+        "el-Container-2237410563296"
+      ],
+      "renderMode": "dom",
+      "isFolded": false
+    },
+    {
+      "id": "cb-store-App",
+      "nodeType": "codeblock",
+      "tag": "store",
+      "props": {
+        "name": "App",
+        "parent_store": "",
+        "type_annotation": null
+      },
+      "children": [],
+      "ports": [
+        {
+          "name": "items",
+          "direction": "out",
+          "type": "any"
+        }
+      ],
+      "renderMode": "dom",
+      "isFolded": false
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire-el-1781349631769-mzq7gv-onPress-1781349631769",
+      "fromId": "el-1781349631769-mzq7gv",
+      "fromPort": "evt-btn-press-001",
+      "toId": "handler-el-1781349631769-mzq7gv-onPress",
+      "toPort": "call",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-handler-el-1781349631769-mzq7gv-onPress-result-el-1781349631769-aag4lg-set",
+      "fromId": "handler-el-1781349631769-mzq7gv-onPress",
+      "fromPort": "result",
+      "toId": "el-1781349631769-aag4lg",
+      "toPort": "set",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631769-he2nme-onPress-1781349631769",
+      "fromId": "el-1781349631769-he2nme",
+      "fromPort": "evt-btn-press-001",
+      "toId": "handler-el-1781349631769-he2nme-onPress",
+      "toPort": "call",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-handler-el-1781349631769-he2nme-onPress-result-el-1781349631769-aag4lg-set",
+      "fromId": "handler-el-1781349631769-he2nme-onPress",
+      "fromPort": "result",
+      "toId": "el-1781349631769-aag4lg",
+      "toPort": "set",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631769-blg1hw-onPress-1781349631769",
+      "fromId": "el-1781349631769-blg1hw",
+      "fromPort": "evt-btn-press-001",
+      "toId": "handler-el-1781349631769-blg1hw-onPress",
+      "toPort": "call",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-handler-el-1781349631769-blg1hw-onPress-result-el-1781349631769-aag4lg-set",
+      "fromId": "handler-el-1781349631769-blg1hw-onPress",
+      "fromPort": "result",
+      "toId": "el-1781349631769-aag4lg",
+      "toPort": "set",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631770-a5onba-items-el-1781349631770-s2s192-deps",
+      "fromId": "el-1781349631770-a5onba",
+      "fromPort": "items",
+      "toId": "el-1781349631770-s2s192",
+      "toPort": "deps",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631770-a5onba-items-el-1781349631770-oojans-deps",
+      "fromId": "el-1781349631770-a5onba",
+      "fromPort": "items",
+      "toId": "el-1781349631770-oojans",
+      "toPort": "deps",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631770-a5onba-items-el-1781349631770-9szbm4-deps",
+      "fromId": "el-1781349631770-a5onba",
+      "fromPort": "items",
+      "toId": "el-1781349631770-9szbm4",
+      "toPort": "deps",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631770-tsxqxc-onChange-1781349631771",
+      "fromId": "el-1781349631770-tsxqxc",
+      "fromPort": "evt-input-change-001",
+      "toId": "handler-el-1781349631770-tsxqxc-onChange",
+      "toPort": "call",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-handler-el-1781349631770-tsxqxc-onChange-result-el-1781349631771-pwuazb-set",
+      "fromId": "handler-el-1781349631770-tsxqxc-onChange",
+      "fromPort": "result",
+      "toId": "el-1781349631771-pwuazb",
+      "toPort": "set",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-el-1781349631771-duwqcv-onPress-1781349631771",
+      "fromId": "el-1781349631771-duwqcv",
+      "fromPort": "evt-btn-press-001",
+      "toId": "handler-el-1781349631771-duwqcv-onPress",
+      "toPort": "call",
+      "isCollapsed": false
+    },
+    {
+      "id": "wire-handler-el-1781349631771-duwqcv-onPress-result-el-1781349631771-c6hnxq-set",
+      "fromId": "handler-el-1781349631771-duwqcv-onPress",
+      "fromPort": "result",
+      "toId": "el-1781349631771-c6hnxq",
+      "toPort": "set",
+      "isCollapsed": false
+    }
+  ],
+  "ownershipRegions": [
+    {
+      "regionType": "managed",
+      "nodeId": "region-l0-l9",
+      "nodeType": "view",
+      "fieldPath": "source[0:9]",
+      "sourceLineStart": 0,
+      "sourceLineEnd": 9
+    }
+  ],
+  "searchIndex": {
+    "entries": [
+      {
+        "id": "comp-App",
+        "source": "component",
+        "title": "App",
+        "subtitle": "Component — 0 signals, 0 fns",
+        "keywords": [
+          "app",
+          "app"
+        ],
+        "icon": "🧩",
+        "actionType": "select-element",
+        "actionPayload": "comp-App"
+      },
+      {
+        "id": "store-App",
+        "source": "component",
+        "title": "App",
+        "subtitle": "Store — 0 signals, 0 actions",
+        "keywords": [
+          "app"
+        ],
+        "icon": "🗄️",
+        "actionType": "select-element",
+        "actionPayload": "cb-store-App"
+      },
+      {
+        "id": "idx-cb-store-App",
+        "source": "component",
+        "title": "store: App",
+        "subtitle": "Store in None",
+        "keywords": [
+          "app",
+          "store"
+        ],
+        "icon": "🗄️",
+        "actionType": "select-element",
+        "actionPayload": "cb-store-App"
+      }
+    ],
+    "version": 1,
+    "lastBuilt": "2026-06-13T12:14:20.827974+00:00"
+  },
+  "canvasLayout": {}
+}

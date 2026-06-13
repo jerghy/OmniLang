@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "editor": "omnic serve --dir build/test --dev",
+    "editor:prod": "omnic serve --dir build/test"
+  },
   "devDependencies": {
     "@playwright/test": "^1.60.0"
   }
