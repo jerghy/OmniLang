@@ -491,7 +491,7 @@ class ReactCodegen(CodegenBase):
 
         # Card default styles
         if tag == "Card":
-            style_obj.setdefault("backgroundColor", "#FFFFFF")
+            style_obj.setdefault("background", "#FFFFFF")
             style_obj.setdefault("borderRadius", "8px")
             style_obj.setdefault("boxShadow", "0 2px 8px rgba(0,0,0,0.08)")
 
@@ -988,7 +988,7 @@ class ReactCodegen(CodegenBase):
     @staticmethod
     def _extract_style_val(value) -> str:
         raw = str(value.get("value", value)) if isinstance(value, dict) else str(value)
-        for unit in ("px", "rem", "em", "vh", "vw", "%"):
+        for unit in ("px", "rem", "em", "vh", "vw"):
             if raw.endswith(unit):
                 return raw[:-len(unit)]
         return raw
