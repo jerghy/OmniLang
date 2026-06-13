@@ -99,10 +99,16 @@ const result = await O.compile();
 ### 嵌套子元素
 
 ```javascript
-// ✅ 所有方法都支持 parentId 参数
+// ✅ 方式 1：parentId 参数
 const card = O.card({ padding: "16px" });
-const btn = O.button("Click", { variant: "primary" }, card.id); // parentId 作为最后一个参数
-const h1 = O.heading("Title", "1", card.id);
+const btn = O.button("Click", { variant: "primary" }, card.id);
+
+// ✅ 方式 2：children 数组（Playwright 风格单行写法）
+const card2 = O.card({
+  padding: "24px",
+  children: [O.button("Submit"), O.text("Welcome"), O.input("Email")]
+});
+// card2.children() → 3 个子元素全部自动嵌套
 
 // ❌ WRONG: children() 是只读的
 card.children = [btn]; // 无效!
@@ -211,7 +217,7 @@ O.getComponentInfo("Button"); // 单个组件的详细信息
 | 错误行为 | 为什么错 | 正确做法 |
 |---------|---------|---------|
 | 用 `connectTo()` 做父子嵌套 | `connectTo()` 创建数据流端口连线，不影响布局层级 | 用 `O.component("Button", props, parentId)` |
-| 调用 `card.children([btn])` | `children()` 是只读 getter，不是 setter | 创建时传 `parentId` 参数 |
+| 用 `card([children])` 传数组 | ✅ 已支持！用 `O.card({ children: [btn, txt] })` | props 中传 children 数组即可 |
 | `compile()` 后程序化创建的元素消失了 | `compile()` 从 `.omni` 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
 | 用 `"onPress"` 做端口名连线 | 事件端口是 UUID `"evt-btn-press-001"` | 用 `createEventHandler()` 或查 UUID 表 |
 | 期望 `getSourceCode()` 返回程序化创建的元素 | `getSourceCode()` 返回 `activeFileContent`，不反映 Store | 用 `getElements()` / `getState()` 读 Store |
@@ -251,7 +257,7 @@ OmniDriver 方法在失败时**不会抛出异常**，而是返回 `null`/`undef
 - **"我用 'onPress' 做端口名怎么连不上"** → 事件端口是 UUID。用 createEventHandler()
 - **"getSourceCode() 怎么返回的是旧内容"** → getSourceCode() 读的是文件内容，不是 Store
 - **"compile() 后我的元素全没了"** → 正常行为。compile() 从源码重建画布
-- **"card([children]) 没嵌套进去"** → card() 接受 (props?, parentId?)，不是数组。用 parentId 参数
+- **"card([children]) 没嵌套进去"** → ✅ 已支持！用 `O.card({ children: [btn, txt] })`，不是 `O.card([btn, txt])`
 - **"el.children = [...] 怎么不生效"** → children() 是只读 getter，不是可赋值属性
 
 ## 可用组件

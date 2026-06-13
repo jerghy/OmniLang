@@ -411,7 +411,7 @@ class OmniDriver {
   }
 
   /** Add a view component to the canvas.
-   *  @returns ElementHandle for the created component. */
+   *  If props contains a `children` array of ElementHandles, they are auto-nested. */
   component(
     tag: string,
     props?: Record<string, unknown>,
@@ -424,12 +424,25 @@ class OmniDriver {
       );
     }
 
+    // Extract inline children from props (Playwright-style: card({ children: [btn, txt] }))
+    const inlineChildren: ElementHandle[] = [];
+    const cleanProps: Record<string, unknown> = {};
+    if (props) {
+      for (const [k, v] of Object.entries(props)) {
+        if (k === "children" && Array.isArray(v) && v.every((c: unknown) => c instanceof ElementHandle)) {
+          inlineChildren.push(...(v as unknown as ElementHandle[]));
+        } else {
+          cleanProps[k] = v;
+        }
+      }
+    }
+
     const id = this._nextId();
     const el: ElementData = {
       id,
       nodeType: "view",
       tag,
-      props: props || {},
+      props: cleanProps,
       children: [],
       parentId: parentId || null,
     };
@@ -448,6 +461,17 @@ class OmniDriver {
           ),
         });
       }
+    }
+
+    // Auto-nest inline children
+    for (const child of inlineChildren) {
+      useEditorStore.setState({
+        elements: useEditorStore.getState().elements.map((e) => {
+          if (e.id === child.id) return { ...e, parentId: id };
+          if (e.id === id) return { ...e, children: [...e.children, child.id] };
+          return e;
+        }),
+      });
     }
 
     return new ElementHandle(id, this);

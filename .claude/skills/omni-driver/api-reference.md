@@ -40,9 +40,15 @@ interface ElementQuery {
 ### 组件创建
 
 ```javascript
-// 通用创建 — 支持 parentId
+// 通用创建 — 支持 parentId 和 children 数组
 O.component("Button", { label: "Submit" }, parentId);
 //           tag       props                  parentId (可选)
+
+// props 中传 children 数组可实现 Playwright 风格单行嵌套:
+O.component("Card", {
+  padding: "16px",
+  children: [O.button("A"), O.text("B")]  // 自动设置 parentId
+});
 
 // 便捷方法 — 均支持可选的 parentId 作为最后一个参数
 O.button("Submit", { variant: "primary" }, parentId);   // label, props?, parentId?
