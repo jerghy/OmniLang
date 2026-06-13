@@ -480,7 +480,7 @@ class ReactCodegen(CodegenBase):
                 style_obj.setdefault("backgroundColor", "#5252E0")
                 style_obj.setdefault("color", "#FFFFFF")
                 style_obj.setdefault("border", "none")
-                style_obj.setdefault("borderRadius", "6px")
+                style_obj.setdefault("borderRadius", "8px")
                 style_obj.setdefault("padding", "8px 16px")
                 style_obj.setdefault("cursor", "pointer")
                 style_obj.setdefault("fontSize", "14px")
@@ -489,7 +489,7 @@ class ReactCodegen(CodegenBase):
                 style_obj.setdefault("backgroundColor", "transparent")
                 style_obj.setdefault("color", "#E5E7EB")
                 style_obj.setdefault("border", "1px solid #E5E7EB")
-                style_obj.setdefault("borderRadius", "6px")
+                style_obj.setdefault("borderRadius", "8px")
                 style_obj.setdefault("padding", "8px 16px")
                 style_obj.setdefault("cursor", "pointer")
                 style_obj.setdefault("fontSize", "14px")
@@ -500,6 +500,18 @@ class ReactCodegen(CodegenBase):
             style_obj.setdefault("background", "#FFFFFF")
             style_obj.setdefault("borderRadius", "8px")
             style_obj.setdefault("boxShadow", "0 2px 8px rgba(0,0,0,0.08)")
+
+        # Auto text color for containers with dark backgrounds.
+        # If a container (Card/Flex/Container) has a dark background, default child
+        # text color to light gray so headings and text are readable.
+        _container_tags = {"Card", "Flex", "Container"}
+        if tag in _container_tags and "background" in style_obj:
+            bg = str(style_obj.get("background", "")).lower().strip("'\"")
+            if bg and bg not in ("#ffffff", "#fff", "white", "transparent", "#f", ""):
+                style_obj.setdefault("color", "#E5E7EB")
+                # Use light shadow on dark backgrounds (dark shadow is invisible)
+                if "boxShadow" in style_obj and "rgba(0,0,0" in str(style_obj["boxShadow"]):
+                    style_obj["boxShadow"] = "0 2px 8px rgba(255,255,255,0.06)"
 
         if style_obj or tag in ("Flex", "Grid"):
             if not style_obj:
