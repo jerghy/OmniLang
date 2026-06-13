@@ -89,6 +89,7 @@ function omniPropsToStyle(el: ElementData): React.CSSProperties {
     style.cursor = "pointer";
     style.fontSize = style.fontSize || "13px";
     if (p.variant === "primary") { style.background = "#4F46E5"; style.color = "#fff"; style.borderColor = "#4F46E5"; }
+    else if (p.variant === "outline") { style.background = "transparent"; style.color = "#1F2937"; style.border = "1px solid #E5E7EB"; }
     else if (p.variant === "danger") { style.background = "#FEE2E2"; style.color = "#DC2626"; style.borderColor = "#FECACA"; }
     else if (p.variant === "ghost") { style.background = "transparent"; style.borderColor = "transparent"; }
   }
