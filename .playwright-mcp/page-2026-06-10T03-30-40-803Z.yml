@@ -1,6 +1,0 @@
-- generic [ref=e3]:
-  - heading "Sign Up" [level=1] [ref=e4]
-  - generic [ref=e25]:
-    - heading "Welcome,Alice!" [level=2] [ref=e26]
-    - generic [ref=e27]: We sent a confirmation toalice@example.com
-    - button "New Signup" [ref=e28]

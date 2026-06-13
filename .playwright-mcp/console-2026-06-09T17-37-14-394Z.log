@@ -1,8 +1,0 @@
-[     435ms] ReferenceError: sj_evt is not defined
-    at https://cn.bing.com/:6:531
-[     914ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ https://cn.bing.com/rp/9uYIRoQB-ThMq970XKGeKvrMhL0.br.js:71
-[    2152ms] [LOG] true @ https://login.live.com/Me.htm?v=3:0
-[    4457ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://assets.msn.cn/bundles/v1/bingHomepage/staging/microsoft.06f1b7728e8bd63d.js:1
-[    4457ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://assets.msn.cn/bundles/v1/bingHomepage/staging/microsoft.06f1b7728e8bd63d.js:1
-[    4843ms] [INFO] Images loaded lazily and replaced with placeholders. Load events are deferred. See https://go.microsoft.com/fwlink/?linkid=2048113 @ https://cn.bing.com/:0
-[   25593ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_TIMED_OUT @ https://adxrp.admamax.com/adxreport/cookie/sync?userId=10CCA7E8877C6BA30F42B09B86366A5C&lang=zh-cn&dgk=edgeChromium&imd=1&pn=widgetfeed&rf=&tp=https://cn.bing.com/&gdpr=1&gdprContent=:0

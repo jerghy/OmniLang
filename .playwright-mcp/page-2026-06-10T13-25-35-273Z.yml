@@ -1,4 +1,0 @@
-- generic [ref=e3]:
-  - heading "OmniView App" [level=1] [ref=e4]
-  - generic [ref=e5]: Count:0
-  - button "+1" [ref=e6]

@@ -1,3 +1,0 @@
-[     922ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://trace.qq.com/collect?pj=1990&dm=h5.news.qq.com&url=/static/babyhome.htm&arg=&rdm=&rurl=&rarg=&icache=F.def&uv=&nu=&ol=&loc=https%3A//h5.news.qq.com/static/babyhome.htm&column=&subject=&nrnd=F173440288&rnd=47992:0
-[    1014ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://pingfore.qq.com/pingd?dm=h5.news.qq.com&url=/static/babyhome.htm&rdm=&rurl=&rarg=&pvid=173440288&scr=1500x1000&scl=32-bit&lang=zh-cn&java=0&pf=Win32&tz=-8&flash=-&ct=-&column=&subject=&vs=tcss.3.1.5&ext=nw%3D1%3Btm%3D5%3Bch%3D1&hurlcn=&rand=51553&reserved1=-1&tt=pu%3DF.def:0
-[    4388ms] [LOG] OpenSDK Frame loaded, build time: 2025-11-17 11:05 @ https://open.weixin.qq.com/pcopensdk/frame:1

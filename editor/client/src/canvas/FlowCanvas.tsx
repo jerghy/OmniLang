@@ -103,6 +103,7 @@ export function FlowCanvas({ showViews = true, highlightedWireId = null, onNodeD
   const areaRef = useRef<AreaPlugin<Schemes, AreaExtra> | null>(null);
   const nodeMapRef = useRef<Map<string, { reteNode: Node_; el: ElementData }>>(new Map());
   const [, forceTick] = useState(0);
+  const [ready, setReady] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number;
     nodeId?: string; tag?: string; events?: Array<[string, { id: string; description: string; payload: string | null }]>;
@@ -261,6 +262,8 @@ export function FlowCanvas({ showViews = true, highlightedWireId = null, onNodeD
     editorRef.current = editor;
     areaRef.current = area;
     forceTick(1);
+    // Defer ready to let ReactPlugin fully initialize before sync effect adds nodes
+    setTimeout(() => setReady(true), 50);
 
     return () => {
       container.removeEventListener("contextmenu", onCtx);
@@ -402,6 +405,7 @@ set(newValue) { value = newValue; }`;
     const editor = editorRef.current;
     const area = areaRef.current;
     if (!editor || !area) return;
+    if (!ready) return;
 
     const nodeMap = nodeMapRef.current;
     const wiredIds = new Set<string>();
@@ -444,6 +448,7 @@ set(newValue) { value = newValue; }`;
     }
 
     let codeIdx = 0, viewIdx = 0;
+    const addNodePromises: Promise<void>[] = [];
     for (const el of toAdd) {
       const name = (el.props.name || el.props.label || el.tag) as string;
       const icon = BLOCK_ICONS[el.tag] || "📦";
@@ -468,10 +473,11 @@ set(newValue) { value = newValue; }`;
       }
 
       // Style the node with block-type color
-      editor.addNode(node).then(() => {
+      const p = editor.addNode(node).then(() => {
         area.translate(node.id, { x: isC ? 50 : 550, y: isC ? 50 + codeIdx * 150 : 50 + viewIdx * 150 });
         forceTick(t => t + 1);
       });
+      addNodePromises.push(p);
 
       nodeMap.set(el.id, { reteNode: node, el });
       if (isC) codeIdx++; else viewIdx++;
@@ -493,25 +499,29 @@ set(newValue) { value = newValue; }`;
       }
     }
 
-    // Sync connections
-    const existingKeys = new Set(existingConns.map(c => `${c.source}:${c.sourceOutput}:${c.target}:${c.targetInput}`));
-    for (const w of wires) {
-      const key = `${w.fromId}:${w.fromPort}:${w.toId}:${w.toPort}`;
-      if (existingKeys.has(key)) continue;
-      const fromEntry = nodeMap.get(w.fromId);
-      const toEntry = nodeMap.get(w.toId);
-      if (!fromEntry || !toEntry) continue;
+    // Sync connections — wait for all nodes to be registered first
+    if (wires.length > 0) {
+      Promise.all(addNodePromises).then(() => {
+        const latestConns = editor.getConnections();
+        const existingKeys = new Set(latestConns.map(c => `${c.source}:${c.sourceOutput}:${c.target}:${c.targetInput}`));
+        for (const w of wires) {
+          const key = `${w.fromId}:${w.fromPort}:${w.toId}:${w.toPort}`;
+          if (existingKeys.has(key)) continue;
+          const fromEntry = nodeMap.get(w.fromId);
+          const toEntry = nodeMap.get(w.toId);
+          if (!fromEntry || !toEntry) continue;
 
-      // Find the actual Rete node IDs
-      const fromNode = fromEntry.reteNode;
-      const toNode = toEntry.reteNode;
-      editor.addConnection(new ClassicPreset.Connection(fromNode, w.fromPort, toNode, w.toPort)).catch(() => {});
+          const fromNode = fromEntry.reteNode;
+          const toNode = toEntry.reteNode;
+          editor.addConnection(new ClassicPreset.Connection(fromNode, w.fromPort, toNode, w.toPort)).catch(() => {});
 
-      // Evaluate initial data flow for this connection (deferred to avoid render loop)
-      const fromEl = elements.find(e => e.id === w.fromId);
-      if (fromEl?.outputValue !== undefined) {
-        setTimeout(() => evaluateDataFlow(w.fromId, w.fromPort, w.toId, w.toPort), 0);
-      }
+          // Evaluate initial data flow for this connection (deferred to avoid render loop)
+          const fromEl = elements.find(e => e.id === w.fromId);
+          if (fromEl?.outputValue !== undefined) {
+            setTimeout(() => evaluateDataFlow(w.fromId, w.fromPort, w.toId, w.toPort), 0);
+          }
+        }
+      });
     }
 
     // Highlight wire
@@ -529,7 +539,7 @@ set(newValue) { value = newValue; }`;
         }
       }, 200);
     }
-  }, [elements, wires, showViews]);
+  }, [elements, wires, showViews, ready]);
 
   // ── Data flow evaluation ─────────────────────────
 
