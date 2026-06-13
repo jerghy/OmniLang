@@ -236,7 +236,7 @@ OmniDriver 方法在失败时**不会抛出异常**，而是返回 `null`/`undef
 | 便捷方法 | 等价 component() 调用 |
 |---------|----------------------|
 | `O.button("Submit", { variant })` | `O.component("Button", { label: "Submit", variant })` |
-| `O.heading("Title", "1")` | `O.component("Heading", { text: "Title", level: "1" })` |
+| `O.heading("Title", "1")` | `O.component("Heading", { label: "Title", level: "1" })` |
 | `O.input("placeholder")` | `O.component("Input", { placeholder: "placeholder" })` |
 | `O.text("Hello")` | `O.component("Text", { label: "Hello" })` |
 | `O.card({ padding })` | `O.component("Card", { padding })` |

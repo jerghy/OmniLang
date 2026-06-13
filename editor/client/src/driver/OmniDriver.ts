@@ -55,9 +55,18 @@ class ElementHandle {
     return d;
   }
 
-  /** Set a prop value (immutable update). */
+  /** Set a prop value (immutable update).
+   *  Warns to console if the prop key does not exist in the element's current props. */
   setProp(prop: string, value: unknown): this {
-    this._require();
+    const d = this._require();
+    // Warn if setting a prop that doesn't exist yet (might be intentional or a typo)
+    if (!(prop in (d.props as object)) && prop !== "children") {
+      console.warn(
+        `[OmniDriver] setProp: "${prop}" is not an existing property on <${d.tag}>. ` +
+        `Existing props: ${Object.keys(d.props as object).join(", ") || "(none)"}. ` +
+        `This may be intentional for new props, or could be a typo.`,
+      );
+    }
     this._driver._store().setProp(this.id, prop, value);
     return this;
   }
@@ -544,6 +553,31 @@ class OmniDriver {
     return this.component("Alert", { type, label }, parentId);
   }
 
+  /** Return a self-describing API reference for AI agent discovery.
+   *  Call this when you need to know what methods are available. */
+  help(): Record<string, unknown> {
+    return {
+      version: "1.0.0",
+      entryPoint: "window.__OMNI__",
+      description: "Playwright-like API for OmniLang editor automation",
+      discovery: "Use Object.getOwnPropertyNames(Object.getPrototypeOf(window.__OMNI__)) to list methods",
+      state: ["getState()", "getElements() / .elements", "getWires() / .wires", "getMode()", "getSelectedElement()", "getPreviewUrl()", ".views", ".codeBlocks"],
+      locator: ["element(id)", "findByTag(tag)", "find(query)", "findByProp(prop,value)"],
+      creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(props?,parentId?)", "input(placeholder?,props?,parentId?)", "card(props?,parentId?)", "flex(direction?,gap?,props?,parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
+      codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, action, store"],
+      elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "createEventHandler(event,options)", "getPorts()", "children()", "parent()", "getSource()", "setSource(src)", "waitForLive(ms)", "data"],
+      wireHandle: ["disconnect()", "source()", "target()", "data"],
+      events: ["createEventHandler(eventName,options)"],
+      compile: ["compile() — rebuilds canvas from .omni source, discarding programmatic elements"],
+      wait: ["waitForElement(tag,ms)", "waitForWire(port,ms)", "waitFor(predicate,ms,msg)"],
+      undo: ["undo()", "redo()"],
+      file: ["getSourceCode()", "setSourceCode(content)", "getActiveFilePath()", "save()", "readFile(path)", "writeFile(path,content)", "openFile(path)"],
+      discovery_api: ["listComponents()", "getComponentInfo(tag)"],
+      other: ["clearAll()", "batch(fn)", "removeElement(id)", "switchMode('design'|'code')"],
+      componentProtocol: "Use listComponents() to see all 19 view component types and their props/events/styleProperties",
+    };
+  }
+
   /** Remove an element by ID. */
   removeElement(id: string): void {
     this._store().removeElement(id);
@@ -570,6 +604,24 @@ class OmniDriver {
 
     if (!fromEl) throw new Error(`Source element ${fromId} not found`);
     if (!toEl) throw new Error(`Target element ${toId} not found`);
+
+    // Validate that ports exist on the respective elements
+    const fromPortExists = (fromEl.ports || []).some((p) => p.name === fromPort);
+    const toPortExists = (toEl.ports || []).some((p) => p.name === toPort);
+
+    if (!fromPortExists && (fromEl.ports || []).length > 0) {
+      console.warn(
+        `[OmniDriver] connect: port "${fromPort}" not found on <${fromEl.tag}>. ` +
+        `Available ports: ${(fromEl.ports || []).map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
+        `If this is an event port, use the UUID (e.g. "evt-btn-press-001"), not the event name.`,
+      );
+    }
+    if (!toPortExists && (toEl.ports || []).length > 0) {
+      console.warn(
+        `[OmniDriver] connect: port "${toPort}" not found on <${toEl.tag}>. ` +
+        `Available ports: ${(toEl.ports || []).map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
+      );
+    }
 
     this._store().addWire({
       id,

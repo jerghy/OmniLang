@@ -148,6 +148,7 @@ O.getComponentInfo("Button"); // 单个组件的 props, events, styleProperties,
 ### 其他
 
 ```javascript
+O.help();       // 返回自描述 API 参考（供 AI agent 发现可用方法）
 O.clearAll();   // 清除 Store 中的 elements + wires + selection（不触及源文件）
 O.batch(fn);    // 批量操作包装：O.batch(O => { O.button("A"); O.button("B"); })
 O.removeElement(id); // 删除单个元素
