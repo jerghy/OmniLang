@@ -227,10 +227,13 @@ class ReactCodegen(CodegenBase):
             # Derive dependencies from signal references in fn body
             signal_names = {s.get("name", "") for s in self._get(comp, "states", [])}
             deps = sorted(self._detect_signal_refs(body_ir, signal_names))
-            # Exclude signals that are only written (via setter), not read
-            body_code = self._gen_block_body(body_ir)
-            deps = [d for d in deps if d in body_code and f"set{self._pascal(d)}" not in body_code
-                    or body_code.count(d) > body_code.count(f"set{self._pascal(d)}")]
+            # Critical: ALL signals that are READ in the fn body MUST be in deps.
+            # Previous filtering tried to exclude "write-only" signals, but the
+            # string-based detection was unreliable (substring matches inside
+            # setter names) and caused stale closures on capacity checks and
+            # toggle logic. Functional updaters handle write correctness;
+            # deps handle read correctness. Both are needed.
+            # See: test-framework Pitfall 4 — useCallback stale closure.
             deps_str = ", ".join(deps)
             L.append(self.indent(f"const {fname} = useCallback(({param_str}) => {{"))
             L.append(self.indent(body, 2))
