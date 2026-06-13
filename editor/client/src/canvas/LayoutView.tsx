@@ -15,12 +15,12 @@ const TAG_MAP: Record<string, keyof HTMLElementTagNameMap> = {
   Spinner: "div", Progress: "progress", Alert: "div", Card: "div", Form: "form",
 };
 
-const VOID_TAGS = new Set(["input", "img", "hr", "br", "progress"]);
+const VOID_TAGS = new Set(["input", "img", "hr", "br", "progress", "textarea", "select"]);
 
 // ── OmniView prop → CSS mapping ──────────────────
 
 function omniPropsToStyle(el: ElementData): React.CSSProperties {
-  const p = el.props;
+  const p = el.props || {};
   const style: React.CSSProperties = {};
 
   // Layout direction
@@ -47,21 +47,23 @@ function omniPropsToStyle(el: ElementData): React.CSSProperties {
   if (p.width) style.width = String(p.width);
   if (p.height) style.height = String(p.height);
 
-  // Colors
-  if (p.background_color) style.backgroundColor = String(p.background_color);
+  // Colors — handle both "background" (OmniView .omni) and "background_color" (legacy)
+  const bg = p.background || p.background_color;
+  if (bg) style.background = String(bg);
   if (p.color) style.color = String(p.color);
 
-  // Typography
-  if (p.font_size) style.fontSize = String(p.font_size);
-  if (p.font_weight) style.fontWeight = String(p.font_weight);
+  // Typography — handle both camelCase and snake_case
+  if (p.fontSize || p.font_size) style.fontSize = String(p.fontSize || p.font_size);
+  if (p.fontWeight || p.font_weight) style.fontWeight = String(p.fontWeight || p.font_weight);
 
-  // Borders & Radius
-  if (p.border_radius) style.borderRadius = String(p.border_radius);
+  // Borders & Radius — handle both camelCase and snake_case
+  if (p.borderRadius || p.border_radius) style.borderRadius = String(p.borderRadius || p.border_radius);
   if (p.border) style.border = String(p.border);
 
-  // Shadow
-  if (p.shadow === "md") style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
-  else if (p.shadow) style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+  // Shadow — handle both "shadow" and "boxShadow" props
+  const boxShadowVal = p.boxShadow || p.shadow;
+  if (boxShadowVal === "md") style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
+  else if (boxShadowVal) style.boxShadow = String(boxShadowVal);
 
   // Container defaults
   if (el.tag === "Container" || el.tag === "Card") {
@@ -208,6 +210,7 @@ function RenderElement({ el, allElements, selectedId, onSelect }: ElementProps):
   const isSelected = el.id === selectedId;
   const isVoid = VOID_TAGS.has(htmlTag);
   const [hovered, setHovered] = React.useState(false);
+  const p = el.props || {};
 
   const layoutStyle = omniPropsToStyle(el);
 
@@ -230,8 +233,8 @@ function RenderElement({ el, allElements, selectedId, onSelect }: ElementProps):
 
   // Text content
   let textLabel = "";
-  if (el.props.label && typeof el.props.label === "string" && el.children.length === 0) {
-    textLabel = el.props.label;
+  if (p.label && typeof p.label === "string" && el.children.length === 0) {
+    textLabel = p.label;
   }
 
   // Build children
@@ -286,11 +289,33 @@ function RenderElement({ el, allElements, selectedId, onSelect }: ElementProps):
   };
 
   // Map OmniView event prop names to HTML (for display)
-  if (el.props.value && el.tag === "Input") commonProps.placeholder = String(el.props.placeholder || "");
+  if (p.value && el.tag === "Input") commonProps.placeholder = String(p.placeholder || "");
 
   if (isVoid) {
-    if (el.tag === "Input" && el.props.value !== undefined) {
-      commonProps.defaultValue = String(el.props.value);
+    if (el.tag === "Input" && p.value !== undefined) {
+      commonProps.defaultValue = String(p.value);
+    }
+    // Input type attribute
+    if (el.tag === "Input") {
+      commonProps.type = String(p.type || "text");
+    }
+    if (el.tag === "Checkbox") {
+      commonProps.type = "checkbox";
+      if (p.checked !== undefined) {
+        commonProps.defaultChecked = Boolean(p.checked);
+      }
+    }
+    // Select: render <option> children from props.options
+    if (el.tag === "Select") {
+      const options: string[] = (p.options as string[]) || [];
+      return React.createElement(htmlTag, commonProps as React.HTMLAttributes<HTMLElement>,
+        ...options.map((opt, i) => React.createElement("option", { key: i, value: opt }, opt))
+      );
+    }
+    // TextArea: use defaultValue instead of children
+    if (el.tag === "TextArea") {
+      commonProps.defaultValue = String(p.placeholder || "");
+      return React.createElement(htmlTag, commonProps as React.HTMLAttributes<HTMLElement>);
     }
     return React.createElement(htmlTag, commonProps as React.HTMLAttributes<HTMLElement>);
   }
@@ -321,10 +346,11 @@ function CodeBlockCard({ el, allElements, selectedId, onSelect }: ElementProps):
   const icon = BLOCK_ICONS[blockType] || "📦";
   const isSelected = el.id === selectedId;
   const [hovered, setHovered] = React.useState(false);
+  const cp = el.props || {};
 
-  const name = (el.props.name as string) || el.id;
-  const typeAnn = (el.props.typeAnnotation as string) || "";
-  const parentStore = (el.props.parentStore as string) || "";
+  const name = (cp.name as string) || el.id;
+  const typeAnn = (cp.typeAnnotation as string) || "";
+  const parentStore = (cp.parentStore as string) || "";
 
   // Child code blocks (e.g., signals inside a store)
   const childBlocks = allElements.filter(e => e.parentId === el.id && e.nodeType === "codeblock");
