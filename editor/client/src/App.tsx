@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useState, useRef, useMemo } from "react"
 import { useEditorStore } from "./store/editor";
 import { useUndoStore } from "./store/undo";
 import { api } from "./api/client";
+import { OmniDriver } from "./driver";
 import { FileExplorer } from "./panels/FileExplorer";
 import { BlockPalette } from "./panels/BlockPalette";
 import { PropertyPanel } from "./panels/PropertyPanel";
@@ -108,6 +109,32 @@ export default function App() {
       }
     })();
   }, []);
+
+  // ── OmniDriver initialization (AI automation API) ──
+  useEffect(() => {
+    const omni = new OmniDriver();
+    (window as any).__OMNI__ = omni;
+    (window as any).__OMNI_MODE__ = mode;
+    (window as any).__OMNI_TARGET__ = target;
+
+    // Listen for mode changes triggered by OmniDriver.switchMode()
+    const onModeChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.mode) setMode(detail.mode);
+    };
+    window.addEventListener("omni-mode-change", onModeChange);
+    return () => window.removeEventListener("omni-mode-change", onModeChange);
+  }, []);
+
+  // Keep the mode global in sync
+  useEffect(() => {
+    (window as any).__OMNI_MODE__ = mode;
+  }, [mode]);
+
+  // Keep the target global in sync
+  useEffect(() => {
+    (window as any).__OMNI_TARGET__ = target;
+  }, [target]);
 
   useEffect(() => {
     api.connectWatch(
