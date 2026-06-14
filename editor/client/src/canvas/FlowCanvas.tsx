@@ -28,6 +28,7 @@ import { ViewEventNode } from "./nodes/ViewEventNode";
 import { FlowEdge } from "./edges/FlowEdge";
 import { DataEdge } from "./edges/DataEdge";
 import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
+import { getAllPorts, validateConnection } from "./connectionValidators";
 import type { BaseNodeData } from "./nodes/BaseNode";
 
 // ── Custom node/edge types (registered once, outside component) ──
@@ -50,8 +51,8 @@ function getEdgeType(
   toEl: ElementData | undefined,
   wire: WireData,
 ): "flow" | "data" {
-  const fromPorts = fromEl?.ports || [];
-  const toPorts = toEl?.ports || [];
+  const fromPorts = fromEl ? getAllPorts(fromEl) : [];
+  const toPorts = toEl ? getAllPorts(toEl) : [];
   const fromPort = fromPorts.find((p) => p.name === wire.fromPort);
   const toPort = toPorts.find((p) => p.name === wire.toPort);
   if (fromPort?.portType === "flow" || toPort?.portType === "flow") return "flow";
@@ -60,7 +61,8 @@ function getEdgeType(
 
 /** Get the data type for coloring DataEdges. */
 function getEdgeDataType(fromEl: ElementData | undefined, wire: WireData): string {
-  const fromPort = fromEl?.ports?.find((p) => p.name === wire.fromPort);
+  const fromPorts = fromEl ? getAllPorts(fromEl) : [];
+  const fromPort = fromPorts.find((p) => p.name === wire.fromPort);
   return fromPort?.type || "any";
 }
 
@@ -136,7 +138,7 @@ export function FlowCanvas({
       if (!isVisible) continue;
 
       const config = getNodeConfig(el.tag);
-      const ports = el.ports?.length ? el.ports : config.defaultPorts;
+      const ports = getAllPorts(el);
       const name = String(el.props.name || el.props.label || el.tag);
       const pos = el.position || {
         x: el.nodeType === "codeblock" ? 50 : 400,
@@ -207,39 +209,24 @@ export function FlowCanvas({
       const fromPort = connection.sourceHandle;
       const toPort = connection.targetHandle;
 
-      // Type validation
-      const fromPorts = fromEl.ports || getNodeConfig(fromEl.tag).defaultPorts;
-      const toPorts = toEl.ports || getNodeConfig(toEl.tag).defaultPorts;
-      const sourcePort = fromPorts.find((p) => p.name === fromPort && p.direction === "out");
-      const targetPort = toPorts.find((p) => p.name === toPort && p.direction === "in");
+      // Use shared validation (same as OmniDriver.connect())
+      const fromPorts = getAllPorts(fromEl);
+      const toPorts = getAllPorts(toEl);
+      const issues = validateConnection(
+        fromEl, fromPort, toEl, toPort, wires, fromPorts, toPorts,
+      );
 
-      if (sourcePort && targetPort) {
-        if (!isTypeCompatible(sourcePort.type, targetPort.type)) {
-          alert(typeMismatchMessage(sourcePort.type, targetPort.type));
-          return;
-        }
-        // Port type validation: flow↔data mismatch
-        const srcPT = sourcePort.portType || "data";
-        const tgtPT = targetPort.portType || "data";
-        if (srcPT !== tgtPT) {
-          alert(
-            `端口类型不兼容：输出端口 "${fromPort}" 是 ${srcPT === "flow" ? "执行流" : "数据"} 类型，` +
-            `输入端口 "${toPort}" 是 ${tgtPT === "flow" ? "执行流" : "数据"} 类型。` +
-            `\n\n执行流端口（菱形）只能连接执行流端口，数据端口（圆形）只能连接数据端口。`,
-          );
-          return;
-        }
+      // Block on errors
+      const errors = issues.filter((i) => i.severity === "error");
+      if (errors.length > 0) {
+        alert(errors[0].message);
+        return;
       }
 
-      // Prevent duplicate wires
-      const exists = wires.some(
-        (w) =>
-          w.fromId === fromEl.id &&
-          w.fromPort === fromPort &&
-          w.toId === toEl.id &&
-          w.toPort === toPort,
-      );
-      if (exists) return;
+      // Log warnings
+      for (const w of issues) {
+        console.warn(`[FlowCanvas] ${w.code}: ${w.message}`);
+      }
 
       const wireData: WireData = {
         id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

@@ -23,6 +23,8 @@ import { useEditorStore, type ElementData, type WireData } from "../store/editor
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";
 import { api } from "../api/client";
+import { getNodeConfig } from "../canvas/nodeRegistry";
+import { getAllPorts, validateConnection } from "../canvas/connectionValidators";
 import type {
   PortDescriptor,
   ElementQuery,
@@ -78,9 +80,18 @@ class ElementHandle {
     return this._driver._store().getProp(this.id, prop);
   }
 
-  /** Remove this element from the canvas. */
+  /** Remove this element from the canvas.
+   *  Cascade-deletes all wires connected to this element. */
   remove(): void {
-    this._driver._store().removeElement(this.id);
+    const store = this._driver._store();
+    // Cascade-delete connected wires before removing the element
+    const connectedWires = store.wires.filter(
+      (w) => w.fromId === this.id || w.toId === this.id,
+    );
+    for (const w of connectedWires) {
+      store.removeWire(w.id);
+    }
+    store.removeElement(this.id);
   }
 
   /** Select this element (shows properties in inspector). */
@@ -108,56 +119,14 @@ class ElementHandle {
   }
 
   /** Connect this element to a target element.
-   *  Validates that ports exist (with console.warn) before creating the wire. */
+   *  Delegates to OmniDriver.connect() which runs full shared validation
+   *  (portType mismatch, type compatibility, duplicate wires, cycles, fan-out). */
   connectTo(
     target: ElementHandle,
     fromPort: string,
     toPort: string,
   ): WireHandle {
-    const fromEl = this._require();
-    const toEl = target._require();
-
-    // Validate ports exist (use getPorts() which includes event ports for views)
-    const fromPorts = this.getPorts();
-    const toPorts = target.getPorts();
-
-    if (fromPorts.length > 0 && !fromPorts.some((p) => p.name === fromPort)) {
-      console.warn(
-        `[OmniDriver] connectTo: port "${fromPort}" not found on <${fromEl.tag}>. ` +
-        `Available ports: ${fromPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
-        `If this is an event port, use the UUID (e.g. "evt-btn-press-001"), not the event name.`,
-      );
-    }
-    if (toPorts.length > 0 && !toPorts.some((p) => p.name === toPort)) {
-      console.warn(
-        `[OmniDriver] connectTo: port "${toPort}" not found on <${toEl.tag}>. ` +
-        `Available ports: ${toPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
-      );
-    }
-
-    // Fan-out detection: warn when same (fromId, fromPort) already has wires
-    const existingOutWires = this._driver._store().wires.filter(
-      (w) => w.fromId === this.id && w.fromPort === fromPort,
-    );
-    if (existingOutWires.length > 0) {
-      const existingTargets = existingOutWires.map((w) => `${w.toId}.${w.toPort}`).join(", ");
-      console.warn(
-        `[OmniDriver] connectTo: port "${fromPort}" on <${fromEl.tag}> already connected to ` +
-        `${existingOutWires.length} target(s): ${existingTargets}. ` +
-        `Fan-out from a single output port is often unintended. ` +
-        `If you need to update multiple signals, do it inside the action source code instead.`,
-      );
-    }
-
-    const wireId = `wire-${this.id}-${fromPort}-${target.id}-${toPort}`;
-    this._driver._store().addWire({
-      id: wireId,
-      fromId: this.id,
-      fromPort,
-      toId: target.id,
-      toPort,
-    });
-    return new WireHandle(wireId, this._driver);
+    return this._driver.connect(this.id, fromPort, target.id, toPort);
   }
 
   /** Check if this element still exists in the store. */
@@ -246,12 +215,13 @@ class ElementHandle {
         {
           name: "call",
           direction: "in",
+          portType: "flow",
           type: payloadType,
           label: eventCfg.payload
             ? `${eventName}(${eventCfg.payload})`
             : eventName,
         },
-        { name: "result", direction: "out", type: "any", label: "返回结果" },
+        { name: "result", direction: "out", portType: "data", type: "any", label: "返回结果" },
       ],
       isFolded: options.folded ?? false,
       source:
@@ -358,28 +328,9 @@ class OmniDriver {
   }
 
   /** @internal Get all ports for an element, including event ports from COMPONENT_PROTOCOL.
-   *  Used by both connect() validation and ElementHandle.getPorts(). */
+   *  Delegates to shared getAllPorts() which is also used by FlowCanvas. */
   _getAllPorts(el: ElementData): PortDescriptor[] {
-    const basePorts = [...(el.ports || [])];
-
-    // For view elements, include event ports from COMPONENT_PROTOCOL
-    if (el.nodeType === "view") {
-      const meta = COMPONENT_PROTOCOL[el.tag];
-      if (meta?.events) {
-        for (const [evtName, evtMeta] of Object.entries(meta.events)) {
-          if (!basePorts.some((p) => p.name === evtMeta.id)) {
-            basePorts.push({
-              name: evtMeta.id,
-              direction: "out",
-              type: evtMeta.payload || "any",
-              label: `${evtName}${evtMeta.description ? ` (${evtMeta.description})` : ""}`,
-            });
-          }
-        }
-      }
-    }
-
-    return basePorts;
+    return getAllPorts(el) as PortDescriptor[];
   }
 
   // ── State Queries ─────────────────────────────────
@@ -566,7 +517,8 @@ class OmniDriver {
     return new ElementHandle(id, this);
   }
 
-  /** Add a code block to the canvas. */
+  /** Add a code block to the canvas.
+   *  Uses getNodeConfig() to derive proper portType, nodeCategory, and default ports. */
   codeBlock(
     blockType: string,
     name: string,
@@ -579,24 +531,17 @@ class OmniDriver {
       ? typeAnnotation
       : (blockType === "store" ? "any" : "i32");
 
-    const portDefs: Record<
-      string,
-      Array<{ name: string; direction: "in" | "out"; type: string }>
-    > = {
-      store: [{ name: "items", direction: "out", type: valueType }],
-      signal: [
-        { name: "value", direction: "out", type: valueType },
-        { name: "set", direction: "in", type: valueType },
-      ],
-      computed: [
-        { name: "value", direction: "out", type: valueType },
-        { name: "deps", direction: "in", type: "any" },
-      ],
-      action: [
-        { name: "call", direction: "in", type: "any" },
-        { name: "result", direction: "out", type: "any" },
-      ],
-    };
+    // Look up node config from registry for proper portType + nodeCategory
+    const config = getNodeConfig(blockType);
+
+    // Clone default ports, mapping "any"-typed ports to the caller's valueType
+    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p) => ({
+      name: p.name,
+      direction: p.direction,
+      portType: p.portType, // "flow" for action.call, "data" for most others
+      type: p.type === "any" ? valueType : p.type,
+      label: p.label,
+    }));
 
     const id = this._nextId();
     const parentStore = options.parentStore || "";
@@ -613,9 +558,10 @@ class OmniDriver {
       },
       children: [],
       parentId,
-      ports: options.ports || portDefs[blockType] || [],
+      ports: options.ports || defaultPorts,
       isFolded: options.isFolded ?? false,
       source: options.source || "",
+      nodeCategory: config.category,
     };
 
     this._store().addElement(el);
@@ -743,9 +689,16 @@ class OmniDriver {
     };
   }
 
-  /** Remove an element by ID. */
+  /** Remove an element by ID.  Cascade-deletes all connected wires. */
   removeElement(id: string): void {
-    this._store().removeElement(id);
+    const store = this._store();
+    const connectedWires = store.wires.filter(
+      (w) => w.fromId === id || w.toId === id,
+    );
+    for (const w of connectedWires) {
+      store.removeWire(w.id);
+    }
+    store.removeElement(id);
   }
 
   /** Clear all elements and wires from the canvas. */
@@ -755,7 +708,9 @@ class OmniDriver {
 
   // ── Wire Operations ───────────────────────────────
 
-  /** Create a wire between two elements. */
+  /** Create a wire between two elements.
+   *  Runs full shared validation: portType mismatch, type compatibility,
+   *  duplicate wires, cycle detection, fan-out warnings. */
   connect(
     fromId: string,
     fromPort: string,
@@ -771,64 +726,32 @@ class OmniDriver {
     if (!fromEl) throw new Error(`Source element ${fromId} not found`);
     if (!toEl) throw new Error(`Target element ${toId} not found`);
 
-    // Validate that ports exist (includes event ports from COMPONENT_PROTOCOL for views)
+    // Use shared getAllPorts for consistent port discovery
     const fromPorts = this._getAllPorts(fromEl);
     const toPorts = this._getAllPorts(toEl);
-    const fromPortExists = fromPorts.some((p) => p.name === fromPort);
-    const toPortExists = toPorts.some((p) => p.name === toPort);
 
-    if (!fromPortExists && fromPorts.length > 0) {
-      console.warn(
-        `[OmniDriver] connect: port "${fromPort}" not found on <${fromEl.tag}>. ` +
-        `Available ports: ${fromPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}. ` +
-        `If this is an event port, use the UUID (e.g. "evt-btn-press-001"), not the event name.`,
-      );
-    }
-    if (!toPortExists && toPorts.length > 0) {
-      console.warn(
-        `[OmniDriver] connect: port "${toPort}" not found on <${toEl.tag}>. ` +
-        `Available ports: ${toPorts.map((p) => `${p.name}(${p.direction})`).join(", ") || "(none)"}.`,
-      );
-    }
-
-    // Fan-out detection: warn when same (fromId, fromPort) already has wires
-    const existingOutWires = this._store().wires.filter(
-      (w) => w.fromId === fromId && w.fromPort === fromPort,
+    // Run shared validation (same as FlowCanvas.handleConnect)
+    const issues = validateConnection(
+      fromEl, fromPort, toEl, toPort, this._store().wires, fromPorts, toPorts,
     );
-    if (existingOutWires.length > 0) {
-      const existingTargets = existingOutWires.map((w) => `${w.toId}.${w.toPort}`).join(", ");
-      console.warn(
-        `[OmniDriver] connect: port "${fromPort}" on <${fromEl.tag}> already connected to ` +
-        `${existingOutWires.length} target(s): ${existingTargets}. ` +
-        `Fan-out from a single output port is often unintended. ` +
-        `If you need to update multiple signals, do it inside the action source code instead.`,
+
+    // Log all issues
+    for (const issue of issues) {
+      const level = issue.severity === "error" ? "error" : "warn";
+      console[level](`[OmniDriver] connect: ${issue.code} — ${issue.message}`);
+    }
+
+    // Block connection on errors (portType mismatch, type incompat, duplicate)
+    const errors = issues.filter((i) => i.severity === "error");
+    if (errors.length > 0) {
+      console.error(
+        `[OmniDriver] connect: Connection blocked (${errors.length} error(s)). ` +
+        `Wire NOT created: ${fromId}.${fromPort} → ${toId}.${toPort}`,
       );
+      return new WireHandle(id, this);
     }
 
-    // Port type validation: flow↔data mismatch
-    const fromPortObj = fromPorts.find((p) => p.name === fromPort);
-    const toPortObj = toPorts.find((p) => p.name === toPort);
-    if (fromPortObj && toPortObj) {
-      const srcPT = fromPortObj.portType || "data";
-      const tgtPT = toPortObj.portType || "data";
-      if (srcPT !== tgtPT) {
-        console.warn(
-          `[OmniDriver] connect: port type mismatch — "${fromPort}" is ${srcPT === "flow" ? "flow" : "data"}, ` +
-          `but "${toPort}" is ${tgtPT === "flow" ? "flow" : "data"}. ` +
-          `Flow ports (◆) can only connect to flow ports; data ports (●) can only connect to data ports.`,
-        );
-        return new WireHandle(id, this); // Return handle but wire was NOT created
-      }
-    }
-
-    this._store().addWire({
-      id,
-      fromId,
-      fromPort,
-      toId,
-      toPort,
-    });
-
+    this._store().addWire({ id, fromId, fromPort, toId, toPort });
     return new WireHandle(id, this);
   }
 
@@ -938,31 +861,18 @@ class OmniDriver {
       // Parse code blocks
       if (cbData.success && cbData.blocks) {
         const seenIds = new Set<string>();
-        // Factory: derive port types from typeAnnotation (like codeBlock() does)
+        // Factory: derive port types from typeAnnotation, using nodeRegistry defaults
         const buildPorts = (blockType: string, typeAnnotation?: string): PortDescriptor[] => {
           const t = typeAnnotation?.trim() || "";
           const vt = t.length > 0 ? t : "i32";
-          switch (blockType) {
-            case "store":
-              return [{ name: "items", direction: "out", type: t || "any" }];
-            case "signal":
-              return [
-                { name: "value", direction: "out", type: vt },
-                { name: "set", direction: "in", type: vt },
-              ];
-            case "computed":
-              return [
-                { name: "value", direction: "out", type: vt },
-                { name: "deps", direction: "in", type: "any" },
-              ];
-            case "action":
-              return [
-                { name: "call", direction: "in", type: "any" },
-                { name: "result", direction: "out", type: "any" },
-              ];
-            default:
-              return [];
-          }
+          const cfg = getNodeConfig(blockType);
+          return cfg.defaultPorts.map((p) => ({
+            name: p.name,
+            direction: p.direction,
+            portType: p.portType,
+            type: p.type === "any" ? vt : p.type,
+            label: p.label,
+          }));
         };
         for (const b of cbData.blocks) {
           if (seenIds.has(b.id)) continue;

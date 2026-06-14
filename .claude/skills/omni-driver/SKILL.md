@@ -841,6 +841,44 @@ for (const mm of report.typeMismatches) {
   console.warn(`Type mismatch on wire ${mm.wireId}: ${mm.fromType} → ${mm.toType}`);
   // 修正 codeBlock 的 typeAnnotation 或调整连线
 }
+
+// 问题 D: 孤儿 wires（元素已删除但 wires 残留）
+const elementIds = new Set(O.elements.map(e => e.id));
+const orphanWires = O.wires.filter(w => !elementIds.has(w.fromId) || !elementIds.has(w.toId));
+for (const w of orphanWires) {
+  O.disconnect(w.id);
+  console.warn(`Cleaned orphan wire ${w.id}: ${w.fromId}→${w.toId}`);
+}
+
+// 问题 E: codeBlock 端口缺少 portType 或 nodeCategory
+for (const el of O.codeBlocks) {
+  const d = el.data;
+  if (!d) continue;
+  // 检查 portType
+  for (const p of (d.ports || [])) {
+    if (!p.portType) {
+      console.warn(`Port "${p.name}" on <${d.tag}> missing portType. ` +
+        `This codeBlock may have been created before the fix. Recreate it.`);
+    }
+  }
+  // 检查 nodeCategory
+  if (!d.nodeCategory) {
+    console.warn(`<${d.tag}> "${d.props?.name}" missing nodeCategory. ` +
+      `Expected: ${({signal:'variable',computed:'data',action:'action',store:'variable'})[d.tag] || 'code'}. ` +
+      `Recreate the codeBlock to get proper category.`);
+  }
+}
+
+// 问题 F: 重复连线检测
+const wireKeys = new Set();
+const duplicates: string[] = [];
+for (const w of O.wires) {
+  const key = `${w.fromId}::${w.fromPort}::${w.toId}::${w.toPort}`;
+  if (wireKeys.has(key)) duplicates.push(w.id);
+  else wireKeys.add(key);
+}
+for (const id of duplicates) O.disconnect(id);
+if (duplicates.length) console.warn(`Cleaned ${duplicates.length} duplicate wire(s)`);
 ```
 
 ### Step 4: 重新验证
@@ -879,6 +917,12 @@ if (!finalReport.isValid) {
 | 一次性构建全部 UI 不中间验证 | 问题出现时不知道是哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
 | `createEventHandler` 可用却手动 `connect()` | 手动 connect 需要 UUID，容易出错 | 始终优先用 `createEventHandler(eventName)` |
 | 用 `handler1`/`sig1`/`btn` 等无意义命名 | 画布不可读，无法维护 | 用语义化命名：`cartCount`, `handleAddToCart` |
+| `el.remove()` 后 wires 仍有引用 | 旧版本 `remove()` 不级联删除 wires | 已修复！现在自动级联删除。如果仍有残留 wire，用 `O.validate()` 检测 |
+| 删除元素后不检查 `O.wires.length` | wires 可能残留孤儿连线 | 删除操作后调用 `O.validate()` 和检查 `O.wires.length` |
+| 调用 `connectTo()` 两次相同参数 | 旧版本不检测重复，创建两条 wire | 已修复！`validateConnection()` 现在检测并阻止重复连线 |
+| 用 `connectTo()` 连接 data→flow 端口 | 旧版本不验证 portType | 已修复！现在 console.error 阻止 + 连线不创建 |
+| 用 `connectTo()` 连接 i32→String | 旧版本不验证数据类型兼容性 | 已修复！`isTypeCompatible()` 检测不兼容类型并阻止 |
+| 创建 codeBlock 后不验证 `nodeCategory` | portType 和 nodeCategory 现在从 nodeRegistry 自动设置 | 创建后检查 `el.data.nodeCategory` 和 `el.data.ports[].portType` |
 
 ## 🏷️ Naming Convention
 
@@ -963,6 +1007,10 @@ else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires")
 - [ ] `O.listSnippets()` 是否检查过？是否有现成模板可用？
 - [ ] signal/action/computed 名称是否语义化（`cartCount` 而非 `s1`）？
 - [ ] 是否每 3-5 个元素就验证一次（Progressive Build-Test Loop）？
+- [ ] `connectTo()` 后是否检查了 console 是否有 error（连接被阻止）？
+- [ ] 创建 codeBlock 后是否验证了 `portType`（`el.data.ports[].portType`）？
+- [ ] 删除元素后是否验证了 wires 级联删除（`O.wires.length` 前后对比）？
+- [ ] 是否有重复连线（相同 fromId/fromPort/toId/toPort 的 wire 出现两次）？
 
 ## Red Flags — STOP and Check
 
@@ -990,6 +1038,13 @@ else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires")
 - **"nodeCategory 字段为 undefined"** → 旧元素可能没有此字段。通过 `getNodeConfig(el.tag)` 查找默认 category，或手动设置 `el.nodeCategory`
 - **"在代码画布上找不到 Rete.js 元素了"** → 代码画布已从 Rete.js 迁移到 @xyflow/react。查找 `.react-flow__node` 代替 `[data-testid="node"]`
 - **"validate() 不检测 flow 循环"** → `O.validate()` 检测数据流问题。用 `validateFlow(elements, wires)` 检测 flow 图的循环和孤立端口
+- **"O.codeBlock() 创建的端口没有 portType"** → `codeBlock()` 现在使用 `getNodeConfig()` 自动设置 `portType`。如果端口仍缺少 portType，检查 blockType 是否拼写错误（应为 "signal"/"action"/"computed"，不是 "Signal"/"Action"）
+- **"connectTo() 没有阻止 data→flow 错误连接"** → 已修复！`connectTo()` 现在委托给 `connect()`，运行完整共享验证（portType + 类型兼容 + 重复 + 循环检测）。无效连接会被 console.error 阻止
+- **"connectTo() 创建了重复连线"** → 已修复！重复连线检测现在统一在 `validateConnection()` 中，`connect()` 和 `connectTo()` 都经过同一验证路径
+- **"el.remove() 后 wires 还在"** → 已修复！`remove()` 现在会级联删除所有连接到该元素的 wires（`fromId === id || toId === id`）。不需要手动清理
+- **"view 元素的事件连线在代码模式看不到"** → `getAllPorts()` 现在为 view 元素自动添加 `portType:"flow"` 的事件端口。在代码模式中，Button.onPress → action.call 的连线会渲染为 flow 样式（三角箭头动画）。检查 `O.elements` 确认事件端口的 `portType` 字段
+- **"A→B→A 循环连线创建成功了"** → `validateConnection()` 包含 `wouldCreateCycle()` BFS 检测。数据循环会发出 console.warn（不阻止连线，因为某些数据流场景循环是有意的）。flow 端口循环会触发 FlowEngine 的 DFS 检测
+- **"O.codeBlock() 的 nodeCategory 是 undefined"** → 已修复！`codeBlock()` 现在通过 `getNodeConfig(blockType).category` 自动设置正确的 category（signal→"variable", computed→"data", action→"action"）
 
 ## 可用组件
 

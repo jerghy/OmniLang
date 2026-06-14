@@ -14,6 +14,7 @@ export type { ElementData, WireData, EventMeta };
 export interface PortDescriptor {
   name: string;
   direction: "in" | "out";
+  portType?: "flow" | "data";
   type: string;
   label?: string;
 }
