@@ -147,6 +147,12 @@ export function FlowCanvas({
         outputValue: el.outputValue,
         ports,
         isFolded: el.isFolded,
+        onDoubleClick: onNodeDoubleClick
+          ? (elementId) => {
+              const found = useEditorStore.getState().elements.find((e) => e.id === elementId);
+              if (found) onNodeDoubleClick(elementId, found);
+            }
+          : undefined,
       };
 
       newNodes.push({
@@ -159,7 +165,7 @@ export function FlowCanvas({
     }
 
     setNodes(newNodes);
-  }, [elements, wires, showViews, selectedElementId]);
+  }, [elements, wires, showViews, selectedElementId, onNodeDoubleClick]);
 
   // ── Convert wires -> React Flow edges ──
 
@@ -212,6 +218,17 @@ export function FlowCanvas({
       if (sourcePort && targetPort) {
         if (!isTypeCompatible(sourcePort.type, targetPort.type)) {
           alert(typeMismatchMessage(sourcePort.type, targetPort.type));
+          return;
+        }
+        // Port type validation: flow↔data mismatch
+        const srcPT = sourcePort.portType || "data";
+        const tgtPT = targetPort.portType || "data";
+        if (srcPT !== tgtPT) {
+          alert(
+            `端口类型不兼容：输出端口 "${fromPort}" 是 ${srcPT === "flow" ? "执行流" : "数据"} 类型，` +
+            `输入端口 "${toPort}" 是 ${tgtPT === "flow" ? "执行流" : "数据"} 类型。` +
+            `\n\n执行流端口（菱形）只能连接执行流端口，数据端口（圆形）只能连接数据端口。`,
+          );
           return;
         }
       }
@@ -405,6 +422,7 @@ export function FlowCanvas({
       ports,
       isFolded: false,
       source: DEFAULT_SOURCE,
+      nodeCategory: config.category,
     };
     useUndoStore.getState().execute(new AddElement(el), ctx);
     setContextMenu(null);
