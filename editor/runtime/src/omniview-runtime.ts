@@ -275,10 +275,12 @@ class DebugBus {
   }
 }
 
-// Initialize DebugBus automatically when loaded
+// Initialize DebugBus only when debug mode is explicitly enabled
 if (typeof window !== "undefined") {
   const wsUrl = (window as Record<string, unknown>).__OMNI_DEBUG_WS_URL__ as string | undefined;
-  DebugBus.init(wsUrl);
+  if (wsUrl) {
+    DebugBus.init(wsUrl);
+  }
 }
 
 // ── Signal Implementation ─────────────────────────────────
