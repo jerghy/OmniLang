@@ -236,6 +236,9 @@ def build_command(args: list[str]) -> int:
         if target == "react":
             from omniview.codegen.react import ReactCodegen
             codegen = ReactCodegen()
+        elif target == "omniview":
+            from omniview.codegen.omniview import OmniViewCodegen
+            codegen = OmniViewCodegen()
         elif target == "vue":
             from omniview.codegen.vue import VueCodegen
             codegen = VueCodegen()
@@ -246,7 +249,7 @@ def build_command(args: list[str]) -> int:
             from omniview.codegen.flutter import FlutterCodegen
             codegen = FlutterCodegen()
         else:
-            print(f"Error: Unknown target '{target}'. Supported: react, vue, dioxus, flutter", file=sys.stderr)
+            print(f"Error: Unknown target '{target}'. Supported: react, omniview, vue, dioxus, flutter", file=sys.stderr)
             return 1
 
         # Inject cross-file import info into codegen
@@ -637,7 +640,7 @@ def watch_command(args: list[str]) -> int:
     last_mtime = os.path.getmtime(input_file)
     build_count = 0
     previous_outputs: dict[str, str] = {}  # {target: content}
-    targets_to_check = ["react", "vue", "dioxus", "flutter"] if all_targets else [target]
+    targets_to_check = ["react", "omniview", "vue", "dioxus", "flutter"] if all_targets else [target]
 
     if show_diff:
         print(f"  Diff mode: showing changes across {len(targets_to_check)} target(s)")

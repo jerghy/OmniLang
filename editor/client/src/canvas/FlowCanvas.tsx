@@ -29,6 +29,7 @@ import { FlowEdge } from "./edges/FlowEdge";
 import { DataEdge } from "./edges/DataEdge";
 import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
 import { getAllPorts, validateConnection } from "./connectionValidators";
+import { validateFlow } from "./FlowEngine";
 import { NodePalette } from "./NodePalette";
 import type { BaseNodeData } from "./nodes/BaseNode";
 
@@ -87,6 +88,10 @@ interface FlowCanvasProps {
   ctx: CommandContext;
   /** Increment to trigger auto-layout from outside (Feature 2). */
   layoutTrigger?: number;
+  /** Phase 2: Active node IDs for live execution highlighting. */
+  activeNodeIds?: Set<string>;
+  /** Phase 2: Active edge IDs for live execution highlighting. */
+  activeEdgeIds?: Set<string>;
 }
 
 // ── Default source code for new code blocks ──
@@ -105,6 +110,8 @@ export function FlowCanvas({
   onNodeDoubleClick,
   ctx,
   layoutTrigger = 0,
+  activeNodeIds,
+  activeEdgeIds,
 }: FlowCanvasProps) {
   const elements = useEditorStore((s) => s.elements);
   const wires = useEditorStore((s) => s.wires);
@@ -118,6 +125,50 @@ export function FlowCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // ── Flow validation state (design-time analysis) ──
+
+  const [flowIssues, setFlowIssues] = useState<{
+    cycles: string[][];
+    orphanFlowIns: string[];
+    unreachable: string[];
+  }>({ cycles: [], orphanFlowIns: [], unreachable: [] });
+
+  useEffect(() => {
+    const result = validateFlow(elements, wires);
+    // Find unreachable codeblock nodes (not event sources, not in any flow chain)
+    const visited = new Set<string>();
+    const eventNodes = elements.filter(
+      (e) => e.nodeCategory === "event" || e.tag === "onPress" || e.tag === "onChange" || e.tag === "onHover" || e.tag === "onMount",
+    );
+    // BFS from event nodes through wires
+    const queue = eventNodes.map((e) => e.id);
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const outs = wires.filter((w) => w.fromId === id);
+      for (const w of outs) {
+        if (!visited.has(w.toId)) queue.push(w.toId);
+      }
+    }
+    // Unreachable = codeblock nodes not visited (but only if they have flow-in ports)
+    const unreachable = elements
+      .filter((e) => {
+        if (visited.has(e.id)) return false;
+        if (e.nodeType !== "codeblock") return false;
+        // View elements are always "reachable" (they're on the design canvas)
+        if (e.nodeCategory === "event") return false;
+        return true;
+      })
+      .map((e) => e.id);
+
+    setFlowIssues({
+      cycles: result.cycles,
+      orphanFlowIns: result.orphanFlowIns,
+      unreachable,
+    });
+  }, [elements, wires]);
 
   // ── Convert elements -> React Flow nodes ──
 
@@ -156,17 +207,39 @@ export function FlowCanvas({
         isFolded: el.isFolded,
       };
 
+      // Apply validation-driven styling
+      const isInCycle = flowIssues.cycles.some((c) => c.includes(el.id));
+      const isUnreachable = flowIssues.unreachable.includes(el.id);
+      const isOrphanFlowIn = flowIssues.orphanFlowIns.includes(el.id);
+      const isExecuting = activeNodeIds?.has(el.id);
+      const validationStyle: React.CSSProperties = {};
+      if (isExecuting) {
+        validationStyle.border = "2px solid #10B981";
+        validationStyle.boxShadow = "0 0 12px rgba(16, 185, 129, 0.6)";
+        validationStyle.transition = "box-shadow 0.3s ease, border 0.3s ease";
+      } else if (isInCycle) {
+        validationStyle.border = "2px solid #EF4444";
+        validationStyle.boxShadow = "0 0 8px rgba(239,68,68,0.4)";
+      } else if (isOrphanFlowIn) {
+        validationStyle.border = "2px solid #F59E0B";
+        validationStyle.boxShadow = "0 0 6px rgba(245,158,11,0.3)";
+      } else if (isUnreachable) {
+        validationStyle.opacity = 0.4;
+        validationStyle.border = "2px dashed #F97316";
+      }
+
       newNodes.push({
         id: el.id,
         type: el.nodeType === "codeblock" ? ("codeblock" as const) : ("viewEvent" as const),
         position: pos,
         data: nodeData as unknown as Record<string, unknown>,
         selected: el.id === selectedElementId,
+        style: validationStyle,
       });
     }
 
     setNodes(newNodes);
-  }, [elements, wires, showViews, selectedElementId]);
+  }, [elements, wires, showViews, selectedElementId, flowIssues, activeNodeIds]);
 
   // ── Convert wires -> React Flow edges ──
 
@@ -181,6 +254,7 @@ export function FlowCanvas({
       const edgeType = getEdgeType(fromEl, toEl, w);
       const dataType = getEdgeDataType(fromEl, w);
 
+      const isActiveEdge = activeEdgeIds?.has(w.id);
       newEdges.push({
         id: w.id,
         source: w.fromId,
@@ -188,14 +262,19 @@ export function FlowCanvas({
         sourceHandle: w.fromPort,
         targetHandle: w.toPort,
         type: edgeType,
-        animated: edgeType === "flow",
+        animated: edgeType === "flow" || isActiveEdge,
         data: { type: dataType },
         selected: w.id === highlightedWireId,
+        style: isActiveEdge ? {
+          stroke: "#10B981",
+          strokeWidth: 2.5,
+          filter: "drop-shadow(0 0 4px rgba(16,185,129,0.5))",
+        } : undefined,
       });
     }
 
     setEdges(newEdges);
-  }, [wires, elements, highlightedWireId]);
+  }, [wires, elements, highlightedWireId, activeEdgeIds]);
 
   // ── Connection handler: validate types, prevent duplicates, add wire via undo store ──
 
@@ -462,6 +541,37 @@ export function FlowCanvas({
           onSelect={handlePaletteSelect}
           onClose={() => setContextMenu(null)}
         />
+      )}
+
+      {/* Flow validation issues panel */}
+      {(flowIssues.cycles.length > 0 || flowIssues.orphanFlowIns.length > 0 || flowIssues.unreachable.length > 0) && (
+        <div style={{
+          position: "absolute", bottom: 12, left: 12, right: 12,
+          background: "#FFF7ED", border: "1px solid #FED7AA",
+          borderRadius: 8, padding: "8px 12px",
+          fontSize: 11, fontFamily: "system-ui", zIndex: 10,
+          maxHeight: 120, overflow: "auto",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+        }}>
+          <div style={{ fontWeight: 600, color: "#C2410C", marginBottom: 4 }}>
+            ⚠ Flow Validation Issues
+          </div>
+          {flowIssues.cycles.length > 0 && (
+            <div style={{ color: "#991B1B", marginBottom: 2 }}>
+              🔴 {flowIssues.cycles.length} cycle(s) detected — execution loops not allowed
+            </div>
+          )}
+          {flowIssues.orphanFlowIns.length > 0 && (
+            <div style={{ color: "#92400E", marginBottom: 2 }}>
+              🟡 {flowIssues.orphanFlowIns.length} action(s) with unconnected flow input
+            </div>
+          )}
+          {flowIssues.unreachable.length > 0 && (
+            <div style={{ color: "#9A3412" }}>
+              🟠 {flowIssues.unreachable.length} node(s) unreachable from any event source
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

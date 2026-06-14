@@ -10,11 +10,11 @@ class ApiClient {
 
   // ── HTTP ───────────────────────────────────
 
-  async compile(source: string, target = "react", previousFiles?: Record<string, string>): Promise<CompileResponse> {
+  async compile(source: string, target = "react", previousFiles?: Record<string, string>, debug = false): Promise<CompileResponse> {
     const res = await fetch("/api/compile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source, target, previousFiles }),
+      body: JSON.stringify({ source, target, previousFiles, debug }),
     });
     return res.json();
   }
@@ -89,6 +89,29 @@ class ApiClient {
     });
   }
 
+  // ── Run / Vite DevServer (Phase 1 Runtime Bridge) ──
+
+  async startRun(files: Record<string, string>, debug = false): Promise<{ success: boolean; url?: string; port?: number; error?: string }> {
+    return this.post("/api/run/start", {
+      body: JSON.stringify({ files, debug }),
+    });
+  }
+
+  async stopRun(): Promise<{ success: boolean }> {
+    return this.post("/api/run/stop");
+  }
+
+  async getRunStatus(): Promise<{ running: boolean; url: string | null }> {
+    const res = await fetch("/api/run/status");
+    return res.json();
+  }
+
+  async writeRunFiles(files: Record<string, string>): Promise<{ success: boolean; count?: number; error?: string }> {
+    return this.post("/api/run/write-files", {
+      body: JSON.stringify({ files }),
+    });
+  }
+
   // ── WebSocket ─────────────────────────────
 
   connectWatch(onCompiled: (data: CompileResponse) => void, onStatus: (status: string, isError: boolean) => void): void {
@@ -143,6 +166,59 @@ class ApiClient {
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     this._stopHeartbeat();
     this.ws?.close();
+  }
+
+  // ── Debug WebSocket (Phase 2 Runtime Bridge) ──────────
+
+  private debugWs: WebSocket | null = null;
+  private debugReconnectTimer: number | null = null;
+  private onDebugMessage: ((msg: Record<string, unknown>) => void) | null = null;
+  private onDebugStatusChange: ((connected: boolean) => void) | null = null;
+
+  connectDebugWs(
+    onMessage: (msg: Record<string, unknown>) => void,
+    onStatusChange: (connected: boolean) => void
+  ): void {
+    this.onDebugMessage = onMessage;
+    this.onDebugStatusChange = onStatusChange;
+    this._doConnectDebug();
+  }
+
+  private _doConnectDebug(): void {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    this.debugWs = new WebSocket(`${protocol}//${location.host}/api/debug/ws`);
+
+    this.debugWs.onopen = () => {
+      this.onDebugStatusChange?.(true);
+    };
+
+    this.debugWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data as string);
+        this.onDebugMessage?.(data);
+      } catch {
+        // Ignore malformed debug messages
+      }
+    };
+
+    this.debugWs.onclose = () => {
+      this.onDebugStatusChange?.(false);
+      this.debugReconnectTimer = window.setTimeout(() => this._doConnectDebug(), 3000);
+    };
+  }
+
+  sendDebugCommand(command: Record<string, unknown>): void {
+    if (this.debugWs?.readyState === WebSocket.OPEN) {
+      this.debugWs.send(JSON.stringify(command));
+    }
+  }
+
+  disconnectDebug(): void {
+    if (this.debugReconnectTimer !== null) clearTimeout(this.debugReconnectTimer);
+    this.debugWs?.close();
+    this.debugWs = null;
+    this.onDebugMessage = null;
+    this.onDebugStatusChange = null;
   }
 }
 

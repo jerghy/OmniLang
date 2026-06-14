@@ -57,7 +57,8 @@ class CompileResult:
 # ── 主编译函数 ──────────────────────────────────────────
 
 def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
-                 previous_files: dict[str, str] | None = None) -> CompileResult:
+                 previous_files: dict[str, str] | None = None,
+                 debug_mode: bool = False) -> CompileResult:
     """编译 .omni 源码 → { filename: content } 字典。纯函数，无文件 I/O。
 
     Args:
@@ -65,6 +66,7 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
         filepath: 源文件路径（用于错误消息）。
         target: 目标框架名 ("react"|"vue"|"dioxus"|"flutter"|"python"|"javascript"|"rust"|"dart")。
         previous_files: 上次编译结果（用于计算 diff）。
+        debug_mode: 启用运行时调试注入（useTrackedSignal 等）。
 
     Returns:
         CompileResult — success/files/diff/errors。
@@ -79,7 +81,7 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
 
     try:
         if is_ui_mode:
-            compiled_files = _compile_ui_mode(source, filepath, target, errors)
+            compiled_files = _compile_ui_mode(source, filepath, target, errors, debug_mode)
         else:
             compiled_files = _compile_pure_logic(source, filepath, target, errors)
     except SystemExit:
@@ -188,7 +190,8 @@ def _compile_pure_logic(source: str, filepath: str, target: str, errors: list[Co
 
 # ── UI 模式 ────────────────────────────────────────────
 
-def _compile_ui_mode(source: str, filepath: str, target: str, errors: list[CompileError]) -> dict[str, str]:
+def _compile_ui_mode(source: str, filepath: str, target: str, errors: list[CompileError],
+                     debug_mode: bool = False) -> dict[str, str]:
     """UI 模式编译（含 OmniView 组件/Store）。"""
 
     from omniview.preprocessor import preprocess
@@ -233,7 +236,7 @@ def _compile_ui_mode(source: str, filepath: str, target: str, errors: list[Compi
     ir_map = lower.lower_program(program)
 
     # Stage 5: Codegen
-    codegen = _get_codegen(target, filepath, errors)
+    codegen = _get_codegen(target, filepath, errors, debug_mode)
     if codegen is None:
         return {}
 
@@ -259,11 +262,11 @@ def _compile_ui_mode(source: str, filepath: str, target: str, errors: list[Compi
     return output
 
 
-def _get_codegen(target: str, filepath: str, errors: list[CompileError]):
+def _get_codegen(target: str, filepath: str, errors: list[CompileError], debug_mode: bool = False):
     """获取 codegen 实例。"""
     if target == "react":
         from omniview.codegen.react import ReactCodegen
-        return ReactCodegen()
+        return ReactCodegen(debug_mode=debug_mode)
     elif target == "vue":
         from omniview.codegen.vue import VueCodegen
         return VueCodegen()
@@ -273,6 +276,9 @@ def _get_codegen(target: str, filepath: str, errors: list[CompileError]):
     elif target == "flutter":
         from omniview.codegen.flutter import FlutterCodegen
         return FlutterCodegen()
+    elif target == "omniview":
+        from omniview.codegen.omniview import OmniViewCodegen
+        return OmniViewCodegen(debug_mode=debug_mode)
     else:
         errors.append(CompileError(
             file=filepath, line=1, severity="error", code="UNSUPPORTED",

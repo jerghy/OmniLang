@@ -49,7 +49,7 @@ class TestReactCodegen:
         files = generate(parser, transformer, src)
         tsx = files.get("Test.tsx", "")
         assert "useState<number>(0)" in tsx
-        assert "{count}" in tsx
+        assert "{String(count)}" in tsx
 
     def test_generates_useMemo(self, parser, transformer):
         src = """component Test {

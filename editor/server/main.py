@@ -231,6 +231,7 @@ class CompileRequest(BaseModel):
     source: str
     target: str = "react"
     previousFiles: dict[str, str] | None = None
+    debug: bool = False  # Enable runtime debug injection (useTrackedSignal etc.)
 
 
 @app.post("/api/compile")
@@ -238,7 +239,9 @@ async def api_compile(req: CompileRequest, request: Request):
     """编译 .omni 源码 → { files, diff, errors }。（G2 错误格式）"""
     from omniview.api import compile_omni
 
-    result = compile_omni(req.source, target=req.target, previous_files=req.previousFiles)
+    result = compile_omni(req.source, target=req.target,
+                          previous_files=req.previousFiles,
+                          debug_mode=req.debug)
 
     # 保存本次结果用于下次 diff
     request.app.state.previous_compile = result.files
@@ -473,6 +476,13 @@ app.include_router(deploy_router, prefix="/api")
 
 from editor.server.api.watch import router as watch_router
 app.include_router(watch_router, prefix="/api")
+
+from editor.server.api.run import router as run_router
+app.include_router(run_router, prefix="/api/run")
+
+# Phase 2: Debug WebSocket bridge
+from .api.debug import router as debug_router
+app.include_router(debug_router, prefix="/api/debug")
 
 
 class CodeOwnershipRequest(BaseModel):

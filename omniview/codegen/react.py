@@ -49,7 +49,7 @@ class ReactCodegen(CodegenBase):
     tier = "L2"
     ELEMENT_MAP = REACT_ELEMENT_MAP
 
-    def __init__(self):
+    def __init__(self, debug_mode: bool = False):
         super().__init__()
         self._in_store_action = False  # context flag for store vs component mutations
         self._store_name = ""
@@ -57,6 +57,7 @@ class ReactCodegen(CodegenBase):
         self._cross_file_imports: dict[str, str] = {}  # component_name → relative_import_path
         self._for_depth: int = 0  # @for nesting depth for scoped keys (G3 fix)
         self._for_item_name: str = ""  # current @for item name for key scoping
+        self.debug_mode = debug_mode
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):
@@ -110,6 +111,19 @@ class ReactCodegen(CodegenBase):
             hooks.add("useRef")
         hooks_str = ", ".join(sorted(hooks))
         L.append(f'import React, {{ {hooks_str} }} from "react";')
+
+        # Debug mode: import runtime tracking hooks
+        if self.debug_mode:
+            debug_imports: set[str] = set()
+            if self._get(comp, "states"):
+                debug_imports.add("useTrackedSignal")
+            if self._get(comp, "computeds"):
+                debug_imports.add("useTrackedComputed")
+            if self._get(comp, "fns"):
+                debug_imports.add("traceExecution")
+            if debug_imports:
+                L.append(f'import {{ {", ".join(sorted(debug_imports))} }} from "./omni-runtime";')
+
         has_styles = bool(self._get(comp, "styles", []))
         if has_styles:
             L.append(f'import styles from "./{name}.module.css";')
@@ -176,11 +190,21 @@ class ReactCodegen(CodegenBase):
                         L.append(self.indent(f"const {f} = use{sname}(s => s.{f});"))
 
         # State hooks
+        comp_name = self._get(comp, "name", "Component")
         for state in self._get(comp, "states", []):
             sig_name = self._get(state, "name", "value")
             init_val = self._expr_to_js(self._get(state, "initial_value"))
             ts_type = self._map_type_to_ts(self._get(state, "type"))
-            L.append(self.indent(f"const [{sig_name}, set{self._pascal(sig_name)}] = useState<{ts_type}>({init_val});"))
+            if self.debug_mode:
+                sig_id = f"{comp_name}.{sig_name}"
+                L.append(self.indent(
+                    f'const [{sig_name}, set{self._pascal(sig_name)}] = '
+                    f'useTrackedSignal<{ts_type}>({init_val}, "{sig_id}", "{sig_name}", "{ts_type}");'
+                ))
+            else:
+                L.append(self.indent(
+                    f'const [{sig_name}, set{self._pascal(sig_name)}] = useState<{ts_type}>({init_val});'
+                ))
 
         # Ref hooks
         for ref in refs:
@@ -193,7 +217,14 @@ class ReactCodegen(CodegenBase):
             cname = self._get(computed, "name", "value")
             body = self._expr_to_js(self._get(computed, "body"))
             deps = self._get(computed, "deps", [])
-            L.append(self.indent(f"const {cname} = useMemo(() => {body}, [{', '.join(deps)}]);"))
+            if self.debug_mode:
+                comp_id = f"{comp_name}.{cname}"
+                deps_arr = f"[{', '.join(deps)}]"
+                L.append(self.indent(
+                    f'const {cname} = useTrackedComputed(() => {body}, {deps_arr}, "{comp_id}", "{cname}");'
+                ))
+            else:
+                L.append(self.indent(f"const {cname} = useMemo(() => {body}, [{', '.join(deps)}]);"))
 
         # Effects & lifecycles
         for lc in self._get(comp, "lifecycles", []):
@@ -225,6 +256,13 @@ class ReactCodegen(CodegenBase):
             param_str = ", ".join(self._get(p, "name", "x") for p in params)
             body_ir = self._get(fn, "body")
             body = self._gen_block_body(body_ir)
+
+            # Debug mode: inject traceExecution at fn start for execution highlighting
+            if self.debug_mode:
+                comp_name = self._get(comp, "name", "Component")
+                trace_call = self.indent(f'traceExecution("{comp_name}.{fname}");', 2)
+                body = trace_call + "\n" + (body if body.strip() else "")
+
             # Derive dependencies from signal references in fn body
             signal_names = {s.get("name", "") for s in self._get(comp, "states", [])}
             deps = sorted(self._detect_signal_refs(body_ir, signal_names))
@@ -1044,7 +1082,10 @@ class ReactCodegen(CodegenBase):
         self._store_name = name
 
         L = []
-        L.append('import { create } from "zustand";')
+        if self.debug_mode:
+            L.append('import { createTrackedStore } from "./omni-runtime";')
+        else:
+            L.append('import { create } from "zustand";')
         L.append("")
         L.append(f"// .omni:{source_line} -- store {name}")
         L.append("")
@@ -1066,7 +1107,10 @@ class ReactCodegen(CodegenBase):
         L.append("")
 
         # Create store
-        L.append(f"export const use{name} = create<{name}State>()((set, get) => ({{")
+        if self.debug_mode:
+            L.append(f"export const use{name} = createTrackedStore<{name}State>(\"{name}\", (set, get) => ({{")
+        else:
+            L.append(f"export const use{name} = create<{name}State>()((set, get) => ({{")
 
         # Signals → initial state
         defaults = self._get(store, "signal_defaults", {})

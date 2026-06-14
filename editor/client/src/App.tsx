@@ -17,6 +17,7 @@ import { LayoutView } from "./canvas/LayoutView";
 import { WireOverlay } from "./canvas/WireOverlay";
 import { StateHUD } from "./canvas/StateHUD";
 import { PerfBadge } from "./canvas/PerfBadge";
+import { DebugPanel } from "./canvas/DebugPanel";
 import { MonacoEditor, type MonacoEditorHandle } from "./editor/MonacoEditor";
 import { CodeEditorPopup } from "./editor/CodeEditorPopup";
 import { ConflictPanel } from "./panels/ConflictPanel";
@@ -75,6 +76,25 @@ export default function App() {
   const [loadedCanvasPath, setLoadedCanvasPath] = useState<string | null>(null);
   const [saveDialog, setSaveDialog] = useState<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: "" });
   const [loadDialog, setLoadDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
+
+  // Run / Vite DevServer state (Phase 1 Runtime Bridge)
+  const [runStatus, setRunStatus] = useState<{ running: boolean; url: string | null }>({ running: false, url: null });
+  const [runLoading, setRunLoading] = useState(false);
+
+  // Debug state (Phase 2 Runtime Bridge)
+  const [debugConnected, setDebugConnected] = useState(false);
+  const [debugStateChanges, setDebugStateChanges] = useState<Array<{
+    signalId: string; name: string; value: unknown; timestamp: number;
+  }>>([]);
+  const [debugBreakpoints, setDebugBreakpoints] = useState<Set<string>>(new Set());
+  const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(new Set());
+  const [activeEdgeIds, setActiveEdgeIds] = useState<Set<string>>(new Set());
+  const [debugPaused, setDebugPaused] = useState(false);
+  /** Maps semantic trace IDs ("Component.fnName") → canvas element IDs. */
+  const [fnToNodeMap, setFnToNodeMap] = useState<Record<string, string>>({});
+  // Ref to avoid stale closure in handleDebugMessage
+  const fnToNodeMapRef = useRef(fnToNodeMap);
+  fnToNodeMapRef.current = fnToNodeMap;
 
   const projectDir = useEditorStore((s) => s.projectDir);
   const activeFilePath = useEditorStore((s) => s.activeFilePath);
@@ -165,7 +185,7 @@ export default function App() {
     if (!content) return;
     setStatus({ text: "编译中...", isError: false });
 
-    const result = await api.compile(content, target);
+    const result = await api.compile(content, target, undefined, runStatus.running);
     const errs = result.errors || [];
     setCompileErrors(errs);
 
@@ -228,6 +248,24 @@ export default function App() {
         }
       }
 
+      // Build fnToNodeMap for execution highlighting (same logic as handleRun)
+      const newFnToNodeMap2: Record<string, string> = {};
+      const compMatch2 = content.match(/component\s+(\w+)\s*\{/);
+      const componentName2 = compMatch2 ? compMatch2[1] : "App";
+      if (cbData.success && cbData.blocks) {
+        for (const block of cbData.blocks) {
+          if (block.blockType === "action") {
+            const compName = block.parentStore || componentName2;
+            newFnToNodeMap2[`${compName}.${block.name}`] = block.id;
+          }
+        }
+      }
+      for (const el of viewElements) {
+        if (el.tag === "onPress") newFnToNodeMap2[`${componentName2}.handlePress`] = el.id;
+        else if (el.tag === "onChange") newFnToNodeMap2[`${componentName2}.handleChange`] = el.id;
+      }
+      setFnToNodeMap(newFnToNodeMap2);
+
       useEditorStore.setState({ elements: [...viewElements, ...codeElements] });
     } catch { /* canvas not critical */ }
 
@@ -240,8 +278,114 @@ export default function App() {
       if (!result.errors?.some((e: {severity:string}) => e.severity === "error")) {
         autoSaveOmniJson(content);
       }
+      // Phase 1 Runtime Bridge: write compiled files to running Vite server
+      if (runStatus.running && result.files) {
+        api.writeRunFiles(result.files).catch(() => {});
+      }
     }
+  }, [target, runStatus.running]);
+
+  // ── Run / Vite DevServer (Phase 1 Runtime Bridge) ──
+
+  const handleRun = useCallback(async () => {
+    const content = useEditorStore.getState().activeFileContent;
+    if (!content) { setStatus({ text: "请先打开文件", isError: true }); return; }
+
+    setRunLoading(true);
+    setStatus({ text: "编译并启动运行...", isError: false });
+
+    // 1. Compile (with debug mode enabled for runtime tracking)
+    const result = await api.compile(content, target, undefined, true);
+    const errs = result.errors || [];
+    const hasErrors = errs.some((e: {severity:string}) => e.severity === "error");
+    if (hasErrors) {
+      setCompileErrors(errs);
+      setStatus({ text: "❌ 编译失败 — 无法启动", isError: true });
+      setRunLoading(false);
+      return;
+    }
+
+    // 2. Parse view tree & code blocks for reactive canvas
+    setCompileErrors([]);
+    try {
+      const [vRes, cbRes] = await Promise.all([
+        fetch("/api/parse-view", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({source: content}) }),
+        fetch("/api/parse-codeblocks", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({source: content}) }),
+      ]);
+      const vData = await vRes.json();
+      const cbData = await cbRes.json();
+      const viewElements = vData.success && vData.nodes ? flattenTree(vData.nodes, null) : [];
+      // (code element parsing same as handleCompile)
+      const codeElements: import("./store/editor").ElementData[] = [];
+      const seenIds = new Set<string>();
+      if (cbData.success && cbData.blocks) {
+        const portDefs: Record<string, Array<{ name: string; direction: "in" | "out"; type: string }>> = {
+          store:    [{ name: "items", direction: "out", type: "any" }],
+          signal:   [{ name: "value", direction: "out", type: "i32" }, { name: "set", direction: "in", type: "i32" }],
+          computed: [{ name: "value", direction: "out", type: "i32" }, { name: "deps", direction: "in", type: "any" }],
+          action:   [{ name: "call", direction: "in", type: "any" }],
+        };
+        for (const b of cbData.blocks) {
+          const parentStore = b.parentStore || "";
+          const id = b.id;
+          if (seenIds.has(id)) continue;
+          seenIds.add(id);
+          codeElements.push({
+            id, nodeType: "codeblock", tag: b.blockType,
+            props: { name: b.name, parentStore, typeAnnotation: b.typeAnnotation },
+            children: [], parentId: parentStore ? `cb-store-${parentStore}` : null,
+            ports: portDefs[b.blockType] || [], isFolded: false,
+          });
+        }
+      }
+      // Build fnToNodeMap: semantic ID → canvas element ID for execution highlighting
+      const newFnToNodeMap: Record<string, string> = {};
+      const compMatch = content.match(/component\s+(\w+)\s*\{/);
+      const componentName = compMatch ? compMatch[1] : "App";
+      if (cbData.success && cbData.blocks) {
+        for (const block of cbData.blocks) {
+          if (block.blockType === "action") {
+            const compName = block.parentStore || componentName;
+            newFnToNodeMap[`${compName}.${block.name}`] = block.id;
+          }
+        }
+      }
+      for (const el of viewElements) {
+        if (el.tag === "onPress") newFnToNodeMap[`${componentName}.handlePress`] = el.id;
+        else if (el.tag === "onChange") newFnToNodeMap[`${componentName}.handleChange`] = el.id;
+      }
+      setFnToNodeMap(newFnToNodeMap);
+
+      useEditorStore.setState({ elements: [...viewElements, ...codeElements] });
+    } catch { /* non-critical */ }
+
+    // 3. Start Vite dev server with compiled files
+    setStatus({ text: "启动开发服务器...", isError: false });
+    const runResult = await api.startRun(result.files || {}, true);
+
+    if (runResult.success && runResult.url) {
+      setRunStatus({ running: true, url: runResult.url });
+      setStatus({ text: `▶ 运行中 — ${runResult.url}`, isError: false });
+      window.open(runResult.url, "_blank");
+    } else {
+      setStatus({ text: `❌ 启动失败: ${runResult.error || "未知错误"}`, isError: true });
+    }
+    setRunLoading(false);
   }, [target]);
+
+  const handleStop = useCallback(async () => {
+    setStatus({ text: "停止开发服务器...", isError: false });
+    await api.stopRun();
+    setRunStatus({ running: false, url: null });
+    setStatus({ text: "⏹ 已停止", isError: false });
+    // Clean up debug state
+    setDebugConnected(false);
+    setDebugStateChanges([]);
+    setActiveNodeIds(new Set());
+    setActiveEdgeIds(new Set());
+    setDebugPaused(false);
+    setFnToNodeMap({});
+  }, []);
 
   // ── M6: .omni.json auto-save ──────────────────
 
@@ -297,7 +441,7 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleCompile(); }
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undoUndo(ctx); }
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); undoRedo(ctx); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); const p = useEditorStore.getState().activeFilePath; const c = useEditorStore.getState().activeFileContent; if (p && c) { api.writeFile(p, c); autoSaveOmniJson(c); setStatus({text:"已保存",isError:false}); } }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); const p = useEditorStore.getState().activeFilePath; const c = useEditorStore.getState().activeFileContent; if (p && c) { api.writeFile(p, c); autoSaveOmniJson(c); setStatus({text:"已保存",isError:false}); /* If running, recompile + write for HMR */ if (runStatus.running) { api.compile(c, target, undefined, true).then(result => { if (result.success && result.files) api.writeRunFiles(result.files).catch(()=>{}); }).catch(()=>{}); } } }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") { e.preventDefault(); setShowSearch(true); }
       // Activity Bar panel shortcuts
       if ((e.ctrlKey || e.metaKey) && e.key === "1") { e.preventDefault(); setActivePanel(p => p === "files" ? null : "files"); }
@@ -307,7 +451,128 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleCompile, undoUndo, undoRedo]);
+  }, [handleCompile, undoUndo, undoRedo, target, runStatus.running]);
+
+  // ── Cleanup: stop Vite on page close ───────────
+
+  useEffect(() => {
+    const onUnload = () => {
+      api.stopRun().catch(() => {});
+      api.disconnectDebug();
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
+
+  // ── Debug WebSocket connection (Phase 2) ────────
+
+  const handleDebugMessage = useCallback((msg: Record<string, unknown>) => {
+    const msgType = msg.type as string;
+    switch (msgType) {
+      case "state-change":
+        setDebugStateChanges((prev) => {
+          const next = [...prev, {
+            signalId: msg.signalId as string || "",
+            name: msg.name as string || "",
+            value: msg.value,
+            timestamp: msg.timestamp as number || Date.now(),
+          }];
+          return next.length > 200 ? next.slice(-200) : next;
+        });
+        break;
+      case "execution-trace": {
+        const semanticId = msg.nodeId as string;
+        const edgeId = msg.edgeId as string | undefined;
+        // Translate semantic ID ("Component.fnName") → canvas element ID
+        const nodeId = fnToNodeMapRef.current[semanticId] || semanticId;
+        if (nodeId) {
+          setActiveNodeIds((prev) => {
+            const next = new Set(prev);
+            next.add(nodeId);
+            // Auto-clear after 1.5s
+            setTimeout(() => {
+              setActiveNodeIds((p) => {
+                const updated = new Set(p);
+                updated.delete(nodeId);
+                return updated;
+              });
+            }, 1500);
+            return next;
+          });
+        }
+        if (edgeId) {
+          setActiveEdgeIds((prev) => {
+            const next = new Set(prev);
+            next.add(edgeId);
+            setTimeout(() => {
+              setActiveEdgeIds((p) => {
+                const updated = new Set(p);
+                updated.delete(edgeId);
+                return updated;
+              });
+            }, 1500);
+            return next;
+          });
+        }
+        break;
+      }
+      case "runtime-ready":
+        setDebugConnected(true);
+        setDebugStateChanges([]);
+        break;
+      case "paused":
+        setDebugPaused(true);
+        break;
+      case "resumed":
+        setDebugPaused(false);
+        break;
+      case "runtime-disconnected":
+        setDebugConnected(false);
+        setActiveNodeIds(new Set());
+        setActiveEdgeIds(new Set());
+        setDebugPaused(false);
+        setFnToNodeMap({});
+        break;
+    }
+  }, []);
+
+  // Connect debug WebSocket when Run is active
+  useEffect(() => {
+    if (runStatus.running) {
+      api.connectDebugWs(handleDebugMessage, setDebugConnected);
+      return () => {
+        api.disconnectDebug();
+        setDebugConnected(false);
+      };
+    }
+  }, [runStatus.running, handleDebugMessage]);
+
+  // Debug helpers
+  const handleClearDebug = useCallback(() => {
+    setDebugStateChanges([]);
+  }, []);
+
+  const handleToggleBreakpoint = useCallback((signalId: string) => {
+    setDebugBreakpoints((prev) => {
+      const next = new Set(prev);
+      if (next.has(signalId)) {
+        next.delete(signalId);
+        api.sendDebugCommand({ type: "remove-breakpoint", signalId });
+      } else {
+        next.add(signalId);
+        api.sendDebugCommand({ type: "set-breakpoint", signalId });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleStep = useCallback(() => {
+    api.sendDebugCommand({ type: "step" });
+  }, []);
+
+  const handleResume = useCallback(() => {
+    api.sendDebugCommand({ type: "resume" });
+  }, []);
 
   const ctx: CommandContext = {
     getElement: (id) => useEditorStore.getState().elements.find(e => e.id === id),
@@ -547,7 +812,7 @@ export default function App() {
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 10, color: "#9ca3af" }}>目标:</span>
               <select value={target} onChange={e => setTarget(e.target.value)} style={{ padding: "2px 6px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4 }}>
-                {["react","vue","dioxus","flutter","python","javascript","rust","dart"].map(t => <option key={t}>{t}</option>)}
+                {["react","omniview","vue","dioxus","flutter","python","javascript","rust","dart"].map(t => <option key={t}>{t}</option>)}
               </select>
               <button onClick={() => setShowConnector(!showConnector)}
                 style={{...btnStyle, background: showConnector ? "#EEF2FF" : "#fff", borderColor: showConnector ? "#4F46E5" : "#d1d5db" }}>
@@ -557,6 +822,23 @@ export default function App() {
                 style={{...btnStyle, background: "#fff"}}>
                 📐 自动布局
               </button>
+              {runStatus.running ? (
+                <>
+                  <a href={runStatus.url || "#"} target="_blank" rel="noreferrer"
+                    style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", textDecoration: "none" }}>
+                    🔗 {runStatus.url?.replace("http://", "") || "运行"}
+                  </a>
+                  <button onClick={handleStop}
+                    style={{...btnStyle, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#DC2626" }}>
+                    ⏹ 停止
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleRun} disabled={runLoading}
+                  style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
+                  {runLoading ? "⏳ 启动中..." : "▶ 运行"}
+                </button>
+              )}
               <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
             </div>
             <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -566,6 +848,8 @@ export default function App() {
                   showViews={false}
                   highlightedWireId={highlightedWireId}
                   layoutTrigger={layoutTrigger}
+                  activeNodeIds={activeNodeIds}
+                  activeEdgeIds={activeEdgeIds}
                   onNodeDoubleClick={(id, el) => {
                     const blockSource = el.source || "";
                     setCodePopup({
@@ -577,6 +861,19 @@ export default function App() {
                     });
                   }}
                 />
+                {/* Debug Panel (Phase 2 Runtime Bridge) */}
+                {runStatus.running && (
+                  <DebugPanel
+                    connected={debugConnected}
+                    stateChanges={debugStateChanges}
+                    onClear={handleClearDebug}
+                    onToggleBreakpoint={handleToggleBreakpoint}
+                    breakpoints={debugBreakpoints}
+                    paused={debugPaused}
+                    onStep={handleStep}
+                    onResume={handleResume}
+                  />
+                )}
               </div>
               {showConnector && (
                 <aside style={{ width: 280, minWidth: 240, flexShrink: 0, borderLeft: "1px solid #e5e7eb", background: "#f9fafb", overflow: "hidden" }}>
@@ -697,6 +994,23 @@ export default function App() {
                 style={{...btnStyle, background: "#fff"}}>
                 📂 加载画布
               </button>
+              {runStatus.running ? (
+                <>
+                  <a href={runStatus.url || "#"} target="_blank" rel="noreferrer"
+                    style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", textDecoration: "none" }}>
+                    🔗 {runStatus.url?.replace("http://", "") || "运行"}
+                  </a>
+                  <button onClick={handleStop}
+                    style={{...btnStyle, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#DC2626" }}>
+                    ⏹ 停止
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleRun} disabled={runLoading}
+                  style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
+                  {runLoading ? "⏳ 启动中..." : "▶ 运行"}
+                </button>
+              )}
               <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
             </div>
             <div style={{ display: "flex", justifyContent: "center", background: "#f0f0f0", flex: 1, overflow: "auto" }}>
