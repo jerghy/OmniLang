@@ -294,10 +294,106 @@ O.switchMode("code");
 // .react-flow__controls          — 缩放控件 (+/-/fit)
 // .react-flow__minimap           — 小地图
 
-// 右键画布 → 出现"添加节点"菜单 (action/signal/computed)
+// 右键画布 → 打开 NodePalette 搜索弹窗（Unity VS 风格）
+// 搜索/点击选择节点类型 → 自动创建到画布
 // 拖拽端口之间连线 → 自动创建 Wire
 // 双击代码块节点 → 打开 CodeEditorPopup
 // Delete/Backspace → 删除选中节点及其连线
+
+// 也可通过 API 直接创建可视节点：
+const onPress = O.codeBlock("onPress", "On Press");       // 事件源
+const setVar = O.codeBlock("setVariable", "Set count");   // 设置变量
+const addNode = O.codeBlock("add", "Add");                // 算术运算
+const branch = O.codeBlock("branch", "Branch");           // 条件分支
+```
+
+### 🎨 NodePalette — 搜索弹窗（Round 2+）
+
+**右键画布空白区域 → 弹出搜索框。** 支持模糊搜索、分类分组、键盘导航。
+
+```javascript
+// NodePalette 自动可用，无需额外调用。
+// 右键画布 → 输入搜索 → ↑↓ 选择 → Enter 确认 → 节点创建
+// 也可通过 O.codeBlock(tag, name) 直接创建（等效于选择 NodePalette 条目）
+```
+
+**键盘快捷键：**
+| 键 | 动作 |
+|----|------|
+| ↑↓ | 导航搜索结果 |
+| Enter | 选择当前高亮节点 |
+| Esc | 关闭弹窗 |
+| 输入文字 | 模糊过滤（匹配 label + keywords） |
+
+**所有可视节点类型（24 种）：**
+
+| Category | 节点 tag | 端口 | 用途 |
+|----------|---------|------|------|
+| ⚡ Event | `onPress` | flowOut + event(data) | 按钮点击 |
+| ⚡ Event | `onChange` | flowOut + value(data) | 输入变化 |
+| ⚙️ Action | `action` | call(flow in) + result(data out) | 通用事件处理 |
+| ⚙️ Action | `setVariable` | flowIn + flowOut + value(data in) | 设置变量值 |
+| ⚙️ Action | `runCodeBlock` | flowIn + flowOut | 运行代码块 |
+| ⚙️ Action | `updateUIProperty` | flowIn + flowOut + value(data in) | 更新 UI 文本 |
+| 🔀 Flow | `branch` | flowIn → true/false(flow out) + condition(bool in) | 条件分支 |
+| 🔀 Flow | `sequence` | flowIn → flowOut0/flowOut1(flow out) | 顺序执行 |
+| 🔀 Flow | `forEach` | flowIn → loopBody/completed(flow out) + collection/current/index(data) | 遍历集合 |
+| 📊 Data | `computed` | deps(any in) + value(out) | 派生计算 |
+| 📊 Data | `getVariable` | value(out) | 读取变量 |
+| 📊 Data | `add` / `sub` / `mul` / `div` | a,b(data in) + result(out) | 算术运算 |
+| 📊 Data | `compare` | a,b(in) + result(bool out) | 比较运算 |
+| 📊 Data | `and` / `or` / `not` | a,b(bool in) + result(bool out) | 逻辑运算 |
+| 📊 Data | `concat` | a,b(String in) + result(String out) | 字符串拼接 |
+| 📊 Data | `literal` | value(out) | 常量值 |
+| 📌 Variable | `signal` | value(out) + set(in) | 响应式变量 |
+| 📌 Variable | `store` | items(out) | 数据集合 |
+
+### 🧠 AI Pitfalls — 最容易犯的错（必读！）
+
+**以下是从实际测试中收集的 AI agent 高频错误，按严重程度排序：**
+
+#### 🔴 CRITICAL：不调用 O.help() 和 O.validate()
+
+| 错误行为 | 为什么错 | 正确做法 |
+|---------|---------|---------|
+| 不调用 `O.help()` 就开始写代码 | Proxy 拦截了 `Object.keys()`，无法枚举 API | **第一行必须** `O.help()` |
+| 脚本结束不调用 `O.validate()` | 连线错误、类型不匹配、重复连线无法发现 | **最后一行必须** `O.validate()` 并检查 `report.isValid` |
+| 看到 console.error 不处理 | `connect()` 现在会 `console.error` 阻止无效连线 | 所有 console.error 都是真实问题，必须修复 |
+
+#### 🟡 HIGH：参数位置和数据流错误
+
+| 错误行为 | 症状 | 正确做法 |
+|---------|------|---------|
+| `O.text("Hi", cardId)` | text 没嵌套进卡片 | `O.text("Hi", {}, cardId)` ← props 不可跳过 |
+| `O.heading("T", 2, cardId)` | level 类型错误 | `O.heading("T", "2", cardId)` ← level 是字符串 |
+| `O.image("url", cardId)` | 图片没嵌套 | `O.image("url", "", cardId)` ← alt 不可跳过 |
+| `handler.connectTo(sig, "result", "value")` | 连到 signal 输出端口 | signal 输入端口是 `"set"`，输出是 `"value"` |
+| `createEventHandler("press")` | 报错 | 事件名是 React 风格：`"onPress"`, `"onChange"` |
+| `createEventHandler("evt-btn-press-001")` | 报错 | `createEventHandler` 要事件名，不是 UUID |
+| `O.connect(id, "onPress", ...)` | 无效连线 | `connect()` 用端口 UUID `"evt-btn-press-001"` |
+
+#### 🟡 HIGH：数据流反模式
+
+| 错误行为 | 为什么错 | 正确做法 |
+|---------|---------|---------|
+| 一个 handler.result 连多个 signal.set | 一个 output 不能分叉到多个 input | result 只连一个 set，其他 signal 在 action 源码中更新 |
+| `connectTo()` 用于布局嵌套 | connectTo 创建数据流连线，不影响 UI 位置 | 用 `parentId` 参数控制父子关系 |
+| `compile()` 后程序化元素消失 | compile() 从 .omni 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
+| 期望 `getSourceCode()` 返回程序化元素 | getSourceCode() 读的是文件内容 | 用 `O.getState()` 获取运行时状态 |
+
+#### 🟢 MEDIUM：生命周期和验证
+
+| 错误行为 | 症状 | 正确做法 |
+|---------|------|---------|
+| 创建元素无根容器 | 元素散落在画布根级 | 先 `O.card()` 或 `O.flex()` 创建根容器 |
+| codeBlock 后不检查 portType | 旧端口可能缺少 portType | 检查 `el.data.ports[].portType` |
+| codeBlock 后不检查 nodeCategory | 旧元素可能缺少 category | 检查 `el.data.nodeCategory` |
+| `el.remove()` 后不检查 wires | wires 可能残留孤儿连线（旧版本 bug，已修复） | 检查 `O.wires.length` |
+| 重复调用 `connectTo()` 相同参数 | 重复连线会被 console.error 阻止 | 检查是否已有相同连线 |
+| 连接 flow→data 或 data→flow | console.error 阻止 + 连线不创建 | flow 端口(菱形)只能连 flow，data(圆形)只能连 data |
+| 连接 i32→String 等不兼容类型 | console.error 阻止 | 检查端口类型兼容性 |
+| 批量创建不中间验证 | 出问题时找不到哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
+| 不先检查 `O.listSnippets()` | 重复造轮子 | 内置模板开箱即用 |
 ```
 
 ## 📖 Recipe Book（复制即用的完整模板）
