@@ -433,8 +433,8 @@ class FlutterCodegen(CodegenBase):
         if tag == "Heading":
             level_prop = props.get("level", {})
             level = self._get(level_prop, "value", "2")
-            sizes = {"1": "28", "2": "24", "3": "16", "4": "15", "5": "14", "6": "13"}
-            size = sizes.get(level, "24")
+            sizes = {"1": "28", "2": "20", "3": "16", "4": "15", "5": "14", "6": "13"}
+            size = sizes.get(level, "20")
             params.append(f"style: TextStyle(fontSize: {size}, fontWeight: FontWeight.w600)")
             if css_rule:
                 params = self._apply_css_to_text(css_rule, params)
@@ -477,6 +477,7 @@ class FlutterCodegen(CodegenBase):
                         "style: ElevatedButton.styleFrom("
                         "backgroundColor: const Color(0xFF4F46E5), "
                         "foregroundColor: Colors.white, "
+                        "textStyle: const TextStyle(fontSize: 13), "
                         "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
                         ")"
                     )
@@ -484,7 +485,8 @@ class FlutterCodegen(CodegenBase):
                     params.append(
                         "style: OutlinedButton.styleFrom("
                         "backgroundColor: Colors.transparent, "
-                        "foregroundColor: const Color(0xFF374151), "
+                        "foregroundColor: const Color(0xFF1F2937), "
+                        "textStyle: const TextStyle(fontSize: 13), "
                         "side: const BorderSide(color: Color(0xFFE5E7EB)), "
                         "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
                         ")"
