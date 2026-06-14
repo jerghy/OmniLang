@@ -165,7 +165,7 @@ class OmniViewCodegen(CodegenBase):
             "dispose": 'import { dispose } from "./omniview-runtime";',
             "h": 'import { h } from "./omniview-runtime";',
             "render": 'import { render } from "./omniview-runtime";',
-            "bindTextContent": 'import { bindTextContent, bindProperty, bindAttribute, bindEvent } from "./omniview-runtime";',
+            "bindTextContent": 'import { bindTextContent, bindProperty, bindAttribute } from "./omniview-runtime";',
             "renderConditional": 'import { renderConditional } from "./omniview-runtime";',
             "renderList": 'import { renderList } from "./omniview-runtime";',
             "traceExecution": 'import { traceExecution, withTrace } from "./omniview-runtime";',
@@ -341,9 +341,20 @@ class OmniViewCodegen(CodegenBase):
         # Interpolation: {expr} → signal binding through h()
         if kind == "Interpolation" or "expr" in node:
             expr = self._get(node, "expr")
+            # For bare signal/computed references, pass the signal object directly
+            # so h() can subscribe for reactive updates
+            if isinstance(expr, dict):
+                ek = self._get(expr, "_kind", "")
+                if ek in ("IdentifierExpr", "SignalRefIR"):
+                    name = self._get(expr, "name", "x")
+                    owner = self._get(expr, "owner", "")
+                    if owner:
+                        actual = self._resolve_store_alias(owner)
+                        return f"{actual}.{name}"
+                    return name
+                # Compound expression (e.g. count + 1): wrap in anonymous computed
+                # For now, evaluate once at render time
             expr_js = self._expr_to_js(expr)
-            # If expression is a simple identifier that maps to a signal,
-            # h() will auto-detect and bind
             return expr_js
 
         # Conditional
@@ -737,6 +748,17 @@ class OmniViewCodegen(CodegenBase):
         # Intent with target
         if "intent" in expr:
             return self._gen_block_body({"statements": [expr]})
+
+        # Event handler reference
+        if kind == "EventHandlerIR" or "ref" in expr:
+            ref = self._get(expr, "ref", "")
+            if ref:
+                return ref
+            # Inline handler body
+            body = self._get(expr, "body")
+            if body:
+                return self._expr_to_js(body)
+            return "(() => {})"
 
         # Fallback for unknown
         return "undefined"

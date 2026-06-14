@@ -52,7 +52,8 @@ class TestOmniViewCodegen:
         assert 'id: "Test.count"' in js
         assert 'name: "count"' in js
         assert 'type: "number"' in js
-        assert "count.get()" in js
+        # Signal passed directly to h() for reactive binding (not .get())
+        assert "count" in js
 
     def test_generates_computed(self, parser, transformer):
         src = """component Test {
