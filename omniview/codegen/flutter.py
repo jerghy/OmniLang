@@ -44,11 +44,21 @@ class FlutterCodegen(CodegenBase):
         self._cross_file_imports: dict[str, str] = {}
         self._store_aliases: set = set()  # store variable names in component state
         self._for_item_names: set = set()  # @for loop item variable names (no _ prefix)
+        self._parent_widget: str | None = None  # track parent Flutter widget for layout constraints
 
     def _get(self, obj, key, default=None):
         if isinstance(obj, dict):
             return obj.get(key, default)
         return getattr(obj, key, default)
+
+    def _hex_to_flutter(self, hex_color: str) -> str:
+        """Convert CSS hex color to Flutter Color hex literal.
+        '#5252E0' → '0xFF5252E0', '#FFF' → '0xFFFFFF'
+        """
+        h = hex_color.lstrip("#")
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        return f"0xFF{h}"
 
     # ── Public API ─────────────────────────────────────
 
@@ -235,6 +245,20 @@ class FlutterCodegen(CodegenBase):
             rules[class_name] = parsed
         return rules
 
+    def _build_edge_insets(self, prop_name: str, val: str) -> str:
+        """Build EdgeInsets from CSS shorthand like '2px 10px' or '24px'.
+        Returns a Flutter EdgeInsets parameter string like 'padding: const EdgeInsets.all(24)'.
+        """
+        val = val.strip()
+        # Multi-value: '2px 10px' → symmetric, '1px 2px 3px 4px' → only
+        parts = [self._strip_unit(p.strip()) for p in val.split()]
+        if len(parts) == 2:
+            return f"{prop_name}: const EdgeInsets.symmetric(horizontal: {parts[1]}, vertical: {parts[0]})"
+        elif len(parts) == 4:
+            return f"{prop_name}: const EdgeInsets.fromLTRB({parts[3]}, {parts[0]}, {parts[1]}, {parts[2]})"
+        else:
+            return f"{prop_name}: const EdgeInsets.all({parts[0]})"
+
     def _strip_unit(self, val: str) -> str:
         """Strip CSS units from a value for Flutter: 24px→24, 1.5rem→1.5*14."""
         val = val.strip()
@@ -411,11 +435,43 @@ class FlutterCodegen(CodegenBase):
 
         if tag == "Container":
             container_params = []
-            # Apply inline props + CSS rules
+            container_bg = None
+            container_radius = None
+            # Apply inline props — collect bg+radius for combined BoxDecoration
             for pname, pval in props.items():
                 if pname == "padding":
                     val = self._extract_style_val(pval)
-                    container_params.append(f"padding: const EdgeInsets.all({val})")
+                    container_params.append(self._build_edge_insets("padding", val))
+                elif pname == "width":
+                    val = self._extract_style_val(pval)
+                    container_params.append(f"width: {val}")
+                elif pname == "height":
+                    val = self._extract_style_val(pval)
+                    container_params.append(f"height: {val}")
+                elif pname == "background":
+                    container_bg = self._hex_to_flutter(self._extract_style_val(pval))
+                elif pname == "borderRadius":
+                    container_radius = self._extract_style_val(pval)
+            # Build decoration if needed (Flutter: color + borderRadius → BoxDecoration)
+            if container_bg or container_radius:
+                deco_parts = []
+                if container_bg:
+                    deco_parts.append(f"color: const Color({container_bg})")
+                if container_radius:
+                    val = container_radius
+                    if " " in str(val):
+                        parts_val = [self._strip_unit(p.strip()) for p in str(val).split()]
+                        if len(parts_val) == 4:
+                            deco_parts.append(
+                                f"borderRadius: BorderRadius.only("
+                                f"topLeft: Radius.circular({parts_val[0]}), "
+                                f"topRight: Radius.circular({parts_val[1]}), "
+                                f"bottomRight: Radius.circular({parts_val[2]}), "
+                                f"bottomLeft: Radius.circular({parts_val[3]}))"
+                            )
+                    else:
+                        deco_parts.append(f"borderRadius: BorderRadius.circular({val})")
+                container_params.append(f"decoration: BoxDecoration({', '.join(deco_parts)})")
             if css_rule:
                 container_params, children = self._apply_css_to_container(css_rule, container_params, children)
             # Wrap multiple children in Column
@@ -446,10 +502,67 @@ class FlutterCodegen(CodegenBase):
         if tag == "Text":
             if css_rule:
                 params = self._apply_css_to_text(css_rule, params)
+            # Process inline text style props
+            style_parts = {}
+            for pname, pval in props.items():
+                if pname == "fontSize":
+                    style_parts["fontSize"] = self._extract_style_val(pval)
+                elif pname == "fontWeight":
+                    val = self._extract_style_val(pval)
+                    wmap = {"400": "FontWeight.normal", "500": "FontWeight.w500",
+                            "600": "FontWeight.w600", "700": "FontWeight.bold",
+                            "bold": "FontWeight.bold", "normal": "FontWeight.normal"}
+                    style_parts["fontWeight"] = wmap.get(val, "FontWeight.normal")
+                elif pname == "color":
+                    val = self._extract_style_val(pval)
+                    color_hex = self._hex_to_flutter(val)
+                    style_parts["color"] = f"const Color({color_hex})"
+            # Build TextStyle if we have style props
+            if style_parts:
+                style_strs = [f"{k}: {v}" for k, v in style_parts.items()]
+                # Merge with existing style param
+                merged = False
+                for i, p in enumerate(params):
+                    if p.startswith("style:"):
+                        existing = p[7:].strip()
+                        if existing.startswith("const "):
+                            existing = existing[6:]
+                        if existing.startswith("TextStyle(") and existing.endswith(")"):
+                            inner = existing[10:-1]
+                            merged = True
+                            params[i] = f"style: TextStyle({inner}, {', '.join(style_strs)})"
+                            break
+                if not merged:
+                    params.append(f"style: TextStyle({', '.join(style_strs)})")
+            # Collect decorative props for Container wrapping (badges)
+            text_bg = None
+            text_padding = None
+            text_border_radius = None
+            for pname, pval in props.items():
+                if pname == "background":
+                    text_bg = self._hex_to_flutter(self._extract_style_val(pval))
+                elif pname == "padding":
+                    text_padding = self._extract_style_val(pval)
+                elif pname == "borderRadius":
+                    text_border_radius = self._extract_style_val(pval)
             text_content = self._build_text_content(children)
             if text_content:
                 params.append(text_content)
-            return self._build_widget("Text", params, [], test_id)
+            result = self._build_widget("Text", params, [], test_id)
+            # Wrap in Container for badge-like styling
+            if text_bg or text_padding or text_border_radius:
+                container_params = []
+                deco_parts = []
+                if text_bg:
+                    deco_parts.append(f"color: const Color({text_bg})")
+                if text_border_radius:
+                    deco_parts.append(f"borderRadius: BorderRadius.circular({text_border_radius})")
+                if deco_parts:
+                    container_params.append(f"decoration: BoxDecoration({', '.join(deco_parts)})")
+                if text_padding:
+                    container_params.append(self._build_edge_insets("padding", text_padding))
+                result = f"Container({', '.join(container_params)}, child: {result})"
+            return result
 
         if tag == "Link":
             # GestureDetector wrapping Text
@@ -521,7 +634,12 @@ class FlutterCodegen(CodegenBase):
                 if ename in ("onChange",):
                     handler = self._gen_event_handler(ehandler)
                     params.append(f"onChanged: {handler}")
-            return self._build_widget("TextField", params, children, test_id)
+            # TextField inside Row needs finite width constraint (check BEFORE _build_widget overwrites _parent_widget)
+            needs_expand = self._parent_widget == "Row"
+            result = self._build_widget("TextField", params, children, test_id)
+            if needs_expand:
+                result = f"Expanded(child: {result})"
+            return result
 
         if tag == "Image":
             for pname, pval in props.items():
@@ -534,23 +652,31 @@ class FlutterCodegen(CodegenBase):
             return self._build_widget("ListView", params, children, test_id)
 
         if tag == "Card":
+            # Extract style props
+            card_bg = None
+            card_radius = None
+            card_padding = None
+            for pname, pval in props.items():
+                if pname == "background":
+                    card_bg = self._hex_to_flutter(self._extract_style_val(pval))
+                elif pname == "borderRadius":
+                    card_radius = self._extract_style_val(pval)
+                elif pname == "padding":
+                    card_padding = self._extract_style_val(pval)
             # Card defaults: white background, 8px radius, elevation shadow
             has_color = any(p.startswith("color:") for p in params)
             has_elevation = any(p.startswith("elevation:") for p in params)
             has_shape = any(p.startswith("shape:") for p in params)
-            if not has_color:
+            if card_bg:
+                params.append(f"color: const Color({card_bg})")
+            elif not has_color:
                 params.append("color: Colors.white")
             if not has_elevation:
                 params.append("elevation: 2")
-            if not has_shape and not any("borderRadius" in p for p in params):
+            if card_radius:
+                params.append(f"shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular({card_radius}))")
+            elif not has_shape and not any("borderRadius" in p for p in params):
                 params.append("shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))")
-            # Extract padding prop — Flutter Card doesn't accept padding directly,
-            # so wrap children in a Padding widget
-            card_padding = None
-            for pname, pval in props.items():
-                if pname == "padding":
-                    card_padding = self._extract_style_val(pval)
-                    break
             if card_padding:
                 # Build children string, then wrap in Padding
                 child_strs = []
@@ -564,7 +690,8 @@ class FlutterCodegen(CodegenBase):
                     inner = child_strs[0]
                 else:
                     inner = "const SizedBox.shrink()"
-                params.append(f"child: Padding(padding: const EdgeInsets.all({card_padding}), child: {inner})")
+                edge_insets = self._build_edge_insets("padding", card_padding)
+                params.append(f"child: Padding({edge_insets}, child: {inner})")
                 return self._build_widget("Card", params, [], test_id)
             return self._build_widget("Card", params, children, test_id)
 
@@ -593,11 +720,30 @@ class FlutterCodegen(CodegenBase):
         if test_id:
             parts.append(f'key: const ValueKey("{test_id}")')
 
+        # Track parent widget so children can adapt (e.g. TextField in Row needs Expanded)
+        old_parent = self._parent_widget
+        self._parent_widget = widget
+
         child_strs = []
         for child in children:
+            # Extract flex prop before generating child (for Expanded wrapping)
+            child_flex = None
+            if isinstance(child, dict):
+                child_props = self._get(child, "props", {})
+                flex_prop = child_props.get("flex") if isinstance(child_props, dict) else None
+                if flex_prop:
+                    child_flex = self._extract_style_val(flex_prop)
             cs = self._gen_view_tree(child)
             if cs.strip():
+                # TextField inside Row needs finite width constraint
+                if widget == "Row" and cs.strip().startswith("TextField("):
+                    cs = f"Expanded(child: {cs})"
+                # Elements with flex prop inside Row/Column need Expanded
+                if child_flex and widget in self._CHILDREN_WIDGETS:
+                    cs = f"Expanded(flex: {child_flex}, child: {cs})"
                 child_strs.append(cs)
+
+        self._parent_widget = old_parent
 
         # Widget-specific child parameter naming
         _CHILD_PARAM = {"ListTile": "title", "ListItem": "title"}
