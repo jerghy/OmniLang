@@ -108,6 +108,10 @@ export function FlowCanvas({
   const selectedElementId = useEditorStore((s) => s.selectedElementId);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Stable ref for onNodeDoubleClick to avoid useEffect re-run on every render
+  const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
+  onNodeDoubleClickRef.current = onNodeDoubleClick;
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -147,12 +151,12 @@ export function FlowCanvas({
         outputValue: el.outputValue,
         ports,
         isFolded: el.isFolded,
-        onDoubleClick: onNodeDoubleClick
-          ? (elementId) => {
+        onDoubleClick: (elementId) => {
+              const cb = onNodeDoubleClickRef.current;
+              if (!cb) return;
               const found = useEditorStore.getState().elements.find((e) => e.id === elementId);
-              if (found) onNodeDoubleClick(elementId, found);
-            }
-          : undefined,
+              if (found) cb(elementId, found);
+            },
       };
 
       newNodes.push({
@@ -165,7 +169,7 @@ export function FlowCanvas({
     }
 
     setNodes(newNodes);
-  }, [elements, wires, showViews, selectedElementId, onNodeDoubleClick]);
+  }, [elements, wires, showViews, selectedElementId]);
 
   // ── Convert wires -> React Flow edges ──
 
@@ -321,13 +325,14 @@ export function FlowCanvas({
 
   const handleNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      if (!onNodeDoubleClick) return;
+      const cb = onNodeDoubleClickRef.current;
+      if (!cb) return;
       const el = elements.find((e) => e.id === node.id);
       if (el && el.nodeType === "codeblock") {
-        onNodeDoubleClick(el.id, el);
+        cb(el.id, el);
       }
     },
-    [elements, onNodeDoubleClick],
+    [elements],
   );
 
   // ── Context menu (right-click -> add block) ──
