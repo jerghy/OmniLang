@@ -534,14 +534,23 @@ class OmniDriver {
     // Look up node config from registry for proper portType + nodeCategory
     const config = getNodeConfig(blockType);
 
-    // Clone default ports, mapping "any"-typed ports to the caller's valueType
-    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p) => ({
-      name: p.name,
-      direction: p.direction,
-      portType: p.portType, // "flow" for action.call, "data" for most others
-      type: p.type === "any" ? valueType : p.type,
-      label: p.label,
-    }));
+    // Clone default ports, mapping value-typed ports to the caller's valueType.
+    // Keep deps as "any" (it accepts dependencies of any type).
+    // Keep call as "void" (flow port, not a data type).
+    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p) => {
+      const shouldMapType =
+        p.type === "any" &&
+        p.name !== "deps" &&       // computed deps always accepts "any"
+        p.name !== "call" &&       // action call is flow port
+        p.name !== "result";       // action result is explicitly "any"
+      return {
+        name: p.name,
+        direction: p.direction,
+        portType: p.portType,
+        type: shouldMapType ? valueType : p.type,
+        label: p.label,
+      };
+    });
 
     const id = this._nextId();
     const parentStore = options.parentStore || "";
@@ -866,13 +875,20 @@ class OmniDriver {
           const t = typeAnnotation?.trim() || "";
           const vt = t.length > 0 ? t : "i32";
           const cfg = getNodeConfig(blockType);
-          return cfg.defaultPorts.map((p) => ({
-            name: p.name,
-            direction: p.direction,
-            portType: p.portType,
-            type: p.type === "any" ? vt : p.type,
-            label: p.label,
-          }));
+          return cfg.defaultPorts.map((p) => {
+            const shouldMapType =
+              p.type === "any" &&
+              p.name !== "deps" &&
+              p.name !== "call" &&
+              p.name !== "result";
+            return {
+              name: p.name,
+              direction: p.direction,
+              portType: p.portType,
+              type: shouldMapType ? vt : p.type,
+              label: p.label,
+            };
+          });
         };
         for (const b of cbData.blocks) {
           if (seenIds.has(b.id)) continue;

@@ -13,6 +13,8 @@ export interface NodeTypeConfig {
   keywords: string[];
   /** Description shown in search results */
   description: string;
+  /** Default config values (op, value, targetId, etc.) */
+  config?: Record<string, unknown>;
 }
 
 // ── Code block types (existing, backward compatible) ──
@@ -172,6 +174,112 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
     ],
     keywords: ["div", "divide", "division", "除", "除法"],
     description: "两数相除",
+  },
+  // Round 3: More data nodes
+  {
+    tag: "compare", category: "data", label: "Compare", icon: "⚖️",
+    color: { bg: "#FEF3C7", border: "#D97706" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "any", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "any", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "bool", label: "A==B" },
+    ],
+    keywords: ["compare", "equal", "greater", "less", "比较", "等于"],
+    description: "比较两个值，返回布尔结果",
+    config: { op: "==", ops: ["==", "!=", ">", "<", ">=", "<="] },
+  },
+  {
+    tag: "and", category: "data", label: "And", icon: "∧",
+    color: { bg: "#DBEAFE", border: "#2563EB" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "bool", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "bool", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "bool", label: "A∧B" },
+    ],
+    keywords: ["and", "&&", "logic", "与", "逻辑"],
+    description: "逻辑与：两个输入都为 true 时输出 true",
+  },
+  {
+    tag: "or", category: "data", label: "Or", icon: "∨",
+    color: { bg: "#DBEAFE", border: "#2563EB" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "bool", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "bool", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "bool", label: "A∨B" },
+    ],
+    keywords: ["or", "||", "logic", "或", "逻辑"],
+    description: "逻辑或：任一输入为 true 时输出 true",
+  },
+  {
+    tag: "not", category: "data", label: "Not", icon: "¬",
+    color: { bg: "#DBEAFE", border: "#2563EB" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "bool", label: "A" },
+      { name: "result", direction: "out", portType: "data", type: "bool", label: "¬A" },
+    ],
+    keywords: ["not", "!", "invert", "非", "取反"],
+    description: "逻辑非：取反输入值",
+  },
+  {
+    tag: "concat", category: "data", label: "Concat", icon: "🔗",
+    color: { bg: "#FCE7F3", border: "#DB2777" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "String", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "String", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "String", label: "A+B" },
+    ],
+    keywords: ["concat", "join", "string", "连接", "拼接", "字符串"],
+    description: "拼接两个字符串",
+  },
+  {
+    tag: "literal", category: "data", label: "Literal", icon: "📝",
+    color: { bg: "#F3F4F6", border: "#6B7280" },
+    defaultPorts: [
+      { name: "value", direction: "out", portType: "data", type: "any", label: "值" },
+    ],
+    keywords: ["literal", "constant", "value", "常量", "字面量"],
+    description: "常量值，双击或右键配置",
+    config: { value: "0", type: "i32" },
+  },
+  // Round 3: Flow control nodes
+  {
+    tag: "sequence", category: "flow", label: "Sequence", icon: "📋",
+    color: { bg: "#DBEAFE", border: "#2563EB" },
+    defaultPorts: [
+      { name: "flowIn", direction: "in", portType: "flow", type: "void", label: "→" },
+      { name: "flowOut0", direction: "out", portType: "flow", type: "void", label: "1" },
+      { name: "flowOut1", direction: "out", portType: "flow", type: "void", label: "2" },
+    ],
+    keywords: ["sequence", "chain", "order", "顺序", "序列"],
+    description: "按顺序依次执行多个输出",
+    config: { outputs: 2 },
+  },
+  {
+    tag: "forEach", category: "flow", label: "For Each", icon: "🔁",
+    color: { bg: "#DBEAFE", border: "#2563EB" },
+    defaultPorts: [
+      { name: "flowIn", direction: "in", portType: "flow", type: "void", label: "→" },
+      { name: "loopBody", direction: "out", portType: "flow", type: "void", label: "Loop" },
+      { name: "completed", direction: "out", portType: "flow", type: "void", label: "Done" },
+      { name: "collection", direction: "in", portType: "data", type: "any", label: "items" },
+      { name: "current", direction: "out", portType: "data", type: "any", label: "item" },
+      { name: "index", direction: "out", portType: "data", type: "i32", label: "index" },
+    ],
+    keywords: ["for", "each", "loop", "iterate", "循环", "遍历"],
+    description: "遍历集合，为每个元素执行循环体",
+  },
+  // Round 4: UI Property node
+  {
+    tag: "updateUIProperty", category: "action", label: "Update UI", icon: "🎨",
+    color: { bg: "#FCE7F3", border: "#DB2777" },
+    defaultPorts: [
+      { name: "flowIn", direction: "in", portType: "flow", type: "void", label: "→" },
+      { name: "flowOut", direction: "out", portType: "flow", type: "void", label: "→" },
+      { name: "value", direction: "in", portType: "data", type: "String", label: "text" },
+    ],
+    keywords: ["ui", "update", "text", "display", "界面", "更新", "显示"],
+    description: "更新 UI 元素的显示文本。目标元素在 Inspector 中选择",
+    config: { targetId: "", property: "label" },
   },
   // Flow nodes
   {
