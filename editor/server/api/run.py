@@ -89,7 +89,8 @@ def _copy_runtime_file(run_dir: Path, target: str = "react") -> None:
     if runtime_src.exists():
         src_dir = run_dir / "src"
         src_dir.mkdir(parents=True, exist_ok=True)
-        _shutil.copy2(runtime_src, src_dir / "omni-runtime.ts")
+        dest_name = "omniview-runtime.ts" if target == "omniview" else "omni-runtime.ts"
+        _shutil.copy2(runtime_src, src_dir / dest_name)
 
 
 def _find_available_port(start: int = DEFAULT_VITE_PORT) -> int:
