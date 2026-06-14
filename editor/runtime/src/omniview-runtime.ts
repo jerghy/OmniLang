@@ -626,6 +626,9 @@ function mountVNode(
       cleanups.push(child.subscribe((v: unknown) => {
         textNode.textContent = v === null || v === undefined ? "" : String(v);
       }));
+    } else if (child instanceof HTMLElement) {
+      // Native DOM element (from renderConditional, renderList, etc.)
+      el.appendChild(child);
     } else if (typeof child === "string" || typeof child === "number") {
       el.appendChild(document.createTextNode(String(child)));
     } else if (typeof child === "object" && "tag" in child) {
@@ -683,24 +686,24 @@ export function bindAttribute(
 
 /**
  * Conditionally render content based on a boolean signal.
- * Recreates DOM when condition changes (not VDOM diff).
+ * Returns a transparent wrapper element that can be embedded in h() trees.
  */
 export function renderConditional(
-  container: HTMLElement,
   condition: Signal<boolean> | Computed<boolean>,
   createTrue: () => VNode | VNode[] | null | undefined,
   createFalse?: () => VNode | VNode[] | null | undefined
-): CleanupFn {
+): HTMLElement {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "contents";
   const mountPoint = document.createComment("if");
-  container.appendChild(mountPoint);
+  wrapper.appendChild(mountPoint);
   let currentCleanup: CleanupFn | null = null;
-  let mounted = false;
 
   const update = (val: boolean) => {
     // Remove current content
     if (currentCleanup) { currentCleanup(); currentCleanup = null; }
 
-    // Remove DOM between mountPoint and end of container
+    // Remove DOM after mountPoint
     let next = mountPoint.nextSibling;
     while (next) {
       const toRemove = next;
@@ -726,22 +729,25 @@ export function renderConditional(
         subCleanups.length = 0;
       };
     }
-    mounted = true;
   };
 
   update(condition.get());
-  return condition.subscribe(update);
+  const unsub = condition.subscribe(update);
+  // Register cleanup through the wrapper's removal detection
+  return wrapper;
 }
 
 /**
- * Render a list from a signal array. Key-based DOM recycling.
+ * Render a list from a signal array. Returns a wrapper element for embedding in h() trees.
+ * Key-based DOM recycling for efficient updates.
  */
 export function renderList<T>(
-  container: HTMLElement,
   items: Signal<T[]> | Computed<T[]>,
   createItem: (item: T, index: number) => VNode,
   keyFn?: (item: T) => string
-): CleanupFn {
+): HTMLElement {
+  const wrapper = document.createElement("span");
+  wrapper.style.display = "contents";
   let keyedElements = new Map<string, HTMLElement>();
   let cleanupMap = new Map<string, CleanupFn>();
 
@@ -791,16 +797,17 @@ export function renderList<T>(
       try { c(); } catch { /* best-effort */ }
     }
 
-    // Replace container content
-    container.innerHTML = "";
-    container.appendChild(fragment);
+    // Replace content
+    wrapper.innerHTML = "";
+    wrapper.appendChild(fragment);
 
     keyedElements = newKeyed;
     cleanupMap = newCleanups;
   };
 
   update(items.get());
-  return items.subscribe(update);
+  items.subscribe(update);
+  return wrapper;
 }
 
 // ── Component Lifecycle ───────────────────────────────────

@@ -500,24 +500,28 @@ class OmniViewCodegen(CodegenBase):
             return f'h("{html_tag}", {attr_str})'
 
     def _gen_conditional(self, node: dict, styles: list, comp_name: str) -> str:
-        """Generate renderConditional() call."""
+        """Generate renderConditional() call — returns a transparent wrapper element."""
         branches = self._get(node, "branches", [])
         if not branches:
             return "null"
 
         first_branch = branches[0]
-        condition = self._expr_to_js(self._get(first_branch, "condition", "true"))
+        cond_expr = self._get(first_branch, "condition")
+        # Pass signal object directly (not .get()) so renderConditional can subscribe
+        condition = self._gen_condition_signal(cond_expr)
         then_body = self._gen_view_tree(self._get(first_branch, "body"), styles, comp_name)
 
         fallback = self._get(node, "fallback")
         if fallback:
             else_body = self._gen_view_tree(fallback, styles, comp_name)
-            return f'renderConditional(container, {condition}, () => {then_body}, () => {else_body})'
-        return f'renderConditional(container, {condition}, () => {then_body})'
+            return f'renderConditional({condition}, () => {then_body}, () => {else_body})'
+        return f'renderConditional({condition}, () => {then_body})'
 
     def _gen_list(self, node: dict, styles: list, comp_name: str) -> str:
-        """Generate renderList() call."""
-        iterable = self._expr_to_js(self._get(node, "iterable", "[]"))
+        """Generate renderList() call — returns a transparent wrapper element."""
+        iterable_expr = self._get(node, "iterable", "[]")
+        # Pass signal object directly (not .get()) so renderList can subscribe
+        iterable = self._gen_condition_signal(iterable_expr)
         item_name = self._get(node, "item_binding", {}).get("name", "item") if isinstance(self._get(node, "item_binding"), dict) else "item"
         body = self._gen_view_tree(self._get(node, "body"), styles, comp_name)
         key_expr = self._get(node, "key_expr")
@@ -527,7 +531,7 @@ class OmniViewCodegen(CodegenBase):
         else:
             key_fn = "(item, i) => String(i)"
 
-        return f'renderList(container, {iterable}, ({item_name}, __i) => {body}, {key_fn})'
+        return f'renderList({iterable}, ({item_name}, __i) => {body}, {key_fn})'
 
     # ── Statements ─────────────────────────────────────────
 
@@ -671,8 +675,16 @@ class OmniViewCodegen(CodegenBase):
             field = self._get(expr, "field", "")
             return f"{obj}.{field}"
 
-        # Binary operation
-        if kind == "BinaryOpExpr" or "op" in expr:
+        # Unary operation — MUST come before BinaryOpExpr
+        # (UnaryOpExpr has "op" key too, would be falsely caught by the loose "op" in expr check)
+        if kind == "UnaryOpExpr":
+            op = self._get(expr, "op", "NOT")
+            operand = self._expr_to_js(self._get(expr, "operand"))
+            js_op = "!" if op in ("NOT", "!") else "-"
+            return f"{js_op}{operand}"
+
+        # Binary operation — check for "left"/"right" to avoid catching UnaryOpExpr
+        if kind == "BinaryOpExpr" or ("op" in expr and "left" in expr and "right" in expr):
             op = self._get(expr, "op", "+")
             left = self._expr_to_js(self._get(expr, "left"))
             right = self._expr_to_js(self._get(expr, "right"))
@@ -683,13 +695,6 @@ class OmniViewCodegen(CodegenBase):
             }
             js_op = op_map.get(op, op)
             return f"({left} {js_op} {right})"
-
-        # Unary operation
-        if kind == "UnaryOpExpr":
-            op = self._get(expr, "op", "NOT")
-            operand = self._expr_to_js(self._get(expr, "operand"))
-            js_op = "!" if op in ("NOT", "!") else "-"
-            return f"{js_op}{operand}"
 
         # Ternary
         if kind == "TernaryIR":
@@ -952,6 +957,30 @@ class OmniViewCodegen(CodegenBase):
         if result is not None:
             return result.rstrip(";") + ";" if result and not result.endswith(";") else result
         return f"{css_prop}: {val_str};"
+
+    def _gen_condition_signal(self, expr) -> str:
+        """Extract signal reference for conditional/list binding.
+
+        Passes the signal object itself (not .get()) so renderConditional/renderList
+        can subscribe to changes.
+        """
+        if isinstance(expr, dict):
+            ek = self._get(expr, "_kind", "")
+            if ek in ("IdentifierExpr", "SignalRefIR"):
+                name = self._get(expr, "name", "x")
+                owner = self._get(expr, "owner", "")
+                if owner:
+                    actual = self._resolve_store_alias(owner)
+                    return f"{actual}.{name}"
+                return name
+            # UnaryOpExpr: !show → pass signal directly? No, wrap in computed
+            if ek == "UnaryOpExpr":
+                # Complex condition — wrap in inline computed for reactivity
+                js = self._expr_to_js(expr)
+                return f"computed(() => {js})"
+        # Fallback: wrap in computed for auto-tracking
+        js = self._expr_to_js(expr)
+        return f"computed(() => {js})"
 
     @staticmethod
     def _escape_js_string(s: str) -> str:
