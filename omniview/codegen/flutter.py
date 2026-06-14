@@ -397,6 +397,9 @@ class FlutterCodegen(CodegenBase):
             widget = "Row" if direction == "row" else "Column"
             layout_props = self._build_layout_params(props, children)
             params.extend(layout_props)
+            # Flutter Column defaults to center — override to start for editor alignment
+            if widget == "Column" and not any(p.startswith("crossAxisAlignment:") for p in params):
+                params.append("crossAxisAlignment: CrossAxisAlignment.start")
             return self._build_widget(widget, params, children, test_id)
 
         if tag == "Grid":
@@ -430,9 +433,9 @@ class FlutterCodegen(CodegenBase):
         if tag == "Heading":
             level_prop = props.get("level", {})
             level = self._get(level_prop, "value", "2")
-            sizes = {"1": "32", "2": "24", "3": "20", "4": "18", "5": "16", "6": "14"}
-            size = sizes.get(level, "24")
-            params.append(f"style: TextStyle(fontSize: {size}, fontWeight: FontWeight.bold)")
+            sizes = {"1": "28", "2": "20", "3": "16", "4": "15", "5": "14", "6": "13"}
+            size = sizes.get(level, "20")
+            params.append(f"style: TextStyle(fontSize: {size}, fontWeight: FontWeight.w600)")
             if css_rule:
                 params = self._apply_css_to_text(css_rule, params)
             text_content = self._build_text_content(children)
@@ -466,6 +469,31 @@ class FlutterCodegen(CodegenBase):
             variant_map = {"primary": "ElevatedButton", "outline": "OutlinedButton",
                            "ghost": "TextButton", "secondary": "OutlinedButton"}
             flutter_button = variant_map.get(variant_val, "ElevatedButton")
+            # Add default styling matching editor design tokens
+            has_style = any(p.startswith("style:") for p in params)
+            if not has_style:
+                if flutter_button == "ElevatedButton":
+                    params.append(
+                        "style: ElevatedButton.styleFrom("
+                        "backgroundColor: const Color(0xFF4338CA), "
+                        "foregroundColor: Colors.white, "
+                        "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
+                        ")"
+                    )
+                elif flutter_button == "OutlinedButton":
+                    params.append(
+                        "style: OutlinedButton.styleFrom("
+                        "foregroundColor: const Color(0xFF374151), "
+                        "side: const BorderSide(color: Color(0xFFE5E7EB)), "
+                        "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
+                        ")"
+                    )
+                elif flutter_button == "TextButton":
+                    params.append(
+                        "style: TextButton.styleFrom("
+                        "foregroundColor: const Color(0xFF4338CA)"
+                        ")"
+                    )
             for ename, ehandler in events.items():
                 handler = self._gen_event_handler(ehandler)
                 params.append(f"onPressed: {handler}")
@@ -500,6 +528,16 @@ class FlutterCodegen(CodegenBase):
             return self._build_widget("ListView", params, children, test_id)
 
         if tag == "Card":
+            # Card defaults: white background, 8px radius, elevation shadow
+            has_color = any(p.startswith("color:") for p in params)
+            has_elevation = any(p.startswith("elevation:") for p in params)
+            has_shape = any(p.startswith("shape:") for p in params)
+            if not has_color:
+                params.append("color: Colors.white")
+            if not has_elevation:
+                params.append("elevation: 2")
+            if not has_shape and not any("borderRadius" in p for p in params):
+                params.append("shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))")
             return self._build_widget("Card", params, children, test_id)
 
         if tag == "Checkbox":
@@ -543,7 +581,7 @@ class FlutterCodegen(CodegenBase):
             elif len(child_strs) > 1:
                 # Multiple children for a single-child widget — wrap in Column
                 children_str = ", ".join(child_strs)
-                parts.append(f"child: Column(children: [{children_str}])")
+                parts.append(f"child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [{children_str}])")
             else:
                 # Single child — wrap in Text if it's a plain string
                 child_content = child_strs[0]
