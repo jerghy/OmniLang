@@ -151,12 +151,6 @@ export function FlowCanvas({
         outputValue: el.outputValue,
         ports,
         isFolded: el.isFolded,
-        onDoubleClick: (elementId) => {
-              const cb = onNodeDoubleClickRef.current;
-              if (!cb) return;
-              const found = useEditorStore.getState().elements.find((e) => e.id === elementId);
-              if (found) cb(elementId, found);
-            },
       };
 
       newNodes.push({

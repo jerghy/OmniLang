@@ -1,0 +1,71 @@
+import 'package:flutter/material.dart';
+
+// .omni:1 -- component BlogDashboard
+class BlogDashboard extends StatefulWidget {
+  const BlogDashboard({super.key});
+  @override
+  State<BlogDashboard> createState() => _BlogDashboardState();
+}
+
+class _BlogDashboardState extends State<BlogDashboard> {
+  String _activeMenu = "articles";
+  int _totalArticles = 128;
+  int _totalViews = 45678;
+  int _totalComments = 1234;
+  int _totalLikes = 9876;
+  String _searchQuery = "";
+  String _activeCategory = "all";
+
+  void _selectDashboard() {
+    setState(() {
+      _activeMenu = "dashboard";
+    });
+  }
+
+  void _selectArticles() {
+    setState(() {
+      _activeMenu = "articles";
+    });
+  }
+
+  void _selectTheme() {
+    setState(() {
+      _activeMenu = "theme";
+    });
+  }
+
+  void _selectStats() {
+    setState(() {
+      _activeMenu = "stats";
+    });
+  }
+
+  void _filterAll() {
+    setState(() {
+      _activeCategory = "all";
+    });
+  }
+
+  void _filterTech() {
+    setState(() {
+      _activeCategory = "tech";
+    });
+  }
+
+  void _filterDesign() {
+    setState(() {
+      _activeCategory = "design";
+    });
+  }
+
+  void _filterBusiness() {
+    setState(() {
+      _activeCategory = "business";
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(color: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600), "Blog Dashboard", key: const ValueKey("app-title")), Row(spacing: 24, key: const ValueKey("main-layout"), children: [Column(spacing: 4, crossAxisAlignment: CrossAxisAlignment.start, key: const ValueKey("sidebar"), children: [OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _selectDashboard(), child: Text("Dashboard"), key: const ValueKey("nav-dashboard")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5), foregroundColor: Colors.white, textStyle: const TextStyle(fontSize: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _selectArticles(), child: Text("Articles"), key: const ValueKey("nav-articles")), OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _selectTheme(), child: Text("Theme Settings"), key: const ValueKey("nav-theme")), OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _selectStats(), child: Text("Statistics"), key: const ValueKey("nav-stats"))]), Expanded(flex: 1, child: Card(color: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), child: Padding(padding: const EdgeInsets.all(0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(spacing: 16, key: const ValueKey("kpi-row"), children: [Expanded(flex: 1, child: Card(color: const Color(0xFFEEF2FF), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: const Color(0xFF5252E0)), '${_totalArticles}', key: const ValueKey("kpi-articles-value")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280)), "Total Articles", key: const ValueKey("kpi-articles-label"))])), key: const ValueKey("kpi-articles"))), Expanded(flex: 1, child: Card(color: const Color(0xFFFFF7ED), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: const Color(0xFFEA580C)), '${_totalViews}', key: const ValueKey("kpi-views-value")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280)), "Total Views", key: const ValueKey("kpi-views-label"))])), key: const ValueKey("kpi-views"))), Expanded(flex: 1, child: Card(color: const Color(0xFFF0FDF4), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: const Color(0xFF16A34A)), '${_totalComments}', key: const ValueKey("kpi-comments-value")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280)), "Comments", key: const ValueKey("kpi-comments-label"))])), key: const ValueKey("kpi-comments"))), Expanded(flex: 1, child: Card(color: const Color(0xFFFDF2F8), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: const Color(0xFFDB2777)), '${_totalLikes}', key: const ValueKey("kpi-likes-value")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280)), "Likes", key: const ValueKey("kpi-likes-label"))])), key: const ValueKey("kpi-likes")))]), Row(spacing: 12, key: const ValueKey("search-row"), children: [Expanded(child: TextField(decoration: const InputDecoration(hintText: "Search articles..."), key: const ValueKey("search-input"))), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5), foregroundColor: Colors.white, textStyle: const TextStyle(fontSize: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: null, child: Text("Search"), key: const ValueKey("btn-search"))]), Row(spacing: 8, key: const ValueKey("category-filters"), children: [Text(style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF6B7280)), "Category:"), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5), foregroundColor: Colors.white, textStyle: const TextStyle(fontSize: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _filterAll(), child: Text("All"), key: const ValueKey("cat-all")), OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _filterTech(), child: Text("Tech"), key: const ValueKey("cat-tech")), OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _filterDesign(), child: Text("Design"), key: const ValueKey("cat-design")), OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: const Color(0xFF1F2937), textStyle: const TextStyle(fontSize: 13), side: const BorderSide(color: Color(0xFFE5E7EB)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))), onPressed: () => _filterBusiness(), child: Text("Business"), key: const ValueKey("cat-business"))]), Column(spacing: 16, crossAxisAlignment: CrossAxisAlignment.start, key: const ValueKey("article-list"), children: [Card(color: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(0), child: Row(spacing: 0, children: [Container(width: 200, height: 160, decoration: BoxDecoration(color: const Color(0xFFDBEAFE), borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(0), bottomRight: Radius.circular(0), bottomLeft: Radius.circular(12))), key: const ValueKey("article-1-cover")), Expanded(flex: 1, child: Column(spacing: 8, crossAxisAlignment: CrossAxisAlignment.start, children: [Container(decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), child: Text(style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF5252E0)), "Technology", key: const ValueKey("article-1-category"))), Text(style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600), "Building Scalable Microservices with Rust", key: const ValueKey("article-1-title")), Text(style: TextStyle(fontSize: 14, color: const Color(0xFF6B7280)), "Learn how to design and deploy high-performance microservices using Rust's async runtime and zero-cost abstractions.", key: const ValueKey("article-1-excerpt")), Row(spacing: 10, mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [Container(width: 32, height: 32, decoration: BoxDecoration(color: const Color(0xFF5252E0), borderRadius: BorderRadius.circular(50)), key: const ValueKey("article-1-avatar")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1F2937)), "Alice Chen", key: const ValueKey("article-1-author")), Text(style: TextStyle(fontSize: 12, color: const Color(0xFF9CA3AF)), "Jun 12, 2026", key: const ValueKey("article-1-date"))])]))])), key: const ValueKey("article-1")), Card(color: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(0), child: Row(spacing: 0, children: [Container(width: 200, height: 160, decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(0), bottomRight: Radius.circular(0), bottomLeft: Radius.circular(12))), key: const ValueKey("article-2-cover")), Expanded(flex: 1, child: Column(spacing: 8, crossAxisAlignment: CrossAxisAlignment.start, children: [Container(decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), child: Text(style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFD97706)), "Design", key: const ValueKey("article-2-category"))), Text(style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600), "The Future of UI: Beyond Flat Design", key: const ValueKey("article-2-title")), Text(style: TextStyle(fontSize: 14, color: const Color(0xFF6B7280)), "Exploring neumorphism, glassmorphism, and the next generation of user interface design patterns.", key: const ValueKey("article-2-excerpt")), Row(spacing: 10, mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [Container(width: 32, height: 32, decoration: BoxDecoration(color: const Color(0xFFD97706), borderRadius: BorderRadius.circular(50)), key: const ValueKey("article-2-avatar")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1F2937)), "Bob Wang", key: const ValueKey("article-2-author")), Text(style: TextStyle(fontSize: 12, color: const Color(0xFF9CA3AF)), "Jun 10, 2026", key: const ValueKey("article-2-date"))])]))])), key: const ValueKey("article-2")), Card(color: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.all(0), child: Row(spacing: 0, children: [Container(width: 200, height: 160, decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(0), bottomRight: Radius.circular(0), bottomLeft: Radius.circular(12))), key: const ValueKey("article-3-cover")), Expanded(flex: 1, child: Column(spacing: 8, crossAxisAlignment: CrossAxisAlignment.start, children: [Container(decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2), child: Text(style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF059669)), "Business", key: const ValueKey("article-3-category"))), Text(style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600), "Monetization Strategies for Open Source", key: const ValueKey("article-3-title")), Text(style: TextStyle(fontSize: 14, color: const Color(0xFF6B7280)), "A comprehensive guide to sustainable business models for open-source projects in 2026.", key: const ValueKey("article-3-excerpt")), Row(spacing: 10, mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [Container(width: 32, height: 32, decoration: BoxDecoration(color: const Color(0xFF059669), borderRadius: BorderRadius.circular(50)), key: const ValueKey("article-3-avatar")), Text(style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1F2937)), "Carol Liu", key: const ValueKey("article-3-author")), Text(style: TextStyle(fontSize: 12, color: const Color(0xFF9CA3AF)), "Jun 8, 2026", key: const ValueKey("article-3-date"))])]))])), key: const ValueKey("article-3"))])])), key: const ValueKey("main-content")))])])), key: const ValueKey("dashboard-root"));
+  }
+}

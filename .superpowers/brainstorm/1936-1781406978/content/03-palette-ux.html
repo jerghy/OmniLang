@@ -1,0 +1,139 @@
+<h2>Node Palette UX & Data Model</h2>
+<p class="subtitle">如何发现和添加节点？如何改造现有面板？</p>
+
+<div class="section">
+  <h3>🔍 节点面板：搜索驱动 vs 分类浏览</h3>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">A: 搜索驱动（Unity VS 风格）</div>
+    <div class="mockup-body" style="padding:12px;font-size:11px;">
+      <div style="background:#F9FAFB;border:1px solid #D1D5DB;border-radius:6px;padding:6px 10px;margin-bottom:8px;">
+        <span style="color:#9CA3AF;">🔍 搜索节点...</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div style="padding:4px 8px;background:#EEF2FF;border-radius:3px;font-size:10px;">🔀 <b>Branch</b> <span style="color:#9CA3AF;float:right;">Flow</span></div>
+        <div style="padding:4px 8px;border-radius:3px;font-size:10px;">➕ <b>Add</b> <span style="color:#9CA3AF;float:right;">Data</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:9px;color:#6B7280;">
+        ✅ 输入 "if" → 出现 Branch<br>
+        ✅ 输入 "+" → 出现 Add<br>
+        ✅ 右键画布 → 弹出搜索框 → 输入 → Enter 创建<br>
+        ✅ 不用鼠标翻分类，熟练后极快
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">B: 分类浏览（Unreal Blueprint 风格）</div>
+    <div class="mockup-body" style="padding:12px;font-size:11px;">
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">
+        <div style="font-weight:600;font-size:10px;color:#4F46E5;">▸ 🔀 Flow Control</div>
+        <div style="padding:2px 8px 2px 16px;font-size:9px;color:#6B7280;">Branch, Sequence, For Each</div>
+        <div style="font-weight:600;font-size:10px;color:#4F46E5;">▸ ⚡ Events</div>
+        <div style="padding:2px 8px 2px 16px;font-size:9px;color:#6B7280;">On Press, On Change, On Mount</div>
+        <div style="font-weight:600;font-size:10px;color:#4F46E5;">▸ ⚙️ Actions</div>
+        <div style="font-weight:600;font-size:10px;color:#4F46E5;">▸ 📊 Data</div>
+        <div style="font-weight:600;font-size:10px;color:#4F46E5;">▸ 📦 Code Blocks</div>
+      </div>
+      <div style="font-size:9px;color:#6B7280;">
+        ✅ 新手友好，能看到所有选项<br>
+        ❌ 节点多了以后翻找很慢<br>
+        ❌ 占用侧边栏空间
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🏗️ 现有面板如何改造？</h3>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <div style="flex:1;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:10px;">
+      <div style="font-weight:600;font-size:11px;color:#DC2626;">🗑️ 移除/合并</div>
+      <div style="font-size:10px;color:#7F1D1D;margin-top:4px;">
+        • <b>BlockPalette</b> → 被 NodePalette 替代<br>
+        • <b>StatePanel</b> → 被 VariablePanel 替代<br>
+        • <b>CodeEditorPopup</b> → 仅 Code Block 节点保留
+      </div>
+    </div>
+    <div style="flex:1;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:10px;">
+      <div style="font-weight:600;font-size:11px;color:#059669;">✨ 新增</div>
+      <div style="font-size:10px;color:#064E3B;margin-top:4px;">
+        • <b>NodePalette</b> — 搜索+分类节点面板<br>
+        • <b>VariablePanel</b> — 可视化变量管理<br>
+        • <b>NodeConfigPanel</b> — 点击节点显示配置
+      </div>
+    </div>
+    <div style="flex:1;background:#EFF6FF;border:1px solid #93C5FD;border-radius:8px;padding:10px;">
+      <div style="font-weight:600;font-size:11px;color:#2563EB;">✅ 保留</div>
+      <div style="font-size:10px;color:#1E3A5F;margin-top:4px;">
+        • <b>FunctionLibrary</b> — fn 定义仍需文字<br>
+        • <b>ComponentPalette</b> — 设计模式保留<br>
+        • <b>PropertyPanel</b> — 检查器保留
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📐 数据模型变更</h3>
+  <div class="mockup">
+    <div class="mockup-header">ElementData 增加 nodeCategory + 端口元数据</div>
+    <div class="mockup-body" style="padding:12px;font-size:10px;font-family:monospace;">
+<pre style="margin:0;color:#374151;">
+// 当前 ElementData
+{
+  id, nodeType: "view"|"codeblock"|"group", tag, props,
+  children, parentId, ports, source, ...
+}
+
+// 新增字段:
+{
+  <b>nodeCategory: "flow"|"event"|"action"|"data"|"variable"|"code"</b>,
+  ports: [
+    { name, direction: "in"|"out",
+      <b>portType: "flow"|"data"</b>,  // ← 新：区分流类型
+      <b>dataType: "i32"|"bool"|"any"|"void"</b>,
+      <b>configurable: true|false</b>,      // ← 新：是否可配置
+      <b>defaultValue: ...</b>              // ← 新：默认值
+    }
+  ],
+  <b>config: {</b>                           // ← 新：节点配置
+    <b>operator: "+"|"-"|"=="|">"|...,</b>  // Math/Compare 节点的操作符
+    <b>comparisonType: "=="|"!="|">"|...,</b>
+    <b>literalValue: "10",</b>              // 字面量
+  }
+}
+</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🤔 问题：右键菜单 vs 搜索面板</h3>
+  <p class="subtitle">添加节点的主要方式应该是什么？</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="right-click-search" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>右键画布 → 弹出搜索（推荐）</h3>
+      <p>右键空白处 → 搜索框出现 → 输入关键词 → 下拉列表过滤 → Enter 或点击创建。类似 Unity VS / UE Blueprint。右手鼠标左手键盘，流暢高效。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="sidebar-palette" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>侧边栏面板 + 拖拽</h3>
+      <p>保留 ActivityBar 侧边栏，NodePalette 作为面板，节点可拖拽到画布。搜索在面板顶部过滤。适合不熟悉节点名称的新手。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>两者都有</h3>
+      <p>侧边栏保留分类浏览 + 拖拽，同时右键画布弹出快速搜索。两种方式共存，各取所需。</p>
+    </div>
+  </div>
+</div>

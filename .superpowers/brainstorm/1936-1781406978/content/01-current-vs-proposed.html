@@ -1,0 +1,110 @@
+<h2>Current Node Editor → Visual Scripting Transformation</h2>
+<p class="subtitle">Understanding what we have vs. what we're building</p>
+
+<div class="section">
+  <h3>🔴 Current State: Code-Block Wire Canvas</h3>
+  <div class="mockup">
+    <div class="mockup-header">现状：FlowCanvas（代码模式下）</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 11px; padding: 16px;">
+      <div style="display:flex; gap: 20px; align-items: flex-start;">
+        <!-- Block Palette -->
+        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:12px;min-width:140px;">
+          <div style="font-weight:600;font-size:10px;color:#9CA3AF;text-transform:uppercase;margin-bottom:8px;">💻 代码块</div>
+          <div style="background:#FCE7F3;border:1px solid #DB2777;border-radius:6px;padding:6px 8px;font-size:10px;">
+            💻 代码块<br><span style="color:#9CA3AF;font-size:9px;">编写逻辑代码，处理事件和数据流</span>
+          </div>
+        </div>
+        <!-- Canvas -->
+        <div style="flex:1;background:#FAFAFA;border:1px solid #E5E7EB;border-radius:8px;padding:16px;min-height:180px;position:relative;">
+          <div style="background:#FCE7F3;border:2px solid #DB2777;border-radius:10px;padding:10px 16px;display:inline-block;margin:10px;">
+            💻 handleClick<br><span style="font-size:9px;color:#9CA3AF;">action</span>
+          </div>
+          <span style="margin:0 4px;color:#9CA3AF;">——→</span>
+          <div style="background:#FEF3C7;border:2px solid #D97706;border-radius:10px;padding:10px 16px;display:inline-block;margin:10px;">
+            ⚡ count : i32<br><span style="font-size:9px;color:#9CA3AF;">signal</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;color:#9CA3AF;">
+        ⚠️ 每个block内部都是 <b>文字代码</b>：<code>action handleClick(event) { count.set(count.value + 1) }</code><br>
+        ⚠️ 只有 <b>1 种block类型</b>：💻 代码块（action）<br>
+        ⚠️ 无 if/else、无循环、无数学运算、无逻辑判断节点
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🟢 Proposed: Hybrid Visual Scripting</h3>
+  <div class="mockup">
+    <div class="mockup-header">目标：可视化编程（类似Unity Visual Scripting）+ 代码块共存</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 11px; padding: 16px;">
+
+      <div style="margin-bottom:12px;font-weight:600;font-size:11px;color:#374151;">📋 新增的节点面板（替代当前的单一代码块）：</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+        <div style="background:#FCE7F3;border:1px solid #DB2777;border-radius:4px;padding:4px 8px;font-size:10px;">▶️ OnClick</div>
+        <div style="background:#FEF3C7;border:1px solid #D97706;border-radius:4px;padding:4px 8px;font-size:10px;">⚡ Set Variable</div>
+        <div style="background:#DBEAFE;border:1px solid #2563EB;border-radius:4px;padding:4px 8px;font-size:10px;">🔀 Branch (if/else)</div>
+        <div style="background:#ECFDF5;border:1px solid #059669;border-radius:4px;padding:4px 8px;font-size:10px;">➕ Add</div>
+        <div style="background:#F5F3FF;border:1px solid #7C3AED;border-radius:4px;padding:4px 8px;font-size:10px;">🔁 For Each</div>
+        <div style="background:#FFF7ED;border:1px solid #EA580C;border-radius:4px;padding:4px 8px;font-size:10px;">🟰 Compare (==, >, <)</div>
+        <div style="background:#F0FDF4;border:1px solid #10B981;border-radius:4px;padding:4px 8px;font-size:10px;">🔗 Sequence</div>
+        <div style="background:#FDF2F8;border:1px solid #DB2777;border-radius:4px;padding:4px 8px;font-size:10px;">🔲 AND / OR</div>
+        <div style="background:#F3F4F6;border:1px solid #9CA3AF;border-radius:4px;padding:4px 8px;font-size:10px;">📦 代码块</div>
+      </div>
+
+      <div style="margin-bottom:12px;font-weight:600;font-size:11px;color:#374151;">🔗 可视化编程示例：按钮点击 → 计数器</div>
+      <div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:8px;padding:16px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div style="background:#E0E7FF;border:2px solid #4F46E5;border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:12px;">🔘 Button</div>
+            <div style="font-size:9px;color:#6B7280;">onPress →</div>
+          </div>
+          <span style="font-size:16px;color:#9CA3AF;margin-top:16px;">→</span>
+          <div style="background:#DBEAFE;border:2px solid #2563EB;border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:12px;">🔀 Branch</div>
+            <div style="font-size:9px;color:#6B7280;">count &lt; 10 ?</div>
+          </div>
+          <span style="font-size:16px;color:#9CA3AF;margin-top:16px;">→ True</span>
+          <div style="background:#ECFDF5;border:2px solid #059669;border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:12px;">➕ Add</div>
+            <div style="font-size:9px;color:#6B7280;">count + 1</div>
+          </div>
+          <span style="font-size:16px;color:#9CA3AF;margin-top:16px;">→</span>
+          <div style="background:#FEF3C7;border:2px solid #D97706;border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:12px;">⚡ Set count</div>
+            <div style="font-size:9px;color:#6B7280;">更新变量</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;font-size:10px;color:#059669;">
+        ✅ 简单的 UI 交互逻辑 → 可视化节点连接，无需写代码<br>
+        ✅ 点击节点直接配置（Branch 里选条件，Add 里选操作数）<br>
+        ✅ 复杂的计算逻辑 → 仍用 📦 代码块（手动写代码）
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🤔 First Design Decision: Execution Model</h3>
+  <p class="subtitle">Unity Visual Scripting separates <b>Flow</b> (execution order) from <b>Data</b> (values). Should we?</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="flow-data-separate" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Flow + Data 分离（类似 Unity VS）</h3>
+      <p>白色箭头 = 执行流（sequence），彩色线 = 数据流。Button.onPress → Branch → Set Variable 是执行流，count + 1 的结果是数据流。每个节点同时有 flow 输入/输出端口和数据端口。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="unified-wire" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>统一连线（简化版）</h3>
+      <p>不分执行流和数据流，所有连线统一处理。事件触发节点 → 自动按拓扑顺序执行后续节点。更简单但表达能力弱一些。</p>
+    </div>
+  </div>
+</div>

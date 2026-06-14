@@ -1,0 +1,154 @@
+<h2>Library Analysis: 用哪个库？</h2>
+<p class="subtitle">项目已有 Rete.js + @xyflow/react，还有 litegraph 可选</p>
+
+<div class="section">
+  <h3>🔍 关键发现</h3>
+  <div style="background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="font-weight:600;font-size:12px;color:#065F46;">📦 项目 package.json 已安装但未使用：</div>
+    <div style="font-size:11px;color:#064E3B;margin-top:4px;font-family:monospace;">
+      "@xyflow/react": "^12.11.0"  ← 30k+ stars，最流行的节点UI库！
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📊 三方对比</h3>
+  <table style="width:100%;font-size:11px;border-collapse:collapse;">
+    <tr style="background:#F9FAFB;">
+      <td style="padding:6px 10px;border:1px solid #E5E7EB;font-weight:600;">维度</td>
+      <td style="padding:6px 10px;border:1px solid #E5E7EB;font-weight:600;background:#EEF2FF;">@xyflow/react v12 ⭐</td>
+      <td style="padding:6px 10px;border:1px solid #E5E7EB;">Rete.js v2 (当前)</td>
+      <td style="padding:6px 10px;border:1px solid #E5E7EB;">@comfyorg/litegraph</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">项目状态</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ 已安装！</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ 正在使用</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">❌ 未安装</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">GitHub Stars</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">30k+</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">10k+</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">6k+ (ComfyOrg fork)</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">渲染方式</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">React DOM</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">React DOM (via plugin)</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">Canvas2D</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">Flow/Data 分离</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ useHandleConnections + useNodesData</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">⚠️ 手动实现</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ onExecute 原生支持</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">自定义节点</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ React组件</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">⚠️ ClassicPreset</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">⚠️ Canvas绘制</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">自定义连线</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ SVG组件</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">⚠️ Connection插件</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ 内置</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">TypeScript</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ 完整</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ 完整</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ TS迁移中</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">搜索面板</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">⚠️ 需自建</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">⚠️ 需自建</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ 内置搜索框</td>
+    </tr>
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;font-weight:600;">与现有代码兼容</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;background:#ECFDF5;">✅ 完全兼容</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">✅ 已在用</td>
+      <td style="padding:5px 10px;border:1px solid #E5E7EB;">❌ Canvas2D不兼容</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>🏆 推荐: 切换到 @xyflow/react (React Flow) v12</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ 优势</h4>
+      <ul>
+        <li><b>已安装</b> — 零额外依赖</li>
+        <li><b>React 原生</b> — 节点就是 React 组件，完美融入现有架构</li>
+        <li><b>v12 数据流内置</b> — useHandleConnections 直接对应 Data 端口</li>
+        <li><b>自定义 Edge</b> — SVG 组件画 Flow 线(白色三角) vs Data 线(彩色圆形)</li>
+        <li><b>30k+ Stars</b> — 最大社区，最佳文档</li>
+        <li><b>Zustand 兼容</b> — onNodesChange/onEdgesChange 可对接现有 store</li>
+        <li><b>内置 Minimap, Controls</b> — 比 Rete 插件生态更完善</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>⚠️ 代价</h4>
+      <ul>
+        <li>需重写 FlowCanvas.tsx（846行 → 新文件）</li>
+        <li>搜索面板需自建（但很简单：input + filter）</li>
+        <li>Rete.js 依赖可以逐步移除</li>
+        <li>不使用 litegraph 的内置搜索（但它不兼容 React）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📐 React Flow v12 如何映射我们的架构</h3>
+  <div class="mockup">
+    <div class="mockup-header">概念映射</div>
+    <div class="mockup-body" style="padding:12px;font-size:10px;font-family:monospace;">
+<pre style="margin:0;color:#374151;">
+React Flow          →  我们的 Visual Scripting
+─────────────────────────────────────────────
+Node (React组件)     →  Flow/Event/Action/Data 节点
+Handle (端口)        →  Flow In/Out + Data In/Out 端口
+Edge (连线)          →  Flow Edge (白色三角) / Data Edge (彩色圆形)
+Node.data            →  ElementData.props + config
+useNodesData()       →  数据流传播（Signal → Computed）
+useHandleConnections() → 连接状态追踪
+onConnect            →  addWire (复用现有 Zustand store)
+</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔀 执行引擎：自建 or 用库？</h3>
+  <p class="subtitle">React Flow 只管渲染，不管执行。Flow 执行引擎需要自己实现（拓扑排序）</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="reactflow-self-engine" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>用 @xyflow/react + 自建 Flow Engine（推荐）</h3>
+      <p>React Flow 负责画布渲染、拖拽、连线。自己写 ~200行 拓扑排序执行器。完全掌控执行逻辑，和现有 Zustand store 无缝集成。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="stay-rete" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>保留 Rete.js + 自建 Flow Engine</h3>
+      <p>继续用现有 Rete 画布。风险最小（不改渲染层），但 Rete 的 ClassicPreset 不如 React Flow 灵活。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="litegraph" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>引入 @comfyorg/litegraph</h3>
+      <p>自带完整可视化脚本引擎（执行+搜索+蓝图节点）。但 Canvas2D 渲染，无法用 React 组件做节点 UI，和现有架构割裂大。</p>
+    </div>
+  </div>
+</div>

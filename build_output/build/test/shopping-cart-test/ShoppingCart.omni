@@ -1,0 +1,38 @@
+component ShoppingCart {
+    signal count: i32 = 0;
+    signal total: i32 = 0;
+
+    fn addApple() {
+        count = count + 1;
+        total = total + 5;
+    }
+
+    fn addBanana() {
+        count = count + 1;
+        total = total + 3;
+    }
+
+    fn addOrange() {
+        count = count + 1;
+        total = total + 4;
+    }
+
+    fn clearCart() {
+        count = 0;
+        total = 0;
+    }
+
+    view {
+        <Card padding="24px" test-id="cart-root">
+            <Heading level="2" test-id="cart-title">Shopping Cart</Heading>
+            <Text test-id="cart-items">Items: {count}</Text>
+            <Text test-id="cart-total">Total: ${total}</Text>
+            <Flex direction="row" gap="8px" test-id="product-buttons">
+                <Button onPress={addApple} variant="primary" test-id="btn-apple">Apple $5</Button>
+                <Button onPress={addBanana} variant="primary" test-id="btn-banana">Banana $3</Button>
+                <Button onPress={addOrange} variant="primary" test-id="btn-orange">Orange $4</Button>
+            </Flex>
+            <Button onPress={clearCart} variant="outline" test-id="btn-clear">Clear Cart</Button>
+        </Card>
+    }
+}

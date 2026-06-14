@@ -1,0 +1,188 @@
+<h2>Final Design: OmniLang Visual Scripting</h2>
+<p class="subtitle">完整架构 — 请逐条确认后写入设计文档</p>
+
+<div class="section">
+  <h3>🏗️ Architecture Overview</h3>
+  <div class="mockup">
+    <div class="mockup-header">系统分层</div>
+    <div class="mockup-body" style="padding:16px;font-size:11px;">
+      <div style="text-align:center;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:#DBEAFE;border:1px solid #2563EB;border-radius:6px;padding:8px;font-size:10px;">
+          <b>🎨 UI Layer (React)</b><br/>
+          NodePalette (右键搜索) | FlowCanvas (Rete.js) | VariablePanel | NodeConfigPanel
+        </div>
+        <span style="color:#9CA3AF;">↓</span>
+        <div style="background:#FEF3C7;border:1px solid #D97706;border-radius:6px;padding:8px;font-size:10px;">
+          <b>📊 State Layer (Zustand)</b><br/>
+          ElementData (增强) | WireData (不变) | Flow Engine (新增)
+        </div>
+        <span style="color:#9CA3AF;">↓</span>
+        <div style="background:#FCE7F3;border:1px solid #DB2777;border-radius:6px;padding:8px;font-size:10px;">
+          <b>🔧 Compile Layer (Python)</b><br/>
+          Visual Graph → .omni AST → React TSX (双向)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📋 已确认的设计决策</h3>
+  <table style="width:100%;font-size:11px;border-collapse:collapse;">
+    <tr style="background:#F9FAFB;"><td style="padding:6px 10px;border:1px solid #E5E7EB;font-weight:600;">决策</td><td style="padding:6px 10px;border:1px solid #E5E7EB;font-weight:600;">选择</td></tr>
+    <tr><td style="padding:6px 10px;border:1px solid #E5E7EB;">执行模型</td><td style="padding:6px 10px;border:1px solid #E5E7EB;">✅ Flow + Data 分离</td></tr>
+    <tr><td style="padding:6px 10px;border:1px solid #E5E7EB;">Code Block 集成</td><td style="padding:6px 10px;border:1px solid #E5E7EB;">✅ 黑盒节点，端口自动从源码生成</td></tr>
+    <tr><td style="padding:6px 10px;border:1px solid #E5E7EB;">节点添加方式</td><td style="padding:6px 10px;border:1px solid #E5E7EB;">✅ 右键画布 → 搜索弹出</td></tr>
+    <tr><td style="padding:6px 10px;border:1px solid #E5E7EB;">复杂逻辑</td><td style="padding:6px 10px;border:1px solid #E5E7EB;">✅ 代码块（文字代码）</td></tr>
+    <tr><td style="padding:6px 10px;border:1px solid #E5E7EB;">简单交互</td><td style="padding:6px 10px;border:1px solid #E5E7EB;">✅ 可视化节点连接</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>📐 核心数据模型</h3>
+  <div class="mockup">
+    <div class="mockup-header">ElementData 增强</div>
+    <div class="mockup-body" style="padding:12px;font-size:10px;font-family:monospace;">
+<pre style="margin:0;color:#374151;">
+// Port 增强
+interface Port {
+  name: string;
+  direction: "in" | "out";
+  <b>portType: "flow" | "data";</b>        // 新：区分流类型
+  type: string;                         // 数据类型
+  label?: string;
+  <b>configurable?: boolean;</b>            // 新：节点上可配置
+  <b>defaultValue?: unknown;</b>           // 新：默认值
+}
+
+// ElementData 增强
+interface ElementData {
+  // ... 现有字段 ...
+  <b>nodeCategory: "flow" | "event" | "action" | "data" | "variable" | "code";</b>
+  <b>config?: Record&lt;string, unknown&gt;;</b>   // 新：节点配置
+  <b>flowOrder?: number;</b>                // 新：执行顺序（拓扑）
+}
+</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔀 Wire 可视化规则</h3>
+  <div class="mockup">
+    <div class="mockup-header">Flow 线 vs Data 线</div>
+    <div class="mockup-body" style="padding:12px;font-size:11px;">
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <div style="width:20px;height:3px;background:#9CA3AF;border-radius:2px;"></div>
+            <span style="font-size:10px;font-weight:600;">Flow（执行流）</span>
+          </div>
+          <div style="font-size:9px;color:#6B7280;">• 白色/灰色实线，较粗 (3px)
+          <br>• 连接节点左侧 flow in → 右侧 flow out
+          <br>• 决定执行顺序（单线链式）
+          <br>• 端口形状：三角形 ▶</div>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <div style="width:20px;height:2px;background:#2563EB;border-radius:1px;"></div>
+            <span style="font-size:10px;font-weight:600;">Data（数据流）</span>
+          </div>
+          <div style="font-size:9px;color:#6B7280;">• 彩色实线（按数据类型着色）
+          <br>• 连接节点上下端口（value/set/deps）
+          <br>• 传递数据值
+          <br>• 端口形状：圆形 ●</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔲 节点视觉规范</h3>
+  <div class="mockup">
+    <div class="mockup-header">各类节点的外观</div>
+    <div class="mockup-body" style="padding:12px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="background:#FCE7F3;border:2px solid #DB2777;border-radius:8px;padding:8px 12px;width:120px;text-align:center;">
+          <div style="font-size:11px;font-weight:600;">▶️ On Press</div>
+          <div style="font-size:8px;color:#9CA3AF;">Event</div>
+          <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+            <div style="width:8px;height:8px;background:#9CA3AF;clip-path:polygon(100% 50%,0 0,0 100%);"></div>
+          </div>
+        </div>
+        <div style="background:#DBEAFE;border:2px solid #2563EB;border-radius:8px;padding:8px 12px;width:120px;text-align:center;">
+          <div style="font-size:11px;font-weight:600;">🔀 Branch</div>
+          <div style="font-size:8px;color:#9CA3AF;">Flow</div>
+          <div style="font-size:8px;margin-top:2px;">True → / False →</div>
+        </div>
+        <div style="background:#FEF3C7;border:2px solid #D97706;border-radius:8px;padding:8px 12px;width:120px;text-align:center;">
+          <div style="font-size:11px;font-weight:600;">⚡ Set count</div>
+          <div style="font-size:8px;color:#9CA3AF;">Action</div>
+        </div>
+        <div style="background:#ECFDF5;border:2px solid #059669;border-radius:8px;padding:8px 12px;width:120px;text-align:center;">
+          <div style="font-size:11px;font-weight:600;">➕ Add</div>
+          <div style="font-size:8px;color:#9CA3AF;">Data</div>
+          <div style="font-size:8px;">A + B →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔄 7-Round Implementation Plan</h3>
+  <table style="width:100%;font-size:10px;border-collapse:collapse;">
+    <tr style="background:#F9FAFB;">
+      <td style="padding:4px 8px;border:1px solid #E5E7EB;font-weight:600;width:50px;">Round</td>
+      <td style="padding:4px 8px;border:1px solid #E5E7EB;font-weight:600;">主题</td>
+      <td style="padding:4px 8px;border:1px solid #E5E7EB;font-weight:600;">交付物</td>
+    </tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">1</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Flow Engine Core</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">ElementData增强、Flow/Data端口分离、执行引擎、双色连线</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">2</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">基础节点 + NodePalette</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Event节点(OnPress/OnChange)、Action节点(SetVar/RunCode)、Data节点(Math)、右键搜索面板</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">3</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Flow Control + Data</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Branch、Sequence、ForEach、Compare、AND/OR/NOT、NodeConfigPanel</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">4</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Variable System + UI节点</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">VariablePanel、Get/Set变量节点、UpdateUIProperty节点</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">5</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Code Block深集成</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">自动端口生成、CodeBlockNode、CodeEditorPopup改造</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">6</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">代码生成</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Visual Graph → .omni → React TSX、双向同步</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #E5E7EB;text-align:center;">7</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">真实应用验证</td><td style="padding:4px 8px;border:1px solid #E5E7EB;">Smart Task Board全交互逻辑重建、Diff测试、E2E测试</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>⚠️ 边界条件</h3>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <div style="flex:1;background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:10px;">
+      <div style="font-weight:600;font-size:10px;color:#92400E;">不在此范围内</div>
+      <div style="font-size:9px;color:#78350F;margin-top:4px;">
+        • State Machine（状态机图）— Round 7后<br>
+        • 可视化调试器（断点、单步）— 未来<br>
+        • 节点嵌套/Subgraph — 未来<br>
+        • 自定义节点（用户定义复合节点）— 未来
+      </div>
+    </div>
+    <div style="flex:1;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:10px;">
+      <div style="font-weight:600;font-size:10px;color:#065F46;">保证兼容</div>
+      <div style="font-size:9px;color:#064E3B;margin-top:4px;">
+        • 现有 .omni 源码编译不受影响<br>
+        • 现有代码块（signal/computed/action）继续工作<br>
+        • 设计模式（ComponentPalette）不变<br>
+        • OmniDriver API 保持兼容
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>✅ 确认清单</h3>
+  <p class="subtitle">请确认以上所有内容，我将写入设计文档</p>
+  <div style="font-size:11px;color:#374151;line-height:1.8;">
+    ☐ Flow + Data 分离执行模型<br>
+    ☐ 4类节点: Flow / Event / Action / Data<br>
+    ☐ Code Block 作黑盒节点，端口自动生成<br>
+    ☐ 右键搜索面板添加节点<br>
+    ☐ 数据模型增强（portType, nodeCategory, config）<br>
+    ☐ Flow线(白色三角) vs Data线(彩色圆形)<br>
+    ☐ 7轮迭代计划<br>
+    ☐ 现有面板改造方案（移除BlockPalette/StatePanel，新增3个面板）<br>
+  </div>
+</div>

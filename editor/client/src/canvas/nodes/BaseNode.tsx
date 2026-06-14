@@ -12,7 +12,6 @@ export interface BaseNodeData {
   outputValue?: unknown;
   ports: PortData[];
   isFolded?: boolean;
-  onDoubleClick?: (elementId: string) => void;
 }
 
 /**
