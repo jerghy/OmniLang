@@ -177,6 +177,60 @@ component App {
         assert slot.omni_line == 3  # line 3 (1-based)
         assert slot.omni_col > 0
 
+    def test_jsx_style_comments_stripped(self):
+        """JSX-style {/* */} comments should be completely stripped, including braces."""
+        source = """<Flex direction="row">
+  {/* Left Panel */}
+  <Card>Content</Card>
+  {/* Right Panel */}
+</Flex>"""
+        result = preprocess(source)
+        # The JSX comments should be gone entirely — no leftover {}
+        assert "{/*" not in result.processed_source
+        assert "*/}" not in result.processed_source
+        assert "Left Panel" not in result.processed_source
+        assert "Right Panel" not in result.processed_source
+        # No stray empty braces
+        assert "{}" not in result.processed_source
+
+    def test_jsx_comment_multiline(self):
+        """Multi-line JSX comments should be stripped entirely."""
+        source = """<Card>
+  {/* This is a
+     multi-line comment */}
+  <Text>Hello</Text>
+</Card>"""
+        result = preprocess(source)
+        assert "{/*" not in result.processed_source
+        assert "*/}" not in result.processed_source
+        assert "multi-line comment" not in result.processed_source
+        assert "{}" not in result.processed_source
+
+    def test_jsx_comment_no_trailing_brace(self):
+        """JSX comment missing closing } should still strip {/* and */."""
+        source = "<Flex>{/* comment */ <Text>Hi</Text></Flex>"
+        result = preprocess(source)
+        assert "{/*" not in result.processed_source
+        assert "comment" not in result.processed_source
+
+    def test_apostrophe_in_text_content(self):
+        """Apostrophes in text content (like \"Rust's\") should NOT break comment stripping."""
+        source = """<Text>Rust's async runtime and zero-cost abstractions.</Text>
+{/* Article 2 */}
+<Card>Content</Card>"""
+        result = preprocess(source)
+        assert "{/*" not in result.processed_source
+        assert "Article 2" not in result.processed_source
+        assert "Rust's" in result.processed_source  # apostrophe preserved
+
+    def test_normal_block_comment_still_works(self):
+        """/* */ without leading { should still work normally."""
+        source = "fn foo() {\n  /* normal block comment */\n  bar = 1;\n}"
+        result = preprocess(source)
+        # The block comment is stripped but the fn body is extracted
+        assert len(result.blocks) == 1
+        assert "bar = 1" in result.blocks["__OMNI_BLOCK_0__"].original_text
+
     def test_placeholders_parseable_by_lark(self):
         """Placeholders must be valid Lark terminals (match RAW_BLOCK regex)."""
         import re

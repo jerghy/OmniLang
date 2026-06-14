@@ -212,11 +212,15 @@ def _strip_comments(source: str) -> str:
     """Strip single-line comments (//) and block comments (/* */) from source.
 
     Preserves string literals and doesn't strip comments inside them.
+    NOTE: We intentionally do NOT track single-quote char literals.
+    Single quotes in .omni source are typically apostrophes in text content
+    (e.g., "Rust's async runtime"), not character literal delimiters.
+    Tracking them would cause false in-char-literal state that prevents
+    comment detection for the rest of the file.
     """
     result = []
     i = 0
     in_string = False
-    in_char = False
     escape_next = False
     while i < len(source):
         ch = source[i]
@@ -236,25 +240,25 @@ def _strip_comments(source: str) -> str:
             i += 1
             continue
 
-        if in_char:
-            result.append(ch)
-            if ch == '\\':
-                escape_next = True
-            elif ch == "'":
-                in_char = False
-            i += 1
-            continue
-
         # String start
         if ch == '"':
             in_string = True
             result.append(ch)
             i += 1
             continue
-        if ch == "'":
-            in_char = True
-            result.append(ch)
-            i += 1
+
+        # JSX-style comment {/* ... */} — strip entire construct
+        # Must check BEFORE block comment and BEFORE appending '{'
+        if ch == '{' and i + 2 < len(source) and source[i + 1] == '/' and source[i + 2] == '*':
+            i += 3  # skip {/*
+            while i + 1 < len(source):
+                if source[i] == '*' and source[i + 1] == '/':
+                    i += 2  # skip */
+                    # consume optional closing '}'
+                    if i < len(source) and source[i] == '}':
+                        i += 1
+                    break
+                i += 1
             continue
 
         # Single-line comment

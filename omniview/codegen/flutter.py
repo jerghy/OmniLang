@@ -497,6 +497,9 @@ class FlutterCodegen(CodegenBase):
             for ename, ehandler in events.items():
                 handler = self._gen_event_handler(ehandler)
                 params.append(f"onPressed: {handler}")
+            # Ensure onPressed is always provided (Flutter requirement)
+            if not any(p.startswith("onPressed:") for p in params):
+                params.append("onPressed: null")
             # Wrap button label in Text widget
             label = self._build_text_content(children) if children else '"Button"'
             params.append(f"child: Text({label})")
@@ -868,6 +871,14 @@ class FlutterCodegen(CodegenBase):
                         L.append(f"_{target} = {val};")
             elif kind in ("ExprStmt", "ExprStmtIR"):
                 L.append(f"{self._expr_to_dart(self._get(stmt, 'expr'))};")
+            elif kind in ("IfStmt", "IfStmtIR"):
+                cond = self._expr_to_dart(self._get(stmt, "condition"))
+                L.append(f"if ({cond}) {{")
+                L.append(self.indent(self._gen_block_body_dart(self._get(stmt, "then_body"), signal_names)))
+                if self._get(stmt, "else_body"):
+                    L.append("} else {")
+                    L.append(self.indent(self._gen_block_body_dart(self._get(stmt, "else_body"), signal_names)))
+                L.append("}")
         return "\n".join(L)
 
     def _gen_block_body_dart_hand(self, body) -> str:
