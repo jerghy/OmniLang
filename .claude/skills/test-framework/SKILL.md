@@ -152,6 +152,8 @@ find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
 python -m editor.server.main --dir build/test --port 5173 &
 ```
 
+**⚠️ If the server STILL returns old code after restart:** Python's `sys.modules` cache in the server process may have loaded the module before your edits hit disk. This is a deeper cache than `__pycache__` — see Pitfall 16 for the direct-compile workaround. **Do NOT waste time on multiple restart cycles.** After ONE failed restart, switch to direct `python -c` compilation.
+
 ### Pitfall 3: Worktree vs Main Repo
 If using a git worktree, Python imports from the **worktree** path, not the main repo. Edit the worktree's copy of framework files. Verify with:
 ```bash
@@ -211,14 +213,23 @@ Don't ask "compare these screenshots". Instead, ask SEPARATE targeted questions:
 - ❌ **NEVER `flutter clean`** — it breaks the running app and requires full project rebuild
 
 ### Pitfall 10: Shell Working Directory Drifts
-The Bash shell's CWD can change when running commands in subdirectories (e.g., `cd build_output/omni_flutter_app && flutter run`). After `flutter run` exits or backgrounds, the CWD may be `build_output/` instead of the project root.
+The Bash shell's CWD can change when running commands in subdirectories (e.g., `cd build_output/omni_flutter_app && flutter run`). After `flutter run` exits or backgrounds, the CWD may be `build_output/` instead of the project root. **The CWD persists across ALL subsequent commands** — it does NOT reset between turns.
 
 **Symptoms:**
 - `git add omniview/codegen/flutter.py` → "pathspec did not match any files"
 - `python -m pytest omniview/tests/` → "file or directory not found"
 - `ls build/test/` → "No such file or directory"
+- `cat build_output/omni_flutter_app/lib/blog_dashboard.dart` → "No such file or directory"
 
-**Fix:** Always prefix commands with `cd /d/space/OmniLang &&` or use absolute paths.
+**Fix:** ALWAYS use the Windows drive-letter path with `cd` prefix for ANY command that touches project files:
+```bash
+cd "D:/space/OmniLang" && git add omniview/codegen/flutter.py
+```
+- ✅ `cd "D:/space/OmniLang" && <command>` — Windows drive letter, ALWAYS works
+- ❌ `cd /d/space/OmniLang && <command>` — may not work in Git Bash for some commands
+- ❌ Relative paths like `../../omniview/...` — fragile when CWD drifts
+
+**Verification:** If a file path fails, run `pwd` first to check current directory.
 
 ### Pitfall 11: JSX-Style Comments `{/* */}` Break Parsing
 The `.omni` preprocessor's `_strip_comments` function strips `/* */` block comments but leaves behind the enclosing `{}` braces from JSX-style comments `{/* comment */}`. Result: `{}` appears in the parsed output, causing parse errors.
@@ -252,6 +263,93 @@ The `_gen_block_body_dart` function only handles `MutationStmt` and `ExprStmt` s
 Flutter's `Card` widget does not accept a `padding` parameter. The codegen must extract `padding` from props and wrap children in `Padding(EdgeInsets.all(...), child: ...)`.
 
 **Fix location:** `omniview/codegen/flutter.py` → Card handler (~line 533)
+
+### Pitfall 16: Server /api/compile Returns Stale Code After Framework Edits (CRITICAL)
+
+**Even after** kill backend → clear `__pycache__` → restart server, the `/api/compile` endpoint may STILL return code from the old framework. Python's `sys.modules` cache in the server process can survive because the import happens before file edits are fully written to disk, or because `.pyc` files are regenerated from stale bytecode during startup.
+
+**Diagnosis:** If you've edited the framework, killed/restarted the backend, and the generated output is IDENTICAL (no new code, no new props), the server has stale modules.
+
+**Fix — use DIRECT Python compilation as verification after EVERY framework edit:**
+
+```bash
+cd "D:/space/OmniLang" && python -c "
+import sys
+for k in list(sys.modules.keys()):
+    if 'omniview' in k:
+        del sys.modules[k]
+from omniview.api import compile_omni
+src = open('build/test/<app>/<Component>.omni', encoding='utf-8').read()
+result = compile_omni(src, target='flutter')
+dart = result.files.get('<Component>.dart', '')
+# Verify your fix is present:
+print('Fix present:', '<expected string>' in dart)
+with open('build_output/omni_flutter_app/lib/<component>.dart', 'w', encoding='utf-8') as f:
+    f.write(dart)
+"
+```
+
+**Key insight:** The direct `python -c` approach ALWAYS works because it:
+1. Explicitly deletes `omniview` from `sys.modules` before import
+2. Uses a fresh subprocess (no server cache)
+3. Writes output directly — no network round-trip
+
+**Do NOT waste time on multiple server restart cycles.** If ONE restart + clear cache doesn't produce the expected output, immediately switch to direct Python compile. The server will pick up changes on the next FULL system reboot (not just process restart).
+
+### Pitfall 17: Editor Canvas Empty — No DOM Styles Available for CSS Ground Truth
+
+When the `.omni` source was written directly as a file (not built visually via OmniDriver API), the editor canvas has NO rendered DOM elements. `document.querySelector('[data-omni-tag="Card"]')` returns `null`, making Iron Rule 10's DOM computed-style extraction impossible.
+
+**Symptoms:**
+- Editor screenshot shows "编译.omni 或在左侧组件面板拖入组件" placeholder text
+- `document.querySelector('[data-omni-tag="Card"]')` → null
+- The `.omni` file exists on disk but editor canvas is blank
+
+**Fallback — extract CSS spec from .omni source props directly:**
+
+```bash
+cd "D:/space/OmniLang" && python -c "
+import re
+src = open('build/test/<app>/<Component>.omni', encoding='utf-8').read()
+# Extract all style props as the ground truth spec:
+props = {
+    'fontSize': re.findall(r'fontSize=\"([^\"]+)\"', src),
+    'fontWeight': re.findall(r'fontWeight=\"([^\"]+)\"', src),
+    'color': re.findall(r' color=\"([^\"]+)\"', src),
+    'background': re.findall(r'background=\"([^\"]+)\"', src),
+    'borderRadius': re.findall(r'borderRadius=\"([^\"]+)\"', src),
+    'padding': re.findall(r'padding=\"([^\"]+)\"', src),
+    'width': re.findall(r'width=\"([^\"]+)\"', src),
+    'height': re.findall(r'height=\"([^\"]+)\"', src),
+}
+for k, v in props.items():
+    if v:
+        print(f'{k}: {v}')
+"
+```
+
+**Use these extracted values as codegen targets** — they ARE the ground truth when no DOM is available. The `.omni` source IS the spec.
+
+### Pitfall 18: Complex Components Trigger Cascading Framework Bugs
+
+A component with 40+ elements (multiple Cards, Text, Container, Input, Flex rows/columns) will trigger MANY framework bugs simultaneously. Fixing all at once creates endless debug cycles (each cycle: fix code → kill backend → clear cache → recompile → kill Flutter → restart Flutter → screenshot → Vision MCP ≈ 3-5 minutes).
+
+**Symptoms:**
+- Vision MCP reports 7+ DIFFER items after first Flutter screenshot
+- Multiple unrelated codegen issues (Card colors, Text sizes, Container sizes, layout, padding)
+- Each "fix everything" attempt breaks something else
+
+**Fix — test with MINIMAL sub-components FIRST:**
+
+1. **Minimal Card test:** 1 Card with `background` + `borderRadius` → fix Card handler
+2. **Minimal Text test:** 1 Text with `fontSize` + `color` + `fontWeight` → fix Text handler
+3. **Minimal Container test:** 1 Container with `width` + `height` + `background` → fix Container handler
+4. **Minimal Input-in-Row test:** 1 Flex(row) + 1 Input → fix TextField Expanded wrapping
+5. **Minimal flex Card test:** 1 Flex(row) + 1 Card with `flex="1"` → fix flex prop handling
+6. **Minimal badge test:** 1 Text with `background` + `padding` + `borderRadius` → fix badge wrapping
+7. **ONLY THEN** test the full complex component
+
+**Each minimal test is a self-contained verify loop:** write 5-line `.omni` → compile → check output has expected code → done. No Flutter restart needed for codegen-only checks.
 
 ## Framework Code Locations (these you CAN modify)
 
@@ -506,9 +604,15 @@ mcp__agent-vision__analyze_image with: "Is this page BLANK or does it have visib
 > 🔴 **Iron Rule 10 applies:** Use DOM computed styles as CSS ground truth, NOT Vision MCP estimates.
 
 **F3a. Extract editor CSS ground truth (MANDATORY first step):**
+
+**First, check if editor canvas has rendered elements:**
 ```javascript
-// In editor page (localhost:5174), extract ALL computed styles
 const card = document.querySelector('[data-omni-tag="Card"]');
+// If card is null → canvas is empty → use Pitfall 17 fallback
+```
+
+**If canvas has elements,** extract computed styles:
+```javascript
 const result = [];
 function walk(el, depth) {
   if (depth > 4) return;
@@ -529,9 +633,12 @@ function walk(el, depth) {
   for (const c of el.children) walk(c, depth + 1);
 }
 walk(card, 0);
-// result now contains exact px values for every element
 ```
 This gives you **exact px values** (e.g., `fontSize: "20px"`, `padding: "24px"`, `backgroundColor: "rgb(79, 70, 229)"`). Use these as the codegen targets.
+
+**If canvas is EMPTY** (card is null, editor shows placeholder text):
+Use Pitfall 17 fallback — extract CSS spec directly from `.omni` source props.
+The `.omni` source IS the ground truth when no DOM is available.
 
 **F3b. Fix codegen to match extracted values:**
 - Heading sizes: match `fontSize` from computed styles
@@ -542,7 +649,22 @@ This gives you **exact px values** (e.g., `fontSize: "20px"`, `padding: "24px"`,
 
 **F3c. Re-transpile + restart Flutter + take fresh screenshots:**
 1. Kill backend → clear __pycache__ → restart backend (Pitfall 2)
-2. Re-transpile `.omni` → write new `.dart`
+2. **Verify with direct Python compile FIRST** (Pitfall 16 — ensures fix is actually loaded):
+   ```bash
+   cd "D:/space/OmniLang" && python -c "
+   import sys
+   for k in list(sys.modules.keys()):
+       if 'omniview' in k: del sys.modules[k]
+   from omniview.api import compile_omni
+   src = open('build/test/<app>/<Component>.omni', encoding='utf-8').read()
+   result = compile_omni(src, target='flutter')
+   dart = result.files.get('<Component>.dart', '')
+   print('Fix present:', '<expected output>' in dart)
+   with open('build_output/omni_flutter_app/lib/<component>.dart', 'w', encoding='utf-8') as f:
+       f.write(dart)
+   "
+   ```
+   If the expected fix is NOT in the output → the framework edit didn't take effect. Check the edit is actually on disk, then retry.
 3. Kill Flutter → restart Flutter (Pitfall 8)
 4. Navigate fresh → enable accessibility → take screenshot
 
@@ -565,6 +687,14 @@ mcp__agent-vision__analyze_image with:
 - [ ] `{/* */}` JSX comments in .omni → stripped entirely, no leftover `{}`?
 - [ ] Heading level→fontSize mapping matches editor computed styles?
 - [ ] Button text fontSize explicit (13px), not Flutter default (14px)?
+- [ ] Card `background` prop → generates `color: const Color(0xFF...)`, not overridden by default white?
+- [ ] Card `borderRadius` prop → generates `shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(N))`?
+- [ ] Text `fontSize`/`fontWeight`/`color` props → generates `style: TextStyle(fontSize: N, fontWeight: ..., color: ...)`?
+- [ ] Container `width`/`height`/`background` props → generates `width: N, height: N, decoration: BoxDecoration(...)`?
+- [ ] Container with BOTH `background` AND `borderRadius` → merged into single `BoxDecoration(color: ..., borderRadius: ...)` — NOT separate `color:` + `decoration:` params?
+- [ ] Multi-value padding like `2px 10px` → generates `EdgeInsets.symmetric(...)` not invalid `EdgeInsets.all(2px 10)`?
+- [ ] Multi-value border-radius like `12px 0 0 12px` → generates `BorderRadius.only(...)`?
+- [ ] Text with `background`/`padding`/`borderRadius` (badge) → wrapped in `Container(decoration: BoxDecoration(...), child: Text(...))`?
 
 ### Stage F4: Flutter Logic Testing
 
@@ -697,8 +827,11 @@ Flutter web requires a specific browser device. `-d web` doesn't work on Windows
 - [ ] (Flutter) Outline button background: Colors.transparent (not solid white)
 - [ ] (Flutter) Vision MCP final check: 8/8 MATCH between editor card and Flutter
 - [ ] (Flutter) Logic testing: multi-click accumulation verified via semantics tree
-- [ ] CWD verified as project root before git commands (Pitfall 10)
+- [ ] CWD verified as project root before git commands (Pitfall 10 — use `cd "D:/space/OmniLang" &&`)
 - [ ] Any Python edits followed by: kill backend + clear __pycache__ + restart + verify in output (Pitfall 2)
+- [ ] If server still returns old code after ONE restart → switched to direct `python -c` compile (Pitfall 16)
+- [ ] Editor canvas has rendered elements for DOM CSS extraction; if empty, extracted CSS spec from .omni source (Pitfall 17)
+- [ ] Complex component (>20 elements) broken into minimal sub-component tests before full test (Pitfall 18)
 - [ ] All checks pass before git push
 
 ## Red Flags — STOP and Check
@@ -725,9 +858,11 @@ Flutter web requires a specific browser device. `-d web` doesn't work on Windows
 - **"The screenshots look close enough"** → STOP. Run Vision MCP for precise diff (Iron Rule 8).
 - **"I'll skip .omni.json — .omni is enough"** → STOP. Both must be saved (Iron Rule 6).
 - **"I'll build the whole UI then validate"** → STOP. Progressive Build-Test Loop only (Iron Rule 7).
-- **"The Python fix is in the file but API still returns old code"** → STOP. Clear __pycache__ + restart (Pitfall 2).
+- **"The Python fix is in the file but API still returns old code"** → STOP. Clear __pycache__ + restart (Pitfall 2). If STILL stale after one restart → switch to direct `python -c` compile (Pitfall 16). Do NOT waste time on multiple restart cycles.
+- **"I'll fix all the CSS bugs in one pass"** → STOP. Create minimal test cases for each bug type (Pitfall 18). Fix and verify one at a time.
 - **"Vision MCP says everything matches" after one prompt** → STOP. Run separate CSS prompt (Pitfall 7).
 - **"useCallback deps are empty but it should be fine"** → STOP. Check Pitfall 4 — this IS a bug.
+- **"The editor canvas is empty but I have the .omni source"** → STOP. Extract CSS spec from .omni source props (Pitfall 17). Do NOT guess at CSS values.
 
 ### Flutter Red Flags
 - **"Dart errors are just linter warnings"** → STOP. Fix framework for all `error` level issues. `info` level only are acceptable.
@@ -737,11 +872,13 @@ Flutter web requires a specific browser device. `-d web` doesn't work on Windows
 - **"Playwright can't find buttons in Flutter web"** → STOP. Enable accessibility mode first (Flutter Pitfall 5).
 - **"Flutter page is blank white"** → STOP. Run blank-page diagnosis checklist (Pitfall 8). Do NOT skip to "maybe it needs more time."
 - **"I'll just flutter clean to fix it"** → STOP. flutter clean breaks the project (Pitfall 9). Kill processes and restart flutter run instead.
-- **"Vision MCP says the heading is 24px"** → STOP. Extract actual DOM computed styles first (Iron Rule 10). Vision MCP estimates are ±4-14px off.
+- **"Vision MCP says the heading is 24px"** → STOP. Extract actual DOM computed styles first (Iron Rule 10) or use .omni source props (Pitfall 17). Vision MCP estimates are ±4-14px off.
 - **"The button has no onPress in .omni, it's fine"** → STOP. Flutter requires `onPressed` parameter. Codegen must add `onPressed: null` (Pitfall 13).
 - **"The fn body has if/else but generates empty {}"** → STOP. `_gen_block_body_dart` doesn't handle `IfStmtIR`. Fix codegen (Pitfall 14).
-- **"I've fixed the Python file but nothing changed"** → STOP. Did you kill backend + clear __pycache__ + restart? (Pitfall 2). Verify with `grep` on generated output.
-- **"git add says pathspec didn't match"** → STOP. Check CWD — you're probably in `build_output/`. `cd /d/space/OmniLang` first (Pitfall 10).
+- **"I've fixed the Python file but nothing changed"** → STOP. Did you kill backend + clear __pycache__ + restart? (Pitfall 2). If STILL no change after ONE restart, switch to direct `python -c` compile (Pitfall 16).
+- **"git add says pathspec didn't match"** → STOP. Check CWD with `pwd` — you're probably in `build_output/`. Use `cd "D:/space/OmniLang" &&` prefix (Pitfall 10).
+- **"There are 7+ visual differences between Flutter and spec"** → STOP. Too many simultaneous bugs. Create minimal test cases for each (Pitfall 18). Fix one framework handler at a time.
+- **"I'll grep the generated code to verify the fix"** → STOP. Regex can produce false positives across widget boundaries. Read the actual generated code context around the match.
 
 ## Common Rationalizations and Their Counters
 
