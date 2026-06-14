@@ -109,6 +109,16 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
     keywords: ["set", "assign", "variable", "设置", "赋值"],
     description: "设置变量的值",
   },
+  {
+    tag: "runCodeBlock", category: "action", label: "Run Code Block", icon: "▶️",
+    color: { bg: "#FCE7F3", border: "#DB2777" },
+    defaultPorts: [
+      { name: "flowIn", direction: "in", portType: "flow", type: "void", label: "→" },
+      { name: "flowOut", direction: "out", portType: "flow", type: "void", label: "→" },
+    ],
+    keywords: ["run", "execute", "code", "block", "运行", "执行", "代码"],
+    description: "运行一个代码块，可从 fn 库拖入自动生成输入端口",
+  },
   // Data nodes
   {
     tag: "getVariable", category: "data", label: "Get Variable", icon: "📌",
@@ -129,6 +139,39 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
     ],
     keywords: ["add", "plus", "sum", "加", "加法"],
     description: "两数相加",
+  },
+  {
+    tag: "sub", category: "data", label: "Subtract", icon: "➖",
+    color: { bg: "#ECFDF5", border: "#059669" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "any", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "any", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "any", label: "A-B" },
+    ],
+    keywords: ["sub", "subtract", "minus", "减", "减法"],
+    description: "两数相减",
+  },
+  {
+    tag: "mul", category: "data", label: "Multiply", icon: "✖️",
+    color: { bg: "#ECFDF5", border: "#059669" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "any", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "any", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "any", label: "A×B" },
+    ],
+    keywords: ["mul", "multiply", "times", "乘", "乘法"],
+    description: "两数相乘",
+  },
+  {
+    tag: "div", category: "data", label: "Divide", icon: "➗",
+    color: { bg: "#ECFDF5", border: "#059669" },
+    defaultPorts: [
+      { name: "a", direction: "in", portType: "data", type: "any", label: "A" },
+      { name: "b", direction: "in", portType: "data", type: "any", label: "B" },
+      { name: "result", direction: "out", portType: "data", type: "any", label: "A÷B" },
+    ],
+    keywords: ["div", "divide", "division", "除", "除法"],
+    description: "两数相除",
   },
   // Flow nodes
   {

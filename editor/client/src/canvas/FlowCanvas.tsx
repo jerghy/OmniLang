@@ -22,13 +22,14 @@ import { RemoveWire } from "../commands/RemoveWire";
 import { AddElement } from "../commands/AddElement";
 import { RemoveElement } from "../commands/RemoveElement";
 import type { CommandContext } from "../commands/types";
-import { getNodeConfig } from "./nodeRegistry";
+import { getNodeConfig, type NodeTypeConfig } from "./nodeRegistry";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ViewEventNode } from "./nodes/ViewEventNode";
 import { FlowEdge } from "./edges/FlowEdge";
 import { DataEdge } from "./edges/DataEdge";
 import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
 import { getAllPorts, validateConnection } from "./connectionValidators";
+import { NodePalette } from "./NodePalette";
 import type { BaseNodeData } from "./nodes/BaseNode";
 
 // ── Custom node/edge types (registered once, outside component) ──
@@ -385,34 +386,30 @@ export function FlowCanvas({
     return () => window.removeEventListener("click", close);
   }, [contextMenu]);
 
-  // ── Simple block menu items (Round 2 NodePalette will replace this) ──
+  // ── NodePalette: select a node type from the search popup ──
 
-  const BLOCK_MENU_ITEMS = [
-    { tag: "action", label: "代码块" },
-    { tag: "signal", label: "Signal" },
-    { tag: "computed", label: "Computed" },
-  ];
+  const handlePaletteSelect = useCallback(
+    (config: NodeTypeConfig) => {
+      const id = `node-${config.tag}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const ports = config.defaultPorts.map((p) => ({ ...p, direction: p.direction as "in" | "out" }));
 
-  const handleAddBlock = (tag: string) => {
-    const config = getNodeConfig(tag);
-    const id = `cb-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const ports = config.defaultPorts.map((p) => ({ ...p, direction: p.direction as "in" | "out" }));
-
-    const el: ElementData = {
-      id,
-      nodeType: "codeblock",
-      tag,
-      props: { name: config.label },
-      children: [],
-      parentId: null,
-      ports,
-      isFolded: false,
-      source: DEFAULT_SOURCE,
-      nodeCategory: config.category,
-    };
-    useUndoStore.getState().execute(new AddElement(el), ctx);
-    setContextMenu(null);
-  };
+      const el: ElementData = {
+        id,
+        nodeType: "codeblock",
+        tag: config.tag,
+        props: { name: config.label },
+        children: [],
+        parentId: null,
+        ports,
+        isFolded: false,
+        source: config.tag === "action" ? DEFAULT_SOURCE : "",
+        nodeCategory: config.category,
+      };
+      useUndoStore.getState().execute(new AddElement(el), ctx);
+      setContextMenu(null);
+    },
+    [ctx],
+  );
 
   return (
     <div
@@ -458,53 +455,13 @@ export function FlowCanvas({
         />
       </ReactFlow>
 
-      {/* Context menu — simple block adder (Round 2 will add search) */}
+      {/* NodePalette — Unity VS style search popup */}
       {contextMenu && (
-        <div
-          style={{
-            position: "absolute",
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: 1000,
-            background: "#fff",
-            borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            border: "1px solid #E5E7EB",
-            minWidth: 200,
-            padding: "6px 0",
-            fontSize: 12,
-          }}
-        >
-          <div
-            style={{
-              padding: "4px 12px",
-              color: "#9CA3AF",
-              fontSize: 10,
-              textTransform: "uppercase",
-              fontWeight: 600,
-            }}
-          >
-            添加节点
-          </div>
-          {BLOCK_MENU_ITEMS.map((item) => (
-            <div
-              key={item.tag}
-              onClick={() => handleAddBlock(item.tag)}
-              style={{
-                padding: "7px 12px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F3F4F6")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
+        <NodePalette
+          position={contextMenu}
+          onSelect={handlePaletteSelect}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );
