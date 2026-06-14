@@ -109,6 +109,25 @@ Never skip visual diff. Always compare CSS/styling separately.
 
 ### Iron Rule 9: Loop until all checks pass before git push
 
+### 🔴 Iron Rule 10: CSS Comparison Uses DOM Computed Styles as Ground Truth
+**Vision MCP estimates font sizes with ±4-14px error.** Never trust Vision MCP size estimates for codegen fixes.
+
+- ✅ Extract editor computed styles via DOM: `window.getComputedStyle(el)` → `fontSize`, `padding`, `color`, `borderRadius`, `backgroundColor`
+- ✅ Use `browser_evaluate` to walk the editor's rendered Card children and collect ALL computed styles
+- ✅ Fix codegen values to match DOM computed values EXACTLY (e.g., `fontSize: 20` not `fontSize: 24`)
+- ✅ Only use Vision MCP for MATCH/DIFFER verification AFTER codegen fixes are applied
+
+- ❌ **NEVER use Vision MCP font size estimates as codegen targets** — "looks like 24px" when DOM says 20px = wrong fix
+- ❌ **NEVER skip DOM extraction** — "Vision MCP says it matches" is NOT sufficient proof
+
+**Correct flow:**
+1. Extract editor DOM computed styles → get EXACT px values
+2. Fix codegen to match those values
+3. Re-transpile + restart Flutter
+4. Take fresh screenshots of BOTH editor card AND Flutter
+5. Ask Vision MCP: "For each spec item, state whether this MATCHES or DIFFERS"
+6. All 8/8 MATCH → done
+
 ## ⚠️ Known Pitfalls (READ BEFORE STARTING)
 
 ### Pitfall 1: Programmatic Elements ≠ .omni Source
@@ -157,6 +176,82 @@ Don't ask "compare these screenshots". Instead, ask SEPARATE targeted questions:
 1. **Elements:** "List ALL visible UI elements with exact text"
 2. **CSS:** "Describe button colors, card shadow, border radius, padding, text color"
 3. **Layout:** "Describe flex direction, gap, alignment of product rows"
+
+### Pitfall 8: Flutter Renders Blank White Page (CRITICAL)
+**Symptom:** Browser navigates to `http://localhost:8080`, page title shows "omni_flutter_app", but `flt-glass-pane` is empty or contains no canvas/content. Vision MCP sees all-white.
+
+**Diagnosis checklist (run in order):**
+1. **Check Flutter process is alive:** `netstat -ano | grep ":8080 " | grep LISTENING`
+2. **Check for Dart compilation errors:** `grep -i "error\|fail" /tmp/flutter-run.log`
+3. **Check if Flutter canvas loaded:** `document.querySelector('flt-glass-pane')` — null means Flutter engine never initialized
+4. **Check console errors:** `mcp__playwright__browser_console_messages` — Layout crashes (e.g., "TextField cannot have an unbounded width", "A RenderFlex overflowed") crash the ENTIRE widget tree silently
+5. **Check if debug service disconnected:** Flutter `flutter run` process may still listen on port 8080 but Edge browser lost the WebSocket connection
+
+**Common root causes:**
+| Symptom | Root Cause | Fix |
+|---------|-----------|-----|
+| Page loads, flt-glass-pane empty | Dart compilation failed silently | Check `flutter run` output for errors |
+| Page loads, canvas present but blank | Widget tree crashed (layout error) | Check console for "EXCEPTION CAUGHT BY RENDERING LIBRARY" |
+| Page loads, no Flutter elements at all | Debug service disconnected after `flutter clean` or process restart | Kill all dart.exe, restart flutter run |
+| Page shows old component after code change | Hot reload didn't pick up file changes | Kill flutter process, restart (hot restart `R` may not be enough) |
+
+**Fix flow:**
+1. Kill ALL dart.exe/flutter.exe processes
+2. Restart `flutter run -d edge --web-port=8080`
+3. Navigate fresh to `http://localhost:8080`
+4. Wait 3s, then `document.querySelector('flt-semantics-placeholder').click()`
+5. Take screenshot, verify with Vision MCP: "Is this page blank white or does it have visible UI?"
+6. If still blank → check console errors, fix framework codegen bug, repeat
+
+### Pitfall 9: flutter clean Deletes Everything
+**NEVER run `flutter clean` on the shared test project `build_output/omni_flutter_app/`.** It removes the build directory AND can reset the project state. The lib/ files survive but Flutter's internal build cache is wiped, requiring full recompilation.
+
+- ✅ Use Flutter hot reload (`r`) or hot restart (`R`) for code changes
+- ✅ Kill + restart `flutter run` if hot reload doesn't pick up changes
+- ❌ **NEVER `flutter clean`** — it breaks the running app and requires full project rebuild
+
+### Pitfall 10: Shell Working Directory Drifts
+The Bash shell's CWD can change when running commands in subdirectories (e.g., `cd build_output/omni_flutter_app && flutter run`). After `flutter run` exits or backgrounds, the CWD may be `build_output/` instead of the project root.
+
+**Symptoms:**
+- `git add omniview/codegen/flutter.py` → "pathspec did not match any files"
+- `python -m pytest omniview/tests/` → "file or directory not found"
+- `ls build/test/` → "No such file or directory"
+
+**Fix:** Always prefix commands with `cd /d/space/OmniLang &&` or use absolute paths.
+
+### Pitfall 11: JSX-Style Comments `{/* */}` Break Parsing
+The `.omni` preprocessor's `_strip_comments` function strips `/* */` block comments but leaves behind the enclosing `{}` braces from JSX-style comments `{/* comment */}`. Result: `{}` appears in the parsed output, causing parse errors.
+
+**Fix location:** `omniview/preprocessor.py` → `_strip_comments()`
+
+**Fix:** Add a check BEFORE the block comment handler: when `{` is immediately followed by `/*`, skip the entire `{/* ... */}` construct including both braces.
+
+### Pitfall 12: Apostrophes in Text Content Corrupt Comment Detection
+The `_strip_comments` function treats `'` (single quote) as a character literal delimiter. When text content contains an apostrophe (e.g., "Rust's async runtime"), the function enters `in_char` mode and never exits, preventing ALL subsequent comment detection for the rest of the file.
+
+**Fix location:** `omniview/preprocessor.py` → `_strip_comments()`
+
+**Fix:** Remove `in_char` tracking entirely. Single quotes in `.omni` source are always apostrophes in text content, never character literal delimiters.
+
+### Pitfall 13: Flutter Buttons Without onPress Generate Invalid Dart
+When a `<Button>` in `.omni` has no `onPress` handler (e.g., a decorative or not-yet-wired button), the Flutter codegen produces `ElevatedButton(... child: Text("Search"))` without `onPressed`, causing Dart compilation error: "Required named parameter 'onPressed' must be provided."
+
+**Fix location:** `omniview/codegen/flutter.py` → Button handler (~line 499)
+
+**Fix:** After the event handler loop, check if any param starts with `onPressed:`. If not, append `onPressed: null` so the button compiles (appears disabled).
+
+### Pitfall 14: If/Else Blocks Silently Dropped in Flutter
+The `_gen_block_body_dart` function only handles `MutationStmt` and `ExprStmt` statement kinds. `IfStmt`/`IfStmtIR` nodes (from `if/else` in fn bodies) are silently skipped, producing empty method bodies `void _handler() {}`.
+
+**Fix location:** `omniview/codegen/flutter.py` → `_gen_block_body_dart()` (~line 869)
+
+**Fix:** Add `elif kind in ("IfStmt", "IfStmtIR"):` branch that generates `if (cond) { ... } else { ... }` with recursive `_gen_block_body_dart` for then/else bodies.
+
+### Pitfall 15: Card Padding Prop Ignored
+Flutter's `Card` widget does not accept a `padding` parameter. The codegen must extract `padding` from props and wrap children in `Padding(EdgeInsets.all(...), child: ...)`.
+
+**Fix location:** `omniview/codegen/flutter.py` → Card handler (~line 533)
 
 ## Framework Code Locations (these you CAN modify)
 
@@ -313,6 +408,33 @@ git push
 > **Prerequisite:** flutter-skill MCP must be available (checked in MCP Gate).
 > **Single reusable project:** All Flutter tests share ONE project at `build_output/omni_flutter_app/`. Each test overwrites the component file and `lib/main.dart`.
 
+### Stage F0: Flutter Pre-Flight Check (MUST run before any Flutter work)
+
+**F0a. Verify Flutter environment:**
+```bash
+flutter --version           # Must be 3.x+
+flutter devices             # Must list edge or chrome
+```
+
+**F0b. Ensure shared project exists:**
+```bash
+ls build_output/omni_flutter_app/pubspec.yaml || flutter create build_output/omni_flutter_app --platforms=web
+```
+
+**F0c. Kill any stale Flutter processes:**
+```bash
+taskkill //F //IM dart.exe 2>/dev/null
+taskkill //F //IM flutter.exe 2>/dev/null
+# Also kill anything on port 8080
+netstat -ano | grep ":8080 " | awk '{print $NF}' | sort -u | xargs -r taskkill //F //PID
+sleep 3
+```
+
+**F0d. Verify backend is running:**
+```bash
+netstat -ano | grep ":5173 " | grep LISTENING || python -m editor.server.main --dir build/test --port 5173 &
+```
+
 ### Stage F1: Flutter Transpile
 
 **F1a. Compile to Flutter/Dart** — via Browser MCP `browser_evaluate`:
@@ -338,45 +460,111 @@ cd build_output/omni_flutter_app && dart analyze lib/
 
 ### Stage F2: Flutter Launch & Screenshot
 
-**F2a. Launch Flutter web app** — via Browser MCP:
+**F2a. Launch Flutter web app:**
 ```bash
-cd build_output/omni_flutter_app && flutter run -d edge --web-port=8080 &
+cd /d/space/OmniLang/build_output/omni_flutter_app && flutter run -d edge --web-port=8080 --web-hostname=localhost > /tmp/flutter-run.log 2>&1 &
 ```
-- Wait ~12s for "Flutter run key commands" prompt
-- Verify with `curl http://localhost:8080/`
+- Wait ~18s for "Flutter run key commands" in log
+- Check for errors: `grep -i "error\|fail" /tmp/flutter-run.log`
+- If "SocketException: Failed to create server socket" → Kill stale processes (F0c), retry
 
-**F2b. Navigate & enable accessibility** — via Browser MCP:
+**F2b. Navigate & enable accessibility:**
 ```javascript
-// Navigate
+// Navigate fresh (NOT refresh)
 mcp__playwright__browser_navigate → http://localhost:8080
+
+// Wait for Flutter to initialize (3-5s)
+await new Promise(r => setTimeout(r, 3000));
 
 // Enable Flutter accessibility (exposes semantics tree as DOM)
 document.querySelector('flt-semantics-placeholder').click()
 ```
 
-**F2c. Capture screenshot:**
+**F2c. BLANK PAGE CHECK (MANDATORY):**
+```javascript
+// Check if Flutter actually loaded
+const glass = document.querySelector('flt-glass-pane');
+const canvas = document.querySelector('canvas');
+const semantic = document.querySelector('flt-semantics-placeholder');
+// Return { hasGlass, hasCanvas, hasSemantic }
+```
+- If `hasGlass: false` and `hasCanvas: false` → Flutter engine never loaded. Check `/tmp/flutter-run.log` for errors, restart from F0c.
+- If `hasGlass: true` but glass.innerHTML is empty → Widget tree crashed. Check console errors, fix framework bug.
+
+**F2d. Verify with Vision MCP BEFORE proceeding:**
+```javascript
+mcp__agent-vision__analyze_image with: "Is this page BLANK or does it have visible UI? If blank say BLANK."
+```
+- If BLANK → see Pitfall 8 diagnosis checklist. Do NOT proceed to comparison.
+- If has UI → continue to F3.
+
+**F2e. Capture production screenshot:**
 `mcp__playwright__browser_take_screenshot` → save as `flutter-<app-name>.png`
 
 ### Stage F3: Flutter Visual Diff Comparison
 
-> 🔴 Use Vision MCP. Compare Flutter vs React rendering SEPARATELY (structure + CSS).
+> 🔴 **Iron Rule 10 applies:** Use DOM computed styles as CSS ground truth, NOT Vision MCP estimates.
 
-**F3a. Structure comparison:**
-`mcp__agent-vision__analyze_image` with: "List ALL visible UI elements with exact text content"
+**F3a. Extract editor CSS ground truth (MANDATORY first step):**
+```javascript
+// In editor page (localhost:5174), extract ALL computed styles
+const card = document.querySelector('[data-omni-tag="Card"]');
+const result = [];
+function walk(el, depth) {
+  if (depth > 4) return;
+  const s = window.getComputedStyle(el);
+  result.push({
+    tag: el.getAttribute('data-omni-tag'),
+    text: el.textContent?.trim().substring(0, 60),
+    fontSize: s.fontSize,
+    fontWeight: s.fontWeight,
+    color: s.color,
+    backgroundColor: s.backgroundColor,
+    borderRadius: s.borderRadius,
+    padding: s.padding,
+    margin: s.margin,
+    border: s.border,
+    boxShadow: s.boxShadow,
+  });
+  for (const c of el.children) walk(c, depth + 1);
+}
+walk(card, 0);
+// result now contains exact px values for every element
+```
+This gives you **exact px values** (e.g., `fontSize: "20px"`, `padding: "24px"`, `backgroundColor: "rgb(79, 70, 229)"`). Use these as the codegen targets.
 
-**F3b. CSS/Style comparison (SEPARATE call!):**
-`mcp__agent-vision__analyze_image` with specific questions about:
-- Button types: ElevatedButton (filled/primary) vs OutlinedButton (outline) vs TextButton (ghost)?
-- Are `variant="primary"` buttons filled and `variant="outline"` buttons outlined?
-- Card background color, border-radius, padding
-- Text alignment (centered vs left-aligned)
-- Typography: font sizes, font weights
+**F3b. Fix codegen to match extracted values:**
+- Heading sizes: match `fontSize` from computed styles
+- Button colors: match `backgroundColor` (convert to hex `0xFF...`)
+- Button text size: match `fontSize` from button child (typically 13px)
+- Card padding: extract the padding value and pass to `EdgeInsets.all(...)`
+- Outline button: check `backgroundColor` (should be "rgba(0, 0, 0, 0)" = transparent)
 
-**F3c. Flutter-specific CSS bugs checklist:**
+**F3c. Re-transpile + restart Flutter + take fresh screenshots:**
+1. Kill backend → clear __pycache__ → restart backend (Pitfall 2)
+2. Re-transpile `.omni` → write new `.dart`
+3. Kill Flutter → restart Flutter (Pitfall 8)
+4. Navigate fresh → enable accessibility → take screenshot
+
+**F3d. Verify with Vision MCP (MATCH/DIFFER check):**
+```javascript
+mcp__agent-vision__analyze_image with:
+"For each spec item, state whether this Flutter rendering MATCHES or DIFFERS. Be specific about any differences."
+```
+- List specs: Card bg, border-radius, shadow, padding, heading sizes, button colors, button text size, outline styling
+- Goal: ALL specs MATCH
+
+**F3e. Flutter-specific CSS bugs checklist:**
 - [ ] `variant` prop → correct Flutter button type? (primary→ElevatedButton, outline→OutlinedButton, ghost→TextButton)
 - [ ] Card with multiple children → wrapped in `Column` (not raw `children: [...]`)?
 - [ ] `$` signs in text properly escaped for Dart string interpolation?
 - [ ] Handler mutations wrapped in `setState()` for Flutter rebuild?
+- [ ] Button without `onPress` → output has `onPressed: null` (not missing parameter)?
+- [ ] `if/else` in fn body → generates actual Dart `if/else`, not empty method body?
+- [ ] Card `padding` prop → generates `Padding(EdgeInsets.all(...))` wrapper?
+- [ ] `{/* */}` JSX comments in .omni → stripped entirely, no leftover `{}`?
+- [ ] Heading level→fontSize mapping matches editor computed styles?
+- [ ] Button text fontSize explicit (13px), not Flutter default (14px)?
 
 ### Stage F4: Flutter Logic Testing
 
@@ -441,6 +629,38 @@ Flutter web renders into `<flt-glass-pane>` canvas by default. DOM-based testing
 ### Flutter Pitfall 6: Semantics tree async update
 After clicking a button in Flutter, the accessibility tree (`aria-label` on `flt-semantics[role="group"]`) updates asynchronously. Always `browser_wait_for` ~1s before reading state after interactions.
 
+### Flutter Pitfall 7: Blank Page After Restart (CRITICAL — see also Pitfall 8)
+After killing and restarting `flutter run`, the Edge browser tab may show a blank page even though the Flutter process listens on port 8080. This happens because the debug service WebSocket connection was broken.
+
+**Diagnosis:** Check `document.querySelector('flt-glass-pane')` — if it exists but is empty, OR if it doesn't exist and `document.querySelector('canvas')` is null, Flutter hasn't loaded.
+
+**Fix:** Navigate to `http://localhost:8080` with a FRESH page load (not just refresh). The `browser_navigate` tool does a fresh load. Then wait 3-5s for Flutter to initialize.
+
+### Flutter Pitfall 8: Layout Crash Wipes Entire Widget Tree
+When a single widget has a layout error (e.g., `TextField` inside `Row` without `Expanded`), Flutter throws "A RenderFlex overflowed" or "constraints.maxWidth < double.infinity" — and the ENTIRE widget tree fails to render. The page appears completely blank with no visible content.
+
+**Common triggers:**
+- `TextField`/`Input` inside `Row` without width constraint → needs `Expanded` wrapper
+- `Row` with fixed-width children (240px + flex + 280px) exceeding viewport in test environment
+- Card with too many nested levels causing unbounded constraints
+
+**Fix location:** `omniview/codegen/flutter.py` → need to detect Row parent and wrap unconstrained children in `Expanded` or `SizedBox`.
+
+**Workaround for testing:** Use simpler components first (Counter, ShoppingCart) to validate the pipeline. Fix complex layouts (TaskBoard, BlogDashboard) as separate codegen issues.
+
+### Flutter Pitfall 9: Debug Service Port Already in Use
+If a previous `flutter run` process wasn't fully killed, the debug service port may be occupied. `flutter run` fails with "SocketException: Failed to create server socket (OS Error: 通常每个套接字地址只允许使用一次)".
+
+**Fix:** Kill ALL dart.exe AND flutter.exe processes before restarting:
+```bash
+taskkill //F //IM dart.exe 2>/dev/null
+taskkill //F //IM flutter.exe 2>/dev/null
+sleep 3
+```
+
+### Flutter Pitfall 10: Wrong Browser Device
+Flutter web requires a specific browser device. `-d web` doesn't work on Windows — must use `-d edge` (or `-d chrome`). Run `flutter devices` to list available browsers.
+
 ## Self-Check Checklist
 
 - [ ] 🛜 MCP Availability Gate passed (both Browser + Vision MCP connected)
@@ -461,14 +681,24 @@ After clicking a button in Flutter, the accessibility tree (`aria-label` on `flt
 - [ ] NO React code was hand-written beyond scaffolding (Iron Rule 2)
 - [ ] NO Playwright bash scripts were used (Iron Rule 3)
 - [ ] Framework fix is root-cause, not symptom-patching
+- [ ] (Flutter) Stage F0 Pre-Flight: Flutter version + devices + project exists + stale processes killed
 - [ ] (Flutter) dart analyze passes with no errors
+- [ ] (Flutter) BLANK PAGE CHECK: flt-glass-pane exists with content (Stage F2c-F2d)
+- [ ] (Flutter) Editor DOM computed styles extracted (Stage F3a) — exact px values, not Vision MCP estimates
+- [ ] (Flutter) Codegen values match extracted computed styles (heading sizes, button colors, text sizes)
 - [ ] (Flutter) Button variant→type mapping verified (primary=ElevatedButton, outline=OutlinedButton)
 - [ ] (Flutter) Card children wrapped in Column (not raw children: [...])
+- [ ] (Flutter) Card padding prop → Padding(EdgeInsets.all(...)) wrapper
 - [ ] (Flutter) All handler mutations use setState() wrapper
+- [ ] (Flutter) if/else blocks in handlers generate actual Dart if/else (not empty body)
+- [ ] (Flutter) Buttons without onPress generate onPressed: null (not missing parameter)
 - [ ] (Flutter) Dollar signs in strings escaped for Dart
+- [ ] (Flutter) Button text fontSize explicitly set to match editor (typically 13px)
+- [ ] (Flutter) Outline button background: Colors.transparent (not solid white)
+- [ ] (Flutter) Vision MCP final check: 8/8 MATCH between editor card and Flutter
 - [ ] (Flutter) Logic testing: multi-click accumulation verified via semantics tree
-- [ ] (Flutter) Vision MCP: Flutter vs React structural comparison done
-- [ ] (Flutter) Vision MCP: Flutter vs React CSS comparison done SEPARATELY
+- [ ] CWD verified as project root before git commands (Pitfall 10)
+- [ ] Any Python edits followed by: kill backend + clear __pycache__ + restart + verify in output (Pitfall 2)
 - [ ] All checks pass before git push
 
 ## Red Flags — STOP and Check
@@ -505,6 +735,13 @@ After clicking a button in Flutter, the accessibility tree (`aria-label` on `flt
 - **"Card is empty / shows nothing"** → STOP. Check if Card has `children:` instead of `child: Column(children: [...])`.
 - **"Flutter doesn't rebuild on button click"** → STOP. Check if handler methods use `setState()`. Flutter Pitfall 1.
 - **"Playwright can't find buttons in Flutter web"** → STOP. Enable accessibility mode first (Flutter Pitfall 5).
+- **"Flutter page is blank white"** → STOP. Run blank-page diagnosis checklist (Pitfall 8). Do NOT skip to "maybe it needs more time."
+- **"I'll just flutter clean to fix it"** → STOP. flutter clean breaks the project (Pitfall 9). Kill processes and restart flutter run instead.
+- **"Vision MCP says the heading is 24px"** → STOP. Extract actual DOM computed styles first (Iron Rule 10). Vision MCP estimates are ±4-14px off.
+- **"The button has no onPress in .omni, it's fine"** → STOP. Flutter requires `onPressed` parameter. Codegen must add `onPressed: null` (Pitfall 13).
+- **"The fn body has if/else but generates empty {}"** → STOP. `_gen_block_body_dart` doesn't handle `IfStmtIR`. Fix codegen (Pitfall 14).
+- **"I've fixed the Python file but nothing changed"** → STOP. Did you kill backend + clear __pycache__ + restart? (Pitfall 2). Verify with `grep` on generated output.
+- **"git add says pathspec didn't match"** → STOP. Check CWD — you're probably in `build_output/`. `cd /d/space/OmniLang` first (Pitfall 10).
 
 ## Common Rationalizations and Their Counters
 
