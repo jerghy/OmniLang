@@ -28,7 +28,8 @@ LAYOUT_PROPS = {"direction", "gap", "align", "justify", "wrap", "flex",
                 "marginLeft", "marginRight", "marginTop", "marginBottom",
                 "paddingLeft", "paddingRight", "paddingTop", "paddingBottom",
                 "alignItems", "alignSelf", "justifyContent", "justifySelf",
-                "borderRadius", "border", "boxShadow", "background",
+                "borderRadius", "border", "borderTop", "borderBottom",
+                "borderLeft", "borderRight", "boxShadow", "background",
                 "color", "fontSize", "fontWeight", "cursor",
                 "position", "top", "left", "right", "bottom", "zIndex"}
 
