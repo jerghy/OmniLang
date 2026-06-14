@@ -15,7 +15,7 @@ description: Use when operating the OmniLang visual editor via window.__OMNI__ �
 
 ## 心智模型（必读）
 
-**编辑器有两层数据，它们是独立的：**
+**编辑器有两层数据 + 两套画布，它们是独立的：**
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -29,12 +29,18 @@ description: Use when operating the OmniLang visual editor via window.__OMNI__ �
 │  ← compile() 解析源文件 → 重建 Store 中的元素       │
 │  ← save() / readFile() / writeFile() 文件操作      │
 └─────────────────────────────────────────────────┘
+
+🎨 设计模式画布 (LayoutView)          💻 代码模式画布 (FlowCanvas)
+← 组件拖拽，CSS 样式，布局预览         ← 可视化脚本，节点+连线，数据流
+← OmniDriver 主战场                   ← @xyflow/react v12 渲染
+← O.button()/O.card() 等构建 UI       ← 右键搜索添加节点，拖线连接
 ```
 
 **关键后果：**
 - `compile()` 会**丢弃**程序化创建的元素，从 `.omni` 源文件重建画布
 - `getSourceCode()` **不会**反映 `omni.button()` 等程序化操作的结果
 - 如果想要"创建 UI → 编译验证"，必须先用 `setSourceCode()` 写入完整的 `.omni` 源码
+- 代码模式画布从 Store 的 `elements`/`wires` 渲染，flow 端口连执行顺序，data 端口传数据值
 
 ## When to Use
 
@@ -206,6 +212,94 @@ handler.connectTo(revenue, "result", "set");  // 只连一个！其他在源码�
 
 > **🔴 铁律：无论 action 源码中更新了多少个 signal，`result` 端口最多只能有一条出站 wire。** OmniDriver 会在 console.warn 中检测 fan-out 并警告。
 
+## 🔀 Visual Scripting: Flow vs Data（Round 1 新增）
+
+**代码模式画布已从 Rete.js 迁移到 `@xyflow/react` v12。** 引入 Flow/Data 双类型端口和连线：
+
+### 端口类型
+
+| 字段 | Flow 端口 | Data 端口 |
+|------|----------|----------|
+| `portType` | `"flow"` | `"data"` (或 undefined) |
+| 语义 | 执行顺序/控制流 | 数据值传递 |
+| Handle 形状 | 菱形 (45° 旋转方块) | 圆形 (50% border-radius) |
+| 颜色 | `#9CA3AF` (灰色) | 按数据类型着色 |
+| 位置 | 节点左侧(in)/右侧(out) | 节点左侧(in)/右侧(out) |
+| 连线样式 | 较粗(2.5px)+三角箭头 | 较细(2px)+圆形端点 |
+| 连线动画 | 虚线流动动画 | 静态实线 |
+
+### ElementData 新增字段 (editor/store/editor.ts)
+
+```typescript
+interface PortData {
+  name: string; direction: "in" | "out";
+  portType?: "flow" | "data";  // NEW — 区分流类型
+  type: string;                 // 数据类型 (i32, f64, bool, String, any, void)
+  label?: string;
+  configurable?: boolean;       // NEW — 节点上可配置
+  defaultValue?: unknown;       // NEW — 默认值
+}
+
+interface ElementData {
+  // ... 原有字段 ...
+  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";  // NEW
+  config?: Record<string, unknown>;   // NEW — 节点配置(op, comparison)
+  flowOrder?: number;                 // NEW — 拓扑执行顺序
+}
+```
+
+### 节点分类 (nodeCategory)
+
+| Category | 用途 | 现有节点标签 | 示例端口 |
+|----------|------|------------|---------|
+| `"event"` | UI 事件源 | onPress, onChange | flowOut + dataOut |
+| `"action"` | 状态变更 | action, setVariable | flowIn + flowOut |
+| `"flow"` | 执行控制 | branch | flowIn → true/false |
+| `"data"` | 数据计算 | computed, add, getVariable | dataIn → dataOut |
+| `"variable"` | 变量存储 | signal, store | value(out) + set(in) |
+| `"code"` | 代码块 | fn | 端口自动从源码生成 |
+
+### 连线类型区分
+
+```javascript
+// 在代码模式画布中，连线根据 portType 自动选择渲染方式：
+// portType === "flow" → FlowEdge (灰色三角箭头)
+// portType !== "flow" → DataEdge (彩色圆形端点)
+
+// 通过 O.wires 查看连线数据，配合 elements 判断类型：
+const flowWires = O.wires.filter(w => {
+  const fromEl = O.elements.find(e => e.id === w.fromId);
+  const fromPort = fromEl?.ports?.find(p => p.name === w.fromPort);
+  return fromPort?.portType === "flow";
+});
+const dataWires = O.wires.filter(w => {
+  const fromEl = O.elements.find(e => e.id === w.fromId);
+  const fromPort = fromEl?.ports?.find(p => p.name === w.fromPort);
+  return fromPort?.portType !== "flow";
+});
+```
+
+### 代码模式画布操作 (浏览器 Console)
+
+代码模式使用 @xyflow/react 渲染。与设计模式的 `LayoutView` 不同，代码画布通过右键菜单或快捷键交互：
+
+```javascript
+// 切换到代码模式
+O.switchMode("code");
+
+// 画布 DOM 结构:
+// .react-flow__wrapper           — @xyflow/react 容器
+// .react-flow__node              — 节点元素
+// .react-flow__edge              — 连线元素
+// .react-flow__controls          — 缩放控件 (+/-/fit)
+// .react-flow__minimap           — 小地图
+
+// 右键画布 → 出现"添加节点"菜单 (action/signal/computed)
+// 拖拽端口之间连线 → 自动创建 Wire
+// 双击代码块节点 → 打开 CodeEditorPopup
+// Delete/Backspace → 删除选中节点及其连线
+```
+
 ## 📖 Recipe Book（复制即用的完整模板）
 
 **先检查 `O.listSnippets()` 是否有内置模板，再查 Recipe Book，都没有才从零构建。**
@@ -373,12 +467,14 @@ const result = await O.compile();
 
 ### 代码块端口参考（必读）
 
-| 类型 | 输出端口 | 输入端口 | 用途 |
-|------|---------|---------|------|
-| `signal` | `value` (out) | `set` (in) | 响应式状态变量 |
-| `computed` | `value` (out) | `deps` (in) | 派生计算值 |
-| `action` | `result` (out) | `call` (in) | 事件处理函数 |
-| `store` | `items` (out) | — | 数据集合 |
+| 类型 | nodeCategory | 输出端口 | 输入端口 | 用途 |
+|------|-------------|---------|---------|------|
+| `signal` | `"variable"` | `value` (data, out) | `set` (data, in) | 响应式状态变量 |
+| `computed` | `"data"` | `value` (data, out) | `deps` (data, in) | 派生计算值 |
+| `action` | `"action"` | `result` (data, out) | `call` (**flow**, in) | 事件处理函数 |
+| `store` | `"variable"` | `items` (data, out) | — | 数据集合 |
+
+> **🔑 Round 1 新增：** `action` 的 `call` 端口现在是 **flow 类型**（执行流入口），而 `result` 是 **data 类型**（数据输出）。flow 端口渲染为菱形，data 端口渲染为圆形。
 
 ```javascript
 // ✅ 正确：设置 signal → 连到 set 端口
@@ -597,7 +693,62 @@ const report = O.validate();
 // { orphanElements, unwiredEvents, typeMismatches, unreachableBlocks, isValid }
 ```
 
-## 🔍 Context-Aware Extension（扩展已有画布）
+## 🔬 Flow Engine & Node Registry（Round 1 新增内部 API）
+
+**这些是 TypeScript 模块，通过 Zustand store 间接访问，不能通过 `window.__OMNI__` 直接调用。** 在浏览器 Console 中，可以直接 import 或通过 store 访问。
+
+### FlowEngine (`editor/client/src/canvas/FlowEngine.ts`)
+
+拓扑排序执行引擎。从 event 节点开始，沿 flow-out 边 BFS 遍历执行 DAG：
+
+```javascript
+// 在浏览器 Console 中测试 FlowEngine:
+const store = window.__ZUSTAND_EDITOR_STORE__.getState();
+const { elements, wires } = store;
+
+// 手动调用 (需要 import，Console 中不可直接用)
+// import { executeFlow, validateFlow } from "./canvas/FlowEngine";
+// const result = executeFlow(elements, wires);
+// result.steps  → ExecutionStep[]  按拓扑顺序排列
+// result.unreachable → string[]    无入站连线的代码块
+
+// validateFlow 检测:
+// - 循环依赖 (flow 连线形成环)
+// - 孤立 flow 输入 (action 节点有 flowIn 端口但无线接入)
+```
+
+### NodeRegistry (`editor/client/src/canvas/nodeRegistry.ts`)
+
+节点类型 → 视觉配置的中央注册表。12 种已注册节点类型：
+
+```javascript
+// 在浏览器 Console 中查看 nodeRegistry:
+// 实际文件路径: editor/client/src/canvas/nodeRegistry.ts
+// 提供 getNodeConfig(tag) / getAllNodeConfigs() / getNodeConfigsByCategory(cat)
+
+// 间接验证 — 通过检查 O.elements 中元素的 ports:
+const actionEl = O.elements.find(e => e.tag === "action");
+console.log(actionEl?.ports);  
+// [{name:"call",direction:"in",portType:"flow",type:"void"},
+//  {name:"result",direction:"out",portType:"data",type:"any"}]
+
+// 6 种 category: event, action, flow, data, variable, code
+// 12 种已注册 tag: signal, computed, action, store, fn, fn-call,
+//                    onPress, onChange, setVariable, getVariable, add, branch
+```
+
+### 代码画布自定义组件
+
+| 组件 | 文件 | 用途 |
+|------|------|------|
+| `FlowCanvas` | `canvas/FlowCanvas.tsx` | @xyflow/react 主画布 (~430行) |
+| `BaseNode` | `canvas/nodes/BaseNode.tsx` | 共享节点 chrome (icon+label+handles) |
+| `CodeBlockNode` | `canvas/nodes/CodeBlockNode.tsx` | 代码块节点渲染 |
+| `ViewEventNode` | `canvas/nodes/ViewEventNode.tsx` | 视图元素事件节点 |
+| `FlowEdge` | `canvas/edges/FlowEdge.tsx` | 执行流连线 (灰/三角箭头) |
+| `DataEdge` | `canvas/edges/DataEdge.tsx` | 数据流连线 (彩色/圆形端点) |
+
+
 
 **在已有画布上添加功能，不破坏现有结构：**
 
@@ -834,6 +985,11 @@ else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires")
 - **"我先从零构建，不用 snippet"** → 检查 `O.listSnippets()` — 可能有现成模板
 - **"我把所有元素创建完再一起验证"** → 等全部完成再验证，出问题找不到根因。每 3-5 步验证一次
 - **"我用 `O.connect(id, 'evt-btn-press-001', ...)` 手动连线"** → `createEventHandler(eventName)` 更安全，自动处理 UUID
+- **"代码画布上 flow 线和 data 线看起来一样"** → 检查 portType 字段：flow 端口用菱形+灰色连线，data 端口用圆形+彩色连线
+- **"verify 时 action 的 call 端口连不上"** → action.call 是 flow 端口(菱形)，只能接收 flow 类型的连线。确保源端口的 portType 也是 "flow"
+- **"nodeCategory 字段为 undefined"** → 旧元素可能没有此字段。通过 `getNodeConfig(el.tag)` 查找默认 category，或手动设置 `el.nodeCategory`
+- **"在代码画布上找不到 Rete.js 元素了"** → 代码画布已从 Rete.js 迁移到 @xyflow/react。查找 `.react-flow__node` 代替 `[data-testid="node"]`
+- **"validate() 不检测 flow 循环"** → `O.validate()` 检测数据流问题。用 `validateFlow(elements, wires)` 检测 flow 图的循环和孤立端口
 
 ## 可用组件
 
