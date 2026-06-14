@@ -1,6 +1,6 @@
 ---
 name: test-framework
-description: Use when testing OmniLang framework with real-world apps — build in visual editor via OmniDriver API, transpile to React, screenshot-compare with Vision MCP, test logic, fix framework code (never generated code), loop until passing, git push. Triggers: "test framework", "validate transpile", "real case test", "framework test"
+description: Use when testing OmniLang framework with real-world apps — build in visual editor via OmniDriver API, transpile to React/Flutter, screenshot-compare with Vision MCP, test logic, fix framework code (never generated code), loop until passing, git push. Triggers: "test framework", "validate transpile", "real case test", "framework test", "flutter test"
 ---
 
 # Test-Framework — OmniLang Framework Validation via Real-World Apps
@@ -13,12 +13,15 @@ description: Use when testing OmniLang framework with real-world apps — build 
 Checklist:
 1. mcp__playwright__browser_navigate — exists? (Browser MCP)
 2. mcp__agent-vision__analyze_image — exists? (Vision MCP)
+3. mcp__flutter-skill__launch_app — exists? (Flutter MCP — for Flutter target testing)
 ```
 
-**If either is missing:** STOP immediately. Tell the user:
+**If any required MCP is missing:** STOP immediately. Tell the user:
 > "Browser MCP and/or Vision MCP are not connected. Please run `/mcp` to reconnect them, then re-invoke test-framework."
 
-**Never proceed without both MCPs.** Do NOT write Playwright scripts as workarounds. Do NOT compare screenshots manually.
+**For Flutter testing** (target=flutter in Stage 3), also check flutter-skill MCP is available. If missing, Flutter testing stages will be skipped and only React comparison will run.
+
+**Never proceed without both Browser MCP and Vision MCP.** Do NOT write Playwright scripts as workarounds. Do NOT compare screenshots manually.
 
 ## Iron Rules (MUST follow — violating any is a STOP)
 
@@ -160,6 +163,7 @@ Don't ask "compare these screenshots". Instead, ask SEPARATE targeted questions:
 | Path | Responsibility |
 |------|---------------|
 | `omniview/codegen/react.py` | React code generation |
+| `omniview/codegen/flutter.py` | Flutter/Dart code generation |
 | `omniview/codegen/css_mapping.py` | CSS/style mapping |
 | `omniview/lowering.py` | IR lowering |
 | `omniview/parser.py` | .omni parsing |
@@ -298,10 +302,144 @@ Use `mcp__playwright__browser_click` and `browser_type` to interact:
 ### Completion: Git Push
 
 ```bash
-git add omniview/codegen/react.py  # or whichever framework file
+git add omniview/codegen/react.py omniview/codegen/flutter.py  # or whichever framework file
 git commit -m "fix(framework): <describe root cause and fix>"
 git push
 ```
+
+---
+## Flutter Testing Pipeline (target=flutter)
+
+> **Prerequisite:** flutter-skill MCP must be available (checked in MCP Gate).
+> **Single reusable project:** All Flutter tests share ONE project at `build_output/omni_flutter_app/`. Each test overwrites the component file and `lib/main.dart`.
+
+### Stage F1: Flutter Transpile
+
+**F1a. Compile to Flutter/Dart** — via Browser MCP `browser_evaluate`:
+```javascript
+const resp = await fetch("/api/compile", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ source: src, target: "flutter" }),
+});
+const { files } = await resp.json();
+// files["Component.dart"] is the generated Flutter code
+```
+
+**F1b. Write to shared Flutter project:**
+- `build_output/omni_flutter_app/lib/<component_snake>.dart` ← `files["Component.dart"]` (DO NOT EDIT)
+- `build_output/omni_flutter_app/lib/main.dart` ← test harness (update import + home widget)
+
+**F1c. Run dart analyze** — verify no compilation errors:
+```bash
+cd build_output/omni_flutter_app && dart analyze lib/
+```
+- `error` level issues → fix framework (flutter.py), NOT generated code
+- `info` level issues (child ordering, unnecessary braces) → acceptable, note for later
+
+### Stage F2: Flutter Launch & Screenshot
+
+**F2a. Launch Flutter web app** — via Browser MCP:
+```bash
+cd build_output/omni_flutter_app && flutter run -d edge --web-port=8080 &
+```
+- Wait ~12s for "Flutter run key commands" prompt
+- Verify with `curl http://localhost:8080/`
+
+**F2b. Navigate & enable accessibility** — via Browser MCP:
+```javascript
+// Navigate
+mcp__playwright__browser_navigate → http://localhost:8080
+
+// Enable Flutter accessibility (exposes semantics tree as DOM)
+document.querySelector('flt-semantics-placeholder').click()
+```
+
+**F2c. Capture screenshot:**
+`mcp__playwright__browser_take_screenshot` → save as `flutter-<app-name>.png`
+
+### Stage F3: Flutter Visual Diff Comparison
+
+> 🔴 Use Vision MCP. Compare Flutter vs React rendering SEPARATELY (structure + CSS).
+
+**F3a. Structure comparison:**
+`mcp__agent-vision__analyze_image` with: "List ALL visible UI elements with exact text content"
+
+**F3b. CSS/Style comparison (SEPARATE call!):**
+`mcp__agent-vision__analyze_image` with specific questions about:
+- Button types: ElevatedButton (filled/primary) vs OutlinedButton (outline) vs TextButton (ghost)?
+- Are `variant="primary"` buttons filled and `variant="outline"` buttons outlined?
+- Card background color, border-radius, padding
+- Text alignment (centered vs left-aligned)
+- Typography: font sizes, font weights
+
+**F3c. Flutter-specific CSS bugs checklist:**
+- [ ] `variant` prop → correct Flutter button type? (primary→ElevatedButton, outline→OutlinedButton, ghost→TextButton)
+- [ ] Card with multiple children → wrapped in `Column` (not raw `children: [...]`)?
+- [ ] `$` signs in text properly escaped for Dart string interpolation?
+- [ ] Handler mutations wrapped in `setState()` for Flutter rebuild?
+
+### Stage F4: Flutter Logic Testing
+
+> 🔴 Use Browser MCP to click Flutter semantics elements.
+
+**F4a. Find button elements:**
+```javascript
+const buttons = document.querySelectorAll('flt-semantics[role="button"]');
+// buttons[0] = first "Add to Cart", buttons[N-1] = "Clear Cart"
+```
+
+**F4b. Click and verify state:**
+```javascript
+// Click button
+buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+// Read state from accessibility group
+const group = document.querySelector('flt-semantics[role="group"]');
+const label = group.getAttribute('aria-label');
+// label updates asynchronously — wait ~1s after click before reading
+```
+
+**F4c. Test sequence:**
+- Click each action button individually → verify state update
+- Click same button multiple times → verify accumulation (stale closure check)
+- Click Clear/Reset → verify state returns to initial
+- Click after reset → verify state still works post-reset
+
+### Flutter-Specific Pitfalls
+
+### Flutter Pitfall 1: No setState in fn handlers
+Named handler functions (`fn increment()`) generate methods WITHOUT `setState()` if the body has no `.` character access. Flutter **requires** `setState()` for any mutation to trigger rebuild.
+
+**Fix location:** `omniview/codegen/flutter.py` → `_gen_component` handler method generation (~line 169-186)
+
+**Fix:** Always wrap handler bodies in `setState(() { ... })`, not conditionally.
+
+### Flutter Pitfall 2: Card uses `children` instead of `child`
+Flutter `Card` widget accepts a single `child` parameter. Multiple children must be wrapped in `Column`.
+
+**Fix location:** `omniview/codegen/flutter.py` → `_build_widget` (~line 534)
+
+**Fix:** When a non-multi-child widget has >1 child, wrap children in `Column(children: [...])` and pass as `child:`.
+
+### Flutter Pitfall 3: Dollar signs in Dart strings
+Dart treats `$` as string interpolation prefix. Literal `$` signs (currency) must be escaped as `\$`.
+
+**Fix location:** `omniview/codegen/flutter.py` → `_expr_to_dart` LiteralExpr path (~line 743)
+
+**Fix:** Replace `$` with `\$` in string literal values before wrapping in quotes.
+
+### Flutter Pitfall 4: Button variant ignored
+The Flutter codegen always generates `ElevatedButton` regardless of the `variant` prop.
+
+**Fix location:** `omniview/codegen/flutter.py` → Button element handler (~line 466)
+
+**Fix:** Map `variant="primary"` → `ElevatedButton`, `variant="outline"` → `OutlinedButton`, `variant="ghost"` → `TextButton`.
+
+### Flutter Pitfall 5: Accessibility required for testing
+Flutter web renders into `<flt-glass-pane>` canvas by default. DOM-based testing requires enabling accessibility mode via clicking the `flt-semantics-placeholder` element. Without this, only coordinate-based clicking is possible.
+
+### Flutter Pitfall 6: Semantics tree async update
+After clicking a button in Flutter, the accessibility tree (`aria-label` on `flt-semantics[role="group"]`) updates asynchronously. Always `browser_wait_for` ~1s before reading state after interactions.
 
 ## Self-Check Checklist
 
@@ -323,6 +461,14 @@ git push
 - [ ] NO React code was hand-written beyond scaffolding (Iron Rule 2)
 - [ ] NO Playwright bash scripts were used (Iron Rule 3)
 - [ ] Framework fix is root-cause, not symptom-patching
+- [ ] (Flutter) dart analyze passes with no errors
+- [ ] (Flutter) Button variant→type mapping verified (primary=ElevatedButton, outline=OutlinedButton)
+- [ ] (Flutter) Card children wrapped in Column (not raw children: [...])
+- [ ] (Flutter) All handler mutations use setState() wrapper
+- [ ] (Flutter) Dollar signs in strings escaped for Dart
+- [ ] (Flutter) Logic testing: multi-click accumulation verified via semantics tree
+- [ ] (Flutter) Vision MCP: Flutter vs React structural comparison done
+- [ ] (Flutter) Vision MCP: Flutter vs React CSS comparison done SEPARATELY
 - [ ] All checks pass before git push
 
 ## Red Flags — STOP and Check
@@ -352,6 +498,13 @@ git push
 - **"The Python fix is in the file but API still returns old code"** → STOP. Clear __pycache__ + restart (Pitfall 2).
 - **"Vision MCP says everything matches" after one prompt** → STOP. Run separate CSS prompt (Pitfall 7).
 - **"useCallback deps are empty but it should be fine"** → STOP. Check Pitfall 4 — this IS a bug.
+
+### Flutter Red Flags
+- **"Dart errors are just linter warnings"** → STOP. Fix framework for all `error` level issues. `info` level only are acceptable.
+- **"The Flutter button looks the same whether variant=primary or outline"** → STOP. Fix variant→type mapping in flutter.py.
+- **"Card is empty / shows nothing"** → STOP. Check if Card has `children:` instead of `child: Column(children: [...])`.
+- **"Flutter doesn't rebuild on button click"** → STOP. Check if handler methods use `setState()`. Flutter Pitfall 1.
+- **"Playwright can't find buttons in Flutter web"** → STOP. Enable accessibility mode first (Flutter Pitfall 5).
 
 ## Common Rationalizations and Their Counters
 

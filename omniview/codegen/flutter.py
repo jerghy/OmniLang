@@ -171,17 +171,13 @@ class FlutterCodegen(CodegenBase):
             fname = self._get(fn, "name", "handler")
             body = self._gen_block_body_dart(self._get(fn, "body"), {s.get("name", "") for s in states})
             L.append(f"  void _{fname}() {{")
-            if "setState" in body or "." in body:
-                # Wrap in setState if there are mutations
+            body_lines = [line for line in body.strip().split("\n") if line.strip()]
+            if body_lines:
+                # Always wrap in setState — Flutter requires it for rebuilds
                 L.append(f"    setState(() {{")
-                for line in body.strip().split("\n"):
-                    if line.strip():
-                        L.append(f"      {line}")
+                for line in body_lines:
+                    L.append(f"      {line}")
                 L.append(f"    }});")
-            else:
-                for line in body.strip().split("\n"):
-                    if line.strip():
-                        L.append(f"    {line}")
             L.append(f"  }}")
             L.append("")
 
@@ -464,13 +460,19 @@ class FlutterCodegen(CodegenBase):
             return f"GestureDetector({', '.join(params)})" if params else "const GestureDetector()"
 
         if tag == "Button":
+            # Map variant → Flutter button type
+            variant = props.pop("variant", None) if isinstance(props, dict) else None
+            variant_val = self._extract_style_val(variant) if variant else "primary"
+            variant_map = {"primary": "ElevatedButton", "outline": "OutlinedButton",
+                           "ghost": "TextButton", "secondary": "OutlinedButton"}
+            flutter_button = variant_map.get(variant_val, "ElevatedButton")
             for ename, ehandler in events.items():
                 handler = self._gen_event_handler(ehandler)
                 params.append(f"onPressed: {handler}")
             # Wrap button label in Text widget
             label = self._build_text_content(children) if children else '"Button"'
             params.append(f"child: Text({label})")
-            return self._build_widget("ElevatedButton", params, [], test_id)
+            return self._build_widget(flutter_button, params, [], test_id)
 
         if tag == "Input":
             for bname, bref in bindings.items():
@@ -535,9 +537,13 @@ class FlutterCodegen(CodegenBase):
         _CHILD_PARAM = {"ListTile": "title", "ListItem": "title"}
 
         if child_strs:
-            if widget in self._CHILDREN_WIDGETS or len(child_strs) > 1:
+            if widget in self._CHILDREN_WIDGETS:
                 children_str = ", ".join(child_strs)
                 parts.append(f"children: [{children_str}]")
+            elif len(child_strs) > 1:
+                # Multiple children for a single-child widget — wrap in Column
+                children_str = ", ".join(child_strs)
+                parts.append(f"child: Column(children: [{children_str}])")
             else:
                 # Single child — wrap in Text if it's a plain string
                 child_content = child_strs[0]
@@ -740,7 +746,8 @@ class FlutterCodegen(CodegenBase):
                         return val
                     if val.startswith("[") or val.startswith("{"):
                         return val
-                    return f'"{val}"'
+                    escaped = val.replace(r'$', r'\$')
+                    return f'"{escaped}"'
                 if isinstance(val, bool):
                     return "true" if val else "false"
                 return str(val) if val is not None else "null"
