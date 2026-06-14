@@ -458,10 +458,23 @@ async def api_project(request: Request):
     if not project_dir:
         return {"dir": None, "target": "react", "mainFile": None}
 
-    # 查找 main.omni 或第一个 .omni 文件
+    # 查找 main.omni 或第一个有效 .omni 文件（按字母排序，优先 main.omni）
     main_file = None
-    omni_files = list(Path(project_dir).rglob("*.omni"))
-    if omni_files:
+    omni_files = sorted(
+        [f for f in Path(project_dir).rglob("*.omni")],
+        key=lambda f: (f.name != "main.omni", str(f))  # main.omni first, then alphabetical
+    )
+    for f in omni_files:
+        try:
+            content = f.read_text(encoding="utf-8")
+            # Prefer files that start with "component" (valid .omni source)
+            if content.strip().startswith("component"):
+                main_file = str(f.relative_to(project_dir)).replace("\\", "/")
+                break
+        except Exception:
+            continue
+    # Fallback: use first available .omni file
+    if not main_file and omni_files:
         main_file = str(omni_files[0].relative_to(project_dir)).replace("\\", "/")
 
     return {"dir": str(project_dir), "target": "react", "mainFile": main_file}

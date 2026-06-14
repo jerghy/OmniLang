@@ -536,6 +536,23 @@ export default function App() {
     }
   }, []);
 
+  // Auto-compile when opening a file (populate canvas)
+  const prevFilePath = useRef<string | null>(null);
+  useEffect(() => {
+    const currentPath = useEditorStore.getState().activeFilePath;
+    const currentContent = useEditorStore.getState().activeFileContent;
+    if (currentPath && currentContent && currentPath !== prevFilePath.current) {
+      prevFilePath.current = currentPath;
+      // Use a short debounce to avoid double-compile on initial load
+      const timer = setTimeout(() => {
+        if (currentPath.endsWith('.omni')) {
+          handleCompile();
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [useEditorStore((s) => s.activeFilePath), useEditorStore((s) => s.activeFileContent)]);
+
   // Connect debug WebSocket when Run is active
   useEffect(() => {
     if (runStatus.running) {

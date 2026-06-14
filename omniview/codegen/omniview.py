@@ -387,12 +387,15 @@ class OmniViewCodegen(CodegenBase):
 
         # Heading level
         if tag == "Heading":
-            level = self._get(elem, "props", {}).get("level", 1) if isinstance(self._get(elem, "props", {}), dict) else 1
+            raw_level = self._get(elem, "props", {}).get("level", 1) if isinstance(self._get(elem, "props", {}), dict) else 1
+            # Extract literal value from IR node dict
+            if isinstance(raw_level, dict) and "value" in raw_level:
+                raw_level = raw_level["value"]
             try:
-                level = int(level)
+                level_val = int(raw_level)
             except (ValueError, TypeError):
-                level = 1
-            html_tag = f"h{max(1, min(6, level))}"
+                level_val = 1
+            html_tag = f"h{max(1, min(6, level_val))}"
 
         # Build attrs object
         attrs_parts: list[str] = []
@@ -408,17 +411,94 @@ class OmniViewCodegen(CodegenBase):
             attrs_parts.append(f'class: "{" ".join(class_names)}"')
 
         # Element props
+        # Style props that map to CSS (NOT HTML attributes)
+        STYLE_PROPS: set[str] = {
+            # Layout
+            "gap", "direction", "align", "justify", "wrap",
+            "padding", "margin", "width", "height", "flex", "display",
+            # Visual
+            "background", "backgroundColor", "borderRadius",
+            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
+            "boxShadow", "opacity",
+            # Typography
+            "fontSize", "fontWeight", "color", "textAlign",
+        }
+        # CSS property name mapping (OmniLang → CSS camelCase)
+        CSS_PROP_MAP: dict[str, str] = {
+            "gap": "gap",
+            "direction": "flexDirection",
+            "align": "alignItems",
+            "justify": "justifyContent",
+            "wrap": "flexWrap",
+            "padding": "padding",
+            "margin": "margin",
+            "width": "width",
+            "height": "height",
+            "flex": "flex",
+            "display": "display",
+            "background": "backgroundColor",
+            "backgroundColor": "backgroundColor",
+            "borderRadius": "borderRadius",
+            "border": "border",
+            "borderTop": "borderTop",
+            "borderBottom": "borderBottom",
+            "borderLeft": "borderLeft",
+            "borderRight": "borderRight",
+            "boxShadow": "boxShadow",
+            "opacity": "opacity",
+            "fontSize": "fontSize",
+            "fontWeight": "fontWeight",
+            "color": "color",
+            "textAlign": "textAlign",
+        }
+        # Button variant → CSS mapping
+        BUTTON_VARIANT_STYLES: dict[str, str] = {
+            "primary": 'backgroundColor: "rgb(79, 70, 229)", color: "#ffffff", border: "none", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: "500"',
+            "outline": 'backgroundColor: "transparent", color: "rgb(79, 70, 229)", border: "1px solid rgb(79, 70, 229)", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: "500"',
+            "ghost": 'backgroundColor: "transparent", color: "rgb(79, 70, 229)", border: "none", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: "500"',
+        }
+
+        style_entries: list[str] = []
+        non_style_props = {}
         props = self._get(elem, "props", {})
         if isinstance(props, dict):
             for prop_name, prop_val in props.items():
-                if prop_name in ("level",):
-                    continue  # handled above
-                if isinstance(prop_val, str):
-                    attrs_parts.append(f'{self._camel(prop_name)}: {self._escape_js_string(prop_val)}')
-                elif isinstance(prop_val, dict) and "_kind" in prop_val:
-                    attrs_parts.append(f'{self._camel(prop_name)}: {self._expr_to_js(prop_val)}')
+                if prop_name in ("level", "test-id", "test_id"):
+                    continue  # handled separately
+                # Extract literal value from IR node dicts (e.g. {'_kind':'LiteralExpr','value':'24px'})
+                if isinstance(prop_val, dict) and "_kind" in prop_val:
+                    raw_val = prop_val.get("value", prop_val)
                 else:
-                    attrs_parts.append(f'{self._camel(prop_name)}: {self._expr_to_js(prop_val)}')
+                    raw_val = prop_val
+                if prop_name == "variant":
+                    # Map variant to CSS styles
+                    variant_val = str(raw_val) if raw_val is not None else ""
+                    if variant_val in BUTTON_VARIANT_STYLES:
+                        style_entries.append(BUTTON_VARIANT_STYLES[variant_val])
+                    continue
+                if prop_name in STYLE_PROPS:
+                    css_prop = CSS_PROP_MAP.get(prop_name, self._camel(prop_name))
+                    if isinstance(raw_val, (int, float)):
+                        style_entries.append(f'{css_prop}: "{raw_val}px"')
+                    elif isinstance(raw_val, str):
+                        style_entries.append(f'{css_prop}: {self._escape_js_string(raw_val)}')
+                    continue
+                # Non-style prop → add as HTML attribute
+                if isinstance(raw_val, str):
+                    non_style_props[prop_name] = raw_val
+                elif isinstance(prop_val, dict) and "_kind" in prop_val:
+                    non_style_props[prop_name] = prop_val
+                else:
+                    non_style_props[prop_name] = raw_val
+
+        # Emit non-style props as attrs
+        for prop_name, prop_val in non_style_props.items():
+            if isinstance(prop_val, str):
+                attrs_parts.append(f'{self._camel(prop_name)}: {self._escape_js_string(prop_val)}')
+            elif isinstance(prop_val, dict) and "_kind" in prop_val:
+                attrs_parts.append(f'{self._camel(prop_name)}: {self._expr_to_js(prop_val)}')
+            else:
+                attrs_parts.append(f'{self._camel(prop_name)}: {self._expr_to_js(prop_val)}')
 
         # Events
         events = self._get(elem, "events", {})
@@ -430,48 +510,43 @@ class OmniViewCodegen(CodegenBase):
                 dom_event = self._map_event(event_name)
                 attrs_parts.append(f'{dom_event}: {handler_js}')
 
-        # Inline styles
+        # Inline styles (from lowered IR)
         inline_style = self._get(elem, "inline_style")
         if inline_style:
             style_props = self._get(inline_style, "properties", {})
             if isinstance(style_props, dict) and style_props:
-                style_entries = []
                 for sp, sv in style_props.items():
                     css_prop = self._to_css_prop(sp)
                     css_val = self._expr_to_js(sv)
                     style_entries.append(f'{css_prop}: {css_val}')
-                if style_entries:
-                    attrs_parts.append(f'style: {{ {", ".join(style_entries)} }}')
 
-        # Layout properties from props
-        layout_map = {
-            "gap": "gap",
-            "direction": "flexDirection",
-            "align": "alignItems",
-            "justify": "justifyContent",
-            "wrap": "flexWrap",
-            "padding": "padding",
-            "margin": "margin",
-            "width": "width",
-            "height": "height",
+        # Default element styles (matching visual editor)
+        DEFAULT_ELEMENT_STYLES: dict[str, list[str]] = {
+            "Card": [
+                'backgroundColor: "#ffffff"',
+                'borderRadius: "8px"',
+                'boxShadow: "0 2px 8px rgba(0,0,0,0.08)"',
+            ],
+            "Container": ['display: "flex"'],
+            "Flex": ['display: "flex"'],
         }
-        layout_styles = []
-        if isinstance(props, dict):
-            for omni_prop, css_prop in layout_map.items():
-                if omni_prop in props:
-                    val = props[omni_prop]
-                    if isinstance(val, (int, float)):
-                        layout_styles.append(f'{css_prop}: "{val}px"')
-                    elif isinstance(val, str):
-                        layout_styles.append(f'{css_prop}: {self._escape_js_string(val)}')
-        if layout_styles:
-            # Merge with existing style
-            existing_style = next((a for a in attrs_parts if a.startswith("style:")), None)
-            if existing_style:
-                idx = attrs_parts.index(existing_style)
-                attrs_parts[idx] = existing_style.rstrip(" }") + ", " + ", ".join(layout_styles) + " }"
-            else:
-                attrs_parts.append(f'style: {{ {", ".join(layout_styles)} }}')
+        if tag in DEFAULT_ELEMENT_STYLES:
+            existing_css_props = set()
+            for entry in style_entries:
+                # Extract the CSS property name from entries like 'prop: "value"'
+                colon_idx = entry.find(":")
+                if colon_idx > 0:
+                    existing_css_props.add(entry[:colon_idx].strip())
+            for default_entry in DEFAULT_ELEMENT_STYLES[tag]:
+                colon_idx = default_entry.find(":")
+                if colon_idx > 0:
+                    default_prop = default_entry[:colon_idx].strip()
+                    if default_prop not in existing_css_props:
+                        style_entries.append(default_entry)
+
+        # Emit style attr if we have style entries
+        if style_entries:
+            attrs_parts.append(f'style: {{ {", ".join(style_entries)} }}')
 
         # data-testid
         if test_id:
