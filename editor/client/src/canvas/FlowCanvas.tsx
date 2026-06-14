@@ -327,12 +327,12 @@ export function FlowCanvas({
     (_event: React.MouseEvent, node: Node) => {
       const cb = onNodeDoubleClickRef.current;
       if (!cb) return;
-      const el = elements.find((e) => e.id === node.id);
+      const el = useEditorStore.getState().elements.find((e) => e.id === node.id);
       if (el && el.nodeType === "codeblock") {
         cb(el.id, el);
       }
     },
-    [elements],
+    [], // stable — uses store.getState() for fresh data
   );
 
   // ── Context menu (right-click -> add block) ──

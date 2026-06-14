@@ -34,13 +34,8 @@ export function BaseNode({ id, data, selected }: NodeProps) {
   const dataIn = nodeData.ports.filter(p => p.direction === "in" && p.portType !== "flow");
   const dataOut = nodeData.ports.filter(p => p.direction === "out" && p.portType !== "flow");
 
-  const handleDblClick = () => {
-    nodeData.onDoubleClick?.(nodeData.elementId);
-  };
-
   return (
     <div
-      onDoubleClick={handleDblClick}
       style={{
         background: config.color.bg,
         border: `${selected ? 3 : 2}px solid ${config.color.border}`,
