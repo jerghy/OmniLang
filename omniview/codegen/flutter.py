@@ -433,8 +433,8 @@ class FlutterCodegen(CodegenBase):
         if tag == "Heading":
             level_prop = props.get("level", {})
             level = self._get(level_prop, "value", "2")
-            sizes = {"1": "28", "2": "20", "3": "16", "4": "15", "5": "14", "6": "13"}
-            size = sizes.get(level, "20")
+            sizes = {"1": "28", "2": "24", "3": "16", "4": "15", "5": "14", "6": "13"}
+            size = sizes.get(level, "24")
             params.append(f"style: TextStyle(fontSize: {size}, fontWeight: FontWeight.w600)")
             if css_rule:
                 params = self._apply_css_to_text(css_rule, params)
@@ -475,7 +475,7 @@ class FlutterCodegen(CodegenBase):
                 if flutter_button == "ElevatedButton":
                     params.append(
                         "style: ElevatedButton.styleFrom("
-                        "backgroundColor: const Color(0xFF4338CA), "
+                        "backgroundColor: const Color(0xFF4F46E5), "
                         "foregroundColor: Colors.white, "
                         "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
                         ")"
@@ -483,6 +483,7 @@ class FlutterCodegen(CodegenBase):
                 elif flutter_button == "OutlinedButton":
                     params.append(
                         "style: OutlinedButton.styleFrom("
+                        "backgroundColor: Colors.transparent, "
                         "foregroundColor: const Color(0xFF374151), "
                         "side: const BorderSide(color: Color(0xFFE5E7EB)), "
                         "shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))"
@@ -541,6 +542,28 @@ class FlutterCodegen(CodegenBase):
                 params.append("elevation: 2")
             if not has_shape and not any("borderRadius" in p for p in params):
                 params.append("shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))")
+            # Extract padding prop — Flutter Card doesn't accept padding directly,
+            # so wrap children in a Padding widget
+            card_padding = None
+            for pname, pval in props.items():
+                if pname == "padding":
+                    card_padding = self._extract_style_val(pval)
+                    break
+            if card_padding:
+                # Build children string, then wrap in Padding
+                child_strs = []
+                for child in children:
+                    cs = self._gen_view_tree(child)
+                    if cs.strip():
+                        child_strs.append(cs)
+                if len(child_strs) > 1:
+                    inner = f"Column(crossAxisAlignment: CrossAxisAlignment.start, children: [{', '.join(child_strs)}])"
+                elif len(child_strs) == 1:
+                    inner = child_strs[0]
+                else:
+                    inner = "const SizedBox.shrink()"
+                params.append(f"child: Padding(padding: const EdgeInsets.all({card_padding}), child: {inner})")
+                return self._build_widget("Card", params, [], test_id)
             return self._build_widget("Card", params, children, test_id)
 
         if tag == "Checkbox":
