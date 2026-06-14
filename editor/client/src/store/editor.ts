@@ -4,6 +4,19 @@ import { create } from "zustand";
 
 // ── Data Types (R2 upgraded schema) ─────────────────
 
+export interface PortData {
+  name: string;
+  direction: "in" | "out";
+  /** NEW: distinguishes execution-flow ports from data-value ports */
+  portType?: "flow" | "data";
+  type: string;
+  label?: string;
+  /** NEW: whether this port's value is user-configurable on the node */
+  configurable?: boolean;
+  /** NEW: default value for configurable data input ports */
+  defaultValue?: unknown;
+}
+
 export interface ElementData {
   id: string;
   nodeType: "view" | "codeblock" | "group";
@@ -11,7 +24,7 @@ export interface ElementData {
   props: Record<string, unknown>;
   children: string[];
   parentId: string | null;
-  ports?: { name: string; direction: "in" | "out"; type: string; label?: string }[];
+  ports?: PortData[];
   renderMode?: "dom" | "canvas";
   isFolded?: boolean;
   typeAnnotation?: string;
@@ -22,6 +35,12 @@ export interface ElementData {
   outputValue?: unknown;
   /** Visual position on the Rete canvas (set by auto-layout, persisted to .canvas.json) */
   position?: { x: number; y: number };
+  /** NEW: visual scripting node category */
+  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";
+  /** NEW: node-specific configuration (operator, comparison type, etc.) */
+  config?: Record<string, unknown>;
+  /** NEW: topological execution order (set by FlowEngine) */
+  flowOrder?: number;
 }
 
 export interface WireData {
