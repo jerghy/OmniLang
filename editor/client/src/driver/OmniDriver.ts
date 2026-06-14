@@ -805,6 +805,22 @@ class OmniDriver {
       );
     }
 
+    // Port type validation: flow↔data mismatch
+    const fromPortObj = fromPorts.find((p) => p.name === fromPort);
+    const toPortObj = toPorts.find((p) => p.name === toPort);
+    if (fromPortObj && toPortObj) {
+      const srcPT = fromPortObj.portType || "data";
+      const tgtPT = toPortObj.portType || "data";
+      if (srcPT !== tgtPT) {
+        console.warn(
+          `[OmniDriver] connect: port type mismatch — "${fromPort}" is ${srcPT === "flow" ? "flow" : "data"}, ` +
+          `but "${toPort}" is ${tgtPT === "flow" ? "flow" : "data"}. ` +
+          `Flow ports (◆) can only connect to flow ports; data ports (●) can only connect to data ports.`,
+        );
+        return new WireHandle(id, this); // Return handle but wire was NOT created
+      }
+    }
+
     this._store().addWire({
       id,
       fromId,
