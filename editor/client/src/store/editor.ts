@@ -99,6 +99,9 @@ interface EditorState {
   setElementPorts: (id: string, ports: ElementData["ports"]) => void;
   setBlockValue: (id: string, value: unknown) => void;
 
+  /** Set visual position on the canvas (used by drag-and-drop). */
+  setElementPosition: (id: string, pos: { x: number; y: number }) => void;
+
   /** Replace all elements and wires atomically (used by save/load + auto-layout). */
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
 }
@@ -184,6 +187,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ),
       };
     }),
+
+  setElementPosition: (id, pos) =>
+    set((s) => ({
+      elements: s.elements.map((e) =>
+        e.id === id ? { ...e, position: { ...pos } } : e
+      ),
+    })),
 
   setElementsAndWires: (elements, wires) =>
     set({ elements, wires, selectedElementId: null }),
