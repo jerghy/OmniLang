@@ -238,11 +238,15 @@ def _scaffold_vite_project(run_dir: Path, project_name: str, component_name: str
     main_file = src_dir / f"main.{ext}"
     with open(main_file, "w", encoding="utf-8") as f:
         if debug_mode:
-            f.write(f'(window as any).__OMNI_DEBUG_WS_URL__ = "ws://localhost:{debug_ws_port}/api/debug/ws";\n')
+            if is_omniview:
+                f.write(f'window.__OMNI_DEBUG_WS_URL__ = "ws://localhost:{debug_ws_port}/api/debug/ws";\n')
+            else:
+                f.write(f'(window as any).__OMNI_DEBUG_WS_URL__ = "ws://localhost:{debug_ws_port}/api/debug/ws";\n')
         if is_omniview:
             f.write(f'import {{ {component_name} }} from "./{component_name}.js";\n')
             f.write("\n")
-            f.write(f'{component_name}(document.getElementById("root")!);\n')
+            f.write(f'const __rootEl = document.getElementById("root");\n')
+            f.write(f'if (__rootEl) {{ {component_name}(__rootEl); }}\n')
         else:
             f.write('import React from "react";\n')
             f.write('import ReactDOM from "react-dom/client";\n')
