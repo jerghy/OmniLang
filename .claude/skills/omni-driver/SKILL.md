@@ -1,6 +1,6 @@
 ---
 name: omni-driver
-description: Use when operating the OmniLang visual editor via window.__OMNI__ — from browser DevTools Console (copy-paste scripts), Playwright/Puppeteer E2E tests, AI-driven canvas manipulation, building UI with components and dataflow wiring, diagnosing elements/wires/compile errors, extending existing canvases, or recovering from broken canvas state
+description: Use when operating the OmniLang visual editor via window.__OMNI__ — from browser DevTools Console (copy-paste scripts), Playwright/Puppeteer E2E tests, AI-driven canvas manipulation, building UI with components and dataflow wiring, diagnosing elements/wires/compile errors, extending existing canvases, recovering from broken canvas state, or running/testing compiled apps via /api/run pipeline (compile→Vite→browser→debug breakpoints)
 ---
 
 # OmniDriver — AI 操控 OmniLang 编辑器的浏览器 API
@@ -789,6 +789,186 @@ const report = O.validate();
 // { orphanElements, unwiredEvents, typeMismatches, unreachableBlocks, isValid }
 ```
 
+## 🚀 Run & Test Pipeline — 编译→运行→浏览器实测
+
+**OmniLang 的"运行"是将 `.omni` 编译为可执行代码、启动 Vite dev server、在浏览器中验证的闭环。**
+
+### 🛜 MCP Availability Gate（必须第一步！）
+
+**在走 Run Pipeline 之前，必须先确认 MCP 工具已连接。** 没有 MCP 就不能做浏览器验证，等于只跑了一半。
+
+```
+检查清单：
+1. mcp__playwright__browser_navigate — 存在？（Browser MCP）
+2. mcp__agent-vision__analyze_image — 存在？（Vision MCP，截图对比用）
+```
+
+**如果任一 MCP 缺失：** 🛑 **立即停止**。告诉用户：
+> "Browser MCP 和/或 Vision MCP 未连接。请运行 `/mcp` 重新连接，然后重新执行 Run Pipeline。"
+
+**没有 MCP 时不要做的事：**
+- ❌ 不要用 `curl` 或 Bash 脚本绕过浏览器验证——curl 看不到 DOM 渲染结果
+- ❌ 不要写 Node.js Playwright 脚本替代——那些不经过 MCP 协议
+- ❌ 不要仅凭"编译成功"就认为 run 没问题——codegen 正确 ≠ runtime 正确
+- ❌ 不要用"我手动验证过了"跳过后面的 MCP 步骤
+
+**MCP 不可用时的降级路径：** 只能走到 `/api/run/start` 确认 Vite 启动成功，然后**暂停**，等用户连上 MCP 后再继续浏览器验证。不能声称"测试通过"。
+
+**🔴 铁律：没有 MCP 验证的 Run Pipeline 不是完整的测试。编译成功 ≠ 运行正确。**
+
+### 管线总览
+
+```
+.omni 源码
+  → /api/compile (target=react|omniview)
+  → /api/run/start (scaffold Vite + npm install + npx vite)
+  → 浏览器打开 http://localhost:<port>
+  → Playwright MCP / DevTools Console 验证
+  → /api/run/write-files (热更新，Vite HMR 自动重载)
+  → /api/run/stop
+```
+
+### /api/run 端点
+
+| 端点 | 方法 | 用途 |
+|------|------|------|
+| `/api/run/start` | POST | 接收编译文件 → scaffold Vite 项目 → `npm install` → 启动 `npx vite` |
+| `/api/run/stop` | POST | 杀掉 Vite 子进程 |
+| `/api/run/status` | GET | `{ running: bool, url: string|null }` |
+| `/api/run/write-files` | POST | 热更新已编译文件到 `.omni-run/src/`（Vite HMR 自动重载浏览器） |
+
+**在浏览器 Console 中调用：**
+
+```javascript
+// ── 编译 .omni → 启动 Run ──
+const src = O.getSourceCode();
+// 1) 编译
+const compileResp = await fetch("/api/compile", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ source: src, target: "omniview" }),
+});
+const { files } = await compileResp.json();
+
+// 2) 启动 Vite dev server
+const runResp = await fetch("/api/run/start", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ files, debug: true }),
+});
+const { url, port } = await runResp.json();
+console.log("App running at:", url);
+
+// 3) 检查状态
+const status = await fetch("/api/run/status").then(r => r.json());
+
+// 4) 热更新（修改后重新编译 + 推送）
+await fetch("/api/run/write-files", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ files: updatedFiles }),
+});
+
+// 5) 停止
+await fetch("/api/run/stop", { method: "POST" });
+```
+
+### 双 Target 策略
+
+| Target | 扩展名 | Runtime | Debug | 适用场景 |
+|--------|--------|---------|-------|---------|
+| `react` | `.tsx` | React 18 + Zustand + omni-runtime.ts | useTrackedSignal 包装（每种状态类型需单独适配） | 生产部署 |
+| `omniview` | `.js` | 纯 JS signal runtime (omniview-runtime.ts) | **signal.set() 单一拦截点**——所有状态类型统一 | 开发/Debug |
+
+**OmniView target 优势：**
+- 无框架依赖（package.json 不含 react/zustand）
+- `signal.set()` 是唯一拦截点——breakpoint/computed/effect 全部经过 DebugBus
+- 细粒度 DOM 绑定，无 VDOM diff
+- `window.__OMNI_RUNTIME__` 暴露全部内部状态供浏览器 Console 直接操控
+
+### window.__OMNI_RUNTIME__ — OmniView Runtime API
+
+**仅 OmniView target 可用**（React target 使用 `window.__OMNI__` 的 Zustand store）。
+
+```javascript
+const R = window.__OMNI_RUNTIME__;
+// R.DebugBus    — 断点/暂停/单步状态机
+// R.signal()    — 创建响应式信号
+// R.computed()  — 派生计算
+// R.effect()    — 副作用
+// R.store()     — 命名空间信号集合
+// R.h()         — 虚拟 DOM 节点
+// R.render()    — 挂载 DOM 树
+// R.traceExecution() — 执行追踪（FlowCanvas 高亮）
+```
+
+### Debug 断点闭环（OmniView target）
+
+```
+Editor DebugPanel                   OmniView Runtime (浏览器)
+     │                                      │
+     ├─ set-breakpoint("Counter.count") ──→ │ DebugBus.breakpoints.add(id)
+     │                                      │
+     │  ←── state-change ───────────────── │ signal.set() → DebugBus.check()
+     │  ←── paused(signalId, value) ────── │   breakpoint hit → queue → pause
+     │                                      │
+     ├─ step ────────────────────────────→ │ DebugBus.step()
+     │  ←── state-change (single) ──────── │   出队一个 → apply → notify
+     │  ←── resumed | paused(next) ─────── │
+     │                                      │
+     ├─ resume ──────────────────────────→ │ DebugBus.resume()
+     │  ←── resumed ────────────────────── │   flush 全部 → 恢复正常
+```
+
+**在浏览器 Console 直接操控 DebugBus（不需要 WebSocket）：**
+
+```javascript
+const R = window.__OMNI_RUNTIME__;
+// 设置断点
+R.DebugBus.breakpoints.add("Counter.count");
+
+// 手动触发暂停/单步/恢复
+R.DebugBus.paused;           // false → true（断点命中后）
+R.DebugBus.pendingQueue;     // [{ signalId, value, apply }]
+R.DebugBus.step();           // 单步执行一个
+R.DebugBus.resume();         // 全部恢复
+```
+
+**Debug 模式启用条件：** `window.__OMNI_DEBUG_WS_URL__` 必须设置（由 `/api/run/start` 在 `debug:true` 时自动注入到 `main.js`）。
+
+### Playwright MCP 集成
+
+```javascript
+// 编译 + 启动 run
+const runResult = await mcp__playwright__browser_evaluate(() => {
+  return fetch("/api/run/start", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ files: compiledFiles, debug: true }),
+  }).then(r => r.json());
+});
+
+// 导航到运行中的应用
+await mcp__playwright__browser_navigate(runResult.url);
+
+// 操作 runtime 内部状态
+await mcp__playwright__browser_evaluate(() => {
+  const R = window.__OMNI_RUNTIME__;
+  R.DebugBus.breakpoints.add("Counter.count");
+  // 点击按钮触发断点...
+});
+
+// 截图验证
+await mcp__playwright__browser_take_screenshot();
+await mcp__agent-vision__analyze_image("Check counter value is visible");
+```
+
+### Run Pipeline 常见错误
+
+| 错误 | 症状 | 修复 |
+|------|------|------|
+| `debug:true` 但不设置 `__OMNI_DEBUG_WS_URL__` | DebugBus 不初始化 WebSocket，断点无效 | `/api/run/start` 传递 `debug:true` |
+| OmniView target 用 React 语法（JSX） | Vite 报语法错误 | OmniView target 输出纯 `.js`，不是 `.tsx` |
+| `npm install` 超时 | `/api/run/start` 返回 timeout 错误 | 手动 `cd .omni-run && npm install` |
+| Vite 端口冲突 | 无法访问 | `_find_available_port()` 自动递增端口，检查 `/api/run/status` 返回的实际 URL |
+| Python 缓存导致编译输出未更新 | 修改 codegen 后 run 结果不变 | 杀 backend + 清 `__pycache__` + 重启 |
+
 ## 🔬 Flow Engine & Node Registry（Round 1 新增内部 API）
 
 **这些是 TypeScript 模块，通过 Zustand store 间接访问，不能通过 `window.__OMNI__` 直接调用。** 在浏览器 Console 中，可以直接 import 或通过 store 访问。
@@ -1107,6 +1287,11 @@ else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires")
 - [ ] 创建 codeBlock 后是否验证了 `portType`（`el.data.ports[].portType`）？
 - [ ] 删除元素后是否验证了 wires 级联删除（`O.wires.length` 前后对比）？
 - [ ] 是否有重复连线（相同 fromId/fromPort/toId/toPort 的 wire 出现两次）？
+- [ ] (Run Pipeline) `/api/compile` 是否在 `/api/run/start` 之前调用？
+- [ ] (Run Pipeline) `debug:true` 时是否确认了 `__OMNI_DEBUG_WS_URL__` 已注入？
+- [ ] (Run Pipeline) 双 target 是否正确：React→`.tsx`，OmniView→`.js`？
+- [ ] (Run Pipeline) 浏览器验证后是否调用了 `O.validate()` 确认画布健康？
+- [ ] (Run Pipeline) 🛜 MCP Availability Gate 是否通过？（Browser MCP + Vision MCP 都连接？）
 
 ## Red Flags — STOP and Check
 
@@ -1141,6 +1326,12 @@ else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires")
 - **"view 元素的事件连线在代码模式看不到"** → `getAllPorts()` 现在为 view 元素自动添加 `portType:"flow"` 的事件端口。在代码模式中，Button.onPress → action.call 的连线会渲染为 flow 样式（三角箭头动画）。检查 `O.elements` 确认事件端口的 `portType` 字段
 - **"A→B→A 循环连线创建成功了"** → `validateConnection()` 包含 `wouldCreateCycle()` BFS 检测。数据循环会发出 console.warn（不阻止连线，因为某些数据流场景循环是有意的）。flow 端口循环会触发 FlowEngine 的 DFS 检测
 - **"O.codeBlock() 的 nodeCategory 是 undefined"** → 已修复！`codeBlock()` 现在通过 `getNodeConfig(blockType).category` 自动设置正确的 category（signal→"variable", computed→"data", action→"action"）
+- **"/api/run/start 返回 success:false"** → 检查是否有 `.omni` 源文件已编译、projectDir 是否已配置。先调用 `/api/compile` 再 `/api/run/start`。
+- **"MCP 没连接，我用 curl 验证就行"** → STOP。curl 能验证 HTTP 状态，不能验证 DOM 渲染、signal 响应式、断点暂停。没有 MCP = 没有浏览器验证 = 测试不完整。运行 `/mcp` 重连。
+- **"Vite 启动了但页面空白"** → 检查编译 target：OmniView target 输出 `.js`，React target 输出 `.tsx`。确认 `index.html` 中 `<script src>` 路径匹配。
+- **"Debug 断点不触发"** → 确认 `window.__OMNI_DEBUG_WS_URL__` 已设置且 debug.py WebSocket 可达。在 Console 中 `window.__OMNI_RUNTIME__.DebugBus.breakpoints` 检查断点是否已添加。
+- **"OmniView target 的 signal 不响应"** → 检查 `signal.set()` 是否被调用（不是直接赋值）。在 Console 中 `window.__OMNI_RUNTIME__.DebugBus.paused` 检查是否卡在断点。
+- **"compile → run 后改 codegen 不生效"** → Python `sys.modules` 缓存。杀 backend → 清 `__pycache__` → 重启。如仍不生效，用 `python -c "from omniview.api import compile_omni; ..."` 直接编译绕过服务器缓存。
 
 ## 可用组件
 

@@ -274,6 +274,162 @@ O.removeElement(id); // 删除单个元素
 
 ---
 
+## /api/run 端点 — 编译→运行→测试管线
+
+> 🛜 **前置条件：** 必须先通过 MCP Availability Gate（Browser MCP + Vision MCP 都连接）。详见 [SKILL.md](SKILL.md) 的 Run & Test Pipeline 章节。
+>
+> 详细流程见 [SKILL.md](SKILL.md) 的 🚀 Run & Test Pipeline 章节
+
+### POST /api/run/start
+
+接收编译后文件，scaffold Vite 项目，启动 dev server。
+
+```javascript
+const resp = await fetch("/api/run/start", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    files: { "Counter.js": "export function Counter(mountEl) { ... }" },
+    debug: true,   // 注入 __OMNI_DEBUG_WS_URL__，复制 omniview-runtime.ts
+  }),
+});
+const { success, url, port } = await resp.json();
+// → { success: true, url: "http://localhost:5173", port: 5173 }
+```
+
+**内部流程：**
+1. 创建 `.omni-run/` 目录
+2. 从文件扩展名检测 target（`.js` → omniview, `.tsx` → react）
+3. 生成 `package.json`（OmniView 无 react/zustand 依赖）
+4. 生成 `vite.config.ts`（React 含 `@vitejs/plugin-react`）
+5. 生成 `index.html` + `src/main.{js|tsx}`
+6. `npm install`（如 node_modules 已存在则跳过）
+7. 找可用端口，`npx vite --port N --host`
+
+### POST /api/run/stop
+
+```javascript
+await fetch("/api/run/stop", { method: "POST" });
+// → { success: true }
+```
+
+### GET /api/run/status
+
+```javascript
+const { running, url } = await fetch("/api/run/status").then(r => r.json());
+// → { running: true, url: "http://localhost:5173" }
+```
+
+### POST /api/run/write-files
+
+热更新已编译文件。Vite HMR 自动重载浏览器 tab。
+
+```javascript
+await fetch("/api/run/write-files", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ files: { "Counter.js": updatedSource } }),
+});
+// → { success: true, count: 1 }
+```
+
+**约束：** 必须在 `/api/run/start` 之后调用，否则返回 error。
+
+---
+
+## window.__OMNI_RUNTIME__ — OmniView Runtime API
+
+**仅 OmniView target（`.js` 输出）可用。** React target 使用 Zustand store（`window.__OMNI__`）。
+
+```javascript
+const R = window.__OMNI_RUNTIME__;
+
+// ── Signal System ──
+const count = R.signal(0, { id: "Counter.count", name: "count", type: "number" });
+count.get();                        // 0
+count.set(5);                       // 触发 DebugBus.check() + 订阅者通知
+count.set(prev => prev + 1);        // 函数式更新
+count.peek();                       // 读取但不注册依赖
+count.subscribe(v => console.log(v)); // 返回 CleanupFn
+
+// ── Computed ──
+const doubled = R.computed(() => count.get() * 2, { id: "Counter.doubled" });
+doubled.get();                      // 自动追踪依赖，惰性求值
+
+// ── Effect ──
+const dispose = R.effect(() => {
+  console.log("count:", count.get());
+  return () => console.log("cleanup");  // 可选清理函数
+});
+
+// ── Store ──
+const TodoStore = R.store("TodoStore", () => {
+  const items = R.signal([], { id: "TodoStore.items" });
+  return {
+    items,
+    add(text) { items.set([...items.get(), text]); },
+    get count() { return items.get().length; },
+  };
+});
+TodoStore.items;                   // Proxy 自动 unwrap signal.get()
+TodoStore.add("buy milk");         // 方法直接可用
+TodoStore.$id;                     // "TodoStore"
+
+// ── DOM: h() + render() ──
+const vnode = R.h("div", { class: "container" },
+  R.h("button", { onClick: () => count.set(count.get() + 1) }, "+1"),
+  R.h("span", {}, count),          // Signal child → auto-bound textContent
+);
+const cleanup = R.render(vnode, document.getElementById("root"));
+
+// ── Control Flow ──
+R.renderConditional(isVisibleSignal, () => R.h("div", {}, "visible"));
+R.renderList(itemsSignal, (item, i) => R.h("li", {}, item), item => item.id);
+
+// ── Lifecycle ──
+R.onCleanup(() => console.log("unmount"));
+R.dispose();                        // 运行所有注册的 cleanup
+```
+
+### DebugBus（内嵌在 signal.set 中）
+
+```javascript
+const DB = R.DebugBus;
+
+// 断点管理
+DB.breakpoints.add("Counter.count");
+DB.breakpoints.delete("Counter.count");
+DB.hasBreakpoint("Counter.count");  // boolean
+
+// 暂停状态
+DB.paused;                          // boolean — 是否有未执行的挂起项
+DB.flushing;                        // boolean — 是否正在批量恢复
+DB.pendingQueue;                    // [{ signalId, value, apply }]
+
+// 手动控制（无需 WebSocket）
+DB.step();                          // 执行一个挂起项
+DB.resume();                         // 执行全部恢复
+DB.trace("nodeId", "edgeId");       // 发送执行追踪
+
+// WebSocket（自动管理，无需手动操作）
+// 连接条件：window.__OMNI_DEBUG_WS_URL__ 已设置
+// 协议：JSON { type: "state-change"|"paused"|"resumed"|"runtime-ready"|... }
+```
+
+### Debug 断点 WebSocket 协议
+
+| 方向 | 消息 type | 触发时机 |
+|------|----------|---------|
+| App→Editor | `state-change` | 每次 `signal.set()` |
+| App→Editor | `paused` | 断点命中，暂停 |
+| App→Editor | `resumed` | 全部恢复 |
+| App→Editor | `runtime-ready` | WS 连接建立 |
+| App→Editor | `execution-trace` | 代码执行追踪 |
+| Editor→App | `set-breakpoint` | DebugPanel 添加断点 |
+| Editor→App | `remove-breakpoint` | DebugPanel 移除断点 |
+| Editor→App | `step` | 单步执行 |
+| Editor→App | `resume` | 恢复执行 |
+
+---
+
 ## Dataflow Patterns
 
 > 详细说明见 [SKILL.md](SKILL.md) 的 📐 Dataflow Patterns 章节
