@@ -808,6 +808,7 @@ test("builds UI in design mode then creates handler in code mode", async ({ page
   // Step 2: Code 模式创建处理函数
   const codeResult = await page.evaluate(() => {
     const O = (window as any).__OMNI__;
+    O.help();                    // ← 新上下文，必须再次调用！
     O.switchMode("code");
 
     const tab = O.createTab("event", "Submit Handler", "📡");

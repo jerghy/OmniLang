@@ -836,6 +836,7 @@ expect(result.errors).toHaveLength(0);
 // Step 1: Design 模式验证
 await page.evaluate(() => {
   const O = window.__OMNI__;
+  O.help();                    // ← 每个 evaluate 上下文独立调用！
   O.switchMode("design");
   O.clearAll();
   // ... 构建 UI + signal ...
@@ -850,18 +851,25 @@ expect(designState.mode).toBe("design");
 // Step 2: Code 模式验证
 await page.evaluate(() => {
   const O = window.__OMNI__;
+  O.help();                    // ← 新上下文，再次调用！
   O.switchMode("code");
   const tab = O.createTab("event", "Handlers", "📡");
   O.switchTab(tab.id);
-  O.customFunction("handleClick", [], "void");
+  const fn = O.customFunction("handleClick", [], "void");
+  O.returnNode(fn.id);
 });
-const codeState = await page.evaluate(() => ({
-  mode: window.__OMNI__.getMode(),
-  tabCount: window.__OMNI__.listTabs().length,
-  fnCount: window.__OMNI__.listCustomFunctions().length,
-}));
+const codeState = await page.evaluate(() => {
+  const O = window.__OMNI__;
+  return {
+    mode: O.getMode(),
+    tabCount: O.listTabs().length,
+    fnCount: O.listCustomFunctions().length,
+    fnValid: O.validateFunction(O.findFunctionByName("handleClick")?.id).valid,
+  };
+});
 expect(codeState.tabCount).toBeGreaterThanOrEqual(1);
 expect(codeState.fnCount).toBeGreaterThanOrEqual(1);
+expect(codeState.fnValid).toBe(true);
 ```
 
 ### Pattern 3: 编译 + 运行全栈测试
@@ -869,7 +877,9 @@ expect(codeState.fnCount).toBeGreaterThanOrEqual(1);
 ```javascript
 // 完整管线：写源码 → 编译 → 运行 → 浏览器验证
 await page.evaluate(() => {
-  window.__OMNI__.setSourceCode(`component Counter {
+  const O = window.__OMNI__;
+  O.help();
+  O.setSourceCode(`component Counter {
   signal count: i32 = 0
   fn increment() { count += 1 }
   view { <Button onPress={increment} test-id="btn-inc">+1</Button> }
@@ -905,13 +915,18 @@ const runResp = await page.evaluate(async () => {
 // 当脚本行为不符合预期，分步诊断：
 
 // 1. 检查当前画布状态
-const state = await page.evaluate(() => window.__OMNI__.getState());
+const state = await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.help();
+  return O.getState();
+});
 console.log("Elements:", state.elements.map(e => `${e.tag}[${e.id}]`));
 console.log("Wires:", state.wires.map(w => `${w.fromPort}→${w.toPort}`));
 
 // 2. 检查特定元素
 const el = await page.evaluate((id) => {
-  const handle = window.__OMNI__.element(id);
+  const O = window.__OMNI__;
+  const handle = O.element(id);
   return {
     exists: handle.exists(),
     tag: handle.data?.tag,
@@ -921,7 +936,10 @@ const el = await page.evaluate((id) => {
 }, "el-xxx");
 
 // 3. 运行健康检查
-const report = await page.evaluate(() => window.__OMNI__.validate());
+const report = await page.evaluate(() => {
+  const O = window.__OMNI__;
+  return O.validate();
+});
 // report.orphanElements → 无父容器的 view 元素
 // report.unwiredEvents → 未绑定事件的组件
 // report.typeMismatches → 类型不匹配的连线
@@ -1375,3 +1393,7 @@ if (!finalReport.isValid) {
 | 一次性构建全部 UI 不中间验证 | 问题出现时不知道是哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
 | customFn 缺少 return 节点 | 函数体必须有 return 标记返回点 | 创建 customFn 后立即 `O.returnNode(fn.id)` |
 | 忘记切换 mode 就创建 tab | tab 操作只在 code 模式有效 | 先 `O.switchMode("code")` |
+| 每个 `page.evaluate()` 不调 `O.help()` | 新上下文 Proxy 未初始化，方法可能不可用 | 每个 evaluate 回调第一行调用 `O.help()` |
+| 在 design 模式创建 customFn | customFn 属于 code 模式 code graph | 先 `O.switchMode("code")` |
+| `page.evaluate()` 返回 Handle 对象 | evaluate 只序列化 JSON，Proxy/Handle → `{}` | 在 evaluate 内提取纯数据再 return |
+| 用 `O.elements[i]` 调用 `.bindEvent()` | `O.elements` 是 `ElementData[]`，无方法 | 用 `O.element(id)` 获取 `ElementHandle` |
