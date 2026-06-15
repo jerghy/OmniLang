@@ -81,22 +81,22 @@ test.describe("OmniDriver Task Manager Pro", () => {
       ).toBe(0);
 
       // ── Element counts ─────────────
-      // Expected: root Card + header (Flex, Image, Heading, Flex with 3 Links)
-      //   + body Flex + sidebar (Flex, Heading, 3 Buttons, Alert)
-      //   + main Flex + 4 stat Cards (each with 2 Text = 8) + Input
-      //   + task List (8 ListItems, each with Flex+Checkbox+Text = 24)
-      //   + Heading + Form + Flex (Input, Select, Button) + Alert
+      // v2: root Card + header(...) + body(...) + sidebar(...) + main(...)
+      //   + statsGrid(4 Cards each with 2 Text = 8) + Input
+      //   + task List(8 ListItems, each with Flex+Checkbox+Text = 24)
+      //   + Heading + Form + Flex(Input+Select+Button) + Alert
       //   + Progress + Text + Spinner + TextArea
-      //   + codeBlocks (5 signals, 5 computed, 5 handlers, 1 store = 16)
-      // Total should be 60+ elements
+      //   + codeBlocks(5 signals + 5 computed + 1 store = 11 in design)
+      //   + code mode: customFn*5 + returnNode*5 = 10 more elements
+      // Total should be 70+ elements
       expect(
         result.elementCount,
-        "Should have 65+ elements total",
-      ).toBeGreaterThanOrEqual(65);
+        "Should have 70+ elements total",
+      ).toBeGreaterThanOrEqual(70);
       expect(
         result.wireCount,
-        "Should have 15+ wires",
-      ).toBeGreaterThanOrEqual(15);
+        "Should have 8+ wires (computed deps only in v2)",
+      ).toBeGreaterThanOrEqual(8);
 
       // ── View/CodeBlock split ───────
       expect(
@@ -105,8 +105,8 @@ test.describe("OmniDriver Task Manager Pro", () => {
       ).toBeGreaterThanOrEqual(50);
       expect(
         result.codeBlockCount,
-        "Should have 16 code blocks (5 signals + 5 computed + 5 handlers + 1 store)",
-      ).toBe(16);
+        "Should have 21+ code blocks (5 signals + 5 computed + 1 store + 5 customFn + 5 return)",
+      ).toBeGreaterThanOrEqual(21);
 
       // ── Validation report ──────────
       expect(
