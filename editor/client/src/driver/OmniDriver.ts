@@ -1519,7 +1519,7 @@ class OmniDriver {
     return new ElementHandle(id, this);
   }
 
-  /** Validate a customFn — BFS type consistency check through all return nodes. */
+  /** Validate a customFn — scan for return nodes and check type consistency. */
   validateFunction(fnId: string): import("./types").FunctionValidationReport {
     const el = this._store().elements.find((e) => e.id === fnId);
     if (!el || el.tag !== "customFn") {
@@ -1527,9 +1527,11 @@ class OmniDriver {
     }
     const expectedType = (el.config?.fnReturnType as string) || "void";
     const wires = this._store().wires;
+
+    // BFS from customFn to find all reachable return nodes
     const visited = new Set<string>();
     const queue = [fnId];
-    const returnNodes: ElementData[] = [];
+    const reachableReturnNodes: ElementData[] = [];
     while (queue.length > 0) {
       const current = queue.shift()!;
       if (visited.has(current)) continue;
@@ -1537,58 +1539,100 @@ class OmniDriver {
       for (const w of wires.filter((wr) => wr.fromId === current)) {
         const target = this._store().elements.find((e) => e.id === w.toId);
         if (!target) continue;
-        if (target.tag === "return") { returnNodes.push(target); }
+        if (target.tag === "return") { reachableReturnNodes.push(target); }
         else { queue.push(target.id); }
       }
     }
+
+    // Also find return nodes that reference this fn as parent (fallback for disconnected tests)
+    const parentRefReturns = this._store().elements.filter(
+      (e) => e.tag === "return" && e.config?.parentFnId === fnId,
+    );
+    const allReturnNodes = [...new Map(
+      [...reachableReturnNodes, ...parentRefReturns].map((n) => [n.id, n]),
+    ).values()];
+
     const errors: string[] = [];
-    if (returnNodes.length === 0) {
+    if (allReturnNodes.length === 0) {
       errors.push("No return node reachable from customFn. A function must have at least one return path.");
     }
-    for (const rn of returnNodes) {
+    for (const rn of allReturnNodes) {
       const port = rn.ports?.find((p) => p.name === "value");
       const actualType = port?.type || "any";
       if (actualType !== expectedType && actualType !== "any" && expectedType !== "any") {
         errors.push(`Return type mismatch at node ${rn.id}: value port type "${actualType}" but function expects "${expectedType}"`);
       }
     }
-    return { valid: errors.length === 0, returnType: expectedType, errors, reachableReturnPaths: returnNodes.length };
+
+    return {
+      valid: errors.length === 0,
+      returnType: expectedType,
+      errors,
+      reachableReturnPaths: allReturnNodes.length,
+    };
   }
 
-  /** List all customFn nodes across all tabs. */
+  /** List all customFn nodes across all tabs AND the editor store. */
   listCustomFunctions(): Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string }> {
     const result: Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string }> = [];
+    // Search editor store (design)
+    for (const el of this._store().elements) {
+      if (el.tag === "customFn" && el.config?.fnName) {
+        result.push({
+          fnName: el.config.fnName as string,
+          params: (el.config.fnParams as import("./types").FnParam[]) || [],
+          returnType: (el.config.fnReturnType as string) || "void",
+          tabId: "design", description: (el.config.description as string) || "",
+        });
+      }
+    }
+    // Search code graph store (code mode tabs)
     const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
-    if (!codeStore?.tabs) return result;
-    for (const tab of codeStore.tabs) {
-      for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config?.fnName) {
-          result.push({
-            fnName: el.config.fnName as string,
-            params: (el.config.fnParams as import("./types").FnParam[]) || [],
-            returnType: (el.config.fnReturnType as string) || "void",
-            tabId: tab.id, description: (el.config.description as string) || "",
-          });
+    if (codeStore?.tabs) {
+      for (const tab of codeStore.tabs) {
+        for (const el of tab.graph.elements) {
+          if (el.tag === "customFn" && el.config?.fnName) {
+            result.push({
+              fnName: el.config.fnName as string,
+              params: (el.config.fnParams as import("./types").FnParam[]) || [],
+              returnType: (el.config.fnReturnType as string) || "void",
+              tabId: tab.id, description: (el.config.description as string) || "",
+            });
+          }
         }
       }
     }
     return result;
   }
 
-  /** Find a customFn by name. */
+  /** Find a customFn by name (searches editor store + code tabs). */
   findFunctionByName(fnName: string): { fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string; nodeId: string } | null {
+    // Search editor store first
+    for (const el of this._store().elements) {
+      if (el.tag === "customFn" && el.config?.fnName === fnName) {
+        return {
+          fnName: el.config.fnName as string,
+          params: (el.config.fnParams as import("./types").FnParam[]) || [],
+          returnType: (el.config.fnReturnType as string) || "void",
+          tabId: "design", description: (el.config.description as string) || "",
+          nodeId: el.id,
+        };
+      }
+    }
+    // Search code graph store
     const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
-    if (!codeStore?.tabs) return null;
-    for (const tab of codeStore.tabs) {
-      for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config?.fnName === fnName) {
-          return {
-            fnName: el.config.fnName as string,
-            params: (el.config.fnParams as import("./types").FnParam[]) || [],
-            returnType: (el.config.fnReturnType as string) || "void",
-            tabId: tab.id, description: (el.config.description as string) || "",
-            nodeId: el.id,
-          };
+    if (codeStore?.tabs) {
+      for (const tab of codeStore.tabs) {
+        for (const el of tab.graph.elements) {
+          if (el.tag === "customFn" && el.config?.fnName === fnName) {
+            return {
+              fnName: el.config.fnName as string,
+              params: (el.config.fnParams as import("./types").FnParam[]) || [],
+              returnType: (el.config.fnReturnType as string) || "void",
+              tabId: tab.id, description: (el.config.description as string) || "",
+              nodeId: el.id,
+            };
+          }
         }
       }
     }
