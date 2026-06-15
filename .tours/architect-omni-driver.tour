@@ -1,0 +1,143 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniDriver 架构导览",
+  "description": "深入理解 OmniDriver 的 Playwright 风格 API 设计、Handle 模式、共享验证、与 Zustand store 及 Component Protocol 的集成。适合需要扩展或调试 OmniDriver 的开发者。",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": "editor/client/src/driver",
+      "title": "Driver 模块入口",
+      "description": "OmniDriver 的所有代码集中在这个紧凑的 driver/ 目录。三个文件构成清晰的分层：types.ts（类型合约）、OmniDriver.ts（核心实现）、index.ts（桶导出）。入口文件也负责 re-export 类型定义，使得外部消费者只需要 `import { OmniDriver } from \"./driver\"` 即可。"
+    },
+    {
+      "file": "editor/client/src/driver/index.ts",
+      "line": 1,
+      "title": "桶导出 + 类型合约",
+      "description": "这是driver模块的公共API表面。三个类（OmniDriver, ElementHandle, WireHandle）被具名导出，8个接口被 re-export。注意这里只导出类构造函数——在浏览器端通过 `window.__OMNI__` 访问，Playwright测试中用 `import { OmniDriver } from \"./driver\"`。核心模式：类实现行为，接口定义合约。"
+    },
+    {
+      "file": "editor/client/src/driver/types.ts",
+      "line": 1,
+      "title": "类型系统：8个核心接口",
+      "description": "整个OmniDriver的类型合约。8个接口定义了一切：PortDescriptor（端口结构）、ElementQuery（查询过滤）、CodeBlockOptions（代码块配置）、CompileResult（编译结果）、EditorSnapshot（完整状态快照）、ComponentInfo（组件元数据发现）、ValidationReport（画布健康检查）、StateDiff（变更追踪）。这是AI代理理解API形状的关键层——每个接口都有JSDoc注释。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 22,
+      "title": "依赖图：连接 store、protocol、validator",
+      "description": "OmniDriver 不是孤立的一层——它直接注入 Zustand store (useEditorStore)，借道 COMPONENT_PROTOCOL 发现组件事件/端口，通过 shared validators (getAllPorts, validateConnection) 与 FlowCanvas 共享连线验证逻辑，用 api client 做编译和文件操作。这种\"直接访问 store + 共享验证\"的设计避免了中间抽象层，使 API 调用路径极短。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 44,
+      "title": "ElementHandle：Handle 模式核心",
+      "description": "ElementHandle 是 OmniDriver 最重要的设计决策。它包裹一个元素 ID + OmniDriver 引用，暴露链式 API。关键设计：`get data()` 是 live getter——每次调用都从 store 读取最新状态（非缓存），保证所见即所得。`_require()` 私有方法在每次操作前断言元素存在，失败时抛出描述性错误。所有方法返回 `this` 支持链式调用：`omni.element(id).setProp('label','Hi').select()`。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 64,
+      "title": "ElementHandle：setProp 的智能警告",
+      "description": "setProp() 体现了 OmniDriver 的\"容错但告知\"哲学。设置不存在的 prop 时不会抛出错误（因为可能是预期内的新属性），但会用 console.warn 列出当前已有属性，帮助诊断拼写错误。这是专门为 AI 代理设计的——AI 经常拼错 prop 名，警告比静默失败更容易调试。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 176,
+      "title": "ElementHandle：createEventHandler — 自动化事件绑定",
+      "description": "createEventHandler() 是 OmniDriver 最复杂的单个方法。它等价于在 PropertyPanel 中点击 🔗 按钮：从 COMPONENT_PROTOCOL 读取事件元数据 → 自动生成 handler 名称 → 创建 action code block（带 call/result 端口）→ 添加 wire → 设置源元素的 event prop。这是 AI 构建完整交互式 UI 的关键——一行调用搞定 button.onPress → handler 的整个数据流。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 274,
+      "title": "WireHandle：连线的轻量句柄",
+      "description": "WireHandle 比 ElementHandle 简单——只暴露 disconnect()、source()、target()、data。它的 `get data()` 同样是 live getter。注意 WireHandle 不提供修改连线的方法（比如改端口）——只读 + 删除。这遵循\"不可变连线\"原则：要改连线，先 disconnect 再 connect 新线。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 307,
+      "title": "OmniDriver 类：store 访问与帮助提示",
+      "description": "OmniDriver 类本身的设计要点：`_store()` 每次调用 `useEditorStore.getState()` 获取最新状态——不是缓存引用，避免 Zustand 的 stale closure 问题。`_ensureHelp()` 在首次调用创建/连线方法时自动触发 console.log 提示，引导 AI 代理调用 help() 了解完整 API——这是从大量 AI 交互中总结出的 UX 优化。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 389,
+      "title": "Locator 模式：element/findByTag/find/findByProp",
+      "description": "OmniDriver 的查询系统模仿 Playwright 的 locator 模式。`element(id)` 总是返回 ElementHandle（即使元素不存在），搭配 `exists()` 或 `waitForLive()` 进行验证。`find()` 支持多字段组合查询（tag + nodeType + props + text），返回 ElementHandle 数组。`.views` 和 `.codeBlocks` 是便捷 getter。注意：`getElements()` 返回裸 ElementData（无法链式操作），需要 `omni.element(id)` 转换成 Handle。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 446,
+      "title": "Canvas Operations：component() 与 codeBlock()",
+      "description": "两个核心创建方法。`component()` 负责 view 元素：查询 COMPONENT_PROTOCOL 验证 tag → 生成 ID → 通过 store.addElement() 添加到 Zustand → 处理 parentId 和 inline children。`codeBlock()` 负责逻辑节点：调用 getNodeConfig() 获取 portType/nodeCategory → 智能映射端口类型（signal/computed 的 value port 继承 typeAnnotation，action 的 call/deeps port 保持特殊类型）。这是 port 类型正确性的关键。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 581,
+      "title": "便捷方法：button/text/heading/card/flex/...",
+      "description": "11个便捷方法对应所有 view 组件。设计哲学：每个方法有精确的参数签名（不依赖通用的 props 对象）→ TypeScript 智能提示可用 → AI 代理容易理解。特殊处理：`text()` 的第二个参数如果误传了字符串（AI常见错误）会检测并自动修复；`image()` 的 alt 参数如果看起来像元素 ID 会警告。这种\"防御性编程\"专门针对 AI 代理的使用模式。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 720,
+      "title": "连线操作 + 共享验证",
+      "description": "`connect()` 是全验证连线创建：从 store 查找源/目标元素 → 调用共享的 getAllPorts() 发现端口（与 FlowCanvas 使用同一函数） → 调用 validateConnection() 运行5项检查（portType 匹配、类型兼容、重复线、循环检测、fan-out 警告） → error 级别阻止连线，warning 级别仅日志。这是 OmniDriver 与交互式 FlowCanvas 共享验证逻辑的关键——保证程序化连线和手动拖拽连线的一致性。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 799,
+      "title": "模式切换 + 编译管道",
+      "description": "`switchMode()` 通过自定义 DOM 事件 `omni-mode-change` 通知 App.tsx——避免直接操作 React state。`compile()` 是完整的编译-解析管道：读取 activeFileContent → 调用 /api/compile → 并行调用 /api/parse-view 和 /api/parse-codeblocks → 将解析结果 flatten 成 ElementData 数组 → 一次性 setState 更新。注意 compile() 会替换所有画布元素（不是增量更新），因为它是从 .omni 源文件重新解析。最佳实践：程序化构建后通过 setSourceCode() 写源文件，再 compile() 验证。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 651,
+      "title": "help()：AI 自发现 API 参考",
+      "description": "`help()` 是整个 OmniDriver 的\"元 API\"——返回一个结构化对象，包含方法分类（state/locator/creation/codeBlocks/...）、端口结构参考、事件 UUID 表、9条关键规则。这是为 AI 代理设计的：代理调用 help() → 获得可用方法映射 → 按需调用具体方法。注意 criticalRules 中的\"陷阱\"提醒（比如 signal 的输入端口是 'set' 不是 'value'，compile() 会丢弃程序化元素，heading level 是字符串），这些都是从 AI 交互中的高频错误总结出来的。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 928,
+      "title": "validate()：画布健康检查",
+      "description": "4项健康检查：孤儿元素（多个根节点时的无父view）、未连线事件（定义了 event 但没有 handler wire）、类型不匹配（wire 连接了不兼容的 port type）、不可达代码块（无入站 data wire 的 codeblock）。这是\"编译前诊断\"工具——在 compile() 之前运行可以发现大部分数据流问题。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1004,
+      "title": "exportState/importState/diff：状态管理",
+      "description": "三件套提供完整的画布状态版本控制：exportState() 序列化为 JSON（含版本号和时间戳）→ importState() 恢复整个画布 → diff() 计算两个 EditorSnapshot 之间的增量（新增/删除/修改的元素和 wires）。saveSnapshot()/restoreSnapshot() 在此基础上提供\"保存-恢复\"模式——适合在危险操作前做检查点：`const token = O.saveSnapshot(); try { ... } catch { O.restoreSnapshot(token); }`。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1090,
+      "title": "Snippet Templates：可组合的UI工厂",
+      "description": "Snippet 系统包含内置模板（login-form, data-card, crud-table）+ 自定义注册扩展（registerSnippet）。每个内置模板都是\"完整模式\"：创建容器 → 添加子元素 → 自动创建 event handler → 返回 root ElementHandle。自定义 snippet 的 builder 函数接收 options 对象，可以基于参数动态构建 UI。这是\"AI友好的高级抽象\"——一个调用替换 10-20 行低阶 API 调用来构建常见 UI 模式。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1292,
+      "title": "Wait 机制 + Undo/Redo + File Ops",
+      "description": "三组支持性 API：waitForElement/waitForWire/waitFor 提供轮询等待（100ms 间隔，可配置超时），适用于异步创建后的状态验证。undo/redo 通过注入 useUndoStore 和 store 操作方法到 undo 引擎实现。文件操作（readFile/writeFile/openFile/save）通过 api client 调用后端的文件系统端点——使 OmniDriver 能读写项目源代码文件。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 120,
+      "title": "App.tsx 集成：window.__OMNI__ 挂载",
+      "description": "OmniDriver 通过 React useEffect 在 App 挂载时初始化：`new OmniDriver()` → 设置到 `window.__OMNI__` → 同步 `__OMNI_MODE__` 和 `__OMNI_TARGET__` → 监听 `omni-mode-change` 自定义事件。注意 OmniDriver 构造时不接受参数——它通过 store 的 getState() 懒加载状态，这意味着 store 必须在 OmniDriver 使用前被初始化（通过 Zustand 的初始状态保证）。三个 useEffect 分工清晰：初始化、mode 同步、target 同步。"
+    },
+    {
+      "file": "editor/e2e/omni-driver-counter.spec.ts",
+      "line": 1,
+      "title": "E2E 测试：Counter App（简单场景）",
+      "description": "这是 OmniDriver 的\"hello world\"测试。流程：导航到编辑器 → 等待 `window.__OMNI__` 初始化 → 单次 page.evaluate() 运行完整构建+编译脚本（避免序列化问题） → 返回可序列化的结果对象 → Playwright 断言验证。关键模式：所有 OmniDriver 调用在一个 evaluate 回调中完成，返回纯 JSON 结果（ElementHandle 不可序列化）。测试覆盖：listComponents() 发现 API、component() 和 codeBlock() 创建、createEventHandler() 事件绑定、connect() 手动连线、compile() 编译验证、pre/post compile 状态对比。"
+    },
+    {
+      "file": "editor/e2e/omni-driver-task-manager.spec.ts",
+      "line": 1,
+      "title": "E2E 测试：Task Manager Pro（复杂场景）",
+      "description": "OmniDriver 的完整压力测试。通过 eval() 执行外部 IIFE 脚本（task-manager-app.js），构建包含 65+ 元素、16 个 codeBlock（5 signal + 5 computed + 5 handler + 1 store）、15+ wire 的完整 Task Manager 应用。覆盖全部 19 种 view 组件、全部 4 种 codeBlock 类型、validate() 健康检查、writeFile/readFile 文件操作。另外包含独立的 help()/discovery API 测试和空画布 validate() 测试。"
+    },
+    {
+      "title": "架构要点总结",
+      "description": "现在你已经看到了 OmniDriver 的全貌。关键架构决策：1) Handle 模式——ElementHandle/WireHandle 提供链式 API，live getter 保证状态一致性；2) 共享验证——connect() 和 FlowCanvas 拖拽使用完全相同的 validateConnection()，消除双轨问题；3) @internal 约定——_store()、_undo()、_getAllPorts() 标记为内部方法但 TypeScript 不强制隐私；4) 防御性 AI 编程——自动修复参数错位、prop 警告而不是报错、help() 自发现 API；5) 事件驱动模式切换——使用 CustomEvent 而非直接操作 React state。要扩展 OmniDriver，在 OmniDriver 类中加方法，在 types.ts 中加接口，在 help() 中注册新 API，在 omni-driver.d.ts 中添加类型声明。"
+    }
+  ]
+}

@@ -590,51 +590,29 @@ class OmniJsonExportRequest(BaseModel):
     source: str
     filepath: str = "<input>"
     target: str = "react"
-    existingElements: list[dict] = []
-    existingWires: list[dict] = []
-    existingCanvas: dict = {}
+    existingCodeElements: list[dict] = []
+    existingCodeWires: list[dict] = []
 
 
 @app.post("/api/omni-json/export")
 async def api_omni_json_export(req: OmniJsonExportRequest):
-    """导出 .omni 源码 → .omni.json 文档快照 (M6)."""
+    """Regenerate code canvas from .omni source, returning only code canvas data (v2)."""
     from editor.server.omni_json.exporter import OmniJsonExporter
     from editor.server.omni_json.serializer import OmniJsonSerializer
 
     try:
         exporter = OmniJsonExporter()
-        doc = exporter.export(
+        code_canvas = exporter.regenerate_code_canvas(
             source=req.source,
             filepath=req.filepath,
             target=req.target,
-            existing_elements=req.existingElements,
-            existing_wires=req.existingWires,
-            existing_canvas=req.existingCanvas,
+            existing_code_elements=req.existingCodeElements,
+            existing_code_wires=req.existingCodeWires,
         )
         serializer = OmniJsonSerializer()
-        return {"success": True, "document": serializer.to_dict(doc)}
+        return {"success": True, "codeCanvas": serializer.to_dict(code_canvas)}
     except Exception as e:
-        return {"success": False, "document": None, "error": str(e)}
-
-
-class OmniJsonImportRequest(BaseModel):
-    document: dict
-
-
-@app.post("/api/omni-json/import")
-async def api_omni_json_import(req: OmniJsonImportRequest):
-    """从 .omni.json 文档重构 .omni 源码 (M6)."""
-    from editor.server.omni_json.serializer import OmniJsonSerializer
-
-    try:
-        from editor.server.omni_json.importer import OmniJsonImporter
-        serializer = OmniJsonSerializer()
-        doc = serializer.from_dict(req.document)
-        importer = OmniJsonImporter()
-        source = importer.import_document(doc, format=True)
-        return {"success": True, "source": source}
-    except Exception as e:
-        return {"success": False, "source": "", "error": str(e)}
+        return {"success": False, "codeCanvas": None, "error": str(e)}
 
 
 class OmniJsonSaveRequest(BaseModel):
@@ -644,7 +622,7 @@ class OmniJsonSaveRequest(BaseModel):
 
 @app.post("/api/omni-json/save")
 async def api_omni_json_save(req: OmniJsonSaveRequest, request: Request):
-    """保存 .omni.json 到磁盘（原子写入）(M6)."""
+    """保存 .omni.json 到磁盘（原子写入）(v2)."""
     from editor.server.omni_json.serializer import OmniJsonSerializer
 
     project_dir = request.app.state.project_dir
@@ -671,7 +649,7 @@ class OmniJsonLoadRequest(BaseModel):
 
 @app.post("/api/omni-json/load")
 async def api_omni_json_load(req: OmniJsonLoadRequest, request: Request):
-    """加载 .omni.json 从磁盘 (M6)."""
+    """加载 .omni.json 从磁盘 (v2)."""
     from editor.server.omni_json.serializer import OmniJsonSerializer
 
     project_dir = request.app.state.project_dir
@@ -699,11 +677,11 @@ class OmniJsonDetectRequest(BaseModel):
 
 @app.post("/api/omni-json/detect-handwritten")
 async def api_detect_handwritten(req: OmniJsonDetectRequest):
-    """检测 .omni 源码是否为手写 (M6.5)."""
+    """检测 .omni 源码是否为手写."""
     from editor.server.omni_json.exporter import OmniJsonExporter
 
     exporter = OmniJsonExporter()
-    is_hw = exporter._detect_hand_written(req.source)
+    is_hw = exporter.detect_hand_written(req.source)
     warnings: list[str] = []
     if is_hw:
         warnings.append(
@@ -792,6 +770,49 @@ async def api_omni_json_merge(request: Request):
         return {"success": True, "document": serializer.to_dict(doc)}
     except Exception as e:
         return {"success": False, "document": None, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════
+# M8 API — 自定义组件定义 (.omni-components.json)
+# ═══════════════════════════════════════════════════════
+
+import json as _json
+
+_COMPONENTS_FILE = ".omni-components.json"
+
+
+class ComponentDefinitionsPayload(BaseModel):
+    definitions: dict = {}
+
+
+@app.post("/api/component-definitions/save")
+async def api_save_component_definitions(req: ComponentDefinitionsPayload, request: Request):
+    """保存自定义组件定义到项目目录下的 .omni-components.json。"""
+    project_dir = request.app.state.project_dir
+    if not project_dir:
+        return {"ok": False, "error": "No project directory"}
+    config_path = Path(project_dir) / _COMPONENTS_FILE
+    try:
+        config_path.write_text(_json.dumps(req.definitions, indent=2, ensure_ascii=False), encoding="utf-8")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/component-definitions/load")
+async def api_load_component_definitions(request: Request):
+    """从项目目录加载自定义组件定义。"""
+    project_dir = request.app.state.project_dir
+    if not project_dir:
+        return {"definitions": {}, "error": "No project directory"}
+    config_path = Path(project_dir) / _COMPONENTS_FILE
+    if not config_path.exists():
+        return {"definitions": {}}
+    try:
+        data = _json.loads(config_path.read_text(encoding="utf-8"))
+        return {"definitions": data}
+    except Exception as e:
+        return {"definitions": {}, "error": str(e)}
 
 
 # ═══════════════════════════════════════════════════════

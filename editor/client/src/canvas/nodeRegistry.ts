@@ -17,9 +17,10 @@ export interface NodeTypeConfig {
   config?: Record<string, unknown>;
 }
 
-// ── Code block types (existing, backward compatible) ──
+// ── Unified Node Configs (all 25 node types) ──
 
-const CODE_BLOCK_CONFIGS: NodeTypeConfig[] = [
+const ALL_CONFIGS: NodeTypeConfig[] = [
+  // ═══ Variables ═══
   {
     tag: "signal", category: "variable", label: "Signal", icon: "⚡",
     color: { bg: "#FEF3C7", border: "#D97706" },
@@ -31,6 +32,15 @@ const CODE_BLOCK_CONFIGS: NodeTypeConfig[] = [
     description: "响应式状态变量，存储和读取值",
   },
   {
+    tag: "store", category: "variable", label: "Store", icon: "🗄️",
+    color: { bg: "#F5F3FF", border: "#7C3AED" },
+    defaultPorts: [
+      { name: "items", direction: "out", portType: "data", type: "any", label: "数据" },
+    ],
+    keywords: ["store", "collection", "database", "存储", "集合"],
+    description: "数据集合容器",
+  },
+  {
     tag: "computed", category: "data", label: "Computed", icon: "🔄",
     color: { bg: "#DBEAFE", border: "#2563EB" },
     defaultPorts: [
@@ -40,25 +50,21 @@ const CODE_BLOCK_CONFIGS: NodeTypeConfig[] = [
     keywords: ["computed", "derived", "calculation", "计算", "派生"],
     description: "从其他值派生计算，依赖变化时自动更新",
   },
+
+  // ═══ Action / Event Handler ═══
   {
     tag: "action", category: "action", label: "Action", icon: "▶️",
     color: { bg: "#FCE7F3", border: "#DB2777" },
     defaultPorts: [
       { name: "call", direction: "in", portType: "flow", type: "void", label: "调用" },
+      { name: "flowOut", direction: "out", portType: "flow", type: "void", label: "→" },
       { name: "result", direction: "out", portType: "data", type: "any", label: "返回" },
     ],
     keywords: ["action", "handler", "event", "function", "处理", "事件"],
-    description: "事件处理函数，接收事件并执行逻辑",
+    description: "事件处理函数，接收事件并执行逻辑，可链式执行",
   },
-  {
-    tag: "store", category: "variable", label: "Store", icon: "🗄️",
-    color: { bg: "#F5F3FF", border: "#7C3AED" },
-    defaultPorts: [
-      { name: "items", direction: "out", portType: "data", type: "any", label: "数据" },
-    ],
-    keywords: ["store", "collection", "database", "存储", "集合"],
-    description: "数据集合容器",
-  },
+
+  // ═══ Code / Functions ═══
   {
     tag: "fn", category: "code", label: "Function", icon: "📦",
     color: { bg: "#ECFDF5", border: "#059669" },
@@ -73,11 +79,8 @@ const CODE_BLOCK_CONFIGS: NodeTypeConfig[] = [
     keywords: ["call", "invoke", "调用"],
     description: "调用已定义的函数",
   },
-];
 
-// ── Placeholder configs for visual scripting nodes (Round 2-3 will flesh these out) ──
-
-const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
+  // ═══ Events ═══
   // Event nodes
   {
     tag: "onPress", category: "event", label: "On Press", icon: "🔘",
@@ -110,6 +113,7 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
     ],
     keywords: ["set", "assign", "variable", "设置", "赋值"],
     description: "设置变量的值",
+    config: { variableName: "" },
   },
   {
     tag: "runCodeBlock", category: "action", label: "Run Code Block", icon: "▶️",
@@ -130,6 +134,7 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
     ],
     keywords: ["get", "read", "variable", "读取", "变量"],
     description: "读取变量的当前值",
+    config: { variableName: "" },
   },
   {
     tag: "add", category: "data", label: "Add", icon: "➕",
@@ -298,7 +303,6 @@ const VISUAL_NODE_CONFIGS: NodeTypeConfig[] = [
 
 // ── Registry ──
 
-const ALL_CONFIGS = [...CODE_BLOCK_CONFIGS, ...VISUAL_NODE_CONFIGS];
 const byTag = new Map<string, NodeTypeConfig>();
 const byCategory = new Map<string, NodeTypeConfig[]>();
 

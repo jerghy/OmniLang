@@ -756,6 +756,8 @@ btn.createEventHandler("onPress", {
 | Button | onPress | `evt-btn-press-001` |
 | Button | onHover | `evt-btn-hover-001` |
 | Input | onChange | `evt-input-change-001` |
+| Input | onFocus | `evt-input-focus-001` |
+| Input | onBlur | `evt-input-blur-001` |
 | TextArea | onChange | `evt-textarea-change-001` |
 | Select | onChange | `evt-select-change-001` |
 | Checkbox | onChange | `evt-checkbox-change-001` |

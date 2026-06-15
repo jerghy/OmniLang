@@ -1,0 +1,105 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniLang Editor — Architecture Deep Dive",
+  "description": "Full-stack walkthrough of the OmniLang visual editor: Python backend, React frontend, visual scripting canvas, OmniDriver AI API, and the data-flow architecture that ties it all together. For architects and senior engineers who need to understand how the pieces fit.",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": ".",
+      "title": "Project Root",
+      "description": "OmniLang is a full-stack visual programming platform. Four major subsystems live here: `editor/` (the visual editor — our focus), `omnilang/` (Python compiler), `omnilang-rs/` (Rust port), and `omniview/` (UI rendering framework). The editor is self-contained under `editor/` with its own client, server, and E2E tests."
+    },
+    {
+      "directory": "editor",
+      "title": "Editor — Three Subsystems",
+      "description": "The editor splits into three layers: **server/** (Python FastAPI backend — compilation, file watching, deployment), **client/** (React 19 + TypeScript + Vite SPA — the entire UI), and **e2e/** (Playwright tests — validates both manual interaction and OmniDriver API automation). The server and client communicate over REST (`/api/compile`, `/api/project`) and WebSocket (`/api/watch` for live recompile push)."
+    },
+    {
+      "file": "editor/server/main.py",
+      "line": 31,
+      "title": "Python Backend — FastAPI Entry",
+      "description": "The backend is a single FastAPI app (`app = FastAPI(title=\"OmniLang Editor\")`). It serves the React SPA in production (`client/dist`), exposes `/api/compile` to transform `.omni` source into target code (React/Flutter/SwiftUI/HTML), runs a file watcher over WebSocket at `/api/watch` for live recompile, and handles `.omni.json` export/import/merge for canvas state persistence. The CLI entry is `omnic serve --dir ./project`."
+    },
+    {
+      "file": "editor/client/src/main.tsx",
+      "line": 5,
+      "title": "React Entry Point",
+      "description": "The frontend mounts via `createRoot(document.getElementById(\"root\")!).render(<App />)` — a standard Vite + React 19 SPA entry. The entire editor is a single React application; there is no router because the editor is a single-page tool with two modes (design/code) toggled by React state, not URL routes."
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 52,
+      "title": "App Shell — Dual Mode Architecture",
+      "description": "The `App` component is the central orchestrator (~800+ lines). Its most fundamental architectural decision: **two rendering modes** controlled by `useState<\"design\" | \"code\">(\"design\")`. In **design mode**, the UI shows a WYSIWYG DOM canvas (`LayoutView`) with a component palette sidebar, property inspector, and wire overlay. In **code mode**, it shows a node-based data-flow canvas (`FlowCanvas` powered by `@xyflow/react`), a Monaco code editor, and an activity bar for file/state/function panels. Both modes share the same Zustand store, the same undo stack, and the same OmniDriver API — only the visual representation differs."
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 120,
+      "title": "OmniDriver — AI Automation API Bootstrap",
+      "description": "The OmniDriver is initialized here and attached to `window.__OMNI__`. This is the bridge between human interaction and AI/programmatic control: any script (browser console, Playwright test, AI agent) can call `window.__OMNI__.component(\"Button\", {label:\"Submit\"})` to create UI, `window.__OMNI__.compile()` to check output, etc. The driver wraps the same Zustand store and shares the same `validateConnection()` logic as the interactive canvas — ensuring consistent behavior whether a wire is created by drag-drop or by `omni.connect()`. A CustomEvent listener (`omni-mode-change`) lets the driver switch modes programmatically."
+    },
+    {
+      "file": "editor/client/src/store/editor.ts",
+      "line": 7,
+      "title": "Central State — ElementData, WireData, PortData",
+      "description": "The Zustand store is the **single source of truth** for all editor state. Three core data types define the canvas model: `PortData` (named typed ports with direction and `portType: \"flow\"|\"data\"` — flow ports are diamond-shaped execution triggers, data ports are circle-shaped value carriers), `ElementData` (every node on canvas — contains `nodeType` (view/codeblock/group), `tag`, `props`, `children[]` tree, `ports[]`, `position`, `source` code, `nodeCategory`, and `config`), and `WireData` (directed edges with `fromId`/`fromPort` → `toId`/`toPort`). The store also holds project state (`projectDir`, `files`, `activeFilePath`, `compileErrors`) and read-only mode flags for hand-written code regions."
+    },
+    {
+      "file": "editor/client/src/store/undo.ts",
+      "line": 17,
+      "title": "Undo/Redo — Command Pattern Stack",
+      "description": "The undo system uses the **Command pattern**: every user action is encapsulated as a `Command` object with `execute(ctx)` and `undo(ctx)` methods. The Zustand store holds `undoStack` and `redoStack` (capped at 200 entries via `.slice(-199)`). When a new command executes, it pushes to undo and clears redo. Undo pops from undo, calls `cmd.undo()`, and pushes to redo. The `CommandContext` provides access to the editor store, undo store, and API client. Concrete commands live in `commands/`: `AddElement`, `RemoveElement` (with cascade wire deletion), `AddWire`, `RemoveWire`, `SetProp`, `SetElementsAndWires` (atomic state replacement for save/load + auto-layout)."
+    },
+    {
+      "file": "editor/client/src/canvas/LayoutView.tsx",
+      "line": 10,
+      "title": "Design Mode — WYSIWYG DOM Canvas",
+      "description": "`LayoutView` renders the design-mode canvas by mapping OmniLang component tags to real HTML elements. The `TAG_MAP` (line 10) translates `Container`→`div`, `Text`→`span`, `Button`→`button`, `Image`→`img`, etc. The `omniPropsToStyle()` function (line 22) converts OmniView declarative properties to CSS: `direction: \"row\"` → `display:flex; flex-direction:row`, `gap` → CSS `gap`, `padding`/`margin` directly mapped. VOID_TAGS ensures self-closing elements aren't given children. Elements are rendered recursively from the `children[]` tree, with drag-and-drop from `ComponentPalette` creating new nodes via the `AddElement` command."
+    },
+    {
+      "file": "editor/client/src/canvas/FlowCanvas.tsx",
+      "line": 102,
+      "title": "Code Mode — Visual Scripting Canvas (@xyflow/react)",
+      "description": "`FlowCanvas` is the heart of code mode. It wraps `@xyflow/react` (React Flow) with two custom node types (`codeblock` for signal/computed/action/store/fn-call nodes, `viewEvent` for UI event ports) and two custom edge types (`flow` for execution order, `data` for value passing). The `useEffect` at line 124 converts the store's `elements[]` into React Flow nodes — visible elements are either code blocks (always shown) or view elements that are wired or `showViews` is on. The connection handler at line 202 calls the **shared** `validateConnection()` (same function OmniDriver uses), blocking on errors and logging warnings. Right-click opens the `NodePalette` for adding new nodes."
+    },
+    {
+      "file": "editor/client/src/canvas/nodeRegistry.ts",
+      "line": 5,
+      "title": "Node Registry — 25 Typed Node Configs",
+      "description": "Every node type in the visual scripting system is defined here as a `NodeTypeConfig` with: `tag`, `category` (flow/event/action/data/variable/code), `label`, `icon`, `color`, `defaultPorts[]` (each with direction, portType, type, label), `keywords` (for fuzzy search), `description`, and optional `config`. Six categories cover 25 types: **Events** (onPress, onChange), **Actions** (setVariable, runCodeBlock), **Flow Control** (sequence, forEach, branch, updateUIProperty), **Data** (add, sub, mul, div, compare, and, or, not, concat, literal), **Variables** (getVariable), **Code Blocks** (signal, computed, action, store, fn, fn-call). This registry powers both the `NodePalette` search and `OmniDriver.createNode()`."
+    },
+    {
+      "file": "editor/client/src/canvas/connectionValidators.ts",
+      "line": 1,
+      "title": "Shared Connection Validation — Single Source of Truth",
+      "description": "This file is a critical architectural decision: **validation logic is shared** between the interactive canvas (`FlowCanvas.handleConnect`) and the programmatic API (`OmniDriver.connect()`). `getAllPorts()` (line 23) merges an element's declared ports with event ports from `COMPONENT_PROTOCOL` (so `Button` automatically gets `onPress`, `Input` gets `onChange`, each with `portType: \"flow\"`). `validateConnection()` checks: port existence, direction mismatch (can't connect out→out), port-type mismatch (can't connect flow→data), type compatibility via `isTypeCompatible()`, duplicate wires, and cycle detection (BFS). Issues carry severity (`error` blocks the connection, `warning` allows it with a console warning)."
+    },
+    {
+      "file": "editor/client/src/canvas/FlowEngine.ts",
+      "line": 34,
+      "title": "Flow Engine — BFS Runtime Execution",
+      "description": "`executeFlow()` (line 34) models the data-flow graph as an executable DAG. Algorithm: (1) Find all event nodes (execution roots — `nodeCategory === \"event\"` or tags like `onPress`, `onChange`), (2) BFS from each event through flow-out edges to build topological execution order, (3) At each step, gather data inputs from incoming data edges. Returns `ExecutionResult` with ordered `steps[]`, `outputs` (elementId → port → value), and `unreachable[]` (orphan nodes with no event source). `validateFlow()` runs DFS cycle detection and finds orphan flow-in ports. The engine is used by the compile pipeline to generate correct execution-order code."
+    },
+    {
+      "file": "editor/client/src/canvas/NodePalette.tsx",
+      "line": 39,
+      "title": "NodePalette — Unity VS-Style Right-Click Search",
+      "description": "Right-clicking on the `FlowCanvas` opens this search popup. It's modeled after Unity Visual Scripting's fuzzy search: type to filter all 25 node types by keyword + label, results grouped by category with color-coded icons, keyboard-navigable (↑↓ to move, Enter to select, Escape to close). The `fuzzyScore()` function (line 18) implements a scoring algorithm: exact label match = 2, label startsWith = 1.5, label contains = 1, keyword match = 0.5–1. Selected nodes are created via `AddElement` command at the click position."
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1,
+      "title": "OmniDriver — Playwright-Style AI Automation API",
+      "description": "The OmniDriver (~1462 lines) is the programmatic interface to the editor, modeled after Playwright's API style. Key classes: `OmniDriver` (state queries, `component()`/`codeBlock()` factory methods, `connect()` with shared validation, `compile()`, `undo()`/`redo()`, `snapshot()`, mode switching, snippet registry), `ElementHandle` (wrapper around an element with `setProp()`, `getProp()`, `connectTo()`, `createEventHandler()`, `remove()`, `children()`, `parent()`, `waitForLive()`), `WireHandle` (`disconnect()`, `source()`, `target()`). The driver consumes the same Zustand store as the UI and calls the same `validateConnection()` as `FlowCanvas.handleConnect` — ensuring identical behavior whether a wire is created by a human dragging a handle or an AI calling `omni.connect()`."
+    },
+    {
+      "directory": "editor/e2e",
+      "title": "E2E Tests — Playwright Validation",
+      "description": "The E2E test suite validates the editor through real browser interaction. `editor.spec.ts` covers manual UI flows. `omni-driver-counter.spec.ts` and `omni-driver-task-manager.spec.ts` test the OmniDriver API by building apps programmatically (create components, wire them together, compile, verify output) — the same pattern AI agents use. `wire.spec.ts` specifically tests connection creation, validation, and deletion. Tests run against the full stack (Python backend + Vite dev server) via `playwright.config.ts`."
+    },
+    {
+      "title": "Architectural Takeaways",
+      "description": "**Key decisions to understand before modifying the editor:**\n\n1. **Shared validation** — `connectionValidators.ts` is the single source of truth; any wire validation change affects both drag-drop and OmniDriver.\n\n2. **Two-mode rendering** — design mode (DOM tree) and code mode (node graph) share the same store; adding a third mode means extending `mode` state and adding a new canvas component.\n\n3. **Command pattern undo** — every state mutation must go through a Command with `execute`/`undo`; direct store mutations bypass undo.\n\n4. **Node registry is the taxonomy** — adding a new node type means adding a `NodeTypeConfig` entry; it automatically appears in NodePalette search and OmniDriver.\n\n5. **OmniDriver mirrors Playwright** — the API is designed for AI agents; ElementHandle/ WireHandle patterns should be maintained for any new canvas operations.\n\n6. **Python backend is a thin compile proxy** — it wraps the OmniLang compiler; most editor logic lives in the TypeScript frontend."
+    }
+  ]
+}

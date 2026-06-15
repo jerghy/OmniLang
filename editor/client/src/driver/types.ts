@@ -52,7 +52,7 @@ export interface EditorSnapshot {
   mode: "design" | "code";
   elements: ElementData[];
   wires: WireData[];
-  selectedElementId: string | null;
+  selectedElementIds: string[];
   projectDir: string | null;
   activeFilePath: string | null;
   compileErrors: Array<{ code: string; message: string; line: number }>;

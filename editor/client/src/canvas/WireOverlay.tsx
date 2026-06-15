@@ -71,7 +71,7 @@ export function WireOverlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const elements = useEditorStore((s) => s.elements);
   const wires = useEditorStore((s) => s.wires);
-  const selectedId = useEditorStore((s) => s.selectedElementId);
+  const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const [wireSearch, setWireSearch] = useState("");
 
   const getPorts = useCallback((): PortPoint[] => {
@@ -117,8 +117,8 @@ export function WireOverlay() {
     const ports = getPorts();
 
     // Determine visible wires: selection filter → search filter
-    let candidateWires = selectedId
-      ? wires.filter((wr) => wr.fromId === selectedId || wr.toId === selectedId)
+    let candidateWires = selectedIds.length > 0
+      ? wires.filter((wr) => selectedIds.includes(wr.fromId) || selectedIds.includes(wr.toId))
       : wires;
     if (wireSearch.trim()) {
       candidateWires = searchWires(candidateWires, wireSearch.trim());
@@ -190,7 +190,7 @@ export function WireOverlay() {
 
     // Port dots
     for (const p of ports) {
-      if (selectedId && p.id !== selectedId) continue;
+      if (selectedIds.length > 0 && !selectedIds.includes(p.id)) continue;
       ctx.beginPath();
       ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
       ctx.fillStyle = p.dir === "out" ? "#4F46E5" : "#10B981";
@@ -198,7 +198,7 @@ export function WireOverlay() {
     }
 
     perfMonitor.endFrame(elements.length, wires.length);
-  }, [elements, wires, selectedId, wireSearch, getPorts]);
+  }, [elements, wires, selectedIds, wireSearch, getPorts]);
 
   useEffect(() => {
     let raf: number;

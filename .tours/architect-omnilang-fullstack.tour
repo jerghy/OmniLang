@@ -1,0 +1,148 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniLang 全栈架构之旅 — 从编译器到可视化编辑器",
+  "description": "覆盖 OmniLang 三大子系统：omnilang-rs（Rust 编译引擎）、omnilang+omniview（Python 语言+UI DSL）、editor（React 可视化编辑器）。适合需要理解全栈架构的开发者，按编译流水线→UI 扩展→编辑器前端→持久化层的顺序遍历。",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": ".",
+      "title": "项目全景 — 三大子系统",
+      "description": "OmniLang 是一个多语言编译+可视化编辑平台。三个核心目录：omnilang-rs/（Rust 编译引擎，生产级）、omnilang/（Python 语言核心，原型验证）、omniview/（Python UI DSL 扩展）、editor/（React 可视化编辑器）。pyproject.toml 定义 Python 包结构，package.json 定义编辑器入口。README.md 包含 5 个示例、8 个编译目标和已知限制。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/lib.rs",
+      "line": 28,
+      "title": "Rust 编译器入口 — 三阶段流水线",
+      "description": "`compile()` 是 Rust 版编译器的主入口，展示完整的编译流水线：Phase 1 parse（源码→AST）、Phase 2 analyze（语义分析：符号解析、类型检查、影子检测、限制检查、主函数验证）、Phase 3 generate（AST→目标语言代码）。这是整个系统最核心的控制流。另有 `analyze_semantic()` 和 `generate_code()` 两个独立接口供 LSP 增量使用。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/parser/mod.rs",
+      "line": 11,
+      "title": "手写递归下降解析器",
+      "description": "Rust 版 parser 是手写递归下降解析器（非 parser generator），从 Lexer token 流构建 AST。`parse()` 驱动词法→语法两阶段，`Parser` 结构体持有 token 流、位置状态和错误收集器。核心解析方法分散在 mod.rs（顶层声明）、expr.rs（表达式/Pratt parsing）、template.rs（模板字符串）、grammar.rs（语句/声明）中。注意 `brace_depth` 字段用于区分 struct literal 和代码块——这是手写 parser 才需要的 trick。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/ast.rs",
+      "line": 1,
+      "title": "AST 定义 — 类型系统与节点 ID",
+      "description": "所有 AST 节点的定义文件。核心设计：每个节点有全局唯一的 `NodeId`（AtomicU64 递增），`TypeRepr` 枚举支持 Named/Union/Fn 三种类型表示，`Program` 是顶层容器（functions/structs/tagged_unions/classes/interfaces）。`is_copy_type()` 方法体现了跨语言设计的核心挑战——不同目标语言对值语义/引用语义的处理不同，类型系统需要编码这些信息。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/semantic/mod.rs",
+      "line": 12,
+      "title": "五遍语义分析",
+      "description": "`analyze()` 串联 5 个分析遍：Pass 1 resolver（符号解析+作用域）、Pass 2 type_checker（类型推断+检查，返回 type_map）、Pass 3 shadow（变量遮蔽检测，生成 rename_map 避免跨语言命名冲突）、Pass 4 restrict（限制检查——禁止某些模式在特定目标语言中使用）、Pass 5 main_check（验证入口函数）。注意 Pass 3 的 rename_map 是关键——它解决跨语言关键字冲突，如 OmniLang 允许 `type` 作变量名但 Python 不允许，rename_map 会将其映射为 `type_`。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/semantic/type_checker.rs",
+      "line": 51,
+      "title": "类型检查器 — 跨语言类型推断",
+      "description": "`check()` 遍历整个 AST 推导每个节点的类型，返回 `HashMap<NodeId, TypeRepr>`。核心逻辑：表达式类型推断（match 各表达式类型递归推导）、声明类型检查（let 声明的注解与初始化表达式匹配）、函数返回类型检查（return 表达式 vs 声明返回类型）。跨语言设计的微妙之处：不同的目标语言对整数溢出、浮点精度、null/undefined 的处理不同，type_checker 需要在检查时考虑目标语言语义。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/codegen/mod.rs",
+      "line": 10,
+      "title": "代码生成分配器",
+      "description": "`generate()` 是代码生成的调度器：根据 target 字符串匹配到具体生成器——PythonGenerator、JavaScriptGenerator、DartGenerator、RustGenerator。每个生成器接收 type_map（类型信息）和 rename_map（命名冲突解决）。当前支持 4 个目标，纯逻辑代码（非 UI）。注意目标命名同时接受长名和短名（\"python\"/\"py\"），这是在 CLI 层做的兼容处理。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/analyze/registry.rs",
+      "line": 27,
+      "title": "静态分析规则注册表",
+      "description": "`RuleRegistry` 是 lint/静态分析系统的核心。`register()` 方法以泛型方式注册规则（要求实现 AnalyzeRule trait），支持 7 大类 50+ 规则：portability（9条，检测跨语言兼容性问题如整数除法、浮点比较）、type_rules（类型相关）、security（SQL注入、硬编码凭据、不安全eval）、async_rules（异步模式检查）、ownership（所有权冲突检测）、performance（性能优化建议）、style（代码风格）。每条规则返回 Diagnostic，配有 fix_engine 支持自动修复。"
+    },
+    {
+      "file": "omnilang-rs/crates/omnilang-core/src/lsp/server.rs",
+      "line": 1,
+      "title": "LSP 服务器 — IDE 集成",
+      "description": "基于 JSON-RPC 2.0 的 LSP 服务器，通过 stdio 与 IDE 通信。支持文档同步（textDocument/didOpen/didChange/didClose）、诊断推送（textDocument/publishDiagnostics，调用 analyze 模块）、悬停提示、代码补全等。核心设计：documents HashMap 维护所有打开文件的状态，每次变更触发增量分析并推送诊断结果。这是编译器的 IDE 集成层，让 OmniLang 可以在 VS Code 等编辑器中获得语法高亮和错误提示。"
+    },
+    {
+      "file": "omnilang/lexer.py",
+      "line": 15,
+      "title": "Python 解析器工厂 — 双语法入口",
+      "description": "Python 版使用 Lark Earley 解析器（vs Rust 版手写递归下降）。`create_parser()` 加载基础 OmniLang 语法（omnilang.lark），`create_omniview_parser()` 加载 UI 扩展语法（omniview/grammar.lark），失败时 fallback 到基础 parser。两个 parser 都使用 Earley 模式（支持上下文相关语法）并启用位置传播。这是 Python 版与 Rust 版的关键架构差异——Python 用 parser generator，Rust 用手写 parser。"
+    },
+    {
+      "file": "omnilang/grammar/omnilang.lark",
+      "line": 1,
+      "title": "OmniLang 语法定义 — EBNF 描述",
+      "description": "251 行的 Lark EBNF 语法文件，定义完整的 OmniLang 语言规范。从顶层结构（program → 声明列表）到表达式（12 级优先级）、语句（if/while/for/return）、类型（union_type、generics）。与 Rust 版手写 parser 必须保持语义一致——这是双实现架构的主要维护负担。`_core.lark` 是共享的终端定义（数字、字符串、标识符等）。"
+    },
+    {
+      "file": "omnilang/parser.py",
+      "line": 38,
+      "title": "Python AST 转换器",
+      "description": "`OmniTransformer` 继承 Lark Transformer 和 ExpressionMixin，将 Lark parse tree 转换为 OmniLang AST（frozen dataclass 节点，在 ast_nodes.py 中定义）。核心设计：ExpressionMixin 处理 12 级运算符优先级的 Pratt parsing；`_is_expr()` 和 `_is_type()` 是 AST 节点类型判断的 hot path。v0.2 扩展至 40+ AST 节点类型，覆盖模板字符串、可选链、解构、结构体、联合类型等。"
+    },
+    {
+      "file": "omniview/parser.py",
+      "line": 62,
+      "title": "OmniView UI 解析器",
+      "description": "`OmniViewTransformer` 将 UI 扩展语法（component/store/theme/view/style）转换为 OmniView AST。关键设计：复用 omnilang.ast_nodes 中的表达式类型（Literal、VarRef、BinaryOp 等），添加 UI 专属节点（ComponentDef、StoreDef、Element、@for/@if 指令、BindProp、EventProp 等）。~1305 行（Council 设定的 1600 行预算），行数压力大时计划拆分为 parser_core.py + parser_ui.py。"
+    },
+    {
+      "file": "omniview/codegen/react.py",
+      "line": 45,
+      "title": "React L2 代码生成",
+      "description": "`ReactCodegen` 从 OmniView IR 生成 L2（idiomatic）React TypeScript 代码。核心映射：ELEMENT_MAP（Container→div、Button→button 等 HTML 语义化映射）、LAYOUT_PROPS（Flex 布局属性→inline styles）、EVENT_MAP（onPress→onClick 等事件名转换）。输出包含 Function Components + Hooks + Zustand 状态管理 + CSS Modules。其他 codegen 目标（Vue、Dioxus、Flutter）遵循相同的 CodegenBase 接口，只是具体映射不同。"
+    },
+    {
+      "file": "omniview/cli.py",
+      "line": 776,
+      "title": "omnic CLI — 用户交互入口",
+      "description": "`main()` 注册所有子命令：build（.omni→目标代码）、check（静态分析，调用 omnilang.analyze 模块）、fix（自动修复）、fmt（格式化）、init（初始化项目）、serve（启动可视化编辑器）。`build_command()`（line 65）展示完整的编译流程：读取源文件→预处理器→语法检查（`_check_common_mistakes` 提供友好的错误提示如\"or→||\"）→解析→语义分析→代码生成→写入输出。"
+    },
+    {
+      "file": "omniview/examples/todo-app.omni",
+      "line": 1,
+      "title": "Todo App 示例 — 感受 .omni 语法",
+      "description": "最完整的 OmniView 示例，展示所有核心语法特性：store 定义（signals/getters/actions）、component 定义（signals/@store 注入）、view 模板（Flex/Button/Input 组件树、@if/@for 指令、bind:value 双向绑定、onPress 事件绑定）、style 块（CSS 属性映射）。编译为 React 后生成 Zustand store + Function Component + CSS Modules。理解此文件就理解了 .omni 语法的 90%。"
+    },
+    {
+      "file": "editor/server/main.py",
+      "line": 31,
+      "title": "Editor 后端 — FastAPI 服务",
+      "description": "FastAPI 应用提供 3 个端点：GET /（编辑器 SPA）、POST /api/compile（编译 .omni→目标代码，返回 {files, diff, errors}）、WS /api/watch（文件轮询+实时编译推送）。运行方式：`omnic serve --dir ./my-project`。生产模式从 client/dist/ 提供 React 构建产物，开发模式提供最小 HTML 页面（`_EDITOR_HTML`）。CORS 全开（allow_origins=[\"*\"]），适合本地开发。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 52,
+      "title": "编辑器前端 — React 应用根组件",
+      "description": "`App` 组件是可视化编辑器的根。核心状态：mode（design/code 双模式切换）、wireMode（连线模式）、target（编译目标）、breakpoint（桌面/平板/手机预览）。左侧面板系统（ActivityBar + 动态面板：FileExplorer/BlockPalette/ComponentPalette/ConnectorPanel/TokenPanel/StatePanel/FunctionLibrary），中间画布区（FlowCanvas 可视化编程 + LayoutView 布局预览），右侧 Inspector（PropertyPanel）。底部状态栏显示编译状态和目标。"
+    },
+    {
+      "file": "editor/client/src/canvas/FlowCanvas.tsx",
+      "line": 1,
+      "title": "FlowCanvas — 可视化编程画布",
+      "description": "基于 @xyflow/react 的数据流可视化编程画布。核心设计：双节点类型（CodeBlockNode 功能性节点 + ViewEventNode UI 事件节点）、双连线类型（DataEdge 数据流 + FlowEdge 控制流）、类型化端口（通过 socketTypes.ts 的 isTypeCompatible 验证连接兼容性）、NodePalette 侧边面板（拖拽添加节点）。节点间的连接关系由 connectionValidators.ts 验证，支持自定义端口类型和类型不匹配的友好提示。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1,
+      "title": "OmniDriver — Playwright 风格的自动化 API",
+      "description": "`OmniDriver` 提供类 Playwright 的编辑器操控 API，挂载在 `window.__OMNI__`。核心模式：ElementHandle（每个元素的操作句柄，支持 setProp/getProp/connectTo/disconnect 等方法）、Query API（findByTag/findByRole/findByTestId 定位元素）、Compile API（编译并返回 errors/warnings/output）、Snapshot（编辑器状态快照用于测试断言）。设计目标：AI agent 和 E2E 测试脚本通过同一套 API 驱动编辑器。"
+    },
+    {
+      "file": "editor/client/src/canvas/FlowEngine.ts",
+      "line": 34,
+      "title": "FlowEngine — 控制流执行引擎",
+      "description": "`executeFlow()` 执行代码块节点间的控制流（顺序/条件/循环）。`validateFlow()` 在编译前检查流程图的完整性：所有节点连通、无循环依赖、端口类型匹配。FlowEngine 是 OmniLang 的中间表示（IR），介于可视化画布和最终代码之间——visualToSource 模块将 FlowEngine 的状态转换为 .omni 源码，再送入编译器生成目标代码。"
+    },
+    {
+      "file": "editor/client/src/canvas/visualToSource.ts",
+      "line": 12,
+      "title": "可视化→源码转换",
+      "description": "`visualToSource()` 是可视化编辑器到 .omni 源码的桥梁。输入：elements（节点数据）+ wires（连线数据），输出：.omni 源码字符串。核心逻辑：遍历节点生成 component/store/function 声明，遍历连线生成数据流和控制流关系，处理端口类型推导和表达式生成。`exportOmniSource()` 包装了完整流程，包括 component 名称处理。这是双向同步（code↔visual）的 code→visual 方向。"
+    },
+    {
+      "directory": "editor/server/omni_json",
+      "title": "OmniJson — 持久化与协作层",
+      "description": "OmniJson 是编辑器的持久化格式：schema.py（JSON Schema 验证）、serializer.py（编辑器状态→JSON）、importer.py/exporter.py（导入导出）、merger.py（三路合并支持协作编辑）、wire_validator.py（连线完整性验证）。设计目标：.omni.json 作为编辑器中间格式，支持 Git 友好（语义化 diff）、多人协作（merger 的三路合并）、CI/CD 集成（可编程修改）。"
+    },
+    {
+      "title": "完整数据流 — 从 .omni 到运行中的应用",
+      "description": "你现在可以追踪完整的数据流：1) .omni 源文件→2) 预处理器（Python cli）→3) Lark 解析器→4) AST（frozen dataclasses）→5) 语义分析（5 passes）→6) 代码生成（React/Vue/Dioxus/Flutter）→7) npm build→8) 运行中的应用。双向路径：可视化编辑器（FlowCanvas）→ FlowEngine → visualToSource → .omni 源码 → 编译器 → 代码。理解这条流水线就理解了整个 OmniLang 平台的核心架构。Rust 版（omnilang-rs）提供了相同的编译流水线但使用手写 parser，适合需要高性能和 LSP 集成的场景。"
+    }
+  ]
+}

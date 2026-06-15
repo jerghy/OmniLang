@@ -1,17 +1,14 @@
-"""OmniLang editor native format (.omni.json) — schema, serialization, import/export."""
+"""OmniLang editor native format (.omni.json) — v2 schema, serialization, import/export."""
 
 from editor.server.omni_json.schema import (
+    CanvasData,
     CanvasLayoutSnapshot,
-    ComponentSnapshot,
+    ComponentRefEntry,
     ElementEntry,
     OmniJsonDocument,
     OmniMetadata,
-    OwnershipRegionEntry,
-    SearchIndexEntry,
-    SearchIndexSnapshot,
-    StoreSnapshot,
-    ThemeSnapshot,
-    ViewNodeSnapshot,
+    ProjectConfig,
+    TabState,
     WireEntry,
 )
 from editor.server.omni_json.serializer import OmniJsonSerializer
@@ -19,15 +16,12 @@ from editor.server.omni_json.serializer import OmniJsonSerializer
 __all__ = [
     "OmniJsonDocument",
     "OmniMetadata",
-    "ComponentSnapshot",
-    "StoreSnapshot",
-    "ThemeSnapshot",
+    "CanvasData",
+    "CanvasLayoutSnapshot",
+    "ComponentRefEntry",
     "ElementEntry",
     "WireEntry",
-    "ViewNodeSnapshot",
-    "OwnershipRegionEntry",
-    "SearchIndexEntry",
-    "SearchIndexSnapshot",
-    "CanvasLayoutSnapshot",
+    "ProjectConfig",
+    "TabState",
     "OmniJsonSerializer",
 ]

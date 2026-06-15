@@ -89,6 +89,18 @@ class ApiClient {
     });
   }
 
+  // M8: Custom component definitions
+  async saveComponentDefinitions(definitions: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+    return this.post("/api/component-definitions/save", {
+      body: JSON.stringify({ definitions }),
+    });
+  }
+
+  async loadComponentDefinitions(): Promise<{ definitions: Record<string, unknown>; error?: string }> {
+    const res = await fetch("/api/component-definitions/load");
+    return res.json();
+  }
+
   // ── Run / Vite DevServer (Phase 1 Runtime Bridge) ──
 
   async startRun(files: Record<string, string>, debug = false): Promise<{ success: boolean; url?: string; port?: number; error?: string }> {

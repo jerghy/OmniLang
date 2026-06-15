@@ -16,12 +16,13 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { useEditorStore, type ElementData, type WireData } from "../store/editor";
-import { useUndoStore } from "../store/undo";
+import { useCodeGraphStore } from "../codegraph/store";
+import { createCodeGraphContext } from "../codegraph/context";
 import { AddWire } from "../commands/AddWire";
 import { RemoveWire } from "../commands/RemoveWire";
 import { AddElement } from "../commands/AddElement";
 import { RemoveElement } from "../commands/RemoveElement";
-import type { CommandContext } from "../commands/types";
+import type { CommandContext, CodeGraphCommandContext } from "../commands/types";
 import { getNodeConfig, type NodeTypeConfig } from "./nodeRegistry";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ViewEventNode } from "./nodes/ViewEventNode";
@@ -113,9 +114,12 @@ export function FlowCanvas({
   activeNodeIds,
   activeEdgeIds,
 }: FlowCanvasProps) {
-  const elements = useEditorStore((s) => s.elements);
-  const wires = useEditorStore((s) => s.wires);
-  const selectedElementId = useEditorStore((s) => s.selectedElementId);
+  const elements = useCodeGraphStore((s) => s.activeGraph.elements);
+  const wires = useCodeGraphStore((s) => s.activeGraph.wires);
+  const selectedElementIds = useCodeGraphStore((s) => s.selectedElementIds);
+  const activeTabId = useCodeGraphStore((s) => s.activeTabId);
+  const pushUndo = useCodeGraphStore((s) => s.pushUndo);
+  const codeCtx = createCodeGraphContext();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Stable ref for onNodeDoubleClick to avoid useEffect re-run on every render
@@ -152,13 +156,16 @@ export function FlowCanvas({
         if (!visited.has(w.toId)) queue.push(w.toId);
       }
     }
-    // Unreachable = codeblock nodes not visited (but only if they have flow-in ports)
+    // Unreachable = codeblock nodes not visited that SHOULD be connected to an event source.
+    // Signal/computed/store can legitimately exist standalone as state holders — don't flag them.
+    // Only flag action/flow nodes that are meant to be triggered by events.
     const unreachable = elements
       .filter((e) => {
         if (visited.has(e.id)) return false;
         if (e.nodeType !== "codeblock") return false;
-        // View elements are always "reachable" (they're on the design canvas)
         if (e.nodeCategory === "event") return false;
+        // Variable/data nodes (signal, computed, store) are standalone — not unreachable
+        if (e.nodeCategory === "variable" || e.nodeCategory === "data") return false;
         return true;
       })
       .map((e) => e.id);
@@ -233,13 +240,13 @@ export function FlowCanvas({
         type: el.nodeType === "codeblock" ? ("codeblock" as const) : ("viewEvent" as const),
         position: pos,
         data: nodeData as unknown as Record<string, unknown>,
-        selected: el.id === selectedElementId,
+        selected: selectedElementIds.includes(el.id),
         style: validationStyle,
       });
     }
 
     setNodes(newNodes);
-  }, [elements, wires, showViews, selectedElementId, flowIssues, activeNodeIds]);
+  }, [elements, wires, showViews, selectedElementIds, flowIssues, activeNodeIds]);
 
   // ── Convert wires -> React Flow edges ──
 
@@ -364,7 +371,7 @@ export function FlowCanvas({
   // ── Node click -> select in store ──
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    useEditorStore.getState().selectElement(node.id);
+    useEditorStore.getState().selectElement(node.id, _event.shiftKey);
   }, []);
 
   // ── Node drag stop -> persist position to store ──

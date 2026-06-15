@@ -187,16 +187,17 @@ export function wouldCreateCycle(
     }
   }
 
-  // BFS from toId backward — if we can reach fromId, adding this edge creates a cycle
+  // BFS backward from fromId through predecessors — if we can reach toId,
+  // then toId already reaches fromId forward, so adding fromId→toId creates a cycle.
   const visited = new Set<string>();
-  const queue = [toId];
-  visited.add(toId);
+  const queue = [fromId];
+  visited.add(fromId);
 
   while (queue.length > 0) {
     const current = queue.shift()!;
     const predecessors = predMap.get(current) || [];
     for (const pred of predecessors) {
-      if (pred === fromId) return true;
+      if (pred === toId) return true;
       if (!visited.has(pred)) {
         visited.add(pred);
         queue.push(pred);

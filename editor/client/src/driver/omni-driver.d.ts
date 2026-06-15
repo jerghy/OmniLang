@@ -137,6 +137,7 @@ interface OmniDriver {
   highlight(elementId: string): void;
   highlightAll(tag: string): void;
   clearHighlights(): void;
+}
 
 interface StateDiff {
   added: ElementData[];

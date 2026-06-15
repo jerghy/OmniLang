@@ -1,30 +1,42 @@
 /** Activity Bar — VS Code-style icon column for panel switching.
- *  Design §4.2: click icon → toggle panel. Only one panel open at a time. */
+ *  Design §4.2: click icon → toggle panel. Only one panel open at a time.
+ *  Reusable across code and design modes via the `panels` prop. */
 
 import { useState, type ReactNode } from "react";
 
-export type PanelId = "files" | "state" | "functions" | null;
+/** Panel identifiers — covers both code-mode and design-mode panels. */
+export type PanelId = "files" | "state" | "functions" | "components" | "canvas" | null;
 
-interface PanelDef {
+export interface PanelDef {
   id: NonNullable<PanelId>;
   icon: string;
   label: string;
   shortcut: string;
 }
 
-const PANELS: PanelDef[] = [
+/** Default panels for code mode. */
+export const CODE_PANELS: PanelDef[] = [
   { id: "files",     icon: "📁", label: "文件浏览器", shortcut: "Ctrl+1" },
   { id: "state",     icon: "⚡", label: "状态管理",   shortcut: "Ctrl+2" },
   { id: "functions", icon: "📦", label: "函数库",     shortcut: "Ctrl+3" },
 ];
 
+/** Default panels for design mode. */
+export const DESIGN_PANELS: PanelDef[] = [
+  { id: "components", icon: "🧩", label: "组件面板", shortcut: "Ctrl+1" },
+  { id: "canvas",     icon: "📄", label: "画布面板", shortcut: "Ctrl+2" },
+];
+
 interface ActivityBarProps {
   activePanel: PanelId;
   onToggle: (id: NonNullable<PanelId>) => void;
+  /** Panels to display. Defaults to CODE_PANELS for backward compatibility. */
+  panels?: PanelDef[];
 }
 
-export function ActivityBar({ activePanel, onToggle }: ActivityBarProps) {
+export function ActivityBar({ activePanel, onToggle, panels }: ActivityBarProps) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const displayPanels = panels || CODE_PANELS;
 
   return (
     <div style={{
@@ -33,7 +45,7 @@ export function ActivityBar({ activePanel, onToggle }: ActivityBarProps) {
       display: "flex", flexDirection: "column", alignItems: "center",
       paddingTop: 8, gap: 2,
     }}>
-      {PANELS.map(panel => {
+      {displayPanels.map(panel => {
         const isActive = activePanel === panel.id;
         return (
           <div
@@ -94,5 +106,3 @@ export function PanelContainer({ visible, children }: PanelContainerProps) {
     </div>
   );
 }
-
-export { PANELS };

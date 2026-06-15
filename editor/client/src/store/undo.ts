@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import type { Command, CommandContext } from "../commands/types";
+import { saveSnapshot, loadSnapshot } from "./undoPersistence";
+import { useEditorStore } from "./editor";
 
 interface UndoState {
   undoStack: Command[];
@@ -29,6 +31,8 @@ export const useUndoStore = create<UndoState>((set, get) => ({
       undoStack: [...s.undoStack.slice(-199), cmd],
       redoStack: [], // 新操作清空 redo 栈
     }));
+    // IndexedDB snapshot
+    saveSnapshot(ctx.elements, ctx.wires).catch(() => {});
   },
 
   undo: (ctx) => {
@@ -40,6 +44,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
       undoStack: undoStack.slice(0, -1),
       redoStack: [...get().redoStack.slice(-199), cmd],
     });
+    saveSnapshot(ctx.elements, ctx.wires).catch(() => {});
   },
 
   redo: (ctx) => {
@@ -51,6 +56,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
       redoStack: redoStack.slice(0, -1),
       undoStack: [...get().undoStack.slice(-199), cmd],
     });
+    saveSnapshot(ctx.elements, ctx.wires).catch(() => {});
   },
 
   clear: () => set({ undoStack: [], redoStack: [] }),
@@ -60,6 +66,14 @@ export const useUndoStore = create<UndoState>((set, get) => ({
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    // 恢复：从 IndexedDB 重建（M1b 完成时实现）
+    loadSnapshot().then((snapshot) => {
+      if (snapshot && snapshot.elements.length > 0) {
+        const store = useEditorStore.getState();
+        // Only restore if the current canvas is empty (possible freeze-discard scenario)
+        if (store.elements.length === 0 && store.wires.length === 0) {
+          store.setElementsAndWires(snapshot.elements, snapshot.wires);
+        }
+      }
+    }).catch(() => {});
   }
 });

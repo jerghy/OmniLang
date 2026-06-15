@@ -1,0 +1,119 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniLang 可视化设计架构 — 设计模式画布与属性面板",
+  "description": "深度剖析编辑器设计模式（🎨 设计）的完整架构：从 App.tsx 双模式切换、Zustand 状态存储、COMPONENT_PROTOCOL 组件协议、LayoutView DOM 渲染器、OmniView 属性→CSS 映射、PropertyPanel 动态属性/样式/事件编辑器、WireOverlay Canvas2D 连线叠加层、StateHUD 运行时状态检查、ActivityBar 面板系统，到断点预览、画布保存/加载、Token 设计令牌的完整数据流。",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": "editor/client/src/panels",
+      "title": "面板模块总览",
+      "description": "设计模式的面板系统位于 panels/ 目录。核心面板：ComponentPalette（组件拖拽面板）、PropertyPanel（属性/样式/事件编辑器）、TokenPanel（设计令牌）、ActivityBar（VS Code 风格图标栏）。每个面板操作独立的 store 数据，通过 Command 模式走撤销栈。COMPONENT_PROTOCOL（ComponentPalette 导出）是组件元数据的单一真相源——PropertyPanel、connectionValidators、FlowCanvas 都依赖它。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 52,
+      "title": "App.tsx — 双模式架构的总入口",
+      "description": "App 组件维护 mode 状态（'design' | 'code'），顶部左右两个按钮切换。设计模式渲染：左侧 ComponentPalette + 中间 LayoutView + 右侧 PropertyPanel。代码模式渲染：左侧 ActivityBar + 中间 FlowCanvas + 可选 ConnectorPanel。key concept：两种模式共享同一个 Zustand store（elements/wires），所以设计模式中拖入的组件在代码模式的 FlowCanvas 中也会显示为 ViewEventNode。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 596,
+      "title": "设计模式渲染树 — LayoutView + 面板 + 工具栏",
+      "description": "设计模式（第596-736行）的布局：①左侧侧边栏：ComponentPalette（可折叠）+ TokenPanel（可选）+ 动画导入按钮 ②中间主区域：带视口断点切换的 LayoutView + 可选 WireOverlay（连线模式）+ 可选 StateHUD（状态检查）+ FocusOrderOverlay（焦点顺序）③右侧 Inspector：PropertyPanel。工具栏提供：断点切换（桌面/平板/手机）、Token 开关、连线模式、状态检查、组件状态预览、焦点顺序、发布、保存/加载画布、编译。"
+    },
+    {
+      "file": "editor/client/src/store/editor.ts",
+      "line": 7,
+      "title": "ElementData — 视图元素的数据模型",
+      "description": "ElementData（第20-44行）是统一的数据模型，同时服务设计模式和代码模式。对设计模式关键字段：nodeType: 'view' 标识视图元素、tag 映射到 HTML 标签（Button→button、Container→div 等）、props 存储 OmniView 属性（label、variant、direction、gap 等）、children 数组维护父子树结构、parentId 标识父节点。renderMode 字段可切换 'dom' 或 'canvas' 渲染方式。"
+    },
+    {
+      "file": "editor/client/src/panels/ComponentPalette.tsx",
+      "line": 22,
+      "title": "COMPONENT_PROTOCOL — 组件元数据的单一真相源",
+      "description": "META 对象（第22-42行）定义了所有内置组件的完整元数据，以 COMPONENT_PROTOCOL 导出供全系统使用。每个组件条目包含：category（分类）、description（描述）、props（属性定义：类型、默认值、可选值、编辑器类型）、events（事件定义：UUID id、描述、payload 类型）、styleProperties（可编辑的样式属性列表）、children（是否允许子元素）。共 16 个组件，分 8 个分类：Layout/Flex/Grid/Card（布局）、Text/Heading（排版）、Button（操作）、Input/TextArea/Select/Checkbox/Form（表单）、List/ListItem（数据）、Image（媒体）、Spinner/Progress/Alert（反馈）、Link（导航）。"
+    },
+    {
+      "file": "editor/client/src/panels/ComponentPalette.tsx",
+      "line": 49,
+      "title": "ComponentPalette UI — 分类展示+拖拽",
+      "description": "ComponentPalette（第49-92行）按 category 分组渲染组件列表。每个组件项设置为 draggable，onDragStart 时设置 MIME 类型 application/omni-component（第57-60行）。目标画布（LayoutView）的 handleDragOver/handleDrop 通过 event.dataTransfer.getData('application/omni-component') 接收，创建带默认 props 的 ElementData 并通过 AddElement Command 加入 store。"
+    },
+    {
+      "file": "editor/client/src/canvas/LayoutView.tsx",
+      "line": 137,
+      "title": "LayoutView — DOM 渲染画布",
+      "description": "设计模式的核心渲染器。从 store 读取 elements，分离 viewRoots（nodeType==='view'，无 parentId）和 codeRoots（nodeType==='codeblock'）。每个 view 元素递归渲染为 RenderElement 组件（第209-329行），code block 渲染为 CodeBlockCard（第344-411行）。空画布时展示友好的占位提示：'🎨 编译 .omni 或在左侧组件面板拖入组件'。"
+    },
+    {
+      "file": "editor/client/src/canvas/LayoutView.tsx",
+      "line": 22,
+      "title": "OmniView 属性 → CSS 映射引擎",
+      "description": "omniPropsToStyle()（第22-128行）是设计模式最核心的转换函数。将 OmniView 声明式属性映射为 React CSSProperties：direction→flexDirection、gap→gap、padding/margin→对应 CSS、align→alignItems、justify→justifyContent、background/color→对应 CSS、fontSize/fontWeight→对应 CSS、borderRadius/border/shadow→对应 CSS。每个组件类型有智能默认值：Card 默认 padding 16px + 白色背景 + 阴影圆角、Button 有 variant 样式链（primary→紫色填充、outline→透明+边框、danger→红色系、ghost→无边框）、Heading 按 level 映射字号（1→24px、2→20px...）、Input 有默认边框和圆角。"
+    },
+    {
+      "file": "editor/client/src/canvas/LayoutView.tsx",
+      "line": 209,
+      "title": "RenderElement — 递归树渲染+交互状态",
+      "description": "RenderElement（第209-329行）递归渲染视图树。TAG_MAP（第10-16行）将 OmniView 标签映射到 HTML 元素（Container→div、Text→span、Button→button、Image→img 等）。每个元素渲染时：①应用 omniPropsToStyle 的 CSS ②根据 selectedId 添加选中框（2px 紫色 outline）③hover 时显示虚线框（1px 蓝色 dashed）④Text 元素点击冒泡到父级避免误选 ⑤void 元素（input/img/hr/br）特殊处理。CodeBlockCard（第344-411行）渲染为带端口的卡片，按 blockType 着色。"
+    },
+    {
+      "file": "editor/client/src/panels/PropertyPanel.tsx",
+      "line": 61,
+      "title": "PropertyPanel — 动态属性/样式/事件编辑器",
+      "description": "PropertyPanel（第61-189行）是右侧 Inspector 的核心。根据选中元素的 tag 查找 METADATA 元数据（第31-50行，与 COMPONENT_PROTOCOL 内容同步），动态渲染三个编辑区：①Props 区——PropEditor 根据 editor 类型渲染不同控件（text→输入框、select→下拉、checkbox→复选框）②Events 区——EventEditor 显示事件列表，每个事件有「🔗 连线到代码块」按钮（第110-167行），点击后自动创建 handler action 节点+wire+跳转到代码模式 ③Style 区——StyleEditor 渲染样式属性，color 属性有颜色选择器+文本输入双控件（第240-260行）。所有编辑通过 undoExec(new SetProp(id, prop, value), ctx) 走撤销栈。"
+    },
+    {
+      "file": "editor/client/src/panels/PropertyPanel.tsx",
+      "line": 109,
+      "title": "事件连线 — 从设计模式一键跳转到代码模式",
+      "description": "PropertyPanel 的「🔗 连线到代码块」按钮（第110-167行）实现了设计→代码的无缝桥接。点击时：①从 COMPONENT_PROTOCOL 获取事件的 UUID 端口 ID ②创建 handler action 节点（带类型化的 call 输入端口和 result 输出端口）③自动生成包含事件 payload 类型注解的源代码模板 ④创建 wire（from element event port UUID → to handler call port）⑤通过 onNavigateToCode 回调切换到代码模式并高亮该 wire。这是设计模式声明式 UI 与代码模式可视化编程的桥梁。"
+    },
+    {
+      "file": "editor/client/src/canvas/WireOverlay.tsx",
+      "line": 70,
+      "title": "WireOverlay — Canvas2D 贝塞尔连线叠加层",
+      "description": "WireOverlay（第70-286行）在设计模式 LayoutView 之上叠加一个透明 Canvas2D 层，绘制组件间的连线。draw()（第101-201行）通过 ResizeObserver + requestAnimationFrame 实现高性能渲染：①getPorts()（第77-99行）从 DOM 查询 [data-omni-id] 元素计算端口坐标②画贝塞尔曲线（cp = 水平距离×0.5）③foldWires() 折叠同源同目标的线（超过 5 条时聚合为粗虚线+计数徽章）④搜索过滤（searchWires 按 fromId/toId/fromPort/toPort 过滤）。连线模式通过工具栏「🔗 连线」按钮切换。"
+    },
+    {
+      "file": "editor/client/src/canvas/StateHUD.tsx",
+      "line": 30,
+      "title": "StateHUD — 运行时状态检查 HUD",
+      "description": "StateHUD（第30-305行）是设计模式选中元素时弹出的运行时状态监视器。通过 postMessage 协议与预览 iframe 通信：①编辑器发送 { type: 'omni:get-state', elementId, signals } ②iframe 回复 { type: 'omni:state', elementId, values }。支持实时轮询（1s 间隔）和历史记录（最多 50 条/signal）。展示 signal 名称、类型、当前值（绿色等宽字体）。collectElementSignals()（第309-343行）通过正则匹配 props 中的 {signalName} 插值和关联的 codeblock 来发现绑定关系。"
+    },
+    {
+      "file": "editor/client/src/panels/ActivityBar.tsx",
+      "line": 26,
+      "title": "ActivityBar — VS Code 风格面板切换",
+      "description": "ActivityBar（第26-71行）是代码模式左侧的图标列，设计为 VS Code Activity Bar 的同类体验。PANELS 数组定义三个面板：📁 文件浏览器（Ctrl+1）、⚡ 状态管理（Ctrl+2）、📦 函数库（Ctrl+3）。点击图标切换面板，一次只打开一个（互斥切换）。选中态有 3px 紫色左边框 + 灰色背景。hover 时显示黑色 tooltip（第57-68行）。PanelContainer（第81-96行）用 CSS transition 实现面板的滑入/滑出动画（width 从 240→0）。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 648,
+      "title": "响应式断点预览系统",
+      "description": "设计模式工具栏提供三个断点按钮：🖥️ 桌面（100%宽度）、📱 平板（768px）、📱 手机（375px）。breakpoint 状态（第61行）控制中间画布容器的 width 和 maxWidth（第703-709行），CSS transition 实现平滑切换。组件状态预览下拉框（第671-683行）提供 6 种伪状态：Normal/Hover/Active/Focus/Disabled/Loading——用于在不运行应用的情况下预览组件交互态。焦点顺序覆盖层（第717行）用 focusOverlayStyles 渲染 Tab 序号标签（M5.4 可访问性功能）。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 392,
+      "title": "画布状态持久化 — 保存/加载 .canvas.json",
+      "description": "设计模式支持将当前画布状态（elements + wires）序列化为 JSON 文件保存/恢复。handleSaveCanvas（第393-429行）：①已加载过文件→直接覆盖保存 ②首次保存→弹出命名对话框 ③JSON.stringify(elements+wires)→api.writeFile。handleLoadCanvas（第431-494行）：①扫描项目中所有 .omni.json 文件 ②弹出文件列表选择对话框 ③JSON.parse→SetElementsAndWires Command 还原到 store。自动保存（autoSaveOmniJson 第250-291行）：编译成功后 1s 防抖自动保存，手动编写的 .omni 文件（readOnlyMode）跳过自动保存。"
+    },
+    {
+      "file": "editor/client/src/App.tsx",
+      "line": 96,
+      "title": "初始化 + OmniDriver + 编译管线",
+      "description": "App 初始化（第98-118行）：异步获取项目目录、文件列表、主文件内容并检测是否为手写文件（M6 只读保护）。OmniDriver 初始化（第121-134行）：new OmniDriver() 挂载到 window.__OMNI__，监听 omni-mode-change 自定义事件实现外部模式切换。Ctrl+Enter 编译（第163-244行）：发送源码到 Python 后端，同时调用 /api/parse-view 和 /api/parse-codeblocks 解析视图树和代码块，将结果合并写入 Zustand store——实现 .omni 源码→可视化画布的双向同步。快捷键（第295-310行）：Ctrl+Enter 编译、Ctrl+Z 撤销、Ctrl+Y 重做、Ctrl+S 保存、Ctrl+Shift+F 搜索、Ctrl+1/2/3 面板切换。"
+    },
+    {
+      "file": "editor/client/src/driver/OmniDriver.ts",
+      "line": 1,
+      "title": "OmniDriver — window.__OMNI__ 自动化 API",
+      "description": "OmniDriver 是编辑器暴露给 AI/自动化脚本的编程接口。挂载在 window.__OMNI__ 上，提供：addElement()、removeElement()、addWire()、removeWire()、setProp()、connect()（带共享校验）、compile()（触发编译）、switchMode()（切换设计/代码模式）、help()（自发现 API 文档）。这使得 Playwright E2E 测试和 AI 代理可以直接操控画布——例如通过浏览器 DevTools Console 构建完整 UI。"
+    },
+    {
+      "title": "接下来的方向",
+      "description": "你现在可以：①追踪一次完整的「拖入组件→选中→编辑属性→保存画布」流程（ComponentPalette.handleDragStart → LayoutView.handleDrop → AddElement Command → Zustand → PropertyPanel.handleChange → SetProp Command → handleSaveCanvas）②追踪事件连线流程（点击「🔗 连线到代码块」→创建 handler action + wire → onNavigateToCode 切换模式 → FlowCanvas 高亮 wire）③理解设计模式与代码模式如何通过共享 Zustand store 实现双向同步（.omni 源码↔parse-view/parse-codeblocks↔Zustand elements+wires↔LayoutView + FlowCanvas）④探索 OmniDriver API 如何用于 Playwright E2E 测试自动化。"
+    }
+  ]
+}

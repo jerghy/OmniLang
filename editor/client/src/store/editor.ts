@@ -1,4 +1,4 @@
-/** 编辑器核心 Zustand store。*/
+/** 编辑器核心 Zustand store — v2: design/code 分叉 + 项目管理。*/
 
 import { create } from "zustand";
 
@@ -7,13 +7,10 @@ import { create } from "zustand";
 export interface PortData {
   name: string;
   direction: "in" | "out";
-  /** NEW: distinguishes execution-flow ports from data-value ports */
   portType?: "flow" | "data";
   type: string;
   label?: string;
-  /** NEW: whether this port's value is user-configurable on the node */
   configurable?: boolean;
-  /** NEW: default value for configurable data input ports */
   defaultValue?: unknown;
 }
 
@@ -29,18 +26,13 @@ export interface ElementData {
   isFolded?: boolean;
   typeAnnotation?: string;
   storeName?: string;
-  /** Per-block source code (for code blocks) */
   source?: string;
-  /** Runtime-computed output value (for code blocks) */
   outputValue?: unknown;
-  /** Visual position on the Rete canvas (set by auto-layout, persisted to .canvas.json) */
   position?: { x: number; y: number };
-  /** NEW: visual scripting node category */
   nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";
-  /** NEW: node-specific configuration (operator, comparison type, etc.) */
   config?: Record<string, unknown>;
-  /** NEW: topological execution order (set by FlowEngine) */
   flowOrder?: number;
+  componentRef?: string;
 }
 
 export interface WireData {
@@ -53,6 +45,11 @@ export interface WireData {
   collapseGroupId?: string;
 }
 
+export interface ProjectConfig {
+  target: string;       // "react" | "vue" | "flutter" | "omniview"
+  autoSave: boolean;
+}
+
 // ── Store ──────────────────────────────────────────
 
 interface EditorState {
@@ -63,20 +60,25 @@ interface EditorState {
   activeFileContent: string | null;
   compileErrors: { code: string; message: string; line: number }[];
 
+  // ── Design canvas (drag-drop UI) ──
   elements: ElementData[];
   wires: WireData[];
-  selectedElementId: string | null;
 
-  // M6: Read-only mode for hand-written files
-  isHandWritten: boolean;
-  readOnlyMode: boolean;
-  handWrittenWarnings: string[];
-  setHandWritten: (is: boolean, warnings: string[]) => void;
-  setReadOnly: (readonly: boolean) => void;
+  // ── Code canvas (FlowCanvas nodes) ──
+  codeElements: ElementData[];
+  codeWires: WireData[];
 
-  // M6: .omni.json document path
-  omniJsonPath: string | null;
-  setOmniJsonPath: (path: string | null) => void;
+  // ── Active mode ──
+  activeMode: "design" | "code";
+
+  selectedElementIds: string[];
+
+  // ── Project management ──
+  projectPath: string | null;       // .omni.json file path
+  projectName: string;              // "未命名项目" or from filename
+  sourceCode: string;               // embedded .omni source
+  isDirty: boolean;                 // unsaved changes flag
+  config: ProjectConfig;            // { target, autoSave }
 
   // Actions
   setProjectDir: (dir: string) => void;
@@ -90,7 +92,9 @@ interface EditorState {
   removeElement: (id: string) => void;
   setProp: (id: string, prop: string, value: unknown) => void;
   getProp: (id: string, prop: string) => unknown;
-  selectElement: (id: string | null) => void;
+  selectElement: (id: string | null, multi?: boolean) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
 
   addWire: (w: WireData) => void;
   removeWire: (id: string) => void;
@@ -98,12 +102,43 @@ interface EditorState {
   setElementSource: (id: string, source: string) => void;
   setElementPorts: (id: string, ports: ElementData["ports"]) => void;
   setBlockValue: (id: string, value: unknown) => void;
-
-  /** Set visual position on the canvas (used by drag-and-drop). */
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
 
-  /** Replace all elements and wires atomically (used by save/load + auto-layout). */
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
+  /** Set code canvas elements + wires (used by compile pipeline). */
+  setCodeElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
+
+  reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
+  moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
+
+  // ── Active mode switching ──
+  setActiveMode: (mode: "design" | "code") => void;
+
+  // ── Project management ──
+  /** Create a new empty project. */
+  newProject: () => void;
+  /** Load an existing .omni.json project. */
+  openProject: (path: string, document: Record<string, unknown>) => void;
+  /** Mark project as dirty (unsaved changes). */
+  markDirty: () => void;
+  /** Mark project as clean (saved). */
+  markClean: () => void;
+  setConfig: (patch: Partial<ProjectConfig>) => void;
+  setSourceCode: (code: string) => void;
+
+  // ── Multi-Canvas Support (design mode tabs) ──
+  activeDocId: string | null;
+  docBackup: { elements: ElementData[]; wires: WireData[] } | null;
+  enterComponentCanvas: (componentName: string) => void;
+  exitComponentCanvas: () => void;
+
+  // ── Tab System ──
+  openTabs: string[];
+  tabStates: Record<string, { elements: ElementData[]; wires: WireData[] }>;
+  switchTab: (docId: string | null) => void;
+  closeTab: (docId: string) => void;
+  /** Open a .omni.json file as project (replaces current project). */
+  openFileTab: (path: string, name: string, elements: ElementData[], wires: WireData[], customComponents?: unknown[]) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -115,17 +150,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   compileErrors: [],
   elements: [],
   wires: [],
-  selectedElementId: null,
+  codeElements: [],
+  codeWires: [],
+  activeMode: "design",
+  selectedElementIds: [],
 
-  // M6
-  isHandWritten: false,
-  readOnlyMode: false,
-  handWrittenWarnings: [],
-  setHandWritten: (is, warnings) => set({ isHandWritten: is, handWrittenWarnings: warnings, readOnlyMode: is }),
-  setReadOnly: (readonly) => set({ readOnlyMode: readonly }),
-
-  omniJsonPath: null,
-  setOmniJsonPath: (path) => set({ omniJsonPath: path }),
+  // ── Project management ──
+  projectPath: null,
+  projectName: "未命名项目",
+  sourceCode: "",
+  isDirty: false,
+  config: { target: "react", autoSave: false },
 
   setProjectDir: (dir) => set({ projectDir: dir }),
 
@@ -141,26 +176,70 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPreviewUrl: (url) => set({ previewUrl: url }),
 
   addElement: (el) =>
-    set((s) => ({ elements: [...s.elements, el] })),
+    set((s) => {
+      const normalized = { ...el, props: el.props || {} };
+      const elements = [...s.elements, normalized];
+      if (normalized.parentId) {
+        return {
+          elements: elements.map((e) =>
+            e.id === normalized.parentId ? { ...e, children: [...e.children, normalized.id] } : e
+          ),
+          isDirty: true,
+        };
+      }
+      return { elements, isDirty: true };
+    }),
 
   removeElement: (id) =>
-    set((s) => ({ elements: s.elements.filter((e) => e.id !== id) })),
+    set((s) => ({ elements: (() => {
+      const el = s.elements.find((e) => e.id === id);
+      let elements = s.elements.filter((e) => e.id !== id);
+      if (el?.parentId) {
+        elements = elements.map((e) =>
+          e.id === el.parentId
+            ? { ...e, children: e.children.filter((cid) => cid !== id) }
+            : e
+        );
+      }
+      elements = elements.filter((e) => e.parentId !== id);
+      return elements;
+    })(), isDirty: true })),
 
   setProp: (id, prop, value) =>
     set((s) => ({
       elements: s.elements.map((e) =>
         e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e
       ),
+      isDirty: true,
     })),
 
   getProp: (id, prop) => get().elements.find((e) => e.id === id)?.props[prop],
 
-  selectElement: (id) => set({ selectedElementId: id }),
+  selectElement: (id, multi = false) =>
+    set((s) => {
+      if (id === null) return { selectedElementIds: [] };
+      if (multi) {
+        const exists = s.selectedElementIds.includes(id);
+        return {
+          selectedElementIds: exists
+            ? s.selectedElementIds.filter((x) => x !== id)
+            : [...s.selectedElementIds, id],
+        };
+      }
+      return { selectedElementIds: [id] };
+    }),
 
-  addWire: (w) => set((s) => ({ wires: [...s.wires, w] })),
+  selectAll: () =>
+    set((s) => ({
+      selectedElementIds: s.elements.map((e) => e.id),
+    })),
+
+  clearSelection: () => set({ selectedElementIds: [] }),
+
+  addWire: (w) => set((s) => ({ wires: [...s.wires, w], isDirty: true })),
 
   removeWire: (id) =>
-    set((s) => ({ wires: s.wires.filter((w) => w.id !== id) })),
+    set((s) => ({ wires: s.wires.filter((w) => w.id !== id), isDirty: true })),
 
   setElementSource: (id, source) =>
     set((s) => ({
@@ -179,7 +258,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBlockValue: (id, value) =>
     set((s) => {
       const existing = s.elements.find(e => e.id === id);
-      // Skip update if value hasn't changed (prevents render loops)
       if (existing && JSON.stringify(existing.outputValue) === JSON.stringify(value)) return s;
       return {
         elements: s.elements.map((e) =>
@@ -196,8 +274,327 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   setElementsAndWires: (elements, wires) =>
-    set({ elements, wires, selectedElementId: null }),
+    set({ elements, wires, selectedElementIds: [] }),
+
+  setCodeElementsAndWires: (elements, wires) =>
+    set({ codeElements: elements, codeWires: wires }),
+
+  reorderElement: (elementId, targetSiblingId, position) =>
+    set((s) => {
+      const el = s.elements.find((e) => e.id === elementId);
+      const target = s.elements.find((e) => e.id === targetSiblingId);
+      if (!el || !target || !el.parentId || el.parentId !== target.parentId) return s;
+      const parentId = el.parentId;
+      const parent = s.elements.find((e) => e.id === parentId);
+      if (!parent) return s;
+      const children = [...parent.children];
+      const fromIdx = children.indexOf(elementId);
+      const toIdx = children.indexOf(targetSiblingId);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return s;
+      children.splice(fromIdx, 1);
+      const insertIdx = position === "before" ? children.indexOf(targetSiblingId) : children.indexOf(targetSiblingId) + 1;
+      children.splice(insertIdx, 0, elementId);
+      return {
+        elements: s.elements.map((e) =>
+          e.id === parentId ? { ...e, children } : e
+        ),
+        isDirty: true,
+      };
+    }),
+
+  moveElement: (elementId, newParentId, targetSiblingId, position) =>
+    set((s) => {
+      const el = s.elements.find((e) => e.id === elementId);
+      if (!el) return s;
+      const oldParentId = el.parentId;
+
+      let elements = s.elements.map((e) =>
+        e.id === elementId ? { ...e, parentId: newParentId } : e
+      );
+
+      if (oldParentId) {
+        elements = elements.map((e) =>
+          e.id === oldParentId
+            ? { ...e, children: e.children.filter((cid) => cid !== elementId) }
+            : e
+        );
+      }
+
+      if (newParentId) {
+        const newParent = elements.find((e) => e.id === newParentId);
+        if (!newParent) return s;
+        const newChildren = [...newParent.children];
+        if (targetSiblingId && newChildren.includes(targetSiblingId)) {
+          const targetIdx = newChildren.indexOf(targetSiblingId);
+          const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
+          newChildren.splice(insertIdx, 0, elementId);
+        } else {
+          newChildren.push(elementId);
+        }
+        elements = elements.map((e) =>
+          e.id === newParentId ? { ...e, children: newChildren } : e
+        );
+      }
+
+      return { elements, isDirty: true };
+    }),
+
+  // ── Active mode switching ──
+  setActiveMode: (mode) => set({ activeMode: mode }),
+
+  // ── Project management ──
+  newProject: () =>
+    set({
+      projectPath: null,
+      projectName: "未命名项目",
+      sourceCode: "",
+      isDirty: false,
+      elements: [],
+      wires: [],
+      codeElements: [],
+      codeWires: [],
+      activeDocId: null,
+      docBackup: null,
+      openTabs: [],
+      tabStates: {},
+      selectedElementIds: [],
+    }),
+
+  openProject: (path, document) => {
+    const doc = document as Record<string, unknown>;
+    const meta = (doc.meta || doc.meta || {}) as Record<string, unknown>;
+    const design = (doc.design || {}) as Record<string, unknown>;
+    const code = (doc.code || {}) as Record<string, unknown>;
+    const tabState = (doc.tabState || {}) as Record<string, unknown>;
+    const config = (doc.config || {}) as Record<string, unknown>;
+    const canvasLayout = (doc.canvasLayout || {}) as Record<string, unknown>;
+    const compRefs = (doc.components || []) as Array<Record<string, unknown>>;
+
+    const designElements = (design.elements || []) as ElementData[];
+    const designWires = (design.wires || []) as WireData[];
+    const codeElements = (code.elements || []) as ElementData[];
+    const codeWires = (code.wires || []) as WireData[];
+
+    // Restore component definitions
+    if (compRefs.length > 0) {
+      import("./componentRegistry").then((m) => {
+        const defs: Record<string, unknown> = {};
+        for (const cr of compRefs) {
+          const name = cr.name as string;
+          const source = cr.source as string;
+          if (source === "embedded" && cr.definition) {
+            defs[name] = { ...cr.definition, source };
+          } else if (source !== "embedded") {
+            // External reference — mark for lazy loading
+            defs[name] = { name, source, _external: true };
+          }
+        }
+        if (Object.keys(defs).length > 0) {
+          m.useComponentRegistry.setState((s: any) => ({
+            definitions: { ...s.definitions, ...defs },
+          }));
+        }
+      }).catch(() => {});
+    }
+
+    // Parse project name from path
+    const projectName = (meta.projectName as string) ||
+      path.replace(/^.*[\\/]/, "").replace(".omni.json", "") ||
+      "未命名项目";
+
+    return set({
+      projectPath: path,
+      projectName,
+      sourceCode: (doc.sourceCode as string) || "",
+      isDirty: false,
+      elements: designElements,
+      wires: designWires,
+      codeElements,
+      codeWires,
+      config: {
+        target: (config.target as string) || "react",
+        autoSave: (config.autoSave as boolean) || false,
+      },
+      activeDocId: null,
+      docBackup: null,
+      openTabs: (tabState.openTabs as string[]) || ["main"],
+      tabStates: {},
+      selectedElementIds: [],
+      // Switch to the active tab from saved state
+    });
+  },
+
+  markDirty: () => set({ isDirty: true }),
+  markClean: () => set({ isDirty: false }),
+
+  setConfig: (patch) =>
+    set((s) => ({ config: { ...s.config, ...patch }, isDirty: true })),
+
+  setSourceCode: (code) =>
+    set({ sourceCode: code, isDirty: true }),
+
+  // ── Multi-Canvas Support ──
+  activeDocId: null,
+  docBackup: null,
+
+  enterComponentCanvas: (componentName) =>
+    set((s) => {
+      const backup = { elements: s.elements, wires: s.wires };
+      const compDef = useComponentRegistry.getState().definitions[componentName];
+      if (!compDef) return s;
+      const newTabStates = { ...s.tabStates };
+      if (s.activeDocId && s.activeDocId.startsWith("file:")) {
+        newTabStates[s.activeDocId] = { elements: s.elements, wires: s.wires };
+      }
+      import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+      const tabKey = `comp:${componentName}`;
+      const newOpenTabs = s.openTabs.includes(tabKey) ? s.openTabs : [...s.openTabs, tabKey];
+      return {
+        docBackup: backup,
+        elements: compDef.elements,
+        wires: compDef.wires,
+        activeDocId: tabKey,
+        openTabs: newOpenTabs,
+        tabStates: newTabStates,
+        selectedElementIds: [],
+      };
+    }),
+
+  exitComponentCanvas: () =>
+    set((s) => {
+      if (!s.activeDocId || !s.activeDocId.startsWith("comp:")) return s;
+      const compName = s.activeDocId.replace("comp:", "");
+      useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
+      import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+      return {
+        elements: s.docBackup?.elements || [],
+        wires: s.docBackup?.wires || [],
+        docBackup: null,
+        activeDocId: null,
+        selectedElementIds: [],
+      };
+    }),
+
+  // ── Tab System ──
+  openTabs: [],
+  tabStates: {},
+
+  switchTab: (docId) =>
+    set((s) => {
+      if (s.activeDocId === docId) return s;
+      const newTabStates = { ...s.tabStates };
+      const currentKey = s.activeDocId;
+      if (currentKey && currentKey.startsWith("file:")) {
+        newTabStates[currentKey] = { elements: s.elements, wires: s.wires };
+      } else if (currentKey && currentKey.startsWith("comp:")) {
+        const compName = currentKey.replace("comp:", "");
+        useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
+      }
+
+      let newElements: ElementData[];
+      let newWires: WireData[];
+      let newDocBackup = s.docBackup;
+
+      if (docId === null) {
+        newElements = s.docBackup?.elements || [];
+        newWires = s.docBackup?.wires || [];
+        newDocBackup = null;
+      } else if (docId.startsWith("comp:")) {
+        const compName = docId.replace("comp:", "");
+        const compDef = useComponentRegistry.getState().definitions[compName];
+        if (!compDef) return s;
+        newDocBackup = s.activeDocId === null
+          ? { elements: s.elements, wires: s.wires }
+          : s.docBackup;
+        newElements = compDef.elements;
+        newWires = compDef.wires;
+      } else if (docId.startsWith("file:")) {
+        const cached = newTabStates[docId];
+        if (cached) {
+          newElements = cached.elements;
+          newWires = cached.wires;
+        } else {
+          return s;
+        }
+        if (s.activeDocId === null) {
+          newDocBackup = { elements: s.elements, wires: s.wires };
+        }
+      } else {
+        return s;
+      }
+
+      import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+
+      return {
+        elements: newElements,
+        wires: newWires,
+        activeDocId: docId,
+        docBackup: newDocBackup,
+        tabStates: newTabStates,
+        selectedElementIds: [],
+      };
+    }),
+
+  closeTab: (docId) =>
+    set((s) => {
+      const newOpenTabs = s.openTabs.filter((t) => t !== docId);
+      const newTabStates = { ...s.tabStates };
+      delete newTabStates[docId];
+
+      if (s.activeDocId === docId) {
+        if (docId.startsWith("comp:")) {
+          const compName = docId.replace("comp:", "");
+          useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
+        } else if (docId.startsWith("file:")) {
+          newTabStates[docId] = { elements: s.elements, wires: s.wires };
+        }
+        import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+        return {
+          elements: s.docBackup?.elements || [],
+          wires: s.docBackup?.wires || [],
+          docBackup: null,
+          activeDocId: null,
+          openTabs: newOpenTabs,
+          tabStates: newTabStates,
+          selectedElementIds: [],
+        };
+      }
+
+      return { openTabs: newOpenTabs, tabStates: newTabStates };
+    }),
+
+  /** @deprecated Use openProject() for .omni.json files instead. */
+  openFileTab: (path, name, elements, wires, customComponents) =>
+    set((s) => {
+      const tabKey = `file:${path}`;
+      if (s.openTabs.includes(tabKey)) return s;
+      const newTabStates = {
+        ...s.tabStates,
+        [tabKey]: { elements, wires },
+      };
+      if (customComponents && Array.isArray(customComponents) && customComponents.length > 0) {
+        try {
+          const defs: Record<string, unknown> = {};
+          for (const cc of customComponents) {
+            if ((cc as Record<string, unknown>).name) {
+              defs[(cc as Record<string, unknown>).name as string] = cc;
+            }
+          }
+          if (Object.keys(defs).length > 0) {
+            import("./componentRegistry").then((m) => {
+              m.useComponentRegistry.setState({ definitions: defs as any });
+            }).catch(() => {});
+          }
+        } catch { /* non-critical */ }
+      }
+      return {
+        openTabs: [...s.openTabs, tabKey],
+        tabStates: newTabStates,
+      };
+    }),
 }));
+
+import { useComponentRegistry } from "./componentRegistry";
 
 // Expose store for E2E tests (Playwright page.evaluate)
 if (typeof window !== "undefined") {

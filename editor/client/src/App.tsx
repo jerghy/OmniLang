@@ -11,24 +11,24 @@ import { ConnectorPanel } from "./panels/ConnectorPanel";
 import { TokenPanel, useTokenStore } from "./panels/TokenPanel";
 import { StatePanel } from "./panels/StatePanel";
 import { FunctionLibrary } from "./panels/FunctionLibrary";
-import { ActivityBar, PanelContainer, type PanelId } from "./panels/ActivityBar";
+import { ActivityBar, PanelContainer, DESIGN_PANELS, type PanelId } from "./panels/ActivityBar";
+import { CanvasPanel } from "./panels/CanvasPanel";
 import { FlowCanvas } from "./canvas/FlowCanvas";
 import { LayoutView } from "./canvas/LayoutView";
+import { CanvasTabBar } from "./canvas/CanvasTabBar";
+import { useComponentRegistry } from "./store/componentRegistry";
 import { WireOverlay } from "./canvas/WireOverlay";
 import { StateHUD } from "./canvas/StateHUD";
 import { PerfBadge } from "./canvas/PerfBadge";
 import { DebugPanel } from "./canvas/DebugPanel";
 import { MonacoEditor, type MonacoEditorHandle } from "./editor/MonacoEditor";
 import { CodeEditorPopup } from "./editor/CodeEditorPopup";
-import { ConflictPanel } from "./panels/ConflictPanel";
-import { ReadOnlyBanner } from "./panels/ReadOnlyBanner";
-import type { ConflictInfo } from "./panels/ConflictPanel";
-import { AnimationImport } from "./panels/AnimationImport";
 import { SearchModal } from "./search/SearchModal";
 import { collectFocusOrder, focusOverlayStyles } from "./a11y/FocusOrder";
 import type { SearchResult } from "./search/SearchIndex";
 import type { CommandContext } from "./commands/types";
-import { SetElementsAndWires } from "./commands/SetElementsAndWires";
+import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./commands/CopyPaste";
+import { showToast } from "./notifications/toast";
 
 // ═══════════════════════════════════════════════
 // Styles
@@ -66,16 +66,11 @@ export default function App() {
   const [showFocusOrder, setShowFocusOrder] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showConflict, setShowConflict] = useState(false);
-  const [conflictInfo, setConflictInfo] = useState<ConflictInfo | null>(null);
-  const [showAnimation, setShowAnimation] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const codeEditorRef = useRef<MonacoEditorHandle>(null);
   const [layoutTrigger, setLayoutTrigger] = useState(0);
 
-  // Save/Load state
-  const [loadedCanvasPath, setLoadedCanvasPath] = useState<string | null>(null);
-  const [saveDialog, setSaveDialog] = useState<{ visible: boolean; defaultName: string }>({ visible: false, defaultName: "" });
-  const [loadDialog, setLoadDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
+  // Save/Load state (v2: project-based, no separate load dialog)
 
   // Run / Vite DevServer state (Phase 1 Runtime Bridge)
   const [runStatus, setRunStatus] = useState<{ running: boolean; url: string | null }>({ running: false, url: null });
@@ -105,13 +100,14 @@ export default function App() {
   const setActiveFileContent = useEditorStore((s) => s.setActiveFileContent);
   const setElementSource = useEditorStore((s) => s.setElementSource);
   const setCompileErrors = useEditorStore((s) => s.setCompileErrors);
+  const activeDocId = useEditorStore((s) => s.activeDocId);
   const undoExec = useUndoStore((s) => s.execute);
   const undoUndo = useUndoStore((s) => s.undo);
   const undoRedo = useUndoStore((s) => s.redo);
-  const setHandWritten = useEditorStore((s) => s.setHandWritten);
-  const isHandWritten = useEditorStore((s) => s.isHandWritten);
-  const readOnlyMode = useEditorStore((s) => s.readOnlyMode);
-  const handWrittenWarnings = useEditorStore((s) => s.handWrittenWarnings);
+
+  const projectName = useEditorStore((s) => s.projectName);
+  const projectPath = useEditorStore((s) => s.projectPath);
+  const isDirty = useEditorStore((s) => s.isDirty);
 
   // ── Init ────────────────────────────────────
 
@@ -121,20 +117,29 @@ export default function App() {
       if (proj.dir) setProjectDir(proj.dir);
       const list = await api.listDir(".");
       if (list.entries) loadFiles(list.entries);
-      if (proj.mainFile) {
-        const src = await api.readFile(proj.mainFile);
-        if (src.content) {
-          openFile(proj.mainFile, src.content);
-          // M6: Detect hand-written files
-          if (proj.mainFile.endsWith('.omni')) {
-            const hw = await api.detectHandWritten(src.content);
-            if (hw.isHandWritten) {
-              setHandWritten(true, hw.warnings);
-            }
-          }
-        }
-      }
+      // Start with a new unnamed project
+      useEditorStore.getState().newProject();
     })();
+  }, []);
+
+  // Auto-save component definitions when registry changes
+  useEffect(() => {
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = useComponentRegistry.subscribe((state) => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        if (Object.keys(state.definitions).length > 0) {
+          api.saveComponentDefinitions(state.definitions as Record<string, unknown>).catch(() => {
+            // Best-effort auto-save; failures are non-critical
+          });
+        }
+      }, 2000);
+    });
+    return () => {
+      unsub();
+      if (saveTimer) clearTimeout(saveTimer);
+    };
   }, []);
 
   // ── OmniDriver initialization (AI automation API) ──
@@ -189,8 +194,8 @@ export default function App() {
     const errs = result.errors || [];
     setCompileErrors(errs);
 
-    // Parse view tree for canvas — clear old first
-    useEditorStore.setState({ elements: [], selectedElementId: null });
+    // Parse view tree for code canvas
+    useEditorStore.getState().setCodeElementsAndWires([], []);
     try {
       const [vRes, cbRes] = await Promise.all([
         fetch("/api/parse-view", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: content }) }),
@@ -266,7 +271,8 @@ export default function App() {
       }
       setFnToNodeMap(newFnToNodeMap2);
 
-      useEditorStore.setState({ elements: [...viewElements, ...codeElements] });
+      useEditorStore.getState().setCodeElementsAndWires([...viewElements, ...codeElements], useEditorStore.getState().codeWires);
+      useEditorStore.getState().setSourceCode(content);
     } catch { /* canvas not critical */ }
 
     const hasErrors = errs.some((e: {severity:string}) => e.severity === "error");
@@ -274,10 +280,6 @@ export default function App() {
     if (hasErrors) setStatus({ text: "❌ 编译失败", isError: true });
     else {
       setStatus({ text: `✅ 已编译 — ${new Date().toLocaleTimeString()}${warns ? ` (${warns} 条警告)` : ""}`, isError: false });
-      // M6: Auto-save .omni.json after successful compilation
-      if (!result.errors?.some((e: {severity:string}) => e.severity === "error")) {
-        autoSaveOmniJson(content);
-      }
       // Phase 1 Runtime Bridge: write compiled files to running Vite server
       if (runStatus.running && result.files) {
         api.writeRunFiles(result.files).catch(() => {});
@@ -356,7 +358,8 @@ export default function App() {
       }
       setFnToNodeMap(newFnToNodeMap);
 
-      useEditorStore.setState({ elements: [...viewElements, ...codeElements] });
+      useEditorStore.getState().setCodeElementsAndWires([...viewElements, ...codeElements], useEditorStore.getState().codeWires);
+      useEditorStore.getState().setSourceCode(content);
     } catch { /* non-critical */ }
 
     // 3. Start Vite dev server with compiled files
@@ -387,81 +390,267 @@ export default function App() {
     setFnToNodeMap({});
   }, []);
 
-  // ── M6: .omni.json auto-save ──────────────────
+  // ── v2: Project save/load ────────────────────
 
-  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const saveProject = useCallback(async (customPath?: string) => {
+    const store = useEditorStore.getState();
+    let projectPath = customPath || store.projectPath;
 
-  const autoSaveOmniJson = useCallback((source: string) => {
-    // Debounce: skip rapid successive calls
-    if (autoSaveTimer) return;
-    autoSaveTimer = setTimeout(async () => {
-      autoSaveTimer = null;
-      try {
-        const store = useEditorStore.getState();
-        // Only save if not in read-only mode (hand-written files)
-        if (store.readOnlyMode) return;
+    if (!projectPath) {
+      // Prompt for filename
+      const name = prompt("保存项目为:", `${store.projectName}.omni.json`);
+      if (!name) return;
+      projectPath = name.endsWith(".omni.json") ? name : `${name}.omni.json`;
+    }
 
-        const activeFile = store.activeFilePath;
-        if (!activeFile || !activeFile.endsWith(".omni")) return;
+    setStatus({ text: `保存项目到 ${projectPath} ...`, isError: false });
+    try {
+      const now = new Date().toISOString();
+      const doc: Record<string, unknown> = {
+        schemaVersion: "2.0.0",
+        meta: {
+          projectName: store.projectName,
+          omniVersion: "0.6.0",
+          createdAt: now,
+          updatedAt: now,
+        },
+        sourceCode: store.sourceCode,
+        design: {
+          elements: store.elements,
+          wires: store.wires,
+        },
+        code: {
+          elements: store.codeElements,
+          wires: store.codeWires,
+        },
+        components: (() => {
+          const defs = useComponentRegistry.getState().definitions;
+          return Object.values(defs).map((d: any) => ({
+            name: d.name,
+            source: d.source || "embedded",
+            ...(d.source === "embedded" || !d.source ? {
+              definition: {
+                id: d.id,
+                name: d.name,
+                category: d.category,
+                description: d.description,
+                props: d.props,
+                events: d.events,
+                styleProperties: d.styleProperties,
+                children: d.children,
+                elements: d.elements,
+                wires: d.wires,
+                createdAt: d.createdAt,
+                updatedAt: d.updatedAt,
+                storage: d.storage,
+              },
+            } : {}),
+          }));
+        })(),
+        canvasLayout: { positions: {} },
+        tabState: {
+          openTabs: store.openTabs,
+          activeTab: store.activeDocId || "main",
+        },
+        config: store.config,
+      };
 
-        // Determine .omni.json path alongside the .omni file
-        const omniJsonPath = activeFile.replace(/\.omni$/, ".omni.json");
-
-        // Export current state to .omni.json
-        const existingElements = store.elements.map(el => ({
-          id: el.id, nodeType: el.nodeType, tag: el.tag,
-          props: el.props, children: el.children, parentId: el.parentId,
-          ports: el.ports || [], isFolded: el.isFolded || false,
-          typeAnnotation: el.typeAnnotation || "", storeName: el.storeName || "",
-        }));
-        const existingWires = store.wires.map(w => ({
-          id: w.id, fromId: w.fromId, fromPort: w.fromPort,
-          toId: w.toId, toPort: w.toPort,
-          isCollapsed: w.isCollapsed || false, collapseGroupId: w.collapseGroupId || "",
-        }));
-
-        const exportResp = await api.exportOmniJson(source, activeFile, target);
-        if (exportResp.success && exportResp.document) {
-          // Merge in the current elements/wires from the store
-          const doc = exportResp.document as Record<string, unknown>;
-          doc.elements = existingElements;
-          doc.wires = existingWires;
-          await api.saveOmniJson(omniJsonPath, doc);
+      await api.saveOmniJson(projectPath, doc);
+      // Also save component definitions for external references
+      const externalDefs: Record<string, unknown> = {};
+      const { definitions } = useComponentRegistry.getState();
+      for (const [name, def] of Object.entries(definitions)) {
+        if ((def as any).source && (def as any).source !== "embedded") {
+          externalDefs[name] = def;
         }
-      } catch {
-        // Auto-save is best-effort; don't disrupt user
       }
-    }, 1000); // 1s debounce
-  }, [target]);
+      if (Object.keys(externalDefs).length > 0) {
+        api.saveComponentDefinitions(externalDefs).catch(() => {});
+      }
+
+      store.markClean();
+      const name = projectPath.replace(/^.*[\\/]/, "").replace(".omni.json", "");
+      useEditorStore.setState({ projectPath, projectName: name });
+      const fullPath = projectDir ? `${projectDir}/${projectPath}` : projectPath;
+      setStatus({ text: `✅ 已保存: ${fullPath}`, isError: false });
+    } catch (e) {
+      setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
+    }
+  }, []);
+
+  // ── Open project ─────────────────────────────
+
+  const [openDialog, setOpenDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
+
+  const handleOpenProject = useCallback(async () => {
+    setStatus({ text: "扫描项目文件...", isError: false });
+    try {
+      const listing = await api.listDir(".");
+      const entries = listing?.entries || [];
+      let jsonFiles = entries
+        .filter((e: { name: string }) => e.name.endsWith(".omni.json"))
+        .map((e: { name: string }) => e.name);
+      // Scan one level of subdirs
+      const subdirs = entries.filter((e: { type: string }) => e.type === "directory");
+      for (const dir of subdirs) {
+        try {
+          const subListing = await api.listDir(dir.name);
+          const subEntries = subListing?.entries || [];
+          for (const se of subEntries) {
+            if (se.name.endsWith(".omni.json")) {
+              jsonFiles.push(`${dir.name}/${se.name}`);
+            }
+          }
+        } catch { /* skip */ }
+      }
+      if (jsonFiles.length === 0) {
+        setStatus({ text: "未找到项目文件 (.omni.json)", isError: true });
+        return;
+      }
+      setOpenDialog({ visible: true, files: jsonFiles });
+    } catch { setStatus({ text: "扫描失败", isError: true }); }
+  }, []);
+
+  const openProjectFile = useCallback(async (filePath: string) => {
+    setOpenDialog({ visible: false, files: [] });
+    setStatus({ text: `加载 ${filePath}...`, isError: false });
+    try {
+      const result = await api.readFile(filePath);
+      if (!result.content) { setStatus({ text: `❌ 文件不存在: ${filePath}`, isError: true }); return; }
+      const data = JSON.parse(result.content);
+      const store = useEditorStore.getState();
+      store.openProject(filePath, data);
+      setStatus({ text: `✅ 已打开项目: ${filePath}`, isError: false });
+    } catch (e) {
+      setStatus({ text: `❌ 加载失败: ${e instanceof SyntaxError ? "格式错误" : String(e)}`, isError: true });
+    }
+  }, []);
 
   // ── Keyboard ────────────────────────────────
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); handleCompile(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undoUndo(ctx); }
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); undoRedo(ctx); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); const p = useEditorStore.getState().activeFilePath; const c = useEditorStore.getState().activeFileContent; if (p && c) { api.writeFile(p, c); autoSaveOmniJson(c); setStatus({text:"已保存",isError:false}); /* If running, recompile + write for HMR */ if (runStatus.running) { api.compile(c, target, undefined, true).then(result => { if (result.success && result.files) api.writeRunFiles(result.files).catch(()=>{}); }).catch(()=>{}); } } }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") { e.preventDefault(); setShowSearch(true); }
-      // Activity Bar panel shortcuts
-      if ((e.ctrlKey || e.metaKey) && e.key === "1") { e.preventDefault(); setActivePanel(p => p === "files" ? null : "files"); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "2") { e.preventDefault(); setActivePanel(p => p === "state" ? null : "state"); }
-      if ((e.ctrlKey || e.metaKey) && e.key === "3") { e.preventDefault(); setActivePanel(p => p === "functions" ? null : "functions"); }
-      if (e.key === "Escape") { setShowHUD(false); setShowSearch(false); setShowConflict(false); setActivePanel(null); }
+      const ctrl = e.ctrlKey || e.metaKey;
+      const { selectedElementIds } = useEditorStore.getState();
+
+      // Compile
+      if (ctrl && e.key === "Enter") { e.preventDefault(); handleCompile(); }
+      // Undo / Redo
+      if (ctrl && e.key === "z" && !e.shiftKey) { e.preventDefault(); undoUndo(ctx); }
+      if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); undoRedo(ctx); }
+      // Save
+      if (ctrl && e.key === "s") { e.preventDefault(); saveProject(); }
+      // Search
+      if (ctrl && e.shiftKey && e.key === "F") { e.preventDefault(); setShowSearch(true); }
+      // Activity Bar panel shortcuts (mode-aware)
+      if (ctrl && e.key === "1") {
+        e.preventDefault();
+        setActivePanel(p => {
+          const target: PanelId = mode === "design" ? "components" : "files";
+          return p === target ? null : target;
+        });
+      }
+      if (ctrl && e.key === "2") {
+        e.preventDefault();
+        setActivePanel(p => {
+          const target: PanelId = mode === "design" ? "canvas" : "state";
+          return p === target ? null : target;
+        });
+      }
+      if (ctrl && e.key === "3") { e.preventDefault(); setActivePanel(p => p === "functions" ? null : "functions"); }
+
+      // ── NEW: Clipboard shortcuts ──
+      if (ctrl && e.key === "c" && !e.shiftKey) {
+        // Don't capture when user is editing text
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (selectedElementIds.length === 0) return;
+        e.preventDefault();
+        const data = copySelection(ctx, selectedElementIds);
+        if (data) showToast(`已复制 ${data.elements.length} 个元素`, "info");
+      }
+      if (ctrl && e.key === "v" && !e.shiftKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        e.preventDefault();
+        const pastedIds = pasteFromClipboard(ctx);
+        if (pastedIds && pastedIds.length > 0) {
+          // Select pasted elements
+          useEditorStore.setState({ selectedElementIds: pastedIds });
+          showToast(`已粘贴 ${pastedIds.length} 个元素`, "success");
+        } else {
+          showToast("剪贴板为空", "info");
+        }
+      }
+      if (ctrl && e.key === "x" && !e.shiftKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (selectedElementIds.length === 0) return;
+        e.preventDefault();
+        const ids = cutSelection(ctx, selectedElementIds);
+        if (ids) showToast(`已剪切 ${ids.length} 个元素`, "success");
+      }
+      if (ctrl && e.key === "d" && !e.shiftKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (selectedElementIds.length === 0) return;
+        e.preventDefault();
+        const dupIds = duplicateSelection(ctx, selectedElementIds);
+        if (dupIds) {
+          useEditorStore.setState({ selectedElementIds: dupIds });
+          showToast(`已复制 ${dupIds.length} 个元素`, "success");
+        }
+      }
+      // Select all
+      if (ctrl && e.key === "a" && !e.shiftKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        e.preventDefault();
+        useEditorStore.getState().selectAll();
+        const allIds = useEditorStore.getState().selectedElementIds;
+        showToast(`已选择 ${allIds.length} 个元素`, "info");
+      }
+
+      // ── Arrow key nudge ──
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (selectedElementIds.length === 0) return;
+        e.preventDefault();
+        const delta = e.shiftKey ? 10 : 1;
+        const dx = e.key === "ArrowLeft" ? -delta : e.key === "ArrowRight" ? delta : 0;
+        const dy = e.key === "ArrowUp" ? -delta : e.key === "ArrowDown" ? delta : 0;
+        const store = useEditorStore.getState();
+        for (const id of selectedElementIds) {
+          const el = store.elements.find((x) => x.id === id);
+          if (el?.position) {
+            store.setElementPosition(id, {
+              x: el.position.x + dx,
+              y: el.position.y + dy,
+            });
+          }
+        }
+      }
+
+      // Escape: close popups + clear selection
+      if (e.key === "Escape") {
+        setShowHUD(false); setShowSearch(false); setShowConflict(false); setActivePanel(null);
+        useEditorStore.getState().clearSelection();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleCompile, undoUndo, undoRedo, target, runStatus.running]);
 
-  // ── Cleanup: stop Vite on page close ───────────
+  // ── Cleanup: stop Vite on page close + unsaved changes prompt ──
 
   useEffect(() => {
-    const onUnload = () => {
+    const onUnload = (e: BeforeUnloadEvent) => {
       api.stopRun().catch(() => {});
       api.disconnectDebug();
+      if (useEditorStore.getState().isDirty) {
+        e.preventDefault();
+        e.returnValue = "您有未保存的更改。";
+      }
     };
     window.addEventListener("beforeunload", onUnload);
-    return () => window.removeEventListener("beforeunload", onUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+    };
   }, []);
 
   // ── Debug WebSocket connection (Phase 2) ────────
@@ -603,10 +792,15 @@ export default function App() {
     removeWire: (id) => useEditorStore.getState().removeWire(id),
     setElementsAndWires: (elements, wires) =>
       useEditorStore.getState().setElementsAndWires(elements, wires),
+    reorderElement: (elementId, targetSiblingId, position) =>
+      useEditorStore.getState().reorderElement(elementId, targetSiblingId, position),
+    moveElement: (elementId, newParentId, targetSiblingId, position) =>
+      useEditorStore.getState().moveElement(elementId, newParentId, targetSiblingId, position),
   };
 
   const compileErrors = useEditorStore((s) => s.compileErrors);
-  const selectedId = useEditorStore((s) => s.selectedElementId);
+  const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const selectedId = selectedIds.length > 0 ? selectedIds[0] : null;
 
   // ── Search context (M5.6) ────────────────────
   const tokensState = useTokenStore((s) => s.tokens);
@@ -670,110 +864,8 @@ export default function App() {
     }
   }, []);
 
-  // ── Feature 1: Save/Load canvas state ───────────
+  // ── Feature: Load project ──────────────────────
 
-  const handleSaveCanvas = useCallback(async (customPath?: string | React.MouseEvent) => {
-    const store = useEditorStore.getState();
-    const activeFile = store.activeFilePath;
-
-    // If customPath is a string (from dialog), use it; otherwise check loadedCanvasPath
-    const explicitPath = typeof customPath === "string" ? customPath : undefined;
-
-    // If already loaded from a file, save directly without dialog
-    let canvasPath = explicitPath || loadedCanvasPath;
-    if (!canvasPath) {
-      // Show save dialog
-      const defaultName = activeFile
-        ? activeFile.replace(/\.omni$/, ".canvas.json")
-        : "canvas.json";
-      setSaveDialog({ visible: true, defaultName });
-      return;
-    }
-
-    const data = JSON.stringify(
-      { elements: store.elements, wires: store.wires },
-      null,
-      2,
-    );
-
-    setStatus({ text: `保存到 ${canvasPath} ...`, isError: false });
-    try {
-      const result = await api.writeFile(canvasPath, data);
-      if (result.ok) {
-        setStatus({ text: `✅ 已保存: ${canvasPath}`, isError: false });
-        setLoadedCanvasPath(canvasPath);
-      } else {
-        setStatus({ text: `❌ 保存失败: ${result.error || "未知错误"}`, isError: true });
-      }
-    } catch (e) {
-      setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
-    }
-  }, [loadedCanvasPath]);
-
-  const handleLoadCanvas = useCallback(async (filePath?: string | React.MouseEvent) => {
-    // If a string is passed (from dialog click), use it directly
-    const explicitPath = typeof filePath === "string" ? filePath : undefined;
-
-    // If a specific file is given, load it directly
-    if (explicitPath) {
-      setStatus({ text: `加载 ${explicitPath} ...`, isError: false });
-      try {
-        const result = await api.readFile(explicitPath);
-        if (!result.content) {
-          setStatus({ text: `❌ 文件不存在: ${explicitPath}`, isError: true });
-          return;
-        }
-        const data = JSON.parse(result.content);
-        if (!data.elements || !data.wires) {
-          setStatus({ text: "画布文件格式无效", isError: true });
-          return;
-        }
-        const cmd = new SetElementsAndWires(data.elements, data.wires, `📂 加载: ${explicitPath}`);
-        undoExec(cmd, ctx);
-        setLoadedCanvasPath(explicitPath);
-        setStatus({ text: `✅ 已加载: ${explicitPath}`, isError: false });
-      } catch (e) {
-        setStatus({
-          text: `❌ 加载失败: ${e instanceof SyntaxError ? "文件格式错误" : String(e)}`,
-          isError: true,
-        });
-      }
-      setLoadDialog({ visible: false, files: [] });
-      return;
-    }
-
-    // Scan for .omni.json files and show dialog (scans root + one level of subdirs)
-    setStatus({ text: "扫描画布文件...", isError: false });
-    try {
-      const listing = await api.listDir(".");
-      const entries = listing?.entries || [];
-      // Collect .omni.json files from root
-      let jsonFiles = entries
-        .filter((e: { name: string }) => e.name.endsWith(".omni.json"))
-        .map((e: { name: string }) => e.name);
-      // Also scan one level of subdirectories for .omni.json files
-      const subdirs = entries.filter((e: { type: string }) => e.type === "directory");
-      for (const dir of subdirs) {
-        try {
-          const subListing = await api.listDir(dir.name);
-          const subEntries = subListing?.entries || [];
-          for (const se of subEntries) {
-            if (se.name.endsWith(".omni.json")) {
-              jsonFiles.push(`${dir.name}/${se.name}`);
-            }
-          }
-        } catch { /* skip inaccessible subdirs */ }
-      }
-
-      if (jsonFiles.length === 0) {
-        setStatus({ text: "❌ 未找到可加载的画布文件", isError: true });
-        return;
-      }
-      setLoadDialog({ visible: true, files: jsonFiles });
-    } catch {
-      setStatus({ text: "❌ 扫描文件失败", isError: true });
-    }
-  }, [undoExec, ctx]);
 
   // ═════════════════════════════════════════════
   // Render
@@ -781,21 +873,6 @@ export default function App() {
 
   return (
     <div style={S.app}>
-      {/* M6: Read-only banner for hand-written files */}
-      {readOnlyMode && (
-        <ReadOnlyBanner
-          warnings={handWrittenWarnings}
-          source={activeFileContent || ''}
-          onConverted={() => setHandWritten(false, [])}
-        />
-      )}
-
-      {/* Mode toggle — top-left corner */}
-      <div style={{ position: "absolute", top: 4, left: 4, zIndex: 100, display: "flex", gap: 2, pointerEvents: "none" }}>
-        <button onClick={() => setMode("design")} style={{...S.modeBtn(mode === "design"), pointerEvents: "auto"}}>🎨 设计</button>
-        <button onClick={() => setMode("code")} style={{...S.modeBtn(mode === "code"), pointerEvents: "auto"}}>💻 代码</button>
-      </div>
-
       {mode === "code" ? (
         /* ══════ 代码模式 ══════ */
         <>
@@ -820,11 +897,34 @@ export default function App() {
                 });
               }}
             />
-            <BlockPalette />
+            <BlockPalette ctx={ctx} />
           </PanelContainer>
           <main style={S.main}>
             <div style={S.toolbar}>
-              <span style={{ fontWeight: 600, marginLeft: 110 }}>OmniLang 编辑器 — 代码</span>
+              <button onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
+              <button onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
+              <span style={{ width: 8 }} />
+              <button onClick={() => undoUndo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="撤销 (Ctrl+Z)">↩</button>
+              <button onClick={() => undoRedo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="重做 (Ctrl+Shift+Z)">↪</button>
+              <button onClick={() => saveProject()} style={{...btnStyle, padding:"2px 6px", color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400}} title="保存项目 (Ctrl+S)">💾</button>
+              <select
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v) {
+                    const O = (window as any).__OMNI__;
+                    if (O) O.snippet(v);
+                  }
+                  e.target.value = "";
+                }}
+                style={{...btnStyle, fontSize: 11, padding: "2px 6px"}}
+                title="快速模板"
+              >
+                <option value="" disabled>📋 模板</option>
+                <option value="login-form">登录表单</option>
+                <option value="data-card">数据卡片</option>
+                <option value="crud-table">CRUD 表格</option>
+              </select>
               {projectDir && <span style={{ color: "#9ca3af", fontSize: 11 }}>{projectDir.split(/[/\\]/).slice(-2).join("/")}</span>}
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 10, color: "#9ca3af" }}>目标:</span>
@@ -902,115 +1002,74 @@ export default function App() {
             </div>
             <div style={S.statusBar}>
               <span style={{ color: status.isError ? "#DC2626" : status.text.startsWith("⚠") ? "#D97706" : "#6B7280" }}>{status.text}</span>
-              <span style={{ color: "#9ca3af" }}>{activeFilePath || "未打开"} {compileErrors.length > 0 && `— ${compileErrors.length} 条错误`}</span>
+              <span style={{ color: "#9ca3af" }}>{projectName}{isDirty ? " ●" : ""} {projectDir ? `| 📁 ${projectDir}` : ""} {compileErrors.length > 0 && `— ${compileErrors.length} 条错误`}</span>
             </div>
           </main>
         </>
       ) : (
         /* ══════ 设计模式 ══════ */
         <>
-          <aside style={{...S.sidebar, display: "flex", flexDirection: "column" }}>
-            <div style={{ flex: showTokens ? "0 0 auto" : 1, overflow: showTokens ? "hidden" : "auto", maxHeight: showTokens ? "50%" : "100%" }}>
-              <ComponentPalette />
-            </div>
-            {showTokens && (
-              <div style={{ flex: 1, overflow: "auto", borderTop: "1px solid #e5e7eb" }}>
+          <ActivityBar panels={DESIGN_PANELS} activePanel={activePanel} onToggle={(id) => setActivePanel(p => p === id ? null : id)} />
+          <PanelContainer visible={activePanel === "components" || activePanel === "canvas"}>
+            {activePanel === "components" && <ComponentPalette />}
+            {activePanel === "canvas" && <CanvasPanel />}
+            {showTokens && activePanel !== null && (
+              <div style={{ borderTop: "1px solid #e5e7eb" }}>
                 <TokenPanel />
               </div>
             )}
-            <div style={{ borderTop: "1px solid #e5e7eb" }}>
-              {showAnimation ? (
-                <AnimationImport
-                  onImportLottie={(data, fileName) => {
-                    const code = generateAnimationCode("lottie", fileName, data);
-                    if (codeEditorRef.current) {
-                      codeEditorRef.current.insertSnippet(code);
-                      setShowAnimation(false);
-                    }
-                  }}
-                  onImportRive={(data, fileName) => {
-                    const code = generateAnimationCode("rive", fileName, {});
-                    if (codeEditorRef.current) {
-                      codeEditorRef.current.insertSnippet(code);
-                      setShowAnimation(false);
-                    }
-                  }}
-                  onInsertCode={(code) => {
-                    codeEditorRef.current?.insertSnippet(code);
-                    setShowAnimation(false);
-                  }}
-                />
-              ) : (
-                <button
-                  onClick={() => setShowAnimation(true)}
-                  style={{
-                    width: "100%", padding: "6px 8px", fontSize: 11, fontWeight: 600,
-                    background: "#FAFAFA", border: "none", cursor: "pointer",
-                    color: "#6B7280", display: "flex", alignItems: "center", gap: 6,
-                  }}
-                >
-                  🎬 导入动画…
-                </button>
-              )}
-            </div>
-          </aside>
+          </PanelContainer>
           <main style={S.main}>
             <div style={S.toolbar}>
-              <span style={{ fontWeight: 600, marginLeft: 110 }}>OmniLang 编辑器 — 设计</span>
-              {projectDir && <span style={{ color: "#9ca3af", fontSize: 11 }}>{projectDir.split(/[/\\]/).slice(-2).join("/")}</span>}
+              {/* Mode toggle */}
+              <button onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
+              <button onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
+              <span style={{ width: 8 }} />
+              {/* Undo/Redo */}
+              <button onClick={() => undoUndo(ctx)} style={iconBtn} title="撤销 (Ctrl+Z)">↩</button>
+              <button onClick={() => undoRedo(ctx)} style={iconBtn} title="重做 (Ctrl+Shift+Z)">↪</button>
+              {/* Save */}
+              <button onClick={() => saveProject()} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400}} title="保存项目 (Ctrl+S)">💾</button>
+              <button onClick={() => handleOpenProject()} style={iconBtn} title="打开项目">📂</button>
               <span style={{ flex: 1 }} />
+              {/* Viewport */}
               <span style={{ fontSize: 10, color: "#9CA3AF" }}>视口:</span>
               {(["desktop","tablet","mobile"] as const).map(bp => (
                 <button key={bp} onClick={() => setBreakpoint(bp)}
-                  style={{ padding: "2px 8px", fontSize: 10, border: "1px solid", borderRadius: 3, cursor: "pointer",
+                  style={{ padding: "2px 6px", fontSize: 10, border: "1px solid", borderRadius: 3, cursor: "pointer",
                     background: breakpoint === bp ? "#4F46E5" : "#fff",
                     color: breakpoint === bp ? "#fff" : "#6B7280",
                     borderColor: breakpoint === bp ? "#4F46E5" : "#d1d5db" }}>
-                  {{desktop:"🖥️ 桌面",tablet:"📱 平板",mobile:"📱 手机"}[bp]}
+                  {{desktop:"🖥",tablet:"📱",mobile:"📱"}[bp]}
                 </button>
               ))}
-              <button onClick={() => setShowTokens(!showTokens)}
-                style={{...btnStyle, background: showTokens ? "#EEF2FF" : "#fff", borderColor: showTokens ? "#4F46E5" : "#d1d5db" }}>
-                {showTokens ? "🎨 令牌" : "🎨 令牌"}
-              </button>
-              <button onClick={() => setWireMode(!wireMode)}
-                style={{...btnStyle, background: wireMode ? "#EEF2FF" : "#fff", borderColor: wireMode ? "#4F46E5" : "#d1d5db" }}>
-                {wireMode ? "🔗 连线" : "🔗 连线"}
-              </button>
-              <button onClick={() => setShowHUD(!showHUD)}
-                style={{...btnStyle, background: showHUD ? "#EEF2FF" : "#fff", borderColor: showHUD ? "#4F46E5" : "#d1d5db", fontSize: 11 }}>
-                {showHUD ? "🔍 状态" : "🔍 状态"}
-              </button>
-              {/* M7: Component state preview */}
-              <select
-                value={previewState}
-                onChange={(e) => setPreviewState(e.target.value)}
-                style={{ padding: "3px 6px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, background: "#fff" }}
-                title="Component state preview"
-              >
-                <option value="normal">👁 Normal</option>
-                <option value="hover">🖱 Hover</option>
-                <option value="active">👆 Active</option>
-                <option value="focus">🎯 Focus</option>
-                <option value="disabled">🚫 Disabled</option>
-                <option value="loading">⏳ Loading</option>
+              {/* State preview */}
+              <select value={previewState} onChange={(e) => setPreviewState(e.target.value)}
+                style={{ padding: "2px 4px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, background: "#fff" }}
+                title="Component state preview">
+                <option value="normal">👁</option>
+                <option value="hover">🖱</option>
+                <option value="active">👆</option>
+                <option value="focus">🎯</option>
+                <option value="disabled">🚫</option>
+                <option value="loading">⏳</option>
               </select>
+              <span style={{ width: 8 }} />
+              {/* Toggle buttons (compact icon-only) */}
+              <button onClick={() => setShowTokens(!showTokens)}
+                style={{...iconBtn, background: showTokens ? "#EEF2FF" : "transparent", borderColor: showTokens ? "#4F46E5" : "transparent" }}
+                title="令牌面板">🎨</button>
+              <button onClick={() => setWireMode(!wireMode)}
+                style={{...iconBtn, background: wireMode ? "#EEF2FF" : "transparent", borderColor: wireMode ? "#4F46E5" : "transparent" }}
+                title="连线模式">🔗</button>
+              <button onClick={() => setShowHUD(!showHUD)}
+                style={{...iconBtn, background: showHUD ? "#EEF2FF" : "transparent", borderColor: showHUD ? "#4F46E5" : "transparent" }}
+                title="状态 HUD">🔍</button>
               <button onClick={() => setShowFocusOrder(!showFocusOrder)}
-                style={{...btnStyle, background: showFocusOrder ? "#EEF2FF" : "#fff", borderColor: showFocusOrder ? "#4F46E5" : "#d1d5db", fontSize: 11 }}>
-                {showFocusOrder ? "↹ 焦点" : "↹ 焦点"}
-              </button>
-              <button onClick={handleDeploy}
-                style={{...btnStyle, background: "#FFF7ED", borderColor: "#F97316", color: "#EA580C" }}>
-                🚀 发布
-              </button>
-              <button onClick={handleSaveCanvas}
-                style={{...btnStyle, background: "#fff"}}>
-                💾 保存画布
-              </button>
-              <button onClick={handleLoadCanvas}
-                style={{...btnStyle, background: "#fff"}}>
-                📂 加载画布
-              </button>
+                style={{...iconBtn, background: showFocusOrder ? "#EEF2FF" : "transparent", borderColor: showFocusOrder ? "#4F46E5" : "transparent" }}
+                title="焦点顺序">↹</button>
+              <span style={{ width: 8 }} />
+              {/* Run/Stop/Compile */}
               {runStatus.running ? (
                 <>
                   <a href={runStatus.url || "#"} target="_blank" rel="noreferrer"
@@ -1025,32 +1084,29 @@ export default function App() {
               ) : (
                 <button onClick={handleRun} disabled={runLoading}
                   style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
-                  {runLoading ? "⏳ 启动中..." : "▶ 运行"}
+                  {runLoading ? "⏳" : "▶"} 运行
                 </button>
               )}
-              <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
+              <button onClick={handleCompile} style={btnStyle}>编译</button>
             </div>
+            <CanvasTabBar />
             <div style={{ display: "flex", justifyContent: "center", background: "#f0f0f0", flex: 1, overflow: "auto" }}>
               <div style={{
                 width: breakpoint === "desktop" ? "100%" : breakpoint === "tablet" ? 768 : 375,
-                maxWidth: "100%",
-                background: "#fff",
+                maxWidth: "100%", background: "#fff",
                 boxShadow: "0 0 20px rgba(0,0,0,0.1)",
-                position: "relative",
-                transition: "width 0.3s ease",
+                position: "relative", transition: "width 0.3s ease",
                 display: "flex", flexDirection: "column",
               }}>
-              <LayoutView ctx={ctx} hideCodeBlocks />
-              {wireMode && <WireOverlay />}
-              {/* State HUD (M5.2) */}
-              {selectedId && <StateHUD elementId={selectedId} visible={showHUD} onClose={() => setShowHUD(false)} />}
-              {/* Focus order overlay (M5.4) */}
-              {showFocusOrder && <FocusOrderOverlay />}
-            </div>
+                <LayoutView ctx={ctx} hideCodeBlocks />
+                {wireMode && <WireOverlay />}
+                {selectedId && <StateHUD elementId={selectedId} visible={showHUD} onClose={() => setShowHUD(false)} />}
+                {showFocusOrder && <FocusOrderOverlay />}
+              </div>
             </div>
             <div style={S.statusBar}>
               <span style={{ color: status.isError ? "#DC2626" : status.text.startsWith("⚠") ? "#D97706" : "#6B7280" }}>{status.text}</span>
-              <span style={{ color: "#9ca3af" }}>{activeFilePath || "未打开"}</span>
+              <span style={{ color: "#9ca3af" }}>{projectName}{isDirty ? " ● 未保存" : ""} {projectDir ? `| 📁 ${projectDir}` : ""}</span>
               <span style={{ flex: 1 }} />
               <PerfBadge />
             </div>
@@ -1088,6 +1144,36 @@ export default function App() {
         }}
       />
 
+      {/* ── Open Project Dialog ────────────────── */}
+      {openDialog.visible && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setOpenDialog({ visible: false, files: [] })}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 420, maxHeight: "70vh", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>📂 打开项目</div>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>选择 .omni.json 项目文件</div>
+            <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
+              {openDialog.files.map((f, i) => (
+                <div key={f} onClick={() => openProjectFile(f)}
+                  style={{ padding: "10px 14px", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center", gap: 10,
+                    borderBottom: i < openDialog.files.length - 1 ? "1px solid #f3f4f6" : "none",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#F5F3FF")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{f}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>点击打开</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setOpenDialog({ visible: false, files: [] })}
+              style={{ padding: "6px 16px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", alignSelf: "flex-end" }}>取消</button>
+          </div>
+        </div>
+      )}
+
       {/* ── Top-level modals (M5) ── */}
       <SearchModal
         visible={showSearch}
@@ -1100,114 +1186,6 @@ export default function App() {
           tokens: Object.entries(useTokenStore.getState().tokens.colors).map(([name, value]) => ({ name, value, category: "colors" })),
         }}
       />
-      {conflictInfo && (
-        <ConflictPanel
-          conflict={conflictInfo}
-          onResolve={(choice) => {
-            if (choice === "merge") setMode("code");
-            setShowConflict(false);
-            setConflictInfo(null);
-          }}
-          onDismiss={() => { setShowConflict(false); setConflictInfo(null); }}
-        />
-      )}
-
-      {/* ── Save Dialog ────────────────────────── */}
-      {saveDialog.visible && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 10000,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }} onClick={() => setSaveDialog({ visible: false, defaultName: "" })}>
-          <div style={{
-            background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 380,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-              💾 保存画布状态
-            </div>
-            <input
-              id="save-filename-input"
-              defaultValue={saveDialog.defaultName}
-              placeholder="输入文件名..."
-              style={{
-                width: "100%", padding: "8px 12px", fontSize: 14, border: "1px solid #d1d5db",
-                borderRadius: 6, boxSizing: "border-box", marginBottom: 16,
-              }}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  const input = (e.target as HTMLInputElement).value.trim();
-                  if (input) {
-                    setSaveDialog({ visible: false, defaultName: "" });
-                    handleSaveCanvas(input);
-                  }
-                }
-                if (e.key === "Escape") setSaveDialog({ visible: false, defaultName: "" });
-              }}
-              autoFocus
-            />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setSaveDialog({ visible: false, defaultName: "" })}
-                style={{ padding: "6px 16px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}>
-                取消
-              </button>
-              <button onClick={() => {
-                const input = (document.getElementById("save-filename-input") as HTMLInputElement)?.value.trim();
-                if (input) {
-                  setSaveDialog({ visible: false, defaultName: "" });
-                  handleSaveCanvas(input);
-                }
-              }}
-                style={{ padding: "6px 16px", fontSize: 13, border: "none", borderRadius: 6, background: "#4F46E5", color: "#fff", cursor: "pointer" }}>
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Load Dialog ────────────────────────── */}
-      {loadDialog.visible && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 10000,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }} onClick={() => setLoadDialog({ visible: false, files: [] })}>
-          <div style={{
-            background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 420, maxHeight: "70vh",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column",
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
-              📂 加载画布状态
-            </div>
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>
-              选择要恢复的画布快照文件
-            </div>
-            <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
-              {loadDialog.files.map((f, i) => (
-                <div key={f}
-                  onClick={() => handleLoadCanvas(f)}
-                  style={{
-                    padding: "10px 14px", cursor: "pointer", borderRadius: 6,
-                    display: "flex", alignItems: "center", gap: 10,
-                    transition: "background 0.15s", borderBottom: i < loadDialog.files.length - 1 ? "1px solid #f3f4f6" : "none",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#F5F3FF")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                >
-                  <span style={{ fontSize: 20 }}>📄</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{f}</div>
-                  </div>
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>点击加载</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setLoadDialog({ visible: false, files: [] })}
-              style={{ padding: "6px 16px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", alignSelf: "flex-end" }}>
-              取消
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1217,6 +1195,7 @@ export default function App() {
 // ═══════════════════════════════════════════════
 
 const btnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 4, background: "#fff", cursor: "pointer" };
+const iconBtn: React.CSSProperties = { padding: "2px 6px", fontSize: 13, border: "1px solid transparent", borderRadius: 4, background: "transparent", cursor: "pointer", lineHeight: 1 };
 
 interface TreeNode { id: string; tag: string; props?: Record<string, unknown>; children?: TreeNode[]; testId?: string | null; }
 
@@ -1265,33 +1244,3 @@ function FocusOrderOverlay() {
   );
 }
 
-// ── M5.5 Animation code generator ─────────────
-
-function generateAnimationCode(type: "lottie" | "rive", fileName: string, _data: Record<string, unknown>): string {
-  const baseName = fileName.replace(/\.(json|riv)$/i, "");
-  const compName = baseName.replace(/[-_\s]+/g, " ").split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join("") + "Animation";
-
-  if (type === "lottie") {
-    return `// @editor: managed
-component ${compName} {
-    signal src: String = "/animations/${fileName}";
-    signal playing: bool = true;
-    signal loop: bool = true;
-    signal speed: double = 1.0;
-
-    view {
-        <LottiePlayer src={src} playing={playing} loop={loop} speed={speed} />
-    }
-}`;
-  }
-  return `// @editor: managed
-component ${compName} {
-    signal src: String = "/animations/${fileName}";
-    signal artboard: String = "default";
-    signal stateMachine: String = "default";
-
-    view {
-        <RivePlayer src={src} artboard={artboard} stateMachine={stateMachine} />
-    }
-}`;
-}

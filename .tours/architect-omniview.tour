@@ -1,0 +1,129 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "OmniView 架构深度游",
+  "description": "深入 OmniLang 前端组件 DSL 的完整编译管线：从 .omni 源码到 React/Vue/Dioxus/Flutter 四端代码生成。适合想理解整个系统如何运作的架构师和核心贡献者。",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": "omniview",
+      "title": "OmniView 包根目录",
+      "description": "OmniView 是 OmniLang 的 UI 组件 DSL 和 SDK——对标 Flutter 之于 Dart 的关系。它让开发者用一份 .omni 文件定义组件，编译输出 React、Vue、Dioxus（Rust）和 Flutter 四套目标代码。整个包约 13,400 行 Python，25+ 源文件，分属 CLI、API、Parser、AST、IR、Codegen、语义分析、模块系统八大子系统。\n\n关键设计决策见 ADR-001：OmniLang 和 OmniView 不是两个项目如何通信的问题，而是「是否需要两个项目」的问题——答案是合并为单一项目，用 `import omniview` 做架构门控。"
+    },
+    {
+      "file": "docs/adr/001-omnilang-omniview-unification.md",
+      "line": 42,
+      "title": "ADR-001：核心哲学",
+      "description": "整份 ADR 最关键的一句话：「这不是两个项目如何通信的问题，而是是否需要两个项目的问题。」Council 8 轮审议才最终定案——此前尝试过 API 合约方案、委托方案、IR 合约方案、语法精简方案，均因类型系统不兼容或工程代价过高被否决。最终选择 Dart + Flutter 类比：OmniLang = 通用语言引擎，OmniView = import 激活的 UI SDK。"
+    },
+    {
+      "file": "docs/adr/001-omnilang-omniview-unification.md",
+      "selection": {
+        "start": { "line": 53, "character": 0 },
+        "end": { "line": 83, "character": 0 }
+      },
+      "title": "ADR-001：统一项目结构 + import 门控",
+      "description": "统一后的目录树：grammar/ 下双 Lark 文件（物理无法合并是技术约束，不是执行失败），lexer.py 提供 create_parser() / create_omniview_parser() 统一入口。代码生成分两支——纯逻辑目标（python/javascript/rust/dart）和 UI 目标（codegen/omniview/ 下的 react/vue/dioxus/flutter 插件）。\n\n关键行为：文件含 `import omniview;` → CLI 路由到 UI 插件；不含 → 纯逻辑模式。语法始终包含 UI 关键词（因为 Lark 不支持条件语法规则），差异通过 codegen 路由实现而非 parser 分支。"
+    },
+    {
+      "file": "omniview/__init__.py",
+      "line": 1,
+      "title": "入口：版本与定位",
+      "description": "OmniView v0.3.0。三阶段 codegen 管线：Pattern Matching → Idiomatic Selection → Code Expansion。这个三层设计是整条管线的骨架——不是直接生成语法树，而是先识别「意图」（Intent IR），再为每个框架挑选最地道的实现方式。"
+    },
+    {
+      "file": "omniview/grammar.lark",
+      "line": 1,
+      "title": "Lark 语法定义（Earley 解析器）",
+      "description": "UI 语法约 242 行，Lark Earley 模式。关键架构说明（第 4-13 行注释）：expr 规则永久保留——用于元素 prop、样式条目、指令守卫等内联场景，无法预先提取。stmt 规则仅为 fallback——主路径是所有 block 经过 preprocessor → RAW_BLOCK → OmniLang 委托。这是双 grammar 模型的核心实现细节。\n\n语法定义了 component、store、theme 三种顶层结构，以及 signal/computed/event/ref/prop 等组件成员，@if/@for/@slot 等模板指令。"
+    },
+    {
+      "file": "omniview/preprocessor.py",
+      "line": 1,
+      "title": "Stage 1：预处理器 —— 大括号平衡提取",
+      "description": "编译管线的第一站。扫描 .omni 源码，提取所有花括号包裹的语句块（函数体、action 体、生命周期钩子），替换为 __OMNI_BLOCK_N__ 占位符。Lark 解析器只看到 UI 结构骨架，不碰原始语句文本。后续 Transformer 通过 OmniLang 的 parse_inline_block() 解析这些被提取的块。\n\n关键：预处理是纯大括号平衡扫描（非完整解析），能正确处理嵌套花括号、字符串字面量中的花括号、以及 import { } from 语句的识别（不会被误认为语句块）。"
+    },
+    {
+      "file": "omniview/parser.py",
+      "line": 1,
+      "title": "Stage 2：Lark Transformer → OmniView AST",
+      "description": "OmniViewTransformer 将 Lark 解析树转换为 OmniView AST 节点（frozen dataclass）。约 1,305 行——Council R9 设定了 ≤1,600 行的预算，超过则需要拆分为 parser_core.py + parser_ui.py。\n\n重点：表达式的解析委托给 OmniLang 的 parser_helpers 模块。当预处理器输出可用时，RAW_BLOCK token 由 OmniLang 的 parse_inline_block() 解析。这实现了「OmniLang 处理表达式，OmniView 处理 UI 结构」的分工。"
+    },
+    {
+      "file": "omniview/ast_nodes.py",
+      "line": 1,
+      "title": "AST 节点定义（frozen dataclass）",
+      "description": "所有 AST 节点都是 frozen dataclass——贯彻不可变性原则。复用 omnilang.ast_nodes 的表达式类型（VarRef、BinaryOp、FnCall 等）。UI 特定节点包括：Program、ComponentDef、StoreDef、Element、ViewBlock、IfDirective、ForDirective、SlotDirective、NativeBlock、StyleBlock 等。\n\n重点看 Param（第 38 行）、Stmt（第 46 行）等基类，以及各声明节点如何通过 frozen=True 保证 AST 一旦构建不可修改。"
+    },
+    {
+      "file": "omniview/semantic/analyzer.py",
+      "line": 1,
+      "title": "Stage 3：语义分析引擎",
+      "description": "六项职责：符号解析（props/signals/computeds/events/fns/refs/stores）、类型检查、约束验证（read-after-write、safe expressions）、依赖收集（构建 computed/signal 依赖图）、store 读取分析、computed 链扁平化。\n\n输出 AnalysisResult，包含 symbols、dependencies、store_reads、diagnostics（含 ERROR/WARNING/INFO 三级）。Diagnostic 带错误码（如 P0214、E0101）和 source span，方便编辑器展示诊断信息。"
+    },
+    {
+      "file": "omniview/ir_types.py",
+      "line": 1,
+      "title": "Intent IR 类型体系",
+      "description": "核心抽象层——IR 不是语法树，而是「渲染意图」。30+ frozen dataclass，按关注点组织：\n• 状态：StateIntent（mutable/derived）、MutationIntent（8 种操作：direct_assign、spread_append、increment 等）\n• 逻辑：ConditionalIntent、ListRenderingIntent\n• 交互：BindIntent（双向绑定）、EventIntent（三种 handler：inline_fn/fn_ref/store_action）\n• 样式：StyleIntent、LayoutIntent、ClassNameExpr\n• 元素：ElementIR、ComponentIR、StoreIR\n\n关键枚举见前 60 行：Mutability、MutationOp、LifecycleKind、BindableElement、EventHandlerKind。"
+    },
+    {
+      "file": "omniview/lowering.py",
+      "line": 1,
+      "title": "Stage 4：AST → Intent IR 下沉",
+      "description": "连接解析和代码生成的桥梁。IRFixture.lower_program() 遍历 AST，将其转换为 IR 类型（来自 ir_types.py）。\n\n关键基础设施是 ir_to_dict() 函数（第 59 行）——将 frozen dataclass 的 IR 对象转为 plain dict，并注入 _kind 标记（如 \"StateIntent\"、\"ConditionalIntent\"）。这个 _kind 字段是 codegen 中 dict-key dispatch 的基石：每个 codegen 后端通过 self._get(obj, \"_kind\") 判断 IR 类型，而非 isinstance 检查。"
+    },
+    {
+      "file": "omniview/codegen/base.py",
+      "line": 25,
+      "title": "Codegen 基类：三阶段管线",
+      "description": "所有框架后端（React/Vue/Dioxus/Flutter）的抽象基类。定义了三阶段契约：\n1. _pattern_match(ir) — 识别 IR 意图模式\n2. _select_idiom(patterns) — 挑选框架最地道的实现方式\n3. _expand(ir, idioms) — 生成目标源码\n\n还有 idiomaticity 分级：L2（地道，如 React 用 useState+useMemo）、L1（可读）、L0（功能可用）。generate() 方法（第 46 行）是管线入口，依次调用三个阶段并收集 files/warnings/errors 到 CodegenResult。"
+    },
+    {
+      "directory": "omniview/codegen",
+      "title": "四个框架后端",
+      "description": "codegen/ 目录下四个后端，均继承 CodegenBase：\n• react.py (~60K 行) — React/TypeScript + CSS Modules，L2 级别\n• vue.py (~37K 行) — Vue SFC（template + script setup + style），L2 级别\n• dioxus.py (~31K 行) — Rust/Dioxus 组件，L2 级别\n• flutter.py (~57K 行) — Flutter/Dart Widget，L1 级别（尚未达到 L2 地道程度）\n• css_mapping.py (~11K 行) — 共享的 semantic CSS property → 框架特定属性映射\n\n每个后端需要处理：状态管理（useState/ref/setState）、计算属性（useMemo/computed）、条件渲染、列表渲染、事件绑定、双向绑定、样式系统、slot/children、生命周期等完整语义。这是整个系统最庞大的部分——四个文件合计约 185K 行。"
+    },
+    {
+      "file": "omniview/api.py",
+      "line": 59,
+      "title": "中央 API：compile_omni()",
+      "description": "编译管线的纯函数入口——CLI 和 editor server 都通过它编译 .omni 文件。无文件 I/O，输入源码字符串，输出 CompileResult（success/files/diff/errors）。\n\n第 72 行是关键逻辑：_detect_ui_mode() 检测是否有 import omniview，无则自动回退 target（react/vue/dioxus/flutter → python）。_compile_ui_mode()（第 191 行）执行完整的五阶段管线：Preprocess → Parse → Semantic → Lower → Codegen。"
+    },
+    {
+      "file": "omniview/api.py",
+      "selection": {
+        "start": { "line": 191, "character": 0 },
+        "end": { "line": 259, "character": 0 }
+      },
+      "title": "五阶段编译管线（完整实现）",
+      "description": "这是整个系统的心脏——_compile_ui_mode() 以 68 行代码串联起全部五个阶段：\n\nStage 1 (line 199): preprocess(source) → 提取语句块\nStage 2 (line 207): create_omniview_parser().parse() + OmniViewTransformer.transform() → AST\nStage 3 (line 216): SemanticAnalyzer.analyze(program) → 诊断信息收集\nStage 4 (line 231): IRFixture().lower_program(program) → Intent IR\nStage 5 (line 236): codegen.generate_component() / generate_store() → 目标源码\n\n注意每个阶段的错误处理：Preprocessor 异常、Parse 异常、Semantic ERROR/WARNING、Codegen 异常，全被转换为统一的 CompileError 格式（带 file/line/col/severity/code）。"
+    },
+    {
+      "file": "omniview/cli.py",
+      "line": 776,
+      "title": "CLI 入口：omnic 命令",
+      "description": "面向终端用户的命令行工具。通过 pyproject.toml 注册为 `omnic` 入口点。主要子命令：\n• omnic build <file.omni> --target react — 编译到目标框架\n• omnic check <file.omni> — 静态分析/lint\n• omnic fmt <file.omni> — 格式化 .omni 源码（AST-based formatter）\n• omnic watch <file.omni> — 文件监听自动重编译\n• omnic serve --dir <path> — 启动可视化编辑器服务器\n• omnic init [name] — 脚手架新项目\n• omnic gen-extern <file.d.ts> — TypeScript .d.ts → Rust extern"
+    },
+    {
+      "file": "omniview/modules/loader.py",
+      "line": 1,
+      "title": "跨文件模块系统",
+      "description": "处理 .omni 文件间的 import { Name } from \"./path.omni\" 语法。每个被导入的文件经过完整的五阶段管线（preprocess → parse → transform → semantic → lower to IR）。\n\n关键功能：\n• 路径解析（相对 project root 的绝对路径）\n• 循环导入检测——CircularImportError 提供完整的人可读导入链，精确到每个 import 语句的行号（第 36-60 行）\n• 导出映射——跟踪每个模块导出的 component/store 名称\n• 多文件依赖图——通过 ModuleGraph 跟踪文件间依赖关系"
+    },
+    {
+      "file": "omniview/examples/todo-app.omni",
+      "line": 1,
+      "title": "实例：Todo App（完整 .omni 源码）",
+      "description": "理解 OmniView 语法最好的切入点。一个完整的 Todo 应用，包含：\n• import omniview; — 架构门控语句\n• Store 定义（TodoStore）— signal（响应式状态）、getter（计算属性）、action（状态变更）\n• Component 定义（TodoApp）— @store 注入、signal、fn、以及在 view 块中使用 @for/@if 模板指令\n\n这个文件展示了 .omni 的完整表达能力：响应式状态管理、事件处理、列表渲染、条件渲染、跨组件 store 注入。用 `omnic build todo-app.omni --target react` 即可编译为 React 代码。"
+    },
+    {
+      "directory": "omniview/plugins",
+      "title": "插件生态",
+      "description": "三个开发工具插件：\n• plugins/vite/ — Vite 插件，支持 .omni 文件的 HMR（热模块替换），开发时即时生效\n• plugins/test-utils-vue/ — Vue 测试工具集\n• plugins/test-utils-dioxus/ — Dioxus（Rust）测试工具集\n\n这些插件让 OmniView 可以嵌入标准的 Vite/Webpack 工作流，而不仅仅是 CLI 编译。"
+    },
+    {
+      "title": "全景回顾：数据流路径",
+      "description": "现在你可以完整追踪一份 .omni 文件的编译全程：\n\n.omni 源码\n  → Preprocessor（提取语句块 → __OMNI_BLOCK_N__ 占位符）\n  → Lark Parser + OmniViewTransformer（→ frozen AST）\n  → SemanticAnalyzer（符号解析 + 类型检查 + 依赖收集）\n  → IRFixture（AST → Intent IR，注入 _kind 标记）\n  → CodegenBase.generate()（三阶段：pattern match → idiom select → code expand）\n  → { .tsx, .vue, .rs, .dart } 目标文件\n\n关键设计原则：\n1. import omniview 是唯一的架构门控——不是模块依赖，而是 codegen 路由开关\n2. 双 grammar 是技术现实（Lark 限制），不是设计缺陷——通过 lexer.py 统一入口管理\n3. Intent IR 不是语法树，是渲染意图——这是框架无关性的关键抽象\n4. _kind dispatch（dict-key）vs isinstance dispatch（dataclass attr）——两条管线独立演进，不可合并\n\n深入阅读建议：看 codegen/react.py 的 generate_component() 方法理解三阶段的具体实现；看 test_codegen.py 理解编译结果的验证策略。"
+    }
+  ]
+}

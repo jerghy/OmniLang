@@ -342,7 +342,7 @@ class OmniDriver {
       mode: (window as any).__OMNI_MODE__ || "design",
       elements: s.elements,
       wires: s.wires,
-      selectedElementId: s.selectedElementId,
+      selectedElementIds: s.selectedElementIds,
       projectDir: s.projectDir,
       activeFilePath: s.activeFilePath,
       compileErrors: s.compileErrors,
@@ -372,7 +372,7 @@ class OmniDriver {
 
   /** Get the currently selected element, or null. */
   getSelectedElement(): ElementHandle | null {
-    const id = this._store().selectedElementId;
+    const id = this._store().selectedElementIds[0] ?? null;
     return id ? new ElementHandle(id, this) : null;
   }
 
@@ -488,20 +488,7 @@ class OmniDriver {
     };
 
     this._store().addElement(el);
-
-    // If parent specified, add this to parent's children array
-    if (parentId) {
-      const parent = this._store().elements.find((e) => e.id === parentId);
-      if (parent) {
-        useEditorStore.setState({
-          elements: useEditorStore.getState().elements.map((e) =>
-            e.id === parentId
-              ? { ...e, children: [...e.children, id] }
-              : e,
-          ),
-        });
-      }
-    }
+    // Note: parentId sync is now handled by store.addElement()
 
     // Auto-nest inline children
     for (const child of inlineChildren) {
@@ -678,7 +665,7 @@ class OmniDriver {
       eventUuidTable: {
         description: "Event port UUIDs for manual connect(). createEventHandler() uses event NAME, not UUID.",
         Button: { onPress: "evt-btn-press-001", onHover: "evt-btn-hover-001", onFocus: "evt-btn-focus-001", onLongPress: "evt-btn-longpress-001" },
-        Input: { onChange: "evt-input-change-001" },
+        Input: { onChange: "evt-input-change-001", onFocus: "evt-input-focus-001", onBlur: "evt-input-blur-001" },
         TextArea: { onChange: "evt-textarea-change-001" },
         Select: { onChange: "evt-select-change-001" },
         Checkbox: { onChange: "evt-checkbox-change-001" },
@@ -712,7 +699,7 @@ class OmniDriver {
 
   /** Clear all elements and wires from the canvas. */
   clearAll(): void {
-    useEditorStore.setState({ elements: [], wires: [], selectedElementId: null });
+    useEditorStore.setState({ elements: [], wires: [], selectedElementIds: [] });
   }
 
   // ── Wire Operations ───────────────────────────────
