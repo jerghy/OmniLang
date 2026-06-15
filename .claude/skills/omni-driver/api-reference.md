@@ -723,35 +723,148 @@ O.button("Click", { variant: "primary" }, card.id);
 console.log("Elements:", O.elements.length, "Valid:", O.validate().isValid);
 ```
 
-### Playwright
+### Playwright E2E Tests
 
-> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要返回 `ElementHandle` 或 `WireHandle`。
+> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要返回 `ElementHandle` 或 `WireHandle` —— 它们会变成空对象 `{}`。
+
+#### 基本模板
 
 ```javascript
-async function omniEval(page, fn) {
-  return page.evaluate(fn);
-}
+import { test, expect } from "@playwright/test";
 
-test("create and verify form", async ({ page }) => {
-  await page.goto("http://localhost:5174");
-  await page.waitForFunction(() => window.__OMNI__);
+const EDITOR_URL = "http://localhost:5174";
+const TIMEOUT = 15000;
 
-  await omniEval(page, () => {
-    const O = window.__OMNI__;
+test.describe("Feature Name", () => {
+  test("does something via OmniDriver", async ({ page }) => {
+    // 1. 导航并等待 OmniDriver 就绪
+    await page.goto(EDITOR_URL);
+    await page.waitForFunction(
+      () => typeof (window as any).__OMNI__ !== "undefined",
+      { timeout: TIMEOUT },
+    );
+
+    // 2. 执行 OmniDriver 脚本（所有逻辑在一个 evaluate 中）
+    const result = await page.evaluate(() => {
+      const O = (window as any).__OMNI__;
+      O.help();                    // ← 每个 evaluate 上下文必须独立调用！
+      O.switchMode("design");
+      O.clearAll();
+
+      // ... 构建 UI + 数据流 ...
+
+      const report = O.validate();
+      return {
+        elementCount: O.elements.length,
+        wireCount: O.wires.length,
+        isValid: report.isValid,
+        errors: report.unwiredEvents,
+      };
+    });
+
+    // 3. 断言
+    expect(result.isValid).toBe(true);
+    expect(result.elementCount).toBeGreaterThanOrEqual(4);
+    expect(result.errors).toHaveLength(0);
+  });
+});
+```
+
+#### 多 Step 测试（Design + Code 分步验证）
+
+```javascript
+test("builds UI in design mode then creates handler in code mode", async ({ page }) => {
+  await page.goto(EDITOR_URL);
+  await page.waitForFunction(() => (window as any).__OMNI__);
+
+  // Step 1: Design 模式构建 UI
+  const designResult = await page.evaluate(() => {
+    const O = (window as any).__OMNI__;
     O.help();
     O.switchMode("design");
     O.clearAll();
+
     const card = O.card({ padding: "24px" });
-    O.heading("Login", "2", card.id);
-    O.input("Email", {}, card.id);
     const btn = O.button("Submit", { variant: "primary" }, card.id);
-    btn.bindEvent("onPress", "handleLogin");
+    const sig = O.codeBlock("signal", "count", { typeAnnotation: "i32" });
+
+    // v2: bind event (不创建 action 节点)
+    btn.bindEvent("onPress", "handleSubmit");
+
+    return {
+      elementCount: O.elements.length,
+      viewCount: O.views.length,
+      signalCount: O.codeBlocks.filter(
+        (cb) => cb.data?.tag === "signal"
+      ).length,
+      eventBindings: O.listAllEventBindings().length,
+    };
   });
 
-  const count = await omniEval(page, () => window.__OMNI__.getElements().length);
-  expect(count).toBeGreaterThanOrEqual(4);
+  expect(designResult.viewCount).toBeGreaterThanOrEqual(1);
+  expect(designResult.signalCount).toBe(1);
+  expect(designResult.eventBindings).toBe(1);
+
+  // Step 2: Code 模式创建处理函数
+  const codeResult = await page.evaluate(() => {
+    const O = (window as any).__OMNI__;
+    O.switchMode("code");
+
+    const tab = O.createTab("event", "Submit Handler", "📡");
+    O.switchTab(tab.id);
+    const fn = O.customFunction("handleSubmit", [], "void");
+    O.returnNode(fn.id);
+
+    const fnReport = O.validateFunction(fn.id);
+    return {
+      tabCount: O.listTabs().length,
+      fnCount: O.listCustomFunctions().length,
+      fnValid: fnReport.valid,
+      tabElements: O.getTabElements(tab.id).length,
+    };
+  });
+
+  expect(codeResult.tabCount).toBeGreaterThanOrEqual(1);
+  expect(codeResult.fnCount).toBeGreaterThanOrEqual(1);
+  expect(codeResult.fnValid).toBe(true);
 });
 ```
+
+#### 从外部文件加载脚本
+
+```javascript
+import * as fs from "fs";
+import * as path from "path";
+
+const SCRIPT = fs.readFileSync(
+  path.resolve(__dirname, "../../build/test/omni-driver/my-app.js"),
+  "utf-8",
+);
+
+test("runs external OmniDriver script", async ({ page }) => {
+  await page.goto(EDITOR_URL);
+  await page.waitForFunction(() => (window as any).__OMNI__);
+
+  const result = await page.evaluate(async (script) => {
+    return await eval(script);  // IIFE 返回 build report
+  }, SCRIPT);
+
+  expect(result.isValid).toBe(true);
+  expect(result.elementCount).toBeGreaterThanOrEqual(10);
+});
+```
+
+#### 常见测试错误与修复
+
+| 错误 | 原因 | 修复 |
+|------|------|------|
+| `O.help is not a function` | 每个 `evaluate` 是独立上下文，需要重新调用 `O.help()` | 在每个 `evaluate` 回调第一行调用 `O.help()` |
+| `ElementHandle` 返回 `{}` | `page.evaluate()` 只序列化 JSON，不序列化 Proxy 对象 | 在 evaluate 内部提取纯数据再返回 |
+| `listCustomFunctions()` 返回 0 | 在 design 模式创建了 customFn | 先 `O.switchMode("code")` |
+| `createTab is not a function` | 在 design 模式调用了 code 模式 API | 先 `O.switchMode("code")` |
+| `bindEvent is not a function` | 在纯数据对象上调用了 Handle 方法 | 用 `O.element(id)` 获取 Handle，不是 `O.elements[i]` |
+| `connectTo` 报端口不存在 | 端口名在 v2 中可能有变化 | 先调用 `el.getPorts()` 确认端口名 |
+| 页面 `beforeunload` 弹窗阻塞测试 | 编辑器注册了 unload handler | `page.goto("about:blank")` 再导航回编辑器 |
 
 ### Puppeteer
 

@@ -108,11 +108,13 @@ O.help();  // ← 每次会话第一件事！返回 portReference、eventUuidTab
 
 ## Canonical Script Template
 
+**此模板适用于所有场景：DevTools Console、Playwright E2E、Browser MCP。在 Playwright 中，整个模板放在一个 `page.evaluate()` 回调中。**
+
 ```javascript
 // ═══ OmniDriver 脚本模板 — 复制此模板开始 ═══
 const O = window.__OMNI__;
 
-// 1. 发现 API（必须第一步！）
+// 1. 发现 API（必须第一步！每个 evaluate 上下文独立调用）
 O.help();
 
 // 2. 切换到设计模式
@@ -144,6 +146,16 @@ const ret = O.returnNode(incrementFn.id);
 const report = O.validate();
 if (!report.isValid) console.error("Canvas issues:", report);
 console.log("Elements:", O.elements.length, "Wires:", O.wires.length);
+
+// 8. (E2E/Testing) 返回可序列化结果供 Playwright 断言
+return {
+  elementCount: O.elements.length,
+  wireCount: O.wires.length,
+  isValid: report.isValid,
+  bindings: O.listAllEventBindings().length,
+  customFns: O.listCustomFunctions().length,
+  tabCount: O.listTabs().length,
+};
 ```
 
 ## 📐 Dataflow Patterns（纯 data-flow 架构）
@@ -763,6 +775,214 @@ const R = window.__OMNI_RUNTIME__;
 // R.traceExecution() — 执行追踪（FlowCanvas 高亮）
 ```
 
+## 🧪 Browser MCP Testing Workflow（AI 测试必读）
+
+**OmniDriver 脚本不是写完就完事了。必须通过 Browser MCP 验证脚本是否正确执行。本节教 AI 如何测试。**
+
+### The Test-Verify Cycle
+
+```
+1. browser_evaluate → 执行 OmniDriver 脚本
+2. browser_evaluate → 查询状态 (getElements, getWires, validate())
+3. 断言 → 验证 elementCount/wireCount/report.isValid
+4. (可选) browser_snapshot → 验证 DOM 渲染
+5. 失败 → 读错误信息 → 修复 → 回到步骤 1
+```
+
+### Pattern 1: API-Level Test（快速，不涉及编译）
+
+```javascript
+// 在 browser_evaluate 中执行完整脚本，返回可序列化结果
+const result = await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.help();
+  O.switchMode("design");
+  O.clearAll();
+
+  const card = O.card({ padding: "24px" });
+  const btn = O.button("Submit", { variant: "primary" }, card.id);
+  const sig = O.codeBlock("signal", "count", { typeAnnotation: "i32" });
+  btn.bindEvent("onPress", "handleIncrement");
+
+  O.switchMode("code");
+  const tab = O.createTab("event", "Test Events", "🧪");
+  O.switchTab(tab.id);
+  const fn = O.customFunction("handleIncrement", [], "void");
+  O.returnNode(fn.id);
+
+  const report = O.validate();
+  return {
+    elementCount: O.elements.length,
+    wireCount: O.wires.length,
+    isValid: report.isValid,
+    customFnCount: O.listCustomFunctions().length,
+    tabCount: O.listTabs().length,
+    errors: report.unwiredEvents,
+  };
+});
+
+// 在 Playwright 中断言
+expect(result.isValid).toBe(true);
+expect(result.elementCount).toBeGreaterThanOrEqual(4);
+expect(result.customFnCount).toBeGreaterThanOrEqual(1);
+expect(result.errors).toHaveLength(0);
+```
+
+### Pattern 2: Design + Code Mode 双向测试
+
+```javascript
+// ⚠️ 关键：测试必须覆盖 design 和 code 两个模式！
+
+// Step 1: Design 模式验证
+await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.switchMode("design");
+  O.clearAll();
+  // ... 构建 UI + signal ...
+});
+const designState = await page.evaluate(() => ({
+  mode: window.__OMNI__.getMode(),
+  views: window.__OMNI__.views.length,
+  signals: window.__OMNI__.codeBlocks.filter(cb => cb.data?.tag === "signal").length,
+}));
+expect(designState.mode).toBe("design");
+
+// Step 2: Code 模式验证
+await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.switchMode("code");
+  const tab = O.createTab("event", "Handlers", "📡");
+  O.switchTab(tab.id);
+  O.customFunction("handleClick", [], "void");
+});
+const codeState = await page.evaluate(() => ({
+  mode: window.__OMNI__.getMode(),
+  tabCount: window.__OMNI__.listTabs().length,
+  fnCount: window.__OMNI__.listCustomFunctions().length,
+}));
+expect(codeState.tabCount).toBeGreaterThanOrEqual(1);
+expect(codeState.fnCount).toBeGreaterThanOrEqual(1);
+```
+
+### Pattern 3: 编译 + 运行全栈测试
+
+```javascript
+// 完整管线：写源码 → 编译 → 运行 → 浏览器验证
+await page.evaluate(() => {
+  window.__OMNI__.setSourceCode(`component Counter {
+  signal count: i32 = 0
+  fn increment() { count += 1 }
+  view { <Button onPress={increment} test-id="btn-inc">+1</Button> }
+}`);
+});
+
+// 编译
+const compileResult = await page.evaluate(async () => {
+  return await window.__OMNI__.compile();
+});
+expect(compileResult.success).toBe(true);
+expect(compileResult.errors).toHaveLength(0);
+
+// 启动运行管线 (需要 Python 后端运行中)
+const runResp = await page.evaluate(async () => {
+  const res = await fetch("/api/compile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: window.__OMNI__.getSourceCode(),
+      target: "omniview",
+    }),
+  });
+  return await res.json();
+});
+
+// → 然后调用 /api/run/start → browser_snapshot 验证 DOM
+```
+
+### Pattern 4: 交互式调试（出问题时用）
+
+```javascript
+// 当脚本行为不符合预期，分步诊断：
+
+// 1. 检查当前画布状态
+const state = await page.evaluate(() => window.__OMNI__.getState());
+console.log("Elements:", state.elements.map(e => `${e.tag}[${e.id}]`));
+console.log("Wires:", state.wires.map(w => `${w.fromPort}→${w.toPort}`));
+
+// 2. 检查特定元素
+const el = await page.evaluate((id) => {
+  const handle = window.__OMNI__.element(id);
+  return {
+    exists: handle.exists(),
+    tag: handle.data?.tag,
+    ports: handle.getPorts().map(p => `${p.name}:${p.direction}:${p.type}`),
+    events: handle.data?.tag?.startsWith("view") ? handle.getAvailableEvents() : [],
+  };
+}, "el-xxx");
+
+// 3. 运行健康检查
+const report = await page.evaluate(() => window.__OMNI__.validate());
+// report.orphanElements → 无父容器的 view 元素
+// report.unwiredEvents → 未绑定事件的组件
+// report.typeMismatches → 类型不匹配的连线
+// report.unreachableBlocks → 无数据流入的代码块
+```
+
+### 🧪 Progressive Build-Test Loop（渐进式构建-测试循环）
+
+**核心原则：每 3-5 个元素就验证一次，不要全部建完再检查。**
+
+```
+创建根容器 → validate()
+创建 3 个 UI 元素 → validate()
+添加 signal → validate()
+绑定事件 → validate()
+创建 customFn → validateFunction()
+添加 return → validateFunction()
+最终检查 → validate()
+```
+
+```javascript
+// ✅ 正确：渐进式验证
+await page.evaluate(() => {
+  const O = window.__OMNI__;
+  O.help(); O.switchMode("design"); O.clearAll();
+
+  const card = O.card({ padding: "24px" });
+  let r = O.validate();
+  if (r.orphanElements.length) console.error("Root missing parent!");
+
+  const btn = O.button("OK", { variant: "primary" }, card.id);
+  const txt = O.text("Hello", {}, card.id);
+  r = O.validate();
+  if (!r.isValid) console.error("Issue after adding UI:", r);
+
+  const sig = O.codeBlock("signal", "data", { typeAnnotation: "String" });
+  r = O.validate();
+  if (r.unreachableBlocks.length) console.warn("Signal has no inbound data yet");
+});
+
+// ❌ 错误：一次性全部建完再验证
+await page.evaluate(() => {
+  // 创建 50 个元素...
+  // 创建 20 条连线...
+  // 最后才 validate() → 一堆错误，不知道哪个步骤引入的
+});
+```
+
+### Test Failure Debugging
+
+| 症状 | 可能原因 | 诊断方法 |
+|------|---------|---------|
+| `elementCount` 不对 | 某元素创建失败或被 compile 清除 | 用 `getState()` 列出所有元素 tag |
+| `wireCount` 为 0 | `connectTo` 端口名错误 | 检查 `getPorts()` 确认端口名 |
+| `validate()` 报 orphanElements | 元素缺少 `parentId` | 检查 text/image 是否跳过了 props 参数 |
+| `listCustomFunctions()` 返回 0 | 在 design 模式创建 customFn | 先 `switchMode("code")` |
+| `listTabs()` 返回 0 | 在 design 模式创建 tab | 先 `switchMode("code")` |
+| 旧 API 报错 | 用了 v1 的 `createEventHandler` | 改用 `bindEvent()` + `customFunction()` |
+| `bindEvent` 报 "unknown event" | 事件名格式错误 | 用 `getAvailableEvents()` 查正确事件名 |
+| `returnNode` 后 function 验证失败 | BFS 找不到 return 路径 | 确保有数据流连到 return.value 端口 |
+
 ## 🔬 Node Registry（22 节点，6 个 category）
 
 ```javascript
@@ -1081,6 +1301,11 @@ if (!finalReport.isValid) {
 - [ ] (Run Pipeline) `/api/compile` 是否在 `/api/run/start` 之前调用？
 - [ ] (Run Pipeline) `debug:true` 时是否确认了 `__OMNI_DEBUG_WS_URL__` 已注入？
 - [ ] (Run Pipeline) 🛜 MCP Availability Gate 是否通过？
+- [ ] (Testing) 测试是否覆盖了 design 和 code 两个模式？
+- [ ] (Testing) 是否分别验证了 design store 和 code graph store 的状态？
+- [ ] (Testing) `page.evaluate()` 返回值是否都是可序列化的（无 Handle 对象）？
+- [ ] (Testing) 是否用了 Progressive Build-Test Loop 而非一次性全部验证？
+- [ ] (Testing) 失败时是否先调用 `O.validate()` + `getState()` 诊断？
 
 ## Red Flags — STOP and Check
 
@@ -1106,6 +1331,14 @@ if (!finalReport.isValid) {
 - **"Vite 启动了但页面空白"** → 检查编译 target 和 `index.html` 路径
 - **"Debug 断点不触发"** → 确认 `window.__OMNI_DEBUG_WS_URL__` 已设置
 - **"el.remove() 后 wires 还在"** → 已修复！自动级联删除
+- **"测试只测了 design 模式，code 模式没测"** → 两个模式相互独立，必须都测
+- **"page.evaluate() 返回了 ElementHandle"** → evaluate 只能返回可序列化值，Handle 会变成 `{}`
+- **"浏览器 MCP 没连，我就用 curl 测 /api/compile"** → curl 看不到 DOM 渲染，测了等于没测
+- **"测试脚本在 console 里能跑，但 Playwright 里报错"** → 检查 `O.help()` 是否在 evaluate 内调用（每个 evaluate 是独立上下文！）
+- **"我 compile 成功了，所以 runtime 肯定没问题"** → codegen 正确 ≠ runtime 正确。必须在浏览器中验证 DOM。
+- **"customFn 创建成功了，listCustomFunctions 却返回空"** → 在 design 模式创建了 customFn！先 `switchMode("code")`
+- **"validate() 通过但测试还是失败"** → validate 只检查画布完整性，不检查业务逻辑正确性。单独验证 elementCount/wireCount/ports。
+- **"在 code 模式创建了 view 元素"** → view 元素只能在 design 模式创建。先 `switchMode("design")`
 
 ## Naming Convention
 
