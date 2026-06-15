@@ -10,6 +10,14 @@ import type {
   ComponentInfo,
   EventHandlerOptions,
   ValidationReport,
+  FnParam,
+  ParamBinding,
+  EventBindingOptions,
+  EventBindingRecord,
+  TabInfo,
+  FunctionValidationReport,
+  FunctionSignature,
+  TabExportData,
 } from "./types";
 import type { ElementData, WireData } from "../store/editor";
 
@@ -29,10 +37,18 @@ interface ElementHandle {
   children(): ElementHandle[];
   parent(): ElementHandle | null;
   connectTo(target: ElementHandle, fromPort: string, toPort: string): WireHandle;
-  createEventHandler(
-    eventName: string,
-    options?: EventHandlerOptions,
-  ): { handler: ElementHandle; wire: null };
+
+  // Event binding v2 (replaces createEventHandler)
+  bindEvent(eventName: string, fnName: string, options?: EventBindingOptions): this;
+  unbindEvent(eventName: string): this;
+  getAvailableEvents(): string[];
+  getEventBindings(): Array<{ eventName: string; fnName: string; paramBindings: Record<string, ParamBinding> }>;
+
+  // Custom function operations
+  addParam(name: string, type: string, defaultValue?: unknown): this;
+  setReturnType(type: string): this;
+  setDescription(desc: string): this;
+
   waitForLive(timeout?: number): Promise<this>;
 }
 
@@ -116,6 +132,35 @@ interface OmniDriver {
   help(): Record<string, unknown>;
   listComponents(): ComponentInfo[];
   getComponentInfo(tag: string): ComponentInfo | null;
+
+  // ── Event Binding v2 ──
+  listAllEventBindings(): EventBindingRecord[];
+  findMatchingFunctions(tabId: string, eventName: string): Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string }>;
+
+  // ── Code Tab Management ──
+  createTab(type: "event" | "logic", label?: string, icon?: string): { id: string };
+  switchTab(tabId: string): void;
+  removeTab(tabId: string): void;
+  listTabs(): TabInfo[];
+  getActiveTab(): TabInfo | null;
+  getTab(tabId: string): TabInfo | null;
+  cloneTab(tabId: string, newLabel?: string): { id: string } | null;
+  exportTab(tabId: string): string | null;
+  importTab(json: string): { id: string } | null;
+  addVariable(tabId: string, name: string, type: string, defaultValue?: unknown, description?: string): void;
+  removeVariable(tabId: string, name: string): void;
+  getVariables(tabId: string): Array<{ name: string; type: string; defaultValue?: unknown; description?: string }>;
+  getTabElements(tabId: string): ElementData[];
+  getTabWires(tabId: string): WireData[];
+
+  // ── Custom Function Operations ──
+  customFunction(fnName: string, fnParams: FnParam[], fnReturnType: string): ElementHandle;
+  returnNode(parentFnId: string): ElementHandle;
+  validateFunction(fnId: string): FunctionValidationReport;
+  listCustomFunctions(): Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string; description: string }>;
+  findFunctionByName(fnName: string): { fnName: string; params: FnParam[]; returnType: string; tabId: string; description: string; nodeId: string } | null;
+  checkFunctionNameConflict(fnName: string): Array<{ fnName: string; tabId: string }>;
+  getFunctionSignature(fnId: string): FunctionSignature | null;
 
   // ── Management ──
   clearAll(): void;

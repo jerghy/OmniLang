@@ -63,6 +63,7 @@ interface EditorState {
   // ── Design canvas (drag-drop UI) ──
   elements: ElementData[];
   wires: WireData[];
+  rootOrder: string[];  // display order of root elements (parentId === null)
 
   // ── Active mode ──
   activeMode: "design" | "code";
@@ -98,6 +99,8 @@ interface EditorState {
   setElementSource: (id: string, source: string) => void;
   setElementPorts: (id: string, ports: ElementData["ports"]) => void;
   setBlockValue: (id: string, value: unknown) => void;
+  setEventBindings: (id: string, eventName: string, binding: { fnName: string; paramBindings: Record<string, { sourceType: string; value: string; expectedType: string }> }) => void;
+  removeEventBindings: (id: string, eventName: string) => void;
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
 
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
@@ -144,6 +147,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   compileErrors: [],
   elements: [],
   wires: [],
+  rootOrder: [],
   activeMode: "design",
   selectedElementIds: [],
 
@@ -179,7 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           isDirty: true,
         };
       }
-      return { elements, isDirty: true };
+      return { elements, rootOrder: [...s.rootOrder, normalized.id], isDirty: true };
     }),
 
   removeElement: (id) =>
@@ -195,7 +199,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
       elements = elements.filter((e) => e.parentId !== id);
       return elements;
-    })(), isDirty: true })),
+    })(), rootOrder: s.rootOrder.filter((rid) => rid !== id), isDirty: true })),
 
   setProp: (id, prop, value) =>
     set((s) => ({
@@ -247,6 +251,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
     })),
 
+  setEventBindings: (id, eventName, binding) =>
+    set((s) => ({
+      elements: s.elements.map((e) => {
+        if (e.id !== id) return e;
+        const currentBindings = (e.config?._eventBindings as Record<string, unknown>) || {};
+        return {
+          ...e,
+          config: { ...e.config, _eventBindings: { ...currentBindings, [eventName]: binding } },
+        };
+      }),
+    })),
+
+  removeEventBindings: (id, eventName) =>
+    set((s) => ({
+      elements: s.elements.map((e) => {
+        if (e.id !== id) return e;
+        const currentBindings = (e.config?._eventBindings as Record<string, unknown>) || {};
+        const updated = { ...currentBindings };
+        delete updated[eventName];
+        return { ...e, config: { ...e.config, _eventBindings: updated } };
+      }),
+    })),
+
   setBlockValue: (id, value) =>
     set((s) => {
       const existing = s.elements.find(e => e.id === id);
@@ -272,7 +299,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       const el = s.elements.find((e) => e.id === elementId);
       const target = s.elements.find((e) => e.id === targetSiblingId);
-      if (!el || !target || !el.parentId || el.parentId !== target.parentId) return s;
+      if (!el || !target) return s;
+
+      // Root-level reorder: use rootOrder
+      if (el.parentId === null || target.parentId === null) {
+        if (el.parentId !== target.parentId) return s; // must be same level
+        const order = [...s.rootOrder];
+        const fromIdx = order.indexOf(elementId);
+        const toIdx = order.indexOf(targetSiblingId);
+        if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return s;
+        order.splice(fromIdx, 1);
+        const newToIdx = order.indexOf(targetSiblingId);
+        const insertIdx = position === "before" ? newToIdx : newToIdx + 1;
+        order.splice(insertIdx, 0, elementId);
+        return { rootOrder: order, isDirty: true };
+      }
+
+      // Container-level reorder: use parent.children
+      if (el.parentId !== target.parentId) return s;
       const parentId = el.parentId;
       const parent = s.elements.find((e) => e.id === parentId);
       if (!parent) return s;
@@ -340,6 +384,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       elements: [],
       wires: [],
+      rootOrder: [],
       activeDocId: null,
       docBackup: null,
       openTabs: [],
@@ -387,6 +432,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       path.replace(/^.*[\\/]/, "").replace(".omni.json", "") ||
       "未命名项目";
 
+    const rootOrder = designElements
+      .filter((e) => !e.parentId)
+      .map((e) => e.id);
+
     return set({
       projectPath: path,
       projectName,
@@ -394,6 +443,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       elements: designElements,
       wires: designWires,
+      rootOrder,
       config: {
         target: (config.target as string) || "react",
         autoSave: (config.autoSave as boolean) || false,

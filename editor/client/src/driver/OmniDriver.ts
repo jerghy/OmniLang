@@ -4,9 +4,9 @@
  *  ```js
  *  const omni = window.__OMNI__;
  *
- *  // Create a Button and bind an event handler
- *  const btn = await omni.component("Button", { label: "Submit" });
- *  btn.createEventHandler("onPress", { handlerName: "handleSubmit" });
+ *  // Create a Button and bind an event
+ *  const btn = omni.component("Button", { label: "Submit" });
+ *  btn.bindEvent("onPress", "handleSubmit");
  *
  *  // Query and modify
  *  const text = omni.findByTag("Text")[0];
@@ -34,6 +34,7 @@ import type {
   EventHandlerOptions,
   ValidationReport,
   StateDiff,
+  EventBindingOptions,
 } from "./types";
 
 // ═══════════════════════════════════════════════════════
@@ -172,48 +173,136 @@ class ElementHandle {
     return d.source;
   }
 
-  /** Bind an event on this element to a handler function.
-   *  In the pure data-flow architecture, events are bound in design mode
-   *  by setting the event prop on the view element. The actual handler
-   *  function should be created as a customFn node in an event-code tab.
-   *
-   *  This sets the event prop (e.g. onPress="handleSubmit") and returns
-   *  this element as the handler handle for backward compatibility. */
+  /** @deprecated Removed in v2. Use bindEvent(eventName, fnName) instead.
+   *  Event handling is now split: bind in design mode, define customFn in code mode. */
   createEventHandler(
+    _eventName: string,
+    _options?: EventHandlerOptions,
+  ): { handler: never; wire: never } {
+    throw new Error(
+      "[OmniDriver] createEventHandler() has been removed in v2.\n" +
+      "  Use bindEvent(eventName, fnName) in design mode to bind the event,\n" +
+      "  then create a customFunction() in code mode to define the handler.\n" +
+      "  See O.help() for examples.",
+    );
+  }
+
+  /** Bind an event on this element to a custom function in a code tab.
+   *  Pure data-flow v2: sets the event prop (e.g. onPress="handleSubmit")
+   *  and optionally stores paramBindings. */
+  bindEvent(
     eventName: string,
-    options: EventHandlerOptions = {},
-  ): { handler: ElementHandle; wire: null } {
+    fnName: string,
+    options: EventBindingOptions = {},
+  ): this {
     const d = this._require();
     const meta = COMPONENT_PROTOCOL[d.tag];
     if (!meta) throw new Error(`No component protocol for tag "${d.tag}"`);
 
     const eventCfg: EventMeta | undefined = meta.events[eventName];
     if (!eventCfg) {
+      const available = Object.keys(meta.events).join(", ");
       throw new Error(
-        `Event "${eventName}" not found on ${d.tag}. Available: ${Object.keys(meta.events).join(", ")}`,
+        `Event "${eventName}" not found on ${d.tag}. Available: ${available || "(none)"}`,
       );
     }
 
-    const handlerName =
-      options.handlerName ||
-      `on${eventName.replace(/^on/, "").charAt(0).toUpperCase()}${eventName.replace(/^on/, "").slice(1)}`;
+    // Set event prop on the view element
+    this._driver._store().setProp(d.id, eventName, fnName);
 
-    const payloadType = eventCfg.payload || "any";
+    // Store paramBindings as _eventBindings on element config if provided
+    if (options.params && Object.keys(options.params).length > 0) {
+      this._driver._store().setEventBindings(d.id, eventName, {
+        fnName,
+        paramBindings: options.params,
+      });
+    }
 
-    // Set the event prop on the view element — this is how events are bound in design mode
-    this._driver._store().setProp(d.id, eventName, handlerName);
+    return this;
+  }
 
-    console.info(
-      `[OmniDriver] ✅ Event bound: <${d.tag}>.${eventName} = "${handlerName}"\n` +
-      `  💡 提示：处理函数 "${handlerName}" 需要在代码模式的事件标签页中创建（使用 customFn 节点）。\n` +
-      `  参数类型：${payloadType}`,
-    );
+  /** Remove an event binding from this element. */
+  unbindEvent(eventName: string): this {
+    const d = this._require();
+    const currentVal = (d.props as Record<string, unknown>)[eventName];
+    if (currentVal === undefined) {
+      console.warn(`[OmniDriver] unbindEvent: "${eventName}" is not bound on <${d.tag}>`);
+      return this;
+    }
+    this._driver._store().setProp(d.id, eventName, undefined as unknown);
+    this._driver._store().removeEventBindings(d.id, eventName);
+    return this;
+  }
 
-    // Return this element as handler for backward compatibility
-    return {
-      handler: this,
-      wire: null,
+  /** List available event names for this element. */
+  getAvailableEvents(): string[] {
+    const d = this._require();
+    if (d.nodeType !== "view") return [];
+    const meta = COMPONENT_PROTOCOL[d.tag];
+    return meta?.events ? Object.keys(meta.events) : [];
+  }
+
+  /** Get current event bindings on this element. */
+  getEventBindings(): Array<{ eventName: string; fnName: string; paramBindings: Record<string, import("./types").ParamBinding> }> {
+    const d = this._require();
+    if (d.nodeType !== "view") return [];
+    const bindings: Array<{ eventName: string; fnName: string; paramBindings: Record<string, import("./types").ParamBinding> }> = [];
+    const meta = COMPONENT_PROTOCOL[d.tag];
+    if (!meta?.events) return [];
+    for (const [evtName] of Object.entries(meta.events)) {
+      const boundFn = (d.props as Record<string, unknown>)[evtName];
+      if (typeof boundFn === "string" && boundFn.length > 0) {
+        bindings.push({
+          eventName: evtName,
+          fnName: boundFn,
+          paramBindings: (d.config?._eventBindings as Record<string, Record<string, import("./types").ParamBinding>>)?.[evtName] || {},
+        });
+      }
+    }
+    return bindings;
+  }
+
+  /** Add a parameter to a customFn (dynamically adds input port). */
+  addParam(name: string, type: string, defaultValue?: unknown): this {
+    const d = this._require();
+    if (d.tag !== "customFn") throw new Error("addParam is only available on customFn nodes");
+    const config = d.config || {};
+    const params = [...((config.fnParams as import("./types").FnParam[]) || []), { name, type, default: defaultValue }];
+    const newConfig = { ...config, fnParams: params };
+    this._driver._store().setProp(this.id, "config", newConfig);
+    const inPorts = params.map((p) => ({
+      name: p.name, direction: "in" as const, portType: "data" as const,
+      type: p.type, label: `${p.name}: ${p.type}`,
+    }));
+    const outPort = {
+      name: "return", direction: "out" as const, portType: "data" as const,
+      type: (newConfig.fnReturnType as string) || "void", label: `返回: ${newConfig.fnReturnType || "void"}`,
     };
+    this._driver._store().setElementPorts(this.id, [...inPorts, outPort]);
+    return this;
+  }
+
+  /** Set the return type of a customFn. */
+  setReturnType(type: string): this {
+    const d = this._require();
+    if (d.tag !== "customFn") throw new Error("setReturnType is only available on customFn nodes");
+    const config = { ...d.config, fnReturnType: type };
+    this._driver._store().setProp(this.id, "config", config);
+    const ports = d.ports || [];
+    const updated = ports.map((p) =>
+      p.name === "return" ? { ...p, type, label: `返回: ${type}` } : p,
+    );
+    this._driver._store().setElementPorts(this.id, updated);
+    return this;
+  }
+
+  /** Set the description of a customFn. */
+  setDescription(desc: string): this {
+    const d = this._require();
+    if (d.tag !== "customFn") throw new Error("setDescription is only available on customFn nodes");
+    const config = { ...d.config, description: desc };
+    this._driver._store().setProp(this.id, "config", config);
+    return this;
   }
 
   /** Wait until this element exists in the store (for async operations). */
@@ -596,35 +685,36 @@ class OmniDriver {
    *  Call this when you need to know what methods are available. */
   help(): Record<string, unknown> {
     return {
-      version: "1.0.0",
+      version: "2.0.0",
       entryPoint: "window.__OMNI__",
-      description: "Playwright-like API for OmniLang editor automation",
-      discovery: "Use Object.getOwnPropertyNames(Object.getPrototypeOf(window.__OMNI__)) to list methods",
+      description: "Playwright-like API for OmniLang editor automation (pure data-flow v2)",
       state: ["getState()", "getElements() / .elements", "getWires() / .wires", "getMode()", "getSelectedElement()", "getPreviewUrl()", ".views", ".codeBlocks"],
       locator: ["element(id)", "findByTag(tag)", "find(query)", "findByProp(prop,value)"],
       creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(props?,parentId?)", "input(placeholder?,props?,parentId?)", "card(props?,parentId?)", "flex(direction?,gap?,props?,parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
       codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, store, literal, add, sub, mul, div, compare, and, or, not, concat, getVariable, setVariable, branch, sequence, forEach, updateUIProperty, fn, customFn, return"],
-      elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "createEventHandler(event,options)", "getPorts()", "getEvents()", "children()", "parent()", "getSource()", "setSource(src)", "waitForLive(ms)", "data"],
+      elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "bindEvent(eventName,fnName,options?)", "unbindEvent(eventName)", "getPorts()", "getEvents()", "getAvailableEvents()", "getEventBindings()", "children()", "parent()", "getSource()", "setSource(src)", "addParam(name,type,default?)", "setReturnType(type)", "setDescription(desc)", "waitForLive(ms)", "data"],
       wireHandle: ["disconnect()", "source()", "target()", "data"],
-      events: ["createEventHandler(eventName,options) — pass event NAME (e.g. \"onPress\"), NOT UUID"],
+      events: ["bindEvent(eventName, fnName, options?) — v2: sets event prop in design mode. Handler functions are customFn nodes in code mode event tabs."],
+      codeTab: ["createTab(type,label?,icon?)", "switchTab(id)", "removeTab(id)", "listTabs()", "getActiveTab()", "getTab(id)", "cloneTab(id,newLabel?)", "exportTab(id)", "importTab(json)", "addVariable(tabId,name,type,default?,desc?)", "removeVariable(tabId,name)", "getVariables(tabId)", "getTabElements(tabId)", "getTabWires(tabId)"],
+      customFunction: ["customFunction(fnName,params,returnType)", "returnNode(parentFnId)", "validateFunction(fnId)", "listCustomFunctions()", "findFunctionByName(fnName)", "checkFunctionNameConflict(fnName)", "getFunctionSignature(fnId)"],
       compile: ["compile() — rebuilds canvas from .omni source, discarding programmatic elements"],
       wait: ["waitForElement(tag,ms)", "waitForWire(port,ms)", "waitFor(predicate,ms,msg)"],
       undo: ["undo()", "redo()"],
       file: ["getSourceCode()", "setSourceCode(content)", "getActiveFilePath()", "save()", "readFile(path)", "writeFile(path,content)", "openFile(path)"],
-      discovery_api: ["listComponents()", "getComponentInfo(tag)"],
-      other: ["clearAll()", "batch(fn)", "removeElement(id)", "switchMode('design'|'code')", "validate() — canvas health check", "exportState() / importState(json)", "saveSnapshot() / restoreSnapshot(token) — safe rollback", "diff(previousSnapshot)", "snippet(template, options?)", "registerSnippet(name, builder) / unregisterSnippet(name) / listSnippets()", "highlight(id) / highlightAll(tag) / clearHighlights() — visual indicators"],
-      componentProtocol: "Use listComponents() to see all 19 view component types and their props/events/styleProperties",
+      discovery_api: ["listComponents()", "getComponentInfo(tag)", "listAllEventBindings()", "findMatchingFunctions(tabId,eventName)"],
+      other: ["clearAll()", "batch(fn)", "removeElement(id)", "switchMode('design'|'code')", "validate() — canvas health check", "exportState() / importState(json)", "saveSnapshot() / restoreSnapshot(token)", "diff(previousSnapshot)", "snippet(template, options?)", "registerSnippet(name, builder) / unregisterSnippet(name) / listSnippets()", "highlight(id) / highlightAll(tag) / clearHighlights()"],
       portReference: {
-        description: "Code block port structure — use these port names when calling connect()",
+        description: "Pure data-flow architecture — all ports are data ports. Use these for connect().",
         signal: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "set", direction: "in", type: "TYPE" }] },
         computed: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "deps", direction: "in", type: "any" }] },
         store: { outputs: [{ name: "items", direction: "out", type: "any" }], inputs: [] },
         customFn: { outputs: [{ name: "return", direction: "out", type: "TYPE" }], inputs: "dynamic (from fnParams config)" },
+        return: { outputs: [], inputs: [{ name: "value", direction: "in", type: "TYPE" }] },
         add: { outputs: [{ name: "result", direction: "out", type: "TYPE" }], inputs: [{ name: "a", direction: "in", type: "TYPE" }, { name: "b", direction: "in", type: "TYPE" }] },
         branch: { outputs: [{ name: "true", direction: "out", type: "any" }, { name: "false", direction: "out", type: "any" }], inputs: [{ name: "condition", direction: "in", type: "bool" }] },
       },
       eventUuidTable: {
-        description: "Event port UUIDs for manual connect(). createEventHandler() uses event NAME, not UUID.",
+        description: "Event port UUIDs (for manual connect only; bindEvent uses event NAME).",
         Button: { onPress: "evt-btn-press-001", onHover: "evt-btn-hover-001", onFocus: "evt-btn-focus-001", onLongPress: "evt-btn-longpress-001" },
         Input: { onChange: "evt-input-change-001", onFocus: "evt-input-focus-001", onBlur: "evt-input-blur-001" },
         TextArea: { onChange: "evt-textarea-change-001" },
@@ -633,16 +723,17 @@ class OmniDriver {
         Form: { onSubmit: "evt-form-submit-001" },
       },
       criticalRules: [
-        "ALWAYS call O.switchMode('design') before creating elements",
         "ALWAYS call O.help() first to discover available APIs",
-        "createEventHandler sets event prop on view element (e.g. onPress='handleSubmit'). Handler functions must be created in code mode event-code tabs using customFn nodes.",
-        "signal input port is 'set' NOT 'value' or 'input'. signal output port is 'value'.",
+        "ALWAYS call O.switchMode('design') before creating elements",
+        "Pure data-flow v2: NO flow edges, NO action nodes, NO createEventHandler",
+        "Use bindEvent(eventName, fnName) in design mode to bind events",
+        "Handler functions: switchMode('code') → createTab('event',...) → customFunction(...) → returnNode(...)",
+        "signal input port is 'set' NOT 'value'. signal output port is 'value'.",
         "getElements() returns plain ElementData (no methods). Use O.element(id) for ElementHandle.",
-        "O.container() creates Container (plain div), O.card() creates Card (styled container with border/shadow).",
         "heading() level is a STRING: '1', '2', '3', '4' — not a number.",
-        "Event names use React convention: onPress, onChange, onHover — NOT press, change, hover.",
-        "compile() discards all programmatic elements — use setSourceCode() first for source-driven mode.",
-        "Pure data-flow architecture: no flow edges, no event nodes. All connections are data dependencies.",
+        "Event names use React convention: onPress, onChange, onHover.",
+        "compile() discards all programmatic elements — use setSourceCode() first.",
+        "customFn must have a return node reachable. Use validateFunction() to check.",
       ],
     };
   }
@@ -1049,10 +1140,7 @@ class OmniDriver {
    *    O.heading(opts.title, "3", card.id);
    *    O.text(`$${opts.price}`, {}, card.id);
    *    const btn = O.button("Buy", { variant: "primary" }, card.id);
-   *    btn.createEventHandler("onPress", {
-   *      handlerName: "handlePurchase",
-   *      source: `action handlePurchase(event) {\n  // TODO: add to cart\n}`,
-   *    });
+   *    btn.bindEvent("onPress", "handlePurchase");
    *    return card;
    *  });
    *  O.snippet("product-card", { image: "url", title: "Widget", price: "9.99" });
@@ -1098,10 +1186,8 @@ class OmniDriver {
         this.input("Email", { type: "email" }, card.id);
         this.input("Password", { type: "password" }, card.id);
         const submitBtn = this.button("Sign In", { variant: "primary" }, card.id);
-        // Bind event handler (function must be created in code-mode event-code tab)
-        submitBtn.createEventHandler("onPress", {
-          handlerName: "handleSignIn",
-        });
+        // Bind event (handler function must be created in code-mode event-code tab)
+        submitBtn.bindEvent("onPress", "handleSignIn");
         return card;
       }
       case "data-card": {
@@ -1112,10 +1198,8 @@ class OmniDriver {
         this.text(desc, {}, card.id);
         if (options?.actionLabel) {
           const actionBtn = this.button(options.actionLabel as string, { variant: "primary" }, card.id);
-          // Bind event handler (function must be created in code-mode event-code tab)
-          actionBtn.createEventHandler("onPress", {
-            handlerName: "handleAction",
-          });
+          // Bind event (handler function must be created in code-mode event-code tab)
+          actionBtn.bindEvent("onPress", "handleAction");
         }
         return card;
       }
@@ -1126,10 +1210,8 @@ class OmniDriver {
         const toolbar = this.flex("row", "8px", {}, card.id);
         this.input("Search...", {}, toolbar.id);
         const addBtn = this.button("Add", { variant: "primary" }, toolbar.id);
-        // Bind event handler (function must be created in code-mode event-code tab)
-        addBtn.createEventHandler("onPress", {
-          handlerName: "handleAdd",
-        });
+        // Bind event (handler function must be created in code-mode event-code tab)
+        addBtn.bindEvent("onPress", "handleAdd");
         // Create table header
         const columns = (options?.columns as string[]) || ["Name", "Status", "Actions"];
         const headerRow = this.flex("row", "12px", {}, card.id);
@@ -1175,6 +1257,370 @@ class OmniDriver {
       events: m.events,
       styleProperties: m.styleProperties,
       hasChildren: m.children,
+    };
+  }
+
+  // ── Event Binding Queries (v2) ─────────────────────
+
+  /** List all event bindings across all view elements. */
+  listAllEventBindings(): import("./types").EventBindingRecord[] {
+    const result: import("./types").EventBindingRecord[] = [];
+    for (const el of this._store().elements) {
+      if (el.nodeType !== "view") continue;
+      const handle = new ElementHandle(el.id, this);
+      const bindings = handle.getEventBindings();
+      for (const b of bindings) {
+        let tabId = "";
+        const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+        if (codeStore?.tabs) {
+          for (const tab of codeStore.tabs) {
+            const hasFn = tab.graph.elements.some(
+              (e: ElementData) => e.tag === "customFn" && e.config?.fnName === b.fnName,
+            );
+            if (hasFn) { tabId = tab.id; break; }
+          }
+        }
+        result.push({
+          elementId: el.id, tag: el.tag,
+          eventName: b.eventName, fnName: b.fnName,
+          tabId, paramBindings: b.paramBindings,
+        });
+      }
+    }
+    return result;
+  }
+
+  /** Find customFn nodes matching a given event. Pass "*" as tabId to search all tabs. */
+  findMatchingFunctions(
+    tabId: string,
+    _eventName: string,
+  ): Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string }> {
+    const result: Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string }> = [];
+    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    if (!codeStore?.tabs) return result;
+    for (const tab of codeStore.tabs) {
+      if (tabId !== "*" && tab.id !== tabId) continue;
+      for (const el of tab.graph.elements) {
+        if (el.tag === "customFn" && el.config?.fnName) {
+          result.push({
+            fnName: el.config.fnName as string,
+            params: (el.config.fnParams as import("./types").FnParam[]) || [],
+            returnType: (el.config.fnReturnType as string) || "void",
+            tabId: tab.id,
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  // ── Code Tab Management (v2) ───────────────────────
+
+  /** @internal Access the code graph store. */
+  private _codeStore() {
+    return (window as any).__CODE_GRAPH_STORE__?.getState?.() || null;
+  }
+
+  /** Create a new code tab. */
+  createTab(type: "event" | "logic", label?: string, icon?: string): { id: string } {
+    this._ensureHelp();
+    const store = this._codeStore();
+    if (!store) throw new Error("[OmniDriver] Code graph store not available. Switch to code mode first.");
+    const id = store.addTab(type, label || `Tab ${type}`, { icon });
+    return { id };
+  }
+
+  /** Switch to a code tab by ID. */
+  switchTab(tabId: string): void {
+    const store = this._codeStore();
+    if (!store) throw new Error("[OmniDriver] Code graph store not available.");
+    store.switchTab(tabId);
+  }
+
+  /** Remove a code tab. */
+  removeTab(tabId: string): void {
+    const store = this._codeStore();
+    if (!store) throw new Error("[OmniDriver] Code graph store not available.");
+    store.removeTab(tabId);
+  }
+
+  /** List all code tabs with metadata. */
+  listTabs(): import("./types").TabInfo[] {
+    const store = this._codeStore();
+    if (!store) return [];
+    return store.tabs.map((t: any) => ({
+      id: t.id, type: t.type, label: t.label, icon: t.icon,
+      variableCount: t.variables.length, elementCount: t.graph.elements.length,
+    }));
+  }
+
+  /** Get the active tab. */
+  getActiveTab(): import("./types").TabInfo | null {
+    const store = this._codeStore();
+    if (!store) return null;
+    const tab = store.getActiveTab();
+    if (!tab) return null;
+    return { id: tab.id, type: tab.type, label: tab.label, icon: tab.icon,
+      variableCount: tab.variables.length, elementCount: tab.graph.elements.length };
+  }
+
+  /** Get a tab by ID. */
+  getTab(tabId: string): import("./types").TabInfo | null {
+    const store = this._codeStore();
+    if (!store) return null;
+    const tab = store.tabs.find((t: any) => t.id === tabId);
+    if (!tab) return null;
+    return { id: tab.id, type: tab.type, label: tab.label, icon: tab.icon,
+      variableCount: tab.variables.length, elementCount: tab.graph.elements.length };
+  }
+
+  /** Deep-clone a code tab. */
+  cloneTab(tabId: string, newLabel?: string): { id: string } | null {
+    const store = this._codeStore();
+    if (!store) return null;
+    const srcTab = store.tabs.find((t: any) => t.id === tabId);
+    if (!srcTab) return null;
+    const idMap = new Map<string, string>();
+    const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const cloneElements = srcTab.graph.elements.map((el: ElementData) => {
+      const newElId = newId(); idMap.set(el.id, newElId);
+      return { ...el, id: newElId, children: [], parentId: null };
+    });
+    for (let i = 0; i < cloneElements.length; i++) {
+      const orig = srcTab.graph.elements[i];
+      if (orig.parentId && idMap.has(orig.parentId)) cloneElements[i].parentId = idMap.get(orig.parentId)!;
+      if (orig.children.length > 0) {
+        cloneElements[i].children = orig.children.map((cid: string) => idMap.get(cid) || cid).filter(Boolean);
+      }
+    }
+    const cloneWires = srcTab.graph.wires.map((w: WireData) => ({
+      ...w, id: newId(),
+      fromId: idMap.get(w.fromId) || w.fromId,
+      toId: idMap.get(w.toId) || w.toId,
+    }));
+    const cloneVars = srcTab.variables.map((v: any) => ({ ...v }));
+    const id = store.addTab(srcTab.type, newLabel || `${srcTab.label} (Copy)`, {
+      icon: srcTab.icon, initialGraph: { elements: cloneElements, wires: cloneWires },
+    });
+    const tabState = store.tabs.find((t: any) => t.id === id);
+    if (tabState) { for (const v of cloneVars) store.defineVariable(v); }
+    return { id };
+  }
+
+  /** Export a tab to JSON. */
+  exportTab(tabId: string): string | null {
+    const store = this._codeStore();
+    if (!store) return null;
+    const tab = store.tabs.find((t: any) => t.id === tabId);
+    if (!tab) return null;
+    return JSON.stringify({
+      version: "2.0", exportedAt: new Date().toISOString(),
+      tab: { type: tab.type, label: tab.label, icon: tab.icon,
+        variables: tab.variables, elements: tab.graph.elements, wires: tab.graph.wires },
+    });
+  }
+
+  /** Import a tab from JSON. */
+  importTab(json: string): { id: string } | null {
+    const store = this._codeStore();
+    if (!store) return null;
+    try {
+      const data: import("./types").TabExportData = JSON.parse(json);
+      if (!data.tab?.elements || !data.tab?.wires) return null;
+      const id = store.addTab(data.tab.type, data.tab.label, {
+        icon: data.tab.icon, initialGraph: { elements: data.tab.elements, wires: data.tab.wires },
+      });
+      for (const v of (data.tab.variables || [])) store.defineVariable(v);
+      return { id };
+    } catch { return null; }
+  }
+
+  /** Add a variable to a tab's scope. */
+  addVariable(tabId: string, name: string, type: string, defaultValue?: unknown, description?: string): void {
+    const store = this._codeStore();
+    if (!store) throw new Error("[OmniDriver] Code graph store not available.");
+    const prevTab = store.activeTabId;
+    store.switchTab(tabId);
+    store.defineVariable({ name, type, defaultValue, description });
+    store.switchTab(prevTab);
+  }
+
+  /** Remove a variable from a tab's scope. */
+  removeVariable(tabId: string, name: string): void {
+    const store = this._codeStore();
+    if (!store) throw new Error("[OmniDriver] Code graph store not available.");
+    const prevTab = store.activeTabId;
+    store.switchTab(tabId);
+    store.removeVariable(name);
+    store.switchTab(prevTab);
+  }
+
+  /** Get variables in a tab's scope. */
+  getVariables(tabId: string): Array<{ name: string; type: string; defaultValue?: unknown; description?: string }> {
+    const store = this._codeStore();
+    if (!store) return [];
+    const tab = store.tabs.find((t: any) => t.id === tabId);
+    return tab?.variables.map((v: any) => ({
+      name: v.name, type: v.type, defaultValue: v.defaultValue, description: v.description,
+    })) || [];
+  }
+
+  /** Get elements in a specific tab. */
+  getTabElements(tabId: string): ElementData[] {
+    const store = this._codeStore();
+    if (!store) return [];
+    const tab = store.tabs.find((t: any) => t.id === tabId);
+    return tab?.graph.elements || [];
+  }
+
+  /** Get wires in a specific tab. */
+  getTabWires(tabId: string): WireData[] {
+    const store = this._codeStore();
+    if (!store) return [];
+    const tab = store.tabs.find((t: any) => t.id === tabId);
+    return tab?.graph.wires || [];
+  }
+
+  // ── Custom Function Operations (v2) ─────────────────
+
+  /** Create a customFn node. */
+  customFunction(fnName: string, fnParams: import("./types").FnParam[], fnReturnType: string): ElementHandle {
+    this._ensureHelp();
+    const inPorts: import("./types").PortDescriptor[] = fnParams.map((p) => ({
+      name: p.name, direction: "in", portType: "data", type: p.type, label: `${p.name}: ${p.type}`,
+    }));
+    const outPort: import("./types").PortDescriptor = { name: "return", direction: "out", portType: "data", type: fnReturnType, label: `返回: ${fnReturnType}` };
+    const id = this._nextId();
+    const el: ElementData = {
+      id, nodeType: "codeblock", tag: "customFn", props: { name: fnName }, children: [], parentId: null,
+      ports: [...inPorts, outPort], nodeCategory: "function" as ElementData["nodeCategory"],
+      config: { fnName, fnParams, fnReturnType, description: "" },
+    };
+    this._store().addElement(el);
+    return new ElementHandle(id, this);
+  }
+
+  /** Create a return node associated with a customFn. */
+  returnNode(parentFnId: string): ElementHandle {
+    const fnEl = this._store().elements.find((e) => e.id === parentFnId);
+    if (!fnEl || fnEl.tag !== "customFn") {
+      throw new Error(`[OmniDriver] returnNode: parentFnId "${parentFnId}" is not a customFn node`);
+    }
+    const returnType = (fnEl.config?.fnReturnType as string) || "void";
+    const id = this._nextId();
+    const el: ElementData = {
+      id, nodeType: "codeblock", tag: "return", props: { name: `return ${parentFnId.slice(-6)}` },
+      children: [], parentId: parentFnId,
+      ports: [{ name: "value", direction: "in", portType: "data", type: returnType, label: "返回值" }],
+      nodeCategory: "function" as ElementData["nodeCategory"],
+      config: { parentFnId, returnType },
+    };
+    this._store().addElement(el);
+    return new ElementHandle(id, this);
+  }
+
+  /** Validate a customFn — BFS type consistency check through all return nodes. */
+  validateFunction(fnId: string): import("./types").FunctionValidationReport {
+    const el = this._store().elements.find((e) => e.id === fnId);
+    if (!el || el.tag !== "customFn") {
+      return { valid: false, returnType: "unknown", errors: [`Element "${fnId}" is not a customFn node`], reachableReturnPaths: 0 };
+    }
+    const expectedType = (el.config?.fnReturnType as string) || "void";
+    const wires = this._store().wires;
+    const visited = new Set<string>();
+    const queue = [fnId];
+    const returnNodes: ElementData[] = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const w of wires.filter((wr) => wr.fromId === current)) {
+        const target = this._store().elements.find((e) => e.id === w.toId);
+        if (!target) continue;
+        if (target.tag === "return") { returnNodes.push(target); }
+        else { queue.push(target.id); }
+      }
+    }
+    const errors: string[] = [];
+    if (returnNodes.length === 0) {
+      errors.push("No return node reachable from customFn. A function must have at least one return path.");
+    }
+    for (const rn of returnNodes) {
+      const port = rn.ports?.find((p) => p.name === "value");
+      const actualType = port?.type || "any";
+      if (actualType !== expectedType && actualType !== "any" && expectedType !== "any") {
+        errors.push(`Return type mismatch at node ${rn.id}: value port type "${actualType}" but function expects "${expectedType}"`);
+      }
+    }
+    return { valid: errors.length === 0, returnType: expectedType, errors, reachableReturnPaths: returnNodes.length };
+  }
+
+  /** List all customFn nodes across all tabs. */
+  listCustomFunctions(): Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string }> {
+    const result: Array<{ fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string }> = [];
+    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    if (!codeStore?.tabs) return result;
+    for (const tab of codeStore.tabs) {
+      for (const el of tab.graph.elements) {
+        if (el.tag === "customFn" && el.config?.fnName) {
+          result.push({
+            fnName: el.config.fnName as string,
+            params: (el.config.fnParams as import("./types").FnParam[]) || [],
+            returnType: (el.config.fnReturnType as string) || "void",
+            tabId: tab.id, description: (el.config.description as string) || "",
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  /** Find a customFn by name. */
+  findFunctionByName(fnName: string): { fnName: string; params: import("./types").FnParam[]; returnType: string; tabId: string; description: string; nodeId: string } | null {
+    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    if (!codeStore?.tabs) return null;
+    for (const tab of codeStore.tabs) {
+      for (const el of tab.graph.elements) {
+        if (el.tag === "customFn" && el.config?.fnName === fnName) {
+          return {
+            fnName: el.config.fnName as string,
+            params: (el.config.fnParams as import("./types").FnParam[]) || [],
+            returnType: (el.config.fnReturnType as string) || "void",
+            tabId: tab.id, description: (el.config.description as string) || "",
+            nodeId: el.id,
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Check for function name conflicts. */
+  checkFunctionNameConflict(fnName: string): Array<{ fnName: string; tabId: string }> {
+    const result: Array<{ fnName: string; tabId: string }> = [];
+    const fns = this.listCustomFunctions();
+    for (const f of fns) { if (f.fnName === fnName) result.push({ fnName: f.fnName, tabId: f.tabId }); }
+    return result;
+  }
+
+  /** Get function signature summary. */
+  getFunctionSignature(fnId: string): import("./types").FunctionSignature | null {
+    const el = this._store().elements.find((e) => e.id === fnId);
+    if (!el || el.tag !== "customFn") return null;
+    const wires = this._store().wires;
+    const visited = new Set<string>([fnId]);
+    const queue = [fnId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const w of wires.filter((wr) => wr.fromId === current)) {
+        if (!visited.has(w.toId)) { visited.add(w.toId); queue.push(w.toId); }
+      }
+    }
+    return {
+      fnName: (el.config?.fnName as string) || "",
+      params: (el.config?.fnParams as import("./types").FnParam[]) || [],
+      returnType: (el.config?.fnReturnType as string) || "void",
+      bodyNodeCount: visited.size - 1,
     };
   }
 

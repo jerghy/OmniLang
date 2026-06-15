@@ -125,3 +125,74 @@ export interface StateDiff {
   /** IDs of wires that were removed */
   removedWires: string[];
 }
+
+// ── v2: Function parameter ────────────────────────────
+
+export interface FnParam {
+  name: string;
+  type: string;
+  default?: unknown;
+}
+
+// ── v2: Event binding ─────────────────────────────────
+
+export interface ParamBinding {
+  sourceType: "self" | "literal" | "event" | "global";
+  value: string;
+  expectedType: string;
+}
+
+export interface EventBindingOptions {
+  params?: Record<string, ParamBinding>;
+}
+
+export interface EventBindingRecord {
+  elementId: string;
+  tag: string;
+  eventName: string;
+  fnName: string;
+  tabId: string;
+  paramBindings: Record<string, ParamBinding>;
+}
+
+// ── v2: Code tab info ─────────────────────────────────
+
+export interface TabInfo {
+  id: string;
+  type: "event" | "logic";
+  label: string;
+  icon: string;
+  variableCount: number;
+  elementCount: number;
+}
+
+// ── v2: Function validation ───────────────────────────
+
+export interface FunctionValidationReport {
+  valid: boolean;
+  returnType: string;
+  errors: string[];
+  reachableReturnPaths: number;
+}
+
+export interface FunctionSignature {
+  fnName: string;
+  params: FnParam[];
+  returnType: string;
+  bodyNodeCount: number;
+}
+
+// ── v2: Tab export format ─────────────────────────────
+
+export interface TabExportData {
+  version: string;
+  exportedAt: string;
+  tab: {
+    type: "event" | "logic";
+    label: string;
+    icon: string;
+    variables: Array<{ name: string; type: string; defaultValue?: unknown; description?: string }>;
+    elements: import("../store/editor").ElementData[];
+    wires: import("../store/editor").WireData[];
+  };
+}
