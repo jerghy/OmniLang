@@ -19,6 +19,7 @@
  */
 
 import { useEditorStore, type ElementData, type WireData } from "../store/editor";
+import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";
 import { api } from "../api/client";
@@ -356,8 +357,26 @@ class WireHandle {
 // ═══════════════════════════════════════════════════════
 
 class OmniDriver {
-  /** @internal Access the Zustand store. */
-  _store() {
+  /** @internal Access the Zustand store (design mode) or code graph store (code mode).
+   *  Returns a facade that has .elements, .wires, .addElement(), etc. from the active store. */
+  _store(): any {
+    if (((window as any).__OMNI_MODE__ || "design") === "code") {
+      return new Proxy({} as any, {
+        get: (_target, prop) => {
+          const cg = useCodeGraphStore.getState();
+          const graph = cg.getActiveGraph();
+          if (prop === "elements") return graph.elements;
+          if (prop === "wires") return graph.wires;
+          if (prop === "selectedElementIds") return [];
+          if (prop === "previewUrl") return null;
+          if (prop === "activeFileContent") return "";
+          if (prop === "activeFilePath") return "";
+          if (prop === "projectDir") return "";
+          const val = (cg as any)[prop];
+          return typeof val === "function" ? val.bind(cg) : val;
+        },
+      });
+    }
     return useEditorStore.getState();
   }
 
@@ -1318,7 +1337,10 @@ class OmniDriver {
 
   /** @internal Access the code graph store. */
   private _codeStore() {
-    return (window as any).__CODE_GRAPH_STORE__?.getState?.() || null;
+    // Try the global singleton first, fall back to direct import
+    const global = (window as any).__CODE_GRAPH_STORE__;
+    if (global?.getState) return global.getState();
+    try { return useCodeGraphStore.getState(); } catch { return null; }
   }
 
   /** Create a new code tab. */

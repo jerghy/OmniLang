@@ -407,6 +407,9 @@ class IRFixture:
                 "args": [self._lower_expr(a) for a in (expr.args or [])],
             }
         if isinstance(expr, MethodCall):
+            # signal.value → just the signal ref
+            if expr.method == 'value' and isinstance(expr.object, VarRef) and not expr.args:
+                return IdentifierExpr(name=expr.object.name)
             # MethodCall serves dual purpose: field access (no args) and method call (with args)
             obj = self._lower_expr(expr.object)
             # Check if this is a store action call
@@ -554,6 +557,28 @@ class IRFixture:
                         store_alias=alias,
                         field_name=expr.method,
                         call_args=[self._lower_expr(a) for a in (expr.args or [])],
+                    ))
+                # Case 3: signal.set(value) — convert to MutationStmt
+                if expr.method == 'set' and expr.args:
+                    signal_name = alias
+                    arg = expr.args[0]
+                    op = MutationOp.DIRECT_ASSIGN
+                    amount = self._lower_expr(arg)
+                    item = self._lower_expr(arg)
+                    # Detect increment/decrement: signal.value + N  or  signal.value - N
+                    if isinstance(arg, BinaryOp) and arg.op in ('+', '-'):
+                        if isinstance(arg.left, MethodCall) and \
+                           isinstance(arg.left.object, VarRef) and \
+                           arg.left.object.name == signal_name and \
+                           arg.left.method == 'value':
+                            op = MutationOp.INCREMENT if arg.op == '+' else MutationOp.DECREMENT
+                            amount = self._lower_expr(arg.right)
+                            item = None
+                    return MutationStmt(intent=MutationIntent(
+                        target=SignalRefIR(name=signal_name),
+                        operation=op,
+                        amount=amount,
+                        item=item,
                     ))
             return ExprStmtIR(expr=self._lower_expr(stmt.expr))
         if isinstance(stmt, EventEmitStmt):

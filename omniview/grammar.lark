@@ -28,7 +28,7 @@ component_def: "component" CNAME ["<" generic_params ">"] "{" component_body "}"
 generic_params: CNAME ("," CNAME)*
 
 component_body: (prop_decl | signal_decl | computed_decl | event_decl
-               | ref_decl | store_ref | lifecycle_hook | fn_def
+               | ref_decl | store_ref | lifecycle_hook | fn_def | action_def
                | view_block | style_block)*
 
 prop_decl: "prop" CNAME ":" type ["=" expr] ";"
@@ -60,8 +60,9 @@ lifecycle_hook: AT_MOUNT block | AT_UNMOUNT block | AT_EFFECT "(" CNAME ")" bloc
 // ── Functions ────────────────────────────────────────
 
 fn_def: ["async"] "fn" CNAME "(" [params] ")" ["->" return_type] block
+action_def: ["async"] "action" CNAME "(" [params] ")" ["->" return_type] block
 params: param ("," param)*
-param: CNAME ":" type
+param: CNAME [":" type]
 return_type: type
 
 // ── Types ────────────────────────────────────────────

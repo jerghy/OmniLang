@@ -438,6 +438,34 @@ class OmniViewTransformer(Transformer):
             is_async=is_async,
         )
 
+    def action_def(self, items) -> FnDef:
+        # Same structure as fn_def but with 'action' keyword
+        is_async = False
+        name = ""
+        params = ()
+        return_type = None
+        body = None
+        for item in items:
+            if isinstance(item, Token):
+                s = str(item)
+                if s == 'async':
+                    is_async = True
+                elif s not in ('action',):
+                    if not name:
+                        name = s
+            elif isinstance(item, TypeAnnotation):
+                return_type = item
+            elif isinstance(item, Block):
+                body = item
+            elif isinstance(item, tuple):
+                if item and isinstance(item[0], Param):
+                    params = item
+        return FnDef(
+            name=name, params=params,
+            return_type=return_type, body=body,
+            is_async=is_async,
+        )
+
     def params(self, items) -> tuple:
         return tuple(item for item in items if isinstance(item, Param))
 

@@ -134,7 +134,6 @@ def _extract_balanced_braces(source: str, open_pos: int) -> tuple[str | None, in
     depth = 1
     i = open_pos + 1  # start after the opening brace
     in_string = False
-    in_char = False
     in_line_comment = False
     in_block_comment = False
     escape_next = False
@@ -152,14 +151,6 @@ def _extract_balanced_braces(source: str, open_pos: int) -> tuple[str | None, in
                 escape_next = True
             elif ch == '"':
                 in_string = False
-            i += 1
-            continue
-
-        if in_char:
-            if ch == '\\':
-                escape_next = True
-            elif ch == "'":
-                in_char = False
             i += 1
             continue
 
@@ -191,8 +182,6 @@ def _extract_balanced_braces(source: str, open_pos: int) -> tuple[str | None, in
         # String start
         if ch == '"':
             in_string = True
-        elif ch == "'":
-            in_char = True
         elif ch == '{':
             depth += 1
         elif ch == '}':
