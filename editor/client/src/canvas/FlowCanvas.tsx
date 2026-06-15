@@ -25,7 +25,7 @@ import { RemoveElement } from "../commands/RemoveElement";
 import { getNodeConfig, type NodeTypeConfig } from "./nodeRegistry";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { DataEdge } from "./edges/DataEdge";
-import { getAllPorts, validateConnection } from "./connectionValidators";
+import { getAllPorts, validateConnection, generateCustomFnPorts } from "./connectionValidators";
 import { NodePalette } from "./NodePalette";
 import { elementsToNodes } from "./elementsToNodes";
 import { wiresToEdges } from "./wiresToEdges";
@@ -346,23 +346,29 @@ export function FlowCanvas({
   // ── NodePalette: select a node type from the search popup ──
 
   const handlePaletteSelect = useCallback(
-    (config: NodeTypeConfig) => {
-      const id = uid(`node-${config.tag}-`);
-      const ports = config.defaultPorts.map((p) => ({ ...p, direction: p.direction as "in" | "out" }));
+    (nodeConfig: NodeTypeConfig) => {
+      const id = uid(`node-${nodeConfig.tag}-`);
+      const defaultPorts = nodeConfig.defaultPorts.map((p) => ({ ...p, direction: p.direction as "in" | "out" }));
 
       const el: ElementData = {
         id,
         nodeType: "codeblock",
-        tag: config.tag,
-        props: { name: config.label },
+        tag: nodeConfig.tag,
+        props: { name: nodeConfig.label },
         children: [],
         parentId: null,
-        ports,
+        ports: defaultPorts,
         isFolded: false,
         source: "",
-        nodeCategory: config.category,
-        config: config.config ? { ...config.config } : undefined,
+        nodeCategory: nodeConfig.category,
+        config: nodeConfig.config ? { ...nodeConfig.config } : undefined,
       };
+
+      // customFn ports are generated from fnParams/fnReturnType config
+      if (nodeConfig.tag === "customFn") {
+        el.ports = generateCustomFnPorts(el);
+      }
+
       const tabId = useCodeGraphStore.getState().activeTabId;
       const cCtx = createCodeGraphContext();
       const cmd = new AddElement(el);

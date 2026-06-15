@@ -820,6 +820,7 @@ export default function App() {
       useEditorStore.getState().reorderElement(elementId, targetSiblingId, position),
     moveElement: (elementId, newParentId, targetSiblingId, position) =>
       useEditorStore.getState().moveElement(elementId, newParentId, targetSiblingId, position),
+    getRootOrder: () => useEditorStore.getState().rootOrder,
   };
 
   const compileErrors = useEditorStore((s) => s.compileErrors);

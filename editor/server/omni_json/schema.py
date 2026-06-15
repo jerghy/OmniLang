@@ -88,7 +88,7 @@ class OmniJsonDocument:
     code: CanvasData = field(default_factory=CanvasData)
 
     # Multi-tab code graph state (v2.1 — for CodeEditorStore)
-    code_tabs: CodeTabsSnapshot = field(default_factory=CodeTabsSnapshot)
+    code_tabs: CodeTabsSnapshot = field(default_factory=lambda: CodeTabsSnapshot())
 
     # Component references (unified array with source marker)
     components: list[ComponentRefEntry] = field(default_factory=list)

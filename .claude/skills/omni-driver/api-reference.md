@@ -1,4 +1,4 @@
-# OmniDriver API Reference
+# OmniDriver API Reference (v2 — Pure Data-Flow Architecture)
 
 > 完整 API 参考。主 skill 文件：[SKILL.md](SKILL.md)
 
@@ -8,7 +8,7 @@
 
 | 方法 | 返回值 | 说明 |
 |------|--------|------|
-| `O.getState()` | `EditorSnapshot` | 完整快照：mode, elements, wires, selectedElementId, projectDir, activeFilePath, compileErrors, previewUrl |
+| `O.getState()` | `EditorSnapshot` | 完整快照：mode, elements, wires, selectedElementIds, projectDir, activeFilePath, compileErrors, previewUrl |
 | `O.getElements()` | `ElementData[]` | 所有画布元素（纯数据，无方法） |
 | `O.elements` | `ElementData[]` | 同 getElements()（getter 别名） |
 | `O.getWires()` | `WireData[]` | 所有连线（纯数据，无方法） |
@@ -71,14 +71,6 @@ O.heading("Title", 2, cardId);  // ❌ level 是数字！
 O.heading("Title", "2", cardId);// ✅ 正确
 ```
 
-```javascript
-// props 中传 children 数组可实现单行嵌套:
-O.component("Card", {
-  padding: "16px",
-  children: [O.button("A"), O.text("B", {}, null)]  // children 自动设置 parentId
-});
-```
-
 ### 代码块创建
 
 ```javascript
@@ -98,47 +90,42 @@ O.codeBlock("signal", "name", { typeAnnotation: "String" });
 // → 端口类型为 String
 ```
 
-**代码块端口参考：**
+**代码块完整端口参考（22 节点，纯 data 端口）：**
 
-| 类型 | 输出端口 | 输入端口 | 用途 |
-|------|---------|---------|------|
-| `signal` | `value` (out, TYPE) | `set` (in, TYPE) | 响应式状态。TYPE 来自 typeAnnotation，默认 i32 |
-| `computed` | `value` (out, TYPE) | `deps` (in, any) | 派生计算。TYPE 来自 typeAnnotation，默认 i32 |
-| `action` | `result` (out, any) | `call` (in, event) | 事件处理函数 |
-| `store` | `items` (out, any) | — | 数据集合 |
+| 类型 | nodeCategory | 输出端口 | 输入端口 | 用途 |
+|------|-------------|---------|---------|------|
+| `signal` | `"variable"` | `value` (data, out, TYPE) | `set` (data, in, TYPE) | 响应式状态。TYPE 来自 typeAnnotation，默认 i32 |
+| `computed` | `"data"` | `value` (data, out, TYPE) | `deps` (data, in, any) | 派生计算。TYPE 来自 typeAnnotation，默认 i32 |
+| `store` | `"variable"` | `items` (data, out, any) | — | 数据集合 |
+| `customFn` | `"function"` | `return` (data, out, TYPE) | 动态（从 fnParams config 生成） | 自定义函数定义 |
+| `return` | `"function"` | — | `value` (data, in, any) | 函数返回点标记 |
+| `literal` | `"data"` | `value` (data, out, TYPE) | — | 常量值。config: { value, type } |
+| `getVariable` | `"data"` | `value` (data, out, any) | — | 读取变量值。config: { variableName } |
+| `setVariable` | `"data"` | — | `value` (data, in, any) | 设置变量。config: { targetSignal } |
+| `add` | `"data"` | `result` (data, out, TYPE) | `a`, `b` (data, in, TYPE) | 加法 |
+| `sub` | `"data"` | `result` (data, out, TYPE) | `a`, `b` (data, in, TYPE) | 减法 |
+| `mul` | `"data"` | `result` (data, out, TYPE) | `a`, `b` (data, in, TYPE) | 乘法 |
+| `div` | `"data"` | `result` (data, out, TYPE) | `a`, `b` (data, in, TYPE) | 除法 |
+| `compare` | `"data"` | `result` (data, out, bool) | `a`, `b` (data, in, TYPE) | 比较运算。config: { op } |
+| `and` | `"data"` | `result` (data, out, bool) | `a`, `b` (data, in, bool) | 逻辑与 |
+| `or` | `"data"` | `result` (data, out, bool) | `a`, `b` (data, in, bool) | 逻辑或 |
+| `not` | `"data"` | `result` (data, out, bool) | `a` (data, in, bool) | 逻辑非 |
+| `concat` | `"data"` | `result` (data, out, String) | `a`, `b` (data, in, String) | 字符串拼接 |
+| `branch` | `"flow"` | `true`, `false` (data, out, any) | `condition` (data, in, bool) | 条件分支 |
+| `sequence` | `"flow"` | `output0`, `output1`... (data, out, any) | `input` (data, in, any) | 顺序传递。config: { outputs } |
+| `forEach` | `"flow"` | `current` (data, out, any), `index` (data, out, i32) | `collection` (data, in, any) | 遍历集合 |
+| `updateUIProperty` | `"ui"` | — | `value` (data, in, String) | 更新 UI。config: { targetId, property } |
+| `fn` | `"code"` | 源码签名自动生成 | 源码签名自动生成 | 内联代码块 |
 
 ```javascript
 // ✅ 正确：设置 signal → 连到 set 端口
-O.connect(action.id, "result", signal.id, "set");
+O.connect(source.id, "result", signal.id, "set");
 
 // ❌ 错误：signal 没有 "value" 输入（value 是输出！）
-O.connect(action.id, "result", signal.id, "value");
+O.connect(source.id, "result", signal.id, "value");
 
 // ❌ 错误：signal 没有 "input" 端口
-action.connectTo(signal, "result", "input");
-```
-
-### 事件处理
-
-```javascript
-// createEventHandler 接受事件名（React 风格，不是 UUID！）
-const { handler, wire } = btn.createEventHandler("onPress", {
-  source: "action handleSubmit(event) {\n  // logic\n}",
-  handlerName: "myHandler",   // 可选：自定义 handler 名称
-  parentStore: "",            // 可选：所属 store
-  folded: false,              // 可选：是否折叠
-});
-
-// ❌ 错误：传了 UUID
-btn.createEventHandler("evt-btn-press-001"); // 会抛异常！
-
-// ❌ 错误：传了 DOM 风格事件名
-btn.createEventHandler("press"); // 会抛异常！
-
-// 等价于手动操作（手动 connect 才用 UUID）:
-// 1. 创建 action 元素
-// 2. btn.setProp("onPress", handler.id)
-// 3. O.connect(btn.id, "evt-btn-press-001", handler.id, "call")
+source.connectTo(signal, "result", "input");
 ```
 
 ### 连线
@@ -192,6 +179,158 @@ await O.readFile("src/main.omni");               // 读取文件内容
 await O.writeFile("src/main.omni", content);     // 写入文件
 ```
 
+---
+
+## Event Binding v2（新 API — 替代 createEventHandler）
+
+**v2 架构：事件在 Design 模式绑定，处理函数在 Code 模式 event tab 中定义为 customFn 节点。`createEventHandler` 已废弃。**
+
+```javascript
+// bindEvent(element, eventName, fnName, options?)
+el.bindEvent("onPress", "handleIncrement");
+
+// 带参数绑定（ParamBinding）
+el.bindEvent("onPress", "handleSubmit", {
+  params: {
+    eventData: { sourceType: "event", value: "event.value", expectedType: "String" },
+    formId:    { sourceType: "self", value: "formId", expectedType: "String" },
+    defaultTitle: { sourceType: "literal", value: "Untitled", expectedType: "String" },
+    appTheme:  { sourceType: "global", value: "app.theme", expectedType: "String" },
+  }
+});
+
+// 自动发现
+el.getAvailableEvents();
+// → ["onPress", "onHover", "onFocus", "onLongPress"]
+
+// 查找签名兼容的函数
+O.findMatchingFunctions("tab-id", "onPress");
+// → [{ fnName: "handleClick", params: [...], returnType: "void" }, ...]
+// 传 "*" 搜索所有 tab
+
+// 获取所有事件绑定
+O.listAllEventBindings();
+// → [{ elementId, tag, eventName, fnName, tabId, paramBindings }, ...]
+
+// 获取单个元素的事件绑定
+el.getEventBindings();
+// → [{ eventName, fnName, tabId, paramBindings }, ...]
+
+// 解除绑定
+el.unbindEvent("onPress");
+```
+
+**ParamBinding sourceType 参考：**
+
+| sourceType | 含义 | value 示例 |
+|-----------|------|-----------|
+| `"self"` | 组件自身的 signal 名 | `"title"`, `"formId"` |
+| `"literal"` | 静态字面值 | `"Untitled"`, `"42"`, `"true"` |
+| `"event"` | 事件 payload 字段 | `"event.value"`, `"event.target"` |
+| `"global"` | 全局 signal | `"app.theme"`, `"app.locale"` |
+
+---
+
+## 🗂️ Code Tab Management（新 API）
+
+**v2 架构：代码模式画布支持多个独立标签页。**
+
+```javascript
+O.switchMode("code");
+
+// ── CRUD ──
+const tab = O.createTab("event", "Cart Events", "🛒");
+// type: "event" | "logic"
+// label + icon 可选；自动生成唯一 id
+
+O.switchTab(tab.id);          // 切换到指定 tab
+O.removeTab(tab.id);          // 删除 tab（需 >=1 个 tab 剩余）
+
+// ── 查询 ──
+O.getActiveTab();             // → CodeTab | null（当前活跃 tab）
+O.getTab("tab-id");           // → CodeTab | null
+O.listTabs();                 // → Array<{ id, type, label, icon, variableCount, elementCount }>
+
+// ── 变量管理（每个 tab 独立 scope）──
+O.addVariable(tab.id, "cartCount", "i32", 0, "购物车计数");
+O.addVariable(tab.id, "lastUpdated", "String", "", "最后更新时间");
+O.getVariables(tab.id);
+// → [{ name, type, defaultValue, description }, ...]
+O.removeVariable(tab.id, "lastUpdated");
+
+// ── 画布查询（当前 active tab 或指定 tab）──
+O.getTabElements(tab.id);     // → ElementData[] — 该 tab 下的所有元素
+O.getTabWires(tab.id);        // → WireData[] — 该 tab 下的所有连线
+
+// ── 批量操作 ──
+const clone = O.cloneTab(tab.id, "Clone Label");
+// 深拷贝 tab 的 elements + wires + variables，分配新 id
+
+const exported = O.exportTab(tab.id);
+// → JSON string: { version, exportedAt, tab: { type, label, icon, variables, elements, wires } }
+
+O.importTab(exported);
+// 反序列化 JSON → 创建新 tab（分配新 id，避免冲突）
+```
+
+---
+
+## 🔧 Custom Function Operations（新 API）
+
+**v2 架构：customFn 节点替代旧 action 节点。通过 return 节点标记函数返回点，BFS 类型验证确保返回类型一致。**
+
+```javascript
+O.switchMode("code");
+
+// ── 创建 ──
+const fn = O.customFunction("calculateTotal", [
+  { name: "price", type: "f64" },
+  { name: "quantity", type: "i32" },
+], "f64");
+// → ElementHandle
+// fn.data.config → { fnName: "calculateTotal", fnParams: [...], fnReturnType: "f64", description: "" }
+// fn.data.ports → [{ name: "return", direction: "out", ... }, { name: "price", direction: "in", ... }, ...]
+
+// ── 修改 ──
+fn.addParam("discount", "f64", 0.0);   // 动态添加参数 + 端口
+fn.setReturnType("f64");               // 修改返回类型（同时更新 return 端口类型）
+fn.setDescription("计算含折扣总价");     // 设置描述
+
+// ── return 节点 ──
+const ret = O.returnNode(fn.id);
+// 关联到指定 customFn；return 节点标记函数体末端
+// ret.getPorts() → [{ name: "value", direction: "in", portType: "data", type: "any" }]
+// 将上游数据流连到 ret.value → 形成函数体
+
+// ── 函数体构建示例 ──
+const addNode = O.codeBlock("add", "addTotal", { typeAnnotation: "f64" });
+// price input → add.a, quantity input → add.b
+addNode.connectTo(ret, "result", "value");
+
+// ── 验证 ──
+const report = O.validateFunction(fn.id);
+// → { valid: boolean, returnType: string, errors: string[], reachableReturnPaths: number }
+// errors 示例: "Return type mismatch: branch true returns i32 but false returns String"
+// BFS 遍历 customFn 下游所有 return 节点，检查类型一致性
+
+// ── 发现 ──
+O.listCustomFunctions();
+// → [{ fnName, params: FnParam[], returnType, tabId, description }, ...]
+
+O.findFunctionByName("calculateTotal");
+// → { fnName, params, returnType, tabId, description, nodeId } | null
+
+O.checkFunctionNameConflict("handleSubmit");
+// → [{ fnName, tabId }] — 同名函数列表（用于重名检测）
+// 返回 length === 0 表示无冲突
+
+// ── 签名摘要 ──
+O.getFunctionSignature(fn.id);
+// → { fnName: string, params: FnParam[], returnType: string, bodyNodeCount: number }
+```
+
+---
+
 ### 组件发现
 
 ```javascript
@@ -202,11 +341,10 @@ O.getComponentInfo("Button"); // 单个组件的 props, events, styleProperties,
 ### 画布诊断
 
 ```javascript
-// 一键健康检查 — 脚本完成后的必须步骤！
 const report = O.validate();
 // {
 //   orphanElements: string[],         // 无父容器且非根节点的 view 元素
-//   unwiredEvents: Array<{            // 有事件定义但无连线的组件
+//   unwiredEvents: Array<{            // 有事件定义但无 bindEvent 的组件
 //     elementId, tag, eventName, eventPortId
 //   }>,
 //   typeMismatches: Array<{           // 类型不匹配的连线
@@ -216,51 +354,48 @@ const report = O.validate();
 //   isValid: boolean                  // 是否通过所有检查
 // }
 
-// 状态变更追踪 — 比较两个快照
+// 状态变更追踪
 const before = O.getState();
 // ... 做一些操作 ...
 const change = O.diff(before);
-// {
-//   added: ElementData[],             // 新增的元素
-//   removed: string[],                // 被删除的元素 ID
-//   modified: Array<{ id, changes }>, // 被修改的元素
-//   addedWires: WireData[],           // 新增的连线
-//   removedWires: string[],           // 被删除的连线 ID
-// }
+// { added, removed, modified, addedWires, removedWires }
 ```
 
 ### 状态快照
 
 ```javascript
-// 导出完整画布状态为 JSON 字符串
-const json = O.exportState();
-// → '{"version":"1.0","exportedAt":"...","elements":[...],"wires":[...]}'
+const json = O.exportState();     // 导出画布为 JSON
+O.importState(json);              // 从 JSON 恢复画布
 
-// 从 JSON 恢复画布状态（替换所有当前元素和连线）
-O.importState(json);
-
-// 使用场景：保存/恢复、状态回滚、测试快照对比
+// 安全回滚
+const token = O.saveSnapshot();   // 保存快照
+// ... 高风险操作 ...
+O.restoreSnapshot(token);         // 恢复
 ```
 
 ### 预设模板
 
 ```javascript
-// 快速创建常见 UI 模式
 O.snippet("login-form");                           // 登录表单
-O.snippet("login-form", { title: "Welcome Back" }); // 自定义标题
-
 O.snippet("data-card");                            // 数据卡片
-O.snippet("data-card", {
-  title: "User Stats",
-  description: "Monthly active users: 1,234",
-  actionLabel: "View Details",                      // 可选按钮
-});
-
 O.snippet("crud-table");                           // CRUD 表格
-O.snippet("crud-table", {
-  title: "Products",
-  columns: ["Name", "Price", "Stock", "Actions"],
+
+// 自定义 snippet
+O.registerSnippet("my-pattern", (opts) => {
+  const card = O.card({ padding: "24px" });
+  O.heading(opts.title, "2", card.id);
+  return card;
 });
+O.unregisterSnippet("my-pattern");
+O.listSnippets();  // { builtin: string[], custom: string[] }
+```
+
+### Visual Indicators
+
+```javascript
+O.highlight("el-123");            // 高亮单个元素
+O.highlightAll("Button");         // 高亮所有 Button
+O.clearHighlights();              // 清除所有高亮
 ```
 
 ### 其他
@@ -269,41 +404,27 @@ O.snippet("crud-table", {
 O.help();       // 🚨 每次会话第一步！返回 portReference、eventUuidTable、criticalRules
 O.clearAll();   // 清除 Store 中的 elements + wires + selection（不触及源文件）
 O.batch(fn);    // 批量操作：O.batch(O => { O.button("A"); O.button("B"); })
-O.removeElement(id); // 删除单个元素
+O.removeElement(id); // 删除单个元素（级联删除 wires）
 ```
 
 ---
 
 ## /api/run 端点 — 编译→运行→测试管线
 
-> 🛜 **前置条件：** 必须先通过 MCP Availability Gate（Browser MCP + Vision MCP 都连接）。详见 [SKILL.md](SKILL.md) 的 Run & Test Pipeline 章节。
->
-> 详细流程见 [SKILL.md](SKILL.md) 的 🚀 Run & Test Pipeline 章节
+> 🛜 **前置条件：** 必须先通过 MCP Availability Gate（Browser MCP + Vision MCP 都连接）。
 
 ### POST /api/run/start
-
-接收编译后文件，scaffold Vite 项目，启动 dev server。
 
 ```javascript
 const resp = await fetch("/api/run/start", {
   method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     files: { "Counter.js": "export function Counter(mountEl) { ... }" },
-    debug: true,   // 注入 __OMNI_DEBUG_WS_URL__，复制 omniview-runtime.ts
+    debug: true,   // 注入 __OMNI_DEBUG_WS_URL__
   }),
 });
 const { success, url, port } = await resp.json();
-// → { success: true, url: "http://localhost:5173", port: 5173 }
 ```
-
-**内部流程：**
-1. 创建 `.omni-run/` 目录
-2. 从文件扩展名检测 target（`.js` → omniview, `.tsx` → react）
-3. 生成 `package.json`（OmniView 无 react/zustand 依赖）
-4. 生成 `vite.config.ts`（React 含 `@vitejs/plugin-react`）
-5. 生成 `index.html` + `src/main.{js|tsx}`
-6. `npm install`（如 node_modules 已存在则跳过）
-7. 找可用端口，`npx vite --port N --host`
 
 ### POST /api/run/stop
 
@@ -316,12 +437,9 @@ await fetch("/api/run/stop", { method: "POST" });
 
 ```javascript
 const { running, url } = await fetch("/api/run/status").then(r => r.json());
-// → { running: true, url: "http://localhost:5173" }
 ```
 
 ### POST /api/run/write-files
-
-热更新已编译文件。Vite HMR 自动重载浏览器 tab。
 
 ```javascript
 await fetch("/api/run/write-files", {
@@ -331,90 +449,61 @@ await fetch("/api/run/write-files", {
 // → { success: true, count: 1 }
 ```
 
-**约束：** 必须在 `/api/run/start` 之后调用，否则返回 error。
-
 ---
 
 ## window.__OMNI_RUNTIME__ — OmniView Runtime API
 
-**仅 OmniView target（`.js` 输出）可用。** React target 使用 Zustand store（`window.__OMNI__`）。
+**仅 OmniView target（`.js` 输出）可用。**
 
 ```javascript
 const R = window.__OMNI_RUNTIME__;
 
-// ── Signal System ──
+// Signal System
 const count = R.signal(0, { id: "Counter.count", name: "count", type: "number" });
 count.get();                        // 0
 count.set(5);                       // 触发 DebugBus.check() + 订阅者通知
 count.set(prev => prev + 1);        // 函数式更新
 count.peek();                       // 读取但不注册依赖
-count.subscribe(v => console.log(v)); // 返回 CleanupFn
 
-// ── Computed ──
+// Computed
 const doubled = R.computed(() => count.get() * 2, { id: "Counter.doubled" });
-doubled.get();                      // 自动追踪依赖，惰性求值
 
-// ── Effect ──
-const dispose = R.effect(() => {
-  console.log("count:", count.get());
-  return () => console.log("cleanup");  // 可选清理函数
-});
+// Effect
+const dispose = R.effect(() => { console.log("count:", count.get()); });
 
-// ── Store ──
+// Store
 const TodoStore = R.store("TodoStore", () => {
   const items = R.signal([], { id: "TodoStore.items" });
-  return {
-    items,
-    add(text) { items.set([...items.get(), text]); },
-    get count() { return items.get().length; },
-  };
+  return { items, add(text) { items.set([...items.get(), text]); } };
 });
-TodoStore.items;                   // Proxy 自动 unwrap signal.get()
-TodoStore.add("buy milk");         // 方法直接可用
-TodoStore.$id;                     // "TodoStore"
 
-// ── DOM: h() + render() ──
+// DOM
 const vnode = R.h("div", { class: "container" },
   R.h("button", { onClick: () => count.set(count.get() + 1) }, "+1"),
-  R.h("span", {}, count),          // Signal child → auto-bound textContent
+  R.h("span", {}, count),
 );
-const cleanup = R.render(vnode, document.getElementById("root"));
+R.render(vnode, document.getElementById("root"));
 
-// ── Control Flow ──
+// Control Flow
 R.renderConditional(isVisibleSignal, () => R.h("div", {}, "visible"));
 R.renderList(itemsSignal, (item, i) => R.h("li", {}, item), item => item.id);
-
-// ── Lifecycle ──
-R.onCleanup(() => console.log("unmount"));
-R.dispose();                        // 运行所有注册的 cleanup
 ```
 
-### DebugBus（内嵌在 signal.set 中）
+### DebugBus
 
 ```javascript
 const DB = R.DebugBus;
-
-// 断点管理
 DB.breakpoints.add("Counter.count");
 DB.breakpoints.delete("Counter.count");
-DB.hasBreakpoint("Counter.count");  // boolean
-
-// 暂停状态
-DB.paused;                          // boolean — 是否有未执行的挂起项
-DB.flushing;                        // boolean — 是否正在批量恢复
-DB.pendingQueue;                    // [{ signalId, value, apply }]
-
-// 手动控制（无需 WebSocket）
-DB.step();                          // 执行一个挂起项
-DB.resume();                         // 执行全部恢复
-DB.trace("nodeId", "edgeId");       // 发送执行追踪
-
-// WebSocket（自动管理，无需手动操作）
-// 连接条件：window.__OMNI_DEBUG_WS_URL__ 已设置
-// 协议：JSON { type: "state-change"|"paused"|"resumed"|"runtime-ready"|... }
+DB.hasBreakpoint("Counter.count");
+DB.paused;
+DB.pendingQueue;
+DB.step();
+DB.resume();
+DB.trace("nodeId", "edgeId");
 ```
 
-### Debug 断点 WebSocket 协议
+### Debug WebSocket Protocol
 
 | 方向 | 消息 type | 触发时机 |
 |------|----------|---------|
@@ -430,80 +519,48 @@ DB.trace("nodeId", "edgeId");       // 发送执行追踪
 
 ---
 
-## Dataflow Patterns
-
-> 详细说明见 [SKILL.md](SKILL.md) 的 📐 Dataflow Patterns 章节
-
-### Pattern 1: Button → Handler → Signal
-
-```javascript
-const btn = O.button("+1", {}, card.id);
-const count = O.codeBlock("signal", "count", { typeAnnotation: "i32" });
-const { handler } = btn.createEventHandler("onPress");
-handler.connectTo(count, "result", "set");  // ← 注意：连到 "set"，不是 "value"！
-```
-
-### Pattern 2: Signal → Computed
-
-```javascript
-const price = O.codeBlock("signal", "price", { typeAnnotation: "f64" });
-const total = O.codeBlock("computed", "total", { typeAnnotation: "f64" });
-price.connectTo(total, "value", "deps");  // ← 数据流：value → deps
-```
-
-### ❌ Anti-Pattern
-
-```javascript
-// 一个 handler.result 不能分叉连到多个 signal.set！
-handler.connectTo(sig1, "result", "set");
-handler.connectTo(sig2, "result", "set");  // ← 错误！
-// 正确：在 action 源码中操作多个 signal
-```
-
----
-
 ## ElementHandle API
 
 ```javascript
 const el = O.element("some-id");
 
 // 存在与文本
-el.exists();                  // boolean — 元素是否在 store 中存在
-el.text();                    // string — 显示文本（label → text → placeholder → ""）
+el.exists();                  // boolean
+el.text();                    // string（label → text → placeholder → ""）
 
 // 属性
 el.setProp(prop, value);      // 设置属性
 el.getProp(prop);             // 读取属性
-el.getPorts();                // 所有端口（view 元素自动含 COMPONENT_PROTOCOL 事件端口）
+el.getPorts();                // 所有端口
 el.getEvents();               // 事件元数据 { onPress: { id, description, payload } }
 el.getSource();               // 代码块源文
 el.setSource("source code");  // 设置代码块源文
-el.data;                      // ElementData 原始数据（含 outputValue）
+el.data;                      // ElementData 原始数据
 
 // 导航
 el.select();                  // 选中元素
-el.remove();                  // 删除元素
+el.remove();                  // 删除元素（级联删除 wires）
 el.children();                // ElementHandle[] — 子元素（只读）
-el.parent();                  // ElementHandle | null — 父元素
+el.parent();                  // ElementHandle | null
 
 // 连线
 el.connectTo(target, "outPort", "inPort");  // 数据流连线（含端口验证）
-el.createEventHandler("onPress", options);  // 事件处理器（3合1）
+
+// 事件绑定 v2
+el.bindEvent("onPress", "handlerFn", { params: {...} });
+el.unbindEvent("onPress");
+el.getAvailableEvents();      // → string[]
+el.getEventBindings();        // → [{ eventName, fnName, tabId, paramBindings }, ...]
 
 // 等待
 await el.waitForLive(timeout);  // 轮询等待元素出现在 store 中
 ```
 
-**注意：**
-- `getPorts()` 对 view 元素自动包含事件端口
-- `getEvents()` 直接返回事件元数据，比 `O.getComponentInfo(tag).events` 更直接
-- `O.element(id)` 始终返回 `ElementHandle`（不会返回 null），用 `.exists()` 判断
-
-**没有的方法（常见错误）：**
+**没有的方法：**
 - ❌ `el.textContent()` → 用 `el.text()`
 - ❌ `el.innerText()` → 用 `el.text()`
 - ❌ `el.children = [...]` → `children()` 是只读 getter
-- ❌ `el.waitForSelector()` → 用 `O.waitForElement()`
+- ❌ `el.createEventHandler()` → 🚫 **已废弃！** 用 `el.bindEvent()` + `O.customFunction()`
 
 ---
 
@@ -522,14 +579,14 @@ wire.data;                  // WireData { id, fromId, fromPort, toId, toPort }
 
 ## 类型定义
 
-> **⚠️ ElementData ≠ ElementHandle：** `getElements()` / `.elements` 返回纯数据 `ElementData[]`（没有 `.parent()`、`.text()` 等方法）。用 `O.element(id)` 获取 `ElementHandle`。`getWires()` / `.wires` 返回纯 `WireData[]`。
+> **⚠️ ElementData ≠ ElementHandle：** `getElements()` / `.elements` 返回纯数据，用 `O.element(id)` 获取 Handle。
 
 ```typescript
 interface EditorSnapshot {
   mode: "design" | "code";
   elements: ElementData[];
   wires: WireData[];
-  selectedElementId: string | null;
+  selectedElementIds: string[];
   projectDir: string | null;
   activeFilePath: string | null;
   compileErrors: Array<{ code: string; message: string; line: number }>;
@@ -541,19 +598,24 @@ interface ElementData {
   tag: string;
   nodeType: "view" | "codeblock" | "group";
   props: Record<string, unknown>;
-  children: string[];       // 子元素 ID 列表
+  children: string[];
   parentId?: string;
-  source?: string;          // 代码块源码
+  source?: string;
   ports?: PortDescriptor[];
   isFolded?: boolean;
-  outputValue?: unknown;    // 运行时求值结果
+  outputValue?: unknown;
+  nodeCategory?: "function" | "variable" | "data" | "flow" | "ui" | "code";
+  config?: Record<string, unknown>;
 }
 
 interface PortDescriptor {
   name: string;
   direction: "in" | "out";
-  type: string;
+  portType: "data" | "flow";  // v2: 绝大多数为 "data"
+  type: string;               // i32, f64, bool, String, any, void
   label?: string;
+  configurable?: boolean;
+  defaultValue?: unknown;
 }
 
 interface WireData {
@@ -583,6 +645,43 @@ interface ComponentInfo {
   styleProperties: string[];
   hasChildren: boolean;
 }
+
+interface FnParam {
+  name: string;
+  type: string;
+  default?: unknown;
+}
+
+interface CustomFunctionMeta {
+  fnName: string;
+  fnParams: FnParam[];
+  fnReturnType: string;
+  description: string;
+}
+
+interface CodeTab {
+  id: string;
+  type: "event" | "logic";
+  label: string;
+  icon: string;
+  graph: { elements: ElementData[]; wires: WireData[] };
+  variables: Array<{ name: string; type: string; defaultValue?: unknown; description?: string }>;
+}
+
+interface ParamBinding {
+  sourceType: "self" | "literal" | "event" | "global";
+  value: string;
+  expectedType: string;
+}
+
+interface EventBindingRecord {
+  elementId: string;
+  tag: string;
+  eventName: string;
+  fnName: string;
+  tabId: string;
+  paramBindings: Record<string, ParamBinding>;
+}
 ```
 
 ---
@@ -609,10 +708,9 @@ interface ComponentInfo {
 
 ### 浏览器 DevTools Console
 
-打开 `http://localhost:5174`，按 F12 → Console，直接粘贴脚本执行。无需安装、无需 import，`window.__OMNI__` 已在全局作用域中。
+打开 `http://localhost:5174`，按 F12 → Console，直接粘贴脚本执行。
 
 ```javascript
-// 复制到浏览器 Console 直接运行
 const O = window.__OMNI__;
 O.help();
 O.switchMode("design");
@@ -625,11 +723,9 @@ O.button("Click", { variant: "primary" }, card.id);
 console.log("Elements:", O.elements.length, "Valid:", O.validate().isValid);
 ```
 
-> **序列化约束：** Console 中可以直接使用 Handle 对象（如 `el.text()`、`el.parent()`），无需序列化。只有通过 `page.evaluate()` 调用时才有限制。
-
 ### Playwright
 
-> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要返回 `ElementHandle` 或 `WireHandle`。返回 `.text()`、`.exists()`、`.data` 或普通对象。
+> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。不要返回 `ElementHandle` 或 `WireHandle`。
 
 ```javascript
 async function omniEval(page, fn) {
@@ -648,7 +744,8 @@ test("create and verify form", async ({ page }) => {
     const card = O.card({ padding: "24px" });
     O.heading("Login", "2", card.id);
     O.input("Email", {}, card.id);
-    O.button("Submit", { variant: "primary" }, card.id);
+    const btn = O.button("Submit", { variant: "primary" }, card.id);
+    btn.bindEvent("onPress", "handleLogin");
   });
 
   const count = await omniEval(page, () => window.__OMNI__.getElements().length);

@@ -17,13 +17,16 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -41,6 +44,18 @@ const TAG_MAP: Record<string, keyof HTMLElementTagNameMap> = {
 };
 
 const VOID_TAGS = new Set(["input", "img", "hr", "br", "progress", "textarea", "select"]);
+
+/** Check if ancestorId is an ancestor of descendantId in the element tree. */
+function isDescendantOf(ancestorId: string, descendantId: string, elements: ElementData[]): boolean {
+  let currentId: string | null | undefined = descendantId;
+  while (currentId) {
+    const el = elements.find((e) => e.id === currentId);
+    if (!el) return false;
+    if (el.parentId === ancestorId) return true;
+    currentId = el.parentId;
+  }
+  return false;
+}
 
 // ═══════════════════════════════════════════════════
 // OmniView prop → CSS mapping
@@ -138,21 +153,53 @@ function omniPropsToStyle(el: ElementData): React.CSSProperties {
 
 type DragListeners = ReturnType<typeof useSortable>["listeners"];
 
-function DragHandle({ listeners, visible }: { listeners: DragListeners; visible: boolean }) {
+function DragHandle({ listeners, visible }: {
+  listeners: DragListeners;
+  visible: boolean;
+}) {
   if (!visible) return null;
   return React.createElement("span", {
     ...listeners,
+    "data-drag-type": "sort",
     style: {
-      position: "absolute", left: -22, top: "50%", transform: "translateY(-50%)",
-      cursor: "grab", fontSize: 14, color: "#9CA3AF", padding: "2px 4px",
+      position: "absolute", left: -22, top: "25%", transform: "translateY(-50%)",
+      cursor: "grab", fontSize: 13, color: "#9CA3AF", padding: "1px 3px",
       borderRadius: 3, background: "#F3F4F6", border: "1px solid #E5E7EB",
       lineHeight: 1, userSelect: "none", zIndex: 10,
       pointerEvents: "auto" as const,
     },
-    title: "拖拽排序",
+    title: "同级排序",
   }, "⋮⋮");
 }
 
+// ═══════════════════════════════════════════════════
+// Move Handle — uses sortable listeners (NOT useDraggable) to avoid
+// dnd-kit PointerSensor conflicts between two draggable sources.
+// Operation type ("sort"|"move") is tracked via dragOpRef.
+// ═══════════════════════════════════════════════════
+
+function MoveHandleWrapper({ listeners, visible }: {
+  listeners: DragListeners;
+  visible: boolean;
+}) {
+  if (!visible) return null;
+  return React.createElement("span", {
+    ...listeners,
+    "data-drag-type": "move",
+    style: {
+      position: "absolute", left: -22, top: "75%", transform: "translateY(-50%)",
+      cursor: "grab", fontSize: 13, color: "#9CA3AF",
+      padding: "1px 3px", borderRadius: 3, background: "#F3F4F6",
+      border: "1px solid #E5E7EB", lineHeight: 1, userSelect: "none", zIndex: 10,
+      pointerEvents: "auto" as const,
+    },
+    title: "跨容器移动",
+  }, "⇄");
+}
+
+// ═══════════════════════════════════════════════════
+// Drag operation tracker — module-level to be shared across components.
+// Stores which handle ("sort"|"move") initiated the current drag, per element id.
 // ═══════════════════════════════════════════════════
 // Sortable Wrapper
 // ═══════════════════════════════════════════════════
@@ -193,6 +240,49 @@ function SortableItem({ el, ...rest }: SortableItemProps) {
     onContextMenu: (e: React.MouseEvent) => rest.onContextMenu(e, el.id),
   },
     React.createElement(DragHandle, { listeners, visible: isSelected }),
+    React.createElement(MoveHandleWrapper, { listeners, visible: isSelected }),
+    React.createElement(RenderElement, {
+      el, ...rest, isDragging, isSelected,
+    }),
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// Drag operation tracker — module-level.
+// Set by handleDragStart by reading data-drag-type from the activator event target.
+// ═══════════════════════════════════════════════════
+
+const dragOpMap = new Map<string, "sort" | "move">();
+
+// ═══════════════════════════════════════════════════
+// Root Sortable Wrapper — lighter version without role="button" on wrapper
+// ═══════════════════════════════════════════════════
+
+function RootSortableItem({ el, ...rest }: SortableItemProps) {
+  const {
+    listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: el.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : undefined,
+    position: "relative",
+  };
+
+  const isSelected = rest.selectedIds.includes(el.id);
+
+  return React.createElement("div", {
+    ref: setNodeRef,
+    style,
+    onClick: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      rest.onSelect(el.id);
+    },
+    onContextMenu: (e: React.MouseEvent) => rest.onContextMenu(e, el.id),
+  },
+    React.createElement(DragHandle, { listeners, visible: isSelected }),
+    React.createElement(MoveHandleWrapper, { listeners, visible: isSelected }),
     React.createElement(RenderElement, {
       el, ...rest, isDragging, isSelected,
     }),
@@ -213,11 +303,15 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const selectElement = useEditorStore((s) => s.selectElement);
   const undoExec = useUndoStore((s) => s.execute);
-  const viewRoots = elements.filter((e) => !e.parentId && e.nodeType !== "codeblock");
+  const rootOrder = useEditorStore((s) => s.rootOrder);
+  const viewRoots = elements
+    .filter((e) => !e.parentId && e.nodeType !== "codeblock")
+    .sort((a, b) => rootOrder.indexOf(a.id) - rootOrder.indexOf(b.id));
   const codeRoots = hideCodeBlocks ? [] : elements.filter((e) => !e.parentId && e.nodeType === "codeblock");
   const hasContent = viewRoots.length > 0 || codeRoots.length > 0;
 
   const [activeId, setActiveId] = useState<string | null>(null);
+
   const activeElement = activeId ? elements.find((e) => e.id === activeId) ?? null : null;
 
   // ── DnD Sensors ──────────────────────────────────
@@ -228,66 +322,117 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
   );
 
   // ── DnD Handlers ─────────────────────────────────
+
+  // Custom collision detection:
+  // - Move ops (⇄) → pointerWithin to detect containers under cursor
+  // - Sort ops (⋮⋮) → closestCenter excluding container-* droppables
+  const collisionDetection = useCallback((args: any) => {
+    const activeIdStr = String(args.active.id);
+    const op = dragOpMap.get(activeIdStr);
+    if (op === "move") {
+      return pointerWithin(args);
+    }
+    // For sort: exclude container-* droppables so sort targets are clean
+    const filtered = args.droppableContainers.filter(
+      (c: any) => !String(c.id).startsWith("container-")
+    );
+    return closestCenter({ ...args, droppableContainers: filtered });
+  }, []);
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+    const activeIdStr = event.active.id as string;
+    setActiveId(activeIdStr);
+
+    // Detect which handle was used by reading data-drag-type from the activator event target
+    const activatorEvent = event.activatorEvent as PointerEvent | undefined;
+    const target = activatorEvent?.target as HTMLElement | undefined;
+    const dragType = target?.closest?.("[data-drag-type]")?.getAttribute("data-drag-type");
+    if (dragType === "move" || dragType === "sort") {
+      dragOpMap.set(activeIdStr, dragType);
+    } else {
+      dragOpMap.set(activeIdStr, "sort"); // default
+    }
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
-    if (!over) return;
-
-    const activeIdStr = active.id as string;
-    const overIdStr = over.id as string;
-    if (activeIdStr === overIdStr) return;
-
-    const store = useEditorStore.getState();
-    const activeEl = store.elements.find((e) => e.id === activeIdStr);
-    const overEl = store.elements.find((e) => e.id === overIdStr);
-    if (!activeEl || !overEl) return;
-
-    const overAcceptsChildren = COMPONENT_PROTOCOL[overEl.tag]?.children === true;
-
-    if (overAcceptsChildren && activeEl.parentId !== overIdStr) {
-      // Dropped into an empty or different container — become a child of it
-      undoExec(new MoveElement(activeIdStr, overIdStr, null, "after"), ctx);
+    if (!over) {
+      dragOpMap.delete(active?.id as string);
       return;
     }
 
-    // Determine before/after by comparing indices in the over element's parent.
-    // If the active item was originally above the over item, it should go after it;
-    // if below, it should go before it (matching dnd-kit's SortableContext preview).
+    const activeIdStr = active.id as string;
+    const overIdRaw = over.id as string;
+    if (activeIdStr === overIdRaw) {
+      dragOpMap.delete(activeIdStr);
+      return;
+    }
+
+    const store = useEditorStore.getState();
+    const op = dragOpMap.get(activeIdStr) || "sort";
+
+    // Sanitize over id — strip container- prefix if present
+    const overIdStr = overIdRaw.startsWith("container-") ? overIdRaw.slice(10) : overIdRaw;
+
+    // ── Move operation (⇄ handle) ──
+    if (op === "move") {
+      const activeEl = store.elements.find((e) => e.id === activeIdStr);
+      if (!activeEl) { dragOpMap.delete(activeIdStr); return; }
+
+      const overEl = store.elements.find((e) => e.id === overIdStr);
+      if (!overEl || overEl.id === activeIdStr) { dragOpMap.delete(activeIdStr); return; }
+
+      const currentParentId = activeEl.parentId;
+
+      // Rule 1: If over target is a LAYOUT container (not small widgets like Button), move INTO it
+      const layoutContainers = new Set(["Container", "Flex", "Grid", "Card", "Form", "List", "Alert", "Stack"]);
+      if (layoutContainers.has(overEl.tag) && COMPONENT_PROTOCOL[overEl.tag]?.children === true) {
+        // Prevent dropping into own descendant (would create cycle)
+        if (!isDescendantOf(overEl.id, activeIdStr, store.elements)) {
+          undoExec(new MoveElement(activeIdStr, overEl.id, null, "after"), ctx);
+          dragOpMap.delete(activeIdStr);
+          return;
+        }
+      }
+
+      // Rule 2: Escape — move to over's level, positioned after over
+      if (currentParentId === null) { dragOpMap.delete(activeIdStr); return; }
+      const targetParentId = overEl.parentId;
+      undoExec(new MoveElement(activeIdStr, targetParentId, overIdStr, "after"), ctx);
+      dragOpMap.delete(activeIdStr);
+      return;
+    }
+
+    // ── Sort operation (⋮⋮ handle) — same-parent reorder only ──
+    const activeEl = store.elements.find((e) => e.id === activeIdStr);
+    const overEl = store.elements.find((e) => e.id === overIdStr);
+    if (!activeEl || !overEl) { dragOpMap.delete(activeIdStr); return; }
+
+    // Only reorder within same parent
+    if (activeEl.parentId !== overEl.parentId) { dragOpMap.delete(activeIdStr); return; }
+
     let position: "before" | "after" = "after";
-    if (overEl.parentId) {
-      const parent = store.elements.find((e) => e.id === overEl.parentId);
+    if (activeEl.parentId) {
+      const parent = store.elements.find((e) => e.id === activeEl.parentId);
       if (parent) {
         const activeIdx = parent.children.indexOf(activeIdStr);
         const overIdx = parent.children.indexOf(overIdStr);
-        // For cross-container: active item isn't in this parent's children yet.
-        // Use rect comparison: if active center is above over center → "after".
-        if (activeIdx === -1) {
-          const activeRect = active.rect.current.translated;
-          const overRect = over.rect;
-          if (activeRect && overRect) {
-            position = activeRect.top + activeRect.height / 2 < overRect.top + overRect.height / 2
-              ? "after" : "before";
-          }
-        } else if (overIdx !== -1) {
+        if (activeIdx !== -1 && overIdx !== -1) {
           position = activeIdx < overIdx ? "after" : "before";
         }
       }
-    }
-
-    if (activeEl.parentId === overEl.parentId) {
-      // Same-parent reorder
-      undoExec(new ReorderElement(activeIdStr, overIdStr, position), ctx);
-    } else if (overEl.parentId && activeEl.parentId !== overEl.parentId) {
-      // Cross-container move next to a sibling
-      const targetParent = store.elements.find((e) => e.id === overEl.parentId);
-      if (targetParent && COMPONENT_PROTOCOL[targetParent.tag]?.children) {
-        undoExec(new MoveElement(activeIdStr, overEl.parentId, overIdStr, position), ctx);
+    } else {
+      // Root-level: use rootOrder
+      const rootOrder = store.rootOrder;
+      const activeIdx = rootOrder.indexOf(activeIdStr);
+      const overIdx = rootOrder.indexOf(overIdStr);
+      if (activeIdx !== -1 && overIdx !== -1) {
+        position = activeIdx < overIdx ? "after" : "before";
       }
     }
+    undoExec(new ReorderElement(activeIdStr, overIdStr, position), ctx);
+    dragOpMap.delete(activeIdStr);
   }, [undoExec, ctx]);
 
   // ── Keyboard: Delete / Backspace ──
@@ -368,7 +513,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -383,11 +528,13 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
           </div>
         ) : (
           <>
-            {viewRoots.map((el) => React.createElement(RenderElement, {
-              key: el.id, el, allElements: elements, selectedIds, onSelect: selectElement,
-              onDropOnElement: handleDropOnElement, onDragOverElement: handleDragOver,
-              onContextMenu: handleContextMenu,
-            }))}
+            <SortableContext items={viewRoots.map(e => e.id)} strategy={verticalListSortingStrategy}>
+              {viewRoots.map((el) => React.createElement(RootSortableItem, {
+                key: el.id, el, allElements: elements, selectedIds, onSelect: selectElement,
+                onDropOnElement: handleDropOnElement, onDragOverElement: handleDragOver,
+                onContextMenu: handleContextMenu,
+              }))}
+            </SortableContext>
 
             {codeRoots.length > 0 && (
               <div style={{ marginTop: 24, borderTop: "1px dashed #e5e7eb", paddingTop: 16 }}>
@@ -538,6 +685,12 @@ function RenderElement({ el, allElements, selectedIds, onSelect, onDropOnElement
   const canAcceptDrop = !isVoid && (COMPONENT_PROTOCOL[el.tag]?.children === true);
   const acceptsChildren = COMPONENT_PROTOCOL[el.tag]?.children === true;
 
+  // Register as droppable for move-handle targeting (pointerWithin detection)
+  const { setNodeRef: droppableRef, isOver: isDndOver } = useDroppable({
+    id: `container-${el.id}`,
+    disabled: !acceptsChildren,
+  });
+
   const layoutStyle = omniPropsToStyle(el);
 
   const style: React.CSSProperties = {
@@ -547,6 +700,7 @@ function RenderElement({ el, allElements, selectedIds, onSelect, onDropOnElement
     ...(selected ? { outline: "2px solid #4F46E5", outlineOffset: "2px", zIndex: 1 } : {}),
     ...(hovered && !isDragging ? { outline: "1px dashed #93C5FD", outlineOffset: "1px" } : {}),
     ...(dragOver && canAcceptDrop ? { outline: "2px dashed #4F46E5", outlineOffset: "2px", background: "rgba(79, 70, 229, 0.06)" } : {}),
+    ...(isDndOver ? { outline: "2px solid #4F46E5", outlineOffset: "2px", background: "rgba(79, 70, 229, 0.08)" } : {}),
   };
 
   let textLabel = "";
@@ -600,6 +754,7 @@ function RenderElement({ el, allElements, selectedIds, onSelect, onDropOnElement
     key: el.id,
     "data-omni-id": el.id,
     "data-omni-tag": el.tag,
+    ...(acceptsChildren ? { ref: droppableRef } : {}),
     style,
     onClick: (e: React.MouseEvent) => {
       if (isDragging) return;

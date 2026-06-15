@@ -255,7 +255,9 @@ const ALL_CONFIGS: NodeTypeConfig[] = [
   {
     tag: "customFn", category: "function", label: "Custom Function", icon: "🔧",
     color: { bg: "#FAFAFA", border: "#7C3AED" },
-    defaultPorts: [],
+    defaultPorts: [
+      { name: "return", direction: "out", portType: "data", type: "void", label: "返回" },
+    ],
     keywords: ["custom", "function", "define", "自定义", "函数", "定义"],
     description: "自定义函数定义。点击节点设置名称、参数、返回类型。后方连接节点链作为函数体",
     config: { fnName: "", fnParams: [], fnReturnType: "void", description: "" },

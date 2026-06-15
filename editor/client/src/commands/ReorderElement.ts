@@ -9,6 +9,7 @@ export class ReorderElement implements Command {
   /** The sibling that came BEFORE this element in the original order (null if it was first). */
   private _prevSiblingId: string | null = null;
   private _parentId: string | null = null;
+  private _isRoot: boolean = false;
 
   constructor(
     elementId: string,
@@ -22,29 +23,46 @@ export class ReorderElement implements Command {
 
   execute(ctx: CommandContext): void {
     const el = ctx.getElement(this.elementId);
-    if (!el?.parentId) return;
+    if (!el) return;
     this._parentId = el.parentId;
-    const parent = ctx.getElement(el.parentId);
-    if (!parent) return;
-    const idx = parent.children.indexOf(this.elementId);
-    if (idx > 0) {
-      this._prevSiblingId = parent.children[idx - 1];
+    this._isRoot = !el.parentId;
+
+    if (this._isRoot) {
+      const rootOrder = ctx.getRootOrder?.() ?? [];
+      const idx = rootOrder.indexOf(this.elementId);
+      if (idx > 0) {
+        this._prevSiblingId = rootOrder[idx - 1];
+      }
+    } else {
+      const parent = ctx.getElement(el.parentId!);
+      if (!parent) return;
+      const idx = parent.children.indexOf(this.elementId);
+      if (idx > 0) {
+        this._prevSiblingId = parent.children[idx - 1];
+      }
     }
     ctx.reorderElement(this.elementId, this.targetSiblingId, this.position);
   }
 
   undo(ctx: CommandContext): void {
+    if (this._isRoot) {
+      const rootOrder = ctx.getRootOrder?.() ?? [];
+      if (this._prevSiblingId === null) {
+        if (rootOrder.length === 0 || rootOrder[0] === this.elementId) return;
+        ctx.reorderElement(this.elementId, rootOrder[0], "before");
+      } else {
+        ctx.reorderElement(this.elementId, this._prevSiblingId, "after");
+      }
+      return;
+    }
     if (!this._parentId) return;
-    // Move element back to its original position
     if (this._prevSiblingId === null) {
-      // Element was first — move it before whatever is currently first
       const parent = ctx.getElement(this._parentId);
       if (!parent || parent.children.length === 0) return;
       const currentFirst = parent.children[0];
-      if (currentFirst === this.elementId) return; // already first
+      if (currentFirst === this.elementId) return;
       ctx.reorderElement(this.elementId, currentFirst, "before");
     } else {
-      // Move back after the sibling it was originally after
       ctx.reorderElement(this.elementId, this._prevSiblingId, "after");
     }
   }

@@ -18,6 +18,8 @@ export interface CommandContext {
   reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
   /** Move an element to a different parent container (or to root if newParentId is null). */
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
+  /** Get the current rootOrder array (for root-level reorder undo). */
+  getRootOrder?: () => string[];
 }
 
 /** Context for code graph (FlowCanvas) commands.

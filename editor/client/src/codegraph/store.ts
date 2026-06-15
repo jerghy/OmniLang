@@ -262,9 +262,15 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
       ...t,
       graph: {
         ...t.graph,
-        elements: t.graph.elements.map((e) =>
-          e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e
-        ),
+        elements: t.graph.elements.map((e) => {
+          if (e.id !== id) return e;
+          const updated = { ...e, props: { ...e.props, [prop]: value } };
+          // Also update top-level `config` field so editors that read element.config stay in sync
+          if (prop === "config") {
+            updated.config = value as Record<string, unknown>;
+          }
+          return updated;
+        }),
       },
     })),
 

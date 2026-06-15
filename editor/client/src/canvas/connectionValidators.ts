@@ -13,10 +13,50 @@ import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
 
 /**
  * Get ports for an element. Returns element-defined ports directly.
+ * For customFn elements, generates ports dynamically from config.
  * Event injection is no longer needed — events are bound in design mode.
  */
 export function getAllPorts(el: ElementData): PortData[] {
+  // customFn ports are generated dynamically from fnParams/fnReturnType
+  if (el.tag === "customFn") {
+    return generateCustomFnPorts(el);
+  }
   return el.ports ? el.ports.map((p) => ({ ...p })) : [];
+}
+
+/**
+ * Generate ports for a customFn element from its function signature config.
+ * Each fnParam becomes an input port; fnReturnType becomes the "return" output port.
+ * Falls back to element.ports if config is not available.
+ */
+export function generateCustomFnPorts(el: ElementData): PortData[] {
+  const config = el.config || {};
+  const params = (config.fnParams as Array<{ name: string; type: string }>) || [];
+  const returnType = (config.fnReturnType as string) || "void";
+
+  const ports: PortData[] = [];
+
+  // Input ports — one per function parameter
+  for (const param of params) {
+    ports.push({
+      name: param.name,
+      direction: "in",
+      portType: "data",
+      type: param.type || "any",
+      label: `${param.name}: ${param.type || "any"}`,
+    });
+  }
+
+  // Output port — function return value
+  ports.push({
+    name: "return",
+    direction: "out",
+    portType: "data",
+    type: returnType,
+    label: `返回: ${returnType}`,
+  });
+
+  return ports;
 }
 
 // ── Validation issue ──────────────────────────────────────────────

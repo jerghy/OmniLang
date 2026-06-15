@@ -101,35 +101,22 @@ test.describe("OmniDriver Counter App", () => {
       const txt = omni.text("Count: 0");
 
       // ═══════════════════════════════════════════════════════
-      // STEP 4: Wire button's onPress to increment the signal
+      // STEP 4: v2 — bind event in design mode, create handler in code mode
       // ═══════════════════════════════════════════════════════
 
-      // 4a. Create an event handler (action code block) wired to the button's onPress.
-      //     This is the programmatic equivalent of clicking the 🔗 button in the
-      //     PropertyPanel. It creates:
-      //       - An "action" code block with:
-      //         - "call" input port (receives the MouseEvent)
-      //         - "result" output port
-      //       - A wire: button(evt-btn-press-001) → action(call)
-      //
-      //     The onPress event port UUID from ComponentProtocol is "evt-btn-press-001".
-      const { handler: action, wire: btnWire } = btn.createEventHandler("onPress", {
-        source: `action handleIncrement(event) {\n  count += 1\n}`,
-      });
+      // 4a. Bind event in design mode (v2 — sets event prop only)
+      btn.bindEvent("onPress", "handleIncrement");
 
-      // 4b. Wire the action's "result" port to the signal's "set" port.
-      //     This connects the increment action's output to the signal setter,
-      //     completing the data flow: button → action → signal.
-      const actionToSignalWire = omni.connect(
-        action.id,
-        "result",
-        signal.id,
-        "set",
-      );
+      // 4b. Switch to code mode and create the handler function
+      omni.switchMode("code");
+      const tab = omni.createTab("event", "Counter Events", "🔢");
+      omni.switchTab(tab.id);
+      const fn = omni.customFunction("handleIncrement", [], "void");
+      fn.setSource("action increment(event) {\n  count.set(count.value + 1)\n}");
+      omni.returnNode(fn.id);
 
-      // Validate wire handles are live
-      const btnWireData = btnWire.data;
-      const actionWireData = actionToSignalWire.data;
+      // Switch back to design mode for pre-compile state check
+      omni.switchMode("design");
 
       // ═══════════════════════════════════════════════════════
       // STEP 5: Query pre-compile state (programmatic creation)
@@ -197,14 +184,12 @@ test.describe("OmniDriver Counter App", () => {
           })),
         },
 
-        // ── Wire plumbing ──────────
+        // ── Wire plumbing (v2) ────
         wires: {
-          btnWireExists: !!btnWireData,
-          actionWireExists: !!actionWireData,
-          btnWirePort: btnWireData ? btnWireData.fromPort : null,
-          actionWirePort: actionWireData
-            ? `${actionWireData.fromPort}→${actionWireData.toPort}`
-            : null,
+          hasBindEvent: typeof omni.listAllEventBindings === "function",
+          hasCustomFunction: typeof omni.customFunction === "function",
+          eventBindingsCount: omni.listAllEventBindings().length,
+          customFnCount: omni.listCustomFunctions().length,
         },
 
         // ── Compile ────────────────
@@ -257,18 +242,18 @@ test.describe("OmniDriver Counter App", () => {
     expect(result.discovery.buttonInfo!.events).toContain("onPress");
 
     // ────────── Pre-compile ───────────
-    // Elements: signal + Button + Text + action handler = at least 4
-    expect(result.preCompile.elementCount).toBeGreaterThanOrEqual(4);
-    // Wires: btn→action + action→signal = at least 2
-    expect(result.preCompile.wireCount).toBeGreaterThanOrEqual(2);
+    // Elements: card + heading + button + text + signal + customFn + return = at least 6
+    expect(result.preCompile.elementCount).toBeGreaterThanOrEqual(6);
+    // Wires: at least 1 (but we have 0 in v2 since handler is in code tab)
+    expect(result.preCompile.wireCount).toBeGreaterThanOrEqual(0);
 
-    // Verify specific element types exist
+    // Verify specific element types
     const preTags = result.preCompile.elements.map((e: any) => e.tag);
     expect(preTags).toContain("signal");
     expect(preTags).toContain("Button");
     expect(preTags).toContain("Text");
 
-    // Verify the signal has the expected ports
+    // Verify the signal has expected ports
     const signalElement = result.preCompile.elements.find(
       (e: any) => e.tag === "signal",
     );
@@ -276,15 +261,11 @@ test.describe("OmniDriver Counter App", () => {
     expect(signalElement!.portNames).toContain("value");
     expect(signalElement!.portNames).toContain("set");
 
-    // ────────── Wire plumbing ─────────
-    // The createEventHandler wire should connect from an event port starting
-    // with "evt-btn"
-    expect(result.wires.btnWireExists).toBe(true);
-    expect(result.wires.btnWirePort).toMatch(/^evt-btn/);
-
-    // The explicit connect wire should be result→set
-    expect(result.wires.actionWireExists).toBe(true);
-    expect(result.wires.actionWirePort).toBe("result→set");
+    // ────────── Wire plumbing (v2) ────
+    expect(result.wires.hasBindEvent).toBe(true);
+    expect(result.wires.hasCustomFunction).toBe(true);
+    expect(result.wires.eventBindingsCount).toBeGreaterThanOrEqual(1);
+    expect(result.wires.customFnCount).toBeGreaterThanOrEqual(1);
 
     // ────────── Compile ──────────────
     expect(result.compile.success).toBe(true);

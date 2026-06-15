@@ -20,27 +20,57 @@ description: Use when operating the OmniLang visual editor via window.__OMNI__ �
 ```
 ┌─────────────────────────────────────────────────┐
 │  Zustand Store (运行时)                           │
-│  ← omni.button() / setProp() / connect() 操作     │
-│  ← 立即生效，但不会持久化到文件                      │
+│  ← O.button() / setProp() / bindEvent() 操作     │
+│  ← 立即生效，但不会持久化到文件                     │
 │  ← getElements() / getWires() 读取                │
 ├─────────────────────────────────────────────────┤
-│  .omni 源文件 (持久化)                              │
+│  .omni 源文件 (持久化)                             │
 │  ← setSourceCode() / getSourceCode() 读写         │
 │  ← compile() 解析源文件 → 重建 Store 中的元素       │
 │  ← save() / readFile() / writeFile() 文件操作      │
 └─────────────────────────────────────────────────┘
 
 🎨 设计模式画布 (LayoutView)          💻 代码模式画布 (FlowCanvas)
-← 组件拖拽，CSS 样式，布局预览         ← 可视化脚本，节点+连线，数据流
+← 组件拖拽，CSS 样式，布局预览        ← 可视化脚本，节点+连线，纯数据流
 ← OmniDriver 主战场                   ← @xyflow/react v12 渲染
 ← O.button()/O.card() 等构建 UI       ← 右键搜索添加节点，拖线连接
 ```
 
 **关键后果：**
 - `compile()` 会**丢弃**程序化创建的元素，从 `.omni` 源文件重建画布
-- `getSourceCode()` **不会**反映 `omni.button()` 等程序化操作的结果
+- `getSourceCode()` **不会**反映 `O.button()` 等程序化操作的结果
 - 如果想要"创建 UI → 编译验证"，必须先用 `setSourceCode()` 写入完整的 `.omni` 源码
-- 代码模式画布从 Store 的 `elements`/`wires` 渲染，flow 端口连执行顺序，data 端口传数据值
+- **纯 data-flow 架构**：所有连线都是数据边（无 flow 边），事件在 Design 模式 PropertyPanel 中绑定
+
+### 代码模式架构（v2）
+
+```
+代码模式 = 多标签页 (CodeTab) × 纯数据流画布
+
+┌─────────────────────────────────────────────┐
+│ Tab: "handleIncrement" [event]  │ "Main" [logic]  │
+├─────────────────────────────────────────────┤
+│ 每个 Tab 拥有独立的：                          │
+│  - CodeGraph (elements + wires)              │
+│  - Variables (signals/stores)               │
+│  - Undo Stack (per-tab)                     │
+├─────────────────────────────────────────────┤
+│ 节点类型 (22 种, 6 个 category):              │
+│  function: customFn, return                 │
+│  variable: signal, store                    │
+│  data:     computed, literal, getVariable,  │
+│            add/sub/mul/div, compare,        │
+│            and/or/not, concat               │
+│  flow:     branch, sequence, forEach        │
+│  ui:       updateUIProperty                 │
+│  code:     fn, setVariable                  │
+└─────────────────────────────────────────────┘
+
+事件绑定在 Design 模式完成（非 Code 模式）：
+  viewElement.bindEvent("onPress", "handleIncrement", paramBindings)
+  → 设置 element.onPress = "handleIncrement"
+  → 处理函数 handleIncrement 在 event tab 中定义为 customFn 节点
+```
 
 ## When to Use
 
@@ -52,6 +82,8 @@ description: Use when operating the OmniLang visual editor via window.__OMNI__ �
 - 诊断画布状态：查找孤立节点、缺失事件处理器、编译错误
 - **扩展已有画布** — 在现有 UI 上添加新组件和连线
 - **修复损坏的画布** — 诊断并修复连线错误、缺失处理器
+- **管理代码标签页** — 创建/切换/克隆 event 和 logic tab
+- **自定义函数** — 创建和验证 customFn 节点及其函数体
 
 ## When NOT to Use
 
@@ -92,57 +124,33 @@ const root = O.card({ padding: "24px" });
 
 // 4. 创建 UI（用 parentId 嵌套到 root 中）
 const btn = O.button("Submit", { variant: "primary" }, root.id);
-const txt = O.text("Hello", {}, root.id);  // ← 注意：text() 的 props 不可跳过！
+const txt = O.text("Hello", {}, root.id);
 
-// 5. 事件处理 + 数据流（见下方 Dataflow Patterns）
-const { handler, wire } = btn.createEventHandler("onPress", {
-  source: "action handleSubmit(event) {\n  // logic\n}",
-});
+// 5. 数据流 + 事件绑定（纯 data-flow 架构）
 const sig = O.codeBlock("signal", "count", { typeAnnotation: "i32" });
-handler.connectTo(sig, "result", "set");
+// 在设计模式下绑定事件到 code tab 中的 customFn
+btn.bindEvent("onPress", "handleIncrement", {
+  params: {}  // 此事件无 payload 可传
+});
 
-// 6. 验证（必须最后一步！）
+// 6. 切换到 code 模式创建处理函数
+O.switchMode("code");
+const fnTab = O.createTab("event", "Count Events", "📡");
+O.switchTab(fnTab.id);
+const incrementFn = O.customFunction("handleIncrement", [], "void");
+const ret = O.returnNode(incrementFn.id);
+
+// 7. 验证（必须最后一步！）
 const report = O.validate();
 if (!report.isValid) console.error("Canvas issues:", report);
 console.log("Elements:", O.elements.length, "Wires:", O.wires.length);
 ```
 
-## 📐 Dataflow Patterns（必读！）
+## 📐 Dataflow Patterns（纯 data-flow 架构）
 
-**这是 agent 最容易出错的部分。** 以下 3 个模式覆盖 90% 的数据流场景：
+**v2 架构：没有 flow edge，没有 action 节点。事件通过 bindEvent() 在 design 模式绑定，处理函数在 code 模式 event tab 中定义为 customFn。**
 
-### Pattern 1: Button → Handler → Signal（事件驱动更新）
-
-```
-┌────────┐  onPress   ┌──────────┐  result   ┌────────┐
-│ Button │ ───────→   │ Handler   │ ───────→  │ Signal │
-│        │  (event)   │ (action)  │  (data)   │  set   │
-└────────┘            └──────────┘           └────────┘
-```
-
-```javascript
-const btn = O.button("+1", { variant: "primary" }, card.id);
-const count = O.codeBlock("signal", "count", {
-  typeAnnotation: "i32",
-  source: "signal count: i32 = 0",
-});
-
-// createEventHandler 自动完成 Button.onPress → Handler.call 的连线
-const { handler } = btn.createEventHandler("onPress", {
-  handlerName: "increment",
-  source: `action increment(event) {
-  count.set(count.value + 1)
-}`,
-});
-
-// 你需要手动连线：Handler.result → Signal.set
-handler.connectTo(count, "result", "set");
-```
-
-> **🔑 关键规则：一个 action 的 `result` 端口只能连到**一个** `signal.set` 端口。**
-> 如果需要更新多个 signal，让 action 源码中直接调用多个 `signal.set()`，而不是用多条 wire。
-
-### Pattern 2: Signal → Computed（派生计算）
+### Pattern 1: Signal → Computed（派生计算）
 
 ```
 ┌────────┐  value   ┌──────────┐  value
@@ -170,13 +178,9 @@ price.connectTo(total, "value", "deps");
 quantity.connectTo(total, "value", "deps");
 ```
 
-### Pattern 3: 多 Signal 汇总到一个 Computed
+### Pattern 2: 多 Signal 汇总到一个 Computed
 
 ```javascript
-// ❌ WRONG: 多个 signal 的 value 都连到一个 computed deps
-// （技术上可行但不清晰，computed 收到多路输入后无法区分）
-
-// ✅ CORRECT: 在 computed 源码中直接引用需要依赖的 signal
 const revenue = O.codeBlock("signal", "revenue", { typeAnnotation: "i32" });
 const orders = O.codeBlock("signal", "orders", { typeAnnotation: "i32" });
 const totalMetrics = O.codeBlock("computed", "totalMetrics", {
@@ -188,295 +192,185 @@ revenue.connectTo(totalMetrics, "value", "deps");
 // computed 源码中直接引用 signal 名
 ```
 
-### ❌ Anti-Pattern: 一个 Handler 连多个 Signal
+### Pattern 3: 事件绑定 + 自定义函数（Event → customFn）
+
+```
+Design 模式:
+  <Button>  ──bindEvent("onPress", "handleAddToCart", {params:{...}})──→  设置 onPress prop
+
+Code 模式 (event tab):
+  ┌──────────────┐  return   ┌────────┐
+  │ customFn      │ ───────→ │ return │
+  │ handleAddCart │          │  void  │
+  └──────────────┘          └────────┘
+```
 
 ```javascript
-// ❌ 不要这样做！一个 action.result 不能分叉连到多个 signal.set！
-handler.connectTo(sig1, "result", "set");
-handler.connectTo(sig2, "result", "set");  // ← 错误！
-handler.connectTo(sig3, "result", "set");  // ← 错误！
-// 即使你在 action 源码中更新了多个 signal，也不要把 result 连到多个 set！
-// result 端口只能有一条出站 wire。
-
-// ✅ 正确：在 action 源码中直接更新多个 signal，result 只连一个（或不连）
-btn.createEventHandler("onPress", {
-  source: `action refresh(event) {
-  revenue.set(12345)
-  orders.set(156)
-  lastUpdated.set(now())
-}`,
-});
-handler.connectTo(revenue, "result", "set");  // 只连一个！其他在源码中更新
-// 如果不需要 result 传值，甚至可以完全不连 result→set
-```
-
-> **🔴 铁律：无论 action 源码中更新了多少个 signal，`result` 端口最多只能有一条出站 wire。** OmniDriver 会在 console.warn 中检测 fan-out 并警告。
-
-## 🔀 Visual Scripting: Flow vs Data（Round 1 新增）
-
-**代码模式画布已从 Rete.js 迁移到 `@xyflow/react` v12。** 引入 Flow/Data 双类型端口和连线：
-
-### 端口类型
-
-| 字段 | Flow 端口 | Data 端口 |
-|------|----------|----------|
-| `portType` | `"flow"` | `"data"` (或 undefined) |
-| 语义 | 执行顺序/控制流 | 数据值传递 |
-| Handle 形状 | 菱形 (45° 旋转方块) | 圆形 (50% border-radius) |
-| 颜色 | `#9CA3AF` (灰色) | 按数据类型着色 |
-| 位置 | 节点左侧(in)/右侧(out) | 节点左侧(in)/右侧(out) |
-| 连线样式 | 较粗(2.5px)+三角箭头 | 较细(2px)+圆形端点 |
-| 连线动画 | 虚线流动动画 | 静态实线 |
-
-### ElementData 新增字段 (editor/store/editor.ts)
-
-```typescript
-interface PortData {
-  name: string; direction: "in" | "out";
-  portType?: "flow" | "data";  // NEW — 区分流类型
-  type: string;                 // 数据类型 (i32, f64, bool, String, any, void)
-  label?: string;
-  configurable?: boolean;       // NEW — 节点上可配置
-  defaultValue?: unknown;       // NEW — 默认值
-}
-
-interface ElementData {
-  // ... 原有字段 ...
-  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";  // NEW
-  config?: Record<string, unknown>;   // NEW — 节点配置(op, comparison)
-  flowOrder?: number;                 // NEW — 拓扑执行顺序
-}
-```
-
-### 节点分类 (nodeCategory)
-
-| Category | 用途 | 现有节点标签 | 示例端口 |
-|----------|------|------------|---------|
-| `"event"` | UI 事件源 | onPress, onChange | flowOut + dataOut |
-| `"action"` | 状态变更 | action, setVariable | flowIn + flowOut |
-| `"flow"` | 执行控制 | branch | flowIn → true/false |
-| `"data"` | 数据计算 | computed, add, getVariable | dataIn → dataOut |
-| `"variable"` | 变量存储 | signal, store | value(out) + set(in) |
-| `"code"` | 代码块 | fn | 端口自动从源码生成 |
-
-### 连线类型区分
-
-```javascript
-// 在代码模式画布中，连线根据 portType 自动选择渲染方式：
-// portType === "flow" → FlowEdge (灰色三角箭头)
-// portType !== "flow" → DataEdge (彩色圆形端点)
-
-// 通过 O.wires 查看连线数据，配合 elements 判断类型：
-const flowWires = O.wires.filter(w => {
-  const fromEl = O.elements.find(e => e.id === w.fromId);
-  const fromPort = fromEl?.ports?.find(p => p.name === w.fromPort);
-  return fromPort?.portType === "flow";
-});
-const dataWires = O.wires.filter(w => {
-  const fromEl = O.elements.find(e => e.id === w.fromId);
-  const fromPort = fromEl?.ports?.find(p => p.name === w.fromPort);
-  return fromPort?.portType !== "flow";
-});
-```
-
-### 代码模式画布操作 (浏览器 Console)
-
-代码模式使用 @xyflow/react 渲染。与设计模式的 `LayoutView` 不同，代码画布通过右键菜单或快捷键交互：
-
-```javascript
-// 切换到代码模式
-O.switchMode("code");
-
-// 画布 DOM 结构:
-// .react-flow__wrapper           — @xyflow/react 容器
-// .react-flow__node              — 节点元素
-// .react-flow__edge              — 连线元素
-// .react-flow__controls          — 缩放控件 (+/-/fit)
-// .react-flow__minimap           — 小地图
-
-// 右键画布 → 打开 NodePalette 搜索弹窗（Unity VS 风格）
-// 搜索/点击选择节点类型 → 自动创建到画布
-// 拖拽端口之间连线 → 自动创建 Wire
-// 双击代码块节点 → 打开 CodeEditorPopup
-// Delete/Backspace → 删除选中节点及其连线
-
-// 也可通过 API 直接创建可视节点：
-const onPress = O.codeBlock("onPress", "On Press");       // 事件源
-const setVar = O.codeBlock("setVariable", "Set count");   // 设置变量
-const addNode = O.codeBlock("add", "Add");                // 算术运算
-const branch = O.codeBlock("branch", "Branch");           // 条件分支
-```
-
-### 🎨 NodePalette — 搜索弹窗（Round 2+）
-
-**右键画布空白区域 → 弹出搜索框。** 支持模糊搜索、分类分组、键盘导航。
-
-```javascript
-// NodePalette 自动可用，无需额外调用。
-// 右键画布 → 输入搜索 → ↑↓ 选择 → Enter 确认 → 节点创建
-// 也可通过 O.codeBlock(tag, name) 直接创建（等效于选择 NodePalette 条目）
-```
-
-**键盘快捷键：**
-| 键 | 动作 |
-|----|------|
-| ↑↓ | 导航搜索结果 |
-| Enter | 选择当前高亮节点 |
-| Esc | 关闭弹窗 |
-| 输入文字 | 模糊过滤（匹配 label + keywords） |
-
-**所有可视节点类型（24 种）：**
-
-| Category | 节点 tag | 端口 | 用途 |
-|----------|---------|------|------|
-| ⚡ Event | `onPress` | flowOut + event(data) | 按钮点击 |
-| ⚡ Event | `onChange` | flowOut + value(data) | 输入变化 |
-| ⚙️ Action | `action` | call(flow in) + result(data out) | 通用事件处理 |
-| ⚙️ Action | `setVariable` | flowIn + flowOut + value(data in) | 设置变量值 |
-| ⚙️ Action | `runCodeBlock` | flowIn + flowOut | 运行代码块 |
-| ⚙️ Action | `updateUIProperty` | flowIn + flowOut + value(data in) | 更新 UI 文本 |
-| 🔀 Flow | `branch` | flowIn → true/false(flow out) + condition(bool in) | 条件分支 |
-| 🔀 Flow | `sequence` | flowIn → flowOut0/flowOut1(flow out) | 顺序执行 |
-| 🔀 Flow | `forEach` | flowIn → loopBody/completed(flow out) + collection/current/index(data) | 遍历集合 |
-| 📊 Data | `computed` | deps(any in) + value(out) | 派生计算 |
-| 📊 Data | `getVariable` | value(out) | 读取变量 |
-| 📊 Data | `add` / `sub` / `mul` / `div` | a,b(data in) + result(out) | 算术运算 |
-| 📊 Data | `compare` | a,b(in) + result(bool out) | 比较运算 |
-| 📊 Data | `and` / `or` / `not` | a,b(bool in) + result(bool out) | 逻辑运算 |
-| 📊 Data | `concat` | a,b(String in) + result(String out) | 字符串拼接 |
-| 📊 Data | `literal` | value(out) | 常量值 |
-| 📌 Variable | `signal` | value(out) + set(in) | 响应式变量 |
-| 📌 Variable | `store` | items(out) | 数据集合 |
-
-### 🧠 AI Pitfalls — 最容易犯的错（必读！）
-
-**以下是从实际测试中收集的 AI agent 高频错误，按严重程度排序：**
-
-#### 🔴 CRITICAL：不调用 O.help() 和 O.validate()
-
-| 错误行为 | 为什么错 | 正确做法 |
-|---------|---------|---------|
-| 不调用 `O.help()` 就开始写代码 | Proxy 拦截了 `Object.keys()`，无法枚举 API | **第一行必须** `O.help()` |
-| 脚本结束不调用 `O.validate()` | 连线错误、类型不匹配、重复连线无法发现 | **最后一行必须** `O.validate()` 并检查 `report.isValid` |
-| 看到 console.error 不处理 | `connect()` 现在会 `console.error` 阻止无效连线 | 所有 console.error 都是真实问题，必须修复 |
-
-#### 🟡 HIGH：参数位置和数据流错误
-
-| 错误行为 | 症状 | 正确做法 |
-|---------|------|---------|
-| `O.text("Hi", cardId)` | text 没嵌套进卡片 | `O.text("Hi", {}, cardId)` ← props 不可跳过 |
-| `O.heading("T", 2, cardId)` | level 类型错误 | `O.heading("T", "2", cardId)` ← level 是字符串 |
-| `O.image("url", cardId)` | 图片没嵌套 | `O.image("url", "", cardId)` ← alt 不可跳过 |
-| `handler.connectTo(sig, "result", "value")` | 连到 signal 输出端口 | signal 输入端口是 `"set"`，输出是 `"value"` |
-| `createEventHandler("press")` | 报错 | 事件名是 React 风格：`"onPress"`, `"onChange"` |
-| `createEventHandler("evt-btn-press-001")` | 报错 | `createEventHandler` 要事件名，不是 UUID |
-| `O.connect(id, "onPress", ...)` | 无效连线 | `connect()` 用端口 UUID `"evt-btn-press-001"` |
-
-#### 🟡 HIGH：数据流反模式
-
-| 错误行为 | 为什么错 | 正确做法 |
-|---------|---------|---------|
-| 一个 handler.result 连多个 signal.set | 一个 output 不能分叉到多个 input | result 只连一个 set，其他 signal 在 action 源码中更新 |
-| `connectTo()` 用于布局嵌套 | connectTo 创建数据流连线，不影响 UI 位置 | 用 `parentId` 参数控制父子关系 |
-| `compile()` 后程序化元素消失 | compile() 从 .omni 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
-| 期望 `getSourceCode()` 返回程序化元素 | getSourceCode() 读的是文件内容 | 用 `O.getState()` 获取运行时状态 |
-
-#### 🟢 MEDIUM：生命周期和验证
-
-| 错误行为 | 症状 | 正确做法 |
-|---------|------|---------|
-| 创建元素无根容器 | 元素散落在画布根级 | 先 `O.card()` 或 `O.flex()` 创建根容器 |
-| codeBlock 后不检查 portType | 旧端口可能缺少 portType | 检查 `el.data.ports[].portType` |
-| codeBlock 后不检查 nodeCategory | 旧元素可能缺少 category | 检查 `el.data.nodeCategory` |
-| `el.remove()` 后不检查 wires | wires 可能残留孤儿连线（旧版本 bug，已修复） | 检查 `O.wires.length` |
-| 重复调用 `connectTo()` 相同参数 | 重复连线会被 console.error 阻止 | 检查是否已有相同连线 |
-| 连接 flow→data 或 data→flow | console.error 阻止 + 连线不创建 | flow 端口(菱形)只能连 flow，data(圆形)只能连 data |
-| 连接 i32→String 等不兼容类型 | console.error 阻止 | 检查端口类型兼容性 |
-| 批量创建不中间验证 | 出问题时找不到哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
-| 不先检查 `O.listSnippets()` | 重复造轮子 | 内置模板开箱即用 |
-```
-
-## 📖 Recipe Book（复制即用的完整模板）
-
-**先检查 `O.listSnippets()` 是否有内置模板，再查 Recipe Book，都没有才从零构建。**
-
-### Recipe 1: Counter（按钮 + 计数）
-
-```javascript
+// Step 1: Design 模式 — 创建 UI 和 signal
+O.switchMode("design");
 const card = O.card({ padding: "24px" });
-O.heading("Counter", "2", card.id);
-const display = O.text("0", {}, card.id);
-const btn = O.button("+1", { variant: "primary" }, card.id);
-const count = O.codeBlock("signal", "count", {
-  typeAnnotation: "i32", source: "signal count: i32 = 0",
-});
+const btn = O.button("Add to Cart", { variant: "primary" }, card.id);
+const cartCount = O.codeBlock("signal", "cartCount", { typeAnnotation: "i32" });
+
+// Step 2: Design 模式 — 绑定事件（新 API）
+btn.bindEvent("onPress", "handleAddToCart", { params: {} });
+
+// Step 3: Code 模式 — 创建处理函数
+O.switchMode("code");
+const tab = O.createTab("event", "Cart Events", "🛒");
+O.switchTab(tab.id);
+const fn = O.customFunction("handleAddToCart", [
+  { name: "event", type: "MouseEvent" }
+], "void");
+const ret = O.returnNode(fn.id);
+// 函数体通过 customFn 节点的源码字段实现逻辑
+fn.setSource(`action handleAddToCart(event) {
+  cartCount.set(cartCount.value + 1)
+}`);
+
+// 验证函数签名
+const sigReport = O.validateFunction(fn.id);
+if (!sigReport.valid) console.error("Function issues:", sigReport.errors);
+```
+
+### ❌ Anti-Pattern: 旧架构的 action 节点模式
+
+```javascript
+// ❌ v1 旧代码（已废弃）—— createEventHandler 不再创建 action 节点
 const { handler } = btn.createEventHandler("onPress", {
-  handlerName: "increment",
-  source: `action increment(event) { count.set(count.value + 1) }`,
+  source: "action increment(event) { count.set(count.value + 1) }",
 });
 handler.connectTo(count, "result", "set");
+
+// ✅ v2 新代码 —— bindEvent + customFn 分离
+btn.bindEvent("onPress", "handleIncrement", { params: {} });
+// 在 code 模式 event tab 中定义 handleIncrement customFn
 ```
 
-### Recipe 2: Search Filter（搜索过滤）
+## Event Binding v2（新 API）
+
+**核心概念：** 事件在 Design 模式绑定，处理函数在 Code 模式 event tab 中定义为 customFn 节点。
 
 ```javascript
-const card = O.card({ padding: "24px" });
-O.heading("Search", "2", card.id);
-const input = O.input("Search items...", { type: "search" }, card.id);
-const resultText = O.text("Type to search...", {}, card.id);
-const query = O.codeBlock("signal", "searchQuery", {
-  typeAnnotation: "String", source: `signal searchQuery: String = ""`,
+// bindEvent(element, eventName, fnName, options?)
+el.bindEvent("onPress", "handleIncrement");
+
+// 带参数绑定（paramBindings）
+el.bindEvent("onPress", "handleSubmit", {
+  params: {
+    eventData: { sourceType: "event", value: "event.value", expectedType: "String" },
+    formId: { sourceType: "self", value: "formId", expectedType: "String" },
+    defaultTitle: { sourceType: "literal", value: "Untitled", expectedType: "String" },
+  }
 });
-const { handler } = input.createEventHandler("onChange", {
-  handlerName: "updateSearch",
-  source: `action updateSearch(event: ChangeEvent) { searchQuery.set(event.value) }`,
-});
-handler.connectTo(query, "result", "set");
-const filtered = O.codeBlock("computed", "filteredItems", {
-  typeAnnotation: "String",
-  source: `computed filteredItems() -> String { searchQuery.value }`,
-});
-query.connectTo(filtered, "value", "deps");
+
+// 自动发现可用事件
+const available = el.getAvailableEvents();
+// → ["onPress", "onHover", "onFocus", "onLongPress"]
+
+// 查找签名兼容的函数
+const matching = O.findMatchingFunctions("tab-id", "onPress");
+// → [{ fnName: "handleClick", params: [...], returnType: "void" }, ...]
+
+// 获取所有事件绑定
+const allBindings = O.listAllEventBindings();
+// → [{ elementId, tag, eventName, fnName, tabId, paramBindings }, ...]
+
+// 解除绑定
+el.unbindEvent("onPress");
 ```
 
-### Recipe 3: Form Submit（表单提交）
+**ParamBinding sourceType:**
+| sourceType | 含义 | value 示例 |
+|-----------|------|-----------|
+| `"self"` | 组件自身的 signal 名 | `"title"`, `"formId"` |
+| `"literal"` | 静态字面值 | `"Untitled"`, `"42"` |
+| `"event"` | 事件 payload 字段 | `"event.value"`, `"event.target"` |
+| `"global"` | 全局 signal | `"app.theme"`, `"app.locale"` |
+
+## 🗂️ Code Tab Management（新 API）
+
+**v2 架构：代码画布支持多个标签页。每个 tab 独立管理 elements/wires/variables/undo。**
 
 ```javascript
-const card = O.card({ padding: "32px" });
-O.heading("Contact", "2", card.id);
-O.input("Name", {}, card.id);
-O.input("Email", { type: "email" }, card.id);
-const submitBtn = O.button("Send", { variant: "primary" }, card.id);
-const status = O.codeBlock("signal", "submitStatus", {
-  typeAnnotation: "String", source: `signal submitStatus: String = "idle"`,
-});
-const { handler } = submitBtn.createEventHandler("onPress", {
-  handlerName: "handleSubmit",
-  source: `action handleSubmit(event) {
-  submitStatus.set("submitting")
-  // TODO: call API
-  submitStatus.set("success")
-}`,
-});
-handler.connectTo(status, "result", "set");
+O.switchMode("code");
+
+// 创建标签页
+const logicTab = O.createTab("logic", "Main Logic", "📄");
+const eventTab = O.createTab("event", "Button Handlers", "🔘");
+
+// 查询
+const allTabs = O.listTabs();
+// → [{ id, type, label, icon, variableCount, elementCount }, ...]
+const current = O.getActiveTab();
+const tab = O.getTab("tab-id");
+
+// 切换与删除
+O.switchTab(eventTab.id);
+O.removeTab(logicTab.id);  // 不能删除最后一个 tab
+
+// 变量管理（每个 tab 独立 scope）
+O.addVariable(eventTab.id, "clickCount", "i32", 0, "按钮点击次数");
+O.addVariable(eventTab.id, "lastEvent", "String", "", "最后一次事件类型");
+const vars = O.getVariables(eventTab.id);
+// → [{ name, type, defaultValue, description }, ...]
+O.removeVariable(eventTab.id, "lastEvent");
+
+// 标签页级别画布查询
+const elements = O.getTabElements(eventTab.id);
+const wires = O.getTabWires(eventTab.id);
+
+// 批量操作
+const clone = O.cloneTab(eventTab.id, "Button Handlers Copy");
+const exported = O.exportTab(eventTab.id);  // → JSON string
+O.importTab(exported);                       // → new tab
 ```
 
-### Recipe 4: Toggle（开关切换）
+## 🔧 Custom Function Operations（新 API）
+
+**v2 架构：customFn 节点替代旧 action 节点。通过 return 节点和 BFS 类型验证组成函数体。**
 
 ```javascript
-const card = O.card({ padding: "24px" });
-const toggleBtn = O.button("OFF", { variant: "outline" }, card.id);
-const isOn = O.codeBlock("signal", "isOn", {
-  typeAnnotation: "bool", source: "signal isOn: bool = false",
-});
-const { handler } = toggleBtn.createEventHandler("onPress", {
-  handlerName: "toggle",
-  source: `action toggle(event) { isOn.set(!isOn.value) }`,
-});
-handler.connectTo(isOn, "result", "set");
-```
+O.switchMode("code");
 
-> **Snippet 优先：** `O.snippet("login-form")`、`O.snippet("data-card")`、`O.snippet("crud-table")` 开箱即用。用 `O.listSnippets()` 查看全部模板（含 `O.registerSnippet()` 注册的自定义模板）。
+// 创建 customFn 节点
+const fn = O.customFunction("calculateTotal", [
+  { name: "price", type: "f64" },
+  { name: "quantity", type: "i32" },
+], "f64");
+
+// fn.data.config → { fnName: "calculateTotal", fnParams: [...], fnReturnType: "f64", description: "" }
+
+// 动态修改参数
+fn.addParam("discount", "f64", 0.0);
+fn.setReturnType("f64");
+fn.setDescription("计算含折扣的总价");
+
+// 创建 return 节点（标记函数返回点，必须连接为函数体末端）
+const ret = O.returnNode(fn.id);
+// ret.getPorts() → [{ name: "value", direction: "in", portType: "data", type: "any" }]
+
+// 函数体构建（在 customFn 和 return 之间加数据流）
+const addNode = O.codeBlock("add", "addPrice", { typeAnnotation: "f64" });
+// price 参数 → add.a, quantity 参数 → add.b (通过 literal/connect 等)
+addNode.connectTo(ret, "result", "value");
+
+// BFS 返回类型一致性验证（复用 CodePropertyPanel ReturnValidator）
+const report = O.validateFunction(fn.id);
+// → { valid: boolean, returnType: string, errors: string[], reachableReturnPaths: number }
+
+// 函数发现
+const allFns = O.listCustomFunctions();
+// → [{ fnName, params, returnType, tabId, description }, ...]
+const found = O.findFunctionByName("calculateTotal");
+// → { ... } or null
+const conflicts = O.checkFunctionNameConflict("handleSubmit");
+// → [{ fnName, tabId }] or []
+
+// 获取函数签名摘要
+const sig = O.getFunctionSignature(fn.id);
+// → { fnName, params: [...], returnType, bodyNodeCount }
+```
 
 ## 参数位置速查表（必读！）
 
@@ -523,16 +417,22 @@ O.clearAll();
 const card = O.card({ padding: "20px" });
 const btn = O.button("Submit", { variant: "primary" }, card.id);
 const txt = O.text("Hello", {}, card.id);
-// card.children() → [btn, txt]
 
-// 事件处理（3 合 1）
-const { handler, wire } = btn.createEventHandler("onPress", {
-  source: "action handleSubmit(event) {\n  // logic\n}",
-});
+// 事件绑定（v2 — event prop 方式）
+btn.bindEvent("onPress", "handleSubmit");
 
-// 数据流连线 — 参见上方 Dataflow Patterns
+// 数据流连线
 const sig = O.codeBlock("signal", "count", { typeAnnotation: "i32", source: "signal count: i32 = 0" });
-handler.connectTo(sig, "result", "set");
+
+// ── Code 模式 — 创建处理函数 ──
+O.switchMode("code");
+const tab = O.createTab("event", "Submit Handler", "📡");
+O.switchTab(tab.id);
+const fn = O.customFunction("handleSubmit", [{ name: "event", type: "MouseEvent" }], "void");
+fn.setSource(`action handleSubmit(event) {
+  count.set(count.value + 1)
+}`);
+const ret = O.returnNode(fn.id);
 
 // ── 源码驱动模式 ──
 O.setSourceCode(`component App {
@@ -561,26 +461,38 @@ const result = await O.compile();
 
 ## 核心 API 速查
 
-### 代码块端口参考（必读）
+### 代码块端口参考（纯 data 端口）
 
 | 类型 | nodeCategory | 输出端口 | 输入端口 | 用途 |
 |------|-------------|---------|---------|------|
 | `signal` | `"variable"` | `value` (data, out) | `set` (data, in) | 响应式状态变量 |
 | `computed` | `"data"` | `value` (data, out) | `deps` (data, in) | 派生计算值 |
-| `action` | `"action"` | `result` (data, out) | `call` (**flow**, in) | 事件处理函数 |
 | `store` | `"variable"` | `items` (data, out) | — | 数据集合 |
-
-> **🔑 Round 1 新增：** `action` 的 `call` 端口现在是 **flow 类型**（执行流入口），而 `result` 是 **data 类型**（数据输出）。flow 端口渲染为菱形，data 端口渲染为圆形。
+| `customFn` | `"function"` | `return` (data, out) | 动态（从 fnParams config 生成） | 自定义函数定义 |
+| `return` | `"function"` | — | `value` (data, in) | 函数返回点 |
+| `literal` | `"data"` | `value` (data, out) | — | 常量值 |
+| `add`/`sub`/`mul`/`div` | `"data"` | `result` (data, out) | `a`, `b` (data, in) | 算术运算 |
+| `compare` | `"data"` | `result` (data, out, bool) | `a`, `b` (data, in) | 比较运算 |
+| `and`/`or` | `"data"` | `result` (data, out, bool) | `a`, `b` (data, in, bool) | 逻辑运算 |
+| `not` | `"data"` | `result` (data, out, bool) | `a` (data, in, bool) | 逻辑非 |
+| `concat` | `"data"` | `result` (data, out, String) | `a`, `b` (data, in, String) | 字符串拼接 |
+| `branch` | `"flow"` | `true`, `false` (data, out) | `condition` (data, in, bool) | 条件分支 |
+| `sequence` | `"flow"` | `output0`, `output1`... (data, out) | `input` (data, in) | 顺序传递 |
+| `forEach` | `"flow"` | `current` (data, out), `index` (data, out, i32) | `collection` (data, in) | 遍历集合 |
+| `getVariable` | `"data"` | `value` (data, out) | — | 读取变量 |
+| `setVariable` | `"data"` | — | `value` (data, in) | 设置变量 |
+| `updateUIProperty` | `"ui"` | — | `value` (data, in, String) | 更新 UI 属性 |
+| `fn` | `"code"` | 源码自动生成 | 源码自动生成 | 内联代码块 |
 
 ```javascript
 // ✅ 正确：设置 signal → 连到 set 端口
-O.connect(handler.id, "result", signal.id, "set");
+O.connect(source.id, "result", signal.id, "set");
 
 // ❌ 错误：signal 的输入端口是 "set"，不是 "value"（value 是输出！）
-O.connect(handler.id, "result", signal.id, "value");
+O.connect(source.id, "result", signal.id, "value");
 
 // ❌ 错误：signal 没有 "input" 端口
-handler.connectTo(signal, "result", "input");
+source.connectTo(signal, "result", "input");
 ```
 
 ### 代码块创建
@@ -651,8 +563,10 @@ el.children();                 // ElementHandle[] — 子元素（只读）
 el.parent();                   // ElementHandle | null
 el.getPorts();                 // 所有端口（view 自动含事件端口）
 el.getEvents();                // 事件元数据 { onPress: { id, description, payload } }
+el.getAvailableEvents();       // string[] — 可用事件名列表
 el.connectTo(target, "out", "in"); // 数据流连线（含端口验证）
-el.createEventHandler("onPress", options); // 事件处理器（3合1）
+el.bindEvent("onPress", "handleFn", options);  // 事件绑定 v2
+el.unbindEvent("onPress");     // 解除事件绑定
 el.data;                       // 原始 ElementData
 ```
 
@@ -701,53 +615,21 @@ O.button("Submit", { variant: "primary" }, actions.id);
 
 > **Card vs Flex vs Container：** `Card` = 视觉分组（边框阴影），`Flex` = 方向排列（纯布局），`Container` = 纯包裹（无样式无方向）。
 
-## 事件连线
+## 事件绑定 v2 速查
 
 ### 事件名 vs 端口 UUID
 
 ```javascript
-// createEventHandler() — 传事件名（React 风格）
-btn.createEventHandler("onPress");   // ✅ "onPress"
-btn.createEventHandler("press");     // ❌ DOM 风格，会抛异常
-btn.createEventHandler("evt-btn-press-001"); // ❌ UUID，会抛异常
+// bindEvent() — 传事件名（React 风格）
+btn.bindEvent("onPress", "handleIncrement");
+btn.bindEvent("press");           // ❌ DOM 风格，会抛异常
+btn.bindEvent("evt-btn-press-001"); // ❌ UUID，会抛异常
 
-// connect() 手动连线 — 传端口 UUID
-O.connect(btn.id, "evt-btn-press-001", action.id, "call"); // ✅ UUID
-O.connect(btn.id, "onPress", action.id, "call");            // ❌ 事件名不是端口
+// connect() 手动连线 — 传端口 UUID（高级用法，不推荐）
+O.connect(btn.id, "evt-btn-press-001", target.id, "somePort"); // ✅ UUID
 ```
 
-> **铁律：`createEventHandler(eventName)` 用事件名，`connect(fromPort)` 用 UUID。**
-
-### Handler 源码模板
-
-```javascript
-// 模板 A: 更新单个 signal
-btn.createEventHandler("onPress", {
-  handlerName: "increment",
-  source: `action increment(event) {
-  count.set(count.value + 1)
-}`,
-});
-
-// 模板 B: 更新多个 signal（在源码中直接操作，不需要多条 wire）
-btn.createEventHandler("onPress", {
-  handlerName: "refreshAll",
-  source: `action refreshAll(event) {
-  revenue.set(fetchRevenue())
-  orders.set(fetchOrders())
-  lastUpdated.set(now())
-}`,
-});
-
-// 模板 C: 带参数的事件处理
-btn.createEventHandler("onPress", {
-  handlerName: "handleSubmit",
-  source: `action handleSubmit(event: SubmitEvent) {
-  // event 包含表单数据
-  status.set("submitting")
-}`,
-});
-```
+> **铁律：`bindEvent(eventName)` 用事件名，`connect(fromPort)` 用 UUID。**
 
 ### 事件端口 UUID 表
 
@@ -755,6 +637,8 @@ btn.createEventHandler("onPress", {
 |------|------|---------|
 | Button | onPress | `evt-btn-press-001` |
 | Button | onHover | `evt-btn-hover-001` |
+| Button | onFocus | `evt-btn-focus-001` |
+| Button | onLongPress | `evt-btn-longpress-001` |
 | Input | onChange | `evt-input-change-001` |
 | Input | onFocus | `evt-input-focus-001` |
 | Input | onBlur | `evt-input-blur-001` |
@@ -789,6 +673,17 @@ O.getComponentInfo("Button"); // 单个组件详情
 // 一键健康检查
 const report = O.validate();
 // { orphanElements, unwiredEvents, typeMismatches, unreachableBlocks, isValid }
+
+// 函数签名验证
+const fn = O.customFunction("myFn", [{ name: "x", type: "i32" }], "i32");
+const sigReport = O.validateFunction(fn.id);
+
+// 查看所有事件绑定
+const bindings = O.listAllEventBindings();
+
+// 代码 tab 信息
+O.listTabs();
+O.getVariables("tab-id");
 ```
 
 ## 🚀 Run & Test Pipeline — 编译→运行→浏览器实测
@@ -839,39 +734,6 @@ const report = O.validate();
 | `/api/run/status` | GET | `{ running: bool, url: string|null }` |
 | `/api/run/write-files` | POST | 热更新已编译文件到 `.omni-run/src/`（Vite HMR 自动重载浏览器） |
 
-**在浏览器 Console 中调用：**
-
-```javascript
-// ── 编译 .omni → 启动 Run ──
-const src = O.getSourceCode();
-// 1) 编译
-const compileResp = await fetch("/api/compile", {
-  method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ source: src, target: "omniview" }),
-});
-const { files } = await compileResp.json();
-
-// 2) 启动 Vite dev server
-const runResp = await fetch("/api/run/start", {
-  method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ files, debug: true }),
-});
-const { url, port } = await runResp.json();
-console.log("App running at:", url);
-
-// 3) 检查状态
-const status = await fetch("/api/run/status").then(r => r.json());
-
-// 4) 热更新（修改后重新编译 + 推送）
-await fetch("/api/run/write-files", {
-  method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ files: updatedFiles }),
-});
-
-// 5) 停止
-await fetch("/api/run/stop", { method: "POST" });
-```
-
 ### 双 Target 策略
 
 | Target | 扩展名 | Runtime | Debug | 适用场景 |
@@ -901,439 +763,20 @@ const R = window.__OMNI_RUNTIME__;
 // R.traceExecution() — 执行追踪（FlowCanvas 高亮）
 ```
 
-### Debug 断点闭环（OmniView target）
-
-```
-Editor DebugPanel                   OmniView Runtime (浏览器)
-     │                                      │
-     ├─ set-breakpoint("Counter.count") ──→ │ DebugBus.breakpoints.add(id)
-     │                                      │
-     │  ←── state-change ───────────────── │ signal.set() → DebugBus.check()
-     │  ←── paused(signalId, value) ────── │   breakpoint hit → queue → pause
-     │                                      │
-     ├─ step ────────────────────────────→ │ DebugBus.step()
-     │  ←── state-change (single) ──────── │   出队一个 → apply → notify
-     │  ←── resumed | paused(next) ─────── │
-     │                                      │
-     ├─ resume ──────────────────────────→ │ DebugBus.resume()
-     │  ←── resumed ────────────────────── │   flush 全部 → 恢复正常
-```
-
-**在浏览器 Console 直接操控 DebugBus（不需要 WebSocket）：**
+## 🔬 Node Registry（22 节点，6 个 category）
 
 ```javascript
-const R = window.__OMNI_RUNTIME__;
-// 设置断点
-R.DebugBus.breakpoints.add("Counter.count");
+// 在浏览器 Console 中查看当前注册表：
+// O.help().portReference — 动态生成的端口结构
 
-// 手动触发暂停/单步/恢复
-R.DebugBus.paused;           // false → true（断点命中后）
-R.DebugBus.pendingQueue;     // [{ signalId, value, apply }]
-R.DebugBus.step();           // 单步执行一个
-R.DebugBus.resume();         // 全部恢复
+// 6 个 category:
+// function — customFn, return
+// variable — signal, store
+// data     — computed, literal, getVariable, add, sub, mul, div, compare, and, or, not, concat
+// flow     — branch, sequence, forEach
+// ui       — updateUIProperty
+// code     — fn, setVariable
 ```
-
-**Debug 模式启用条件：** `window.__OMNI_DEBUG_WS_URL__` 必须设置（由 `/api/run/start` 在 `debug:true` 时自动注入到 `main.js`）。
-
-### Playwright MCP 集成
-
-```javascript
-// 编译 + 启动 run
-const runResult = await mcp__playwright__browser_evaluate(() => {
-  return fetch("/api/run/start", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ files: compiledFiles, debug: true }),
-  }).then(r => r.json());
-});
-
-// 导航到运行中的应用
-await mcp__playwright__browser_navigate(runResult.url);
-
-// 操作 runtime 内部状态
-await mcp__playwright__browser_evaluate(() => {
-  const R = window.__OMNI_RUNTIME__;
-  R.DebugBus.breakpoints.add("Counter.count");
-  // 点击按钮触发断点...
-});
-
-// 截图验证
-await mcp__playwright__browser_take_screenshot();
-await mcp__agent-vision__analyze_image("Check counter value is visible");
-```
-
-### Run Pipeline 常见错误
-
-| 错误 | 症状 | 修复 |
-|------|------|------|
-| `debug:true` 但不设置 `__OMNI_DEBUG_WS_URL__` | DebugBus 不初始化 WebSocket，断点无效 | `/api/run/start` 传递 `debug:true` |
-| OmniView target 用 React 语法（JSX） | Vite 报语法错误 | OmniView target 输出纯 `.js`，不是 `.tsx` |
-| `npm install` 超时 | `/api/run/start` 返回 timeout 错误 | 手动 `cd .omni-run && npm install` |
-| Vite 端口冲突 | 无法访问 | `_find_available_port()` 自动递增端口，检查 `/api/run/status` 返回的实际 URL |
-| Python 缓存导致编译输出未更新 | 修改 codegen 后 run 结果不变 | 杀 backend + 清 `__pycache__` + 重启 |
-
-## 🔬 Flow Engine & Node Registry（Round 1 新增内部 API）
-
-**这些是 TypeScript 模块，通过 Zustand store 间接访问，不能通过 `window.__OMNI__` 直接调用。** 在浏览器 Console 中，可以直接 import 或通过 store 访问。
-
-### FlowEngine (`editor/client/src/canvas/FlowEngine.ts`)
-
-拓扑排序执行引擎。从 event 节点开始，沿 flow-out 边 BFS 遍历执行 DAG：
-
-```javascript
-// 在浏览器 Console 中测试 FlowEngine:
-const store = window.__ZUSTAND_EDITOR_STORE__.getState();
-const { elements, wires } = store;
-
-// 手动调用 (需要 import，Console 中不可直接用)
-// import { executeFlow, validateFlow } from "./canvas/FlowEngine";
-// const result = executeFlow(elements, wires);
-// result.steps  → ExecutionStep[]  按拓扑顺序排列
-// result.unreachable → string[]    无入站连线的代码块
-
-// validateFlow 检测:
-// - 循环依赖 (flow 连线形成环)
-// - 孤立 flow 输入 (action 节点有 flowIn 端口但无线接入)
-```
-
-### NodeRegistry (`editor/client/src/canvas/nodeRegistry.ts`)
-
-节点类型 → 视觉配置的中央注册表。12 种已注册节点类型：
-
-```javascript
-// 在浏览器 Console 中查看 nodeRegistry:
-// 实际文件路径: editor/client/src/canvas/nodeRegistry.ts
-// 提供 getNodeConfig(tag) / getAllNodeConfigs() / getNodeConfigsByCategory(cat)
-
-// 间接验证 — 通过检查 O.elements 中元素的 ports:
-const actionEl = O.elements.find(e => e.tag === "action");
-console.log(actionEl?.ports);  
-// [{name:"call",direction:"in",portType:"flow",type:"void"},
-//  {name:"result",direction:"out",portType:"data",type:"any"}]
-
-// 6 种 category: event, action, flow, data, variable, code
-// 12 种已注册 tag: signal, computed, action, store, fn, fn-call,
-//                    onPress, onChange, setVariable, getVariable, add, branch
-```
-
-### 代码画布自定义组件
-
-| 组件 | 文件 | 用途 |
-|------|------|------|
-| `FlowCanvas` | `canvas/FlowCanvas.tsx` | @xyflow/react 主画布 (~430行) |
-| `BaseNode` | `canvas/nodes/BaseNode.tsx` | 共享节点 chrome (icon+label+handles) |
-| `CodeBlockNode` | `canvas/nodes/CodeBlockNode.tsx` | 代码块节点渲染 |
-| `ViewEventNode` | `canvas/nodes/ViewEventNode.tsx` | 视图元素事件节点 |
-| `FlowEdge` | `canvas/edges/FlowEdge.tsx` | 执行流连线 (灰/三角箭头) |
-| `DataEdge` | `canvas/edges/DataEdge.tsx` | 数据流连线 (彩色/圆形端点) |
-
-
-
-**在已有画布上添加功能，不破坏现有结构：**
-
-```javascript
-// ═══ 扩展已有画布的模板 ═══
-const O = window.__OMNI__;
-
-// Step 1: 扫描现有状态
-const state = O.getState();
-const cards = O.findByTag("Card");
-const existingButtons = O.findByTag("Button");
-const existingSignals = O.codeBlocks.filter(cb => cb.data?.tag === "signal");
-
-// Step 2: 找到目标容器
-const targetCard = cards[0];
-if (!targetCard) {
-  console.warn("No Card found — creating one");
-  targetCard = O.card({ padding: "24px" });
-}
-
-// Step 3: 检查重复 — 不要创建已存在的元素！
-const existingNames = new Set(
-  state.elements.map(e => (e.props as any)?.name).filter(Boolean)
-);
-
-// Step 4: 创建新元素（挂到已有容器下）
-if (!O.findByProp("label", "Refresh").length) {
-  const btn = O.button("Refresh", { variant: "outline" }, targetCard.id);
-  // ... 添加事件处理 ...
-}
-
-// Step 5: 验证（确保没有破坏现有结构）
-const afterReport = O.validate();
-console.log("Canvas healthy:", afterReport.isValid);
-```
-
-> **🔑 关键原则：先读后写。** 不要假设画布是空的。始终先扫描 `getState()` 了解现有结构。
-
-## 🩺 Error Recovery Protocol（修复损坏的画布）
-
-**当画布有问题时（编译错误、连线错误、缺失处理器），按以下步骤诊断修复：**
-
-### Step 1: 了解现状
-
-```javascript
-const state = O.getState();
-console.log("Elements:", state.elements.length, "Wires:", state.wires.length);
-```
-
-### Step 2: 运行健康检查
-
-```javascript
-const report = O.validate();
-// 检查每个字段：
-// - report.orphanElements → 需要加父容器
-// - report.unwiredEvents → 需要 createEventHandler
-// - report.typeMismatches → 需要修正连线端口
-// - report.unreachableBlocks → 需要添加入站连线
-```
-
-### Step 3: 根据诊断结果修复
-
-```javascript
-// 问题 A: signal "value" 端口被当作输入 → 改为 "set"
-const wrongWires = O.wires.filter(w => w.toPort === "value");
-for (const w of wrongWires) {
-  const fromEl = O.element(w.fromId);
-  const toEl = O.element(w.toId);
-  if (toEl.data?.tag === "signal") {
-    O.disconnect(w.id);
-    fromEl.connectTo(toEl, w.fromPort, "set"); // "value" → "set"
-  }
-}
-
-// 问题 B: Button 缺少事件处理器
-for (const el of O.views) {
-  const events = el.getEvents();
-  for (const [evtName] of Object.entries(events)) {
-    const hasWire = O.wires.some(
-      w => w.fromId === el.id && w.fromPort === events[evtName].id
-    );
-    if (!hasWire) {
-      el.createEventHandler(evtName);
-    }
-  }
-}
-
-// 问题 C: 类型不匹配
-for (const mm of report.typeMismatches) {
-  console.warn(`Type mismatch on wire ${mm.wireId}: ${mm.fromType} → ${mm.toType}`);
-  // 修正 codeBlock 的 typeAnnotation 或调整连线
-}
-
-// 问题 D: 孤儿 wires（元素已删除但 wires 残留）
-const elementIds = new Set(O.elements.map(e => e.id));
-const orphanWires = O.wires.filter(w => !elementIds.has(w.fromId) || !elementIds.has(w.toId));
-for (const w of orphanWires) {
-  O.disconnect(w.id);
-  console.warn(`Cleaned orphan wire ${w.id}: ${w.fromId}→${w.toId}`);
-}
-
-// 问题 E: codeBlock 端口缺少 portType 或 nodeCategory
-for (const el of O.codeBlocks) {
-  const d = el.data;
-  if (!d) continue;
-  // 检查 portType
-  for (const p of (d.ports || [])) {
-    if (!p.portType) {
-      console.warn(`Port "${p.name}" on <${d.tag}> missing portType. ` +
-        `This codeBlock may have been created before the fix. Recreate it.`);
-    }
-  }
-  // 检查 nodeCategory
-  if (!d.nodeCategory) {
-    console.warn(`<${d.tag}> "${d.props?.name}" missing nodeCategory. ` +
-      `Expected: ${({signal:'variable',computed:'data',action:'action',store:'variable'})[d.tag] || 'code'}. ` +
-      `Recreate the codeBlock to get proper category.`);
-  }
-}
-
-// 问题 F: 重复连线检测
-const wireKeys = new Set();
-const duplicates: string[] = [];
-for (const w of O.wires) {
-  const key = `${w.fromId}::${w.fromPort}::${w.toId}::${w.toPort}`;
-  if (wireKeys.has(key)) duplicates.push(w.id);
-  else wireKeys.add(key);
-}
-for (const id of duplicates) O.disconnect(id);
-if (duplicates.length) console.warn(`Cleaned ${duplicates.length} duplicate wire(s)`);
-```
-
-### Step 4: 重新验证
-
-```javascript
-const finalReport = O.validate();
-if (!finalReport.isValid) {
-  console.error("Remaining issues:", finalReport);
-} else {
-  console.log("✅ Canvas is healthy!");
-}
-```
-
-## Common Mistakes
-
-| 错误行为 | 为什么错 | 正确做法 |
-|---------|---------|---------|
-| `O.text("Hi", cardId)` | text() 第2个参数是 props，cardId 被当作 props 对象！ | `O.text("Hi", {}, cardId)` |
-| `O.image("url", cardId)` | image() 第2个参数是 alt，cardId 被当作 alt 文本！ | `O.image("url", "", cardId)` |
-| `O.heading("T", 2, cardId)` | level 是字符串 `"2"`，不是数字 `2` | `O.heading("T", "2", cardId)` |
-| 用 `connectTo()` 做父子嵌套 | `connectTo()` 创建数据流连线，不影响布局 | 用 `parentId` 参数 |
-| `compile()` 后程序化元素消失 | `compile()` 从 `.omni` 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
-| `createEventHandler("press")` | 事件名是 React 风格 `"onPress"` | `createEventHandler("onPress")` |
-| `createEventHandler("evt-btn-press-001")` | 不要传 UUID，UUID 只用于 `connect()` | `createEventHandler("onPress")` |
-| 连线到 signal 的 `"value"` 或 `"input"` | signal 输入端口是 `"set"` | `connect(id, "result", sigId, "set")` |
-| 一个 handler.result 连多个 signal.set | 一个 output 不能驱动多个 input（即使源码中更新了多个 signal） | result 只连一个 signal.set，其他在 action 源码中更新 |
-| `O.container()` 当 Card 用 | Container ≠ Card！Card 有边框阴影 | 用 `O.card()` |
-| 在 `getElements()` 数据上调用 `.parent()` | `getElements()` 返回纯 `ElementData[]` | 用 `O.element(id)` |
-| 期望 `getSourceCode()` 返回程序化元素 | `getSourceCode()` 读的是文件内容 | 用 `getElements()` / `getState()` |
-| 认为 `typeAnnotation` 无效 | **有效参数！** 决定 signal/computed 端口类型 | `codeBlock("signal","n",{typeAnnotation:"f64"})` |
-| 不调用 `O.help()` 直接编程 | Proxy 隐藏了所有方法，无法枚举 | **第一步必须** `O.help()` |
-| 创建元素无 root 容器 | 所有 view 元素应在同一个 Card/Container 下 | 先 `O.card()` 创建根容器 |
-| 不调用 `O.validate()` 就结束 | 无法发现连线错误、缺失处理器 | **最后一步必须** `O.validate()` |
-| 在已有画布上不扫描就创建 | 可能创建重复元素或破坏现有结构 | 先用 `getState()` 扫描 |
-| 不考虑 `O.snippet()` 就从零构建 | 内置模板开箱即用，节省大量代码 | 先 `O.listSnippets()` 查模板 |
-| 一次性构建全部 UI 不中间验证 | 问题出现时不知道是哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
-| `createEventHandler` 可用却手动 `connect()` | 手动 connect 需要 UUID，容易出错 | 始终优先用 `createEventHandler(eventName)` |
-| 用 `handler1`/`sig1`/`btn` 等无意义命名 | 画布不可读，无法维护 | 用语义化命名：`cartCount`, `handleAddToCart` |
-| `el.remove()` 后 wires 仍有引用 | 旧版本 `remove()` 不级联删除 wires | 已修复！现在自动级联删除。如果仍有残留 wire，用 `O.validate()` 检测 |
-| 删除元素后不检查 `O.wires.length` | wires 可能残留孤儿连线 | 删除操作后调用 `O.validate()` 和检查 `O.wires.length` |
-| 调用 `connectTo()` 两次相同参数 | 旧版本不检测重复，创建两条 wire | 已修复！`validateConnection()` 现在检测并阻止重复连线 |
-| 用 `connectTo()` 连接 data→flow 端口 | 旧版本不验证 portType | 已修复！现在 console.error 阻止 + 连线不创建 |
-| 用 `connectTo()` 连接 i32→String | 旧版本不验证数据类型兼容性 | 已修复！`isTypeCompatible()` 检测不兼容类型并阻止 |
-| 创建 codeBlock 后不验证 `nodeCategory` | portType 和 nodeCategory 现在从 nodeRegistry 自动设置 | 创建后检查 `el.data.nodeCategory` 和 `el.data.ports[].portType` |
-
-## 🏷️ Naming Convention
-
-**语义化命名让画布可读、可维护、可扩展：**
-
-| 类型 | 命名规则 | ✅ 好例子 | ❌ 坏例子 |
-|------|---------|----------|----------|
-| signal | `camelCase` 名词 | `searchQuery`, `cartCount`, `userEmail` | `sig1`, `data`, `x` |
-| action/handler | `camelCase` 动词 | `handleSearch`, `incrementCounter`, `submitForm` | `handler1`, `fn`, `doIt` |
-| computed | 描述性名词 | `filteredItems`, `totalPrice`, `isValid` | `comp1`, `result`, `temp` |
-| store | 复数名词 | `products`, `users`, `orders` | `store1`, `list`, `stuff` |
-| 元素变量 | 描述用途 | `searchInput`, `submitBtn`, `statsGrid` | `el1`, `btn`, `flex` |
-
-```javascript
-// ✅ 好：自文档化
-const cartCount = O.codeBlock("signal", "cartCount", { typeAnnotation: "i32" });
-submitBtn.createEventHandler("onPress", {
-  handlerName: "handleAddToCart",
-  source: `action handleAddToCart(event) { cartCount.set(cartCount.value + 1) }`,
-});
-
-// ❌ 坏：一个月后没人看得懂
-const s1 = O.codeBlock("signal", "s1", { typeAnnotation: "i32" });
-btn1.createEventHandler("onPress", {
-  handlerName: "h1",
-  source: `action h1(event) { s1.set(s1.value + 1) }`,
-});
-```
-
-## 🔄 Progressive Build-Test Loop
-
-**不要一次性构建全部 UI。** 渐进式构建，每 3-5 个元素验证一次：
-
-```
-1. 根容器 + 标题  →  O.validate()  →  修复
-2. 添加按钮+事件  →  O.validate()  →  修复
-3. 添加数据流连线 →  O.validate()  →  修复
-4. 重复直到完成
-```
-
-```javascript
-const O = window.__OMNI__;
-O.help();
-O.switchMode("design");
-O.clearAll();
-
-// Phase 1: 根容器 + 标题
-const root = O.card({ padding: "24px" });
-O.heading("My App", "2", root.id);
-if (!O.validate().isValid) throw new Error("Phase 1 failed");
-
-// Phase 2: 按钮 + handler + signal
-const btn = O.button("Action", { variant: "primary" }, root.id);
-const sig = O.codeBlock("signal", "data", { typeAnnotation: "i32" });
-const { handler } = btn.createEventHandler("onPress", {
-  source: `action handleAction(event) { data.set(42) }`,
-});
-handler.connectTo(sig, "result", "set");
-if (!O.validate().isValid) throw new Error("Phase 2 failed");
-
-// Phase 3: 显示元素
-O.text("Ready", {}, root.id);
-const finalReport = O.validate();
-if (!finalReport.isValid) console.error("Issues:", finalReport);
-else console.log("✅", O.elements.length, "elements,", O.wires.length, "wires");
-```
-
-> **🔑 关键：问题出现时你知道是最近 3-5 步引入的，而不是在 50 个元素的画布上大海捞针。**
-
-## Self-Check Checklist（脚本完成前必查）
-
-- [ ] `O.help()` 是否在第一行调用？
-- [ ] `O.switchMode("design")` 是否在创建元素前调用？
-- [ ] 是否有根容器（Card 或 Container）包裹所有 UI 元素？
-- [ ] 所有 `O.text()` 调用是否传了 3 个参数 `(label, props, parentId)`？
-- [ ] 所有 `O.heading()` 的 level 是否是字符串 `"2"` 而非数字 `2`？
-- [ ] `createEventHandler()` 是否传的是事件名（`"onPress"`）而非 UUID？
-- [ ] `connectTo()` 连 signal 时输入端口是否是 `"set"` 而非 `"value"`？
-- [ ] 每个 action 的 `result` 端口是否最多只连一个 signal 的 `set`？
-- [ ] 所有 view 元素是否有明确的父容器？
-- [ ] **最后是否调用了 `O.validate()` 并检查了结果？**
-- [ ] `O.listSnippets()` 是否检查过？是否有现成模板可用？
-- [ ] signal/action/computed 名称是否语义化（`cartCount` 而非 `s1`）？
-- [ ] 是否每 3-5 个元素就验证一次（Progressive Build-Test Loop）？
-- [ ] `connectTo()` 后是否检查了 console 是否有 error（连接被阻止）？
-- [ ] 创建 codeBlock 后是否验证了 `portType`（`el.data.ports[].portType`）？
-- [ ] 删除元素后是否验证了 wires 级联删除（`O.wires.length` 前后对比）？
-- [ ] 是否有重复连线（相同 fromId/fromPort/toId/toPort 的 wire 出现两次）？
-- [ ] (Run Pipeline) `/api/compile` 是否在 `/api/run/start` 之前调用？
-- [ ] (Run Pipeline) `debug:true` 时是否确认了 `__OMNI_DEBUG_WS_URL__` 已注入？
-- [ ] (Run Pipeline) 双 target 是否正确：React→`.tsx`，OmniView→`.js`？
-- [ ] (Run Pipeline) 浏览器验证后是否调用了 `O.validate()` 确认画布健康？
-- [ ] (Run Pipeline) 🛜 MCP Availability Gate 是否通过？（Browser MCP + Vision MCP 都连接？）
-
-## Red Flags — STOP and Check
-
-- **跳过了 O.help()** → 你不知道有哪些 API，必然会出错
-- **没有根容器** → 所有元素散落在画布根级，布局混乱
-- **"我先创建元素再 compile 验证"** → compile() 会丢弃程序化元素
-- **"我用 connectTo 把子元素连到父容器"** → connectTo 是数据流，不是布局
-- **"O.text('Hi', cardId) 怎么没嵌套进去"** → text() 第2个参数是 props，需要 `O.text('Hi', {}, cardId)`
-- **"O.image('url', cardId) 图片没显示在卡片里"** → image() 第2个参数是 alt，需要 `O.image('url', '', cardId)`
-- **"createEventHandler('press') 报错了"** → 事件名是 React 风格 `"onPress"`
-- **"createEventHandler('evt-btn-press-001') 报错了"** → createEventHandler 要事件名，不是 UUID
-- **"handler.connectTo(signal, 'result', 'value') 连不上"** → signal 输入端口是 `"set"`
-- **"O.heading('Title', 2) 显示不对"** → level 是字符串 `"2"`
-- **"O.container() 没有卡片样式"** → Container ≠ Card
-- **"el.parent() 报 undefined"** → 你在 `getElements()` 的纯数据上调用方法
-- **"typeAnnotation 参数被忽略了"** → 它是有效参数，决定端口类型
-- **"我把 handler 连到了 3 个 signal 的 set"** → 一个 action result 不能分叉连多个 set。即使源码更新了多个 signal，result 端口也只能有一条出站 wire
-- **"result 连多个信号是技术可行的"** → OmniDriver 会 warn。一个 result 端口=一条 wire。多 signal 更新在源码中完成，不需要多条 wire
-- **"画布上有之前的内容，我直接 clearAll 了"** → 如果需要保留，先 `getState()` 扫描
-- **"我先从零构建，不用 snippet"** → 检查 `O.listSnippets()` — 可能有现成模板
-- **"我把所有元素创建完再一起验证"** → 等全部完成再验证，出问题找不到根因。每 3-5 步验证一次
-- **"我用 `O.connect(id, 'evt-btn-press-001', ...)` 手动连线"** → `createEventHandler(eventName)` 更安全，自动处理 UUID
-- **"代码画布上 flow 线和 data 线看起来一样"** → 检查 portType 字段：flow 端口用菱形+灰色连线，data 端口用圆形+彩色连线
-- **"verify 时 action 的 call 端口连不上"** → action.call 是 flow 端口(菱形)，只能接收 flow 类型的连线。确保源端口的 portType 也是 "flow"
-- **"nodeCategory 字段为 undefined"** → 旧元素可能没有此字段。通过 `getNodeConfig(el.tag)` 查找默认 category，或手动设置 `el.nodeCategory`
-- **"在代码画布上找不到 Rete.js 元素了"** → 代码画布已从 Rete.js 迁移到 @xyflow/react。查找 `.react-flow__node` 代替 `[data-testid="node"]`
-- **"validate() 不检测 flow 循环"** → `O.validate()` 检测数据流问题。用 `validateFlow(elements, wires)` 检测 flow 图的循环和孤立端口
-- **"O.codeBlock() 创建的端口没有 portType"** → `codeBlock()` 现在使用 `getNodeConfig()` 自动设置 `portType`。如果端口仍缺少 portType，检查 blockType 是否拼写错误（应为 "signal"/"action"/"computed"，不是 "Signal"/"Action"）
-- **"connectTo() 没有阻止 data→flow 错误连接"** → 已修复！`connectTo()` 现在委托给 `connect()`，运行完整共享验证（portType + 类型兼容 + 重复 + 循环检测）。无效连接会被 console.error 阻止
-- **"connectTo() 创建了重复连线"** → 已修复！重复连线检测现在统一在 `validateConnection()` 中，`connect()` 和 `connectTo()` 都经过同一验证路径
-- **"el.remove() 后 wires 还在"** → 已修复！`remove()` 现在会级联删除所有连接到该元素的 wires（`fromId === id || toId === id`）。不需要手动清理
-- **"view 元素的事件连线在代码模式看不到"** → `getAllPorts()` 现在为 view 元素自动添加 `portType:"flow"` 的事件端口。在代码模式中，Button.onPress → action.call 的连线会渲染为 flow 样式（三角箭头动画）。检查 `O.elements` 确认事件端口的 `portType` 字段
-- **"A→B→A 循环连线创建成功了"** → `validateConnection()` 包含 `wouldCreateCycle()` BFS 检测。数据循环会发出 console.warn（不阻止连线，因为某些数据流场景循环是有意的）。flow 端口循环会触发 FlowEngine 的 DFS 检测
-- **"O.codeBlock() 的 nodeCategory 是 undefined"** → 已修复！`codeBlock()` 现在通过 `getNodeConfig(blockType).category` 自动设置正确的 category（signal→"variable", computed→"data", action→"action"）
-- **"/api/run/start 返回 success:false"** → 检查是否有 `.omni` 源文件已编译、projectDir 是否已配置。先调用 `/api/compile` 再 `/api/run/start`。
-- **"MCP 没连接，我用 curl 验证就行"** → STOP。curl 能验证 HTTP 状态，不能验证 DOM 渲染、signal 响应式、断点暂停。没有 MCP = 没有浏览器验证 = 测试不完整。运行 `/mcp` 重连。
-- **"Vite 启动了但页面空白"** → 检查编译 target：OmniView target 输出 `.js`，React target 输出 `.tsx`。确认 `index.html` 中 `<script src>` 路径匹配。
-- **"Debug 断点不触发"** → 确认 `window.__OMNI_DEBUG_WS_URL__` 已设置且 debug.py WebSocket 可达。在 Console 中 `window.__OMNI_RUNTIME__.DebugBus.breakpoints` 检查断点是否已添加。
-- **"OmniView target 的 signal 不响应"** → 检查 `signal.set()` 是否被调用（不是直接赋值）。在 Console 中 `window.__OMNI_RUNTIME__.DebugBus.paused` 检查是否卡在断点。
-- **"compile → run 后改 codegen 不生效"** → Python `sys.modules` 缓存。杀 backend → 清 `__pycache__` → 重启。如仍不生效，用 `python -c "from omniview.api import compile_omni; ..."` 直接编译绕过服务器缓存。
 
 ## 可用组件
 
@@ -1356,85 +799,346 @@ await O.readFile("src/main.omni");         // 读取文件
 await O.writeFile("src/main.omni", code);  // 写入文件
 ```
 
-## Error Handling
+## 📖 Recipe Book（复制即用的完整模板）
 
-OmniDriver 方法在失败时**不会抛出异常**，而是返回 `null`/`undefined` 或静默 no-op：
+**先检查 `O.listSnippets()` 是否有内置模板，再查 Recipe Book，都没有才从零构建。**
 
-- `O.element("bad-id")` → 返回 `ElementHandle`（即使元素不存在）
-- `el.setProp("bad-prop", val)` → 静默操作
-- `O.connect(badId, ...)` → 返回 `WireHandle`，但连线可能无效
-- **验证操作：** 操作后始终检查 `O.getState()` 或 `el.data`
-
-## 浏览器 Console & 自动化集成
-
-### 方式 1: 浏览器 DevTools Console（最直接）
-
-**打开 `http://localhost:5174`，按 F12 → Console，直接粘贴脚本：**
+### Recipe 1: Counter（按钮 + 计数）— v2 架构
 
 ```javascript
-// 复制这段代码到浏览器 Console，回车即执行
 const O = window.__OMNI__;
-O.help();                      // 第一步：发现 API
+O.help();
 O.switchMode("design");
 O.clearAll();
 
-// 创建 UI
+// UI
 const card = O.card({ padding: "24px" });
-O.heading("Hello Omni", "2", card.id);
-O.button("Click Me", { variant: "primary" }, card.id);
+O.heading("Counter", "2", card.id);
+const display = O.text("0", {}, card.id);
+const btn = O.button("+1", { variant: "primary" }, card.id);
 
-// 验证
-const report = O.validate();
-console.log("✅ Valid:", report.isValid, "| Elements:", O.elements.length);
+// Signal
+const count = O.codeBlock("signal", "count", {
+  typeAnnotation: "i32", source: "signal count: i32 = 0",
+});
+
+// Event Binding v2
+btn.bindEvent("onPress", "handleIncrement");
+
+// Code 模式 — 创建处理函数
+O.switchMode("code");
+const tab = O.createTab("event", "Counter Events", "🔢");
+O.switchTab(tab.id);
+const fn = O.customFunction("handleIncrement", [], "void");
+fn.setSource(`action handleIncrement(event) {
+  count.set(count.value + 1)
+}`);
+O.returnNode(fn.id);
+
+O.validate();
 ```
 
-> **Console 技巧：** 多行粘贴用 Shift+Enter 换行，或用 `{ }` 包裹代码块。浏览器 Console 有完整的自动补全——输入 `O.` 然后等 1 秒，所有方法都会出现。
-
-### 方式 2: Playwright E2E 测试
-
-> **序列化约束：** `page.evaluate()` 只能返回可序列化的值。返回 `.text()`、`.exists()`、`.data`，不要返回 Handle 对象。
+### Recipe 2: Search Filter（搜索过滤）
 
 ```javascript
-// 辅助函数
-async function omniEval(page, fn) {
-  return page.evaluate(fn);
+const card = O.card({ padding: "24px" });
+O.heading("Search", "2", card.id);
+const input = O.input("Search items...", { type: "search" }, card.id);
+const resultText = O.text("Type to search...", {}, card.id);
+
+const query = O.codeBlock("signal", "searchQuery", {
+  typeAnnotation: "String", source: `signal searchQuery: String = ""`,
+});
+
+// 绑定 onChange 事件
+input.bindEvent("onChange", "updateSearch", {
+  params: {
+    searchValue: { sourceType: "event", value: "event.value", expectedType: "String" },
+  }
+});
+
+// Code 模式 — 处理函数
+O.switchMode("code");
+const tab = O.createTab("event", "Search", "🔍");
+O.switchTab(tab.id);
+const fn = O.customFunction("updateSearch", [
+  { name: "searchValue", type: "String" },
+], "void");
+fn.setSource(`action updateSearch(searchValue: String) {
+  searchQuery.set(searchValue)
+}`);
+O.returnNode(fn.id);
+
+// Computed
+const filtered = O.codeBlock("computed", "filteredItems", {
+  typeAnnotation: "String",
+  source: `computed filteredItems() -> String { searchQuery.value }`,
+});
+query.connectTo(filtered, "value", "deps");
+```
+
+### Recipe 3: Form Submit（表单提交）
+
+```javascript
+const card = O.card({ padding: "32px" });
+O.heading("Contact", "2", card.id);
+O.input("Name", {}, card.id);
+O.input("Email", { type: "email" }, card.id);
+const submitBtn = O.button("Send", { variant: "primary" }, card.id);
+
+const status = O.codeBlock("signal", "submitStatus", {
+  typeAnnotation: "String", source: `signal submitStatus: String = "idle"`,
+});
+
+// 事件绑定 v2
+submitBtn.bindEvent("onPress", "handleSubmit");
+
+// Code 模式
+O.switchMode("code");
+const tab = O.createTab("event", "Form Handler", "📝");
+O.switchTab(tab.id);
+const fn = O.customFunction("handleSubmit", [
+  { name: "event", type: "SubmitEvent" },
+], "void");
+fn.setSource(`action handleSubmit(event) {
+  submitStatus.set("submitting")
+  // TODO: call API
+  submitStatus.set("success")
+}`);
+O.returnNode(fn.id);
+```
+
+### Recipe 4: Toggle（开关切换）
+
+```javascript
+const card = O.card({ padding: "24px" });
+const toggleBtn = O.button("OFF", { variant: "outline" }, card.id);
+
+const isOn = O.codeBlock("signal", "isOn", {
+  typeAnnotation: "bool", source: "signal isOn: bool = false",
+});
+
+toggleBtn.bindEvent("onPress", "handleToggle");
+
+O.switchMode("code");
+const tab = O.createTab("event", "Toggle", "🔘");
+O.switchTab(tab.id);
+const fn = O.customFunction("handleToggle", [], "void");
+fn.setSource(`action toggle(event) { isOn.set(!isOn.value) }`);
+O.returnNode(fn.id);
+```
+
+> **Snippet 优先：** `O.snippet("login-form")`、`O.snippet("data-card")`、`O.snippet("crud-table")` 开箱即用。用 `O.listSnippets()` 查看全部模板。
+
+## 扩展已有画布
+
+**在已有画布上添加功能，不破坏现有结构：**
+
+```javascript
+const O = window.__OMNI__;
+
+// Step 1: 扫描现有状态
+const state = O.getState();
+const cards = O.findByTag("Card");
+const existingSignals = O.codeBlocks.filter(cb => cb.data?.tag === "signal");
+
+// Step 2: 找到目标容器
+let targetCard = cards[0];
+if (!targetCard) {
+  targetCard = O.card({ padding: "24px" });
 }
 
-test("create and verify form", async ({ page }) => {
-  await page.goto("http://localhost:5174");
-  await page.waitForFunction(() => window.__OMNI__);
+// Step 3: 检查重复 — 不要创建已存在的元素！
+const existingNames = new Set(
+  state.elements.map(e => (e.props)?.name).filter(Boolean)
+);
 
-  await omniEval(page, () => {
-    const O = window.__OMNI__;
-    O.help();
-    O.switchMode("design");
-    O.clearAll();
-    const card = O.card({ padding: "24px" });
-    O.heading("Login", "2", card.id);
-    O.input("Email", {}, card.id);
-    O.button("Submit", { variant: "primary" }, card.id);
-  });
+// Step 4: 创建新元素（挂到已有容器下）
+if (!O.findByProp("label", "Refresh").length) {
+  const btn = O.button("Refresh", { variant: "outline" }, targetCard.id);
+  btn.bindEvent("onPress", "handleRefresh");
+}
 
-  const count = await omniEval(page, () => window.__OMNI__.getElements().length);
-  expect(count).toBeGreaterThanOrEqual(4);
-});
+// Step 5: 扫描代码 tab
+O.switchMode("code");
+O.listTabs().forEach(t => console.log(t.label, t.elementCount));
+
+// Step 6: 验证
+O.validate();
 ```
 
-### 方式 3: Puppeteer
+> **🔑 关键原则：先读后写。** 不要假设画布是空的。始终先扫描 `getState()` 了解现有结构。
+
+## 🩺 Error Recovery Protocol（修复损坏的画布）
+
+### Step 1: 了解现状
 
 ```javascript
-const puppeteer = require('puppeteer');
-const browser = await puppeteer.launch();
-const page = await browser.newPage();
-await page.goto('http://localhost:5174');
-await page.waitForFunction(() => window.__OMNI__);
-
-await page.evaluate(() => {
-  const O = window.__OMNI__;
-  O.help();
-  O.switchMode("design");
-  O.clearAll();
-  const card = O.card({ padding: "24px" });
-  O.button("Test", { variant: "primary" }, card.id);
-});
+const state = O.getState();
+console.log("Elements:", state.elements.length, "Wires:", state.wires.length);
+// 代码模式：检查 tab 数量
+if (O.getMode() === "code") {
+  O.listTabs().forEach(t => console.log(`Tab "${t.label}": ${t.elementCount} elements, ${t.variableCount} vars`));
+}
 ```
+
+### Step 2: 运行健康检查
+
+```javascript
+const report = O.validate();
+// - report.orphanElements → 需要加父容器
+// - report.unwiredEvents → 需要 bindEvent
+// - report.typeMismatches → 需要修正连线端口
+// - report.unreachableBlocks → 需要添加入站连线
+```
+
+### Step 3: 根据诊断结果修复
+
+```javascript
+// 问题 A: signal "value" 端口被当作输入 → 改为 "set"
+const wrongWires = O.wires.filter(w => w.toPort === "value");
+for (const w of wrongWires) {
+  const toEl = O.element(w.toId);
+  if (toEl.data?.tag === "signal") {
+    O.disconnect(w.id);
+    O.element(w.fromId).connectTo(toEl, w.fromPort, "set");
+  }
+}
+
+// 问题 B: 缺失事件处理器
+for (const el of O.views) {
+  const events = el.getAvailableEvents();
+  for (const evtName of events) {
+    const hasEventProp = el.getProp(evtName);
+    if (!hasEventProp) {
+      console.warn(`${el.data?.tag} missing event binding for ${evtName}`);
+    }
+  }
+}
+
+// 问题 C: 类型不匹配
+for (const mm of report.typeMismatches) {
+  console.warn(`Type mismatch on wire ${mm.wireId}: ${mm.fromType} → ${mm.toType}`);
+}
+
+// 问题 D: 孤儿 wires
+const elementIds = new Set(O.elements.map(e => e.id));
+const orphanWires = O.wires.filter(w => !elementIds.has(w.fromId) || !elementIds.has(w.toId));
+for (const w of orphanWires) {
+  O.disconnect(w.id);
+  console.warn(`Cleaned orphan wire ${w.id}`);
+}
+
+// 问题 E: 重复连线
+const wireKeys = new Set();
+const duplicates = [];
+for (const w of O.wires) {
+  const key = `${w.fromId}::${w.fromPort}::${w.toId}::${w.toPort}`;
+  if (wireKeys.has(key)) duplicates.push(w.id);
+  else wireKeys.add(key);
+}
+for (const id of duplicates) O.disconnect(id);
+
+// 问题 F: customFn 缺少 return 节点
+for (const fn of O.listCustomFunctions()) {
+  const report = O.validateFunction(O.findFunctionByName(fn.fnName)?.id);
+  if (!report || !report.valid) {
+    console.warn(`Function "${fn.fnName}" has issues:`, report?.errors);
+  }
+}
+```
+
+### Step 4: 重新验证
+
+```javascript
+const finalReport = O.validate();
+if (!finalReport.isValid) {
+  console.error("Remaining issues:", finalReport);
+} else {
+  console.log("✅ Canvas is healthy!");
+}
+```
+
+## Self-Check Checklist（脚本完成前必查）
+
+- [ ] `O.help()` 是否在第一行调用？
+- [ ] `O.switchMode("design")` 是否在创建元素前调用？
+- [ ] 是否有根容器（Card 或 Container）包裹所有 UI 元素？
+- [ ] 所有 `O.text()` 调用是否传了 3 个参数 `(label, props, parentId)`？
+- [ ] 所有 `O.heading()` 的 level 是否是字符串 `"2"` 而非数字 `2`？
+- [ ] `bindEvent()` 是否传的是事件名（`"onPress"`）而非 UUID？
+- [ ] 事件处理函数是否在 code 模式 event tab 中定义为 customFn？
+- [ ] 所有 customFn 是否有对应的 return 节点？
+- [ ] `connectTo()` 连 signal 时输入端口是否是 `"set"` 而非 `"value"`？
+- [ ] 所有 view 元素是否有明确的父容器？
+- [ ] **最后是否调用了 `O.validate()` 并检查了结果？**
+- [ ] `O.listSnippets()` 是否检查过？是否有现成模板可用？
+- [ ] signal/computed/customFn 名称是否语义化（`cartCount` 而非 `s1`）？
+- [ ] 是否每 3-5 个元素就验证一次（Progressive Build-Test Loop）？
+- [ ] `connectTo()` 后是否检查了 console 是否有 error？
+- [ ] 删除元素后是否验证了 wires 级联删除？
+- [ ] 是否有重复连线？
+- [ ] (Run Pipeline) `/api/compile` 是否在 `/api/run/start` 之前调用？
+- [ ] (Run Pipeline) `debug:true` 时是否确认了 `__OMNI_DEBUG_WS_URL__` 已注入？
+- [ ] (Run Pipeline) 🛜 MCP Availability Gate 是否通过？
+
+## Red Flags — STOP and Check
+
+- **跳过了 O.help()** → 你不知道有哪些 API，必然会出错
+- **没有根容器** → 所有元素散落在画布根级，布局混乱
+- **"我先创建元素再 compile 验证"** → compile() 会丢弃程序化元素
+- **"我用 connectTo 把子元素连到父容器"** → connectTo 是数据流，不是布局
+- **"O.text('Hi', cardId) 怎么没嵌套进去"** → text() 第2个参数是 props
+- **"O.image('url', cardId) 图片没显示在卡片里"** → image() 第2个参数是 alt
+- **"bindEvent('press') 报错了"** → 事件名是 React 风格 `"onPress"`
+- **"createEventHandler('evt-btn-press-001') 报错了"** → 已废弃，用 bindEvent
+- **"handler.connectTo(signal, 'result', 'value') 连不上"** → signal 输入端口是 `"set"`
+- **"O.heading('Title', 2) 显示不对"** → level 是字符串 `"2"`
+- **"O.container() 没有卡片样式"** → Container ≠ Card
+- **"el.parent() 报 undefined"** → 你在 `getElements()` 的纯数据上调用方法
+- **"画布上有之前的内容，我直接 clearAll 了"** → 如果需要保留，先 `getState()` 扫描
+- **"我先从零构建，不用 snippet"** → 检查 `O.listSnippets()` — 可能有现成模板
+- **"我把所有元素创建完再一起验证"** → 等全部完成再验证，出问题找不到根因
+- **"createEventHandler 还能用吗"** → 🚫 已废弃！使用 `bindEvent()` + `customFunction()`
+- **"action 节点去哪了"** → v2 纯 data-flow 架构中已移除，用 customFn + return 取代
+- **"flow 端口还存在吗"** → 纯 data-flow 架构中所有连线都是 data 端口，没有 flow 边
+- **"MCP 没连接，我用 curl 验证就行"** → STOP。curl 不能验证 DOM 渲染
+- **"Vite 启动了但页面空白"** → 检查编译 target 和 `index.html` 路径
+- **"Debug 断点不触发"** → 确认 `window.__OMNI_DEBUG_WS_URL__` 已设置
+- **"el.remove() 后 wires 还在"** → 已修复！自动级联删除
+
+## Naming Convention
+
+| 类型 | 命名规则 | ✅ 好例子 | ❌ 坏例子 |
+|------|---------|----------|----------|
+| signal | `camelCase` 名词 | `searchQuery`, `cartCount`, `userEmail` | `sig1`, `data`, `x` |
+| customFn | `camelCase` 动词 | `handleSearch`, `incrementCounter`, `submitForm` | `handler1`, `fn`, `doIt` |
+| computed | 描述性名词 | `filteredItems`, `totalPrice`, `isValid` | `comp1`, `result`, `temp` |
+| store | 复数名词 | `products`, `users`, `orders` | `store1`, `list`, `stuff` |
+| tab | 描述用途 | `Cart Events`, `Search Logic` | `tab1`, `events` |
+| 元素变量 | 描述用途 | `searchInput`, `submitBtn`, `statsGrid` | `el1`, `btn`, `flex` |
+
+## Common Mistakes
+
+| 错误行为 | 为什么错 | 正确做法 |
+|---------|---------|---------|
+| `O.text("Hi", cardId)` | text() 第2个参数是 props，cardId 被当作 props 对象！ | `O.text("Hi", {}, cardId)` |
+| `O.image("url", cardId)` | image() 第2个参数是 alt，cardId 被当作 alt 文本！ | `O.image("url", "", cardId)` |
+| `O.heading("T", 2, cardId)` | level 是字符串 `"2"`，不是数字 `2` | `O.heading("T", "2", cardId)` |
+| 用 `connectTo()` 做父子嵌套 | `connectTo()` 创建数据流连线，不影响布局 | 用 `parentId` 参数 |
+| `compile()` 后程序化元素消失 | `compile()` 从 `.omni` 源文件重建画布 | 先 `setSourceCode()` 再 `compile()` |
+| `bindEvent("press")` | 事件名是 React 风格 `"onPress"` | `bindEvent("onPress")` |
+| 连线到 signal 的 `"value"` 或 `"input"` | signal 输入端口是 `"set"` | `connect(id, "result", sigId, "set")` |
+| `O.container()` 当 Card 用 | Container ≠ Card！Card 有边框阴影 | 用 `O.card()` |
+| 在 `getElements()` 数据上调用 `.parent()` | `getElements()` 返回纯 `ElementData[]` | 用 `O.element(id)` |
+| 期望 `getSourceCode()` 返回程序化元素 | `getSourceCode()` 读的是文件内容 | 用 `getElements()` / `getState()` |
+| `createEventHandler` 在 v2 中使用 | 🚫 已废弃！不再创建 action 节点 | 用 `bindEvent()` + `customFunction()` |
+| 在 design 模式找 flow 连线 | v2 纯 data-flow 架构无 flow 边 | 所有连线都是 data 边 |
+| 不调用 `O.help()` 直接编程 | Proxy 隐藏了所有方法，无法枚举 | **第一步必须** `O.help()` |
+| 创建元素无 root 容器 | 所有 view 元素应在同一个 Card/Container 下 | 先 `O.card()` 创建根容器 |
+| 不调用 `O.validate()` 就结束 | 无法发现连线错误、缺失处理器 | **最后一步必须** `O.validate()` |
+| 在已有画布上不扫描就创建 | 可能创建重复元素或破坏现有结构 | 先用 `getState()` 扫描 |
+| 不考虑 `O.snippet()` 就从零构建 | 内置模板开箱即用 | 先 `O.listSnippets()` 查模板 |
+| 一次性构建全部 UI 不中间验证 | 问题出现时不知道是哪步引入的 | 每 3-5 个元素调一次 `O.validate()` |
+| customFn 缺少 return 节点 | 函数体必须有 return 标记返回点 | 创建 customFn 后立即 `O.returnNode(fn.id)` |
+| 忘记切换 mode 就创建 tab | tab 操作只在 code 模式有效 | 先 `O.switchMode("code")` |
