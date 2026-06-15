@@ -64,10 +64,6 @@ interface EditorState {
   elements: ElementData[];
   wires: WireData[];
 
-  // ── Code canvas (FlowCanvas nodes) ──
-  codeElements: ElementData[];
-  codeWires: WireData[];
-
   // ── Active mode ──
   activeMode: "design" | "code";
 
@@ -105,8 +101,6 @@ interface EditorState {
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
 
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
-  /** Set code canvas elements + wires (used by compile pipeline). */
-  setCodeElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
 
   reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
@@ -150,8 +144,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   compileErrors: [],
   elements: [],
   wires: [],
-  codeElements: [],
-  codeWires: [],
   activeMode: "design",
   selectedElementIds: [],
 
@@ -276,9 +268,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setElementsAndWires: (elements, wires) =>
     set({ elements, wires, selectedElementIds: [] }),
 
-  setCodeElementsAndWires: (elements, wires) =>
-    set({ codeElements: elements, codeWires: wires }),
-
   reorderElement: (elementId, targetSiblingId, position) =>
     set((s) => {
       const el = s.elements.find((e) => e.id === elementId);
@@ -351,8 +340,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       elements: [],
       wires: [],
-      codeElements: [],
-      codeWires: [],
       activeDocId: null,
       docBackup: null,
       openTabs: [],
@@ -372,8 +359,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const designElements = (design.elements || []) as ElementData[];
     const designWires = (design.wires || []) as WireData[];
-    const codeElements = (code.elements || []) as ElementData[];
-    const codeWires = (code.wires || []) as WireData[];
 
     // Restore component definitions
     if (compRefs.length > 0) {
@@ -409,8 +394,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       elements: designElements,
       wires: designWires,
-      codeElements,
-      codeWires,
       config: {
         target: (config.target as string) || "react",
         autoSave: (config.autoSave as boolean) || false,

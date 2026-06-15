@@ -1,44 +1,26 @@
 /** Code mode tab bar — manages visual programming tabs.
- *  Supports freeform, component, and function tabs.
- *  Function tabs show a parameter editor strip. */
+ *  Tab types: "event" (functions appear in design event binding dropdown)
+ *             "logic" (general purpose logic code) */
 
 import React, { useState } from "react";
 import { useCodeGraphStore } from "../codegraph/store";
-import type { CodeTab, FnParam } from "../codegraph/types";
+import type { CodeTab, CodeTabType } from "../codegraph/types";
+
 import { newTabId } from "../codegraph/types";
 
 // ── Tab Creation Dialog ──
 
 function NewTabDialog({ onClose }: { onClose: () => void }) {
   const addTab = useCodeGraphStore((s) => s.addTab);
-  const [type, setType] = useState<"freeform" | "function">("freeform");
+  const [type, setType] = useState<CodeTabType>("logic");
   const [label, setLabel] = useState("");
-  const [fnParams, setFnParams] = useState<FnParam[]>([]);
-  const [fnReturnType, setFnReturnType] = useState("void");
-  const [newParamName, setNewParamName] = useState("");
-  const [newParamType, setNewParamType] = useState("String");
 
   const handleCreate = () => {
     const name = label.trim();
     if (!name) return;
-    if (type === "function") {
-      addTab("function", name, {
-        fnName: name,
-        fnParams: fnParams.length > 0 ? fnParams : undefined,
-        fnReturnType,
-      });
-    } else {
-      addTab("freeform", name);
-    }
+    const icon = type === "event" ? "⚡" : "📄";
+    addTab(type, name, { icon });
     onClose();
-  };
-
-  const addParam = () => {
-    const pName = newParamName.trim();
-    if (!pName) return;
-    setFnParams([...fnParams, { name: pName, type: newParamType }]);
-    setNewParamName("");
-    setNewParamType("String");
   };
 
   return (
@@ -50,7 +32,7 @@ function NewTabDialog({ onClose }: { onClose: () => void }) {
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         zIndex: 9999, background: "#fff", borderRadius: 12, padding: "20px 24px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.2)", minWidth: 360,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.2)", minWidth: 320,
       }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
           新建可视化编程标签页
@@ -59,34 +41,44 @@ function NewTabDialog({ onClose }: { onClose: () => void }) {
         {/* Tab type */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <button
-            onClick={() => setType("freeform")}
+            onClick={() => setType("event")}
             style={{
               flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: type === "freeform" ? "2px solid #4F46E5" : "1px solid #D1D5DB",
-              background: type === "freeform" ? "#EEF2FF" : "#fff",
-              color: type === "freeform" ? "#4F46E5" : "#6B7280",
+              border: type === "event" ? "2px solid #7C3AED" : "1px solid #D1D5DB",
+              background: type === "event" ? "#F5F3FF" : "#fff",
+              color: type === "event" ? "#7C3AED" : "#6B7280",
               cursor: "pointer",
             }}
           >
-            📄 通用画布
+            ⚡ 事件代码
           </button>
           <button
-            onClick={() => setType("function")}
+            onClick={() => setType("logic")}
             style={{
               flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-              border: type === "function" ? "2px solid #4F46E5" : "1px solid #D1D5DB",
-              background: type === "function" ? "#EEF2FF" : "#fff",
-              color: type === "function" ? "#4F46E5" : "#6B7280",
+              border: type === "logic" ? "2px solid #4F46E5" : "1px solid #D1D5DB",
+              background: type === "logic" ? "#EEF2FF" : "#fff",
+              color: type === "logic" ? "#4F46E5" : "#6B7280",
               cursor: "pointer",
             }}
           >
-            📦 函数
+            📄 逻辑代码
           </button>
+        </div>
+
+        {/* Tab type description */}
+        <div style={{
+          fontSize: 11, color: "#6B7280", marginBottom: 12, lineHeight: 1.4,
+          padding: "6px 8px", background: "#F9FAFB", borderRadius: 6,
+        }}>
+          {type === "event"
+            ? "事件代码标签页中的自定义函数会出现在设计界面的事件绑定下拉中，用于处理组件的交互事件。"
+            : "逻辑代码标签页用于编写通用的数据处理逻辑、工具函数等，不会出现在事件绑定下拉中。"}
         </div>
 
         {/* Name */}
         <input
-          placeholder={type === "function" ? "函数名 (如 validateForm)" : "标签页名称"}
+          placeholder="标签页名称"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") onClose(); }}
@@ -96,68 +88,6 @@ function NewTabDialog({ onClose }: { onClose: () => void }) {
             borderRadius: 6, boxSizing: "border-box", marginBottom: 12,
           }}
         />
-
-        {/* Function params */}
-        {type === "function" && (
-          <>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 6, fontWeight: 600 }}>
-              参数定义
-            </div>
-            {fnParams.map((p, i) => (
-              <div key={i} style={{
-                display: "flex", gap: 4, alignItems: "center", marginBottom: 4,
-                fontSize: 11, padding: "3px 8px", background: "#F3F4F6", borderRadius: 4,
-              }}>
-                <span style={{ fontFamily: "monospace", flex: 1 }}>{p.name}: {p.type}</span>
-                <button
-                  onClick={() => setFnParams(fnParams.filter((_, j) => j !== i))}
-                  style={{ border: "none", background: "transparent", cursor: "pointer", color: "#DC2626", fontSize: 12 }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-              <input
-                placeholder="参数名"
-                value={newParamName}
-                onChange={(e) => setNewParamName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") addParam(); }}
-                style={{ flex: 1, padding: "3px 6px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4 }}
-              />
-              <select
-                value={newParamType}
-                onChange={(e) => setNewParamType(e.target.value)}
-                style={{ width: 80, padding: "3px 6px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4 }}
-              >
-                {["String", "i32", "f64", "bool", "any", "MouseEvent"].map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <button
-                onClick={addParam}
-                style={{
-                  padding: "3px 8px", fontSize: 11, border: "1px dashed #D1D5DB",
-                  borderRadius: 4, background: "#fff", cursor: "pointer", color: "#6B7280",
-                }}
-              >
-                +
-              </button>
-            </div>
-            <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 12, fontSize: 11 }}>
-              <span style={{ color: "#6B7280" }}>返回:</span>
-              <select
-                value={fnReturnType}
-                onChange={(e) => setFnReturnType(e.target.value)}
-                style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 11 }}
-              >
-                {["void", "String", "i32", "f64", "bool", "any"].map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -195,25 +125,19 @@ export function CodeTabBar() {
   const addTab = useCodeGraphStore((s) => s.addTab);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  // Predefined tabs: "main" always comes first
-  const mainTab = tabs.find((t) => t.id === "main");
-  const customTabs = tabs.filter((t) => t.id !== "main");
-
   const handleClose = (e: React.MouseEvent, tabId: string) => {
     e.stopPropagation();
     if (tabId === "main") return;
     removeTab(tabId);
   };
 
-  const handleCreateDefault = () => {
-    const id = `tab-${Date.now().toString(36)}`;
-    addTab("freeform", `画布 ${tabs.length}`);
+  const handleQuickCreate = () => {
+    addTab("logic", `画布 ${tabs.length}`, { icon: "📄" });
   };
 
   const renderTab = (tab: CodeTab) => {
     const isActive = activeTabId === tab.id;
     const label = tab.id === "main" ? "主画布" : tab.label;
-    const icon = tab.id === "main" ? "📄" : tab.icon;
     const closable = tab.id !== "main";
 
     return (
@@ -247,21 +171,19 @@ export function CodeTabBar() {
           if (!isActive) e.currentTarget.style.background = "transparent";
         }}
         title={
-          tab.type === "function" && tab.fnParams
-            ? `${tab.label}(${tab.fnParams.map((p) => `${p.name}: ${p.type}`).join(", ")}) → ${tab.fnReturnType || "void"}`
-            : tab.type === "component" && tab.componentId
-              ? `组件: ${tab.componentId}`
-              : tab.label
+          tab.type === "event"
+            ? "⚡ 事件代码 — 函数会出现在设计界面事件绑定下拉中"
+            : "📄 逻辑代码"
         }
       >
-        <span style={{ fontSize: 12 }}>{icon}</span>
+        <span style={{ fontSize: 12 }}>{tab.type === "event" ? "⚡" : "📄"}</span>
         <span>{label}</span>
-        {tab.type === "function" && tab.fnParams && tab.fnParams.length > 0 && (
+        {tab.type === "event" && (
           <span style={{
             fontSize: 9, color: "#7C3AED", background: "#F5F3FF",
             padding: "0 3px", borderRadius: 3, marginLeft: 2,
           }}>
-            {tab.fnParams.length}p
+            事件
           </span>
         )}
         {closable && (
@@ -303,7 +225,7 @@ export function CodeTabBar() {
           borderLeft: "1px solid #E5E7EB", gap: 2,
         }}>
           <button
-            onClick={handleCreateDefault}
+            onClick={handleQuickCreate}
             style={{
               width: 22, height: 22, borderRadius: 4,
               border: "1px dashed #D1D5DB", background: "transparent",
@@ -311,7 +233,7 @@ export function CodeTabBar() {
               display: "flex", alignItems: "center", justifyContent: "center",
               lineHeight: 1, padding: 0,
             }}
-            title="新建画布"
+            title="新建逻辑画布"
           >
             +
           </button>
@@ -324,9 +246,9 @@ export function CodeTabBar() {
               display: "flex", alignItems: "center", justifyContent: "center",
               lineHeight: 1, padding: 0,
             }}
-            title="新建函数标签页..."
+            title="新建标签页（支持事件/逻辑）"
           >
-            📦
+            ⚡
           </button>
         </div>
       </div>

@@ -1,46 +1,22 @@
 /** Shared connection validation used by both FlowCanvas (drag-drop) and
  *  OmniDriver (programmatic API).  Single source of truth for:
- *    - port discovery (getAllPorts — merges element ports + event ports)
- *    - connection validation (portType mismatch, type compatibility, duplicates, cycles)
+ *    - port discovery (getAllPorts — returns element defined ports)
+ *    - connection validation (type compatibility, duplicates, cycles)
  *
- *  FlowCanvas.handleConnect and OmniDriver.connect() both call validateConnection()
- *  so validation rules are enforced identically regardless of how a wire is created. */
+ *  Note: Event ports (onPress, onChange etc.) are no longer injected here.
+ *  Events are bound in Design mode PropertyPanel, not via code graph wires. */
 
 import type { ElementData, PortData, WireData } from "../store/editor";
-import { COMPONENT_PROTOCOL } from "../panels/ComponentPalette";
 import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
 
 // ── Port discovery ────────────────────────────────────────────────
 
 /**
- * Get ALL ports for an element, including event ports from COMPONENT_PROTOCOL
- * for view elements (Button.onPress, Input.onChange, etc.).
- *
- * Event ports get `portType: "flow"` so they render as diamond handles and
- * produce animated flow edges in the canvas.  This is the single source of
- * truth used by both OmniDriver and FlowCanvas.
+ * Get ports for an element. Returns element-defined ports directly.
+ * Event injection is no longer needed — events are bound in design mode.
  */
 export function getAllPorts(el: ElementData): PortData[] {
-  const basePorts: PortData[] = el.ports ? el.ports.map((p) => ({ ...p })) : [];
-
-  if (el.nodeType === "view") {
-    const meta = COMPONENT_PROTOCOL[el.tag as keyof typeof COMPONENT_PROTOCOL];
-    if (meta?.events) {
-      for (const [evtName, evtMeta] of Object.entries(meta.events)) {
-        if (!basePorts.some((p) => p.name === evtMeta.id)) {
-          basePorts.push({
-            name: evtMeta.id,
-            direction: "out",
-            portType: "flow", // Event ports trigger execution flow
-            type: (evtMeta.payload as string) || "void",
-            label: `${evtName}${evtMeta.description ? ` (${evtMeta.description})` : ""}`,
-          });
-        }
-      }
-    }
-  }
-
-  return basePorts;
+  return el.ports ? el.ports.map((p) => ({ ...p })) : [];
 }
 
 // ── Validation issue ──────────────────────────────────────────────
@@ -50,7 +26,6 @@ export interface ConnectionIssue {
     | "PORT_NOT_FOUND"
     | "DIRECTION_MISMATCH"
     | "TYPE_INCOMPATIBLE"
-    | "PORT_TYPE_MISMATCH"
     | "DUPLICATE_WIRE"
     | "CYCLE_DETECTED"
     | "FAN_OUT_WARNING";
@@ -99,22 +74,7 @@ export function validateConnection(
   }
 
   if (sourcePort && targetPort) {
-    // 2. Port-type mismatch (flow vs data) — fundamental incompatibility
-    const srcPT = sourcePort.portType || "data";
-    const tgtPT = targetPort.portType || "data";
-    if (srcPT !== tgtPT) {
-      issues.push({
-        code: "PORT_TYPE_MISMATCH",
-        message:
-          `端口类型不兼容：输出端口 "${fromPort}" 是 ${srcPT === "flow" ? "执行流" : "数据"} 类型，` +
-          `输入端口 "${toPort}" 是 ${tgtPT === "flow" ? "执行流" : "数据"} 类型。` +
-          `\n\n执行流端口（菱形）只能连接执行流端口，数据端口（圆形）只能连接数据端口。`,
-        severity: "error",
-      });
-      return issues; // No point checking type compatibility after port-type mismatch
-    }
-
-    // 3. Data type compatibility
+    // 2. Data type compatibility
     if (!isTypeCompatible(sourcePort.type, targetPort.type)) {
       issues.push({
         code: "TYPE_INCOMPATIBLE",

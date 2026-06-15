@@ -3,6 +3,8 @@
 from editor.server.omni_json.schema import (
     CanvasData,
     CanvasLayoutSnapshot,
+    CodeTabEntry,
+    CodeTabsSnapshot,
     ComponentRefEntry,
     ElementEntry,
     OmniJsonDocument,
@@ -18,6 +20,8 @@ __all__ = [
     "OmniMetadata",
     "CanvasData",
     "CanvasLayoutSnapshot",
+    "CodeTabEntry",
+    "CodeTabsSnapshot",
     "ComponentRefEntry",
     "ElementEntry",
     "WireEntry",

@@ -32,7 +32,7 @@ interface ElementHandle {
   createEventHandler(
     eventName: string,
     options?: EventHandlerOptions,
-  ): { handler: ElementHandle; wire: WireHandle };
+  ): { handler: ElementHandle; wire: null };
   waitForLive(timeout?: number): Promise<this>;
 }
 

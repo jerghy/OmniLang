@@ -12,6 +12,8 @@ from typing import Any
 from editor.server.omni_json.schema import (
     CanvasData,
     CanvasLayoutSnapshot,
+    CodeTabEntry,
+    CodeTabsSnapshot,
     ComponentRefEntry,
     ElementEntry,
     OmniJsonDocument,

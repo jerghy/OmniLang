@@ -87,6 +87,9 @@ class OmniJsonDocument:
     design: CanvasData = field(default_factory=CanvasData)
     code: CanvasData = field(default_factory=CanvasData)
 
+    # Multi-tab code graph state (v2.1 — for CodeEditorStore)
+    code_tabs: CodeTabsSnapshot = field(default_factory=CodeTabsSnapshot)
+
     # Component references (unified array with source marker)
     components: list[ComponentRefEntry] = field(default_factory=list)
 
@@ -135,6 +138,29 @@ class WireEntry:
     to_port: str = ""
     is_collapsed: bool = False
     collapse_group_id: str = ""
+
+
+@dataclass
+class CodeTabEntry:
+    """A single code graph tab in the multi-tab visual programming editor."""
+    id: str = ""                              # "main", "comp:Name", "fn:Name", or generated
+    type: str = "freeform"                    # "freeform" | "component" | "function"
+    label: str = ""
+    icon: str = "📄"
+    graph: dict[str, Any] = field(default_factory=lambda: {"elements": [], "wires": []})
+    component_id: str = ""                    # For "component" tabs
+    fn_name: str = ""                          # For "function" tabs
+    fn_params: list[dict[str, Any]] = field(default_factory=list)
+    fn_return_type: str = ""
+    variables: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class CodeTabsSnapshot:
+    """Container for multi-tab code graph state."""
+    open_tabs: list[str] = field(default_factory=lambda: ["main"])
+    active_tab: str = "main"
+    tabs: list[CodeTabEntry] = field(default_factory=list)
 
 
 @dataclass

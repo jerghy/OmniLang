@@ -16,7 +16,6 @@ import {
   type CodeGraph,
   type ClipboardData,
   type SignalDefinition,
-  type FnParam,
   emptyGraph,
   createMainTab,
   newTabId,
@@ -30,20 +29,16 @@ export interface CodeEditorState {
   tabs: CodeTab[];
   activeTabId: string;
 
-  /** Derive: active tab's graph */
-  readonly activeGraph: CodeGraph;
-  /** Derive: active tab */
-  readonly activeTab: CodeTab;
+  /** Get the active tab's graph (NOT a Zustand getter — call directly). */
+  getActiveGraph: () => CodeGraph;
+  /** Get the active tab. */
+  getActiveTab: () => CodeTab;
 
   // ── Clipboard ──
   clipboard: ClipboardData | null;
 
   // ── Tab CRUD ──
   addTab: (type: CodeTabType, label: string, opts?: {
-    componentId?: string;
-    fnName?: string;
-    fnParams?: FnParam[];
-    fnReturnType?: string;
     icon?: string;
     initialGraph?: CodeGraph;
   }) => string;
@@ -115,13 +110,24 @@ export interface CodeGraphCommandContext {
 // ── Helpers ──
 
 const TAB_ICONS: Record<CodeTabType, string> = {
-  freeform: "📄",
-  component: "★",
-  function: "📦",
+  event: "⚡",
+  logic: "📄",
 };
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Helper: update the active tab in a Zustand set call. Eliminates repeated
+ *  `s.tabs.map(t => t.id === s.activeTabId ? {...} : t)` boilerplate. */
+function updateActiveTab(
+  set: (fn: (s: CodeEditorState) => Partial<CodeEditorState>) => void,
+  get: () => CodeEditorState,
+  updater: (tab: CodeTab) => CodeTab,
+) {
+  set((s) => ({
+    tabs: s.tabs.map((t) => (t.id === s.activeTabId ? updater(t) : t)),
+  }));
 }
 
 // ── Store ──
@@ -130,13 +136,15 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   tabs: [createMainTab()],
   activeTabId: "main",
 
-  get activeTab(): CodeTab {
+  getActiveTab: () => {
     const { tabs, activeTabId } = get();
     return tabs.find((t) => t.id === activeTabId) || tabs[0];
   },
 
-  get activeGraph(): CodeGraph {
-    return get().activeTab.graph;
+  getActiveGraph: () => {
+    const { tabs, activeTabId } = get();
+    const tab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+    return tab ? tab.graph : { elements: [], wires: [] };
   },
 
   clipboard: null,
@@ -176,11 +184,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   // ── Tab CRUD ──
 
   addTab: (type, label, opts) => {
-    const id = opts?.componentId
-      ? `comp:${opts.componentId}`
-      : opts?.fnName
-        ? `fn:${opts.fnName}`
-        : newTabId();
+    const id = newTabId();
 
     const newTab: CodeTab = {
       id,
@@ -188,10 +192,6 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
       label,
       icon: opts?.icon || TAB_ICONS[type],
       graph: opts?.initialGraph || emptyGraph(),
-      componentId: opts?.componentId,
-      fnName: opts?.fnName,
-      fnParams: opts?.fnParams,
-      fnReturnType: opts?.fnReturnType,
       variables: [],
     };
 
@@ -239,55 +239,38 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   // ── Graph mutations ──
 
   addElement: (el) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? { ...t, graph: { ...t.graph, elements: [...t.graph.elements, { ...el, props: el.props || {} }] } }
-          : t
-      ),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, elements: [...t.graph.elements, { ...el, props: el.props || {} }] },
     })),
 
   removeElement: (id) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        const el = t.graph.elements.find((e) => e.id === id);
-        let elements = t.graph.elements.filter((e) => e.id !== id);
-        if (el?.parentId) {
-          elements = elements.map((e) =>
-            e.id === el.parentId
-              ? { ...e, children: e.children.filter((cid) => cid !== id) }
-              : e
-          );
-        }
-        elements = elements.filter((e) => e.parentId !== id);
-        // Also remove connected wires
-        const wires = t.graph.wires.filter(
-          (w) => w.fromId !== id && w.toId !== id
+    updateActiveTab(set, get, (t) => {
+      const el = t.graph.elements.find((e) => e.id === id);
+      let elements = t.graph.elements.filter((e) => e.id !== id);
+      if (el?.parentId) {
+        elements = elements.map((e) =>
+          e.id === el.parentId ? { ...e, children: e.children.filter((cid) => cid !== id) } : e
         );
-        return { ...t, graph: { elements, wires } };
-      }),
-    })),
+      }
+      elements = elements.filter((e) => e.parentId !== id);
+      const wires = t.graph.wires.filter((w) => w.fromId !== id && w.toId !== id);
+      return { ...t, graph: { elements, wires } };
+    }),
 
   setProp: (id, prop, value) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        return {
-          ...t,
-          graph: {
-            ...t.graph,
-            elements: t.graph.elements.map((e) =>
-              e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e
-            ),
-          },
-        };
-      }),
+    updateActiveTab(set, get, (t) => ({
+      ...t,
+      graph: {
+        ...t.graph,
+        elements: t.graph.elements.map((e) =>
+          e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e
+        ),
+      },
     })),
 
   getProp: (id, prop) => {
-    const { activeGraph } = get();
-    return activeGraph.elements.find((e) => e.id === id)?.props[prop];
+    const graph = get().getActiveGraph();
+    return graph.elements.find((e) => e.id === id)?.props[prop];
   },
 
   selectedElementIds: [],
@@ -309,97 +292,51 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
 
   selectAll: () =>
     set((s) => ({
-      selectedElementIds: s.activeGraph.elements.map((e) => e.id),
+      selectedElementIds: get().getActiveGraph().elements.map((e) => e.id),
     })),
 
   clearSelection: () => set({ selectedElementIds: [] }),
 
   addWire: (w) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? { ...t, graph: { ...t.graph, wires: [...t.graph.wires, w] } }
-          : t
-      ),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, wires: [...t.graph.wires, w] },
     })),
 
   removeWire: (id) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? { ...t, graph: { ...t.graph, wires: t.graph.wires.filter((w) => w.id !== id) } }
-          : t
-      ),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, wires: t.graph.wires.filter((w) => w.id !== id) },
     })),
 
   setElementSource: (id, source) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        return {
-          ...t,
-          graph: {
-            ...t.graph,
-            elements: t.graph.elements.map((e) =>
-              e.id === id ? { ...e, source } : e
-            ),
-          },
-        };
-      }),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, source } : e)) },
     })),
 
   setElementPorts: (id, ports) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        return {
-          ...t,
-          graph: {
-            ...t.graph,
-            elements: t.graph.elements.map((e) =>
-              e.id === id ? { ...e, ports } : e
-            ),
-          },
-        };
-      }),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, ports } : e)) },
     })),
 
   setElementPosition: (id, pos) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        return {
-          ...t,
-          graph: {
-            ...t.graph,
-            elements: t.graph.elements.map((e) =>
-              e.id === id ? { ...e, position: { ...pos } } : e
-            ),
-          },
-        };
-      }),
+    updateActiveTab(set, get, (t) => ({
+      ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, position: { ...pos } } : e)) },
     })),
 
   setElementsAndWires: (elements, wires) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? { ...t, graph: { elements, wires } }
-          : t
-      ),
-    })),
+    updateActiveTab(set, get, (t) => ({ ...t, graph: { elements, wires } })),
 
   // ── Clipboard ──
 
   copySelection: (selectedIds) => {
-    const { activeGraph, activeTabId } = get();
+    const graph = get().getActiveGraph();
+    const tabId = get().activeTabId;
     const idSet = new Set(selectedIds);
-    const elements = activeGraph.elements.filter((e) => idSet.has(e.id));
+    const elements = graph.elements.filter((e) => idSet.has(e.id));
     const wireIdSet = new Set(elements.map((e) => e.id));
-    const wires = activeGraph.wires.filter(
+    const wires = graph.wires.filter(
       (w) => wireIdSet.has(w.fromId) && wireIdSet.has(w.toId)
     );
-    set({ clipboard: { elements, wires, sourceTabId: activeTabId } });
+    set({ clipboard: { elements, wires, sourceTabId: tabId } });
   },
 
   pasteFromClipboard: (offsetX = 40, offsetY = 40) => {
@@ -429,18 +366,12 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
       .filter(Boolean) as WireData[];
 
     // Add to active tab
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? {
-              ...t,
-              graph: {
-                elements: [...t.graph.elements, ...newElements],
-                wires: [...t.graph.wires, ...newWires],
-              },
-            }
-          : t
-      ),
+    updateActiveTab(set, get, (t) => ({
+      ...t,
+      graph: {
+        elements: [...t.graph.elements, ...newElements],
+        wires: [...t.graph.wires, ...newWires],
+      },
     }));
 
     return newElements.map((e) => e.id);
@@ -454,42 +385,35 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   // ── Variables ──
 
   defineVariable: (variable) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) => {
-        if (t.id !== s.activeTabId) return t;
-        const existing = t.variables.findIndex((v) => v.name === variable.name);
-        const variables = existing >= 0
-          ? t.variables.map((v, i) => i === existing ? variable : v)
-          : [...t.variables, variable];
-        return { ...t, variables };
-      }),
-    })),
+    updateActiveTab(set, get, (t) => {
+      const existing = t.variables.findIndex((v) => v.name === variable.name);
+      const variables = existing >= 0
+        ? t.variables.map((v, i) => i === existing ? variable : v)
+        : [...t.variables, variable];
+      return { ...t, variables };
+    }),
 
   removeVariable: (name) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.id === s.activeTabId
-          ? { ...t, variables: t.variables.filter((v) => v.name !== name) }
-          : t
-      ),
+    updateActiveTab(set, get, (t) => ({
+      ...t, variables: t.variables.filter((v) => v.name !== name),
     })),
 
   getVariableNames: () => {
-    const { activeTab } = get();
+    const tab = get().getActiveTab();
     const names: string[] = [];
     // Tab-local variables
-    for (const v of activeTab.variables) names.push(v.name);
+    for (const v of tab.variables) names.push(v.name);
     // Variables from signal/store nodes in the graph
-    for (const el of activeTab.graph.elements) {
-      if (el.tag === "signal" || el.tag === "store") {
+    for (const el of tab.graph.elements) {
+      if (el.tag === "signal" || el.tag === "store" || el.tag === "computed") {
         const name = el.props.name as string;
         if (name && !names.includes(name)) names.push(name);
       }
-    }
-    // Function params
-    if (activeTab.type === "function" && activeTab.fnParams) {
-      for (const p of activeTab.fnParams) {
-        if (!names.includes(p.name)) names.push(p.name);
+      // customFn params
+      if (el.tag === "customFn" && el.config?.fnParams) {
+        for (const p of (el.config.fnParams as Array<{ name: string }>)) {
+          if (!names.includes(p.name)) names.push(p.name);
+        }
       }
     }
     return names;

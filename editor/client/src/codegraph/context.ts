@@ -9,20 +9,27 @@
  */
 
 import { useCodeGraphStore, type CodeGraphCommandContext } from "./store";
-import type { ElementData } from "../store/editor";
+import type { ElementData, WireData } from "../store/editor";
+
+/** Get the active tab's graph elements (Zustand getters not supported in selectors). */
+function getActiveGraph() {
+  const state = useCodeGraphStore.getState();
+  const tab = state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0];
+  return tab ? tab.graph : { elements: [] as ElementData[], wires: [] as WireData[] };
+}
 
 export function createCodeGraphContext(): CodeGraphCommandContext {
   const store = useCodeGraphStore;
 
   return {
     get elements(): ElementData[] {
-      return store.getState().activeGraph.elements;
+      return getActiveGraph().elements;
     },
-    get wires() {
-      return store.getState().activeGraph.wires;
+    get wires(): WireData[] {
+      return getActiveGraph().wires;
     },
 
-    getElement: (id) => store.getState().activeGraph.elements.find((e) => e.id === id),
+    getElement: (id) => getActiveGraph().elements.find((e) => e.id === id),
 
     addElement: (el) => store.getState().addElement(el),
 

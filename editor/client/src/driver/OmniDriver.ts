@@ -4,10 +4,9 @@
  *  ```js
  *  const omni = window.__OMNI__;
  *
- *  // Create a Button and connect it to a handler
+ *  // Create a Button and bind an event handler
  *  const btn = await omni.component("Button", { label: "Submit" });
- *  const handler = await omni.codeBlock("action", "handleSubmit");
- *  await btn.connectTo(handler, "evt-btn-press-001", "call");
+ *  btn.createEventHandler("onPress", { handlerName: "handleSubmit" });
  *
  *  // Query and modify
  *  const text = omni.findByTag("Text")[0];
@@ -173,12 +172,17 @@ class ElementHandle {
     return d.source;
   }
 
-  /** Create an event handler code block wired to this element's event.
-   *  This is the programmatic equivalent of clicking the 🔗 button in the PropertyPanel. */
+  /** Bind an event on this element to a handler function.
+   *  In the pure data-flow architecture, events are bound in design mode
+   *  by setting the event prop on the view element. The actual handler
+   *  function should be created as a customFn node in an event-code tab.
+   *
+   *  This sets the event prop (e.g. onPress="handleSubmit") and returns
+   *  this element as the handler handle for backward compatibility. */
   createEventHandler(
     eventName: string,
     options: EventHandlerOptions = {},
-  ): { handler: ElementHandle; wire: WireHandle } {
+  ): { handler: ElementHandle; wire: null } {
     const d = this._require();
     const meta = COMPONENT_PROTOCOL[d.tag];
     if (!meta) throw new Error(`No component protocol for tag "${d.tag}"`);
@@ -194,63 +198,21 @@ class ElementHandle {
       options.handlerName ||
       `on${eventName.replace(/^on/, "").charAt(0).toUpperCase()}${eventName.replace(/^on/, "").slice(1)}`;
 
-    const handlerId = `handler-${d.id}-${eventName}`;
-    const wireId = `wire-${d.id}-${eventName}-${Date.now()}`;
-    const eventPortId = eventCfg.id || eventName;
     const payloadType = eventCfg.payload || "any";
 
-    // Create handler action node
-    const handlerEl: ElementData = {
-      id: handlerId,
-      nodeType: "codeblock",
-      tag: "action",
-      props: {
-        name: handlerName,
-        parentStore: "",
-        typeAnnotation: "",
-      },
-      children: [],
-      parentId: null,
-      ports: [
-        {
-          name: "call",
-          direction: "in",
-          portType: "flow",
-          type: payloadType,
-          label: eventCfg.payload
-            ? `${eventName}(${eventCfg.payload})`
-            : eventName,
-        },
-        { name: "result", direction: "out", portType: "data", type: "any", label: "返回结果" },
-      ],
-      isFolded: options.folded ?? false,
-      source:
-        options.source ||
-        (() => {
-          const params = eventCfg.payload && eventCfg.payload !== "any"
-            ? `event: ${eventCfg.payload}`
-            : "event";
-          return `action ${handlerName}(${params}) {
-  // TODO: implement ${handlerName} — receives ${eventName} from <${d.tag}>
-}`;
-        })(),
-    };
-
-    this._driver._store().addElement(handlerEl);
-    this._driver._store().addWire({
-      id: wireId,
-      fromId: d.id,
-      fromPort: eventPortId,
-      toId: handlerId,
-      toPort: "call",
-    });
-
-    // Also set the event prop on the source element
+    // Set the event prop on the view element — this is how events are bound in design mode
     this._driver._store().setProp(d.id, eventName, handlerName);
 
+    console.info(
+      `[OmniDriver] ✅ Event bound: <${d.tag}>.${eventName} = "${handlerName}"\n` +
+      `  💡 提示：处理函数 "${handlerName}" 需要在代码模式的事件标签页中创建（使用 customFn 节点）。\n` +
+      `  参数类型：${payloadType}`,
+    );
+
+    // Return this element as handler for backward compatibility
     return {
-      handler: new ElementHandle(handlerId, this._driver),
-      wire: new WireHandle(wireId, this._driver),
+      handler: this,
+      wire: null,
     };
   }
 
@@ -523,13 +485,10 @@ class OmniDriver {
 
     // Clone default ports, mapping value-typed ports to the caller's valueType.
     // Keep deps as "any" (it accepts dependencies of any type).
-    // Keep call as "void" (flow port, not a data type).
     const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p) => {
       const shouldMapType =
         p.type === "any" &&
-        p.name !== "deps" &&       // computed deps always accepts "any"
-        p.name !== "call" &&       // action call is flow port
-        p.name !== "result";       // action result is explicitly "any"
+        p.name !== "deps";       // computed deps always accepts "any"
       return {
         name: p.name,
         direction: p.direction,
@@ -644,7 +603,7 @@ class OmniDriver {
       state: ["getState()", "getElements() / .elements", "getWires() / .wires", "getMode()", "getSelectedElement()", "getPreviewUrl()", ".views", ".codeBlocks"],
       locator: ["element(id)", "findByTag(tag)", "find(query)", "findByProp(prop,value)"],
       creation: ["component(tag,props?,parentId?)", "button(label,props?,parentId?)", "text(label,props?,parentId?)", "heading(label,level?,parentId?)", "container(props?,parentId?)", "input(placeholder?,props?,parentId?)", "card(props?,parentId?)", "flex(direction?,gap?,props?,parentId?)", "image(src,alt?,parentId?)", "list(parentId?)", "alert(type?,label?,parentId?)"],
-      codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, action, store"],
+      codeBlocks: ["codeBlock(type,name,options) — types: signal, computed, store, literal, add, sub, mul, div, compare, and, or, not, concat, getVariable, setVariable, branch, sequence, forEach, updateUIProperty, fn, customFn, return"],
       elementHandle: ["exists()", "text()", "setProp(k,v)", "getProp(k)", "select()", "remove()", "connectTo(target,fromPort,toPort)", "createEventHandler(event,options)", "getPorts()", "getEvents()", "children()", "parent()", "getSource()", "setSource(src)", "waitForLive(ms)", "data"],
       wireHandle: ["disconnect()", "source()", "target()", "data"],
       events: ["createEventHandler(eventName,options) — pass event NAME (e.g. \"onPress\"), NOT UUID"],
@@ -659,8 +618,10 @@ class OmniDriver {
         description: "Code block port structure — use these port names when calling connect()",
         signal: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "set", direction: "in", type: "TYPE" }] },
         computed: { outputs: [{ name: "value", direction: "out", type: "TYPE" }], inputs: [{ name: "deps", direction: "in", type: "any" }] },
-        action: { outputs: [{ name: "result", direction: "out", type: "any" }], inputs: [{ name: "call", direction: "in", type: "event" }] },
         store: { outputs: [{ name: "items", direction: "out", type: "any" }], inputs: [] },
+        customFn: { outputs: [{ name: "return", direction: "out", type: "TYPE" }], inputs: "dynamic (from fnParams config)" },
+        add: { outputs: [{ name: "result", direction: "out", type: "TYPE" }], inputs: [{ name: "a", direction: "in", type: "TYPE" }, { name: "b", direction: "in", type: "TYPE" }] },
+        branch: { outputs: [{ name: "true", direction: "out", type: "any" }, { name: "false", direction: "out", type: "any" }], inputs: [{ name: "condition", direction: "in", type: "bool" }] },
       },
       eventUuidTable: {
         description: "Event port UUIDs for manual connect(). createEventHandler() uses event NAME, not UUID.",
@@ -674,13 +635,14 @@ class OmniDriver {
       criticalRules: [
         "ALWAYS call O.switchMode('design') before creating elements",
         "ALWAYS call O.help() first to discover available APIs",
-        "createEventHandler takes event NAME ('onPress'), connect() takes port UUID ('evt-btn-press-001')",
+        "createEventHandler sets event prop on view element (e.g. onPress='handleSubmit'). Handler functions must be created in code mode event-code tabs using customFn nodes.",
         "signal input port is 'set' NOT 'value' or 'input'. signal output port is 'value'.",
         "getElements() returns plain ElementData (no methods). Use O.element(id) for ElementHandle.",
         "O.container() creates Container (plain div), O.card() creates Card (styled container with border/shadow).",
         "heading() level is a STRING: '1', '2', '3', '4' — not a number.",
         "Event names use React convention: onPress, onChange, onHover — NOT press, change, hover.",
         "compile() discards all programmatic elements — use setSourceCode() first for source-driven mode.",
+        "Pure data-flow architecture: no flow edges, no event nodes. All connections are data dependencies.",
       ],
     };
   }
@@ -865,9 +827,7 @@ class OmniDriver {
           return cfg.defaultPorts.map((p) => {
             const shouldMapType =
               p.type === "any" &&
-              p.name !== "deps" &&
-              p.name !== "call" &&
-              p.name !== "result";
+              p.name !== "deps";
             return {
               name: p.name,
               direction: p.direction,
@@ -1138,12 +1098,9 @@ class OmniDriver {
         this.input("Email", { type: "email" }, card.id);
         this.input("Password", { type: "password" }, card.id);
         const submitBtn = this.button("Sign In", { variant: "primary" }, card.id);
-        // Auto-create event handler so the button works out of the box
+        // Bind event handler (function must be created in code-mode event-code tab)
         submitBtn.createEventHandler("onPress", {
           handlerName: "handleSignIn",
-          source: `action handleSignIn(event) {
-  // TODO: validate email & password, call auth service
-}`,
         });
         return card;
       }
@@ -1155,12 +1112,9 @@ class OmniDriver {
         this.text(desc, {}, card.id);
         if (options?.actionLabel) {
           const actionBtn = this.button(options.actionLabel as string, { variant: "primary" }, card.id);
-          // Auto-create event handler for the action button
+          // Bind event handler (function must be created in code-mode event-code tab)
           actionBtn.createEventHandler("onPress", {
             handlerName: "handleAction",
-            source: `action handleAction(event) {
-  // TODO: implement ${options.actionLabel} logic
-}`,
           });
         }
         return card;
@@ -1172,12 +1126,9 @@ class OmniDriver {
         const toolbar = this.flex("row", "8px", {}, card.id);
         this.input("Search...", {}, toolbar.id);
         const addBtn = this.button("Add", { variant: "primary" }, toolbar.id);
-        // Auto-create event handler for the Add button
+        // Bind event handler (function must be created in code-mode event-code tab)
         addBtn.createEventHandler("onPress", {
           handlerName: "handleAdd",
-          source: `action handleAdd(event) {
-  // TODO: open add-item form or dialog
-}`,
         });
         // Create table header
         const columns = (options?.columns as string[]) || ["Name", "Status", "Actions"];

@@ -6,6 +6,7 @@ import { OmniDriver } from "./driver";
 import { FileExplorer } from "./panels/FileExplorer";
 import { BlockPalette } from "./panels/BlockPalette";
 import { PropertyPanel } from "./panels/PropertyPanel";
+import { CodePropertyPanel } from "./panels/CodePropertyPanel";
 import { ComponentPalette } from "./panels/ComponentPalette";
 import { ConnectorPanel } from "./panels/ConnectorPanel";
 import { TokenPanel, useTokenStore } from "./panels/TokenPanel";
@@ -16,6 +17,10 @@ import { CanvasPanel } from "./panels/CanvasPanel";
 import { FlowCanvas } from "./canvas/FlowCanvas";
 import { LayoutView } from "./canvas/LayoutView";
 import { CanvasTabBar } from "./canvas/CanvasTabBar";
+import { CodeTabBar } from "./canvas/CodeTabBar";
+import { useCodeGraphStore } from "./codegraph/store";
+import { createMainTab } from "./codegraph/types";
+import { migrateOldCodeGraph } from "./codegraph/migration";
 import { useComponentRegistry } from "./store/componentRegistry";
 import { WireOverlay } from "./canvas/WireOverlay";
 import { StateHUD } from "./canvas/StateHUD";
@@ -194,8 +199,9 @@ export default function App() {
     const errs = result.errors || [];
     setCompileErrors(errs);
 
-    // Parse view tree for code canvas
-    useEditorStore.getState().setCodeElementsAndWires([], []);
+    // Parse view tree for code canvas (populate main tab)
+    useCodeGraphStore.getState().switchTab("main");
+    useCodeGraphStore.getState().setElementsAndWires([], []);
     try {
       const [vRes, cbRes] = await Promise.all([
         fetch("/api/parse-view", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: content }) }),
@@ -204,7 +210,6 @@ export default function App() {
       const vData = await vRes.json();
       const cbData = await cbRes.json();
 
-      const viewElements = vData.success && vData.nodes ? flattenTree(vData.nodes, null) : [];
       const codeElements: import("./store/editor").ElementData[] = [];
       const seenIds = new Set<string>();
 
@@ -213,11 +218,12 @@ export default function App() {
           store:    [{ name: "items", direction: "out", type: "any" }],
           signal:   [{ name: "value", direction: "out", type: "i32" }, { name: "set", direction: "in", type: "i32" }],
           computed: [{ name: "value", direction: "out", type: "i32" }, { name: "deps", direction: "in", type: "any" }],
-          action:   [{ name: "call", direction: "in", type: "any" }],
         };
         for (const b of cbData.blocks) {
           const parentStore = b.parentStore || "";
           const id = b.id;
+          // Skip action/event blocks — events are bound in design mode
+          if (b.blockType === "action" || b.blockType === "onPress" || b.blockType === "onChange") continue;
           if (seenIds.has(id)) continue;
           seenIds.add(id);
           const el: import("./store/editor").ElementData = {
@@ -232,7 +238,7 @@ export default function App() {
           };
           codeElements.push(el);
         }
-        // Add missing store containers (if children exist but store wasn't in blocks)
+        // Add missing store containers
         const existingStoreIds = new Set(codeElements.map((e) => e.id));
         for (const el of codeElements) {
           const pid = el.parentId;
@@ -253,25 +259,21 @@ export default function App() {
         }
       }
 
-      // Build fnToNodeMap for execution highlighting (same logic as handleRun)
+      // Build fnToNodeMap for execution highlighting
       const newFnToNodeMap2: Record<string, string> = {};
       const compMatch2 = content.match(/component\s+(\w+)\s*\{/);
       const componentName2 = compMatch2 ? compMatch2[1] : "App";
       if (cbData.success && cbData.blocks) {
         for (const block of cbData.blocks) {
-          if (block.blockType === "action") {
+          if (block.blockType === "fn") {
             const compName = block.parentStore || componentName2;
             newFnToNodeMap2[`${compName}.${block.name}`] = block.id;
           }
         }
       }
-      for (const el of viewElements) {
-        if (el.tag === "onPress") newFnToNodeMap2[`${componentName2}.handlePress`] = el.id;
-        else if (el.tag === "onChange") newFnToNodeMap2[`${componentName2}.handleChange`] = el.id;
-      }
       setFnToNodeMap(newFnToNodeMap2);
 
-      useEditorStore.getState().setCodeElementsAndWires([...viewElements, ...codeElements], useEditorStore.getState().codeWires);
+      useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
       useEditorStore.getState().setSourceCode(content);
     } catch { /* canvas not critical */ }
 
@@ -316,8 +318,7 @@ export default function App() {
       ]);
       const vData = await vRes.json();
       const cbData = await cbRes.json();
-      const viewElements = vData.success && vData.nodes ? flattenTree(vData.nodes, null) : [];
-      // (code element parsing same as handleCompile)
+      // (code element parsing same as handleCompile — no event/action nodes)
       const codeElements: import("./store/editor").ElementData[] = [];
       const seenIds = new Set<string>();
       if (cbData.success && cbData.blocks) {
@@ -325,9 +326,10 @@ export default function App() {
           store:    [{ name: "items", direction: "out", type: "any" }],
           signal:   [{ name: "value", direction: "out", type: "i32" }, { name: "set", direction: "in", type: "i32" }],
           computed: [{ name: "value", direction: "out", type: "i32" }, { name: "deps", direction: "in", type: "any" }],
-          action:   [{ name: "call", direction: "in", type: "any" }],
         };
         for (const b of cbData.blocks) {
+          // Skip action/event blocks — events are bound in design mode
+          if (b.blockType === "action" || b.blockType === "onPress" || b.blockType === "onChange") continue;
           const parentStore = b.parentStore || "";
           const id = b.id;
           if (seenIds.has(id)) continue;
@@ -346,19 +348,15 @@ export default function App() {
       const componentName = compMatch ? compMatch[1] : "App";
       if (cbData.success && cbData.blocks) {
         for (const block of cbData.blocks) {
-          if (block.blockType === "action") {
+          if (block.blockType === "fn") {
             const compName = block.parentStore || componentName;
             newFnToNodeMap[`${compName}.${block.name}`] = block.id;
           }
         }
       }
-      for (const el of viewElements) {
-        if (el.tag === "onPress") newFnToNodeMap[`${componentName}.handlePress`] = el.id;
-        else if (el.tag === "onChange") newFnToNodeMap[`${componentName}.handleChange`] = el.id;
-      }
       setFnToNodeMap(newFnToNodeMap);
 
-      useEditorStore.getState().setCodeElementsAndWires([...viewElements, ...codeElements], useEditorStore.getState().codeWires);
+      useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
       useEditorStore.getState().setSourceCode(content);
     } catch { /* non-critical */ }
 
@@ -420,9 +418,10 @@ export default function App() {
           wires: store.wires,
         },
         code: {
-          elements: store.codeElements,
-          wires: store.codeWires,
+          elements: useCodeGraphStore.getState().getActiveGraph().elements,
+          wires: useCodeGraphStore.getState().getActiveGraph().wires,
         },
+        codeTabs: useCodeGraphStore.getState().toSerializable(),
         components: (() => {
           const defs = useComponentRegistry.getState().definitions;
           return Object.values(defs).map((d: any) => ({
@@ -520,6 +519,31 @@ export default function App() {
       const data = JSON.parse(result.content);
       const store = useEditorStore.getState();
       store.openProject(filePath, data);
+
+      // Restore code tabs from saved data (backward compat + new format)
+      const codeTabs = data.codeTabs as Record<string, unknown> | undefined;
+      if (codeTabs && Array.isArray(codeTabs.tabs)) {
+        useCodeGraphStore.getState().loadFromData(
+          codeTabs.tabs as any,
+          codeTabs.activeTab as string | undefined,
+        );
+      } else {
+        // Backward compat: migrate old code.elements/code.wires → new format
+        const code = (data.code || {}) as Record<string, unknown>;
+        const oldElements = (code.elements || []) as any[];
+        const oldWires = (code.wires || []) as any[];
+        const migrated = migrateOldCodeGraph(oldElements, oldWires);
+        useCodeGraphStore.getState().reset();
+        useCodeGraphStore.getState().setElementsAndWires(migrated.elements, migrated.wires);
+        if (migrated.droppedElements > 0 || migrated.droppedWires > 0) {
+          setStatus({
+            text: `✅ 已打开项目: ${filePath} (已迁移 ${migrated.droppedElements} 个旧节点)`,
+            isError: false,
+          });
+          return; // skip the normal status set below
+        }
+      }
+
       setStatus({ text: `✅ 已打开项目: ${filePath}`, isError: false });
     } catch (e) {
       setStatus({ text: `❌ 加载失败: ${e instanceof SyntaxError ? "格式错误" : String(e)}`, isError: true });
@@ -901,8 +925,8 @@ export default function App() {
           </PanelContainer>
           <main style={S.main}>
             <div style={S.toolbar}>
-              <button onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
-              <button onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
+              <button onMouseDown={() => setMode("design")} onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
+              <button onMouseDown={() => setMode("code")} onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
               <span style={{ width: 8 }} />
               <button onClick={() => undoUndo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="撤销 (Ctrl+Z)">↩</button>
               <button onClick={() => undoRedo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="重做 (Ctrl+Shift+Z)">↪</button>
@@ -958,11 +982,10 @@ export default function App() {
               )}
               <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
             </div>
+            <CodeTabBar />
             <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
               <div style={S.codeArea}>
                 <FlowCanvas
-                  ctx={ctx}
-                  showViews={false}
                   highlightedWireId={highlightedWireId}
                   layoutTrigger={layoutTrigger}
                   activeNodeIds={activeNodeIds}
@@ -992,6 +1015,13 @@ export default function App() {
                   />
                 )}
               </div>
+              {/* Code Property Panel (right sidebar for node inspection) */}
+              <aside style={{ width: 260, minWidth: 220, flexShrink: 0, borderLeft: "1px solid #e5e7eb", background: "#f9fafb", overflow: "auto" }}>
+                <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "#9CA3AF", borderBottom: "1px solid #e5e7eb" }}>
+                  节点属性
+                </div>
+                <CodePropertyPanel />
+              </aside>
               {showConnector && (
                 <aside style={{ width: 280, minWidth: 240, flexShrink: 0, borderLeft: "1px solid #e5e7eb", background: "#f9fafb", overflow: "hidden" }}>
                   <ConnectorPanel
@@ -1022,8 +1052,8 @@ export default function App() {
           <main style={S.main}>
             <div style={S.toolbar}>
               {/* Mode toggle */}
-              <button onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
-              <button onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
+              <button onMouseDown={() => setMode("design")} onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
+              <button onMouseDown={() => setMode("code")} onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
               <span style={{ width: 8 }} />
               {/* Undo/Redo */}
               <button onClick={() => undoUndo(ctx)} style={iconBtn} title="撤销 (Ctrl+Z)">↩</button>

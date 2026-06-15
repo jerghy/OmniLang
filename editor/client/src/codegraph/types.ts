@@ -32,26 +32,58 @@ export interface FnParam {
 
 // ── CodeTab ──
 
-export type CodeTabType = "freeform" | "component" | "function";
+/** Tab type: "event" = event handler functions (appear in design event binding),
+ *  "logic" = general logic code (not shown in event binding dropdown). */
+export type CodeTabType = "event" | "logic";
 
 export interface CodeTab {
-  /** Unique tab identifier (e.g. "main", "comp:MyButton", "fn:validate") */
+  /** Unique tab identifier (e.g. "main", "tab-xxxx") */
   id: string;
   type: CodeTabType;
   label: string;
   icon: string;
   graph: CodeGraph;
 
-  /** For type="component": which component definition this tab belongs to */
-  componentId?: string;
-
-  /** For type="function": function signature metadata */
-  fnName?: string;
-  fnParams?: FnParam[];
-  fnReturnType?: string;
-
   /** Variables (signals/stores) defined in this tab's scope */
   variables: SignalDefinition[];
+}
+
+// ── Custom Function Metadata ──
+
+/** Metadata for a customFn node in the graph.
+ *  Stored in the node's config field. */
+export interface CustomFunctionMeta {
+  fnName: string;
+  fnParams: FnParam[];
+  fnReturnType: string;
+  description: string;
+}
+
+// ── Event Binding (Design → Code bridge) ──
+
+/** An event binding: maps a component event to a custom function in a code tab. */
+export interface EventBinding {
+  /** Which event type (e.g. "onPress", "onChange") */
+  eventType: string;
+  /** Which code tab contains the target function */
+  tabId: string;
+  /** Name of the custom function to call */
+  fnName: string;
+  /** Parameter bindings: fnParamName → data source */
+  paramBindings: Record<string, ParamBinding>;
+}
+
+/** A single parameter binding: maps a function parameter to a data source. */
+export interface ParamBinding {
+  /** Data source type */
+  sourceType: "self" | "literal" | "event" | "global";
+  /** For "self": signal name in component scope (e.g. "title")
+   *  For "literal": the literal value string
+   *  For "event": the event payload field (e.g. "event.value")
+   *  For "global": global signal name (e.g. "app.theme") */
+  value: string;
+  /** Expected type of this parameter (from function signature) */
+  expectedType: string;
 }
 
 // ── Clipboard ──
@@ -59,7 +91,7 @@ export interface CodeTab {
 export interface ClipboardData {
   elements: ElementData[];
   wires: WireData[];
-  /** Which tab the data was copied from (for cross-tab awareness) */
+  /** Which tab the data was copied from */
   sourceTabId: string;
 }
 
@@ -70,11 +102,11 @@ export function emptyGraph(): CodeGraph {
   return { elements: [], wires: [] };
 }
 
-/** Create the default "Main" freeform tab. */
+/** Create the default "Main" logic tab. */
 export function createMainTab(): CodeTab {
   return {
     id: "main",
-    type: "freeform",
+    type: "logic",
     label: "Main",
     icon: "📄",
     graph: emptyGraph(),

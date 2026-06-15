@@ -40,19 +40,16 @@ describe("getAllPorts", () => {
     expect(ports).toHaveLength(0);
   });
 
-  it("merges COMPONENT_PROTOCOL event ports for view nodes", () => {
-    // Button has onPress event in COMPONENT_PROTOCOL
+  it("returns only explicit ports — event injection moved to design mode", () => {
+    // Events are now bound in design mode PropertyPanel, not via code graph
     const el = makeEl({
       nodeType: "view",
       tag: "Button",
       ports: undefined,
     });
     const ports = getAllPorts(el);
-    // Should include "evt-btn-press-001" from COMPONENT_PROTOCOL
-    const eventPort = ports.find((p) => p.name === "evt-btn-press-001");
-    expect(eventPort).toBeDefined();
-    expect(eventPort?.portType).toBe("flow");
-    expect(eventPort?.direction).toBe("out");
+    // No automatic event port injection — returns empty array
+    expect(ports).toHaveLength(0);
   });
 });
 
@@ -76,20 +73,20 @@ describe("validateConnection", () => {
     expect(issues.filter((i) => i.severity === "error")).toHaveLength(0);
   });
 
-  it("rejects port-type mismatch (flow → data)", () => {
+  it("rejects type-incompatible connections (void → i32)", () => {
     const from = makeEl({
       id: "a",
-      ports: [{ name: "flowOut", direction: "out", portType: "flow", type: "void" }],
+      ports: [{ name: "out", direction: "out", portType: "data", type: "void" }],
     });
     const to = makeEl({
       id: "b",
       ports: [{ name: "value", direction: "in", portType: "data", type: "i32" }],
     });
     const issues = validateConnection(
-      from, "flowOut", to, "value", [],
+      from, "out", to, "value", [],
       getAllPorts(from), getAllPorts(to),
     );
-    expect(issues.some((i) => i.code === "PORT_TYPE_MISMATCH")).toBe(true);
+    expect(issues.some((i) => i.code === "TYPE_INCOMPATIBLE")).toBe(true);
   });
 
   it("rejects duplicate wires", () => {

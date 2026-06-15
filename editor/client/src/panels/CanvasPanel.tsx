@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
+import { useCodeGraphStore } from "../codegraph/store";
 import { api } from "../api/client";
 
 interface CanvasFile {
@@ -97,7 +98,10 @@ export function CanvasPanel() {
         meta: { projectName: name.replace(".omni.json", ""), omniVersion: "0.6.0", createdAt: now, updatedAt: now },
         sourceCode: store.sourceCode,
         design: { elements: store.elements, wires: store.wires },
-        code: { elements: store.codeElements, wires: store.codeWires },
+        code: (() => {
+          const cg = useCodeGraphStore.getState();
+          const g = cg.getActiveGraph(); return { elements: g.elements, wires: g.wires };
+        })(),
         components: Object.values(useComponentRegistry.getState().definitions).map((d: any) => ({
           name: d.name,
           source: d.source || "embedded",

@@ -1,9 +1,11 @@
 /** 属性面板。根据选中元素和统一元数据动态渲染编辑器。
  *  编辑自定义组件定义时显示 ComponentMetaEditor。*/
 
-import React from "react";
+import React, { useState } from "react";
 import { useEditorStore } from "../store/editor";
 import { useUndoStore } from "../store/undo";
+import { useCodeGraphStore } from "../codegraph/store";
+import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
 import { SetProp } from "../commands/SetProp";
 import { COMPONENT_PROTOCOL } from "./ComponentPalette";
 import {
@@ -321,65 +323,20 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         </>
       )}
 
-      {/* Events */}
+      {/* Events — new binding UI */}
       {Object.keys(meta.events).length > 0 && (
         <>
           <div style={sectionHeaderStyle}>事件</div>
           {Object.entries(meta.events).map(([name, config]) => (
             <div key={name} style={{ marginBottom: 4 }}>
-              <EventEditor
-                name={name}
-                config={config}
-                value={el.props[name]}
-                onChange={(v) => handleChange(name, v)}
+              <EventBindingRow
+                eventName={name}
+                eventConfig={config}
+                selectedEl={el}
+                onBind={(binding) => {
+                  undoExec(new SetProp(el.id, name, binding), ctx);
+                }}
               />
-              {onNavigateToCode && (
-                <button
-                  onClick={() => {
-                    const store = useEditorStore.getState();
-                    const wireId = `wire-${el.id}-${name}-${Date.now()}`;
-                    const handlerId = `handler-${el.id}-${name}`;
-                    const handlerName = `on${name.replace(/^on/, "").charAt(0).toUpperCase()}${name.replace(/^on/, "").slice(1)}`;
-                    const payloadType = config.payload || "any";
-                    const eventPortId = config.id || name;
-
-                    const newCodeEl = {
-                      id: handlerId,
-                      nodeType: "codeblock" as const,
-                      tag: "action",
-                      props: { name: handlerName, parentStore: "", typeAnnotation: "" },
-                      children: [],
-                      parentId: null,
-                      ports: [
-                        { name: "call", direction: "in" as const, type: payloadType, portType: "flow" as const, label: config.payload ? `${name}(${config.payload})` : name },
-                        { name: "result", direction: "out" as const, type: "any", portType: "data" as const, label: "返回结果" },
-                      ],
-                      isFolded: false,
-                      source: `action ${handlerName}(event) {\n    // ${config.description || name}\n}`,
-                      nodeCategory: "action" as const,
-                    };
-                    const newWire = {
-                      id: wireId,
-                      fromId: el.id,
-                      fromPort: eventPortId,
-                      toId: handlerId,
-                      toPort: "call",
-                    };
-
-                    // Add to code canvas (not design canvas) so FlowCanvas renders them
-                    store.codeElements = [...store.codeElements, newCodeEl];
-                    store.codeWires = [...store.codeWires, newWire];
-                    useEditorStore.setState({ codeElements: store.codeElements, codeWires: store.codeWires, isDirty: true });
-
-                    undoExec(new SetProp(el.id, name, handlerName), ctx);
-                    onNavigateToCode(wireId);
-                  }}
-                  style={wireBtnStyle}
-                  title={`设置 ${name} 事件 → 创建 Action 代码块${config.payload ? ` (接收 ${config.payload} 类型参数)` : ""}`}
-                >
-                  🔗 连线到代码块 ({name})
-                </button>
-              )}
             </div>
           ))}
         </>
@@ -447,28 +404,6 @@ function PropEditor({ name, config, value, onChange }: {
   }
 }
 
-function EventEditor({ name, config, value, onChange }: {
-  name: string; config: EventMeta; value: unknown; onChange: (v: unknown) => void;
-}) {
-  return (
-    <label style={labelStyle}>
-      <span style={labelTextStyle}>
-        {name}
-        {config.description && <span style={{ color: "#9ca3af", fontSize: 10 }}> ({config.description})</span>}
-      </span>
-      <select
-        value={String(value ?? "")}
-        onChange={(e) => onChange(e.target.value || null)}
-        style={{ ...inputStyle, background: "#fff" }}
-      >
-        <option value="">无</option>
-        <option value="__new_fn__">＋ 新建函数...</option>
-        <option value="__inline__">＋ 内联函数...</option>
-      </select>
-    </label>
-  );
-}
-
 function StyleEditor({ name, value, onChange }: {
   name: string; value: unknown; onChange: (v: unknown) => void;
 }) {
@@ -492,6 +427,237 @@ function StyleEditor({ name, value, onChange }: {
 }
 
 // ═══════════════════════════════════════════════
+// Event binding row — NEW (replaces old "navigate to code" button)
+// ═══════════════════════════════════════════════
+
+function EventBindingRow({ eventName, eventConfig, selectedEl, onBind }: {
+  eventName: string;
+  eventConfig: EventMeta;
+  selectedEl: import("../store/editor").ElementData;
+  onBind: (binding: EventBinding | null) => void;
+}) {
+  const tabs = useCodeGraphStore((s) => s.tabs);
+  const existingBinding = (selectedEl.props[eventName] as EventBinding | null) || null;
+
+  // Get all custom functions from event-code tabs
+  const eventFnOptions: Array<{ tabId: string; tabLabel: string; fnName: string; fnParams: FnParam[]; fnReturnType: string }> = [];
+  for (const tab of tabs) {
+    if (tab.type !== "event") continue;
+    for (const el of tab.graph.elements) {
+      if (el.tag === "customFn" && el.config?.fnName) {
+        eventFnOptions.push({
+          tabId: tab.id,
+          tabLabel: tab.label,
+          fnName: el.config.fnName as string,
+          fnParams: (el.config.fnParams as FnParam[]) || [],
+          fnReturnType: (el.config.fnReturnType as string) || "void",
+        });
+      }
+    }
+  }
+
+  const [isExpanded, setIsExpanded] = useState(!!existingBinding);
+  const [selectedFn, setSelectedFn] = useState(existingBinding?.fnName || "");
+  const [selectedTab, setSelectedTab] = useState(existingBinding?.tabId || "");
+  const [paramBindings, setParamBindings] = useState<Record<string, ParamBinding>>(existingBinding?.paramBindings || {});
+
+  const currentFn = eventFnOptions.find((f) => f.fnName === selectedFn && f.tabId === selectedTab);
+
+  const handleSelectFn = (fnName: string, tabId: string) => {
+    setSelectedFn(fnName);
+    setSelectedTab(tabId);
+    // Auto-generate default param bindings from function signature
+    const fn = eventFnOptions.find((f) => f.fnName === fnName && f.tabId === tabId);
+    if (fn) {
+      const bindings: Record<string, ParamBinding> = {};
+      for (const param of fn.fnParams) {
+        // Default: try to auto-match with event payload if types match
+        if (param.type === (eventConfig.payload || "any") && Object.keys(bindings).length === 0) {
+          bindings[param.name] = { sourceType: "event", value: `event.${param.name}`, expectedType: param.type };
+        } else {
+          bindings[param.name] = { sourceType: "literal", value: "", expectedType: param.type };
+        }
+      }
+      setParamBindings(bindings);
+    }
+  };
+
+  const handleSaveBinding = () => {
+    if (!selectedFn || !selectedTab) return;
+    const binding: EventBinding = {
+      eventType: eventName,
+      tabId: selectedTab,
+      fnName: selectedFn,
+      paramBindings,
+    };
+    onBind(binding);
+    setIsExpanded(true);
+  };
+
+  const handleRemoveBinding = () => {
+    setSelectedFn("");
+    setSelectedTab("");
+    setParamBindings({});
+    onBind(null);
+    setIsExpanded(false);
+  };
+
+  // Type mismatch check
+  const getTypeError = (param: FnParam, binding: ParamBinding): string | null => {
+    if (binding.sourceType === "event" && param.type !== (eventConfig.payload || "any") && eventConfig.payload) {
+      if (param.type !== "any" && eventConfig.payload !== "any") {
+        return `类型不匹配: 参数类型 ${param.type} ≠ 事件数据类型 ${eventConfig.payload}`;
+      }
+    }
+    return null;
+  };
+
+  return (
+    <div style={{
+      border: "1px solid #E5E7EB", borderRadius: 6, padding: 6,
+      background: existingBinding ? "#F0FDF4" : "#FAFAFA",
+      marginBottom: 4,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>
+          {eventName}
+          {eventConfig.description && (
+            <span style={{ fontWeight: 400, color: "#9CA3AF", marginLeft: 4 }}>
+              ({eventConfig.description}{eventConfig.payload ? ` → ${eventConfig.payload}` : ""})
+            </span>
+          )}
+        </span>
+        {existingBinding ? (
+          <button onClick={handleRemoveBinding} style={removeBtnStyle}>
+            ✕
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{ ...addBtnStyle, marginTop: 0 }}
+          >
+            {isExpanded ? "取消" : "+ 绑定函数"}
+          </button>
+        )}
+      </div>
+
+      {existingBinding && (
+        <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
+          → {existingBinding.fnName}({Object.values(existingBinding.paramBindings).map((b) => {
+            if (b.sourceType === "event") return `📩 ${b.value.split(".")[1] || b.value}`;
+            if (b.sourceType === "self") return `🔤 ${b.value}`;
+            if (b.sourceType === "literal") return `🔢 ${b.value || "..."}`;
+            if (b.sourceType === "global") return `🌐 ${b.value}`;
+            return b.value;
+          }).join(", ")})
+        </div>
+      )}
+
+      {isExpanded && !existingBinding && (
+        <div style={{ marginTop: 6 }}>
+          {/* Function selector */}
+          <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 2 }}>选择函数</div>
+          {eventFnOptions.length === 0 ? (
+            <div style={{ fontSize: 10, color: "#D97706", padding: "4px 0" }}>
+              ⚠ 没有可用的事件函数。请在代码模式中创建"事件代码"标签页，并添加自定义函数节点。
+            </div>
+          ) : (
+            <select
+              value={selectedFn ? `${selectedTab}:${selectedFn}` : ""}
+              onChange={(e) => {
+                const [tabId, fnName] = e.target.value.split(":");
+                handleSelectFn(fnName, tabId);
+              }}
+              style={{ ...inputStyle, fontSize: 10, marginBottom: 6 }}
+            >
+              <option value="">-- 选择自定义函数 --</option>
+              {eventFnOptions.map((f) => (
+                <option key={`${f.tabId}:${f.fnName}`} value={`${f.tabId}:${f.fnName}`}>
+                  [{f.tabLabel}] {f.fnName}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Parameter binding table */}
+          {currentFn && currentFn.fnParams.length > 0 && (
+            <>
+              <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 2, marginTop: 4 }}>
+                参数绑定
+              </div>
+              {currentFn.fnParams.map((param) => {
+                const binding = paramBindings[param.name];
+                const typeError = binding ? getTypeError(param, binding) : null;
+                return (
+                  <div key={param.name} style={{ marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: "#374151", marginBottom: 1 }}>
+                      {param.name}: <span style={{ color: "#6B7280" }}>{param.type}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <select
+                        value={binding?.sourceType || "literal"}
+                        onChange={(e) => {
+                          const sourceType = e.target.value as ParamBinding["sourceType"];
+                          setParamBindings({
+                            ...paramBindings,
+                            [param.name]: { sourceType, value: "", expectedType: param.type },
+                          });
+                        }}
+                        style={{ ...inputStyle, fontSize: 10, width: 70 }}
+                      >
+                        <option value="event">📩 事件</option>
+                        <option value="self">🔤 self</option>
+                        <option value="literal">🔢 固定值</option>
+                        <option value="global">🌐 全局</option>
+                      </select>
+                      <input
+                        value={binding?.value || ""}
+                        onChange={(e) => {
+                          setParamBindings({
+                            ...paramBindings,
+                            [param.name]: { ...binding, sourceType: binding?.sourceType || "literal", value: e.target.value, expectedType: param.type },
+                          });
+                        }}
+                        placeholder={
+                          binding?.sourceType === "self" ? "self.signalName" :
+                          binding?.sourceType === "event" ? "event.value" :
+                          binding?.sourceType === "global" ? "app.xxx" :
+                          "固定值"
+                        }
+                        style={{ ...inputStyle, fontSize: 10, flex: 1 }}
+                      />
+                    </div>
+                    {typeError && (
+                      <div style={{ fontSize: 9, color: "#DC2626", marginTop: 1 }}>🚫 {typeError}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Save button */}
+          {selectedFn && (
+            <button
+              onClick={handleSaveBinding}
+              disabled={!selectedFn}
+              style={{
+                width: "100%", padding: "3px 8px", marginTop: 6,
+                fontSize: 10, fontWeight: 600,
+                background: "#059669", color: "#fff",
+                border: "none", borderRadius: 4, cursor: "pointer",
+              }}
+            >
+              保存事件绑定
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
 // Styles
 // ═══════════════════════════════════════════════
 
@@ -499,14 +665,6 @@ const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "colum
 const labelTextStyle: React.CSSProperties = { fontSize: 11, color: "#6b7280", marginBottom: 2 };
 const inputStyle: React.CSSProperties = { padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, width: "100%", boxSizing: "border-box" };
 const sectionHeaderStyle: React.CSSProperties = { fontSize: 11, color: "#6b7280", textTransform: "uppercase", margin: "12px 0 4px" };
-const wireBtnStyle: React.CSSProperties = {
-  width: "100%", padding: "3px 8px", marginTop: 2,
-  fontSize: 10, fontWeight: 600,
-  background: "#EEF2FF", color: "#4F46E5",
-  border: "1px solid #C7D2FE", borderRadius: 4,
-  cursor: "pointer", textAlign: "center",
-};
-
 const removeBtnStyle: React.CSSProperties = {
   border: "none", background: "transparent", cursor: "pointer",
   color: "#DC2626", fontSize: 10, padding: "0 2px",

@@ -16,10 +16,6 @@ const SOURCE_TEMPLATES: Record<string, (name: string) => string> = {
   computed: (name) => `computed ${name}() -> i32 {
   0
 }`,
-  action: (name) => `action ${name}(event) {
-  // 在此编写事件处理逻辑
-  // event 包含触发事件的数据
-}`,
   store: (name) => `store ${name} {
   // 在此定义 store 内的 signal
 }`,
@@ -38,7 +34,6 @@ interface BlockTypeDef {
 const BLOCK_TYPES: BlockTypeDef[] = [
   { tag: "signal",   label: "Signal",   desc: "响应式状态变量，可读写", icon: "⚡", color: "#D97706" },
   { tag: "computed", label: "Computed", desc: "从其他值派生计算",      icon: "🧮", color: "#2563EB" },
-  { tag: "action",   label: "Action",   desc: "事件处理函数",           icon: "▶️", color: "#DB2777" },
   { tag: "store",    label: "Store",    desc: "数据集合容器",           icon: "🗄️", color: "#7C3AED" },
 ];
 

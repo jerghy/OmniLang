@@ -2,6 +2,7 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getNodeConfig } from "../nodeRegistry";
+import { TYPE_COLORS } from "../socketTypes";
 import type { PortData } from "../../store/editor";
 
 export interface BaseNodeData {
@@ -15,9 +16,9 @@ export interface BaseNodeData {
 }
 
 /**
- * Shared node chrome. Renders icon + label + typed handles.
- * Flow ports (portType="flow") get diamond Handle style.
- * Data ports (portType="data" or undefined) get circle Handle style.
+ * Shared node chrome. Renders icon + label + typed data handles with visible labels.
+ * Pure data-flow: all ports are data-type, no flow handles.
+ * Port colors are determined by data type (from TYPE_COLORS).
  */
 export function BaseNode({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as BaseNodeData;
@@ -27,63 +28,48 @@ export function BaseNode({ id, data, selected }: NodeProps) {
     : "";
   const typeAnn = nodeData.typeAnnotation || "";
 
-  // Split ports by direction and type
-  const flowIn = nodeData.ports.filter(p => p.direction === "in" && p.portType === "flow");
-  const flowOut = nodeData.ports.filter(p => p.direction === "out" && p.portType === "flow");
-  const dataIn = nodeData.ports.filter(p => p.direction === "in" && p.portType !== "flow");
-  const dataOut = nodeData.ports.filter(p => p.direction === "out" && p.portType !== "flow");
+  const dataIn = nodeData.ports.filter((p) => p.direction === "in");
+  const dataOut = nodeData.ports.filter((p) => p.direction === "out");
 
   return (
     <div
       style={{
         background: config.color.bg,
-        border: `${selected ? 3 : 2}px solid ${config.color.border}`,
-        borderRadius: 10,
-        padding: "10px 16px",
-        minWidth: 140,
+        border: `${selected ? 3 : 1.5}px solid ${selected ? "#6366F1" : config.color.border}`,
+        borderRadius: 8,
+        padding: "8px 12px",
+        minWidth: 120,
         maxWidth: 260,
         fontFamily: "system-ui, sans-serif",
         fontSize: 12,
         boxShadow: selected
           ? "0 0 0 2px rgba(99,102,241,0.3), 0 4px 12px rgba(0,0,0,0.15)"
-          : "0 2px 6px rgba(0,0,0,0.08)",
+          : "0 1px 4px rgba(0,0,0,0.06)",
         position: "relative",
-        transition: "box-shadow 0.15s",
+        transition: "box-shadow 0.15s, border-color 0.15s",
       }}
     >
-      {/* Flow input handles (left side, diamond shape) */}
-      {flowIn.map((p, i) => (
-        <FlowHandle
-          key={p.name}
-          port={p}
-          type="target"
-          position={Position.Left}
-          index={i}
-          total={flowIn.length}
-        />
-      ))}
-
-      {/* Data input handles (left side, circle) */}
+      {/* Data input handles (left side) */}
       {dataIn.map((p, i) => (
         <DataHandle
           key={p.name}
           port={p}
           type="target"
           position={Position.Left}
-          index={i + flowIn.length}
-          total={flowIn.length + dataIn.length}
+          index={i}
+          total={dataIn.length}
         />
       ))}
 
       {/* Node body */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 16 }}>{config.icon}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 14 }}>{config.icon}</span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: "#1F2937", fontSize: 12, lineHeight: 1.3 }}>
+          <div style={{ fontWeight: 600, color: "#1F2937", fontSize: 11, lineHeight: 1.3 }}>
             {nodeData.label}
           </div>
           {(typeAnn || valueStr) && (
-            <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>
+            <div style={{ fontSize: 9, color: "#6B7280", marginTop: 1 }}>
               {typeAnn && <span>: {typeAnn}</span>}
               <span>{valueStr}</span>
             </div>
@@ -91,87 +77,73 @@ export function BaseNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* Flow output handles (right side, diamond shape) */}
-      {flowOut.map((p, i) => (
-        <FlowHandle
-          key={p.name}
-          port={p}
-          type="source"
-          position={Position.Right}
-          index={i}
-          total={flowOut.length}
-        />
-      ))}
-
-      {/* Data output handles (right side, circle) */}
+      {/* Data output handles (right side) */}
       {dataOut.map((p, i) => (
         <DataHandle
           key={p.name}
           port={p}
           type="source"
           position={Position.Right}
-          index={i + flowOut.length}
-          total={flowOut.length + dataOut.length}
+          index={i}
+          total={dataOut.length}
         />
       ))}
     </div>
   );
 }
 
-// ── Handle sub-components ──
-
-function FlowHandle({ port, type, position, index, total }: {
-  port: PortData; type: "source" | "target"; position: Position; index: number; total: number;
-}) {
-  const yOffset = total <= 1 ? 0 : (index - (total - 1) / 2) * 24;
-  return (
-    <Handle
-      id={port.name}
-      type={type}
-      position={position}
-      style={{
-        width: 10,
-        height: 10,
-        background: "#9CA3AF",
-        border: "2px solid #fff",
-        borderRadius: 2,
-        transform: `translateY(${yOffset}px) rotate(45deg)`,
-        cursor: "crosshair",
-      }}
-      title={`${port.label || port.name} (flow${port.type !== "void" ? `: ${port.type}` : ""})`}
-    />
-  );
-}
+// ── Data Handle with visible port label ──
 
 function DataHandle({ port, type, position, index, total }: {
   port: PortData; type: "source" | "target"; position: Position; index: number; total: number;
 }) {
-  const yOffset = total <= 1 ? 0 : (index - (total - 1) / 2) * 24;
-  const typeColor = getTypeColor(port.type);
-  return (
-    <Handle
-      id={port.name}
-      type={type}
-      position={position}
-      style={{
-        width: 12,
-        height: 12,
-        background: typeColor,
-        border: "2px solid #fff",
-        borderRadius: "50%",
-        transform: `translateY(${yOffset}px)`,
-        cursor: "crosshair",
-      }}
-      title={`${port.label || port.name} (${port.type})`}
-    />
-  );
-}
+  const yOffset = total <= 1 ? 0 : (index - (total - 1) / 2) * 22;
+  const typeColor = TYPE_COLORS[port.type] || TYPE_COLORS.any;
+  const isLeft = position === Position.Left;
 
-function getTypeColor(type: string): string {
-  const colors: Record<string, string> = {
-    any: "#6B7280", i32: "#2563EB", f64: "#059669",
-    bool: "#D97706", String: "#DB2777", void: "#9CA3AF",
-    MouseEvent: "#DC2626",
-  };
-  return colors[type] || colors.any;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        [isLeft ? "left" : "right"]: -4,
+        top: "50%",
+        transform: `translateY(${yOffset - 6}px)`,
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        flexDirection: isLeft ? "row" : "row-reverse",
+      }}
+    >
+      {/* Port label — always visible */}
+      <span
+        style={{
+          fontSize: 9,
+          color: "#6B7280",
+          fontFamily: "system-ui, sans-serif",
+          whiteSpace: "nowrap",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        {port.label || port.name}
+      </span>
+      {/* Handle dot */}
+      <Handle
+        id={port.name}
+        type={type}
+        position={position}
+        style={{
+          width: 10,
+          height: 10,
+          background: typeColor,
+          border: "2px solid #fff",
+          borderRadius: "50%",
+          cursor: "crosshair",
+          position: "relative",
+          transform: "none",
+        }}
+        title={`${port.label || port.name}: ${port.type}`}
+      />
+    </div>
+  );
 }
