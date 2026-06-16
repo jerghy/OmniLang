@@ -80,21 +80,35 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
         target = "python"
 
     # Try Rust compiler first (if available) for UI mode
+    rust_fallback_errors: list[CompileError] = []  # parse errors → fallback to Python
     if is_ui_mode:
         from omniview.codegen.rust_bridge import RustBridge
         if RustBridge.is_available():
             ir_result = RustBridge.compile_to_ir(source)
             if "_rust_errors" in ir_result:
-                # Rust found errors -> report them
+                # Rust parse failed — fall back to Python, report what to fix
                 for err in ir_result["_rust_errors"]:
-                    errors.append(CompileError(
+                    rust_fallback_errors.append(CompileError(
                         file=filepath, line=err.get("line", 1), col=err.get("col", 0),
-                        severity=err.get("severity", "error"),
-                        code=err.get("code", "RUST"), message=err.get("message", str(err)),
+                        severity="warning",
+                        code=f"RUST_{err.get('code', 'PARSE')}",
+                        message=f"[Rust TODO] {err.get('message', str(err))}",
                     ))
-                return CompileResult(success=False, files={}, errors=errors, source=source)
-            # Rust succeeded -> pass IR to Python codegen
-            return _compile_from_ir(ir_result, target, previous_files, source)
+                # Fall through to Python fallback
+            else:
+                # Rust succeeded (possibly with semantic warnings) → use Rust IR
+                rust_warnings = ir_result.get("_rust_warnings", [])
+                for w in rust_warnings:
+                    rust_fallback_errors.append(CompileError(
+                        file=filepath, line=w.get("line", 1), col=w.get("col", 0),
+                        severity="warning",
+                        code=f"RUST_{w.get('code', 'SEMANTIC')}",
+                        message=f"[Rust warn] {w.get('message', str(w))}",
+                    ))
+                result = _compile_from_ir(ir_result, target, previous_files, source)
+                if rust_fallback_errors:
+                    result.errors.extend(rust_fallback_errors)
+                return result
 
     try:
         if is_ui_mode:
@@ -122,6 +136,10 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
     diff: dict[str, str] | None = None
     if previous_files is not None:
         diff = _compute_diff(previous_files, compiled_files)
+
+    # Attach Rust fallback warnings (if any) so developers can see what to fix
+    if rust_fallback_errors:
+        errors.extend(rust_fallback_errors)
 
     # WARNING 不是错误——只有 severity=="error" 才算失败
     has_errors = any(e.severity == "error" for e in errors)

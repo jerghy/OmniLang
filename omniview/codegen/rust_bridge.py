@@ -129,9 +129,13 @@ class RustBridge:
                     # OmniView result: {success, files, source_map, errors}
                     if "files" in parsed:
                         return parsed  # Return OmniViewResult as-is
-                    if parsed.get("success") and parsed.get("ir") is not None:
-                        return parsed["ir"]  # Return just the IRProgram
-                    elif parsed.get("errors"):
+                    # Return IR even if success=false (semantic warnings shouldn't block)
+                    if parsed.get("ir") is not None:
+                        result = parsed["ir"]
+                        if parsed.get("errors"):
+                            result["_rust_warnings"] = parsed["errors"]
+                        return result
+                    if parsed.get("errors"):
                         return {"_rust_errors": parsed["errors"]}
                 return parsed
         except Exception:

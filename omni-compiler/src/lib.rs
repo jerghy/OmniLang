@@ -61,16 +61,16 @@ pub fn compile(source: &str) -> CompileResult {
         }
     };
 
-    // 3. Semantic analysis
+    // 3. Semantic analysis — continue even with diagnostics (IR is still useful)
     let semantics = match semantic::analyze(&program) {
         Ok(s) => s,
         Err(diags) => {
             errors.extend(diags);
-            return CompileResult {
-                success: false,
-                ir: None,
-                errors,
-            };
+            // Still lower to IR — semantic issues shouldn't block codegen
+            semantic::SemanticResult {
+                symbols: semantic::symbols::SymbolTable::new(),
+                dependencies: std::collections::HashMap::new(),
+            }
         }
     };
 
@@ -78,8 +78,8 @@ pub fn compile(source: &str) -> CompileResult {
     let ir_program = ir::lower(&program, &semantics);
 
     CompileResult {
-        success: true,
-        ir: Some(ir_program),
+        success: errors.is_empty(),  // success=true only if no errors at all
+        ir: Some(ir_program),       // always return IR (even with warnings)
         errors,
     }
 }
