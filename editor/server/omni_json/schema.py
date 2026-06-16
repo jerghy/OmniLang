@@ -1,5 +1,16 @@
 """OmniLang editor native format (.omni.json) — v2 schema definitions.
 
+NOTE: As of 2026-06-16, .omni.json is the EDITOR RUNTIME SNAPSHOT, not the
+primary project configuration. For project configuration, use .omnilang.toml.
+
+.omni.json stores:
+  - Design canvas state (elements, wires, positions)
+  - Code canvas state (code_tabs, elements)
+  - Editor transient state (open tabs, viewport)
+
+It can be compiled to an Omni project via `omnic compile <file>.omni.json`
+(reverse codegen → .omni sources → normal pipeline).
+
 v2 changes:
   - sourceCode: embedded .omni source for code mode text editor
   - design/code split: separate elements/wires for design canvas and code canvas
