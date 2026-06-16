@@ -65,6 +65,36 @@ class ImportStmt:
     span: Span | None = None
 
 
+@dataclass(frozen=True)
+class ImportTypeStmt:
+    """import type { A, B } from "./path.omni";"""
+    names: tuple[str, ...] = ()
+    path: str = ""
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ImportNamespaceStmt:
+    """import "./path.omni" as name;"""
+    path: str = ""
+    alias: str = ""
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ExportFromStmt:
+    """export { A, B } from "./path.omni";"""
+    names: tuple[str, ...] = ()
+    path: str = ""
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class PubModifier:
+    """pub visibility marker — not a standalone node, used as field"""
+    pass
+
+
 # ── Top-Level ─────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -74,12 +104,25 @@ class Program:
     stores: tuple[StoreDef, ...] = ()
     themes: tuple[ThemeDef, ...] = ()
     imports: tuple[ImportStmt, ...] = ()
+    type_imports: tuple[ImportTypeStmt, ...] = ()
+    namespace_imports: tuple[ImportNamespaceStmt, ...] = ()
+    export_froms: tuple[ExportFromStmt, ...] = ()
+    type_aliases: tuple[TypeAlias, ...] = ()
     lib_imports: tuple[str, ...] = ()
     span: Span | None = None
 
     @property
     def has_omniview(self) -> bool:
         return "omniview" in self.lib_imports
+
+
+@dataclass(frozen=True)
+class TypeAlias:
+    """type ID = int; or pub type ID = int;"""
+    name: str
+    type_ann: TypeAnnotation
+    is_pub: bool = False
+    span: Span | None = None
 
 
 # ── Component Definition ──────────────────────────────
@@ -573,8 +616,13 @@ __all__ = [
     "Param", "Stmt", "Block",
     # Import
     "ImportStmt",
+    "ImportTypeStmt",
+    "ImportNamespaceStmt",
+    "ExportFromStmt",
+    "PubModifier",
     # Top-level
     "Program",
+    "TypeAlias",
     # Component
     "ComponentDef", "PropDecl", "SignalDecl", "ComputedDecl",
     "EventDecl", "RefDecl", "StoreRef",

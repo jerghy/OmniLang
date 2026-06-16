@@ -442,6 +442,15 @@ class TaggedUnionDef:
 
 
 @dataclass(frozen=True)
+class TypeAlias:
+    """type ID = int; or pub type ID = int;"""
+    name: str
+    type_ann: TypeAnnotation
+    is_pub: bool = False
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
 class StructDef:
     """Struct definition: struct Name { fields }"""
     name: str
@@ -449,6 +458,7 @@ class StructDef:
     fields: list[StructField] = field(default_factory=list)
     methods: list['FunctionDef'] = field(default_factory=list)  # from impl blocks
     is_nominal: bool = False  # True if declared with 'nominal struct'
+    is_pub: bool = False
     span: Span | None = None
 
 
@@ -460,6 +470,7 @@ class FunctionDef:
     generic_params: list[GenericParam] = field(default_factory=list)
     body: Block | None = None
     is_async: bool = False
+    is_pub: bool = False
     span: Span | None = None
 
 
@@ -512,10 +523,32 @@ class ImportStmt:
 
 @dataclass(frozen=True)
 class ImportTypeStmt:
-    """Import type statement: import type { A, B } from "./module" """
+    """import type { A, B } from "./path.omni";"""
     names: list[str] = field(default_factory=list)
     path: str = ""
     span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ImportNamespaceStmt:
+    """import "./path.omni" as name;"""
+    path: str = ""
+    alias: str = ""
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class ExportFromStmt:
+    """export { A, B } from "./path.omni";"""
+    names: list[str] = field(default_factory=list)
+    path: str = ""
+    span: Span | None = None
+
+
+@dataclass(frozen=True)
+class PubModifier:
+    """pub visibility marker — not a standalone node, used as field"""
+    pass
 
 
 @dataclass(frozen=True)
@@ -532,6 +565,10 @@ class Program:
     tagged_unions: list[TaggedUnionDef] = field(default_factory=list)
     classes: list[ClassDef] = field(default_factory=list)
     imports: list[ImportStmt] = field(default_factory=list)
+    type_imports: list[ImportTypeStmt] = field(default_factory=list)
+    namespace_imports: list[ImportNamespaceStmt] = field(default_factory=list)
+    export_froms: list[ExportFromStmt] = field(default_factory=list)
+    type_aliases: list[TypeAlias] = field(default_factory=list)
     exports: list[ExportStmt] = field(default_factory=list)
     lib_imports: list[str] = field(default_factory=list)  # e.g. ["omniview"]
     span: Span | None = None
