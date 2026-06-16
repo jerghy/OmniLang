@@ -554,6 +554,17 @@ def cmd_watch(args):
 
 
 # ════════════════════════════════════════════════════════════
+# LSP
+# ════════════════════════════════════════════════════════════
+
+def cmd_lsp(args):
+    """Start the OmniLang Language Server Protocol server on stdio."""
+    from omnilang.lsp.server import OmniLangServer
+    server = OmniLangServer()
+    server.start()
+
+
+# ════════════════════════════════════════════════════════════
 # Main
 # ════════════════════════════════════════════════════════════
 
@@ -649,6 +660,9 @@ def main():
     watch_parser.add_argument("--diff", action="store_true", help="Show diff on changes")
     watch_parser.add_argument("--all", action="store_true", help="Build for all targets")
 
+    # ── lsp ──
+    lsp_parser = subparsers.add_parser("lsp", help="Start the OmniLang LSP server (stdio JSON-RPC)")
+
     args = parser.parse_args()
 
     if args.command == "build":
@@ -667,6 +681,8 @@ def main():
         cmd_serve(args)
     elif args.command == "watch":
         cmd_watch(args)
+    elif args.command == "lsp":
+        cmd_lsp(args)
     else:
         parser.print_help()
 

@@ -1,31 +1,17 @@
 """OmniLang Language Server Protocol server.
 
-Provides IDE features via stdio LSP protocol.
-Supports: hover, definition, completion, references, codeAction, rename.
+Provides IDE features via stdio LSP protocol using the Rust analyze() API.
+Supports 11 LSP features: diagnostics, completion, hover, definition,
+references, rename, semantic tokens, signature help, document symbols,
+folding ranges, and formatting.
 """
 
 import json
+import os
 import sys
+import time
+from pathlib import Path
 from typing import Any
-
-# Python AST parser has been removed — all compilation goes through Rust.
-# LSP features that require AST parsing are disabled until the Rust-based
-# LSP server is implemented. Keyword completions and hover still work.
-try:
-    from omnilang.ast_nodes import (
-        Program, FunctionDef, VarDecl, Block, VarRef, BinaryOp, UnaryOp,
-        MethodCall, FuncCall, Assign, IfStmt, WhileStmt, ForInStmt,
-        ReturnStmt, PrintStmt, ExprStmt, TypeAnnotation, UnionType,
-    )
-    _HAS_AST = True
-except ImportError:
-    Program = object  # type: ignore
-    FunctionDef = VarDecl = Block = VarRef = object
-    BinaryOp = UnaryOp = MethodCall = FuncCall = Assign = object
-    IfStmt = WhileStmt = ForInStmt = object
-    ReturnStmt = PrintStmt = ExprStmt = object
-    TypeAnnotation = UnionType = object
-    _HAS_AST = False
 
 
 # ── Keyword list for completion ──────────────────────────
@@ -174,189 +160,8 @@ OMNIVIEW_ELEMENT_PROPS = [
 # 11=Unit, 12=Value, 13=Enum, 14=Keyword, 15=Snippet, 16=Color, 17=File,
 # 18=Reference, 19=Folder, 20=EnumMember, 21=Constant, 22=Struct, 23=Event, 24=Operator, 25=TypeParameter
 
+
 # ── Helpers ─────────────────────────────────────────────
-
-def _pos_in_span(line: int, col: int, span) -> bool:
-    """Check if a cursor position falls within a source span."""
-    if span is None:
-        return False
-    if line < span.line or line > span.end_line:
-        return False
-    if line == span.line and col < span.col:
-        return False
-    if line == span.end_line and col > span.end_col:
-        return False
-    return True
-
-
-def _find_function_at(prog: Program, line: int, col: int) -> FunctionDef | None:
-    """Find the function definition containing the cursor position."""
-    for func in prog.functions:
-        if func.span and _pos_in_span(line, col, func.span):
-            return func
-    return None
-
-
-def _find_symbol_at(prog: Program, line: int, col: int) -> tuple[str, str] | None:
-    """Try to find a symbol (function name, variable name, type name) at cursor.
-
-    Returns (name, kind) where kind is one of 'function', 'variable', 'type', 'keyword'.
-    """
-    # Check function definitions
-    for func in prog.functions:
-        if func.span and _pos_in_span(line, col, func.span):
-            # Check if cursor is on the function name
-            # The function name span is typically at line=func.span.line, col offset
-            name_span = func.span
-            # Approximate: the function name is the second token (after 'fn')
-            # We just return the function since we have it
-            if line == name_span.line:
-                return (func.name, "function")
-
-    # Check struct definitions
-    for s in prog.structs:
-        if s.span and _pos_in_span(line, col, s.span):
-            return (s.name, "type")
-
-    # Check class definitions
-    for c in prog.classes:
-        if c.span and _pos_in_span(line, col, c.span):
-            return (c.name, "type")
-
-    # Check tagged unions
-    for tu in prog.tagged_unions:
-        if tu.span and _pos_in_span(line, col, tu.span):
-            return (tu.name, "type")
-
-    # Walk all function bodies looking for variable references
-    for func in prog.functions:
-        if func.body:
-            result = _find_symbol_in_block(func.body, line, col)
-            if result:
-                return result
-
-    return None
-
-
-def _find_symbol_in_block(block: Block, line: int, col: int) -> tuple[str, str] | None:
-    """Recursively search a block for a symbol at the given position."""
-    for stmt in block.stmts:
-        if isinstance(stmt, VarDecl):
-            if stmt.span and _pos_in_span(line, col, stmt.span):
-                # Check if cursor is on the variable name (typically at col after "let"/"let mut")
-                # The VarDecl name span would be approximated
-                return (stmt.name, "variable")
-        elif isinstance(stmt, ReturnStmt):
-            if stmt.value and isinstance(stmt.value, VarRef):
-                if stmt.value.span and _pos_in_span(line, col, stmt.value.span):
-                    return (stmt.value.name, "variable")
-        elif isinstance(stmt, ExprStmt):
-            if isinstance(stmt.expr, VarRef):
-                if stmt.expr.span and _pos_in_span(line, col, stmt.expr.span):
-                    return (stmt.expr.name, "variable")
-            elif isinstance(stmt.expr, FuncCall):
-                if stmt.expr.func and isinstance(stmt.expr.func, VarRef):
-                    if stmt.expr.func.span and _pos_in_span(line, col, stmt.expr.func.span):
-                        return (stmt.expr.func.name, "function")
-        elif isinstance(stmt, Assign):
-            if stmt.span and _pos_in_span(line, col, stmt.span):
-                return (stmt.target, "variable")
-        elif isinstance(stmt, IfStmt):
-            if stmt.then_body:
-                result = _find_symbol_in_block(stmt.then_body, line, col)
-                if result:
-                    return result
-            if stmt.else_body:
-                result = _find_symbol_in_block(stmt.else_body, line, col)
-                if result:
-                    return result
-            for _, elif_body in stmt.else_ifs:
-                result = _find_symbol_in_block(elif_body, line, col)
-                if result:
-                    return result
-        elif isinstance(stmt, WhileStmt):
-            if stmt.body:
-                result = _find_symbol_in_block(stmt.body, line, col)
-                if result:
-                    return result
-        elif isinstance(stmt, ForInStmt):
-            if stmt.span and _pos_in_span(line, col, stmt.span):
-                return (stmt.var_name, "variable")
-            if stmt.body:
-                result = _find_symbol_in_block(stmt.body, line, col)
-                if result:
-                    return result
-        # Check expressions in various statement types
-        if isinstance(stmt, (ReturnStmt, ExprStmt, PrintStmt)):
-            result = _find_symbol_in_trailing(block, line, col)
-            if result:
-                return result
-
-    # Check trailing expression
-    if block.trailing_expr:
-        result = _find_symbol_in_expr(block.trailing_expr, line, col)
-        if result:
-            return result
-
-    return None
-
-
-def _find_symbol_in_expr(expr, line: int, col: int) -> tuple[str, str] | None:
-    """Search an expression for a symbol at the given position."""
-    if isinstance(expr, VarRef) and expr.span:
-        if _pos_in_span(line, col, expr.span):
-            return (expr.name, "variable")
-    if isinstance(expr, FuncCall):
-        if isinstance(expr.func, VarRef) and expr.func.span:
-            if _pos_in_span(line, col, expr.func.span):
-                return (expr.func.name, "function")
-        for arg in expr.args:
-            result = _find_symbol_in_expr(arg, line, col)
-            if result:
-                return result
-    if isinstance(expr, MethodCall):
-        result = _find_symbol_in_expr(expr.object, line, col)
-        if result:
-            return result
-    if isinstance(expr, BinaryOp):
-        result = _find_symbol_in_expr(expr.left, line, col)
-        if result:
-            return result
-        result = _find_symbol_in_expr(expr.right, line, col)
-        if result:
-            return result
-    if isinstance(expr, UnaryOp):
-        return _find_symbol_in_expr(expr.operand, line, col)
-    return None
-
-
-def _find_symbol_in_trailing(block: Block, line: int, col: int) -> tuple[str, str] | None:
-    """Search the trailing expression of a block."""
-    if block.trailing_expr:
-        return _find_symbol_in_expr(block.trailing_expr, line, col)
-    return None
-
-
-def _find_function_def(prog: Program, name: str) -> FunctionDef | None:
-    """Find a function definition by name."""
-    for func in prog.functions:
-        if func.name == name:
-            return func
-    return None
-
-
-def _get_type_doc(type_ann) -> str:
-    """Get documentation string for a type annotation."""
-    if isinstance(type_ann, TypeAnnotation):
-        base = BUILTIN_TYPE_DOCS.get(type_ann.name, f"User-defined type '{type_ann.name}'")
-        if type_ann.type_args:
-            args = ", ".join(_get_type_doc(t) for t in type_ann.type_args)
-            return f"{type_ann.name}<{args}>"
-        return base
-    elif isinstance(type_ann, UnionType):
-        types = ", ".join(_get_type_doc(t) for t in type_ann.types)
-        return f"Union: {types}"
-    return str(type_ann) if type_ann else "Unknown"
 
 
 def _make_lsp_position(line: int, col: int) -> dict:
@@ -383,13 +188,16 @@ def _make_lsp_location(uri: str, start_line: int, start_col: int, end_line: int,
 # ── Server ──────────────────────────────────────────────
 
 class OmniLangServer:
-    """LSP server for OmniLang and OmniView language support."""
+    """LSP server for OmniLang language support, backed by Rust analyze()."""
 
     def __init__(self):
         self.workspace_roots: list[str] = []
-        self.documents: dict[str, str] = {}       # uri -> source text
-        self.document_asts: dict[str, Program] = {}  # uri -> parsed AST
-        self.document_types: dict[str, str] = {}     # uri -> "omnilang" | "omniview"
+        self.documents: dict[str, str] = {}          # uri -> source text
+        self.document_versions: dict[str, int] = {}   # uri -> version
+        self.document_open: dict[str, bool] = {}      # uri -> is_open
+        self.import_graph: dict[str, list[str]] = {}   # uri -> [resolved_import_uris]
+        self._pending_diagnostics: dict[str, float] = {}  # uri -> last_change_time
+        self._debounce_seconds: float = 0.3
 
     def _is_omniview_file(self, uri: str) -> bool:
         """Detect if a file is an OmniView .omni file."""
@@ -403,260 +211,6 @@ class OmniLangServer:
             if any(kw in source for kw in omni_keywords):
                 return True
         return False
-
-    def _parse_omniview(self, source: str, uri: str = "") -> Program | None:
-        """Parse OmniView .omni source.
-
-        Note: Python AST parser has been removed. Rust compiler handles all parsing.
-        Returns None for now — AST-dependent LSP features are disabled.
-        """
-        return None
-
-    def start(self):
-        """Start the LSP server on stdio."""
-        while True:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                self._handle_message(line.strip())
-            except EOFError:
-                break
-            except Exception as e:
-                self._send_error(str(e))
-
-    def _handle_message(self, raw: str):
-        """Parse and dispatch an LSP message."""
-        try:
-            msg = json.loads(raw)
-        except json.JSONDecodeError:
-            return
-        method = msg.get("method", "")
-        _msg_id = msg.get("id")
-
-        if method == "initialize":
-            self._handle_initialize(msg)
-        elif method == "textDocument/didOpen":
-            self._handle_did_open(msg)
-        elif method == "textDocument/didChange":
-            self._handle_did_change(msg)
-        elif method == "textDocument/hover":
-            self._handle_hover(msg)
-        elif method == "textDocument/definition":
-            self._handle_definition(msg)
-        elif method == "textDocument/completion":
-            self._handle_completion(msg)
-        elif method == "textDocument/references":
-            self._handle_references(msg)
-        elif method == "textDocument/codeAction":
-            self._handle_code_action(msg)
-        elif method == "textDocument/rename":
-            self._handle_rename(msg)
-        elif method == "textDocument/didClose":
-            self._handle_did_close(msg)
-        # Unknown method — ignore
-
-    def _get_or_parse(self, uri: str) -> Program | None:
-        """Get cached AST or parse the document.
-
-        Note: Python AST parser has been removed. Returns None for AST data.
-        Completion and keyword hover still work.
-        """
-        if not _HAS_AST:
-            return None
-        if uri not in self.documents:
-            return None
-        if uri not in self.document_asts:
-            try:
-                if self._is_omniview_file(uri):
-                    self.document_types[uri] = "omniview"
-                    ast = self._parse_omniview(self.documents[uri], uri)
-                    if ast is None:
-                        return None
-                    self.document_asts[uri] = self._wrap_omniview_ast(ast)
-                else:
-                    self.document_types[uri] = "omnilang"
-                    # Python parser removed — use Rust compilation if needed
-                    self.document_asts[uri] = _parse_via_rust(self.documents[uri], uri)
-            except Exception:
-                return None
-        return self.document_asts[uri]
-
-    def _wrap_omniview_ast(self, prog) -> Program:
-        """Wrap an OmniView Program so it can be used by OmniLang's LSP helpers.
-
-        Creates a synthetic OmniLang Program with component/store names as
-        function-like symbols for hover and go-to-definition support.
-        """
-        from omnilang.ast_nodes import (
-            Program as OmniProgram, FunctionDef as OmniFnDef,
-            TypeAnnotation as OmniType, Block as OmniBlock, Param as OmniParam,
-        )
-
-        functions = []
-
-        for comp in getattr(prog, 'components', []):
-            comp_name = getattr(comp, 'name', 'Unknown')
-            func = OmniFnDef(
-                name=comp_name,
-                params=[OmniParam(name=p.name, type_ann=p.type) for p in getattr(comp, 'props', [])],
-                return_type=OmniType(name="Component"),
-                body=OmniBlock(stmts=[]),
-                is_async=False,
-                span=getattr(comp, 'span', None),
-            )
-            functions.append(func)
-
-            # Component fns as function declarations
-            for fn in getattr(comp, 'fns', []):
-                func = OmniFnDef(
-                    name=fn.name,
-                    params=[OmniParam(name=p.name, type_ann=getattr(p, 'type', None))
-                            for p in getattr(fn, 'params', [])],
-                    return_type=getattr(fn, 'return_type', None),
-                    body=getattr(fn, 'body', OmniBlock(stmts=[])),
-                    is_async=getattr(fn, 'is_async', False),
-                    span=getattr(fn, 'span', None),
-                )
-                functions.append(func)
-
-        for store in getattr(prog, 'stores', []):
-            store_name = getattr(store, 'name', 'Unknown')
-            for action in getattr(store, 'actions', []):
-                act_name = f"{store_name}.{action.name}"
-                func = OmniFnDef(
-                    name=act_name,
-                    params=[OmniParam(name=p.name, type_ann=getattr(p, 'type', None))
-                            for p in getattr(action, 'params', [])],
-                    return_type=getattr(action, 'return_type', None),
-                    body=getattr(action, 'body', OmniBlock(stmts=[])),
-                    is_async=getattr(action, 'is_async', False),
-                    span=getattr(action, 'span', None),
-                )
-                functions.append(func)
-
-        return OmniProgram(
-            functions=functions,
-            structs=[],
-            tagged_unions=[],
-            classes=[],
-            imports=[],
-            exports=[],
-            lib_imports=list(getattr(prog, 'lib_imports', [])),
-        )
-
-    def _invalidate_ast(self, uri: str):
-        """Clear cached AST for a document on change."""
-        self.document_asts.pop(uri, None)
-
-    # ── Send helpers ─────────────────────────────────
-
-    def _send(self, msg: dict):
-        """Send an LSP message."""
-        content = json.dumps(msg)
-        header = f"Content-Length: {len(content)}\r\n\r\n"
-        sys.stdout.write(header + content)
-        sys.stdout.flush()
-
-    def _send_result(self, msg_id: int | None, result: Any):
-        self._send({"jsonrpc": "2.0", "id": msg_id, "result": result})
-
-    def _send_error(self, message: str):
-        self._send({"jsonrpc": "2.0", "error": {"code": -1, "message": message}})
-
-    def _send_notification(self, method: str, params: Any):
-        self._send({"jsonrpc": "2.0", "method": method, "params": params})
-
-    # ── Handlers ─────────────────────────────────────
-
-    def _handle_initialize(self, msg: dict):
-        self.workspace_roots = [msg.get("params", {}).get("rootUri", "")]
-        self._send({
-            "jsonrpc": "2.0",
-            "id": msg.get("id"),
-            "result": {
-                "capabilities": {
-                    "textDocumentSync": {
-                        "openClose": True,
-                        "change": 1,          # Full text sync
-                    },
-                    "hoverProvider": True,
-                    "definitionProvider": True,
-                    "completionProvider": {
-                        "triggerCharacters": [".", ":"],
-                        "resolveProvider": False,
-                    },
-                    "referencesProvider": True,
-                    "codeActionProvider": {
-                        "codeActionKinds": ["quickfix"],
-                    },
-                    "renameProvider": {
-                        "prepareProvider": False,
-                    },
-                },
-                "serverInfo": {
-                    "name": "omnilang-lsp",
-                    "version": "0.2.0",
-                },
-            }
-        })
-
-    def _handle_did_open(self, msg: dict):
-        doc = msg.get("params", {}).get("textDocument", {})
-        uri = doc.get("uri", "")
-        text = doc.get("text", "")
-        self.documents[uri] = text
-        self._invalidate_ast(uri)
-
-    def _handle_did_change(self, msg: dict):
-        doc = msg.get("params", {}).get("textDocument", {})
-        changes = msg.get("params", {}).get("contentChanges", [])
-        uri = doc.get("uri", "")
-        if changes:
-            self.documents[uri] = changes[-1].get("text", "")
-        self._invalidate_ast(uri)
-
-    def _handle_did_close(self, msg: dict):
-        doc = msg.get("params", {}).get("textDocument", {})
-        uri = doc.get("uri", "")
-        self.documents.pop(uri, None)
-        self.document_asts.pop(uri, None)
-
-    # ── textDocument/hover ───────────────────────────
-
-    def _handle_hover(self, msg: dict):
-        """Return type information and documentation for the symbol under cursor."""
-        uri, line, col = self._extract_hover_position(msg)
-        prog = self._get_or_parse(uri)
-        if prog is None:
-            self._send_result(msg.get("id"), None)
-            return
-
-        result = _find_symbol_at(prog, line, col)
-        if result is None:
-            self._handle_hover_word(msg, uri, line, col)
-            return
-
-        name, kind = result
-
-        if kind == "function":
-            self._handle_hover_function(msg, prog, name)
-        elif kind == "type":
-            self._handle_hover_type(msg, name)
-        elif kind == "variable":
-            self._handle_hover_variable(msg, name)
-        else:
-            self._send_result(msg.get("id"), None)
-
-    def _extract_hover_position(self, msg: dict) -> tuple[str, int, int]:
-        """Extract (uri, line, col) from hover message, converting to 1-based."""
-        params = msg.get("params", {})
-        td = params.get("textDocument", {})
-        pos = params.get("position", {})
-        uri = td.get("uri", "")
-        line = pos.get("line", 0) + 1
-        col = pos.get("character", 0) + 1
-        return uri, line, col
 
     def _extract_word_at(self, uri: str, line: int, col: int) -> str:
         """Extract the word at the given cursor position in a document."""
@@ -679,225 +233,670 @@ class OmniLangServer:
             end += 1
         return src_line[start:end]
 
-    def _handle_hover_word(self, msg: dict, uri: str, line: int, col: int):
-        """Handle hover when the cursor is on a keyword or builtin type."""
-        word = self._extract_word_at(uri, line, col)
+    # ── Main loop ────────────────────────────────────
 
-        if word in BUILTIN_TYPE_DOCS:
-            self._send_result(msg.get("id"), {
-                "contents": {
-                    "kind": "markdown",
-                    "value": f"**{word}** — {BUILTIN_TYPE_DOCS[word]}",
-                },
-                "range": _make_lsp_range(line, col, line, col + len(word)),
-            })
+    def start(self):
+        """Start the LSP server on stdio."""
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                self._handle_message(line.strip())
+            except EOFError:
+                break
+            except Exception as e:
+                self._send_error(str(e))
+
+    def _handle_message(self, raw: str):
+        """Parse and dispatch an LSP message."""
+        # Ensure pending diagnostics fire even if no further requests arrive
+        self._run_pending_diagnostics()
+
+        try:
+            msg = json.loads(raw)
+        except json.JSONDecodeError:
             return
-        elif word in KEYWORD_DETAILS:
-            detail = KEYWORD_DETAILS[word]
-            self._send_result(msg.get("id"), {
-                "contents": {
-                    "kind": "markdown",
-                    "value": f"**`{word}`** keyword\n\n```omnilang\n{detail}\n```",
+        method = msg.get("method", "")
+
+        if method == "initialize":
+            self._handle_initialize(msg)
+        elif method == "textDocument/didOpen":
+            self._handle_did_open(msg)
+        elif method == "textDocument/didChange":
+            self._handle_did_change(msg)
+        elif method == "textDocument/didClose":
+            self._handle_did_close(msg)
+        elif method == "textDocument/hover":
+            self._handle_hover(msg)
+        elif method == "textDocument/definition":
+            self._handle_definition(msg)
+        elif method == "textDocument/completion":
+            self._handle_completion(msg)
+        elif method == "textDocument/references":
+            self._handle_references(msg)
+        elif method == "textDocument/codeAction":
+            self._handle_code_action(msg)
+        elif method == "textDocument/rename":
+            self._handle_rename(msg)
+        elif method == "textDocument/prepareRename":
+            self._handle_prepare_rename(msg)
+        elif method == "textDocument/semanticTokens/full":
+            self._handle_semantic_tokens(msg)
+        elif method == "textDocument/signatureHelp":
+            self._handle_signature_help(msg)
+        elif method == "textDocument/documentSymbol":
+            self._handle_document_symbol(msg)
+        elif method == "textDocument/foldingRange":
+            self._handle_folding_range(msg)
+        elif method == "textDocument/formatting":
+            self._handle_formatting(msg)
+        # Unknown methods — ignore silently
+
+    # ── Send helpers ─────────────────────────────────
+
+    def _send(self, msg: dict):
+        """Send an LSP message."""
+        content = json.dumps(msg)
+        header = f"Content-Length: {len(content)}\r\n\r\n"
+        sys.stdout.write(header + content)
+        sys.stdout.flush()
+
+    def _send_result(self, msg_id: int | None, result: Any):
+        self._send({"jsonrpc": "2.0", "id": msg_id, "result": result})
+
+    def _send_error(self, message: str):
+        self._send({"jsonrpc": "2.0", "error": {"code": -1, "message": message}})
+
+    def _send_notification(self, method: str, params: Any):
+        self._send({"jsonrpc": "2.0", "method": method, "params": params})
+
+    # ── Initialize ──────────────────────────────────
+
+    def _handle_initialize(self, msg: dict):
+        self.workspace_roots = []
+        params = msg.get("params", {})
+        root_uri = params.get("rootUri", "")
+        if root_uri:
+            import urllib.parse
+            root_path = urllib.parse.urlparse(root_uri).path
+            # Windows: /C:/... -> C:/...
+            if root_path.startswith('/') and len(root_path) > 2 and root_path[2] == ':':
+                root_path = root_path[1:]
+            self.workspace_roots = [root_path]
+            self._scan_workspace(root_path)
+
+        self._send({
+            "jsonrpc": "2.0",
+            "id": msg.get("id"),
+            "result": {
+                "capabilities": {
+                    "textDocumentSync": {
+                        "openClose": True,
+                        "change": 1,  # Full text sync
+                    },
+                    "hoverProvider": True,
+                    "definitionProvider": True,
+                    "completionProvider": {
+                        "triggerCharacters": [".", ":", "@"],
+                        "resolveProvider": False,
+                    },
+                    "referencesProvider": True,
+                    "codeActionProvider": {
+                        "codeActionKinds": ["quickfix"],
+                    },
+                    "renameProvider": {
+                        "prepareProvider": True,
+                    },
+                    "semanticTokensProvider": {
+                        "full": True,
+                        "range": False,
+                        "legend": {
+                            "tokenTypes": [
+                                "keyword", "type", "function", "variable",
+                                "string", "number", "comment", "operator",
+                            ],
+                            "tokenModifiers": [],
+                        },
+                    },
+                    "foldingRangeProvider": True,
+                    "signatureHelpProvider": {
+                        "triggerCharacters": ["(", ","],
+                    },
+                    "documentSymbolProvider": True,
+                    "documentFormattingProvider": True,
                 },
-                "range": _make_lsp_range(line, col, line, col + len(word)),
-            })
-            return
-
-        self._send_result(msg.get("id"), None)
-
-    def _handle_hover_function(self, msg: dict, prog: Program, name: str):
-        """Handle hover on a function symbol."""
-        func = _find_function_def(prog, name)
-        if func:
-            parts = [f"**Function `{name}`**\n\n"]
-            params_str = ", ".join(
-                f"{p.name}: {p.type_ann}" if p.type_ann else p.name
-                for p in func.params
-            )
-            ret_str = f" -> {func.return_type}" if func.return_type else ""
-            sig = f"```omnilang\nfn {name}({params_str}){ret_str}\n```"
-            parts.append(sig)
-            if func.is_async:
-                parts.append("\n*async function*")
-            self._send_result(msg.get("id"), {
-                "contents": {
-                    "kind": "markdown",
-                    "value": "\n".join(parts),
+                "serverInfo": {
+                    "name": "omnilang-lsp",
+                    "version": "0.3.0",
                 },
-            })
-            return
-        self._send_result(msg.get("id"), None)
-
-    def _handle_hover_type(self, msg: dict, name: str):
-        """Handle hover on a type symbol."""
-        self._send_result(msg.get("id"), {
-            "contents": {
-                "kind": "markdown",
-                "value": f"**Type `{name}`**\n\nCustom type defined in this module.",
-            },
+            }
         })
 
-    def _handle_hover_variable(self, msg: dict, name: str):
-        """Handle hover on a variable symbol."""
-        self._send_result(msg.get("id"), {
-            "contents": {
-                "kind": "markdown",
-                "value": f"**Variable `{name}`**",
-            },
+    # ── Workspace scanning ───────────────────────────
+
+    def _scan_workspace(self, root_path: str):
+        """Scan workspace for .omni files to pre-load for import resolution.
+
+        Respects .gitignore and .omnilang.toml exclude patterns.
+        """
+        if not root_path or not os.path.isdir(root_path):
+            return
+
+        # Parse .gitignore patterns
+        ignore_patterns = self._load_gitignore_patterns(root_path)
+
+        # Parse .omnilang.toml exclude patterns
+        try:
+            from omnilang.config import load_config
+            config = load_config(root_path)
+            if config and hasattr(config, 'source') and hasattr(config.source, 'exclude'):
+                ignore_patterns.extend(config.source.exclude)
+        except Exception:
+            pass
+
+        for dirpath, dirnames, filenames in os.walk(root_path):
+            # Filter directories in-place to skip ignored dirs
+            dirnames[:] = [
+                d for d in dirnames
+                if not self._is_ignored(os.path.join(dirpath, d), root_path, ignore_patterns)
+            ]
+            for fname in filenames:
+                full_path = os.path.join(dirpath, fname)
+                if self._is_ignored(full_path, root_path, ignore_patterns):
+                    continue
+                if fname.endswith('.omni'):
+                    uri = Path(full_path).as_uri()
+                    if uri not in self.documents:
+                        try:
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                self.documents[uri] = f.read()
+                            self.document_open[uri] = False
+                        except Exception:
+                            pass
+
+    @staticmethod
+    def _load_gitignore_patterns(root: str) -> list[str]:
+        """Load .gitignore patterns as simple glob strings."""
+        patterns = ['.git', 'node_modules', '__pycache__', '*.pyc', '.DS_Store']
+        gitignore = os.path.join(root, '.gitignore')
+        if os.path.exists(gitignore):
+            try:
+                with open(gitignore, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            patterns.append(line.rstrip('/'))
+            except Exception:
+                pass
+        return patterns
+
+    @staticmethod
+    def _is_ignored(path: str, root: str, patterns: list[str]) -> bool:
+        """Check if a path matches any ignore pattern."""
+        import fnmatch
+        rel = os.path.relpath(path, root).replace('\\', '/')
+        name = os.path.basename(path)
+        for pat in patterns:
+            if pat.endswith('/'):
+                pat = pat[:-1]
+            if fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(name, pat):
+                return True
+            # Pattern like "dir/" matches directory contents
+            if '/' not in pat and fnmatch.fnmatch(rel, pat + '/*'):
+                return True
+        return False
+
+    # ── URI / path helpers ───────────────────────────
+
+    @staticmethod
+    def _uri_to_path(uri: str) -> str:
+        """Convert file:// URI to filesystem path."""
+        import urllib.parse
+        path = urllib.parse.urlparse(uri).path
+        # Windows drive letter normalization: /C:/... -> C:/...
+        if path.startswith('/') and len(path) > 2 and path[2] == ':':
+            path = path[1:]
+        return path
+
+    @staticmethod
+    def _line_col_to_byte_offset(source: str, line: int, col: int) -> int:
+        """Convert 1-based line/col to byte offset (UTF-8)."""
+        source_bytes = source.encode('utf-8')
+        lines = source.split('\n')
+        offset = 0
+        for i in range(min(line - 1, len(lines))):
+            offset += len(lines[i].encode('utf-8')) + 1  # +1 for '\n' byte
+        # col is character-based; for multi-byte chars, count bytes up to col
+        if line <= len(lines):
+            chars_before = lines[line - 1][:col - 1]
+            offset += len(chars_before.encode('utf-8'))
+        return min(offset, len(source_bytes))
+
+    def _build_analysis_request(self, primary_uri: str, operation: str,
+                                cursor_line: int = 1, cursor_col: int = 1,
+                                extra: dict | None = None) -> dict:
+        """Build an AnalysisRequest dict for a given operation."""
+        files = []
+        primary_path = self._uri_to_path(primary_uri)
+
+        # Include primary file
+        if primary_uri in self.documents:
+            files.append({
+                "path": primary_path,
+                "content": self.documents[primary_uri],
+                "is_open": self.document_open.get(primary_uri, False),
+            })
+
+        # Include imported files (from import graph)
+        imported_uris = self.import_graph.get(primary_uri, [])
+        for imp_uri in imported_uris:
+            if imp_uri in self.documents and imp_uri != primary_uri:
+                files.append({
+                    "path": self._uri_to_path(imp_uri),
+                    "content": self.documents[imp_uri],
+                    "is_open": self.document_open.get(imp_uri, False),
+                })
+
+        # Calculate byte offset from line/col
+        source = self.documents.get(primary_uri, "")
+        cursor_offset = self._line_col_to_byte_offset(source, cursor_line, cursor_col)
+
+        return {
+            "files": files,
+            "primary_file": primary_path,
+            "operation": operation,
+            "cursor_offset": cursor_offset,
+            "extra": extra or {},
+        }
+
+    # ── Document lifecycle ─────────────────────────
+
+    def _handle_did_open(self, msg: dict):
+        doc = msg.get("params", {}).get("textDocument", {})
+        uri = doc.get("uri", "")
+        text = doc.get("text", "")
+        version = doc.get("version", 0)
+        self.documents[uri] = text
+        self.document_versions[uri] = version
+        self.document_open[uri] = True
+        self._schedule_diagnostics(uri)
+
+    def _handle_did_change(self, msg: dict):
+        doc = msg.get("params", {}).get("textDocument", {})
+        changes = msg.get("params", {}).get("contentChanges", [])
+        uri = doc.get("uri", "")
+        version = doc.get("version", 0)
+        if changes:
+            self.documents[uri] = changes[-1].get("text", "")
+        self.document_versions[uri] = version
+        self._schedule_diagnostics(uri)
+
+    def _handle_did_close(self, msg: dict):
+        doc = msg.get("params", {}).get("textDocument", {})
+        uri = doc.get("uri", "")
+        self.document_open[uri] = False
+        # Keep content for import resolution — don't remove from self.documents
+
+    # ── Debounced diagnostics ────────────────────────
+
+    def _schedule_diagnostics(self, uri: str):
+        """Schedule a debounced diagnostics run for the given URI."""
+        self._pending_diagnostics[uri] = time.time()
+
+    def _run_pending_diagnostics(self):
+        """Process all pending diagnostics requests."""
+        now = time.time()
+        ready_uris = [
+            uri for uri, t in self._pending_diagnostics.items()
+            if now - t >= self._debounce_seconds
+        ]
+        for uri in ready_uris:
+            self._pending_diagnostics.pop(uri, None)
+            self._publish_diagnostics(uri)
+
+    def _publish_diagnostics(self, uri: str):
+        """Call Rust analyze() for diagnostics and publish results."""
+        from omnilang.rust_bridge import RustBridge
+
+        # Run pending diagnostics check before this one
+        self._run_pending_diagnostics()
+
+        source = self.documents.get(uri, "")
+        if not source:
+            return
+
+        # Build request
+        request = self._build_analysis_request(uri, "diagnostics")
+
+        result = RustBridge.analyze(request)
+        if result is None:
+            return  # Rust not available — fallback to keyword diagnostics
+
+        # Parse and publish
+        lsp_diags = []
+        primary = result.get("primary_result", {})
+        for d in primary.get("diagnostics", []):
+            lsp_diags.append({
+                "range": self._convert_range(d.get("range", {})),
+                "severity": d.get("severity", 2),
+                "message": d.get("message", ""),
+                "code": d.get("code", ""),
+                "source": d.get("source", "omnilang"),
+            })
+
+        self._send_notification("textDocument/publishDiagnostics", {
+            "uri": uri,
+            "diagnostics": lsp_diags,
         })
 
-    # ── textDocument/definition ──────────────────────
+        # Update import graph from resolved_imports
+        resolved = primary.get("resolved_imports", [])
+        if resolved:
+            imported_uris = []
+            for imp in resolved:
+                resolved_path = imp.get("resolved_path", "")
+                resolved_uri = Path(resolved_path).as_uri()
+                imported_uris.append(resolved_uri)
+                # Load the imported file if not already known
+                if resolved_uri not in self.documents and os.path.exists(resolved_path):
+                    try:
+                        with open(resolved_path, 'r', encoding='utf-8') as f:
+                            self.documents[resolved_uri] = f.read()
+                        self.document_open[resolved_uri] = False
+                    except Exception:
+                        pass
+            self.import_graph[uri] = imported_uris
 
-    def _handle_definition(self, msg: dict):
-        """Return the definition location for the symbol under cursor."""
+        # Publish cascade diagnostics to other open files
+        for other in result.get("other_diagnostics", []):
+            other_uri = Path(other.get("file_path", "")).as_uri()
+            other_diags = []
+            for d in other.get("diagnostics", []):
+                other_diags.append({
+                    "range": self._convert_range(d.get("range", {})),
+                    "severity": d.get("severity", 2),
+                    "message": d.get("message", ""),
+                    "code": d.get("code", ""),
+                    "source": d.get("source", "omnilang"),
+                })
+            if other_diags:
+                self._send_notification("textDocument/publishDiagnostics", {
+                    "uri": other_uri,
+                    "diagnostics": other_diags,
+                })
+
+    # ── Unified request helpers ──────────────────────
+
+    def _extract_position(self, msg: dict) -> tuple[str, int, int]:
+        """Extract (uri, 1-based-line, 1-based-col) from an LSP message."""
         params = msg.get("params", {})
         td = params.get("textDocument", {})
         pos = params.get("position", {})
         uri = td.get("uri", "")
         line = pos.get("line", 0) + 1
         col = pos.get("character", 0) + 1
+        return uri, line, col
 
-        prog = self._get_or_parse(uri)
-        if prog is None:
+    def _call_analyze(self, msg: dict, operation: str, extra: dict | None = None):
+        """Call Rust analyze() for a semantic operation, return parsed result."""
+        from omnilang.rust_bridge import RustBridge
+        uri, line, col = self._extract_position(msg)
+        request = self._build_analysis_request(uri, operation, line, col, extra)
+        return RustBridge.analyze(request), uri
+
+    @staticmethod
+    def _convert_range(rs_range: dict) -> dict:
+        """Convert 1-based Rust range to 0-based LSP range."""
+        return {
+            "start": {
+                "line": rs_range.get("start_line", 1) - 1,
+                "character": rs_range.get("start_col", 1) - 1,
+            },
+            "end": {
+                "line": rs_range.get("end_line", 1) - 1,
+                "character": rs_range.get("end_col", 1) - 1,
+            },
+        }
+
+    def _convert_location(self, loc: dict) -> dict:
+        """Convert Rust Location to LSP Location."""
+        path = loc.get("file_path", "")
+        return {
+            "uri": Path(path).as_uri() if path else "",
+            "range": self._convert_range(loc.get("range", {})),
+        }
+
+    # ── textDocument/hover ───────────────────────────
+
+    def _handle_hover(self, msg: dict):
+        result, uri = self._call_analyze(msg, "hover")
+        if result is None:
+            # Fallback: keyword hover
+            self._handle_hover_fallback(msg, uri)
+            return
+
+        hover = result.get("primary_result", {}).get("hover")
+        if hover:
+            lsp_hover = {"contents": {"kind": "markdown", "value": hover.get("contents", "")}}
+            if hover.get("range"):
+                lsp_hover["range"] = self._convert_range(hover["range"])
+            self._send_result(msg.get("id"), lsp_hover)
+        else:
+            self._handle_hover_fallback(msg, uri)
+
+    def _handle_hover_fallback(self, msg: dict, uri: str):
+        """Keyword/builtin hover fallback when Rust produces no result."""
+        _, line, col = self._extract_position(msg)
+        word = self._extract_word_at(uri, line, col)
+        if word in KEYWORD_DETAILS:
+            self._send_result(msg.get("id"), {
+                "contents": {
+                    "kind": "markdown",
+                    "value": f"**`{word}`** keyword\n\n```omnilang\n{KEYWORD_DETAILS[word]}\n```",
+                },
+            })
+        elif word in BUILTIN_TYPE_DOCS:
+            self._send_result(msg.get("id"), {
+                "contents": {
+                    "kind": "markdown",
+                    "value": f"**{word}** — {BUILTIN_TYPE_DOCS[word]}",
+                },
+            })
+        else:
+            self._send_result(msg.get("id"), None)
+
+    # ── textDocument/definition ──────────────────────
+
+    def _handle_definition(self, msg: dict):
+        result, _ = self._call_analyze(msg, "definition")
+        if result is None:
             self._send_result(msg.get("id"), None)
             return
 
-        symbol = _find_symbol_at(prog, line, col)
-        if symbol is None:
+        defs = result.get("primary_result", {}).get("definitions", [])
+        if defs:
+            locations = [self._convert_location(d) for d in defs]
+            self._send_result(msg.get("id"), locations if len(locations) > 1 else locations[0])
+        else:
             self._send_result(msg.get("id"), None)
-            return
-
-        name, kind = symbol
-
-        if kind == "function":
-            func = _find_function_def(prog, name)
-            if func and func.span:
-                loc = _make_lsp_location(
-                    uri,
-                    func.span.line, func.span.col,
-                    func.span.end_line, func.span.end_col,
-                )
-                self._send_result(msg.get("id"), loc)
-                return
-
-        elif kind == "type":
-            for s in prog.structs:
-                if s.name == name and s.span:
-                    loc = _make_lsp_location(
-                        uri, s.span.line, s.span.col,
-                        s.span.end_line, s.span.end_col,
-                    )
-                    self._send_result(msg.get("id"), loc)
-                    return
-            for c in prog.classes:
-                if c.name == name and c.span:
-                    loc = _make_lsp_location(
-                        uri, c.span.line, c.span.col,
-                        c.span.end_line, c.span.end_col,
-                    )
-                    self._send_result(msg.get("id"), loc)
-                    return
-
-        elif kind == "variable":
-            # Walk all function bodies to find the variable declaration
-            for func in prog.functions:
-                if func.body:
-                    decl = _find_var_decl_in_block(func.body, name)
-                    if decl and decl.span:
-                        loc = _make_lsp_location(
-                            uri,
-                            decl.span.line, decl.span.col,
-                            decl.span.end_line, decl.span.end_col,
-                        )
-                        self._send_result(msg.get("id"), loc)
-                        return
-
-        self._send_result(msg.get("id"), None)
 
     # ── textDocument/completion ──────────────────────
 
     def _handle_completion(self, msg: dict):
-        """Return keyword completions (OmniLang or OmniView based on file type)."""
-        params = msg.get("params", {})
-        td = params.get("textDocument", {})
-        uri = td.get("uri", "")
-        is_omniview = self.document_types.get(uri) == "omniview"
+        result, uri = self._call_analyze(msg, "completion")
+        if result is None:
+            # Fallback: static keyword completion
+            self._handle_completion_fallback(msg, uri)
+            return
+
+        items = result.get("primary_result", {}).get("items", [])
+        if items:
+            self._send_result(msg.get("id"), {"isIncomplete": False, "items": items})
+        else:
+            self._handle_completion_fallback(msg, uri)
+
+    def _handle_completion_fallback(self, msg: dict, uri: str):
+        """Static keyword completion fallback — keyword + type completions."""
+        is_omniview = self._is_omniview_file(uri)
 
         items = []
-
         if is_omniview:
-            # OmniView-specific completions
             for kw, detail, kind in OMNIVIEW_KEYWORDS:
-                items.append({
-                    "label": kw,
-                    "kind": kind,
-                    "detail": detail,
-                    "insertText": kw,
-                })
+                items.append({"label": kw, "kind": kind, "detail": detail, "insertText": kw})
             for kw, detail, kind in OMNIVIEW_DIRECTIVES:
-                items.append({
-                    "label": kw,
-                    "kind": kind,
-                    "detail": detail,
-                    "insertText": kw[1:] if kw.startswith("@") else kw,
-                })
+                items.append({"label": kw, "kind": kind, "detail": detail,
+                              "insertText": kw[1:] if kw.startswith("@") else kw})
             for tag, detail, kind in OMNIVIEW_ELEMENT_TAGS:
-                items.append({
-                    "label": tag,
-                    "kind": kind,
-                    "detail": detail,
-                    "insertText": tag,
-                })
+                items.append({"label": tag, "kind": kind, "detail": detail, "insertText": tag})
             for prop, detail, kind in OMNIVIEW_ELEMENT_PROPS:
-                items.append({
-                    "label": prop,
-                    "kind": kind,
-                    "detail": detail,
-                    "insertText": prop,
-                })
-            # Also include basic OmniLang keywords
+                items.append({"label": prop, "kind": kind, "detail": detail, "insertText": prop})
             for kw in KEYWORDS:
-                detail = KEYWORD_DETAILS.get(kw, "")
-                items.append({
-                    "label": kw,
-                    "kind": 14,
-                    "detail": detail,
-                    "insertText": kw,
-                })
+                items.append({"label": kw, "kind": 14,
+                              "detail": KEYWORD_DETAILS.get(kw, ""), "insertText": kw})
         else:
-            # Pure OmniLang completions
             for kw in KEYWORDS:
-                detail = KEYWORD_DETAILS.get(kw, "")
-                items.append({
-                    "label": kw,
-                    "kind": 14,
-                    "detail": detail,
-                    "insertText": kw,
-                })
-            # Add built-in types
+                items.append({"label": kw, "kind": 14,
+                              "detail": KEYWORD_DETAILS.get(kw, ""), "insertText": kw})
             for type_name in BUILTIN_TYPE_DOCS:
-                items.append({
-                    "label": type_name,
-                    "kind": 9,
-                    "detail": BUILTIN_TYPE_DOCS[type_name],
-                    "insertText": type_name,
-                })
+                items.append({"label": type_name, "kind": 9,
+                              "detail": BUILTIN_TYPE_DOCS[type_name], "insertText": type_name})
 
-        self._send_result(msg.get("id"), {
-            "isIncomplete": False,
-            "items": items,
-        })
+        self._send_result(msg.get("id"), {"isIncomplete": False, "items": items})
 
     # ── textDocument/references ──────────────────────
 
     def _handle_references(self, msg: dict):
-        """Return references (placeholder — returns empty)."""
-        self._send_result(msg.get("id"), [])
+        result, _ = self._call_analyze(msg, "references")
+        if result is None:
+            self._send_result(msg.get("id"), [])
+            return
+
+        refs = result.get("primary_result", {}).get("references", [])
+        locations = [self._convert_location(r) for r in refs]
+        self._send_result(msg.get("id"), locations)
+
+    # ── textDocument/rename ──────────────────────────
+
+    def _handle_rename(self, msg: dict):
+        params = msg.get("params", {})
+        new_name = params.get("newName", "")
+        result, uri = self._call_analyze(msg, "rename", {"new_name": new_name})
+        if result is None:
+            self._send_result(msg.get("id"), {"changes": {}})
+            return
+
+        edits = result.get("primary_result", {}).get("edits", [])
+        changes: dict[str, list] = {}
+        for edit in edits:
+            lsp_edit = {
+                "range": self._convert_range(edit.get("range", {})),
+                "newText": edit.get("new_text", ""),
+            }
+            file_path = edit.get("file_path", self._uri_to_path(uri))
+            file_uri = Path(file_path).as_uri()
+            if file_uri not in changes:
+                changes[file_uri] = []
+            changes[file_uri].append(lsp_edit)
+        self._send_result(msg.get("id"), {"changes": changes})
+
+    def _handle_prepare_rename(self, msg: dict):
+        result, _ = self._call_analyze(msg, "prepare_rename")
+        if result is None:
+            self._send_result(msg.get("id"), None)
+            return
+
+        rename_range = result.get("primary_result", {}).get("rename_range")
+        if rename_range:
+            self._send_result(msg.get("id"), self._convert_range(rename_range))
+        else:
+            self._send_result(msg.get("id"), None)
+
+    # ── textDocument/semanticTokens/full ─────────────
+
+    def _handle_semantic_tokens(self, msg: dict):
+        result, _ = self._call_analyze(msg, "semantic_tokens")
+        if result is None:
+            self._send_result(msg.get("id"), {"data": []})
+            return
+
+        tokens = result.get("primary_result", {}).get("semantic_tokens", [])
+        self._send_result(msg.get("id"), {"data": tokens})
+
+    # ── textDocument/signatureHelp ───────────────────
+
+    def _handle_signature_help(self, msg: dict):
+        result, _ = self._call_analyze(msg, "signature_help")
+        if result is None:
+            self._send_result(msg.get("id"), None)
+            return
+
+        sig = result.get("primary_result", {}).get("signature")
+        if sig:
+            self._send_result(msg.get("id"), {
+                "signatures": [sig],
+                "activeSignature": 0,
+                "activeParameter": sig.get("active_parameter", 0),
+            })
+        else:
+            self._send_result(msg.get("id"), None)
+
+    # ── textDocument/documentSymbol ──────────────────
+
+    def _handle_document_symbol(self, msg: dict):
+        result, _ = self._call_analyze(msg, "document_symbol")
+        if result is None:
+            self._send_result(msg.get("id"), [])
+            return
+
+        symbols = result.get("primary_result", {}).get("symbols", [])
+        self._send_result(msg.get("id"), symbols)
+
+    # ── textDocument/foldingRange ────────────────────
+
+    def _handle_folding_range(self, msg: dict):
+        result, _ = self._call_analyze(msg, "folding_ranges")
+        if result is None:
+            self._send_result(msg.get("id"), [])
+            return
+
+        folds = result.get("primary_result", {}).get("folds", [])
+        # Convert 1-based to 0-based line numbers
+        for f in folds:
+            f["startLine"] = f.get("start_line", 1) - 1
+            f["endLine"] = f.get("end_line", 1) - 1
+            if "start_line" in f:
+                del f["start_line"]
+            if "end_line" in f:
+                del f["end_line"]
+        self._send_result(msg.get("id"), folds)
+
+    # ── textDocument/formatting ──────────────────────
+
+    def _handle_formatting(self, msg: dict):
+        from omnilang.rust_bridge import RustBridge
+
+        params = msg.get("params", {})
+        td = params.get("textDocument", {})
+        uri = td.get("uri", "")
+        source = self.documents.get(uri, "")
+
+        formatted = RustBridge.format(source)
+        if formatted is None or formatted == source:
+            self._send_result(msg.get("id"), [])
+            return
+
+        lines = source.split("\n")
+        full_range = {
+            "start": {"line": 0, "character": 0},
+            "end": {"line": len(lines), "character": len(lines[-1]) if lines else 0},
+        }
+        self._send_result(msg.get("id"), [{"range": full_range, "newText": formatted}])
 
     # ── textDocument/codeAction ──────────────────────
 
     def _handle_code_action(self, msg: dict):
-        """Return quick-fix suggestions based on diagnostics or context."""
+        """Return quick-fix suggestions based on diagnostics — static rules, no AST needed."""
         params = msg.get("params", {})
         td = params.get("textDocument", {})
         uri = td.get("uri", "")
@@ -905,141 +904,45 @@ class OmniLangServer:
         diags = context.get("diagnostics", [])
 
         actions = []
-
         for diag in diags:
             code = diag.get("code", "")
-            _message = diag.get("message", "")
             range_val = diag.get("range", {})
 
-            # P0101: integer division -> suggest float cast or explicit idiv
             if code == "P0101":
                 actions.append({
                     "title": "Convert to float division (f64)",
-                    "kind": "quickfix",
-                    "diagnostics": [diag],
-                    "edit": {
-                        "changes": {
-                            uri: [
-                                {
-                                    "range": range_val,
-                                    "newText": "(a as f64) / (b as f64)",
-                                }
-                            ]
-                        }
-                    },
+                    "kind": "quickfix", "diagnostics": [diag],
+                    "edit": {"changes": {uri: [{"range": range_val,
+                        "newText": "(a as f64) / (b as f64)"}]}},
                     "isPreferred": False,
                 })
                 actions.append({
                     "title": "Add integer division helper (_idiv)",
-                    "kind": "quickfix",
-                    "diagnostics": [diag],
-                    "edit": {
-                        "changes": {
-                            uri: [
-                                {
-                                    "range": range_val,
-                                    "newText": "_idiv(a, b)",
-                                }
-                            ]
-                        }
-                    },
+                    "kind": "quickfix", "diagnostics": [diag],
+                    "edit": {"changes": {uri: [{"range": range_val,
+                        "newText": "_idiv(a, b)"}]}},
                     "isPreferred": True,
                 })
-
-            # S0101: unused variable -> suggest prefix with _
             elif code == "S0101":
                 actions.append({
                     "title": "Prefix unused variable with _",
-                    "kind": "quickfix",
-                    "diagnostics": [diag],
+                    "kind": "quickfix", "diagnostics": [diag],
                     "isPreferred": True,
                 })
-
-            # E0202: async without await -> suggest using await
             elif code == "E0202":
                 actions.append({
                     "title": "Add _ = await expression to use async result",
-                    "kind": "quickfix",
-                    "diagnostics": [diag],
+                    "kind": "quickfix", "diagnostics": [diag],
                     "isPreferred": True,
                 })
-
-            # P0110: division by zero -> suggest check
             elif code == "P0110":
                 actions.append({
                     "title": "Add zero-division guard",
-                    "kind": "quickfix",
-                    "diagnostics": [diag],
+                    "kind": "quickfix", "diagnostics": [diag],
                     "isPreferred": True,
                 })
 
-        if not actions:
-            # Suggest code actions for the current context
-            actions.append({
-                "title": "Check for common issues",
-                "kind": "quickfix",
-                "diagnostics": [],
-                "isPreferred": False,
-            })
-
         self._send_result(msg.get("id"), actions)
-
-    # ── textDocument/rename ──────────────────────────
-
-    def _handle_rename(self, msg: dict):
-        """Return workspace edit for rename (placeholder)."""
-        params = msg.get("params", {})
-        new_name = params.get("newName", "")
-        td = params.get("textDocument", {})
-        uri = td.get("uri", "")
-
-        if not new_name:
-            self._send_error("No new name provided for rename.")
-            return
-
-        # Placeholder: return empty changes
-        self._send_result(msg.get("id"), {
-            "changes": {
-                uri: [],
-            },
-        })
-
-
-# ── Module-level helpers ────────────────────────────────
-
-def _find_var_decl_in_block(block: Block, name: str) -> VarDecl | None:
-    """Recursively find a variable declaration by name in a block."""
-    for stmt in block.stmts:
-        if isinstance(stmt, VarDecl) and stmt.name == name:
-            return stmt
-        # Recursively search nested blocks
-        if isinstance(stmt, IfStmt):
-            for b in ([stmt.then_body] + [b for _, b in stmt.else_ifs] + ([stmt.else_body] if stmt.else_body else [])):
-                if b:
-                    result = _find_var_decl_in_block(b, name)
-                    if result:
-                        return result
-        elif isinstance(stmt, WhileStmt) and stmt.body:
-            result = _find_var_decl_in_block(stmt.body, name)
-            if result:
-                return result
-        elif isinstance(stmt, ForInStmt):
-            if stmt.var_name == name:
-                return VarDecl(mutable=False, name=name, init=None, span=stmt.span)
-            if stmt.body:
-                result = _find_var_decl_in_block(stmt.body, name)
-                if result:
-                    return result
-    return None
-
-
-def _parse_via_rust(source: str, uri: str = "") -> Program | None:
-    """Parse .omni source using the Rust compiler.
-
-    Returns None since Rust IR doesn't produce Python AST objects.
-    LSP features requiring AST will be reimplemented in the Rust-based LSP.
-    """
-    return None
 
 
 if __name__ == "__main__":
