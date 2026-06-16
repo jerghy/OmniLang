@@ -663,7 +663,7 @@ fn lower_stmt(stmt: &Stmt) -> StatementIR {
 }
 
 /// Try to lower an expression statement as a mutation intent.
-/// Handles both MethodCall (count.set(v)) and FuncCall(FieldAccess) patterns.
+/// Handles: MethodCall, FuncCall(FieldAccess), and Assignment to signals.
 fn try_lower_mutation(expr: &Expr) -> Option<MutationIntent> {
     // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
     if let Expr::MethodCall {
@@ -679,6 +679,50 @@ fn try_lower_mutation(expr: &Expr) -> Option<MutationIntent> {
         if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
             if let Expr::VarRef(target_name, _) = object.as_ref() {
                 return mutation_for_method(target_name, field, args.first());
+            }
+        }
+    }
+    // Pattern 3: Assignment to signal: count = value or count += 1
+    if let Expr::BinaryOp {
+        left, op, right, ..
+    } = expr
+    {
+        if let Expr::VarRef(target_name, _) = left.as_ref() {
+            match op {
+                BinaryOpKind::Assign => {
+                    return Some(MutationIntent {
+                        target: SignalRefIR {
+                            owner: None,
+                            name: target_name.clone(),
+                        },
+                        operation: "direct_assign".into(),
+                        amount: Some(lower_expr(right)),
+                        item: None,
+                    });
+                }
+                BinaryOpKind::AddAssign => {
+                    return Some(MutationIntent {
+                        target: SignalRefIR {
+                            owner: None,
+                            name: target_name.clone(),
+                        },
+                        operation: "increment".into(),
+                        amount: Some(lower_expr(right)),
+                        item: None,
+                    });
+                }
+                BinaryOpKind::SubAssign => {
+                    return Some(MutationIntent {
+                        target: SignalRefIR {
+                            owner: None,
+                            name: target_name.clone(),
+                        },
+                        operation: "decrement".into(),
+                        amount: Some(lower_expr(right)),
+                        item: None,
+                    });
+                }
+                _ => {}
             }
         }
     }

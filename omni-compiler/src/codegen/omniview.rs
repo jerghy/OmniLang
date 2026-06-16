@@ -34,6 +34,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         source_map: Vec::new(),
         node_counter: 0,
         current_nid_path: Vec::new(),
+        signal_names: std::collections::HashSet::new(),
     };
 
     gen.emit_js_header();
@@ -59,6 +60,8 @@ struct OmniViewGenerator {
     source_map: Vec<SourceMapEntry>,
     node_counter: u32,
     current_nid_path: Vec<String>,
+    /// Set of signal names in the current component (for .value / .set() generation)
+    signal_names: std::collections::HashSet<String>,
 }
 
 impl OmniViewGenerator {
@@ -160,6 +163,12 @@ function _bindText(nid) {
     // ══════════════════════════════════════════════════════
 
     fn generate_component(&mut self, name: &str, comp: &ComponentIR) {
+        // Collect signal names for .value emission
+        self.signal_names.clear();
+        for state in &comp.states {
+            self.signal_names.insert(state.name.clone());
+        }
+
         self.js
             .push_str(&format!("\n/// ── Component: {} ──\n\n", name));
 
@@ -546,7 +555,14 @@ function _bindText(nid) {
                 serde_json::Value::Null => "null".into(),
                 _ => format!("{:?}", value),
             },
-            ExprIR::IdentifierExpr { name } => name.clone(),
+            ExprIR::IdentifierExpr { name } => {
+                // Signal references → emit .value for reading
+                if self.signal_names.contains(name.as_str()) {
+                    format!("{}.value", name)
+                } else {
+                    name.clone()
+                }
+            }
             ExprIR::BinaryOpExpr { op, left, right } => {
                 let l = self.expr_to_js(left);
                 let r = self.expr_to_js(right);

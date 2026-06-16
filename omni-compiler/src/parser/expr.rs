@@ -57,6 +57,7 @@ impl<'a> Parser<'a> {
                 let name = name.clone();
                 // Check for function call
                 if self.peek_kind() == TokenKind::LParen {
+                    self.advance(); // consume '('
                     let args = self.parse_call_args()?;
                     Ok(Expr::FuncCall {
                         func: Box::new(Expr::VarRef(name.clone(), span.clone())),
@@ -228,6 +229,7 @@ impl<'a> Parser<'a> {
                 match &next.kind {
                     TokenKind::Ident(method) => {
                         if self.peek_kind() == TokenKind::LParen {
+                            self.advance(); // consume '('
                             let args = self.parse_call_args()?;
                             Ok(Expr::MethodCall {
                                 object: Box::new(left),
