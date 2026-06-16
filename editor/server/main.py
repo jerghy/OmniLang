@@ -242,7 +242,7 @@ class CompileRequest(BaseModel):
 @app.post("/api/compile")
 async def api_compile(req: CompileRequest, request: Request):
     """编译 .omni 源码 → { files, diff, errors }。（G2 错误格式）"""
-    from omniview.api import compile_omni
+    from omnilang.api import compile_omni
 
     result = compile_omni(req.source, target=req.target,
                           previous_files=req.previousFiles,
@@ -277,7 +277,7 @@ async def api_compile_from_ir(req: CompileFromIRRequest):
 @app.get("/api/wasm/version")
 async def api_wasm_version():
     """返回 Rust 编译器版本信息（用于检查 WASM 是否可用）。"""
-    from omniview.codegen.rust_bridge import RustBridge
+    from omnilang.rust_bridge import RustBridge
     return {
         "rust_available": RustBridge.is_available(),
         "wasm_supported": True,  # Browser feature-check at runtime
@@ -370,7 +370,7 @@ async def api_fs_write(req: FsWriteRequest, request: Request):
 @app.post("/api/parse-view")
 async def api_parse_view(req: CompileRequest, request: Request):
     """解析 .omni 源码 → 返回视图元素树（用于画布渲染）。"""
-    from omniview.api import parse_view_tree
+    from omnilang.api import parse_view_tree
     try:
         nodes = parse_view_tree(req.source)
         return {
@@ -391,7 +391,7 @@ async def api_parse_view(req: CompileRequest, request: Request):
 @app.post("/api/parse-codeblocks")
 async def api_parse_codeblocks(req: CompileRequest, request: Request):
     """解析 .omni 源码 → 提取代码块（store/signal/computed/action）用于画布。"""
-    from omniview.api import parse_code_blocks
+    from omnilang.api import parse_code_blocks
     try:
         blocks = parse_code_blocks(req.source)
         return {
@@ -608,7 +608,7 @@ async def api_code_ownership(req: CodeOwnershipRequest):
 @app.post("/api/parse-native-ports")
 async def api_parse_native_ports(req: CompileRequest):
     """Parse @native blocks → extract @in/@out port definitions (M7)."""
-    from omniview.api import parse_native_ports
+    from omnilang.api import parse_native_ports
     try:
         ports = parse_native_ports(req.source)
         return {
