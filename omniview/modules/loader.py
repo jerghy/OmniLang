@@ -24,6 +24,7 @@ class LoadedModule:
     ir_map: dict | None = None     # Lowered IR (name → IR dict)
     imports: list[str] = field(default_factory=list)   # Resolved import paths
     exported: list[str] = field(default_factory=list)  # Exported component/store names
+    import_lines: dict[str, int] = field(default_factory=dict)  # resolved_path → source line
 
 
 class CircularImportError(Exception):
@@ -106,6 +107,31 @@ class ModuleLoader:
         order = self.graph.compilation_order()
         return [self._loaded[p] for p in order if p in self._loaded]
 
+    def build_source_map(self, entry_file: str | Path) -> tuple[dict[str, str], dict[str, str]]:
+        """Load all transitive dependencies and return (source_map, path_mapping).
+
+        source_map: {resolved_absolute_path: source_text}
+        path_mapping: {original_import_path: resolved_absolute_path}
+        """
+        self.load(entry_file)  # populate self._loaded
+
+        source_map: dict[str, str] = {}
+        path_mapping: dict[str, str] = {}
+
+        for file_path, module in self._loaded.items():
+            abs_path = str(Path(file_path).resolve())
+            source_map[abs_path] = module.source
+
+            # Use original import paths from the AST to build the path mapping
+            for imp in getattr(module.program, 'imports', []):
+                imp_path = getattr(imp, 'path', '')
+                if imp_path:
+                    resolved = self.resolver.resolve(imp_path, from_file=file_path)
+                    if resolved:
+                        path_mapping[imp_path] = str(resolved.path.resolve())
+
+        return source_map, path_mapping
+
     def _load_recursive(self, file_path: str) -> LoadedModule:
         """Load a single file and recursively load its imports.
 
@@ -181,6 +207,7 @@ class ModuleLoader:
                 program=program,
                 imports=resolved_imports,
                 exported=exported_names,
+                import_lines=import_lines,
             )
             self._loaded[file_path] = module
 
