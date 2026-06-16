@@ -9,9 +9,8 @@ Commands:
     omnic fmt <file.omni>                  Format source code
     omnic serve --dir <dir>                Start the visual editor server
     omnic watch <file.omni>                Watch and auto-rebuild on changes
-    omnic gen-extern <file.d.ts>           Generate Rust extern from .d.ts
 
-All compilation now routes through the Rust compiler via omniview.api.compile_omni().
+All compilation now routes through the Rust compiler via omnilang.api.compile_omni().
 """
 
 import argparse
@@ -38,7 +37,7 @@ ALL_TARGETS = ["rust", "dart", "js", "python", "react", "vue", "dioxus", "flutte
 def cmd_build(args):
     """Compile .omni source to target language(s).
 
-    Routes through omniview.api.compile_omni() which handles:
+    Routes through omnilang.api.compile_omni() which handles:
     - Auto-detection of UI mode vs pure logic mode
     - Rust codegen (via RustBridge)
     """
@@ -67,7 +66,7 @@ def cmd_build(args):
             # Auto-detect: UI mode defaults to react, pure logic to python
             targets = ["react"] if _detect_ui_mode(source) else ["python"]
 
-        from omniview.api import compile_omni
+        from omnilang.api import compile_omni
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -120,14 +119,14 @@ def cmd_check(args):
             source = f.read()
 
         # Use Rust compiler for static analysis
-        from omniview.api import compile_omni
+        from omnilang.api import compile_omni
         result = compile_omni(source, filepath=args.file, target="python")
 
         diagnostics = [e for e in result.errors if e.severity == "error"]
         warnings = [e for e in result.errors if e.severity == "warning"]
 
         # Also try Rust-specific analysis if available
-        from omniview.codegen.rust_bridge import RustBridge
+        from omnilang.rust_bridge import RustBridge
         if RustBridge.is_available():
             ir_result = RustBridge.compile_to_ir(source)
             if ir_result and isinstance(ir_result, dict):
@@ -234,7 +233,7 @@ def cmd_run(args):
         source = f.read()
 
     # Compile via Rust
-    from omniview.api import compile_omni
+    from omnilang.api import compile_omni
     result = compile_omni(source, filepath=args.file, target=args.target)
 
     if not result.success:
@@ -427,7 +426,7 @@ def cmd_watch(args):
         print(f"  Diff mode: showing changes across {len(targets_to_check)} target(s)")
         print("")
 
-    from omniview.api import compile_omni
+    from omnilang.api import compile_omni
 
     try:
         while True:
@@ -500,21 +499,6 @@ def cmd_watch(args):
         print(f"\nStopped. ({build_count} build(s))")
 
 
-# ════════════════════════════════════════════════════════════
-# gen-extern
-# ════════════════════════════════════════════════════════════
-
-def cmd_gen_extern(args):
-    """Generate Rust extern declarations from a .d.ts file."""
-    from omniview.gen_extern import gen_extern_command
-
-    # Build raw args for the existing command function
-    raw_args = [args.file]
-    if args.output:
-        raw_args.extend(["--output", args.output])
-    if args.module:
-        raw_args.extend(["--module", args.module])
-    sys.exit(gen_extern_command(raw_args))
 
 
 # ════════════════════════════════════════════════════════════
@@ -624,17 +608,6 @@ def main():
     watch_parser.add_argument("--diff", action="store_true", help="Show diff on changes")
     watch_parser.add_argument("--all", action="store_true", help="Build for all targets")
 
-    # ── gen-extern ──
-    gen_extern_parser = subparsers.add_parser(
-        "gen-extern", help="Generate Rust extern declarations from a .d.ts file"
-    )
-    gen_extern_parser.add_argument("file", help="Input .d.ts file")
-    gen_extern_parser.add_argument("--output", "-o", help="Output .rs file (default: stdout)")
-    gen_extern_parser.add_argument(
-        "--module", default="generated",
-        help="wasm-bindgen module name (default: generated)",
-    )
-
     args = parser.parse_args()
 
     if args.command == "build":
@@ -653,8 +626,6 @@ def main():
         cmd_serve(args)
     elif args.command == "watch":
         cmd_watch(args)
-    elif args.command == "gen-extern":
-        cmd_gen_extern(args)
     else:
         parser.print_help()
 
