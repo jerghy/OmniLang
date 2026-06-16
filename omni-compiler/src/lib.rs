@@ -183,6 +183,35 @@ pub fn compile_to_omniview(source: &str) -> String {
 }
 
 // ═══════════════════════════════════════════════════════
+// Multi-Target Codegen
+// ═══════════════════════════════════════════════════════
+
+/// Compile IR to a specific target, returning JSON with { success, files: {path: content}, errors }.
+pub fn compile_to_target_json(
+    ir: &ir::IRProgram,
+    target: codegen::Target,
+    source_files: &HashMap<String, String>,
+) -> String {
+    let output = codegen::compile(ir, target, source_files);
+    let files_map: HashMap<String, String> = output
+        .files
+        .into_iter()
+        .map(|f| (f.path, f.content))
+        .collect();
+    serde_json::to_string(&serde_json::json!({
+        "success": output.errors.is_empty(),
+        "files": files_map,
+        "errors": output.errors,
+    }))
+    .unwrap_or_else(|e| {
+        format!(
+            r#"{{"success":false,"files":{{}},"errors":["serialization error: {}"]}}"#,
+            e
+        )
+    })
+}
+
+// ═══════════════════════════════════════════════════════
 // Multi-File Validation
 // ═══════════════════════════════════════════════════════
 
@@ -459,6 +488,113 @@ fn validate_named_import(
     errors
 }
 
+/// Compile multiple .omni sources to a target language.
+///
+/// Pipeline: parse all sources → cross-file validation → per-file semantic analysis
+/// → IR lowering → merged IR → target codegen.
+///
+/// Returns JSON: { success: bool, files: { path: content }, errors: [...] }
+pub fn compile_multi_to_target(
+    sources: HashMap<String, String>,
+    target: codegen::Target,
+    path_mapping: HashMap<String, String>,
+) -> String {
+    let mut errors: Vec<String> = Vec::new();
+    let mut programs: HashMap<String, Program> = HashMap::new();
+
+    // Phase 1: Parse all sources
+    for (path, source) in &sources {
+        let tokens = lexer::tokenize(source);
+        match parser::parse(&tokens) {
+            Ok(program) => {
+                programs.insert(path.clone(), program);
+            }
+            Err(e) => {
+                errors.push(format!("{}: parse error: {}", path, e.message));
+            }
+        }
+    }
+
+    if !errors.is_empty() {
+        return serde_json::to_string(&serde_json::json!({
+            "success": false,
+            "files": {},
+            "errors": errors,
+        }))
+        .unwrap_or_else(|e| {
+            format!(
+                r#"{{"success":false,"files":{{}},"errors":["serialization error: {}"]}}"#,
+                e
+            )
+        });
+    }
+
+    // Phase 2: Cross-file validation
+    let validation_result = validate_multi(sources.clone(), path_mapping);
+    errors.extend(validation_result.errors);
+
+    // Phase 3: Per-file semantic analysis + IR lowering → merged IR
+    let mut merged_ir = ir::IRProgram {
+        version: "1.0".to_string(),
+        components: HashMap::new(),
+        stores: HashMap::new(),
+        source_map: HashMap::new(),
+    };
+
+    for (path, program) in &programs {
+        let semantics = match semantic::analyze(program) {
+            Ok(s) => s,
+            Err(diags) => {
+                for d in &diags {
+                    errors.push(format!("{}: {}", path, d.message));
+                }
+                semantic::SemanticResult {
+                    symbols: semantic::symbols::SymbolTable::new(),
+                    dependencies: HashMap::new(),
+                }
+            }
+        };
+
+        let ir_program = ir::lower(program, &semantics);
+
+        // Merge components
+        for (name, comp) in ir_program.components {
+            merged_ir.components.entry(name).or_insert(comp);
+        }
+        // Merge stores
+        for (name, store) in ir_program.stores {
+            merged_ir.stores.entry(name).or_insert(store);
+        }
+        // Merge source maps
+        for (key, entry) in ir_program.source_map {
+            merged_ir.source_map.entry(key).or_insert(entry);
+        }
+    }
+
+    // Phase 4: Dispatch to target codegen
+    let output = codegen::compile(&merged_ir, target, &sources);
+    let files_map: HashMap<String, String> = output
+        .files
+        .into_iter()
+        .map(|f| (f.path, f.content))
+        .collect();
+
+    // Combine codegen errors with earlier errors
+    let all_errors: Vec<String> = errors.into_iter().chain(output.errors).collect();
+
+    serde_json::to_string(&serde_json::json!({
+        "success": all_errors.is_empty(),
+        "files": files_map,
+        "errors": all_errors,
+    }))
+    .unwrap_or_else(|e| {
+        format!(
+            r#"{{"success":false,"files":{{}},"errors":["serialization error: {}"]}}"#,
+            e
+        )
+    })
+}
+
 // ═══════════════════════════════════════════════════════
 // Native FFI (for Python ctypes/cffi)
 // ═══════════════════════════════════════════════════════
@@ -573,4 +709,141 @@ pub unsafe extern "C" fn omni_validate_multi(input_json: *const c_char) -> *mut 
     });
 
     rust_to_c_string(json)
+}
+
+/// Compile multiple .omni sources to a target language via C FFI.
+///
+/// # Parameters (ptr + len convention for all string inputs)
+/// - `sources_json_ptr/len`: JSON object mapping file paths to source text
+/// - `target_ptr/len`: target language string (e.g. "python", "js", "rust", "dart")
+/// - `path_mapping_ptr/len`: JSON object mapping original import paths to resolved paths
+///
+/// Returns a JSON string (caller must free with omni_free_string).
+/// # Safety
+/// All pointers must be valid for the given length, or null.
+#[no_mangle]
+pub unsafe extern "C" fn omni_compile_multi_to_target(
+    sources_json_ptr: *const u8,
+    sources_json_len: u32,
+    target_ptr: *const u8,
+    target_len: u32,
+    path_mapping_ptr: *const u8,
+    path_mapping_len: u32,
+) -> *mut c_char {
+    // Convert ptr+len to string slices
+    let sources_str = if sources_json_ptr.is_null() {
+        return rust_to_c_string(
+            r#"{"success":false,"files":{},"errors":["null sources pointer"]}"#.into(),
+        );
+    } else {
+        let slice = unsafe {
+            std::slice::from_raw_parts(sources_json_ptr, sources_json_len as usize)
+        };
+        std::str::from_utf8(slice).unwrap_or("{}")
+    };
+
+    let target_str = if target_ptr.is_null() {
+        return rust_to_c_string(
+            r#"{"success":false,"files":{},"errors":["null target pointer"]}"#.into(),
+        );
+    } else {
+        let slice = unsafe { std::slice::from_raw_parts(target_ptr, target_len as usize) };
+        std::str::from_utf8(slice).unwrap_or("")
+    };
+
+    let path_mapping_str = if path_mapping_ptr.is_null() {
+        "{}"
+    } else {
+        let slice = unsafe {
+            std::slice::from_raw_parts(path_mapping_ptr, path_mapping_len as usize)
+        };
+        std::str::from_utf8(slice).unwrap_or("{}")
+    };
+
+    // Parse sources
+    let sources: HashMap<String, String> = serde_json::from_str(sources_str).unwrap_or_default();
+
+    // Parse target
+    let target: codegen::Target = match target_str.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            return rust_to_c_string(
+                serde_json::to_string(&serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [e]
+                }))
+                .unwrap_or_else(|_| {
+                    r#"{"success":false,"files":{},"errors":["serialization error"]}"#.into()
+                }),
+            );
+        }
+    };
+
+    // Parse path_mapping
+    let path_mapping: HashMap<String, String> =
+        serde_json::from_str(path_mapping_str).unwrap_or_default();
+
+    let result = compile_multi_to_target(sources, target, path_mapping);
+    rust_to_c_string(result)
+}
+
+/// Compile a single .omni source to a target language via C FFI.
+///
+/// Convenience wrapper — wraps source as "input.omni" and calls compile_multi_to_target.
+///
+/// # Parameters (ptr + len convention)
+/// - `source_ptr/len`: .omni source text
+/// - `target_ptr/len`: target language string (e.g. "python", "js", "rust", "dart")
+///
+/// Returns a JSON string (caller must free with omni_free_string).
+/// # Safety
+/// All pointers must be valid for the given length, or null.
+#[no_mangle]
+pub unsafe extern "C" fn omni_compile_to_target(
+    source_ptr: *const u8,
+    source_len: u32,
+    target_ptr: *const u8,
+    target_len: u32,
+) -> *mut c_char {
+    let source_str = if source_ptr.is_null() {
+        return rust_to_c_string(
+            r#"{"success":false,"files":{},"errors":["null source pointer"]}"#.into(),
+        );
+    } else {
+        let slice = unsafe { std::slice::from_raw_parts(source_ptr, source_len as usize) };
+        std::str::from_utf8(slice).unwrap_or("")
+    };
+
+    let target_str = if target_ptr.is_null() {
+        return rust_to_c_string(
+            r#"{"success":false,"files":{},"errors":["null target pointer"]}"#.into(),
+        );
+    } else {
+        let slice = unsafe { std::slice::from_raw_parts(target_ptr, target_len as usize) };
+        std::str::from_utf8(slice).unwrap_or("")
+    };
+
+    let target: codegen::Target = match target_str.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            return rust_to_c_string(
+                serde_json::to_string(&serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [e]
+                }))
+                .unwrap_or_else(|_| {
+                    r#"{"success":false,"files":{},"errors":["serialization error"]}"#.into()
+                }),
+            );
+        }
+    };
+
+    let mut sources = HashMap::new();
+    sources.insert("input.omni".to_string(), source_str.to_string());
+    let path_mapping = HashMap::new();
+
+    let result = compile_multi_to_target(sources, target, path_mapping);
+    rust_to_c_string(result)
 }
