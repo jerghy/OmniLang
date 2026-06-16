@@ -186,6 +186,43 @@ PYTHON_FALLBACK_CASES = [
 ]
 
 
+# ── Framework Regression Cases ────────────────────────────────────────
+#
+# These test UI-mode .omni source compiled to React, Vue, Dioxus, and
+# Flutter. Unlike pure-logic targets, framework targets require component/
+# view syntax and produce multi-file output (e.g. .tsx, .vue, .rs, .dart).
+#
+# Note: Dioxus codegen emits rsx! macro syntax, not HTML — snippet checks
+# use Dioxus-native patterns like #[component] and rsx! rather than HTML.
+
+FRAMEWORK_CASES = [
+    pytest.param(
+        "component App { view { <div>Hello</div> } }",
+        "react",
+        ["export function App(", "return (", "<div>Hello</div>"],
+        id="react-basic-component",
+    ),
+    pytest.param(
+        "component App { view { <div>Hello</div> } }",
+        "vue",
+        ["<template>", "<div>Hello</div>", "<script setup"],
+        id="vue-basic-component",
+    ),
+    pytest.param(
+        "component App { view { <div>Hello</div> } }",
+        "dioxus",
+        ["#[component]", "pub fn App()", "rsx!"],
+        id="dioxus-basic-component",
+    ),
+    pytest.param(
+        "component App { view { <div>Hello</div> } }",
+        "flutter",
+        ["class App extends StatefulWidget", "Widget build"],
+        id="flutter-basic-component",
+    ),
+]
+
+
 # ── Tests ────────────────────────────────────────────────────────────────
 
 
@@ -205,6 +242,27 @@ def test_python_fallback_codegen(source: str, target: str, snippets: list[str]) 
 
     This explicitly forces the Python fallback path by mocking RustBridge,
     ensuring the Python codegen backends remain correct as a baseline.
+    """
+    combined = _compile_with_backend(source, target, use_rust=False)
+    _check_output(combined, snippets)
+
+
+@pytest.mark.parametrize("source,target,snippets", FRAMEWORK_CASES)
+def test_framework_codegen_contains_expected_patterns(source: str, target: str, snippets: list[str]) -> None:
+    """Framework codegen output must contain expected patterns for each target.
+
+    Uses the best available backend (Rust if available, Python fallback otherwise).
+    """
+    combined = _compile_with_backend(source, target)
+    _check_output(combined, snippets)
+
+
+@pytest.mark.parametrize("source,target,snippets", FRAMEWORK_CASES)
+def test_framework_python_fallback_codegen(source: str, target: str, snippets: list[str]) -> None:
+    """Python fallback codegen for framework targets must produce expected patterns.
+
+    Explicitly forces the Python codegen path to ensure the reference
+    implementation remains correct as a baseline.
     """
     combined = _compile_with_backend(source, target, use_rust=False)
     _check_output(combined, snippets)
