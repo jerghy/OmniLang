@@ -267,35 +267,11 @@ class CompileFromIRRequest(BaseModel):
 
 @app.post("/api/compile-from-ir")
 async def api_compile_from_ir(req: CompileFromIRRequest):
-    """从 IR JSON 编译到目标框架代码（Python codegen 消费 Rust 输出的 IR）。
+    """从 IR JSON 编译到目标框架代码（Deprecated — Rust handles all codegen now）。
 
-    当 Rust WASM 在浏览器中产生 IR 后，通过此端点生成框架代码。
+    该端点已弃用，因为 Python codegen 已被移除。保留以兼容旧客户端。
     """
-    from omniview.codegen.ir_reader import IRReader
-    from omniview.api import _get_codegen
-
-    reader = IRReader(req.ir)
-    if not reader.is_valid:
-        return {"success": False, "files": {}, "errors": reader.errors}
-
-    codegen = _get_codegen(req.target, "<input>", [], debug_mode=False)
-    if codegen is None:
-        return {"success": False, "files": {}, "errors": [f"Unsupported target: {req.target}"]}
-
-    results = {}
-    all_errors = []
-
-    for name, comp in reader.components().items():
-        result = codegen.generate_component(comp)
-        results.update(result.files)
-        all_errors.extend(result.errors)
-
-    for name, store in reader.stores().items():
-        result = codegen.generate_store(store)
-        results.update(result.files)
-        all_errors.extend(result.errors)
-
-    return {"success": len(all_errors) == 0, "files": results, "errors": all_errors}
+    return {"success": False, "files": {}, "errors": ["compile-from-ir is deprecated: Rust handles all codegen"]}
 
 
 @app.get("/api/wasm/version")
@@ -318,19 +294,9 @@ class GenerateSourceRequest(BaseModel):
 async def api_generate_source(req: GenerateSourceRequest):
     """从编辑器画布状态反向生成 .omni 源码。
 
-    接收完整的 .omni.json document（包含 design/codeTabs），
-    返回有效的 .omni 源码字符串。用于 save 前同步 sourceCode。
+    注意：Python 反向 codegen 已移除。Rust 编译器 handle 所有代码生成。
     """
-    from omniview.codegen.source import OmniViewSourceCodegen
-
-    try:
-        codegen = OmniViewSourceCodegen()
-        source = codegen.generate(req.document, component_name=req.componentName)
-        return {"success": True, "source": source, "errors": []}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "source": "", "errors": [str(e)]}
+    return {"success": False, "source": "", "errors": ["generate-source is deprecated: Rust handles all codegen"]}
 
 
 class FsReadRequest(BaseModel):

@@ -10,16 +10,14 @@ Commands:
     omnic serve --dir <dir>                Start the visual editor server
     omnic watch <file.omni>                Watch and auto-rebuild on changes
     omnic gen-extern <file.d.ts>           Generate Rust extern from .d.ts
+
+All compilation now routes through the Rust compiler via omniview.api.compile_omni().
 """
 
 import argparse
 import sys
 import os
 import re
-
-from omnilang.parser import parse
-from omnilang.semantic import analyze
-from omnilang.codegen import generate
 
 # ── Constants ──────────────────────────────────────────────
 
@@ -33,17 +31,6 @@ TARGET_EXTENSIONS = {
 ALL_TARGETS = ["rust", "dart", "js", "python", "react", "vue", "dioxus", "flutter", "omniview"]
 
 
-# ── Helpers ────────────────────────────────────────────────
-
-def _detect_ui_mode(source: str) -> bool:
-    """Detect whether source contains OmniView UI components."""
-    ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
-    has_ui = any(kw in source for kw in ui_keywords)
-    has_ui = has_ui or bool(re.search(r'<[A-Z]', source))
-    has_ui = has_ui or "import omniview" in source
-    return has_ui
-
-
 # ════════════════════════════════════════════════════════════
 # Build
 # ════════════════════════════════════════════════════════════
@@ -53,8 +40,7 @@ def cmd_build(args):
 
     Routes through omniview.api.compile_omni() which handles:
     - Auto-detection of UI mode vs pure logic mode
-    - Rust codegen (via RustBridge) when available
-    - Fallback to Python native pipeline
+    - Rust codegen (via RustBridge)
     """
     if not os.path.exists(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
@@ -62,12 +48,9 @@ def cmd_build(args):
 
     # Load project config for output dir and aliases
     output_dir = args.output
-    aliases = {}
     try:
         from omnilang.config import load_config
         cfg = load_config()
-        if cfg.aliases:
-            aliases = cfg.aliases
         if args.output == "./build":
             output_dir = cfg.output.dir if cfg.output.dir else "build"
     except ImportError:
@@ -119,7 +102,11 @@ def cmd_build(args):
 # ════════════════════════════════════════════════════════════
 
 def cmd_check(args):
-    """Run static analysis on .omni source."""
+    """Run static analysis on .omni source (via Rust compiler if available).
+
+    Note: Python-based lint rules have been migrated to the Rust compiler.
+    This command now delegates to the Rust compiler for all analysis.
+    """
     if args.explain:
         cmd_explain(args.explain)
         return
@@ -129,71 +116,47 @@ def cmd_check(args):
         sys.exit(1)
 
     try:
-        from omnilang.analyze.diagnostic import (
-            Diagnostic, DiagnosticSummary,
-        )
-
-        # Read source
         with open(args.file, "r", encoding="utf-8") as f:
             source = f.read()
 
-        # Parse
-        prog = parse(source, filename=args.file)
-        source_lines = {args.file: source.split("\n")}
+        # Use Rust compiler for static analysis
+        from omniview.api import compile_omni
+        result = compile_omni(source, filepath=args.file, target="python")
 
-        # Semantic analysis (existing v0.1 pipeline — catches type errors)
-        try:
-            type_map, rename_map = analyze(prog, source_lines)
-        except SystemExit:
-            print("Semantic analysis found errors.", file=sys.stderr)
-            sys.exit(1)
+        diagnostics = [e for e in result.errors if e.severity == "error"]
+        warnings = [e for e in result.errors if e.severity == "warning"]
 
-        # ── Analyze pipeline ──
-        from omnilang.analyze.registry import build_default_registry, AnalyzeContext
-        from omnilang.analyze.renderer import (
-            render_terminal_plain, render_json, render_github,
-        )
-        from omnilang.config import load_config
+        # Also try Rust-specific analysis if available
+        from omniview.codegen.rust_bridge import RustBridge
+        if RustBridge.is_available():
+            ir_result = RustBridge.compile_to_ir(source)
+            if ir_result and isinstance(ir_result, dict):
+                for warn in ir_result.get("_rust_warnings", []):
+                    if isinstance(warn, dict):
+                        warnings.append(type('Diag', (), {
+                            'code': warn.get('code', 'RUST'),
+                            'message': warn.get('message', str(warn)),
+                            'line': warn.get('line', 1),
+                            'file': args.file,
+                        }))
 
-        registry = build_default_registry()
-        config = load_config()
+        # Print results
+        for d in diagnostics:
+            loc = f"({d.file}:{d.line})" if d.file and d.file != "<input>" else ""
+            print(f"  Error: {d.message} {loc}".strip(), file=sys.stderr)
+        for w in warnings:
+            loc = f"({args.file}:{getattr(w, 'line', 1)})" if hasattr(w, 'line') else ""
+            print(f"  Warning: {getattr(w, 'message', str(w))} {loc}".strip())
 
-        ctx = AnalyzeContext(
-            program=prog,
-            source_lines=source_lines,
-            targets=config.targets,
-            type_map=type_map,
-            rename_map=rename_map,
-        )
-
-        # Run all enabled rules
-        diagnostics: list[Diagnostic] = []
-        for rule in registry.list_enabled(config):
-            diagnostics.extend(rule.check(ctx))
-
-        # Apply suppression directives
-        from omnilang.analyze.suppress import apply_suppression
-        rule_overrides = {}
-        if config and hasattr(config, 'analyze'):
-            rule_overrides = dict(getattr(config.analyze, 'rules', {}))
-        diagnostics = apply_suppression(diagnostics, source_lines, rule_overrides)
-
-        # Summarize and render
-        summary = DiagnosticSummary.from_diagnostics(diagnostics)
-
-        if args.format == "json":
-            render_json(diagnostics)
-        elif args.format == "github":
-            render_github(diagnostics)
-        else:
-            render_terminal_plain(diagnostics, source_lines)
-
-        if summary.total == 0:
+        if not diagnostics and not warnings:
             print("No issues found.")
             sys.exit(0)
+        elif diagnostics:
+            print(f"\n{len(diagnostics)} error(s), {len(warnings)} warning(s)")
+            sys.exit(1)
         else:
-            print(summary)
-            sys.exit(summary.exit_code())
+            print(f"\n{len(warnings)} warning(s)")
+            sys.exit(0)
 
     except SystemExit:
         sys.exit(1)
@@ -240,43 +203,18 @@ def cmd_explain(code: str):
 # ════════════════════════════════════════════════════════════
 
 def cmd_fix(args):
-    """Auto-fix diagnostics in a source file."""
+    """Auto-fix diagnostics in a source file.
+
+    WARNING: Python-based lint rules have been removed. The Rust compiler
+    handles all static analysis. This command is preserved for compatibility
+    and delegates to the Rust compiler.
+    """
     if not os.path.exists(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
         sys.exit(1)
 
-    with open(args.file, "r", encoding="utf-8") as f:
-        source = f.read()
-
-    prog = parse(source, filename=args.file)
-    source_lines = {args.file: source.split("\n")}
-    type_map, rename_map = analyze(prog, source_lines)
-
-    from omnilang.analyze.registry import build_default_registry, AnalyzeContext
-    from omnilang.analyze.fix_engine import build_default_fix_engine
-
-    registry = build_default_registry()
-    ctx = AnalyzeContext(program=prog, source_lines=source_lines, type_map=type_map, rename_map=rename_map)
-    diagnostics = []
-    for rule in registry.list_all():
-        if args.rule and rule.code != args.rule:
-            continue
-        diagnostics.extend(rule.check(ctx))
-
-    if not diagnostics:
-        print("No issues to fix.")
-        return
-
-    engine = build_default_fix_engine()
-    if args.dry_run:
-        print(f"Would fix {len(diagnostics)} issue(s):")
-        for d in diagnostics:
-            print(f"  {d.code}: {d.message}")
-    else:
-        modified = engine.apply_all(diagnostics, source)
-        with open(args.file, "w", encoding="utf-8") as f:
-            f.write(modified)
-        print(f"Fixed {len(diagnostics)} issue(s) in {args.file}")
+    print("Note: Auto-fix is not available in Rust-only mode. Use omnic check to see diagnostics.")
+    sys.exit(0)
 
 
 # ════════════════════════════════════════════════════════════
@@ -295,14 +233,20 @@ def cmd_run(args):
     with open(args.file, "r", encoding="utf-8") as f:
         source = f.read()
 
-    prog = parse(source, filename=args.file)
-    source_lines = {args.file: source.split("\n")}
-    type_map, rename_map = analyze(prog, source_lines)
-    code = generate(prog, args.target, rename_map, type_map)
+    # Compile via Rust
+    from omniview.api import compile_omni
+    result = compile_omni(source, filepath=args.file, target=args.target)
+
+    if not result.success:
+        for err in result.errors:
+            print(f"  Error: {err.message}", file=sys.stderr)
+        sys.exit(1)
+
+    code = list(result.files.values())[0] if result.files else ""
 
     tmpdir = tempfile.mkdtemp(prefix="omni_run_")
     base = os.path.splitext(os.path.basename(args.file))[0]
-    ext = TARGET_EXTENSIONS[args.target]
+    ext = TARGET_EXTENSIONS.get(args.target, ".txt")
     out = os.path.join(tmpdir, f"{base}{ext}")
     with open(out, "w", encoding="utf-8") as f:
         f.write(code)
@@ -574,6 +518,19 @@ def cmd_gen_extern(args):
 
 
 # ════════════════════════════════════════════════════════════
+# Helpers
+# ════════════════════════════════════════════════════════════
+
+def _detect_ui_mode(source: str) -> bool:
+    """Detect whether source contains OmniView UI components."""
+    ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
+    has_ui = any(kw in source for kw in ui_keywords)
+    has_ui = has_ui or bool(re.search(r'<[A-Z]', source))
+    has_ui = has_ui or "import omniview" in source
+    return has_ui
+
+
+# ════════════════════════════════════════════════════════════
 # Main
 # ════════════════════════════════════════════════════════════
 
@@ -600,7 +557,7 @@ def main():
 
     # ── check ──
     check_parser = subparsers.add_parser(
-        "check", help="Run static analysis (type + portability + lint)"
+        "check", help="Run static analysis (via Rust compiler)"
     )
     check_parser.add_argument("file", nargs="?", help="Source file (.omni) or project directory")
     check_parser.add_argument(

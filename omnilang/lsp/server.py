@@ -8,12 +8,24 @@ import json
 import sys
 from typing import Any
 
-from omnilang.parser import parse
-from omnilang.ast_nodes import (
-    Program, FunctionDef, VarDecl, Block, VarRef, BinaryOp, UnaryOp, MethodCall, FuncCall, Assign, IfStmt, WhileStmt, ForInStmt,
-    ReturnStmt, PrintStmt, ExprStmt,
-    TypeAnnotation, UnionType,
-)
+# Python AST parser has been removed — all compilation goes through Rust.
+# LSP features that require AST parsing are disabled until the Rust-based
+# LSP server is implemented. Keyword completions and hover still work.
+try:
+    from omnilang.ast_nodes import (
+        Program, FunctionDef, VarDecl, Block, VarRef, BinaryOp, UnaryOp,
+        MethodCall, FuncCall, Assign, IfStmt, WhileStmt, ForInStmt,
+        ReturnStmt, PrintStmt, ExprStmt, TypeAnnotation, UnionType,
+    )
+    _HAS_AST = True
+except ImportError:
+    Program = object  # type: ignore
+    FunctionDef = VarDecl = Block = VarRef = object
+    BinaryOp = UnaryOp = MethodCall = FuncCall = Assign = object
+    IfStmt = WhileStmt = ForInStmt = object
+    ReturnStmt = PrintStmt = ExprStmt = object
+    TypeAnnotation = UnionType = object
+    _HAS_AST = False
 
 
 # ── Keyword list for completion ──────────────────────────
@@ -393,18 +405,12 @@ class OmniLangServer:
         return False
 
     def _parse_omniview(self, source: str, uri: str = "") -> Program | None:
-        """Parse OmniView .omni source using the OmniView pipeline."""
-        from omniview.preprocessor import preprocess
-        from omnilang.lexer import create_omniview_parser
-        from omniview.parser import OmniViewTransformer
-        try:
-            pp = preprocess(source)
-            parser = create_omniview_parser()
-            tree = parser.parse(pp.processed_source)
-            transformer = OmniViewTransformer(block_map=pp.blocks)
-            return transformer.transform(tree)
-        except Exception:
-            return None
+        """Parse OmniView .omni source.
+
+        Note: Python AST parser has been removed. Rust compiler handles all parsing.
+        Returns None for now — AST-dependent LSP features are disabled.
+        """
+        return None
 
     def start(self):
         """Start the LSP server on stdio."""
@@ -451,7 +457,13 @@ class OmniLangServer:
         # Unknown method — ignore
 
     def _get_or_parse(self, uri: str) -> Program | None:
-        """Get cached AST or parse the document. Auto-detects OmniView files."""
+        """Get cached AST or parse the document.
+
+        Note: Python AST parser has been removed. Returns None for AST data.
+        Completion and keyword hover still work.
+        """
+        if not _HAS_AST:
+            return None
         if uri not in self.documents:
             return None
         if uri not in self.document_asts:
@@ -461,11 +473,11 @@ class OmniLangServer:
                     ast = self._parse_omniview(self.documents[uri], uri)
                     if ast is None:
                         return None
-                    # Wrap OmniView Program as OmniLang-compatible AST
                     self.document_asts[uri] = self._wrap_omniview_ast(ast)
                 else:
                     self.document_types[uri] = "omnilang"
-                    self.document_asts[uri] = parse(self.documents[uri], filename=uri)
+                    # Python parser removed — use Rust compilation if needed
+                    self.document_asts[uri] = _parse_via_rust(self.documents[uri], uri)
             except Exception:
                 return None
         return self.document_asts[uri]
@@ -1018,6 +1030,15 @@ def _find_var_decl_in_block(block: Block, name: str) -> VarDecl | None:
                 result = _find_var_decl_in_block(stmt.body, name)
                 if result:
                     return result
+    return None
+
+
+def _parse_via_rust(source: str, uri: str = "") -> Program | None:
+    """Parse .omni source using the Rust compiler.
+
+    Returns None since Rust IR doesn't produce Python AST objects.
+    LSP features requiring AST will be reimplemented in the Rust-based LSP.
+    """
     return None
 
 

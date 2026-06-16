@@ -1,18 +1,24 @@
 """OmniView-aware module loader.
 
-Loads and parses .omni files through the full OmniView pipeline:
-preprocess → parse → transform → semantic analysis → lower to IR.
-
-Handles recursive import resolution and multi-file dependency tracking.
-Detects and reports circular imports with clear diagnostic messages.
+Loads .omni files and resolves imports recursively.
+Note: Python AST parser has been removed; import resolution uses regex.
+All compilation now goes through the Rust compiler.
 """
 
 from pathlib import Path
 from dataclasses import dataclass, field
-import re
+import re as _re
 
 from omnilang.modules.resolver import ModuleResolver
 from omnilang.modules.graph import ModuleGraph
+
+
+# Minimal placeholder for the old Program object (Python AST removed).
+class _MinimalProgram:
+    imports = []
+    components = []
+    stores = []
+    lib_imports = []
 
 
 @dataclass
@@ -191,46 +197,36 @@ class ModuleLoader:
             with open(file_path, "r", encoding="utf-8") as f:
                 source = f.read()
 
-            # Parse through OmniView pipeline
-            from omniview.preprocessor import preprocess
-            from omnilang.lexer import create_omniview_parser
-            from omniview.parser import OmniViewTransformer
-
-            pp = preprocess(source)
-            parser = create_omniview_parser()
-            tree = parser.parse(pp.processed_source)
-            transformer = OmniViewTransformer(block_map=pp.blocks)
-            program = transformer.transform(tree)
-
-            # Extract imports and exports
+            # Note: Python AST parser has been removed. All compilation
+            # goes through the Rust compiler. For module loading, we extract
+            # imports via regex as a lightweight alternative.
+            # Extract imports via regex
             resolved_imports = []
-            import_lines = {}  # import_path → source line number for diagnostics
+            import_lines = {}
             exported_names = []
 
-            for imp in getattr(program, 'imports', []):
-                imp_path = getattr(imp, 'path', '')
+            # Match: import { Name } from "./path";
+            import_pattern = _re.compile(r'import\s+\{(?:[^}]+)\}\s+from\s+"([^"]+)"')
+            for m in import_pattern.finditer(source):
+                imp_path = m.group(1)
                 resolved = self.resolver.resolve(imp_path, from_file=file_path)
                 if resolved:
                     resolved_path = str(resolved.path)
                     resolved_imports.append(resolved_path)
-                    # Record source line for diagnostics
-                    imp_span = getattr(imp, 'span', None)
-                    if imp_span:
-                        import_lines[resolved_path] = imp_span.line
-                    # Read dependency source for boundary check
+                    import_lines[resolved_path] = source[:m.start()].count('\n') + 1
                     dep_source = Path(resolved_path).read_text(encoding="utf-8")
                     self._check_boundary(file_path, resolved_path, dep_source)
-
-                    # Recursively load dependency (cycle detection via _import_stack)
                     self._load_recursive(resolved_path)
 
-            # Collect exported names (components + stores are auto-exported)
-            for comp in getattr(program, 'components', []):
-                exported_names.append(getattr(comp, 'name', ''))
-            for store in getattr(program, 'stores', []):
-                exported_names.append(getattr(store, 'name', ''))
+            # Match: export fn/component/store names
+            export_pattern = _re.compile(r'(?:export\s+)?(?:component|store|fn)\s+(\w+)')
+            for m in export_pattern.finditer(source):
+                name = m.group(1)
+                if name not in exported_names:
+                    exported_names.append(name)
 
-            # Build loaded module
+            # Build loaded module with a minimal program placeholder
+            program = _MinimalProgram()
             module = LoadedModule(
                 path=file_path,
                 source=source,

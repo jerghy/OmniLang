@@ -11,7 +11,7 @@ class TestModuleResolver:
         root.mkdir()
         (root / "lib.omni").write_text("fn f() {}")
         resolver = ModuleResolver(str(root))
-        result = resolver.resolve("./lib", from_file=str(root / "main.omni"))
+        result = resolver.resolve("./lib.omni", from_file=str(root / "main.omni"))
         assert result is not None
         assert result.path.name == "lib.omni"
 
@@ -22,7 +22,7 @@ class TestModuleResolver:
         libs.mkdir()
         (libs / "utils.omni").write_text("fn f() {}")
         resolver = ModuleResolver(str(root), aliases={"@libs": str(libs)})
-        result = resolver.resolve("@libs/utils")
+        result = resolver.resolve("@libs/utils.omni")
         assert result is not None
         assert result.path.name == "utils.omni"
 

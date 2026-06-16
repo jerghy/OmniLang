@@ -5,7 +5,6 @@ and returns a list of (path, AST) pairs ready for compilation.
 """
 
 from pathlib import Path
-from omnilang.parser import parse_file
 from omnilang.modules.resolver import ModuleResolver
 from omnilang.modules.graph import ModuleGraph
 

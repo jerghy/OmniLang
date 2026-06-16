@@ -1,9 +1,9 @@
-"""OmniLang 编译管道共享入口。（G1）
+"""OmniLang compilation API entry point.
 
-被 omniview/cli.py 和 editor/server/ 共同导入。
-纯函数 compile_omni() — 无文件 I/O，输入源码字符串，输出字典。
+Used by omniview/cli.py and editor/server/.
+Pure function compile_omni() — no file I/O, input source string, output dict.
 
-用法:
+Usage:
     from omniview.api import compile_omni, CompileResult, CompileError
 
     result = compile_omni(source, filepath="/abs/path/to/App.omni", target="react")
@@ -19,18 +19,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-# ── 错误协议 (G2) ──────────────────────────────────────
+# ── Error protocol ─────────────────────────────────────────
 
 @dataclass
 class CompileError:
-    """统一的编译错误格式。parser/lowering/codegen 均返回此类型。"""
-    file: str                           # 源文件名
-    line: int                           # 行号 (1-based)
-    col: int = 0                        # 列号 (1-based)
+    """Unified compilation error format."""
+    file: str                           # Source filename
+    line: int                           # Line number (1-based)
+    col: int = 0                        # Column number (1-based)
     severity: str = "error"             # "error" | "warning"
-    code: str = ""                      # 错误码，如 "E0101"
-    message: str = ""                   # 人类可读描述
-    suggestion: str | None = None       # 修复建议
+    code: str = ""                      # Error code, e.g. "E0101"
+    message: str = ""                   # Human-readable description
+    suggestion: str | None = None       # Fix suggestion
 
     def to_dict(self) -> dict:
         return {
@@ -46,148 +46,18 @@ class CompileError:
 
 @dataclass
 class CompileResult:
-    """编译结果。success=True 时 files 和 diff 有效；success=False 时 errors 有效。"""
+    """Compilation result. success=True -> files/diff; success=False -> errors."""
     success: bool
-    files: dict[str, str] = field(default_factory=dict)     # { "App.tsx": "...", "App.module.css": "..." }
-    diff: dict[str, str] | None = None                       # { "App.tsx": "- old\n+ new" }
-    errors: list[CompileError] = field(default_factory=list)
-    source: str = ""                                         # 原始 .omni 源码（用于后续 diff）
-
-
-# ── 主编译函数 ──────────────────────────────────────────
-
-def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
-                 previous_files: dict[str, str] | None = None,
-                 debug_mode: bool = False) -> CompileResult:
-    """编译 .omni 源码 → { filename: content } 字典。纯函数，无文件 I/O。
-
-    Args:
-        source: .omni 源码字符串。
-        filepath: 源文件路径（用于错误消息）。
-        target: 目标框架名 ("react"|"vue"|"dioxus"|"flutter"|"python"|"javascript"|"rust"|"dart")。
-        previous_files: 上次编译结果（用于计算 diff）。
-        debug_mode: 启用运行时调试注入（useTrackedSignal 等）。
-
-    Returns:
-        CompileResult — success/files/diff/errors。
-    """
-    errors: list[CompileError] = []
-    is_ui_mode = _detect_ui_mode(source)
-
-    # 纯逻辑模式自动回退 target：react/vue/dioxus/flutter → python
-    PURE_LOGIC_TARGETS = {"python", "javascript", "js", "rust", "dart"}
-    if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
-        target = "python"
-
-    # Try Rust compiler first (if available) for UI mode
-    if is_ui_mode:
-        from omniview.codegen.rust_bridge import RustBridge
-        if RustBridge.is_available():
-            ir_result = RustBridge.compile_to_ir(source)
-            if "_rust_errors" in ir_result:
-                # Rust parse failed — no fallback, return errors directly
-                for err in ir_result["_rust_errors"]:
-                    errors.append(CompileError(
-                        file=filepath, line=err.get("line", 1), col=err.get("col", 0),
-                        severity=err.get("severity", "error"),
-                        code=f"RUST_{err.get('code', 'PARSE')}",
-                        message=err.get("message", str(err)),
-                    ))
-                return CompileResult(success=False, files={}, errors=errors, source=source)
-
-            # Rust succeeded (possibly with semantic warnings) → use Rust IR
-            rust_warnings = ir_result.get("_rust_warnings", [])
-            for w in rust_warnings:
-                errors.append(CompileError(
-                    file=filepath, line=w.get("line", 1), col=w.get("col", 0),
-                    severity="warning",
-                    code=f"RUST_{w.get('code', 'SEMANTIC')}",
-                    message=w.get("message", str(w)),
-                ))
-            result = _compile_from_ir(ir_result, target, previous_files, source)
-            if errors:
-                result.errors.extend(errors)
-            return result
-
-        # Rust not available — fall back to Python native pipeline
-        # TODO: delete this branch when Rust compiler is mature
-
-    # ── Rust codegen path for pure-logic targets ──
-    if not is_ui_mode:
-        from omniview.codegen.rust_bridge import RustBridge
-        RUST_CODEGEN_TARGETS = {"python", "py", "js", "javascript", "typescript", "ts",
-                                "rust", "rs", "dart", "omniview"}
-        if RustBridge.is_available() and target in RUST_CODEGEN_TARGETS:
-            rust_result = RustBridge.compile_to_target({filepath: source}, target)
-            if rust_result is not None:
-                if rust_result.get("success"):
-                    return CompileResult(
-                        success=True,
-                        files=rust_result.get("files", {}),
-                        source=source,
-                    )
-                else:
-                    for err in rust_result.get("errors", []):
-                        if isinstance(err, dict):
-                            errors.append(CompileError(
-                                file=err.get("file", filepath),
-                                line=err.get("line", 1),
-                                col=err.get("col", 0),
-                                severity=err.get("severity", "error"),
-                                code="RUST_CODEGEN",
-                                message=str(err.get("message", err)),
-                            ))
-                        else:
-                            errors.append(CompileError(
-                                file=filepath, line=1, severity="error",
-                                code="RUST_CODEGEN", message=str(err),
-                            ))
-                    return CompileResult(success=False, files={}, errors=errors, source=source)
-            # compile_to_target returned None — DLL/function not available, fall through
-
-    try:
-        if is_ui_mode:
-            compiled_files = _compile_ui_mode(source, filepath, target, errors, debug_mode)
-        else:
-            compiled_files = _compile_pure_logic(source, filepath, target, errors)
-    except SystemExit:
-        # 语义分析/代码生成调用 sys.exit(1) → 转换为 CompileError
-        if not errors:
-            errors.append(CompileError(
-                file=filepath, line=1, severity="error", code="SEMANTIC",
-                message="Semantic analysis failed (see errors above).",
-            ))
-    except Exception as exc:
-        errors.append(CompileError(
-            file=filepath,
-            line=1,
-            severity="error",
-            code="INTERNAL",
-            message=f"Compiler internal error: {exc}",
-        ))
-        return CompileResult(success=False, files={}, errors=errors, source=source)
-
-    # 计算 diff
+    files: dict[str, str] = field(default_factory=dict)
     diff: dict[str, str] | None = None
-    if previous_files is not None:
-        diff = _compute_diff(previous_files, compiled_files)
-
-    # WARNING 不是错误——只有 severity=="error" 才算失败
-    has_errors = any(e.severity == "error" for e in errors)
-
-    return CompileResult(
-        success=not has_errors,
-        files=compiled_files,
-        diff=diff,
-        errors=errors,
-        source=source,
-    )
+    errors: list[CompileError] = field(default_factory=list)
+    source: str = ""
 
 
-# ── 模式检测 ───────────────────────────────────────────
+# ── UI mode detection ──────────────────────────────────────
 
 def _detect_ui_mode(source: str) -> bool:
-    """检测源码是否为 UI 模式（含 OmniView 组件/Store/Theme）。"""
+    """Detect whether source contains OmniView UI components."""
     ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
     has_ui_keywords = any(kw in source for kw in ui_keywords)
     has_ui_keywords = has_ui_keywords or bool(_re.search(r'<[A-Z]', source))
@@ -195,184 +65,115 @@ def _detect_ui_mode(source: str) -> bool:
     return has_import_omniview or has_ui_keywords
 
 
-# ── 纯逻辑模式 ─────────────────────────────────────────
+# ── Main compile function ──────────────────────────────────
 
-def _compile_pure_logic(source: str, filepath: str, target: str, errors: list[CompileError]) -> dict[str, str]:
-    """纯逻辑模式编译（无 OmniView 组件）。"""
+def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
+                 previous_files: dict[str, str] | None = None,
+                 debug_mode: bool = False) -> CompileResult:
+    """Compile .omni source -> {filename: content} dict. Pure function, no file I/O.
 
-    from omnilang.lexer import create_parser
-    from omnilang.parser import OmniTransformer
+    Routes all compilation through the Rust compiler (omni-compiler) via RustBridge.
 
-    try:
-        tree = create_parser().parse(source)
-    except Exception as exc:
-        errors.append(_parse_error_to_compile_error(exc, filepath))
-        return {}
+    Args:
+        source: .omni source string.
+        filepath: Source file path (for error messages).
+        target: Target framework ("react"|"vue"|"dioxus"|"flutter"|"omniview"
+                |"python"|"js"|"typescript"|"rust"|"dart").
+        previous_files: Previous compilation result (for diff computation).
+        debug_mode: Enable runtime debug injection.
 
-    program = OmniTransformer().transform(tree)
+    Returns:
+        CompileResult — success/files/diff/errors.
+    """
+    errors: list[CompileError] = []
+    is_ui_mode = _detect_ui_mode(source)
 
-    base = Path(filepath).stem
-    ext_map = {"python": ".py", "javascript": ".js", "js": ".js", "rust": ".rs", "dart": ".dart"}
-    # Normalize "javascript" → canonical "js" for codegen
-    codegen_target = "js" if target in ("javascript", "js") else target
-
-    if codegen_target not in ("python", "js", "rust", "dart"):
+    # Pure logic mode auto-fallback target
+    PURE_LOGIC_TARGETS = {"python", "javascript", "js", "typescript", "ts",
+                          "rust", "rs", "dart"}
+    ALL_TARGETS = PURE_LOGIC_TARGETS | {"react", "vue", "dioxus", "flutter", "omniview"}
+    if target not in ALL_TARGETS:
         errors.append(CompileError(
             file=filepath, line=1, severity="error", code="UNSUPPORTED",
-            message=f"Pure logic target '{target}' not supported. Use: python, javascript, rust, dart.",
+            message=f"Unknown target '{target}'. Supported: {', '.join(sorted(ALL_TARGETS))}",
         ))
-        return {}
+        return CompileResult(success=False, errors=errors, source=source)
 
-    from omnilang.codegen import generate
-    from omnilang.semantic import analyze
+    if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
+        target = "python"
 
-    # 捕获语义分析的 stderr 输出和 sys.exit
-    import io
-    import sys as _sys
-    _old_stderr = _sys.stderr
-    _stderr_buf = io.StringIO()
-    _sys.stderr = _stderr_buf
+    from omniview.codegen.rust_bridge import RustBridge
 
-    try:
-        source_lines = {filepath: source.split("\n")}
-        type_map, rename_map = analyze(program, source_lines)
-    except SystemExit:
-        # 语义分析发现错误，调用了 sys.exit(1)
-        # 从 stderr 解析错误
-        captured = _stderr_buf.getvalue()
-        for line in captured.strip().split("\n"):
-            if line.startswith("Error:"):
-                errors.append(CompileError(
-                    file=filepath, line=1, severity="error", code="SEMANTIC",
-                    message=line.replace("Error:", "").strip(),
+    if not RustBridge.is_available():
+        errors.append(CompileError(
+            file=filepath, line=1, severity="error", code="RUST_UNAVAILABLE",
+            message="Rust compiler (omni-compiler) is not available. "
+                    "Build the Rust compiler or ensure omni_compiler.dll is in the release directory.",
+        ))
+        return CompileResult(success=False, errors=errors, source=source)
+
+    # Route through Rust compiler
+    rust_result = RustBridge.compile_to_target({filepath: source}, target)
+    if rust_result is None:
+        # compile_to_target not available (older DLL), try compile_to_ir + codegen
+        # but we no longer have Python codegen, so this is an error
+        errors.append(CompileError(
+            file=filepath, line=1, severity="error", code="RUST_CODEGEN_UNAVAILABLE",
+            message="Rust compiler compile_to_target function is not available. "
+                    "Update the Rust compiler to the latest version.",
+        ))
+        return CompileResult(success=False, errors=errors, source=source)
+
+    if rust_result.get("success"):
+        # Compute diff
+        diff: dict[str, str] | None = None
+        if previous_files is not None:
+            diff = _compute_diff(previous_files, rust_result.get("files", {}))
+
+        result = CompileResult(
+            success=True,
+            files=rust_result.get("files", {}),
+            diff=diff,
+            source=source,
+        )
+
+        # Forward Rust warnings
+        for warn in rust_result.get("warnings", []):
+            if isinstance(warn, dict):
+                result.errors.append(CompileError(
+                    file=warn.get("file", filepath),
+                    line=warn.get("line", 1),
+                    col=warn.get("col", 0),
+                    severity="warning",
+                    code=warn.get("code", "RUST_WARN"),
+                    message=str(warn.get("message", warn)),
                 ))
-        return {}
-    finally:
-        _sys.stderr = _old_stderr
 
-    code = generate(program, codegen_target, rename_map, type_map)
-    return {f"{base}{ext_map[target]}": code}
-
-
-# ── UI 模式 ────────────────────────────────────────────
-
-def _compile_ui_mode(source: str, filepath: str, target: str, errors: list[CompileError],
-                     debug_mode: bool = False) -> dict[str, str]:
-    """UI 模式编译（含 OmniView 组件/Store）。"""
-
-    from omniview.preprocessor import preprocess
-    from omnilang.lexer import create_omniview_parser
-    from omniview.parser import OmniViewTransformer
-
-    # Stage 1: Preprocess
-    try:
-        pp_result = preprocess(source)
-    except Exception as exc:
-        errors.append(CompileError(file=filepath, line=1, severity="error", code="PREPROC", message=str(exc)))
-        return {}
-
-    # Stage 2: Parse
-    try:
-        tree = create_omniview_parser().parse(pp_result.processed_source)
-    except Exception as exc:
-        errors.append(_parse_error_to_compile_error(exc, filepath))
-        return {}
-
-    transformer = OmniViewTransformer(block_map=pp_result.blocks)
-    program = transformer.transform(tree)
-
-    # Stage 3: Semantic analysis
-    from omniview.semantic.analyzer import SemanticAnalyzer
-    analyzer = SemanticAnalyzer(source_lines=source.split('\n'))
-    result = analyzer.analyze(program)
-    for d in result.diagnostics:
-        if d.level in ("ERROR", "WARNING"):
-            errors.append(CompileError(
-                file=filepath, line=getattr(d, 'line', 1), col=getattr(d, 'col', 0),
-                severity="error" if d.level == "ERROR" else "warning",
-                code=getattr(d, 'code', ''), message=str(d),
-            ))
-
-    if result.has_errors:
-        return {}
-
-    # Stage 4: Lower to IR
-    from omniview.lowering import IRFixture
-    lower = IRFixture()
-    ir_map = lower.lower_program(program)
-
-    # Stage 5: Codegen
-    codegen = _get_codegen(target, filepath, errors, debug_mode)
-    if codegen is None:
-        return {}
-
-    output: dict[str, str] = {}
-    for name, ir in ir_map.items():
-        try:
-            if "states" in ir or "view" in ir:
-                gen_result = codegen.generate_component(ir, ir_map, source_line=1)
-            else:
-                gen_result = codegen.generate_store(ir, source_line=1)
-
-            for filename, content in gen_result.files.items():
-                output[filename] = content
-
-            for err_msg in gen_result.errors:
-                errors.append(CompileError(file=filepath, line=1, severity="error", code="CODEGEN", message=err_msg))
-        except Exception as exc:
-            errors.append(CompileError(
-                file=filepath, line=1, severity="error", code="CODEGEN",
-                message=f"Codegen error for '{name}': {exc}",
-            ))
-
-    return output
-
-
-def _get_codegen(target: str, filepath: str, errors: list[CompileError], debug_mode: bool = False):
-    """获取 codegen 实例。"""
-    if target == "react":
-        from omniview.codegen.react import ReactCodegen
-        return ReactCodegen(debug_mode=debug_mode)
-    elif target == "vue":
-        from omniview.codegen.vue import VueCodegen
-        return VueCodegen()
-    elif target == "dioxus":
-        from omniview.codegen.dioxus import DioxusCodegen
-        return DioxusCodegen()
-    elif target == "flutter":
-        from omniview.codegen.flutter import FlutterCodegen
-        return FlutterCodegen()
-    elif target == "omniview":
-        from omniview.codegen.omniview import OmniViewCodegen
-        return OmniViewCodegen(debug_mode=debug_mode)
+        return result
     else:
-        errors.append(CompileError(
-            file=filepath, line=1, severity="error", code="UNSUPPORTED",
-            message=f"Unknown target '{target}'. Supported: react, vue, dioxus, flutter.",
-        ))
-        return None
+        # Rust compilation failed
+        for err in rust_result.get("errors", []):
+            if isinstance(err, dict):
+                errors.append(CompileError(
+                    file=err.get("file", filepath),
+                    line=err.get("line", 1),
+                    col=err.get("col", 0),
+                    severity=err.get("severity", "error"),
+                    code=err.get("code", "RUST_ERROR"),
+                    message=str(err.get("message", err)),
+                ))
+            else:
+                errors.append(CompileError(
+                    file=filepath, line=1, severity="error",
+                    code="RUST_ERROR", message=str(err),
+                ))
+        return CompileResult(success=False, errors=errors, source=source)
 
 
-# ── 辅助 ───────────────────────────────────────────────
-
-def _parse_error_to_compile_error(exc: Exception, filepath: str) -> CompileError:
-    """将 Lark 解析异常转换为 CompileError。"""
-    msg = str(exc)
-    # 尝试提取行号
-    line = 1
-    col = 0
-    m = _re.search(r"at line (\d+)", msg)
-    if m:
-        line = int(m.group(1))
-    m = _re.search(r"at line (\d+), column (\d+)", msg)
-    if m:
-        line = int(m.group(1))
-        col = int(m.group(2))
-    return CompileError(file=filepath, line=line, col=col, severity="error", code="PARSE", message=msg.split("\n")[0])
-
+# ── Diff helper ────────────────────────────────────────────
 
 def _compute_diff(previous: dict[str, str], current: dict[str, str]) -> dict[str, str]:
-    """计算两次编译结果的 diff（简化版：逐文件对比）。"""
+    """Compute diff between two compilation results."""
     import difflib
     result: dict[str, str] = {}
     all_files = set(previous.keys()) | set(current.keys())
@@ -390,71 +191,11 @@ def _compute_diff(previous: dict[str, str], current: dict[str, str]) -> dict[str
     return result
 
 
-def _compile_from_ir(ir_program: dict, target: str,
-                     previous_files: dict[str, str] | None = None,
-                     source: str = "") -> CompileResult:
-    """Compile from IR JSON dict (Rust output) via Python codegen only.
-
-    This is the Rust-pipeline path: Rust produces IR JSON, Python codegen
-    consumes it to produce framework-specific target code.
-    """
-    codegen = _get_codegen(target, "<input>", [], debug_mode=False)
-    if codegen is None:
-        return CompileResult(
-            success=False, files={},
-            errors=[CompileError(
-                file="<input>", line=1, severity="error", code="CODEGEN",
-                message=f"Unsupported target: {target}",
-            )],
-            source=source,
-        )
-
-    current_files: dict[str, str] = {}
-    errors: list[CompileError] = []
-
-    for name, comp_ir in ir_program.get("components", {}).items():
-        result = codegen.generate_component(comp_ir)
-        current_files.update(result.files)
-        for err_msg in result.errors:
-            errors.append(CompileError(
-                file=f"{name}.omni", line=1, severity="error",
-                code="CODEGEN", message=err_msg,
-            ))
-        for warn_msg in result.warnings:
-            errors.append(CompileError(
-                file=f"{name}.omni", line=1, severity="warning",
-                code="CODEGEN", message=warn_msg,
-            ))
-
-    for name, store_ir in ir_program.get("stores", {}).items():
-        result = codegen.generate_store(store_ir)
-        current_files.update(result.files)
-        for err_msg in result.errors:
-            errors.append(CompileError(
-                file=f"{name}.omni", line=1, severity="error",
-                code="CODEGEN", message=err_msg,
-            ))
-
-    # Compute diff if previous_files provided
-    diff: dict[str, str] | None = None
-    if previous_files:
-        diff = _compute_diff(previous_files, current_files)
-
-    has_errors = any(e.severity == "error" for e in errors)
-    return CompileResult(
-        success=not has_errors,
-        files=current_files,
-        diff=diff,
-        errors=errors,
-        source=source,
-    )
-
-
-# ── 视图树提取 (M2) ────────────────────────────────────
+# ── View tree extraction (editor utility) ──────────────────
 
 @dataclass
 class ViewTreeNode:
-    """视图树节点，用于画布渲染。"""
+    """View tree node, for canvas rendering."""
     id: str
     tag: str
     props: dict = field(default_factory=dict)
@@ -464,38 +205,141 @@ class ViewTreeNode:
 
 
 def parse_view_tree(source: str, filepath: str = "<input>") -> list[ViewTreeNode]:
-    """解析 .omni 源码 → 提取视图元素树（用于画布渲染）。
+    """Parse .omni source -> extract view element tree (for canvas rendering).
 
-    只解析 UI 模式的源码。返回根元素列表。
+    Uses Rust compiler IR if available. Returns empty list if Rust is unavailable.
+    Only parses UI mode sources.
     """
-    from omniview.preprocessor import preprocess
-    from omnilang.lexer import create_omniview_parser
-    from omniview.parser import OmniViewTransformer
-    from omniview.lowering import IRFixture
-    from omniview.ast_nodes import (
-        Element, ViewBlock, IfDirective, ForDirective,
-        TextNode, Interpolation, StaticProp,
-        ComponentDef,
-    )
+    try:
+        from omniview.codegen.rust_bridge import RustBridge
+        if RustBridge.is_available():
+            ir_result = RustBridge.compile_to_ir(source)
+            if ir_result and "_rust_errors" not in ir_result:
+                components = ir_result.get("components", {}) if isinstance(ir_result, dict) else {}
+                result: list[ViewTreeNode] = []
+                for name, comp in components.items():
+                    view = comp.get("view") if isinstance(comp, dict) else None
+                    if view:
+                        root = _ir_view_to_tree(view, name)
+                        if root:
+                            result.append(root)
+                return result
+    except Exception:
+        pass
 
-    pp_result = preprocess(source)
-    tree = create_omniview_parser().parse(pp_result.processed_source)
-    transformer = OmniViewTransformer(block_map=pp_result.blocks)
-    program = transformer.transform(tree)
+    # Fallback: regex-based view tree extraction
+    return _extract_view_tree_regex(source)
 
+
+def _ir_view_to_tree(node, name: str = "") -> ViewTreeNode | None:
+    """Convert Rust IR view node dict to ViewTreeNode.
+
+    Handles both tagged and _kind-dispatched IR formats.
+    String nodes are converted to Text ViewTreeNodes.
+    """
+    # Handle string children (text nodes)
+    if isinstance(node, str):
+        return ViewTreeNode(
+            id=f"text-{id(node)}",
+            tag="Text",
+            props={"label": node},
+        )
+
+    if not node or not isinstance(node, dict):
+        return None
+
+    kind = node.get("_kind", "")
+    tag = node.get("tag", "")
+
+    # Element: has a tag (with or without _kind)
+    if tag:
+        props = {}
+        for k, v in node.get("props", {}).items():
+            if isinstance(v, dict):
+                val = v.get("value", str(v))
+                props[k] = str(val) if not isinstance(val, (int, float, bool)) else str(val)
+            else:
+                props[k] = str(v) if v is not None else ""
+
+        # Add bindings as props
+        for k, v in node.get("bindings", {}).items():
+            owner = v.get("owner") if isinstance(v, dict) else None
+            vname = v.get("name", "?") if isinstance(v, dict) else str(v)
+            props[k] = f"{{bind:{vname}}}" if not owner else f"{{bind:{owner}.{vname}}}"
+
+        # Add events as props
+        for k, v in node.get("events", {}).items():
+            ref = v.get("ref", "") if isinstance(v, dict) else ""
+            props[k] = f"->{ref}()" if ref else "->fn()"
+
+        children = []
+        for child in node.get("children", []):
+            c = _ir_view_to_tree(child)
+            if c:
+                children.append(c)
+
+        test_id = node.get("test_id")
+
+        return ViewTreeNode(
+            id=f"el-{tag}-{id(node)}",
+            tag=tag,
+            props=props,
+            children=children,
+            test_id=test_id,
+        )
+
+    # Conditional
+    if kind == "ConditionalIntent" or "branches" in node:
+        container = ViewTreeNode(
+            id=f"if-{id(node)}",
+            tag="Container",
+            props={"data-directive": "@if"},
+        )
+        for branch in node.get("branches", []):
+            body = branch.get("body") if isinstance(branch, dict) else None
+            if isinstance(body, dict):
+                child = _ir_view_to_tree(body)
+                if child:
+                    container.children.append(child)
+        return container
+
+    # List rendering
+    if kind == "ListRenderingIntent" or "iterable" in node:
+        container = ViewTreeNode(
+            id=f"for-{id(node)}",
+            tag="Container",
+            props={"data-directive": f"@for {node.get('item_binding', {}).get('name', 'item')} in ..."},
+        )
+        body = node.get("body")
+        if isinstance(body, dict):
+            child = _ir_view_to_tree(body)
+            if child:
+                container.children.append(child)
+        return container
+
+    return None
+
+
+def _extract_view_tree_regex(source: str) -> list[ViewTreeNode]:
+    """Fallback regex-based view tree extraction when Rust is unavailable."""
     result: list[ViewTreeNode] = []
-    for comp in program.components:
-        if comp.view:
-            node = _convert_view_to_tree(comp.view, comp.name)
-            if node:
-                result.append(node)
-
+    # Find top-level component definitions
+    comp_pattern = _re.compile(r'component\s+(\w+)')
+    for match in comp_pattern.finditer(source):
+        name = match.group(1)
+        result.append(ViewTreeNode(
+            id=f"comp-{name}",
+            tag="Container",
+            props={"data-component": name},
+        ))
     return result
 
 
+# ── Code block extraction (editor utility) ─────────────────
+
 @dataclass
 class CodeBlockNode:
-    """从 .omni 源码中提取的逻辑块（signal/computed/action/store）。"""
+    """Code block extracted from .omni source (signal/computed/action/store)."""
     id: str
     blockType: str  # "store" | "signal" | "computed" | "action"
     name: str
@@ -505,113 +349,206 @@ class CodeBlockNode:
 
 
 def parse_code_blocks(source: str, filepath: str = "<input>") -> list[CodeBlockNode]:
-    """解析 .omni 源码 → 提取 store / signal / computed / action 声明。
+    """Parse .omni source -> extract store/signal/computed/action declarations.
 
-    这些块可以渲染为画布上的带端口节点，用于连线可视化。
+    Uses Rust compiler IR if available. Falls back to regex parsing.
+    These blocks can be rendered as canvas nodes with ports for visual wiring.
     """
-    from omniview.preprocessor import preprocess
-    from omnilang.lexer import create_omniview_parser
-    from omniview.parser import OmniViewTransformer
+    try:
+        from omniview.codegen.rust_bridge import RustBridge
+        if RustBridge.is_available():
+            ir_result = RustBridge.compile_to_ir(source)
+            if ir_result and "_rust_errors" not in ir_result and isinstance(ir_result, dict):
+                return _extract_blocks_from_ir(ir_result)
+    except Exception:
+        pass
 
-    pp_result = preprocess(source)
-    tree = create_omniview_parser().parse(pp_result.processed_source)
-    transformer = OmniViewTransformer(block_map=pp_result.blocks)
-    program = transformer.transform(tree)
+    # Fallback: regex-based extraction
+    return _extract_blocks_regex(source)
 
+
+def _extract_blocks_from_ir(ir: dict) -> list[CodeBlockNode]:
+    """Extract code blocks from Rust IR."""
     blocks: list[CodeBlockNode] = []
     node_id = 0
 
-    for store in program.stores:
-        store_name = store.name
+    # Process stores
+    for store_name, store in ir.get("stores", {}).items():
+        if not isinstance(store, dict):
+            continue
         node_id += 1
         blocks.append(CodeBlockNode(
             id=f"cb-store-{store_name}",
             blockType="store",
             name=store_name,
-            sourceLine=getattr(store, 'span', None) and store.span.line if store.span else 0,
         ))
 
-        # signals
-        for sig in store.signals:
+        for sig in store.get("signals", []):
+            if not isinstance(sig, dict):
+                continue
             node_id += 1
-            type_ann = str(sig.type_annotation or "") if hasattr(sig, 'type_annotation') and sig.type_annotation else ""
             blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-signal-{sig.name}",
+                id=f"cb-{store_name}-signal-{sig.get('name', '?')}",
                 blockType="signal",
-                name=sig.name,
+                name=sig.get("name", "?"),
                 parentStore=store_name,
-                typeAnnotation=type_ann,
-                sourceLine=getattr(sig, 'span', None) and sig.span.line if hasattr(sig, 'span') and sig.span else 0,
+                typeAnnotation=_type_to_str(sig.get("type")),
             ))
 
-        # getters (computed)
-        for getter in store.getters:
+        for getter in store.get("getters", []):
+            if not isinstance(getter, dict):
+                continue
             node_id += 1
-            type_ann = str(getter.return_type or "") if hasattr(getter, 'return_type') and getter.return_type else ""
             blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-computed-{getter.name}",
+                id=f"cb-{store_name}-computed-{getter.get('name', '?')}",
                 blockType="computed",
-                name=getter.name,
+                name=getter.get("name", "?"),
                 parentStore=store_name,
-                typeAnnotation=type_ann,
-                sourceLine=getattr(getter, 'span', None) and getter.span.line if hasattr(getter, 'span') and getter.span else 0,
+                typeAnnotation=_type_to_str(getter.get("type", getter.get("return_type"))),
             ))
 
-        # actions
-        for action in store.actions:
+        for action in store.get("actions", []):
+            if not isinstance(action, dict):
+                continue
             node_id += 1
             blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-action-{action.name}",
+                id=f"cb-{store_name}-action-{action.get('name', '?')}",
                 blockType="action",
-                name=action.name,
+                name=action.get("name", "?"),
                 parentStore=store_name,
-                sourceLine=getattr(action, 'span', None) and action.span.line if hasattr(action, 'span') and action.span else 0,
             ))
 
-    # Component-level declarations (signals, fns, computeds directly in components)
-    for comp in program.components:
-        comp_name = comp.name
+    # Process component-level declarations
+    for comp_name, comp in ir.get("components", {}).items():
+        if not isinstance(comp, dict):
+            continue
         node_id += 1
         blocks.append(CodeBlockNode(
             id=f"cb-store-{comp_name}",
             blockType="store",
             name=comp_name,
-            sourceLine=getattr(comp, 'span', None) and comp.span.line if comp.span else 0,
         ))
-        for sig in getattr(comp, 'signals', []) or []:
+
+        for state in comp.get("states", []):
+            if not isinstance(state, dict):
+                continue
             node_id += 1
-            type_ann = str(sig.type_annotation or "") if hasattr(sig, 'type_annotation') and sig.type_annotation else ""
             blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-signal-{sig.name}",
+                id=f"cb-{comp_name}-signal-{state.get('name', '?')}",
                 blockType="signal",
-                name=sig.name,
+                name=state.get("name", "?"),
                 parentStore=comp_name,
-                typeAnnotation=type_ann,
-                sourceLine=getattr(sig, 'span', None) and sig.span.line if hasattr(sig, 'span') and sig.span else 0,
+                typeAnnotation=_type_to_str(state.get("type")),
             ))
-        for fn in getattr(comp, 'fns', []) or []:
+
+        for computed in comp.get("computeds", []):
+            if not isinstance(computed, dict):
+                continue
             node_id += 1
             blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-action-{fn.name}",
-                blockType="action",
-                name=fn.name,
-                parentStore=comp_name,
-                sourceLine=getattr(fn, 'span', None) and fn.span.line if hasattr(fn, 'span') and fn.span else 0,
-            ))
-        for c in getattr(comp, 'computeds', []) or []:
-            node_id += 1
-            type_ann = str(c.type_annotation or "") if hasattr(c, 'type_annotation') and c.type_annotation else ""
-            blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-computed-{c.name}",
+                id=f"cb-{comp_name}-computed-{computed.get('name', '?')}",
                 blockType="computed",
-                name=c.name,
+                name=computed.get("name", "?"),
                 parentStore=comp_name,
-                typeAnnotation=type_ann,
-                sourceLine=getattr(c, 'span', None) and c.span.line if hasattr(c, 'span') and c.span else 0,
+                typeAnnotation=_type_to_str(computed.get("type")),
+            ))
+
+        for fn in comp.get("fns", []):
+            if not isinstance(fn, dict):
+                continue
+            node_id += 1
+            blocks.append(CodeBlockNode(
+                id=f"cb-{comp_name}-action-{fn.get('name', '?')}",
+                blockType="action",
+                name=fn.get("name", "?"),
+                parentStore=comp_name,
             ))
 
     return blocks
 
+
+def _type_to_str(type_obj) -> str | None:
+    """Convert a Rust IR type object to a string representation."""
+    if type_obj is None:
+        return None
+    if isinstance(type_obj, str):
+        return type_obj
+    if isinstance(type_obj, dict):
+        kind = type_obj.get("kind", "")
+        if kind and kind != "void":
+            return kind
+    return None
+
+
+def _extract_blocks_regex(source: str) -> list[CodeBlockNode]:
+    """Fallback regex-based code block extraction."""
+    import re
+    blocks: list[CodeBlockNode] = []
+    node_id = 0
+
+    # Match store definitions: store Name { ... }
+    store_pattern = re.compile(r'store\s+(\w+)\s*\{')
+    for m in store_pattern.finditer(source):
+        store_name = m.group(1)
+        node_id += 1
+        blocks.append(CodeBlockNode(
+            id=f"cb-store-{store_name}",
+            blockType="store",
+            name=store_name,
+            sourceLine=source[:m.start()].count('\n') + 1,
+        ))
+
+    # Match component definitions: component Name { ... }
+    comp_pattern = re.compile(r'component\s+(\w+)\s*\{')
+    for m in comp_pattern.finditer(source):
+        comp_name = m.group(1)
+        node_id += 1
+        blocks.append(CodeBlockNode(
+            id=f"cb-store-{comp_name}",
+            blockType="store",
+            name=comp_name,
+            sourceLine=source[:m.start()].count('\n') + 1,
+        ))
+
+    # Match signal declarations: signal name: Type
+    signal_pattern = re.compile(r'(?:signal|let\s+mut)\s+(\w+)(?:\s*:\s*(\w+))?')
+    for m in signal_pattern.finditer(source):
+        node_id += 1
+        blocks.append(CodeBlockNode(
+            id=f"cb-signal-{node_id}",
+            blockType="signal",
+            name=m.group(1),
+            typeAnnotation=m.group(2),
+            sourceLine=source[:m.start()].count('\n') + 1,
+        ))
+
+    # Match computed/getter declarations: computed name => expr
+    computed_pattern = re.compile(r'(?:computed|get)\s+(\w+)(?:\s*:\s*(\w+))?\s*=')
+    for m in computed_pattern.finditer(source):
+        node_id += 1
+        blocks.append(CodeBlockNode(
+            id=f"cb-computed-{node_id}",
+            blockType="computed",
+            name=m.group(1),
+            typeAnnotation=m.group(2),
+            sourceLine=source[:m.start()].count('\n') + 1,
+        ))
+
+    # Match action/fn declarations: fn name(...)
+    fn_pattern = re.compile(r'(?:fn|action)\s+(\w+)\s*\(')
+    for m in fn_pattern.finditer(source):
+        node_id += 1
+        blocks.append(CodeBlockNode(
+            id=f"cb-action-{node_id}",
+            blockType="action",
+            name=m.group(1),
+            sourceLine=source[:m.start()].count('\n') + 1,
+        ))
+
+    return blocks
+
+
+# ── Native port extraction (editor utility) ────────────────
 
 @dataclass
 class NativePortInfo:
@@ -632,21 +569,15 @@ def parse_native_ports(source: str, filepath: str = "<input>") -> list[NativePor
         @native(react) { ... }
 
     Returns list of NativePortInfo with extracted port definitions.
+
+    Note: This function uses regex only, no parser dependency.
     """
     import re
 
     results: list[NativePortInfo] = []
     node_id = 0
 
-    # Match @native blocks with their @in/@out annotations
-    # Pattern: optional @in/@out comments followed by @native(target) { ... }
-    _ANNOTATION_RE = re.compile(
-        r"(?:^\s*//\s*@(in|out):\s*(\w+)\s*\((\w+)\)\s*$\n)*"
-        r"^\s*@native\((\w+)\)\s*\{",
-        re.MULTILINE,
-    )
-
-    # Simpler approach: scan line by line
+    # Scan line by line
     lines = source.split("\n")
     current_ins: list[dict] = []
     current_outs: list[dict] = []
@@ -688,148 +619,3 @@ def parse_native_ports(source: str, filepath: str = "<input>") -> list[NativePor
             current_outs = []
 
     return results
-
-
-def _convert_view_to_tree(view: "ViewBlock", name: str) -> ViewTreeNode | None:
-    """将 OmniView ViewBlock AST 转换为 ViewTreeNode。"""
-    children = []
-    for child in view.children:
-        converted = _convert_view_node(child)
-        if converted:
-            children.append(converted)
-
-    return ViewTreeNode(
-        id=f"comp-{name}",
-        tag="Container",
-        props={"data-component": name},
-        children=children,
-    )
-
-
-def _expr_to_label(expr) -> str:
-    """将 AST 表达式节点转换为用户友好的标签字符串。"""
-    from omnilang.ast_nodes import VarRef, Literal, BinaryOp, FuncCall, MethodCall
-    from omniview.ast_nodes import FieldAccess as OmniFieldAccess
-
-    if isinstance(expr, VarRef):
-        return expr.name
-    if hasattr(expr, 'object') and hasattr(expr, 'field'):
-        # FieldAccess (both omnilang and omniview types)
-        obj = _expr_to_label(expr.object) if expr.object else ""
-        return f"{obj}.{expr.field}" if obj else expr.field
-    if isinstance(expr, Literal):
-        return str(expr.value)
-    if isinstance(expr, BinaryOp):
-        return f"{_expr_to_label(expr.left)} {expr.op} {_expr_to_label(expr.right)}"
-    if isinstance(expr, FuncCall):
-        name = _expr_to_label(expr.func) if hasattr(expr, 'func') else "fn"
-        args = ", ".join(_expr_to_label(a) for a in (expr.args or []))
-        return f"{name}({args})"
-    # Fallback: extract name-related attributes
-    if hasattr(expr, 'name'):
-        return str(expr.name)
-    if hasattr(expr, 'field'):
-        return str(expr.field)
-    if hasattr(expr, 'method'):
-        return str(expr.method)
-    # Last resort
-    s = str(expr)
-    return s[:40] if len(s) > 40 else s
-
-
-def _convert_view_node(node) -> ViewTreeNode | None:
-    """递归转换单个 ViewNode。"""
-    from omniview.ast_nodes import (
-        Element, IfDirective, ForDirective, SlotDirective,
-        NativeBlock, FallbackBlock, ErrorBoundary,
-        TextNode, Interpolation, StaticProp,
-    )
-
-    if isinstance(node, TextNode):
-        return ViewTreeNode(
-            id=f"text-{id(node)}",
-            tag="Text",
-            props={"label": node.content},
-        )
-
-    if isinstance(node, Interpolation):
-        expr_str = _expr_to_label(node.expr) if hasattr(node, 'expr') else "{}"
-        return ViewTreeNode(
-            id=f"interp-{id(node)}",
-            tag="Text",
-            props={"label": f"{{{expr_str}}}"},
-        )
-
-    if isinstance(node, Element):
-        props = {}
-        test_id = None
-        for prop in node.props:
-            val = prop.value
-            if isinstance(val, StaticProp):
-                raw = val.value
-                if isinstance(raw, str):
-                    props[prop.name] = raw
-                elif raw is not None:
-                    props[prop.name] = _expr_to_label(raw)
-            else:
-                # BindProp / EventProp / ClassProp / StyleProp → clean label
-                type_name = type(val).__name__
-                if type_name == "BindProp":
-                    props[prop.name] = f"{{bind:{getattr(val, 'signal_ref', '?')}}}"
-                elif type_name == "EventProp":
-                    h = getattr(val, 'handler', None)
-                    if hasattr(h, 'fn_name'): props[prop.name] = f"→{h.fn_name}()"
-                    elif hasattr(h, 'action_path'): props[prop.name] = f"→{h.action_path}"
-                    else: props[prop.name] = "→fn()"
-                elif type_name == "ClassProp":
-                    props[prop.name] = "{class}"
-                elif type_name == "StyleProp":
-                    props[prop.name] = "{style}"
-                elif type_name == "RefProp":
-                    props[prop.name] = f"#ref({getattr(val, 'ref_name', '?')})"
-                else:
-                    props[prop.name] = f"{{{type_name}}}"
-
-        if hasattr(node, 'test_id') and node.test_id:
-            test_id = node.test_id
-
-        children = []
-        for child in node.children:
-            c = _convert_view_node(child)
-            if c:
-                children.append(c)
-
-        return ViewTreeNode(
-            id=f"el-{node.tag}-{id(node)}",
-            tag=node.tag,
-            props=props,
-            children=children,
-            test_id=test_id,
-        )
-
-    if isinstance(node, IfDirective):
-        container = ViewTreeNode(
-            id=f"if-{id(node)}",
-            tag="Container",
-            props={"data-directive": "@if"},
-        )
-        for branch in node.branches:
-            for c in branch.body:
-                child_node = _convert_view_node(c)
-                if child_node:
-                    container.children.append(child_node)
-        return container
-
-    if isinstance(node, ForDirective):
-        container = ViewTreeNode(
-            id=f"for-{id(node)}",
-            tag="Container",
-            props={"data-directive": f"@for {node.item_name} in ..."},
-        )
-        for c in node.body:
-            child_node = _convert_view_node(c)
-            if child_node:
-                container.children.append(child_node)
-        return container
-
-    return None
