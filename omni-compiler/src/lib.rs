@@ -849,3 +849,60 @@ pub unsafe extern "C" fn omni_compile_to_target(
     let result = compile_multi_to_target(sources, target, path_mapping);
     rust_to_c_string(result)
 }
+
+/// Analyze .omni sources for LSP operations. Returns JSON (caller must free with omni_free_string).
+///
+/// # Safety
+/// `request_json` must be a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn omni_analyze(request_json: *const c_char) -> *mut c_char {
+    let request_str = unsafe {
+        if request_json.is_null() {
+            return rust_to_c_string(
+                r#"{"success":false,"primary_result":{"diagnostics":[]},"other_diagnostics":[]}"#
+                    .into(),
+            );
+        }
+        CStr::from_ptr(request_json).to_str().unwrap_or("{}")
+    };
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let request: lsp::AnalysisRequest = match serde_json::from_str(request_str) {
+            Ok(r) => r,
+            Err(_e) => {
+                return serde_json::to_string(&lsp::AnalysisResult {
+                    success: false,
+                    primary_result: lsp::PerFileResult::default(),
+                    other_diagnostics: vec![],
+                })
+                .unwrap_or_default();
+            }
+        };
+        let analysis = lsp::analyze(request);
+        serde_json::to_string(&analysis).unwrap_or_default()
+    }));
+
+    match result {
+        Ok(json) => rust_to_c_string(json),
+        Err(_) => rust_to_c_string(
+            r#"{"success":false,"primary_result":{"diagnostics":[]},"other_diagnostics":[]}"#
+                .into(),
+        ),
+    }
+}
+
+/// Format .omni source code. Returns formatted source (caller must free with omni_free_string).
+///
+/// # Safety
+/// `source` must be a valid, null-terminated UTF-8 C string.
+#[no_mangle]
+pub unsafe extern "C" fn omni_format(source: *const c_char) -> *mut c_char {
+    let source_str = unsafe {
+        if source.is_null() {
+            return rust_to_c_string(String::new());
+        }
+        CStr::from_ptr(source).to_str().unwrap_or("")
+    };
+    let formatted = lsp::format_source(source_str);
+    rust_to_c_string(formatted)
+}

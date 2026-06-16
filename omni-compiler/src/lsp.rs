@@ -1407,3 +1407,74 @@ pub fn analyze(request: AnalysisRequest) -> AnalysisResult {
         other_diagnostics: vec![],
     }
 }
+
+// ════════════════════════════════════════════════════════
+// Formatting
+// ════════════════════════════════════════════════════════
+
+/// Format .omni source code -- used by both LSP and CLI.
+/// Performs consistent 4-space indentation based on brace depth,
+/// removes trailing whitespace, ensures single trailing newline.
+pub fn format_source(source: &str) -> String {
+    let tokens = crate::lexer::tokenize(source);
+    let mut formatted: Vec<String> = Vec::new();
+    let mut indent_level: usize = 0;
+    let indent_str = "    "; // 4 spaces
+    let mut last_pos = 0usize;
+
+    for tok in &tokens {
+        let text = &source[tok.span.start..tok.span.end];
+
+        // Emit any newlines between tokens as line breaks
+        let between = &source[last_pos..tok.span.start];
+        for ch in between.chars() {
+            if ch == '\n' {
+                formatted.push(String::new()); // empty = newline marker
+            }
+        }
+
+        match &tok.kind {
+            TokenKind::LBrace => {
+                // Opening brace on the same line
+                if let Some(last) = formatted.last_mut() {
+                    last.push_str(" {");
+                } else {
+                    formatted.push(format!("{}{{", indent_str.repeat(indent_level)));
+                }
+                indent_level += 1;
+            }
+            TokenKind::RBrace => {
+                indent_level = indent_level.saturating_sub(1);
+                formatted.push(format!("{}}}", indent_str.repeat(indent_level)));
+            }
+            TokenKind::Semicolon => {
+                if let Some(last) = formatted.last_mut() {
+                    last.push(';');
+                }
+            }
+            _ => {
+                // Regular token -- emit with current indentation
+                if formatted.is_empty() {
+                    formatted.push(format!("{}{}", indent_str.repeat(indent_level), text));
+                } else if formatted.last().map_or(true, |s| s.is_empty()) {
+                    // After a newline, indent
+                    formatted.push(format!("{}{}", indent_str.repeat(indent_level), text));
+                } else if let Some(last) = formatted.last_mut() {
+                    last.push(' ');
+                    last.push_str(text);
+                }
+            }
+        }
+
+        last_pos = tok.span.end;
+    }
+
+    // Join lines, trim trailing whitespace, ensure single trailing newline
+    let result = formatted.join("\n");
+    let result = result
+        .lines()
+        .map(|l| l.trim_end())
+        .collect::<Vec<_>>()
+        .join("\n");
+    result.trim_end().to_string() + "\n"
+}
