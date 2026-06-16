@@ -61,6 +61,20 @@ class AnalyzeConfig:
     rules: dict[str, str] = field(default_factory=dict)
 
 
+# ── Source / output sub-configs ───────────────────────
+
+@dataclass
+class SourceConfig:
+    """[source] section — where source files live."""
+    dir: str = "src"
+
+
+@dataclass
+class OutputConfig:
+    """[output] section — where compiled output goes."""
+    dir: str = "build"
+
+
 # ── Project config ────────────────────────────────────
 
 @dataclass
@@ -74,6 +88,10 @@ class OmniConfig:
 
     # Target selections
     targets: list[str] = field(default_factory=lambda: ["rust", "dart", "js", "python"])
+    ui_target: str = ""
+
+    # Alias mapping: "@alias" → "./path"
+    aliases: dict[str, str] = field(default_factory=dict)
 
     # Target-specific configs
     js: TargetJsConfig = field(default_factory=TargetJsConfig)
@@ -84,9 +102,13 @@ class OmniConfig:
     # Analyze
     analyze: AnalyzeConfig = field(default_factory=AnalyzeConfig)
 
-    # Source management
-    source_dir: str = "src"
-    output_dir: str = "build"
+    # Source / output
+    source: SourceConfig = field(default_factory=SourceConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
+
+    # Legacy top-level fields (deprecated — use source/output sub-configs)
+    source_dir: str = ""
+    output_dir: str = ""
 
 
 # ── Default .omnilang.toml template ───────────────────
@@ -96,6 +118,21 @@ DEFAULT_CONFIG_TEMPLATE = """\
 name = "{name}"
 version = "0.1.0"
 # targets = ["rust", "dart", "js", "python"]
+# ui_target = "react"        # "react" | "vue" | "dioxus" | "flutter" | "omniview"
+
+# ── Path aliases ──────────────────────────────────────
+
+[aliases]
+# "@components" = "./src/components"
+# "@lib" = "./src/lib"
+
+# ── Source / output ───────────────────────────────────
+
+[source]
+dir = "src"
+
+[output]
+dir = "build"
 
 # ── Target-specific options ───────────────────────────
 
@@ -193,6 +230,24 @@ def _parse_analyze(data: dict | None) -> AnalyzeConfig:
     )
 
 
+def _parse_source(data: dict | None) -> SourceConfig:
+    """Parse [source] section from TOML dict."""
+    if data is None:
+        return SourceConfig()
+    return SourceConfig(
+        dir=data.get("dir", "src"),
+    )
+
+
+def _parse_output(data: dict | None) -> OutputConfig:
+    """Parse [output] section from TOML dict."""
+    if data is None:
+        return OutputConfig()
+    return OutputConfig(
+        dir=data.get("dir", "build"),
+    )
+
+
 def load_config(path: str | Path | None = None) -> OmniConfig:
     """Load OmniLang project configuration.
 
@@ -214,17 +269,29 @@ def load_config(path: str | Path | None = None) -> OmniConfig:
     project = raw.get("project", {})
     target = raw.get("target", {})
 
+    # Parse aliases from [aliases] section
+    aliases = dict(raw.get("aliases", {}))
+
+    # Parse source / output sections
+    src_cfg = _parse_source(raw.get("source"))
+    out_cfg = _parse_output(raw.get("output"))
+
     config = OmniConfig(
         project_name=project.get("name", ""),
         project_version=project.get("version", "0.1.0"),
         targets=project.get("targets", ["rust", "dart", "js", "python"]),
+        ui_target=project.get("ui_target", ""),
+        aliases=aliases,
         js=_parse_target_js(target.get("js")),
         rust=_parse_target_rust(target.get("rust")),
         python=_parse_target_python(target.get("python")),
         dart=_parse_target_dart(target.get("dart")),
         analyze=_parse_analyze(raw.get("analyze")),
-        source_dir=project.get("source_dir", "src"),
-        output_dir=project.get("output_dir", "build"),
+        source=src_cfg,
+        output=out_cfg,
+        # Legacy fields (fall back to sub-config sections)
+        source_dir=project.get("source_dir", src_cfg.dir),
+        output_dir=project.get("output_dir", out_cfg.dir),
     )
 
     return config
@@ -288,6 +355,14 @@ def validate_config(config: OmniConfig) -> list[str]:
     for t in config.targets:
         if t not in valid_targets:
             errors.append(f"Invalid target '{t}'. Valid: {', '.join(sorted(valid_targets))}")
+
+    # Validate ui_target
+    valid_ui_targets = {"", "react", "vue", "dioxus", "flutter", "omniview"}
+    if config.ui_target not in valid_ui_targets:
+        errors.append(
+            f"Invalid ui_target '{config.ui_target}'. "
+            f"Valid: {', '.join(sorted(t for t in valid_ui_targets if t))}"
+        )
 
     # Validate analyze level
     valid_levels = {"error", "warning", "port", "style"}
