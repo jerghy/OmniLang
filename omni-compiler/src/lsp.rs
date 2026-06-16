@@ -583,6 +583,14 @@ fn compute_definition(ctx: &AnalysisContext) -> Vec<Location> {
                     }
                 }
             }
+            ImportStmt::Namespace(ns) if ns.alias == symbol_name => {
+                // Namespace import: jump to the imported file itself
+                let resolved = resolve_import_path(&ctx.primary_file, &ns.path, &ctx.files);
+                return vec![Location {
+                    file_path: resolved.clone(),
+                    range: LspRange { start_line: 1, start_col: 1, end_line: 1, end_col: 1 },
+                }];
+            }
             _ => {}
         }
     }
