@@ -1,5 +1,6 @@
 use omni_compiler::lexer::tokenize;
 use omni_compiler::parser::parse;
+use omni_compiler::parser::ast::ImportStmt;
 
 #[test]
 fn test_parse_empty_program() {
@@ -13,13 +14,18 @@ fn test_parse_empty_program() {
 
 #[test]
 fn test_parse_import() {
-    let tokens = tokenize(r#"import React from "react";"#);
+    let tokens = tokenize(r#"import { React } from "./react.omni";"#);
     let result = parse(&tokens);
     assert!(result.is_ok());
     let program = result.unwrap();
     assert_eq!(program.imports.len(), 1);
-    assert_eq!(program.imports[0].names, vec!["React"]);
-    assert_eq!(program.imports[0].path, "react");
+    match &program.imports[0] {
+        ImportStmt::Named(n) => {
+            assert_eq!(n.names, vec!["React"]);
+            assert_eq!(n.path, "./react.omni");
+        }
+        _ => panic!("expected Named import"),
+    }
 }
 
 #[test]

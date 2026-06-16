@@ -17,6 +17,8 @@ pub mod sourcemap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::parser::ast::{ImportStmt, Program, Visibility};
+
 /// Top-level compile result — returned as JSON by WASM/native bindings.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileResult {
@@ -181,9 +183,287 @@ pub fn compile_to_omniview(source: &str) -> String {
 }
 
 // ═══════════════════════════════════════════════════════
+// Multi-File Validation
+// ═══════════════════════════════════════════════════════
+
+/// Result of multi-file validation.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MultiFileResult {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+}
+
+/// Validate multiple .omni source files with cross-file checks.
+///
+/// Python does all file I/O and path resolution, then passes:
+///   - `sources`: HashMap<ResolvedAbsolutePath, SourceText>
+///   - `path_mapping`: HashMap<OriginalImportPath, ResolvedAbsolutePath>
+///
+/// The compiler parses all files, resolves cross-file imports using the mapping,
+/// validates visibility and cycles. Codegen is done separately in Python.
+pub fn validate_multi(
+    sources: HashMap<String, String>,
+    path_mapping: HashMap<String, String>,
+) -> MultiFileResult {
+    let mut errors: Vec<String> = Vec::new();
+    let mut programs: HashMap<String, Program> = HashMap::new();
+
+    // Phase 1: Parse all sources
+    for (path, source) in &sources {
+        let tokens = lexer::tokenize(source);
+        match parser::parse(&tokens) {
+            Ok(program) => {
+                programs.insert(path.clone(), program);
+            }
+            Err(e) => {
+                errors.push(format!("{}: parse error: {}", path, e.message));
+            }
+        }
+    }
+
+    if !errors.is_empty() {
+        return MultiFileResult { success: false, errors };
+    }
+
+    // Phase 2: Per-file consistency checks (omniview double-check)
+    for (path, program) in &programs {
+        if let Err(file_errors) = validate_file_consistency(path, program) {
+            errors.extend(file_errors);
+        }
+    }
+
+    // Phase 3: Cross-file import validation
+    if let Err(more_errors) = validate_cross_file(&programs, &path_mapping) {
+        errors.extend(more_errors);
+    }
+
+    // Phase 4: Cycle detection
+    let cycles = semantic::cycles::detect_cycles(&programs, &path_mapping);
+    for cycle in &cycles {
+        errors.push(format!(
+            "circular import detected: {}",
+            cycle.join(" → ")
+        ));
+    }
+
+    MultiFileResult { success: errors.is_empty(), errors }
+}
+
+/// Check per-file consistency: omniview marker must match file contents.
+fn validate_file_consistency(
+    file_path: &str,
+    program: &Program,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+
+    let has_omniview_marker = program.imports.iter().any(|imp| {
+        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+    });
+
+    let has_ui_declarations = !program.components.is_empty()
+        || !program.stores.is_empty()
+        || !program.themes.is_empty();
+
+    if has_omniview_marker && !has_ui_declarations {
+        errors.push(format!(
+            "{}: has 'import omniview;' but no component/store/theme declarations. \
+             Either add UI declarations or remove the omniview import.",
+            file_path
+        ));
+    }
+
+    if !has_omniview_marker && has_ui_declarations {
+        errors.push(format!(
+            "{}: has UI declarations (component/store/theme) but missing 'import omniview;'. \
+             Add 'import omniview;' to mark this as a view file.",
+            file_path
+        ));
+    }
+
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum CrossFileSymbolKind {
+    Function,
+    Struct,
+    TypeAlias,
+    Component,
+    Store,
+    Theme,
+    ReExport(String),
+}
+
+/// Build pub-visible symbol tables for cross-file validation.
+fn build_pub_symbols(
+    programs: &HashMap<String, Program>,
+) -> HashMap<String, HashMap<String, CrossFileSymbolKind>> {
+    let mut pub_symbols: HashMap<String, HashMap<String, CrossFileSymbolKind>> = HashMap::new();
+
+    for (path, program) in programs {
+        let mut symbols: HashMap<String, CrossFileSymbolKind> = HashMap::new();
+
+        for func in &program.functions {
+            if func.visibility == Visibility::Public {
+                symbols.insert(func.name.clone(), CrossFileSymbolKind::Function);
+            }
+        }
+        for strukt in &program.structs {
+            if strukt.visibility == Visibility::Public {
+                symbols.insert(strukt.name.clone(), CrossFileSymbolKind::Struct);
+            }
+        }
+        for ta in &program.type_aliases {
+            if ta.visibility == Visibility::Public {
+                symbols.insert(ta.name.clone(), CrossFileSymbolKind::TypeAlias);
+            }
+        }
+        for comp in &program.components {
+            symbols.insert(comp.name.clone(), CrossFileSymbolKind::Component);
+        }
+        for store in &program.stores {
+            symbols.insert(store.name.clone(), CrossFileSymbolKind::Store);
+        }
+        // Re-exports
+        for exp in &program.exports {
+            for name in &exp.names {
+                symbols.insert(name.clone(), CrossFileSymbolKind::ReExport(exp.path.clone()));
+            }
+        }
+
+        pub_symbols.insert(path.clone(), symbols);
+    }
+
+    pub_symbols
+}
+
+fn validate_cross_file(
+    programs: &HashMap<String, Program>,
+    path_mapping: &HashMap<String, String>,
+) -> Result<(), Vec<String>> {
+    let mut errors: Vec<String> = Vec::new();
+    let pub_symbols = build_pub_symbols(programs);
+
+    for (file_path, program) in programs {
+        for import in &program.imports {
+            match import {
+                ImportStmt::Named(named) => {
+                    if let Some(target) = path_mapping.get(&named.path) {
+                        errors.extend(validate_named_import(
+                            file_path, &named.names, target, &pub_symbols,
+                        ));
+                    } else {
+                        errors.push(format!(
+                            "{}: could not resolve import path '{}'",
+                            file_path, named.path
+                        ));
+                    }
+                }
+                ImportStmt::Namespace(ns) => {
+                    if let Some(target) = path_mapping.get(&ns.path) {
+                        if !programs.contains_key(target.as_str()) {
+                            errors.push(format!(
+                                "{}: imported file '{}' (resolved to '{}') not found in compilation",
+                                file_path, ns.path, target
+                            ));
+                        }
+                    } else {
+                        errors.push(format!(
+                            "{}: could not resolve import path '{}'",
+                            file_path, ns.path
+                        ));
+                    }
+                }
+                ImportStmt::TypeOnly(ti) => {
+                    if let Some(target) = path_mapping.get(&ti.path) {
+                        errors.extend(validate_named_import(
+                            file_path, &ti.names, target, &pub_symbols,
+                        ));
+                    } else {
+                        errors.push(format!(
+                            "{}: could not resolve import path '{}'",
+                            file_path, ti.path
+                        ));
+                    }
+                }
+                ImportStmt::Lib(_) => {
+                    // 'import omniview;' — validated in validate_file_consistency
+                }
+            }
+        }
+    }
+
+    // Enforce logic→view boundary
+    for (file_path, program) in programs {
+        let is_logic = !program.imports.iter().any(|imp| {
+            matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+        });
+        if !is_logic {
+            continue;
+        }
+        for import in &program.imports {
+            let target_path: Option<&String> = match import {
+                ImportStmt::Named(n) => path_mapping.get(&n.path),
+                ImportStmt::Namespace(ns) => path_mapping.get(&ns.path),
+                ImportStmt::TypeOnly(t) => path_mapping.get(&t.path),
+                ImportStmt::Lib(_) => None,
+            };
+            if let Some(target) = target_path {
+                if let Some(target_prog) = programs.get(target.as_str()) {
+                    let target_is_view = target_prog.imports.iter().any(|imp| {
+                        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+                    });
+                    if target_is_view {
+                        errors.push(format!(
+                            "{}: logic file cannot import view file '{}'",
+                            file_path, target
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+}
+
+fn validate_named_import(
+    importing_file: &str,
+    names: &[String],
+    target_path: &str,
+    pub_symbols: &HashMap<String, HashMap<String, CrossFileSymbolKind>>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    let target_symbols = match pub_symbols.get(target_path) {
+        Some(s) => s,
+        None => {
+            errors.push(format!(
+                "{}: imported file '{}' not found in compilation",
+                importing_file, target_path
+            ));
+            return errors;
+        }
+    };
+
+    for name in names {
+        if !target_symbols.contains_key(name) {
+            errors.push(format!(
+                "{}: '{}' is not pub-visible in '{}'",
+                importing_file, name, target_path
+            ));
+        }
+    }
+
+    errors
+}
+
+// ═══════════════════════════════════════════════════════
 // Native FFI (for Python ctypes/cffi)
 // ═══════════════════════════════════════════════════════
 
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
