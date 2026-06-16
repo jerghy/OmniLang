@@ -22,9 +22,41 @@ class PythonGenerator(CodeGenerator):
         self.needs_irem = False
         self.needs_try_catch = False
 
+    # ── Import generation ─────────────────────────
+
+    def _gen_imports(self, prog):
+        def _py_path(path):
+            """Convert OmniLang module path to Python module path."""
+            p = path.replace('.omni', '')
+            if p.startswith('./'):
+                p = p[2:]
+            return p.replace('/', '.')
+
+        # Named imports: from module import name1, name2
+        for imp in getattr(prog, 'imports', []):
+            module_path = _py_path(imp.path)
+            names = ", ".join(imp.names)
+            self._emit(f'from {module_path} import {names}')
+
+        # Namespace imports: import module as alias
+        for imp in getattr(prog, 'namespace_imports', []):
+            module_path = _py_path(imp.path)
+            self._emit(f'import {module_path} as {imp.alias}')
+
+        # Type-only imports: omitted in Python
+        # Re-exports: from module import names
+        for exp in getattr(prog, 'export_froms', []):
+            module_path = _py_path(exp.path)
+            names = ", ".join(exp.names)
+            self._emit(f'from {module_path} import {names}')
+
+        if getattr(prog, 'imports', []) or getattr(prog, 'namespace_imports', []):
+            self._emit()
+
     # ── Top level ─────────────────────────────────
 
     def _gen_program(self, prog: Program):
+        self._gen_imports(prog)
         for struct in getattr(prog, 'structs', []):
             self._gen_struct_def(struct)
         for tu in getattr(prog, 'tagged_unions', []):
