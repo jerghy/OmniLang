@@ -21,7 +21,7 @@ editor = [
 omnic = "omnilang.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["omnilang*", "omniview*", "editor*"]
+include = ["omnilang*", "editor*"]
 exclude = ["build*", "tests*", "tools*", "scripts*", "docs*"]
 
 [tool.pytest.ini_options]
