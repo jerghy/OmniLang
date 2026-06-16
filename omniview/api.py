@@ -79,6 +79,23 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
     if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
         target = "python"
 
+    # Try Rust compiler first (if available) for UI mode
+    if is_ui_mode:
+        from omniview.codegen.rust_bridge import RustBridge
+        if RustBridge.is_available():
+            ir_result = RustBridge.compile_to_ir(source)
+            if "_rust_errors" in ir_result:
+                # Rust found errors -> report them
+                for err in ir_result["_rust_errors"]:
+                    errors.append(CompileError(
+                        file=filepath, line=err.get("line", 1), col=err.get("col", 0),
+                        severity=err.get("severity", "error"),
+                        code=err.get("code", "RUST"), message=err.get("message", str(err)),
+                    ))
+                return CompileResult(success=False, files={}, errors=errors, source=source)
+            # Rust succeeded -> pass IR to Python codegen
+            return _compile_from_ir(ir_result, target, previous_files, source)
+
     try:
         if is_ui_mode:
             compiled_files = _compile_ui_mode(source, filepath, target, errors, debug_mode)
@@ -322,6 +339,66 @@ def _compute_diff(previous: dict[str, str], current: dict[str, str]) -> dict[str
         )
         result[filename] = "".join(diff_lines)
     return result
+
+
+def _compile_from_ir(ir_program: dict, target: str,
+                     previous_files: dict[str, str] | None = None,
+                     source: str = "") -> CompileResult:
+    """Compile from IR JSON dict (Rust output) via Python codegen only.
+
+    This is the Rust-pipeline path: Rust produces IR JSON, Python codegen
+    consumes it to produce framework-specific target code.
+    """
+    codegen = _get_codegen(target, "<input>", [], debug_mode=False)
+    if codegen is None:
+        return CompileResult(
+            success=False, files={},
+            errors=[CompileError(
+                file="<input>", line=1, severity="error", code="CODEGEN",
+                message=f"Unsupported target: {target}",
+            )],
+            source=source,
+        )
+
+    current_files: dict[str, str] = {}
+    errors: list[CompileError] = []
+
+    for name, comp_ir in ir_program.get("components", {}).items():
+        result = codegen.generate_component(comp_ir)
+        current_files.update(result.files)
+        for err_msg in result.errors:
+            errors.append(CompileError(
+                file=f"{name}.omni", line=1, severity="error",
+                code="CODEGEN", message=err_msg,
+            ))
+        for warn_msg in result.warnings:
+            errors.append(CompileError(
+                file=f"{name}.omni", line=1, severity="warning",
+                code="CODEGEN", message=warn_msg,
+            ))
+
+    for name, store_ir in ir_program.get("stores", {}).items():
+        result = codegen.generate_store(store_ir)
+        current_files.update(result.files)
+        for err_msg in result.errors:
+            errors.append(CompileError(
+                file=f"{name}.omni", line=1, severity="error",
+                code="CODEGEN", message=err_msg,
+            ))
+
+    # Compute diff if previous_files provided
+    diff: dict[str, str] | None = None
+    if previous_files:
+        diff = _compute_diff(previous_files, current_files)
+
+    has_errors = any(e.severity == "error" for e in errors)
+    return CompileResult(
+        success=not has_errors,
+        files=current_files,
+        diff=diff,
+        errors=errors,
+        source=source,
+    )
 
 
 # ── 视图树提取 (M2) ────────────────────────────────────
