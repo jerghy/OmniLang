@@ -11,6 +11,7 @@ pub mod javascript;
 pub mod rust;
 pub mod dart;
 pub mod react;
+pub mod vue;
 
 use std::collections::HashMap;
 
@@ -174,9 +175,7 @@ pub fn compile(
         Target::Rust => rust::RustCodegen.generate(ir, source_files),
         Target::Dart => dart::DartCodegen.generate(ir, source_files),
         Target::React => react::ReactCodegen.generate(ir, source_files),
-        Target::Vue => {
-            CompileOutput::error("Vue codegen not yet implemented in Rust".into())
-        }
+        Target::Vue => vue::VueCodegen.generate(ir, source_files),
         Target::Dioxus => {
             CompileOutput::error("Dioxus codegen not yet implemented in Rust".into())
         }
