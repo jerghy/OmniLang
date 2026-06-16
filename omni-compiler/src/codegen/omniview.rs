@@ -975,3 +975,32 @@ fn escape_html(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
 }
+
+// ══════════════════════════════════════════════════════════
+// Codegen Dispatch Wrapper
+// ══════════════════════════════════════════════════════════
+
+use std::collections::HashMap;
+
+use super::{CompileOutput, CompiledFile};
+
+/// Wrap `generate()` into the standard `CompileOutput` format.
+///
+/// Called by `super::compile()` when the target is `Target::OmniView`.
+pub fn compile_files(ir: &crate::ir::IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+    let output = generate(ir);
+    CompileOutput::success(vec![
+        CompiledFile {
+            path: "index.js".into(),
+            content: output.js,
+        },
+        CompiledFile {
+            path: "index.html".into(),
+            content: output.html,
+        },
+        CompiledFile {
+            path: "index.css".into(),
+            content: output.css,
+        },
+    ])
+}
