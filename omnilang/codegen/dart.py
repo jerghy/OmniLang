@@ -46,6 +46,27 @@ class DartGenerator(CodeGenerator):
 
     def _gen_program(self, prog: Program):
         self.has_output = False
+
+        # Generate imports
+        for imp in getattr(prog, 'imports', []):
+            dart_path = imp.path.replace('.omni', '.dart')
+            names = ", ".join(imp.names)
+            self._emit(f"import '{dart_path}' show {names};")
+
+        for imp in getattr(prog, 'namespace_imports', []):
+            dart_path = imp.path.replace('.omni', '.dart')
+            self._emit(f"import '{dart_path}' as {imp.alias};")
+
+        # Type-only imports: omitted in Dart
+        # Re-exports:
+        for exp in getattr(prog, 'export_froms', []):
+            dart_path = exp.path.replace('.omni', '.dart')
+            names = ", ".join(exp.names)
+            self._emit(f"export '{dart_path}' show {names};")
+
+        if getattr(prog, 'imports', []) or getattr(prog, 'namespace_imports', []):
+            self._emit()
+
         for struct in getattr(prog, 'structs', []):
             self._gen_struct_def(struct)
         for tu in getattr(prog, 'tagged_unions', []):
