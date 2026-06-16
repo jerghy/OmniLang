@@ -75,9 +75,46 @@ class RustGenerator(CodeGenerator):
     def _is_non_copy(self, ty: TypeAnnotation | None) -> bool:
         return not self._is_copy(ty)
 
+    # ── Import/Export generation ──────────────────
+
+    def _gen_imports_exports(self, prog):
+        def _rust_path(path):
+            """Convert OmniLang module path to Rust module path."""
+            p = path.replace('.omni', '')
+            if p.startswith('./'):
+                p = p[2:]
+            return p.replace('/', '::')
+
+        # Named imports: use crate::module::{Name1, Name2};
+        for imp in getattr(prog, 'imports', []):
+            module_path = _rust_path(imp.path)
+            names = ", ".join(imp.names)
+            self._emit(f'use crate::{module_path}::{{{names}}};')
+
+        # Namespace imports: use crate::module as alias;
+        for imp in getattr(prog, 'namespace_imports', []):
+            module_path = _rust_path(imp.path)
+            self._emit(f'use crate::{module_path} as {imp.alias};')
+
+        # Type-only imports: same as named in Rust
+        for imp in getattr(prog, 'type_imports', []):
+            module_path = _rust_path(imp.path)
+            names = ", ".join(imp.names)
+            self._emit(f'use crate::{module_path}::{{{names}}};')
+
+        # Re-exports: pub use crate::module::{Names};
+        for exp in getattr(prog, 'export_froms', []):
+            module_path = _rust_path(exp.path)
+            names = ", ".join(exp.names)
+            self._emit(f'pub use crate::{module_path}::{{{names}}};')
+
+        if getattr(prog, 'imports', []) or getattr(prog, 'namespace_imports', []):
+            self._emit()
+
     # ── Top level ─────────────────────────────────
 
     def _gen_program(self, prog: Program):
+        self._gen_imports_exports(prog)
         self.program = prog  # store for FuncCall lookup
         self.has_map = False
         if any(f for f in prog.functions if self._func_uses_map(f)):
@@ -165,8 +202,9 @@ class RustGenerator(CodeGenerator):
             params_parts.append(f"{p.name}: {param_ty}")
         params_str = ", ".join(params_parts)
 
+        vis = "pub " if getattr(func, 'is_pub', False) else ""
         prefix = "async " if func.is_async else ""
-        self._emit(f"{prefix}fn {func.name}{generic_str}({params_str}){ret} {{")
+        self._emit(f"{vis}{prefix}fn {func.name}{generic_str}({params_str}){ret} {{")
         self._indent()
         if func.body:
             self._gen_block(func.body)
@@ -792,7 +830,8 @@ class RustGenerator(CodeGenerator):
                    for f in sd.fields):
             derives.append("Copy")
         self._emit("#[derive({})]".format(", ".join(derives)))
-        self._emit(f"struct {sd.name} {{")
+        vis = "pub " if getattr(sd, 'is_pub', False) else ""
+        self._emit(f"{vis}struct {sd.name} {{")
         self._indent()
         for f in sd.fields:
             rust_ty = self._rust_type(f.type_ann)
