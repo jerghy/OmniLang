@@ -1,0 +1,187 @@
+//! Integration tests for pure-logic codegen (Python, JavaScript, Rust, Dart).
+//!
+//! Tests the unimplemented stubs initially (RED phase), then the real
+//! implementation (GREEN phase).
+
+use std::collections::HashMap;
+
+use omni_compiler::codegen::{compile, Target};
+use omni_compiler::ir::*;
+
+// ═══════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════
+
+fn empty_ir() -> IRProgram {
+    IRProgram {
+        version: "0.1".into(),
+        components: HashMap::new(),
+        stores: HashMap::new(),
+        source_map: HashMap::new(),
+    }
+}
+
+fn simple_component_ir(comp_name: &str) -> IRProgram {
+    let mut components = HashMap::new();
+    let comp = ComponentIR {
+        name: comp_name.into(),
+        generic_params: vec![],
+        props: HashMap::new(),
+        states: vec![],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![],
+        store_refs: vec![],
+        refs: vec![],
+        view: None,
+        styles: vec![],
+    };
+    components.insert(comp_name.into(), comp);
+    IRProgram {
+        version: "0.1".into(),
+        components,
+        stores: HashMap::new(),
+        source_map: HashMap::new(),
+    }
+}
+
+/// Build an IR program with one component that has a single function.
+fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
+    let mut components = HashMap::new();
+    let func = FunctionIR {
+        name: fn_name.into(),
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![],
+            execution_mode: "client-only".into(),
+        },
+    };
+    let comp = ComponentIR {
+        name: comp_name.into(),
+        generic_params: vec![],
+        props: HashMap::new(),
+        states: vec![],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![func],
+        store_refs: vec![],
+        refs: vec![],
+        view: None,
+        styles: vec![],
+    };
+    components.insert(comp_name.into(), comp);
+    IRProgram {
+        version: "0.1".into(),
+        components,
+        stores: HashMap::new(),
+        source_map: HashMap::new(),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Empty program tests (all targets)
+// ═══════════════════════════════════════════════════════════
+
+#[test]
+fn test_python_empty_program() {
+    let ir = empty_ir();
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::Python, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.files.len(), 1);
+    assert_eq!(result.files[0].path, "main.py");
+    assert!(
+        result.files[0].content.contains("Generated from"),
+        "content: {}",
+        result.files[0].content
+    );
+}
+
+#[test]
+fn test_python_simple_component() {
+    let ir = simple_component_ir("App");
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::Python, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let content = &result.files[0].content;
+    assert!(
+        content.contains("class App"),
+        "Should contain class App: {}",
+        content
+    );
+}
+
+#[test]
+fn test_python_simple_function() {
+    let ir = ir_with_function("App", "greet");
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::Python, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let content = &result.files[0].content;
+    assert!(
+        content.contains("def greet"),
+        "Should contain def greet: {}",
+        content
+    );
+}
+
+#[test]
+fn test_javascript_empty_program() {
+    let ir = empty_ir();
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::JavaScript, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.files[0].path, "main.js");
+    assert!(
+        result.files[0].content.contains("Generated from"),
+        "content: {}",
+        result.files[0].content
+    );
+}
+
+#[test]
+fn test_rust_empty_program() {
+    let ir = empty_ir();
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::Rust, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.files[0].path, "main.rs");
+    assert!(
+        result.files[0].content.contains("Generated from"),
+        "content: {}",
+        result.files[0].content
+    );
+}
+
+#[test]
+fn test_dart_empty_program() {
+    let ir = empty_ir();
+    let sources = HashMap::from([("main.omni".into(), "".into())]);
+    let result = compile(&ir, Target::Dart, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.files[0].path, "main.dart");
+    assert!(
+        result.files[0].content.contains("Generated from"),
+        "content: {}",
+        result.files[0].content
+    );
+}
+
+#[test]
+fn test_compile_multiple_files() {
+    let ir = empty_ir();
+    let sources = HashMap::from([
+        ("main.omni".into(), "".into()),
+        ("utils.omni".into(), "".into()),
+    ]);
+    let result = compile(&ir, Target::Python, &sources);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.files.len(), 2);
+    // Files should have correct extensions
+    let paths: Vec<&str> = result.files.iter().map(|f| f.path.as_str()).collect();
+    assert!(paths.contains(&"main.py"));
+    assert!(paths.contains(&"utils.py"));
+}
