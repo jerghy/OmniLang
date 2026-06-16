@@ -16,7 +16,6 @@ All compilation now routes through the Rust compiler via omnilang.api.compile_om
 import argparse
 import sys
 import os
-import re
 
 # ── Constants ──────────────────────────────────────────────
 
@@ -37,15 +36,36 @@ ALL_TARGETS = ["rust", "dart", "js", "python", "react", "vue", "dioxus", "flutte
 def cmd_build(args):
     """Compile .omni source to target language(s).
 
-    Routes through omnilang.api.compile_omni() which handles:
-    - Auto-detection of UI mode vs pure logic mode
-    - Rust codegen (via RustBridge)
+    Supports single file, multiple files, or a directory:
+      omnic build app.omni
+      omnic build app.omni components.omni stores.omni
+      omnic build src/
+
+    Routes through omnilang.api.compile_omni_multi() for cross-file support.
     """
-    if not os.path.exists(args.file):
-        print(f"Error: file not found: {args.file}", file=sys.stderr)
+    import glob as _glob
+
+    # Collect source files
+    source_files: list[str] = []
+    for f in args.files:
+        if os.path.isdir(f):
+            # Directory: collect all .omni files
+            pattern = os.path.join(f, "**", "*.omni")
+            source_files.extend(_glob.glob(pattern, recursive=True))
+        else:
+            source_files.append(f)
+
+    if not source_files:
+        print("Error: no .omni files found", file=sys.stderr)
         sys.exit(1)
 
-    # Load project config for output dir and aliases
+    # Check all files exist
+    for f in source_files:
+        if not os.path.exists(f):
+            print(f"Error: file not found: {f}", file=sys.stderr)
+            sys.exit(1)
+
+    # Load project config for output dir
     output_dir = args.output
     try:
         from omnilang.config import load_config
@@ -56,29 +76,39 @@ def cmd_build(args):
         pass
 
     try:
-        with open(args.file, "r", encoding="utf-8") as f:
-            source = f.read()
+        # Read all sources
+        sources: dict[str, str] = {}
+        for f in source_files:
+            with open(f, "r", encoding="utf-8") as fh:
+                sources[f] = fh.read()
 
         # Determine target(s)
+        from omnilang.api import _detect_ui_mode
         if args.target:
             targets = [args.target]
         else:
-            # Auto-detect: UI mode defaults to react, pure logic to python
-            targets = ["react"] if _detect_ui_mode(source) else ["python"]
+            # Auto-detect: any source with 'import omniview' → UI mode → react
+            is_ui = any(_detect_ui_mode(src) for src in sources.values())
+            targets = ["react"] if is_ui else ["python"]
 
-        from omnilang.api import compile_omni
+        from omnilang.api import compile_omni, compile_omni_multi
 
         os.makedirs(output_dir, exist_ok=True)
 
         for target in targets:
-            result = compile_omni(source, filepath=args.file, target=target)
+            if len(sources) == 1:
+                filepath, source = next(iter(sources.items()))
+                result = compile_omni(source, filepath=filepath, target=target)
+            else:
+                result = compile_omni_multi(sources, target=target)
+
             if result.success:
                 for filename, content in result.files.items():
                     out_path = os.path.join(output_dir, filename)
                     with open(out_path, "w", encoding="utf-8") as f:
                         f.write(content)
                     print(f"  -> {out_path}")
-                print(f"Compiled to {target} successfully.")
+                print(f"Compiled {len(source_files)} file(s) to {target} successfully.")
             else:
                 for err in result.errors:
                     sev = "Warning" if err.severity == "warning" else "Error"
@@ -502,19 +532,6 @@ def cmd_watch(args):
 
 
 # ════════════════════════════════════════════════════════════
-# Helpers
-# ════════════════════════════════════════════════════════════
-
-def _detect_ui_mode(source: str) -> bool:
-    """Detect whether source contains OmniView UI components."""
-    ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
-    has_ui = any(kw in source for kw in ui_keywords)
-    has_ui = has_ui or bool(re.search(r'<[A-Z]', source))
-    has_ui = has_ui or "import omniview" in source
-    return has_ui
-
-
-# ════════════════════════════════════════════════════════════
 # Main
 # ════════════════════════════════════════════════════════════
 
@@ -526,8 +543,10 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # ── build ──
-    build_parser = subparsers.add_parser("build", help="Compile an .omni source file to target language(s)")
-    build_parser.add_argument("file", help="Source file (.omni)")
+    build_parser = subparsers.add_parser("build", help="Compile .omni source file(s) to target language(s)")
+    build_parser.add_argument(
+        "files", nargs="+", help="Source file(s) (.omni) or directory"
+    )
     build_parser.add_argument(
         "--target", "-t",
         choices=ALL_TARGETS,

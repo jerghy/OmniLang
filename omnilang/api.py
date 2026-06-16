@@ -57,28 +57,55 @@ class CompileResult:
 # ── UI mode detection ──────────────────────────────────────
 
 def _detect_ui_mode(source: str) -> bool:
-    """Detect whether source contains OmniView UI components."""
-    ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
-    has_ui_keywords = any(kw in source for kw in ui_keywords)
-    has_ui_keywords = has_ui_keywords or bool(_re.search(r'<[A-Z]', source))
-    has_import_omniview = "import omniview" in source
-    return has_import_omniview or has_ui_keywords
+    """Detect whether source is an OmniView UI file.
+
+    A file is a "view file" iff it contains 'import omniview;'.
+    This is the single source of truth — the Rust compiler enforces
+    that any file with component/store/theme must also have this import.
+    """
+    return "import omniview" in source
 
 
-# ── Main compile function ──────────────────────────────────
+# ── Main compile functions ─────────────────────────────────
+
+# Valid targets
+PURE_LOGIC_TARGETS = {"python", "javascript", "js", "typescript", "ts",
+                      "rust", "rs", "dart"}
+ALL_TARGETS = PURE_LOGIC_TARGETS | {"react", "vue", "dioxus", "flutter", "omniview"}
+
 
 def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
                  previous_files: dict[str, str] | None = None,
                  debug_mode: bool = False) -> CompileResult:
-    """Compile .omni source -> {filename: content} dict. Pure function, no file I/O.
+    """Compile a single .omni source -> {filename: content} dict.
+
+    Convenience wrapper around compile_omni_multi for single-file compilation.
+    See compile_omni_multi for full documentation.
+    """
+    return compile_omni_multi(
+        sources={filepath: source},
+        target=target,
+        previous_files=previous_files,
+        debug_mode=debug_mode,
+    )
+
+
+def compile_omni_multi(sources: dict[str, str], target: str = "react",
+                       path_mapping: dict[str, str] | None = None,
+                       previous_files: dict[str, str] | None = None,
+                       debug_mode: bool = False) -> CompileResult:
+    """Compile multiple .omni sources -> {filename: content} dict. Pure function, no file I/O.
 
     Routes all compilation through the Rust compiler (omni-compiler) via RustBridge.
+    Supports cross-file imports — all sources are compiled together, enabling
+    type-checking and symbol resolution across files.
 
     Args:
-        source: .omni source string.
-        filepath: Source file path (for error messages).
+        sources: {filepath: source_text} dict. For single file, use compile_omni().
         target: Target framework ("react"|"vue"|"dioxus"|"flutter"|"omniview"
                 |"python"|"js"|"typescript"|"rust"|"dart").
+        path_mapping: {import_path: resolved_filepath} for resolving imports.
+                      Auto-derived from sources keys if not provided.
         previous_files: Previous compilation result (for diff computation).
         debug_mode: Enable runtime debug injection.
 
@@ -86,18 +113,19 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
         CompileResult — success/files/diff/errors.
     """
     errors: list[CompileError] = []
-    is_ui_mode = _detect_ui_mode(source)
 
-    # Pure logic mode auto-fallback target
-    PURE_LOGIC_TARGETS = {"python", "javascript", "js", "typescript", "ts",
-                          "rust", "rs", "dart"}
-    ALL_TARGETS = PURE_LOGIC_TARGETS | {"react", "vue", "dioxus", "flutter", "omniview"}
+    # Determine primary filepath for error reporting
+    primary_filepath = next(iter(sources.keys()), "<input>")
+
+    # Detect UI mode: any source file with 'import omniview' marks the project as UI
+    is_ui_mode = any(_detect_ui_mode(src) for src in sources.values())
+
     if target not in ALL_TARGETS:
         errors.append(CompileError(
-            file=filepath, line=1, severity="error", code="UNSUPPORTED",
+            file=primary_filepath, line=1, severity="error", code="UNSUPPORTED",
             message=f"Unknown target '{target}'. Supported: {', '.join(sorted(ALL_TARGETS))}",
         ))
-        return CompileResult(success=False, errors=errors, source=source)
+        return CompileResult(success=False, errors=errors, source="")
 
     if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
         target = "python"
@@ -106,23 +134,25 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
 
     if not RustBridge.is_available():
         errors.append(CompileError(
-            file=filepath, line=1, severity="error", code="RUST_UNAVAILABLE",
+            file=primary_filepath, line=1, severity="error", code="RUST_UNAVAILABLE",
             message="Rust compiler (omni-compiler) is not available. "
                     "Build the Rust compiler or ensure omni_compiler.dll is in the release directory.",
         ))
-        return CompileResult(success=False, errors=errors, source=source)
+        return CompileResult(success=False, errors=errors, source="")
 
-    # Route through Rust compiler
-    rust_result = RustBridge.compile_to_target({filepath: source}, target)
+    # Auto-derive path_mapping from sources keys if not provided
+    if path_mapping is None:
+        path_mapping = _derive_path_mapping(sources)
+
+    # Route through Rust compiler (multi-file FFI)
+    rust_result = RustBridge.compile_to_target(sources, target, path_mapping)
     if rust_result is None:
-        # compile_to_target not available (older DLL), try compile_to_ir + codegen
-        # but we no longer have Python codegen, so this is an error
         errors.append(CompileError(
-            file=filepath, line=1, severity="error", code="RUST_CODEGEN_UNAVAILABLE",
+            file=primary_filepath, line=1, severity="error", code="RUST_CODEGEN_UNAVAILABLE",
             message="Rust compiler compile_to_target function is not available. "
                     "Update the Rust compiler to the latest version.",
         ))
-        return CompileResult(success=False, errors=errors, source=source)
+        return CompileResult(success=False, errors=errors, source="")
 
     if rust_result.get("success"):
         # Compute diff
@@ -134,14 +164,14 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
             success=True,
             files=rust_result.get("files", {}),
             diff=diff,
-            source=source,
+            source="\n".join(sources.values()),
         )
 
         # Forward Rust warnings
         for warn in rust_result.get("warnings", []):
             if isinstance(warn, dict):
                 result.errors.append(CompileError(
-                    file=warn.get("file", filepath),
+                    file=warn.get("file", primary_filepath),
                     line=warn.get("line", 1),
                     col=warn.get("col", 0),
                     severity="warning",
@@ -155,7 +185,7 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
         for err in rust_result.get("errors", []):
             if isinstance(err, dict):
                 errors.append(CompileError(
-                    file=err.get("file", filepath),
+                    file=err.get("file", primary_filepath),
                     line=err.get("line", 1),
                     col=err.get("col", 0),
                     severity=err.get("severity", "error"),
@@ -164,10 +194,32 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
                 ))
             else:
                 errors.append(CompileError(
-                    file=filepath, line=1, severity="error",
+                    file=primary_filepath, line=1, severity="error",
                     code="RUST_ERROR", message=str(err),
                 ))
-        return CompileResult(success=False, errors=errors, source=source)
+        return CompileResult(success=False, errors=errors, source="")
+
+
+def _derive_path_mapping(sources: dict[str, str]) -> dict[str, str]:
+    """Derive import path mapping from source file paths.
+
+    Maps relative import paths (e.g. './Button.omni', 'components/Header.omni')
+    to the actual file paths in the sources dict.
+    """
+    import os
+    mapping: dict[str, str] = {}
+    for filepath in sources:
+        # Map the filepath itself
+        mapping[filepath] = filepath
+        # Map basename
+        basename = os.path.basename(filepath)
+        if basename not in mapping:
+            mapping[basename] = filepath
+        # Map without extension
+        stem = os.path.splitext(basename)[0]
+        if stem not in mapping:
+            mapping[stem] = filepath
+    return mapping
 
 
 # ── Diff helper ────────────────────────────────────────────
