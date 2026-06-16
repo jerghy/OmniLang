@@ -18,7 +18,7 @@ def build_todo_app():
     """Build the todo app and return the output directory."""
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        [sys.executable, "-m", "omniview.cli", "build",
+        [sys.executable, "-m", "omnilang.cli", "build",
          str(TODO_APP), "--target", "react", "--output", str(BUILD_DIR)],
         capture_output=True, text=True, timeout=60,
     )

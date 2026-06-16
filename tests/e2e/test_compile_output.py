@@ -35,7 +35,7 @@ def _compile_omni(source: str, target: str, out_dir: Path) -> subprocess.Complet
     tmp_file = out_dir / "_input.omni"
     tmp_file.write_text(source, encoding="utf-8")
     return subprocess.run(
-        [sys.executable, "-m", "omniview.cli", "build",
+        [sys.executable, "-m", "omnilang.cli", "build",
          str(tmp_file), "--target", target, "--output", str(out_dir)],
         capture_output=True, text=True, timeout=60,
     )

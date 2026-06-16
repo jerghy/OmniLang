@@ -25,7 +25,7 @@ def _compile_omni_file(omni_path: str, target: str, out_dir: Path) -> dict:
     """Compile .omni to target and return {filename: content} dict."""
     out_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        [sys.executable, "-m", "omniview.cli", "build",
+        [sys.executable, "-m", "omnilang.cli", "build",
          omni_path, "--target", target, "--output", str(out_dir)],
         capture_output=True, text=True, timeout=60,
     )

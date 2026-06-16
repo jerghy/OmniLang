@@ -37,7 +37,7 @@ function findOmnic(cwd) {
     path.join(cwd, "venv", "Scripts", "omnic"),
     path.join(cwd, "node_modules", ".bin", "omnic"),
     "omnic", // Fall back to PATH
-    "python", // Python direct (with -m omniview.cli)
+    "python", // Python direct (with -m omnilang.cli)
   ];
 
   for (const candidate of candidates) {
@@ -76,7 +76,7 @@ function compileOmniFile(omniPath, target, outputDir) {
     try {
       const pythonCmd = process.platform === "win32" ? "python" : "python3";
       execSync(
-        `${pythonCmd} -m omniview.cli build "${omniPath}" --target ${target} --output "${outputDir}"`,
+        `${pythonCmd} -m omnilang.cli build "${omniPath}" --target ${target} --output "${outputDir}"`,
         {
           encoding: "utf-8",
           stdio: "pipe",

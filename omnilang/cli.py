@@ -1,13 +1,27 @@
-"""CLI entry point for the OmniLang compiler."""
+"""CLI entry point for the OmniLang compiler.
+
+Commands:
+    omnic build <file.omni> [--target ...]  Compile .omni to target language(s)
+    omnic check <file.omni>                Run static analysis (type + lint)
+    omnic fix <file.omni>                  Auto-fix diagnostics
+    omnic run <file.omni> [--target ...]   Compile and run
+    omnic init [dir]                       Initialize a new project
+    omnic fmt <file.omni>                  Format source code
+    omnic serve --dir <dir>                Start the visual editor server
+    omnic watch <file.omni>                Watch and auto-rebuild on changes
+    omnic gen-extern <file.d.ts>           Generate Rust extern from .d.ts
+"""
 
 import argparse
 import sys
 import os
+import re
 
 from omnilang.parser import parse
 from omnilang.semantic import analyze
 from omnilang.codegen import generate
 
+# ── Constants ──────────────────────────────────────────────
 
 TARGET_EXTENSIONS = {
     "rust": ".rs",
@@ -16,86 +30,80 @@ TARGET_EXTENSIONS = {
     "python": ".py",
 }
 
+ALL_TARGETS = ["rust", "dart", "js", "python", "react", "vue", "dioxus", "flutter", "omniview"]
+
+
+# ── Helpers ────────────────────────────────────────────────
+
+def _detect_ui_mode(source: str) -> bool:
+    """Detect whether source contains OmniView UI components."""
+    ui_keywords = ("component ", "store ", "theme ", "view {", "@if", "@for", "signal ", "computed ")
+    has_ui = any(kw in source for kw in ui_keywords)
+    has_ui = has_ui or bool(re.search(r'<[A-Z]', source))
+    has_ui = has_ui or "import omniview" in source
+    return has_ui
+
+
+# ════════════════════════════════════════════════════════════
+# Build
+# ════════════════════════════════════════════════════════════
 
 def cmd_build(args):
-    """Compile .omni source to target language(s)."""
+    """Compile .omni source to target language(s).
 
-    # Load project config for aliases and source/output settings
+    Routes through omniview.api.compile_omni() which handles:
+    - Auto-detection of UI mode vs pure logic mode
+    - Rust codegen (via RustBridge) when available
+    - Fallback to Python native pipeline
+    """
+    if not os.path.exists(args.file):
+        print(f"Error: file not found: {args.file}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load project config for output dir and aliases
+    output_dir = args.output
     aliases = {}
-    output_dir = getattr(args, 'output', './build')
     try:
         from omnilang.config import load_config
         cfg = load_config()
         if cfg.aliases:
             aliases = cfg.aliases
-        if not getattr(args, 'output', None):
+        if args.output == "./build":
             output_dir = cfg.output.dir if cfg.output.dir else "build"
     except ImportError:
         pass
 
-    if not os.path.exists(args.file):
-        print(f"Error: file not found: {args.file}", file=sys.stderr)
-        sys.exit(1)
-
     try:
-        # Read source
         with open(args.file, "r", encoding="utf-8") as f:
             source = f.read()
 
-        # Check for imports → use multi-file loader
-        if any(kw in source for kw in ('import ', 'export ')):
-            from omnilang.modules.loader import ModuleLoader
-            project_root = os.path.dirname(os.path.abspath(args.file))
-            loader = ModuleLoader(project_root, aliases=aliases)
-            modules = loader.load_project(args.file)
+        # Determine target(s)
+        if args.target:
+            targets = [args.target]
+        else:
+            # Auto-detect: UI mode defaults to react, pure logic to python
+            targets = ["react"] if _detect_ui_mode(source) else ["python"]
 
-            # Compile each module
-            base_name = os.path.splitext(os.path.basename(args.file))[0]
-            targets = [args.target] if args.target else ["rust", "dart", "js", "python"]
-
-            os.makedirs(output_dir, exist_ok=True)
-
-            from omnilang.semantic import analyze as semantic_analyze
-            from omnilang.codegen import generate
-
-            for mod_path, prog in modules:
-                mod_name = os.path.splitext(os.path.basename(mod_path))[0]
-                source_lines = {mod_path: open(mod_path, encoding="utf-8").read().split("\n")}
-                type_map, rename_map = semantic_analyze(prog, source_lines)
-
-                for target in targets:
-                    code = generate(prog, target, rename_map, type_map)
-                    ext = TARGET_EXTENSIONS[target]
-                    out_path = os.path.join(output_dir, f"{mod_name}{ext}")
-                    with open(out_path, "w", encoding="utf-8") as f:
-                        f.write(code)
-                    print(f"  -> {out_path}")
-
-            print(f"Compiled {len(modules)} module(s) to {len(targets)} target(s).")
-            return
-
-        # Single-file compilation (no imports)
-        # Compile pipeline
-        prog = parse(source, filename=args.file)
-
-        source_lines = {args.file: source.split("\n")}
-        type_map, rename_map = analyze(prog, source_lines)
-
-        # Generate code
-        base_name = os.path.splitext(os.path.basename(args.file))[0]
-        targets = [args.target] if args.target else ["rust", "dart", "js", "python"]
+        from omniview.api import compile_omni
 
         os.makedirs(output_dir, exist_ok=True)
 
         for target in targets:
-            code = generate(prog, target, rename_map, type_map)
-            ext = TARGET_EXTENSIONS[target]
-            out_path = os.path.join(output_dir, f"{base_name}{ext}")
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.write(code)
-            print(f"  -> {out_path}")
-
-        print(f"Compiled successfully to {len(targets)} target(s).")
+            result = compile_omni(source, filepath=args.file, target=target)
+            if result.success:
+                for filename, content in result.files.items():
+                    out_path = os.path.join(output_dir, filename)
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    print(f"  -> {out_path}")
+                print(f"Compiled to {target} successfully.")
+            else:
+                for err in result.errors:
+                    sev = "Warning" if err.severity == "warning" else "Error"
+                    loc = f"({err.file}:{err.line})" if err.file and err.file != "<input>" else ""
+                    print(f"  {sev}: {err.message} {loc}".strip(), file=sys.stderr)
+                if any(e.severity == "error" for e in result.errors):
+                    sys.exit(1)
 
     except SystemExit:
         sys.exit(1)
@@ -105,6 +113,10 @@ def cmd_build(args):
         traceback.print_exc()
         sys.exit(1)
 
+
+# ════════════════════════════════════════════════════════════
+# Check
+# ════════════════════════════════════════════════════════════
 
 def cmd_check(args):
     """Run static analysis on .omni source."""
@@ -133,7 +145,6 @@ def cmd_check(args):
         try:
             type_map, rename_map = analyze(prog, source_lines)
         except SystemExit:
-            # analyze() calls sys.exit(1) on errors — catch and report
             print("Semantic analysis found errors.", file=sys.stderr)
             sys.exit(1)
 
@@ -144,11 +155,9 @@ def cmd_check(args):
         )
         from omnilang.config import load_config
 
-        # Build registry and load config
         registry = build_default_registry()
         config = load_config()
 
-        # Create analysis context
         ctx = AnalyzeContext(
             program=prog,
             source_lines=source_lines,
@@ -197,7 +206,6 @@ def cmd_check(args):
 
 def cmd_explain(code: str):
     """Show detailed explanation for a diagnostic code."""
-    import os
     explain_dir = os.path.join(os.path.dirname(__file__), "analyze", "explain")
     index_path = os.path.join(explain_dir, "index.toml")
 
@@ -226,6 +234,10 @@ def cmd_explain(code: str):
     print()
     print(f"Fix: {entry.get('fix', '')}")
 
+
+# ════════════════════════════════════════════════════════════
+# Fix
+# ════════════════════════════════════════════════════════════
 
 def cmd_fix(args):
     """Auto-fix diagnostics in a source file."""
@@ -267,16 +279,22 @@ def cmd_fix(args):
         print(f"Fixed {len(diagnostics)} issue(s) in {args.file}")
 
 
+# ════════════════════════════════════════════════════════════
+# Run
+# ════════════════════════════════════════════════════════════
+
 def cmd_run(args):
     """Compile and immediately run an OmniLang file."""
     import subprocess
     import tempfile
-    import os
+
     if not os.path.exists(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
         sys.exit(1)
+
     with open(args.file, "r", encoding="utf-8") as f:
         source = f.read()
+
     prog = parse(source, filename=args.file)
     source_lines = {args.file: source.split("\n")}
     type_map, rename_map = analyze(prog, source_lines)
@@ -290,11 +308,11 @@ def cmd_run(args):
         f.write(code)
 
     if args.target == "python":
-        _result = subprocess.run(["python", out], capture_output=False)
+        subprocess.run(["python", out], capture_output=False)
     elif args.target == "js":
-        _result = subprocess.run(["node", out], capture_output=False)
+        subprocess.run(["node", out], capture_output=False)
     elif args.target == "dart":
-        _result = subprocess.run(["dart", "run", out], capture_output=False)
+        subprocess.run(["dart", "run", out], capture_output=False)
     elif args.target == "rust":
         import shutil
         rust_dir = os.path.join(tmpdir, "rust_proj")
@@ -308,10 +326,12 @@ def cmd_run(args):
         sys.exit(1)
 
 
+# ════════════════════════════════════════════════════════════
+# Init
+# ════════════════════════════════════════════════════════════
+
 def cmd_init(args):
     """Initialize a new OmniLang project."""
-    import os
-
     target_dir = args.dir or "."
     project_name = args.name or os.path.basename(os.path.abspath(target_dir))
 
@@ -345,6 +365,10 @@ def cmd_init(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+
+# ════════════════════════════════════════════════════════════
+# Format
+# ════════════════════════════════════════════════════════════
 
 def cmd_fmt(args):
     """Format an OmniLang source file."""
@@ -382,7 +406,6 @@ def _format_omni(source: str, indent: int = 4) -> str:
     - Single trailing newline
     - Brace-style normalization (opening brace on same line)
     """
-
     lines = source.split('\n')
     formatted_lines = []
     indent_level = 0
@@ -391,7 +414,6 @@ def _format_omni(source: str, indent: int = 4) -> str:
     for line in lines:
         stripped = line.rstrip()
 
-        # Skip empty lines
         if not stripped:
             formatted_lines.append('')
             continue
@@ -412,118 +434,163 @@ def _format_omni(source: str, indent: int = 4) -> str:
         if open_count > 0:
             indent_level += open_count
 
-        # NOTE: ; terminates statements but doesn't affect indent
-
     # Ensure single trailing newline
     result = '\n'.join(formatted_lines).rstrip() + '\n'
     return result
 
 
-# ── Terminal rendering ────────────────────────────────
+# ════════════════════════════════════════════════════════════
+# Serve
+# ════════════════════════════════════════════════════════════
 
-def _render_terminal(diagnostics, source_lines):
-    """Render diagnostics with colored terminal output."""
-    for diag in diagnostics:
-        label = f"{diag.severity.name}: {diag.code}"
-
-        print(f"{label}")
-        print(f"  --> {diag.location}")
-        print("   |")
-        if diag.location.file in source_lines:
-            file_lines = source_lines[diag.location.file]
-            line_no = diag.location.line
-            if line_no <= len(file_lines):
-                src_line = file_lines[line_no - 1].rstrip()
-                print(f"{line_no:>3} | {src_line}")
-                col = diag.location.column
-                span_end = diag.location.span[3]
-                indicator = " " * (col - 1) + "^" * max(span_end - col, 1)
-                print(f"   | {indicator}")
-        print(f"   | {diag.message}")
-        if diag.help:
-            print(f"   = help: {diag.help}")
-        for suggestion in diag.suggestions:
-            print(f"   = suggestion: {suggestion.message}")
-        print()
+def cmd_serve(args):
+    """Start the visual editor server."""
+    # Lazy import — editor deps (fastapi, uvicorn) are optional
+    from editor.server.main import cmd_serve as _serve
+    _serve(args)
 
 
-def _render_json(diagnostics, summary):
-    """Render diagnostics as JSON."""
-    import json
+# ════════════════════════════════════════════════════════════
+# Watch
+# ════════════════════════════════════════════════════════════
 
-    output = {
-        "diagnostics": [
-            {
-                "code": d.code,
-                "severity": d.severity.value,
-                "category": d.category,
-                "message": d.message,
-                "location": {
-                    "file": d.location.file,
-                    "line": d.location.line,
-                    "column": d.location.column,
-                },
-                "help": d.help,
-                "suggestions": [
-                    {"message": s.message, "applicable": s.applicable}
-                    for s in d.suggestions
-                ],
-            }
-            for d in diagnostics
-        ],
-        "summary": {
-            "errors": summary.errors,
-            "warnings": summary.warnings,
-            "ports": summary.ports,
-            "styles": summary.styles,
-            "perfs": summary.perfs,
-            "secs": summary.secs,
-            "hints": summary.hints,
-            "total": summary.total,
-        },
-    }
-    print(json.dumps(output, indent=2))
+def cmd_watch(args):
+    """Watch .omni files and auto-rebuild on changes."""
+    import difflib
+    import time
+
+    input_file = args.file
+    target = args.target
+    output_dir = args.output
+    show_diff = args.diff
+    all_targets = args.all
+
+    if not os.path.exists(input_file):
+        print(f"Error: File not found: {input_file}", file=sys.stderr)
+        sys.exit(1)
+
+    targets_to_check = ALL_TARGETS if all_targets else [target]
+
+    print(f"Watching {input_file} (target={target}, output={output_dir})")
+    print("Press Ctrl+C to stop.")
+    print("")
+
+    last_mtime = os.path.getmtime(input_file)
+    build_count = 0
+    previous_outputs: dict[str, str] = {}
+
+    if show_diff:
+        print(f"  Diff mode: showing changes across {len(targets_to_check)} target(s)")
+        print("")
+
+    from omniview.api import compile_omni
+
+    try:
+        while True:
+            time.sleep(0.5)
+            try:
+                current_mtime = os.path.getmtime(input_file)
+            except OSError:
+                continue
+
+            if current_mtime != last_mtime:
+                last_mtime = current_mtime
+                build_count += 1
+                timestamp = time.strftime("%H:%M:%S")
+
+                try:
+                    with open(input_file, encoding="utf-8") as f:
+                        source = f.read()
+                except Exception:
+                    continue
+
+                results: dict[str, str] = {}
+                errors: list[str] = []
+
+                for tgt in targets_to_check:
+                    try:
+                        result = compile_omni(source, filepath=input_file, target=tgt,
+                                              previous_files=previous_outputs.get(tgt))
+                        if result.success and result.files:
+                            combined = "\n".join(
+                                f"// {fname}\n{content}"
+                                for fname, content in sorted(result.files.items())
+                            )
+                            results[tgt] = combined
+                            previous_outputs[tgt] = combined
+                        elif result.errors:
+                            errors.extend(e.message for e in result.errors)
+                    except Exception as e:
+                        errors.append(f"{tgt}: {e}")
+
+                if errors:
+                    print(f"[{timestamp}] #{build_count} FAILED: {'; '.join(errors[:3])}")
+                    continue
+
+                if show_diff:
+                    print(f"[{timestamp}] #{build_count} Changed:")
+                    for tgt in targets_to_check:
+                        output = results.get(tgt, "")
+                        prev = previous_outputs.get(f"_{tgt}_last_displayed", "")
+                        if output != prev:
+                            prev_lines = prev.split("\n") if prev else []
+                            curr_lines = output.split("\n")
+                            diff = list(difflib.unified_diff(
+                                prev_lines, curr_lines,
+                                fromfile=f"{tgt}/prev", tofile=f"{tgt}/current",
+                                lineterm="",
+                            ))
+                            changed = len([l for l in diff if l.startswith("+") and not l.startswith("+++")])
+                            removed = len([l for l in diff if l.startswith("-") and not l.startswith("---")])
+                            if changed or removed:
+                                print(f"  {tgt:12s} +{changed}/-{removed} lines changed")
+                                for dline in diff[2:8]:
+                                    if dline and not dline.startswith("@@"):
+                                        print(f"    {dline[:100]}")
+                            else:
+                                print(f"  {tgt:12s} no change")
+                            previous_outputs[f"_{tgt}_last_displayed"] = output
+                else:
+                    print(f"[{timestamp}] #{build_count} OK ({len(targets_to_check)} targets)")
+    except KeyboardInterrupt:
+        print(f"\nStopped. ({build_count} build(s))")
 
 
-def _render_github(diagnostics):
-    """Render diagnostics as GitHub Actions workflow commands.
+# ════════════════════════════════════════════════════════════
+# gen-extern
+# ════════════════════════════════════════════════════════════
 
-    Format: ::error file=main.omni,line=5,col=10::E0101: type mismatch
-    """
-    severity_map = {
-        "error": "error",
-        "warning": "warning",
-        "port": "warning",
-        "style": "notice",
-        "perf": "warning",
-        "sec": "error",
-        "hint": "notice",
-    }
-    for diag in diagnostics:
-        gh_sev = severity_map.get(diag.severity.value, "warning")
-        print(
-            f"::{gh_sev} "
-            f"file={diag.location.file},"
-            f"line={diag.location.line},"
-            f"col={diag.location.column}"
-            f"::{diag.code}: {diag.message}"
-        )
+def cmd_gen_extern(args):
+    """Generate Rust extern declarations from a .d.ts file."""
+    from omniview.gen_extern import gen_extern_command
 
+    # Build raw args for the existing command function
+    raw_args = [args.file]
+    if args.output:
+        raw_args.extend(["--output", args.output])
+    if args.module:
+        raw_args.extend(["--module", args.module])
+    sys.exit(gen_extern_command(raw_args))
+
+
+# ════════════════════════════════════════════════════════════
+# Main
+# ════════════════════════════════════════════════════════════
 
 def main():
     parser = argparse.ArgumentParser(
         prog="omnic",
-        description="OmniLang compiler — transpile .omni to Rust, Dart, JS, or Python",
+        description="OmniLang compiler — transpile .omni to Rust, Dart, JS, Python, React, Vue, and more",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # ── build ─────────────────────────────────────────
-    build_parser = subparsers.add_parser("build", help="Compile an OmniLang source file")
+    # ── build ──
+    build_parser = subparsers.add_parser("build", help="Compile an .omni source file to target language(s)")
     build_parser.add_argument("file", help="Source file (.omni)")
     build_parser.add_argument(
         "--target", "-t",
-        choices=["rust", "dart", "js", "python"],
-        help="Target language (omit for all four)",
+        choices=ALL_TARGETS,
+        help="Target language/framework (default: auto-detect react or python)",
     )
     build_parser.add_argument(
         "--output", "-o",
@@ -531,7 +598,7 @@ def main():
         help="Output directory (default: ./build)",
     )
 
-    # ── check ─────────────────────────────────────────
+    # ── check ──
     check_parser = subparsers.add_parser(
         "check", help="Run static analysis (type + portability + lint)"
     )
@@ -548,28 +615,68 @@ def main():
         help="Show detailed explanation for a diagnostic code (e.g., P0101)",
     )
 
-    # ── init ──────────────────────────────────────────
+    # ── init ──
     init_parser = subparsers.add_parser("init", help="Initialize a new OmniLang project")
     init_parser.add_argument("dir", nargs="?", default=".", help="Project directory (default: .)")
     init_parser.add_argument("--name", "-n", help="Project name (default: directory name)")
 
-    # ── fix ──────────────────────────────────────────
+    # ── fix ──
     fix_parser = subparsers.add_parser("fix", help="Auto-fix diagnostics in source file")
     fix_parser.add_argument("file", help="Source file (.omni)")
     fix_parser.add_argument("--dry-run", action="store_true", help="Preview fixes without applying")
     fix_parser.add_argument("--rule", help="Only apply a specific rule")
 
-    # ── run ──────────────────────────────────────────
+    # ── run ──
     run_parser = subparsers.add_parser("run", help="Compile and run an OmniLang file")
     run_parser.add_argument("file", help="Source file (.omni)")
-    run_parser.add_argument("--target", "-t", choices=["rust","dart","js","python"], default="python",
-                           help="Target language to run (default: python)")
+    run_parser.add_argument(
+        "--target", "-t",
+        choices=["rust", "dart", "js", "python"],
+        default="python",
+        help="Target language to run (default: python)",
+    )
 
-    # ── fmt ──────────────────────────────────────────
+    # ── fmt ──
     fmt_parser = subparsers.add_parser("fmt", help="Format an OmniLang source file")
     fmt_parser.add_argument("file", help="Source file (.omni)")
     fmt_parser.add_argument("--check", action="store_true", help="Check formatting without modifying")
     fmt_parser.add_argument("--indent", type=int, default=4, help="Indentation size (default: 4)")
+
+    # ── serve ──
+    serve_parser = subparsers.add_parser("serve", help="Start the visual editor server")
+    serve_parser.add_argument("--dir", required=True, help="Project directory to serve")
+    serve_parser.add_argument("--port", type=int, default=5173, help="Server port (default: 5173)")
+    serve_parser.add_argument("--vite-port", type=int, default=5174, help="Vite dev server port (default: 5174)")
+    serve_parser.add_argument("--dev", action="store_true", help="Force Vite dev mode (even if production build exists)")
+    serve_parser.add_argument("--no-frontend", action="store_true", help="Skip auto-starting Vite dev server")
+
+    # ── watch ──
+    watch_parser = subparsers.add_parser("watch", help="Watch .omni files and auto-rebuild on changes")
+    watch_parser.add_argument("file", help="Source file (.omni)")
+    watch_parser.add_argument(
+        "--target", "-t",
+        choices=ALL_TARGETS,
+        default="react",
+        help="Target language/framework (default: react)",
+    )
+    watch_parser.add_argument(
+        "--output", "-o",
+        default="./build",
+        help="Output directory (default: ./build)",
+    )
+    watch_parser.add_argument("--diff", action="store_true", help="Show diff on changes")
+    watch_parser.add_argument("--all", action="store_true", help="Build for all targets")
+
+    # ── gen-extern ──
+    gen_extern_parser = subparsers.add_parser(
+        "gen-extern", help="Generate Rust extern declarations from a .d.ts file"
+    )
+    gen_extern_parser.add_argument("file", help="Input .d.ts file")
+    gen_extern_parser.add_argument("--output", "-o", help="Output .rs file (default: stdout)")
+    gen_extern_parser.add_argument(
+        "--module", default="generated",
+        help="wasm-bindgen module name (default: generated)",
+    )
 
     args = parser.parse_args()
 
@@ -585,6 +692,12 @@ def main():
         cmd_init(args)
     elif args.command == "fmt":
         cmd_fmt(args)
+    elif args.command == "serve":
+        cmd_serve(args)
+    elif args.command == "watch":
+        cmd_watch(args)
+    elif args.command == "gen-extern":
+        cmd_gen_extern(args)
     else:
         parser.print_help()
 

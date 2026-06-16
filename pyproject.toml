@@ -18,7 +18,7 @@ editor = [
 ]
 
 [project.scripts]
-omnic = "omniview.cli:main"
+omnic = "omnilang.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["omnilang*", "omniview*", "editor*"]
