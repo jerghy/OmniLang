@@ -12,7 +12,7 @@ from omnilang.ast_nodes import (
     TaggedUnionDef, Variant,
     ClassDef, ClassMember,
     InterfaceDef, InterfaceMember,
-    ImportStmt, ImportTypeStmt, ExportStmt,
+    ImportStmt, ImportTypeStmt, ImportNamespaceStmt, ExportStmt, ExportFromStmt,
     # Statements
     Block, VarDecl, Destructure, Assign, IfStmt, WhileStmt, ForInStmt,
     BreakStmt, ContinueStmt, ReturnStmt, PrintStmt, ExprStmt,
@@ -23,7 +23,7 @@ from omnilang.ast_nodes import (
     TemplateString, OptionalChain, NullCoalesce, ClosureExpr, AwaitExpr, SpreadExpr, StructLiteral,
     MatchExpr, VarPattern, IgnorePattern, RestPattern, ArrayPattern, ObjectPattern,
     # Types
-    TypeAnnotation, UnionType, GenericParam,
+    TypeAnnotation, UnionType, GenericParam, TypeAlias,
     # Base
     Stmt,
 )
@@ -88,6 +88,10 @@ class OmniTransformer(ExpressionMixin, Transformer):
         imports = []
         exports = []
         lib_imports = []
+        type_aliases = []
+        type_imports = []
+        namespace_imports = []
+        export_froms = []
         for item in items:
             if isinstance(item, FunctionDef):
                 funcs.append(item)
@@ -98,13 +102,19 @@ class OmniTransformer(ExpressionMixin, Transformer):
             elif isinstance(item, ImportStmt):
                 imports.append(item)
             elif isinstance(item, ImportTypeStmt):
-                pass
+                type_imports.append(item)
             elif isinstance(item, ExportStmt):
                 exports.append(item)
                 if item.item and isinstance(item.item, FunctionDef):
                     funcs.append(item.item)
                 elif item.item and isinstance(item.item, StructDef):
                     structs.append(item.item)
+            elif isinstance(item, ImportNamespaceStmt):
+                namespace_imports.append(item)
+            elif isinstance(item, ExportFromStmt):
+                export_froms.append(item)
+            elif isinstance(item, TypeAlias):
+                type_aliases.append(item)
             elif isinstance(item, ClassDef):
                 classes.append(item)
             elif isinstance(item, InterfaceDef):
@@ -122,10 +132,18 @@ class OmniTransformer(ExpressionMixin, Transformer):
                        tagged_unions=tagged_unions, classes=classes,
                        imports=imports, exports=exports,
                        lib_imports=lib_imports,
+                       type_aliases=type_aliases,
+                       type_imports=type_imports,
+                       namespace_imports=namespace_imports,
+                       export_froms=export_froms,
                        span=self._span(*items))
 
     def function_def(self, items):
         # items: [ASYNC], FN_token, name_token, [generic_params], [(params)], [return_type], block
+        is_pub = False
+        if items and isinstance(items[0], Token) and (items[0].type == "PUB" or str(items[0]) == "pub"):
+            is_pub = True
+            items = items[1:]
         name = ""
         fn_params = []
         return_type = None
@@ -156,7 +174,7 @@ class OmniTransformer(ExpressionMixin, Transformer):
                 body = item
         return FunctionDef(name=name, params=fn_params, return_type=return_type,
                           generic_params=generic_params, body=body,
-                          is_async=is_async, span=self._span(*items))
+                          is_async=is_async, is_pub=is_pub, span=self._span(*items))
 
     # ── Generics ───────────────────────────────────
 
@@ -536,7 +554,11 @@ class OmniTransformer(ExpressionMixin, Transformer):
     # ── Struct definition ──────────────────────────
 
     def struct_def(self, items):
-        """Handle struct_def: ['nominal'] 'struct' CNAME [generic_params] '{' struct_field* '}'"""
+        """Handle struct_def: ['pub'] ['nominal'] 'struct' CNAME [generic_params] '{' struct_field* '}'"""
+        is_pub = False
+        if items and isinstance(items[0], Token) and (items[0].type == "PUB" or str(items[0]) == "pub"):
+            is_pub = True
+            items = items[1:]
         name = ""
         generic_params = []
         fields = []
@@ -558,7 +580,7 @@ class OmniTransformer(ExpressionMixin, Transformer):
             elif isinstance(item, StructField):
                 fields.append(item)
         return StructDef(name=name, generic_params=generic_params,
-                        fields=fields, is_nominal=is_nominal,
+                        fields=fields, is_nominal=is_nominal, is_pub=is_pub,
                         span=self._span(*items))
 
     def struct_field(self, items):
@@ -748,6 +770,43 @@ class OmniTransformer(ExpressionMixin, Transformer):
         """Handle export_stmt: 'export' function_def"""
         item = items[0] if items else None
         return ExportStmt(item=item, span=self._span(*items))
+
+    def import_namespace_stmt(self, items):
+        """Handle import_namespace_stmt: 'import' STRING_LIT 'as' CNAME ';'"""
+        path = ""
+        alias = ""
+        for item in items:
+            if isinstance(item, Token) and item.type == "STRING_LIT":
+                path = str(item)[1:-1]  # strip quotes
+            elif isinstance(item, Token) and item.type == "CNAME":
+                alias = str(item)
+        return ImportNamespaceStmt(path=path, alias=alias, span=self._span(*items))
+
+    def export_from_stmt(self, items):
+        """Handle export_from_stmt: 'export' '{' CNAME (',' CNAME)* '}' 'from' STRING_LIT ';'"""
+        names = []
+        path = ""
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                names.append(str(item))
+            elif isinstance(item, Token) and item.type == "STRING_LIT":
+                path = str(item)[1:-1]
+        return ExportFromStmt(names=names, path=path, span=self._span(*items))
+
+    def type_alias(self, items):
+        """Handle type_alias: ['pub'] 'type' CNAME ['<' generic_params '>'] '=' type_ann ';'"""
+        is_pub = False
+        if items and isinstance(items[0], Token) and (items[0].type == "PUB" or str(items[0]) == "pub"):
+            is_pub = True
+            items = items[1:]  # skip pub token
+        name = ""
+        type_ann = None
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                name = str(item)
+            elif self._is_type(item):
+                type_ann = item
+        return TypeAlias(name=name, type_ann=type_ann, is_pub=is_pub, span=self._span(*items))
 
     def variant(self, items):
         """Handle variant: CNAME ['{' struct_field* '}']"""

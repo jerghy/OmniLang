@@ -24,9 +24,9 @@ from omnilang.utils import Span
 
 from omniview.ast_nodes import (
     # Top-level
-    Program, ComponentDef, StoreDef, ThemeDef,
+    Program, ComponentDef, StoreDef, ThemeDef, TypeAlias,
     # Import
-    ImportStmt,
+    ImportStmt, ImportTypeStmt, ImportNamespaceStmt, ExportFromStmt,
     # Component
     PropDecl, SignalDecl, ComputedDecl, EventDecl, RefDecl, StoreRef,
     # Store
@@ -113,6 +113,10 @@ class OmniViewTransformer(Transformer):
         themes = []
         lib_imports = []
         imports = []
+        type_imports = []
+        namespace_imports = []
+        export_froms = []
+        type_aliases = []
         for item in items:
             if isinstance(item, ComponentDef):
                 components.append(item)
@@ -122,6 +126,14 @@ class OmniViewTransformer(Transformer):
                 themes.append(item)
             elif isinstance(item, ImportStmt):
                 imports.append(item)
+            elif isinstance(item, ImportTypeStmt):
+                type_imports.append(item)
+            elif isinstance(item, ImportNamespaceStmt):
+                namespace_imports.append(item)
+            elif isinstance(item, ExportFromStmt):
+                export_froms.append(item)
+            elif isinstance(item, TypeAlias):
+                type_aliases.append(item)
             elif isinstance(item, str):
                 lib_imports.append(item)
         return Program(
@@ -129,6 +141,10 @@ class OmniViewTransformer(Transformer):
             stores=tuple(stores),
             themes=tuple(themes),
             imports=tuple(imports),
+            type_imports=tuple(type_imports),
+            namespace_imports=tuple(namespace_imports),
+            export_froms=tuple(export_froms),
+            type_aliases=tuple(type_aliases),
             lib_imports=tuple(lib_imports),
         )
 
@@ -149,6 +165,57 @@ class OmniViewTransformer(Transformer):
                 elif item.type == "STRING_LIT":
                     path = self._strip_quotes(str(item))
         return ImportStmt(names=tuple(names), path=path)
+
+    def import_type_stmt(self, items):
+        """import type { Name1, Name2 } from "./path.omni" ;"""
+        names = []
+        path = ""
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "CNAME":
+                    names.append(str(item))
+                elif item.type == "STRING_LIT":
+                    path = self._strip_quotes(str(item))
+        return ImportTypeStmt(names=tuple(names), path=path)
+
+    def import_namespace_stmt(self, items):
+        """import "./path.omni" as alias ;"""
+        path = ""
+        alias = ""
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "STRING_LIT":
+                    path = self._strip_quotes(str(item))
+                elif item.type == "CNAME":
+                    alias = str(item)
+        return ImportNamespaceStmt(path=path, alias=alias)
+
+    def export_from_stmt(self, items):
+        """export { Name1, Name2 } from "./path.omni" ;"""
+        names = []
+        path = ""
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "CNAME":
+                    names.append(str(item))
+                elif item.type == "STRING_LIT":
+                    path = self._strip_quotes(str(item))
+        return ExportFromStmt(names=tuple(names), path=path)
+
+    def type_alias(self, items):
+        """type_alias: ['pub'] 'type' CNAME '=' type_ann ';'"""
+        is_pub = False
+        if items and isinstance(items[0], Token) and str(items[0]) == "pub":
+            is_pub = True
+            items = items[1:]
+        name = ""
+        type_ann = None
+        for item in items:
+            if isinstance(item, Token) and item.type == "CNAME":
+                name = str(item)
+            elif isinstance(item, (TypeAnnotation, UnionType)):
+                type_ann = item
+        return TypeAlias(name=name, type_ann=type_ann, is_pub=is_pub)
 
     def start(self, items):
         # 'start' wraps 'program' — program is already transformed

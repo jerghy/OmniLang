@@ -25,7 +25,7 @@ export_from_stmt: "export" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 
 export_stmt: "export" (function_def | struct_def | class_def | tagged_union_def | interface_def)
 
-function_def: ["pub"] "fn" CNAME ["<" generic_params ">"] "(" [params] ")" ["->" type_ann] block
+function_def: [PUB] "fn" CNAME ["<" generic_params ">"] "(" [params] ")" ["->" type_ann] block
 
 params: param ("," param)*
 param: CNAME ":" type
@@ -82,6 +82,7 @@ FN: "fn"
 ASYNC: "async"
 AWAIT: "await"
 NOMINAL: "nominal"
+PUB: "pub"
 SPREAD: "..."
 PIPE: "|"
 ARROW: "=>"
@@ -187,7 +188,7 @@ call_args: expr ("," expr)*
 
 // ── Struct definition ───────────────────────────────
 
-struct_def: ["pub"] "struct" CNAME ["<" generic_params ">"] "{" [struct_field (";" struct_field)* ";"] "}"
+struct_def: [PUB] "struct" CNAME ["<" generic_params ">"] "{" [struct_field (";" struct_field)* ";"] "}"
 struct_field: CNAME ":" type
 
 // ── Tagged union definition ──────────────────────────
@@ -197,7 +198,7 @@ variant: CNAME ["{" struct_field* "}"]
 
 // ── Type alias ─────────────────────────────────────────
 
-type_alias: ["pub"] "type" CNAME ["<" generic_params ">"] "=" type_ann ";"
+type_alias: [PUB] "type" CNAME ["<" generic_params ">"] "=" type_ann ";"
 
 impl_block: "impl" CNAME ["<" generic_params ">"] "{" function_def* "}"
 
