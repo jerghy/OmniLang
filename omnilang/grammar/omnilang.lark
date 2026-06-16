@@ -25,7 +25,7 @@ export_from_stmt: "export" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 
 export_stmt: "export" (function_def | struct_def | class_def | tagged_union_def | interface_def)
 
-function_def: [PUB] "fn" CNAME ["<" generic_params ">"] "(" [params] ")" ["->" type_ann] block
+function_def: [PUB] [ASYNC] "fn" CNAME ["<" generic_params ">"] "(" [params] ")" ["->" type_ann] block
 
 params: param ("," param)*
 param: CNAME ":" type
