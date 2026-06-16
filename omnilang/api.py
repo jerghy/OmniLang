@@ -4,7 +4,7 @@ Used by omniview/cli.py and editor/server/.
 Pure function compile_omni() — no file I/O, input source string, output dict.
 
 Usage:
-    from omniview.api import compile_omni, CompileResult, CompileError
+    from omnilang.api import compile_omni, CompileResult, CompileError
 
     result = compile_omni(source, filepath="/abs/path/to/App.omni", target="react")
     if result.success:
@@ -102,7 +102,7 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
     if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
         target = "python"
 
-    from omniview.codegen.rust_bridge import RustBridge
+    from omnilang.rust_bridge import RustBridge
 
     if not RustBridge.is_available():
         errors.append(CompileError(
@@ -211,7 +211,7 @@ def parse_view_tree(source: str, filepath: str = "<input>") -> list[ViewTreeNode
     Only parses UI mode sources.
     """
     try:
-        from omniview.codegen.rust_bridge import RustBridge
+        from omnilang.rust_bridge import RustBridge
         if RustBridge.is_available():
             ir_result = RustBridge.compile_to_ir(source)
             if ir_result and "_rust_errors" not in ir_result:
@@ -355,7 +355,7 @@ def parse_code_blocks(source: str, filepath: str = "<input>") -> list[CodeBlockN
     These blocks can be rendered as canvas nodes with ports for visual wiring.
     """
     try:
-        from omniview.codegen.rust_bridge import RustBridge
+        from omnilang.rust_bridge import RustBridge
         if RustBridge.is_available():
             ir_result = RustBridge.compile_to_ir(source)
             if ir_result and "_rust_errors" not in ir_result and isinstance(ir_result, dict):
