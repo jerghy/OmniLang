@@ -623,39 +623,120 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
     }
 }
 
+fn lower_stmt(stmt: &Stmt) -> StatementIR {
+    match stmt {
+        Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
+            name: name.clone(),
+            value: init.as_ref().map(lower_expr),
+            r#type: None,
+        },
+        Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
+            value: value.as_ref().map(lower_expr),
+        },
+        Stmt::ExprStmt { expr, .. } => {
+            if let Some(mutation) = try_lower_mutation(expr) {
+                StatementIR::MutationStmt {
+                    intent: Some(mutation),
+                }
+            } else {
+                StatementIR::ExprStmtIR {
+                    expr: lower_expr(expr),
+                }
+            }
+        }
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => StatementIR::IfStmtIR {
+            condition: lower_expr(condition),
+            then_body: lower_block(then_body),
+            else_body: else_body.as_ref().map(lower_block),
+        },
+        _ => StatementIR::ExprStmtIR {
+            expr: ExprIR::LiteralExpr {
+                value: serde_json::Value::Null,
+            },
+        },
+    }
+}
+
+/// Try to lower an expression statement as a mutation intent.
+/// Handles both MethodCall (count.set(v)) and FuncCall(FieldAccess) patterns.
+fn try_lower_mutation(expr: &Expr) -> Option<MutationIntent> {
+    // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
+    if let Expr::MethodCall {
+        object, method, args, ..
+    } = expr
+    {
+        if let Expr::VarRef(target_name, _) = object.as_ref() {
+            return mutation_for_method(target_name, method, args.first());
+        }
+    }
+    // Pattern 2: Expr::FuncCall { func: FieldAccess { VarRef("count"), "set" }, args: [value] }
+    if let Expr::FuncCall { func, args, .. } = expr {
+        if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
+            if let Expr::VarRef(target_name, _) = object.as_ref() {
+                return mutation_for_method(target_name, field, args.first());
+            }
+        }
+    }
+    None
+}
+
+fn mutation_for_method(
+    target_name: &str,
+    method: &str,
+    amount: Option<&Expr>,
+) -> Option<MutationIntent> {
+    let target = SignalRefIR {
+        owner: None,
+        name: target_name.into(),
+    };
+    let amount = amount.map(lower_expr);
+    match method {
+        "set" | "setValue" => Some(MutationIntent {
+            target,
+            operation: "direct_assign".into(),
+            amount,
+            item: None,
+        }),
+        "inc" | "increment" => Some(MutationIntent {
+            target,
+            operation: "increment".into(),
+            amount,
+            item: None,
+        }),
+        "dec" | "decrement" => Some(MutationIntent {
+            target,
+            operation: "decrement".into(),
+            amount,
+            item: None,
+        }),
+        _ => None,
+    }
+}
+
 fn lower_block(block: &Block) -> BlockIR {
-    let statements: Vec<StatementIR> = block
+    let mut statements: Vec<StatementIR> = block
         .stmts
         .iter()
-        .map(|stmt| match stmt {
-            Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
-                name: name.clone(),
-                value: init.as_ref().map(lower_expr),
-                r#type: None,
-            },
-            Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
-                value: value.as_ref().map(lower_expr),
-            },
-            Stmt::ExprStmt { expr, .. } => StatementIR::ExprStmtIR {
-                expr: lower_expr(expr),
-            },
-            Stmt::If {
-                condition,
-                then_body,
-                else_body,
-                ..
-            } => StatementIR::IfStmtIR {
-                condition: lower_expr(condition),
-                then_body: lower_block(then_body),
-                else_body: else_body.as_ref().map(lower_block),
-            },
-            _ => StatementIR::ExprStmtIR {
-                expr: ExprIR::LiteralExpr {
-                    value: serde_json::Value::Null,
-                },
-            },
-        })
+        .map(|stmt| lower_stmt(stmt))
         .collect();
+
+    // Include trailing expression as an expression statement
+    if let Some(ref expr) = block.trailing_expr {
+        if let Some(mutation) = try_lower_mutation(expr) {
+            statements.push(StatementIR::MutationStmt {
+                intent: Some(mutation),
+            });
+        } else {
+            statements.push(StatementIR::ExprStmtIR {
+                expr: lower_expr(expr),
+            });
+        }
+    }
 
     BlockIR {
         statements,
@@ -688,9 +769,25 @@ fn lower_expr(expr: &Expr) -> ExprIR {
             operand: Box::new(lower_expr(operand)),
         },
         Expr::FuncCall { func, args, .. } => {
-            // Map function calls into store field access or plain identifier
+            // Pattern: signal.get() → signal.value
             if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
                 if let Expr::VarRef(obj_name, _) = object.as_ref() {
+                    // Signal method calls
+                    if field == "get" {
+                        return ExprIR::FieldAccessExpr {
+                            object: Box::new(ExprIR::IdentifierExpr {
+                                name: obj_name.clone(),
+                            }),
+                            field: "value".into(),
+                        };
+                    }
+                    if field == "set" || field == "inc" || field == "dec" {
+                        // Mutation — handled at statement level by try_lower_mutation
+                        return ExprIR::IdentifierExpr {
+                            name: obj_name.clone(),
+                        };
+                    }
+                    // Store field access
                     return ExprIR::StoreFieldAccessExpr {
                         store_alias: obj_name.clone(),
                         field_name: field.clone(),
@@ -710,6 +807,33 @@ fn lower_expr(expr: &Expr) -> ExprIR {
         Expr::FieldAccess { object, field, .. } => ExprIR::FieldAccessExpr {
             object: Box::new(lower_expr(object)),
             field: field.clone(),
+        },
+        Expr::MethodCall {
+            object, method, args, ..
+        } => {
+            // Lower signal.get() / signal.set(value)
+            if method == "get" {
+                ExprIR::FieldAccessExpr {
+                    object: Box::new(lower_expr(object)),
+                    field: "value".into(),
+                }
+            } else if method == "set" {
+                // signal.set(value) → MutationIntent (handled at statement level)
+                // For expression context, return identifier
+                ExprIR::IdentifierExpr {
+                    name: method.clone(),
+                }
+            } else if let Expr::VarRef(obj_name, _) = object.as_ref() {
+                ExprIR::StoreFieldAccessExpr {
+                    store_alias: obj_name.clone(),
+                    field_name: method.clone(),
+                    call_args: args.iter().map(lower_expr).collect(),
+                }
+            } else {
+                ExprIR::LiteralExpr {
+                    value: serde_json::Value::Null,
+                }
+            }
         },
         Expr::StoreFieldAccess {
             store_alias,

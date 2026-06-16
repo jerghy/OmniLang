@@ -1,3 +1,3 @@
-//! Codegen module — trait + OmniView JS/HTML/CSS codegen.
+//! Codegen module — OmniView JS/HTML/CSS codegen.
 
-// Placeholder — will be populated in Task 1.7/1.8.
+pub mod omniview;

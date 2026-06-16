@@ -124,7 +124,11 @@ class RustBridge:
                 parsed = json.loads(result_json)
                 # Unwrap CompileResult: {success, ir?, errors[]} -> IRProgram dict
                 # Note: "ir" is skip_serialized when None, so check for "success" too
+                # OmniView results have "files" instead of "ir"
                 if isinstance(parsed, dict) and ("ir" in parsed or "success" in parsed):
+                    # OmniView result: {success, files, source_map, errors}
+                    if "files" in parsed:
+                        return parsed  # Return OmniViewResult as-is
                     if parsed.get("success") and parsed.get("ir") is not None:
                         return parsed["ir"]  # Return just the IRProgram
                     elif parsed.get("errors"):
@@ -176,7 +180,8 @@ class RustBridge:
 
     @classmethod
     def _try_dll_omniview(cls, source: str) -> dict | None:
-        return None
+        """Try OmniView compilation via DLL."""
+        return cls._call_dll("omni_compile_to_omniview", source)
 
     @classmethod
     def _try_cli_omniview(cls, source: str) -> dict | None:
