@@ -188,7 +188,7 @@ call_args: expr ("," expr)*
 
 // ── Struct definition ───────────────────────────────
 
-struct_def: [PUB] "struct" CNAME ["<" generic_params ">"] "{" [struct_field (";" struct_field)* ";"] "}"
+struct_def: [PUB] "struct" CNAME ["<" generic_params ">"] "{" [struct_field ("," struct_field)* [","]] "}"
 struct_field: CNAME ":" type
 
 // ── Tagged union definition ──────────────────────────
