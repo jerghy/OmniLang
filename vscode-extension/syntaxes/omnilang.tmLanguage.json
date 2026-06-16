@@ -1,0 +1,87 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "OmniLang",
+  "scopeName": "source.omni",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#directives" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.omni", "match": "//.*$" },
+        { "name": "comment.block.omni", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.omni",
+          "begin": "\"", "end": "\"",
+          "patterns": [{ "name": "constant.character.escape.omni", "match": "\\\\." }]
+        },
+        {
+          "name": "string.quoted.single.omni",
+          "begin": "'", "end": "'",
+          "patterns": [{ "name": "constant.character.escape.omni", "match": "\\\\." }]
+        },
+        {
+          "name": "string.quoted.template.omni",
+          "begin": "`", "end": "`",
+          "patterns": [
+            { "name": "constant.character.escape.omni", "match": "\\\\." },
+            { "name": "string.interpolated.omni", "begin": "\\$\\{", "end": "\\}" }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.omni", "match": "0[xX][0-9a-fA-F]+" },
+        { "name": "constant.numeric.float.omni", "match": "\\d*\\.\\d+([eE][-+]?\\d+)?" },
+        { "name": "constant.numeric.integer.omni", "match": "\\d+" }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        { "name": "keyword.directive.omni", "match": "@(if|for|else|mount|unmount|effect|slot|native|fallback|error|store|on:\\w+|bind:\\w+)" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.omni",
+          "match": "\\b(component|store|signal|computed|fn|view|style|import|export|as|from|if|else|for|while|match|case|default|return|yield|await|async|let|var|const|final|late|class|enum|struct|trait|impl|extends|super|this|self|new|throw|try|catch|finally|break|continue|in|is|pub|static|override|required|mixin|with|on|use|namespace|module|true|false|null|undefined|type|interface|nominal|private|print|println|action|prop|ref|getter|event|theme|mut|abstract|where)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.omni",
+          "match": "\\b(String|int|double|float|bool|void|num|dynamic|List|Map|Set|Future|Stream|Option|Result|Widget|BuildContext|Element|i32|i64|f32|f64|u32|u64|Array|Any)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.omni",
+          "match": "==|!=|>=|<=|&&|\\|\\||=>|->|\\?\\?|\\?\\.|\\.\\.|\\+=|-=|\\*=|/=|%=|\\+|-|\\*|/|%|\\*\\*|~|!|\\||&|\\^|<<|>>|=|>|<|\\?"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        { "name": "entity.name.function.omni", "match": "\\b[a-zA-Z_$][\\w$]*\\s*(?=\\()" },
+        { "match": "\\b[a-zA-Z_$][\\w$]*\\b" }
+      ]
+    }
+  }
+}

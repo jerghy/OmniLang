@@ -542,7 +542,7 @@ pub enum ImportStmt {
 
 // ── Top-Level Program ─────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Program {
     pub components: Vec<ComponentDef>,
     pub stores: Vec<StoreDef>,
