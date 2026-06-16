@@ -270,11 +270,15 @@ fn diagnostic_to_lsp(d: &Diagnostic) -> LspDiagnostic {
 }
 
 fn byte_offset_to_line_col(source: &str, offset: usize) -> (u32, u32) {
-    let offset = offset.min(source.len());
+    // Ensure offset is at a valid UTF-8 char boundary (snap back if inside multi-byte char)
+    let mut offset = offset.min(source.len());
+    while offset > 0 && !source.is_char_boundary(offset) {
+        offset -= 1;
+    }
     let prefix = &source[..offset];
     let line = prefix.chars().filter(|&c| c == '\n').count() as u32 + 1;
     let last_newline = prefix.rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let col = (offset - last_newline) as u32 + 1;
+    let col = prefix[last_newline..].chars().count() as u32 + 1;
     (line, col)
 }
 
@@ -290,7 +294,7 @@ impl AnalysisContext {
             let tokens = lexer::tokenize(&sf.content);
             match parser::parse(&tokens) {
                 Ok(program) => {
-                    let symbols = collect_file_symbols(&sf.path, &program);
+                    let symbols = collect_file_symbols(&sf.path, &sf.content, &program);
                     cross_symbols.insert(sf.path.clone(), symbols);
                     files.insert(sf.path.clone(), ParsedFile {
                         path: sf.path.clone(),
@@ -330,35 +334,51 @@ impl AnalysisContext {
 ///   lack span fields entirely, so they are omitted from the cross-symbol table
 fn collect_file_symbols(
     _file_path: &str,
+    source: &str,
     program: &Program,
 ) -> Vec<(String, SymbolKind, Span)> {
     let mut symbols = Vec::new();
 
-    // Functions and their parameters
+    // Functions — span covers 'fn' keyword, not the name.
+    // Compute name span: name starts right after 'fn' keyword.
     for f in &program.functions {
-        symbols.push((f.name.clone(), SymbolKind::Function, f.span.clone()));
-        // Param has no span -- skip inner params
+        let name_start = f.span.end;
+        let name_end = name_start + f.name.len();
+        let (name_line, name_col) = byte_offset_to_line_col(source, name_start);
+        let name_span = Span { start: name_start, end: name_end, line: name_line, col: name_col };
+        symbols.push((f.name.clone(), SymbolKind::Function, name_span));
     }
 
-    // Structs
+    // Structs — similarly, span covers 'struct' keyword
     for s in &program.structs {
-        symbols.push((s.name.clone(), SymbolKind::Struct, s.span.clone()));
+        let name_start = s.span.end;
+        let name_end = name_start + s.name.len();
+        let (name_line, name_col) = byte_offset_to_line_col(source, name_start);
+        let name_span = Span { start: name_start, end: name_end, line: name_line, col: name_col };
+        symbols.push((s.name.clone(), SymbolKind::Struct, name_span));
     }
 
     // Type aliases
     for ta in &program.type_aliases {
-        symbols.push((ta.name.clone(), SymbolKind::TypeAlias, ta.span.clone()));
+        let name_start = ta.span.end;
+        let name_end = name_start + ta.name.len();
+        let (name_line, name_col) = byte_offset_to_line_col(source, name_start);
+        let name_span = Span { start: name_start, end: name_end, line: name_line, col: name_col };
+        symbols.push((ta.name.clone(), SymbolKind::TypeAlias, name_span));
     }
 
-    // Components and their inner declarations
+    // Components — span covers 'component' keyword
     for c in &program.components {
-        symbols.push((c.name.clone(), SymbolKind::Component, c.span.clone()));
-        // SignalDecl, PropDecl, ComputedDecl lack spans -- skip inner symbols
+        let name_start = c.span.end;
+        let name_end = name_start + c.name.len();
+        let (name_line, name_col) = byte_offset_to_line_col(source, name_start);
+        let name_span = Span { start: name_start, end: name_end, line: name_line, col: name_col };
+        symbols.push((c.name.clone(), SymbolKind::Component, name_span));
     }
 
-    // Stores (StoreDef has no span field -- skip until span is added to the AST)
+    // Stores — StoreDef has no span field, so name position can't be computed.
+    // Skip until span is added to the AST.
     for st in &program.stores {
-        // st.name exists but no span available -- omit from cross-symbol table
         let _ = st;
     }
 
@@ -472,7 +492,11 @@ fn resolve_import_path(
 ) -> String {
     use std::path::Path;
     let parent = Path::new(from_file).parent().unwrap_or(Path::new(""));
-    let resolved = parent.join(import_path).with_extension("omni");
+    let mut resolved = parent.join(import_path);
+    // Only add .omni extension if the import path doesn't already have it
+    if resolved.extension().map_or(true, |ext| ext != "omni") {
+        resolved = resolved.with_extension("omni");
+    }
     let normalized = resolved.to_string_lossy().replace('\\', "/");
     for key in files.keys() {
         if key.ends_with(&normalized) || normalized.ends_with(key) {
@@ -526,23 +550,46 @@ fn find_symbol_at_cursor(ctx: &AnalysisContext) -> Option<(String, SymbolKind, S
     let source = &primary.content;
 
     let symbols = ctx.cross_symbols.get(&ctx.primary_file)?;
-    // Find the narrowest symbol span that contains the cursor
-    symbols.iter()
-        .filter(|(_, _, span)| {
-            let s_end_line = span_end_line(source, span);
-            let s_end_col = span_end_col(source, span);
-            span.line <= cursor_line && s_end_line >= cursor_line
-                && (span.line < cursor_line || span.col <= cursor_col)
-                && (s_end_line > cursor_line || s_end_col >= cursor_col)
-        })
+
+    // Pass 1: find a declaration span containing the cursor (works at declaration sites)
+    let decl_match = symbols.iter()
+        .filter(|(_, _, span)| span_contains(source, span, cursor_line, cursor_col))
         .min_by_key(|(_, _, span)| {
             let s_end_line = span_end_line(source, span);
             let s_end_col = span_end_col(source, span);
             let len = (s_end_line as i64 - span.line as i64) * 1000
                 + (s_end_col as i64 - span.col as i64);
-            len // narrowest span = smallest length
+            len
         })
-        .map(|(name, kind, span)| (name.clone(), kind.clone(), span.clone()))
+        .map(|(name, kind, span)| (name.clone(), kind.clone(), span.clone()));
+
+    if decl_match.is_some() {
+        return decl_match;
+    }
+
+    // Pass 2: fallback — find identifier token at cursor and look up in cross_symbols
+    // This handles usage sites (e.g., hovering a variable reference, not its declaration)
+    for tok in &primary.tokens {
+        let start_pos = byte_offset_to_line_col(source, tok.span.start);
+        let end_pos = byte_offset_to_line_col(source, tok.span.end);
+        if start_pos.0 <= cursor_line && end_pos.0 >= cursor_line
+            && (start_pos.0 < cursor_line || start_pos.1 <= cursor_col)
+            && (end_pos.0 > cursor_line || end_pos.1 >= cursor_col)
+        {
+            if let TokenKind::Ident(name) = &tok.kind {
+                // Look up this name in the cross-symbol table (any file)
+                for (_file, file_symbols) in &ctx.cross_symbols {
+                    for (sym_name, sym_kind, sym_span) in file_symbols {
+                        if sym_name == name {
+                            return Some((sym_name.clone(), sym_kind.clone(), sym_span.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 // ════════════════════════════════════════════════════════
@@ -1480,4 +1527,59 @@ pub fn format_source(source: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     result.trim_end().to_string() + "\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_byte_offset_to_line_col_ascii() {
+        let source = "fn greet(name: String) -> String {\n    return name;\n}\n";
+        // offset 3 should be 'g' of greet: line 1, col 4
+        let (line, col) = byte_offset_to_line_col(source, 3);
+        assert_eq!((line, col), (1, 4), "offset 3");
+        // Test span end
+        let (end_line, end_col) = byte_offset_to_line_col(source, source.len());
+        println!("end: line={}, col={}", end_line, end_col);
+    }
+
+    #[test]
+    fn test_find_symbol_at_cursor_ascii() {
+        let source = "fn greet(name: String) -> String {\n    return name;\n}\n";
+        let request = AnalysisRequest {
+            files: vec![SourceFile {
+                path: "test.omni".to_string(),
+                content: source.to_string(),
+                is_open: true,
+            }],
+            primary_file: "test.omni".to_string(),
+            operation: Operation::Hover,
+            cursor_offset: 3,
+            extra: Extra::default(),
+        };
+        let ctx = AnalysisContext::new(&request);
+
+        // Check cross_symbols
+        let syms = ctx.cross_symbols.get("test.omni").unwrap();
+        println!("Symbols count: {}", syms.len());
+        for (name, kind, span) in syms {
+            println!("  {}: line={} col={} start={} end={}",
+                name, span.line, span.col, span.start, span.end);
+        }
+
+        // Try find_symbol_at_cursor
+        let result = find_symbol_at_cursor(&ctx);
+        println!("find_symbol_at_cursor at offset 3: {:?}", result.is_some());
+        assert!(result.is_some(), "Should find 'greet' at offset 3");
+
+        // Test at offset 3 (should find 'greet')
+        let ctx3 = AnalysisContext::new(&AnalysisRequest {
+            cursor_offset: 3,
+            ..request
+        });
+        let result3 = find_symbol_at_cursor(&ctx3);
+        assert!(result3.is_some(), "Should find 'greet' at offset 3");
+        assert_eq!(result3.unwrap().0, "greet");
+    }
 }
