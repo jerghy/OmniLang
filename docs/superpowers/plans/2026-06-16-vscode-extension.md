@@ -410,7 +410,12 @@ fn collect_file_symbols(
 cd omni-compiler && cargo check 2>&1
 ```
 
-Expected: no errors. Note: `name_span` field may not exist on all AST nodes — add `#[serde(skip)] name_span: Span` fields where needed during implementation.
+Expected: no errors. Adaptation notes for actual AST shapes:
+- `name_span` doesn't exist on `FunctionDef`/`ComponentDef`/etc. — use `span` or find the name token from `tokens[]`
+- `Program::default()` must derive `Default` — add `#[derive(Default)]` to `Program` in `ast.rs`
+- `component.view_body` and `store.actions` — verify field names against actual `ComponentDef`/`StoreDef` structs
+- `Block.trailing_expr` is `Option<Box<Expr>>` — use `.as_ref()` when matching
+- `AssignTarget::Name(String)` wraps the target name, not `AssignTarget` directly
 
 ---
 
@@ -486,8 +491,8 @@ fn lint_diag_to_lsp(d: &crate::semantic::lints::LintDiagnostic) -> LspDiagnostic
         range: LspRange {
             start_line: d.line,
             start_col: d.col,
-            end_line: d.end_line,
-            end_col: d.end_col,
+            end_line: d.line,
+            end_col: d.col + 1,  // LintDiagnostic has no end_line/end_col — use point range
         },
         message: format!("[{}] {}", d.rule, d.message),
         code: d.rule.clone(),
@@ -754,43 +759,51 @@ fn collect_refs_from_stmt(
     refs: &mut Vec<Location>,
 ) {
     match stmt {
-        Stmt::VarDecl(vd) => {
-            if vd.name == target {
+        Stmt::VarDecl { name, init, span, .. } => {
+            if name == target {
                 refs.push(Location {
                     file_path: file_path.to_string(),
-                    range: span_to_lsp_range(&vd.name_span),
+                    range: span_to_lsp_range(span),
                 });
             }
-            if let Some(init) = &vd.init {
-                collect_refs_from_expr(init, target, file_path, refs);
+            if let Some(init_expr) = init {
+                collect_refs_from_expr(init_expr, target, file_path, refs);
             }
         }
-        Stmt::Assign(a) => {
-            if a.target == target {
-                refs.push(Location {
-                    file_path: file_path.to_string(),
-                    range: span_to_lsp_range(&a.span),
-                });
+        Stmt::Assign { target: assign_target, value, span, .. } => {
+            if let AssignTarget::Name(name) = assign_target {
+                if name == target {
+                    refs.push(Location {
+                        file_path: file_path.to_string(),
+                        range: span_to_lsp_range(span),
+                    });
+                }
             }
-            collect_refs_from_expr(&a.value, target, file_path, refs);
+            collect_refs_from_expr(value, target, file_path, refs);
         }
-        Stmt::Expr(e) | Stmt::Return(Some(e)) | Stmt::Print(Some(e)) => {
-            collect_refs_from_expr(e, target, file_path, refs);
+        Stmt::ExprStmt { expr, .. }
+        | Stmt::Return { value: Some(expr), .. }
+        | Stmt::Print { arg: expr, .. } => {
+            collect_refs_from_expr(expr, target, file_path, refs);
         }
-        Stmt::If(i) => {
-            collect_refs_from_expr(&i.condition, target, file_path, refs);
-            find_var_refs_in_block(&i.then_body, target, file_path, refs);
-            if let Some(ref else_b) = i.else_body {
+        Stmt::If { condition, then_body, else_ifs, else_body, .. } => {
+            collect_refs_from_expr(condition, target, file_path, refs);
+            find_var_refs_in_block(then_body, target, file_path, refs);
+            for (elif_cond, elif_body) in else_ifs {
+                collect_refs_from_expr(elif_cond, target, file_path, refs);
+                find_var_refs_in_block(elif_body, target, file_path, refs);
+            }
+            if let Some(ref else_b) = else_body {
                 find_var_refs_in_block(else_b, target, file_path, refs);
             }
         }
-        Stmt::While(w) => {
-            collect_refs_from_expr(&w.condition, target, file_path, refs);
-            find_var_refs_in_block(&w.body, target, file_path, refs);
+        Stmt::While { condition, body, .. } => {
+            collect_refs_from_expr(condition, target, file_path, refs);
+            find_var_refs_in_block(body, target, file_path, refs);
         }
-        Stmt::ForIn(fi) => {
-            collect_refs_from_expr(&fi.iterable, target, file_path, refs);
-            find_var_refs_in_block(&fi.body, target, file_path, refs);
+        Stmt::ForIn { iterable, body, .. } => {
+            collect_refs_from_expr(iterable, target, file_path, refs);
+            find_var_refs_in_block(body, target, file_path, refs);
         }
         _ => {}
     }
@@ -1289,16 +1302,14 @@ fn find_func_call_at(program: &Program, line: u32, col: u32) -> Option<Signature
 fn find_call_in_block(block: &Block, line: u32, col: u32) -> Option<SignatureInfo> {
     for stmt in &block.stmts {
         match stmt {
-            Stmt::Expr(expr) | Stmt::Return(Some(expr)) => {
+            Stmt::ExprStmt { expr, .. } | Stmt::Return { value: Some(expr), .. } => {
                 if let Some(sig) = find_call_in_expr(expr, line, col) {
                     return Some(sig);
                 }
             }
-            Stmt::VarDecl(vd) => {
-                if let Some(init) = &vd.init {
-                    if let Some(sig) = find_call_in_expr(init, line, col) {
-                        return Some(sig);
-                    }
+            Stmt::VarDecl { init: Some(init), .. } => {
+                if let Some(sig) = find_call_in_expr(init, line, col) {
+                    return Some(sig);
                 }
             }
             _ => {}
