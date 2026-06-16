@@ -13,6 +13,7 @@ pub mod dart;
 pub mod react;
 pub mod vue;
 pub mod dioxus;
+pub mod flutter;
 
 use std::collections::HashMap;
 
@@ -178,9 +179,7 @@ pub fn compile(
         Target::React => react::ReactCodegen.generate(ir, source_files),
         Target::Vue => vue::VueCodegen.generate(ir, source_files),
         Target::Dioxus => dioxus::DioxusCodegen.generate(ir, source_files),
-        Target::Flutter => {
-            CompileOutput::error("Flutter codegen not yet implemented in Rust".into())
-        }
+        Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
     }
 }
 
