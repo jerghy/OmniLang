@@ -1,0 +1,47 @@
+[project]
+name = "todo-app"
+version = "0.1.0"
+# targets = ["rust", "dart", "js", "python"]
+# ui_target = "react"        # "react" | "vue" | "dioxus" | "flutter" | "omniview"
+
+# ── Path aliases ──────────────────────────────────────
+
+[aliases]
+# "@components" = "./src/components"
+# "@lib" = "./src/lib"
+
+# ── Source / output ───────────────────────────────────
+
+[source]
+dir = "src"
+
+[output]
+dir = "build"
+
+# ── Target-specific options ───────────────────────────
+
+[target.js]
+mode = "plain"           # "plain" | "typescript"
+module = "esm"           # "esm" | "commonjs"
+private_fields = true    # Use #private in class output
+
+[target.rust]
+async_runtime = "tokio"  # "tokio" | "async-std"
+
+[target.python]
+min_version = "3.10"     # Affects match/case and | type syntax generation
+
+[target.dart]
+# No Dart-specific options yet
+
+# ── Static analysis ───────────────────────────────────
+
+[analyze]
+# Minimum severity to report: "error" | "warning" | "port" | "style"
+level = "port"
+
+[analyze.rules]
+# Uncomment to allow or deny specific rules:
+# P0101 = "allow"   # cross_lang_div_behavior
+# P0110 = "deny"     # potential_divzero
+# E0101 = "warn"     # type_mismatch downgrade

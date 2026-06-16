@@ -233,6 +233,7 @@ pub struct FileDiagnostics {
 
 struct ParsedFile {
     path: String,
+    content: String,    // original source — needed for cursor offset calculations
     program: Program,
     tokens: Vec<lexer::Token>,
 }
@@ -329,6 +330,7 @@ impl AnalysisContext {
                     cross_symbols.insert(sf.path.clone(), symbols);
                     files.insert(sf.path.clone(), ParsedFile {
                         path: sf.path.clone(),
+                        content: sf.content.clone(),
                         program,
                         tokens,
                     });
@@ -337,6 +339,7 @@ impl AnalysisContext {
                     // Store empty program — parse error will be in diagnostics
                     files.insert(sf.path.clone(), ParsedFile {
                         path: sf.path.clone(),
+                        content: sf.content.clone(),
                         program: Program::default(),
                         tokens,
                     });
@@ -424,13 +427,11 @@ Append to `omni-compiler/src/lsp.rs`:
 fn compute_diagnostics(ctx: &AnalysisContext) -> Vec<LspDiagnostic> {
     let mut diags = Vec::new();
 
+    // Pass 1: collect parse + semantic errors per file
+    let mut programs: HashMap<String, Program> = HashMap::new();
     for (path, pf) in &ctx.files {
-        let tokens = &pf.tokens;
-
-        // 1. Parse-level diagnostics
-        match parser::parse(tokens) {
+        match parser::parse(&pf.tokens) {
             Ok(program) => {
-                // 2. Semantic analysis diagnostics
                 match semantic::analyze(&program) {
                     Ok(_) => {}
                     Err(sem_diags) => {
@@ -439,27 +440,37 @@ fn compute_diagnostics(ctx: &AnalysisContext) -> Vec<LspDiagnostic> {
                         }
                     }
                 }
-                // 3. Lint diagnostics
-                let programs: HashMap<String, Program> = ctx.files.iter()
-                    .filter_map(|(p, pf)| {
-                        parser::parse(&pf.tokens).ok().map(|prog| (p.clone(), prog))
-                    })
-                    .collect();
-                if let Ok(sem) = semantic::analyze(&program) {
-                    let ir = crate::ir::lower(&program, &sem);
-                    let lint_diags = crate::semantic::lints::run_all_file(
-                        path, &program, &ir,
-                    );
-                    for d in &lint_diags {
-                        diags.push(lint_diag_to_lsp(d));
-                    }
-                }
+                programs.insert(path.clone(), program);
             }
             Err(e) => {
                 let d: Diagnostic = e.into();
                 diags.push(diagnostic_to_lsp(&d));
             }
         }
+    }
+
+    // Pass 2: run cross-file lints on all successfully-parsed programs
+    // Build merged IR for lint context
+    let mut merged_ir = crate::ir::IRProgram {
+        version: "1.0".to_string(),
+        components: HashMap::new(),
+        stores: HashMap::new(),
+        source_map: HashMap::new(),
+    };
+    for (path, program) in &programs {
+        if let Ok(sem) = semantic::analyze(program) {
+            let ir = crate::ir::lower(program, &sem);
+            for (name, comp) in ir.components {
+                merged_ir.components.entry(name).or_insert(comp);
+            }
+            for (name, store) in ir.stores {
+                merged_ir.stores.entry(name).or_insert(store);
+            }
+        }
+    }
+    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
+    for d in &lint_diags {
+        diags.push(lint_diag_to_lsp(d));
     }
 
     diags
@@ -607,7 +618,7 @@ fn compute_hover(ctx: &AnalysisContext) -> Option<HoverInfo> {
 
 fn find_symbol_at_cursor(ctx: &AnalysisContext) -> Option<(String, SymbolKind, Span)> {
     let primary = ctx.files.get(&ctx.primary_file)?;
-    let (cursor_line, cursor_col) = byte_offset_to_line_col(&primary.program.source_text(), ctx.cursor_offset);
+    let (cursor_line, cursor_col) = byte_offset_to_line_col(&primary.content, ctx.cursor_offset);
 
     let symbols = ctx.cross_symbols.get(&ctx.primary_file)?;
     // Find the narrowest symbol span that contains the cursor
@@ -1223,7 +1234,7 @@ fn compute_folding_ranges(ctx: &AnalysisContext) -> Vec<FoldingRange> {
     };
 
     let mut folds = Vec::new();
-    let source = &primary.program.source_text();
+    let source = &primary.content;
     let lines: Vec<&str> = source.lines().collect();
 
     // Find matching brace pairs and create folding ranges
@@ -1253,7 +1264,7 @@ fn compute_folding_ranges(ctx: &AnalysisContext) -> Vec<FoldingRange> {
 fn compute_signature_help(ctx: &AnalysisContext) -> Option<SignatureInfo> {
     let primary = ctx.files.get(&ctx.primary_file)?;
     let (cursor_line, cursor_col) = byte_offset_to_line_col(
-        &primary.program.source_text(), ctx.cursor_offset,
+        &primary.content, ctx.cursor_offset,
     );
 
     // Find function call at cursor position by walking AST
@@ -1463,7 +1474,7 @@ pub fn analyze(request: AnalysisRequest) -> AnalysisResult {
 cd omni-compiler && cargo check 2>&1
 ```
 
-Expected: no errors. Some AST node fields (name_span, source_text()) may need to be added or adapted. The `find_func_call_at` signature help implementation is a placeholder — complete it by walking the AST expression tree.
+Expected: no errors. Some AST node fields (`name_span`, `view_body`, `body` on components/stores) may not match actual struct shapes — adapt to the real AST definition during implementation. Source text is accessed via `ParsedFile.content`, not a method on Program.
 
 ---
 
@@ -1839,6 +1850,10 @@ def start(self):
 
 def _handle_message(self, raw: str):
     """Parse and dispatch an LSP message."""
+    # Run any pending diagnostics first — ensures diagnostics fire
+    # even if the user stops typing and no further requests arrive.
+    self._run_pending_diagnostics()
+
     try:
         msg = json.loads(raw)
     except json.JSONDecodeError:
@@ -1950,15 +1965,36 @@ def _handle_initialize(self, msg: dict):
 
 ```python
 def _scan_workspace(self, root_path: str):
-    """Scan workspace for .omni files to pre-load for import resolution."""
+    """Scan workspace for .omni files to pre-load for import resolution.
+
+    Respects .gitignore and .omnilang.toml exclude patterns.
+    """
     if not root_path or not os.path.isdir(root_path):
         return
-    for dirpath, _dirnames, filenames in os.walk(root_path):
-        if '.git' in dirpath or 'node_modules' in dirpath or '__pycache__' in dirpath:
-            continue
+
+    # Parse .gitignore patterns
+    ignore_patterns = self._load_gitignore_patterns(root_path)
+
+    # Parse .omnilang.toml exclude patterns
+    try:
+        from omnilang.config import load_config
+        config = load_config(root_path)
+        if config and config.source.exclude:
+            ignore_patterns.extend(config.source.exclude)
+    except Exception:
+        pass
+
+    for dirpath, dirnames, filenames in os.walk(root_path):
+        # Filter directories in-place to skip ignored dirs
+        dirnames[:] = [
+            d for d in dirnames
+            if not self._is_ignored(os.path.join(dirpath, d), root_path, ignore_patterns)
+        ]
         for fname in filenames:
+            full_path = os.path.join(dirpath, fname)
+            if self._is_ignored(full_path, root_path, ignore_patterns):
+                continue
             if fname.endswith('.omni'):
-                full_path = os.path.join(dirpath, fname)
                 uri = Path(full_path).as_uri()
                 if uri not in self.documents:
                     try:
@@ -1967,6 +2003,38 @@ def _scan_workspace(self, root_path: str):
                         self.document_open[uri] = False
                     except Exception:
                         pass
+
+@staticmethod
+def _load_gitignore_patterns(root: str) -> list[str]:
+    """Load .gitignore patterns as simple glob strings."""
+    patterns = ['.git', 'node_modules', '__pycache__', '*.pyc', '.DS_Store']
+    gitignore = os.path.join(root, '.gitignore')
+    if os.path.exists(gitignore):
+        try:
+            with open(gitignore, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        patterns.append(line.rstrip('/'))
+        except Exception:
+            pass
+    return patterns
+
+@staticmethod
+def _is_ignored(path: str, root: str, patterns: list[str]) -> bool:
+    """Check if a path matches any ignore pattern."""
+    import fnmatch
+    rel = os.path.relpath(path, root).replace('\\', '/')
+    name = os.path.basename(path)
+    for pat in patterns:
+        if pat.endswith('/'):
+            pat = pat[:-1]
+        if fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(name, pat):
+            return True
+        # Pattern like "dir/" matches directory contents
+        if '/' not in pat and fnmatch.fnmatch(rel, pat + '/*'):
+            return True
+    return False
 
 def _build_analysis_request(self, primary_uri: str, operation: str,
                            cursor_line: int = 1, cursor_col: int = 1,
@@ -2017,13 +2085,17 @@ def _uri_to_path(uri: str) -> str:
 
 @staticmethod
 def _line_col_to_byte_offset(source: str, line: int, col: int) -> int:
-    """Convert 1-based line/col to byte offset."""
+    """Convert 1-based line/col to byte offset (UTF-8)."""
+    source_bytes = source.encode('utf-8')
     lines = source.split('\n')
     offset = 0
     for i in range(min(line - 1, len(lines))):
-        offset += len(lines[i]) + 1  # +1 for newline
-    offset += col - 1
-    return min(offset, len(source.encode('utf-8')))
+        offset += len(lines[i].encode('utf-8')) + 1  # +1 for '\n' byte
+    # col is character-based; for multi-byte chars, count bytes up to col
+    if line <= len(lines):
+        chars_before = lines[line - 1][:col - 1]
+        offset += len(chars_before.encode('utf-8'))
+    return min(offset, len(source_bytes))
 ```
 
 - [ ] **Step 6: Rewrite didOpen / didChange / didClose**

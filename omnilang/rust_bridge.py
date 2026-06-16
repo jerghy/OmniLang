@@ -24,7 +24,7 @@ class RustBridge:
 
         # Option 1: Check for native DLL
         dll_paths = [
-            Path(__file__).parent.parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll",
+            Path(__file__).parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll",
             Path("omni-compiler/target/release/omni_compiler.dll"),
         ]
         for p in dll_paths:
