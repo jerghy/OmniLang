@@ -214,6 +214,11 @@ pub struct ElementIR {
     pub test_id: Option<String>,
     pub ref_name: Option<String>,
     pub construction_kind: String,
+    /// Source location in .omni file
+    #[serde(default)]
+    pub source_line: u32,
+    #[serde(default)]
+    pub source_col: u32,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -524,6 +529,8 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                 test_id: None,
                 ref_name: None,
                 construction_kind: "tag-mapping".into(),
+                source_line: el.span.line,
+                source_col: el.span.col,
             })
         }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
@@ -549,6 +556,8 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                     test_id: None,
                     ref_name: None,
                     construction_kind: "conditional".into(),
+                source_line: 0,
+                source_col: 0,
                 })),
             })
             .chain(
@@ -568,6 +577,8 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                             test_id: None,
                             ref_name: None,
                             construction_kind: "conditional".into(),
+                            source_line: 0,
+                            source_col: 0,
                         })),
                     }),
             )
@@ -585,6 +596,8 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                     test_id: None,
                     ref_name: None,
                     construction_kind: "conditional".into(),
+                source_line: 0,
+                source_col: 0,
                 })
             });
 
@@ -606,6 +619,8 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                         test_id: None,
                         ref_name: None,
                         construction_kind: "list".into(),
+                        source_line: 0,
+                        source_col: 0,
                     }))
                 }
             };

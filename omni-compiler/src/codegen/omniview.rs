@@ -758,8 +758,8 @@ function _bindText(nid) {
         self.source_map.push(SourceMapEntry {
             node_id: nid.clone(),
             omni_span: SourceSpan {
-                line: 0,
-                col: 0,
+                line: el.source_line,
+                col: el.source_col,
                 len: 0,
             },
             target_spans: vec![TargetSpan {
