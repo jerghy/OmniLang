@@ -45,6 +45,8 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         gen.generate_component(comp_name, comp);
     }
 
+    gen.finalize_js();
+
     OmniViewOutput {
         js: gen.js,
         html: gen.html,
@@ -198,6 +200,11 @@ function _bindText(nid) {
         }
 
         self.js.push('\n');
+    }
+
+    /// Finalize the JS output with closing IIFE wrapper.
+    fn finalize_js(&mut self) {
+        self.js.push_str("\n})();\n");
     }
 
     // ══════════════════════════════════════════════════════
