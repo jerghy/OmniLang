@@ -1,7 +1,7 @@
 """CLI entry point for the OmniLang compiler.
 
 Commands:
-    omnic build <file.omni> [--target ...]  Compile .omni to target language(s)
+    omnic build [files...] [--target ...]  Compile .omni to target language(s)
     omnic check <file.omni>                Run static analysis (type + lint)
     omnic fix <file.omni>                  Auto-fix diagnostics
     omnic run <file.omni> [--target ...]   Compile and run
@@ -36,27 +36,56 @@ ALL_TARGETS = ["rust", "dart", "js", "python", "react", "vue", "dioxus", "flutte
 def cmd_build(args):
     """Compile .omni source to target language(s).
 
-    Supports single file, multiple files, or a directory:
-      omnic build app.omni
-      omnic build app.omni components.omni stores.omni
-      omnic build src/
+    Usage:
+      omnic build                          # auto-discover project (src/main.omni)
+      omnic build app.omni                 # single file
+      omnic build app.omni components.omni # multiple files
+      omnic build src/                     # directory
 
-    Routes through omnilang.api.compile_omni_multi() for cross-file support.
+    When no files are specified, looks for .omnilang.toml to find the project
+    source directory and compiles main.omni as the entry point.
     """
     import glob as _glob
 
+    # Load project config (walk up from cwd to find .omnilang.toml)
+    config = None
+    try:
+        from omnilang.config import load_config
+        config = load_config()
+    except ImportError:
+        pass
+
+    # Determine output dir from config or default
+    output_dir = args.output
+    source_dir = "src"
+    if config is not None:
+        if args.output == "./build":
+            output_dir = config.output.dir if config.output.dir else "build"
+        source_dir = config.source.dir if config.source.dir else "src"
+
     # Collect source files
     source_files: list[str] = []
-    for f in args.files:
-        if os.path.isdir(f):
-            # Directory: collect all .omni files
-            pattern = os.path.join(f, "**", "*.omni")
-            source_files.extend(_glob.glob(pattern, recursive=True))
+    if args.files:
+        # Explicit files/directories provided
+        for f in args.files:
+            if os.path.isdir(f):
+                pattern = os.path.join(f, "**", "*.omni")
+                source_files.extend(_glob.glob(pattern, recursive=True))
+            else:
+                source_files.append(f)
+    else:
+        # Auto-discover: find main.omni in source dir, fallback to all .omni files
+        src_path = os.path.join(source_dir, "main.omni")
+        if os.path.exists(src_path):
+            source_files = [src_path]
         else:
-            source_files.append(f)
+            # No main.omni — collect all .omni in source dir
+            pattern = os.path.join(source_dir, "**", "*.omni")
+            source_files = _glob.glob(pattern, recursive=True)
 
     if not source_files:
-        print("Error: no .omni files found", file=sys.stderr)
+        print(f"Error: no .omni files found in '{source_dir}/'", file=sys.stderr)
+        print("Run 'omnic init' to create a project, or specify files explicitly.", file=sys.stderr)
         sys.exit(1)
 
     # Check all files exist
@@ -64,16 +93,6 @@ def cmd_build(args):
         if not os.path.exists(f):
             print(f"Error: file not found: {f}", file=sys.stderr)
             sys.exit(1)
-
-    # Load project config for output dir
-    output_dir = args.output
-    try:
-        from omnilang.config import load_config
-        cfg = load_config()
-        if args.output == "./build":
-            output_dir = cfg.output.dir if cfg.output.dir else "build"
-    except ImportError:
-        pass
 
     try:
         # Read all sources
@@ -86,6 +105,8 @@ def cmd_build(args):
         from omnilang.api import _detect_ui_mode
         if args.target:
             targets = [args.target]
+        elif config is not None and config.ui_target:
+            targets = [config.ui_target]
         else:
             # Auto-detect: any source with 'import omniview' → UI mode → react
             is_ui = any(_detect_ui_mode(src) for src in sources.values())
@@ -105,6 +126,7 @@ def cmd_build(args):
             if result.success:
                 for filename, content in result.files.items():
                     out_path = os.path.join(output_dir, filename)
+                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
                     with open(out_path, "w", encoding="utf-8") as f:
                         f.write(content)
                     print(f"  -> {out_path}")
@@ -545,7 +567,7 @@ def main():
     # ── build ──
     build_parser = subparsers.add_parser("build", help="Compile .omni source file(s) to target language(s)")
     build_parser.add_argument(
-        "files", nargs="+", help="Source file(s) (.omni) or directory"
+        "files", nargs="*", help="Source file(s) (.omni) or directory (default: auto-discover src/main.omni)"
     )
     build_parser.add_argument(
         "--target", "-t",
