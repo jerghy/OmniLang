@@ -16,13 +16,35 @@ use crate::sourcemap::SourceMapEntry;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
 pub enum ExprIR {
-    LiteralExpr { value: serde_json::Value },
-    IdentifierExpr { name: String },
-    FieldAccessExpr { object: Box<ExprIR>, field: String },
-    BinaryOpExpr { op: String, left: Box<ExprIR>, right: Box<ExprIR> },
-    UnaryOpExpr { op: String, operand: Box<ExprIR> },
-    TernaryIR { cond: Box<ExprIR>, then_expr: Box<ExprIR>, else_expr: Box<ExprIR> },
-    StoreFieldAccessExpr { store_alias: String, field_name: String, call_args: Vec<ExprIR> },
+    LiteralExpr {
+        value: serde_json::Value,
+    },
+    IdentifierExpr {
+        name: String,
+    },
+    FieldAccessExpr {
+        object: Box<ExprIR>,
+        field: String,
+    },
+    BinaryOpExpr {
+        op: String,
+        left: Box<ExprIR>,
+        right: Box<ExprIR>,
+    },
+    UnaryOpExpr {
+        op: String,
+        operand: Box<ExprIR>,
+    },
+    TernaryIR {
+        cond: Box<ExprIR>,
+        then_expr: Box<ExprIR>,
+        else_expr: Box<ExprIR>,
+    },
+    StoreFieldAccessExpr {
+        store_alias: String,
+        field_name: String,
+        call_args: Vec<ExprIR>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════
@@ -42,7 +64,9 @@ pub struct TypeIR {
     pub needs_partial_eq: bool,
 }
 
-fn is_false(b: &bool) -> bool { !*b }
+fn is_false(b: &bool) -> bool {
+    !*b
+}
 
 // ═══════════════════════════════════════════════════════
 // Signal & Binding References
@@ -85,12 +109,29 @@ pub struct BlockIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "_kind")]
 pub enum StatementIR {
-    LetStmtIR { name: String, value: Option<ExprIR>, r#type: Option<TypeIR> },
-    IfStmtIR { condition: ExprIR, then_body: BlockIR, else_body: Option<BlockIR> },
-    ReturnStmtIR { value: Option<ExprIR> },
-    MutationStmt { intent: Option<MutationIntent> },
-    EventEmitStmtIR { event_name: String, args: Vec<ExprIR> },
-    ExprStmtIR { expr: ExprIR },
+    LetStmtIR {
+        name: String,
+        value: Option<ExprIR>,
+        r#type: Option<TypeIR>,
+    },
+    IfStmtIR {
+        condition: ExprIR,
+        then_body: BlockIR,
+        else_body: Option<BlockIR>,
+    },
+    ReturnStmtIR {
+        value: Option<ExprIR>,
+    },
+    MutationStmt {
+        intent: Option<MutationIntent>,
+    },
+    EventEmitStmtIR {
+        event_name: String,
+        args: Vec<ExprIR>,
+    },
+    ExprStmtIR {
+        expr: ExprIR,
+    },
 }
 
 // ═══════════════════════════════════════════════════════
@@ -280,31 +321,44 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
 }
 
 fn lower_component(comp: &ComponentDef) -> ComponentIR {
-    let states: Vec<StateIntent> = comp.signals.iter().map(|s| StateIntent {
-        name: s.name.clone(),
-        r#type: lower_type(&s.type_ann),
-        initial_value: lower_expr(&s.init),
-        mutability: "mutable".into(),
-        update_semantics: "setter-call".into(),
-        accessor_style: "direct".into(),
-        is_copy: false,
-    }).collect();
+    let states: Vec<StateIntent> = comp
+        .signals
+        .iter()
+        .map(|s| StateIntent {
+            name: s.name.clone(),
+            r#type: lower_type(&s.type_ann),
+            initial_value: lower_expr(&s.init),
+            mutability: "mutable".into(),
+            update_semantics: "setter-call".into(),
+            accessor_style: "direct".into(),
+            is_copy: false,
+        })
+        .collect();
 
-    let computeds: Vec<ComputedIntent> = comp.computeds.iter().map(|c| ComputedIntent {
-        name: c.name.clone(),
-        r#type: lower_type(&c.type_ann),
-        body: lower_expr(&c.body),
-        deps: vec![],
-    }).collect();
+    let computeds: Vec<ComputedIntent> = comp
+        .computeds
+        .iter()
+        .map(|c| ComputedIntent {
+            name: c.name.clone(),
+            r#type: lower_type(&c.type_ann),
+            body: lower_expr(&c.body),
+            deps: vec![],
+        })
+        .collect();
 
-    let effects: Vec<EffectIntent> = comp.lifecycles.iter()
+    let effects: Vec<EffectIntent> = comp
+        .lifecycles
+        .iter()
         .filter(|lc| matches!(lc.kind, LifecycleKind::Effect))
         .map(|lc| EffectIntent {
             deps: lc.deps.clone(),
             body: lower_block(&lc.body),
-        }).collect();
+        })
+        .collect();
 
-    let lifecycles: Vec<LifecycleIntent> = comp.lifecycles.iter()
+    let lifecycles: Vec<LifecycleIntent> = comp
+        .lifecycles
+        .iter()
         .filter(|lc| !matches!(lc.kind, LifecycleKind::Effect))
         .map(|lc| LifecycleIntent {
             kind: match lc.kind {
@@ -313,23 +367,34 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
                 LifecycleKind::Effect => "effect".into(),
             },
             body: lower_block(&lc.body),
-        }).collect();
+        })
+        .collect();
 
-    let fns: Vec<FunctionIR> = comp.fns.iter().map(|f| FunctionIR {
-        name: f.name.clone(),
-        params: f.params.iter().map(|p| ParamIR {
-            name: p.name.clone(),
-            r#type: p.type_ann.as_ref().map(lower_type),
-        }).collect(),
-        return_type: f.return_type.as_ref().map(lower_type),
-        body: lower_block(&f.body),
-    }).collect();
+    let fns: Vec<FunctionIR> = comp
+        .fns
+        .iter()
+        .map(|f| FunctionIR {
+            name: f.name.clone(),
+            params: f
+                .params
+                .iter()
+                .map(|p| ParamIR {
+                    name: p.name.clone(),
+                    r#type: p.type_ann.as_ref().map(lower_type),
+                })
+                .collect(),
+            return_type: f.return_type.as_ref().map(lower_type),
+            body: lower_block(&f.body),
+        })
+        .collect();
 
-    let props: HashMap<String, TypeIR> = comp.props.iter()
+    let props: HashMap<String, TypeIR> = comp
+        .props
+        .iter()
         .map(|p| (p.name.clone(), lower_type(&p.type_ann)))
         .collect();
 
-    let view = comp.view.as_ref().map(|v| lower_view_block(v));
+    let view = comp.view.as_ref().map(lower_view_block);
 
     ComponentIR {
         name: comp.name.clone(),
@@ -348,11 +413,15 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
 }
 
 fn lower_store(store: &StoreDef) -> StoreIR {
-    let signals: HashMap<String, TypeIR> = store.signals.iter()
+    let signals: HashMap<String, TypeIR> = store
+        .signals
+        .iter()
         .map(|s| (s.name.clone(), lower_type(&s.type_ann)))
         .collect();
 
-    let signal_defaults: HashMap<String, serde_json::Value> = store.signals.iter()
+    let signal_defaults: HashMap<String, serde_json::Value> = store
+        .signals
+        .iter()
         .map(|s| {
             let val = match &s.init {
                 Expr::Literal(Literal::Int(n), _) => serde_json::Value::Number((*n).into()),
@@ -365,13 +434,18 @@ fn lower_store(store: &StoreDef) -> StoreIR {
                 _ => serde_json::Value::String(format!("{:?}", s.init)),
             };
             (s.name.clone(), val)
-        }).collect();
+        })
+        .collect();
 
-    let getters: HashMap<String, ExprIR> = store.getters.iter()
+    let getters: HashMap<String, ExprIR> = store
+        .getters
+        .iter()
         .map(|g| (g.name.clone(), lower_expr(&g.body)))
         .collect();
 
-    let actions: Vec<serde_json::Value> = store.actions.iter()
+    let actions: Vec<serde_json::Value> = store
+        .actions
+        .iter()
         .map(|_| serde_json::Value::Null)
         .collect();
 
@@ -405,10 +479,13 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                         props.insert(name.clone(), lower_expr(value));
                     }
                     ElementProp::Bind { name, signal_path } => {
-                        bindings.insert(name.clone(), SignalRefIR {
-                            owner: None,
-                            name: signal_path.clone(),
-                        });
+                        bindings.insert(
+                            name.clone(),
+                            SignalRefIR {
+                                owner: None,
+                                name: signal_path.clone(),
+                            },
+                        );
                     }
                     ElementProp::Event { name, handler } => {
                         let ir_handler = match handler {
@@ -434,9 +511,7 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                 }
             }
 
-            let children: Vec<ViewTree> = el.children.iter()
-                .map(lower_view_node)
-                .collect();
+            let children: Vec<ViewTree> = el.children.iter().map(lower_view_node).collect();
 
             ViewTree::Element(ElementIR {
                 tag: el.tag.clone(),
@@ -475,21 +550,28 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                     ref_name: None,
                     construction_kind: "conditional".into(),
                 })),
-            }).chain(if_dir.else_ifs.iter().map(|(cond, body)| ConditionalBranch {
-                condition: lower_expr(cond),
-                body: Some(ViewTree::Element(ElementIR {
-                    tag: "fragment".into(),
-                    props: HashMap::new(),
-                    bindings: HashMap::new(),
-                    events: HashMap::new(),
-                    style_classes: None,
-                    inline_style: None,
-                    children: body.iter().map(lower_view_node).collect(),
-                    test_id: None,
-                    ref_name: None,
-                    construction_kind: "conditional".into(),
-                })),
-            })).collect();
+            })
+            .chain(
+                if_dir
+                    .else_ifs
+                    .iter()
+                    .map(|(cond, body)| ConditionalBranch {
+                        condition: lower_expr(cond),
+                        body: Some(ViewTree::Element(ElementIR {
+                            tag: "fragment".into(),
+                            props: HashMap::new(),
+                            bindings: HashMap::new(),
+                            events: HashMap::new(),
+                            style_classes: None,
+                            inline_style: None,
+                            children: body.iter().map(lower_view_node).collect(),
+                            test_id: None,
+                            ref_name: None,
+                            construction_kind: "conditional".into(),
+                        })),
+                    }),
+            )
+            .collect();
 
             let fallback = if_dir.else_body.as_ref().map(|body| {
                 ViewTree::Element(ElementIR {
@@ -528,40 +610,52 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
 
             ViewTree::ListRendering(Box::new(ListRenderingIntent {
                 iterable: lower_expr(&for_dir.iterable),
-                item_binding: BindingIR { name: for_dir.item_name.clone(), r#type: None },
+                item_binding: BindingIR {
+                    name: for_dir.item_name.clone(),
+                    r#type: None,
+                },
                 body,
                 key_expr: None,
                 empty_body: None,
             }))
         }
-        ViewNode::SlotDirective(name) => {
-            ViewTree::Text(format!("<slot name={:?}>", name))
-        }
+        ViewNode::SlotDirective(name) => ViewTree::Text(format!("<slot name={:?}>", name)),
     }
 }
 
 fn lower_block(block: &Block) -> BlockIR {
-    let statements: Vec<StatementIR> = block.stmts.iter().map(|stmt| match stmt {
-        Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
-            name: name.clone(),
-            value: init.as_ref().map(lower_expr),
-            r#type: None,
-        },
-        Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
-            value: value.as_ref().map(lower_expr),
-        },
-        Stmt::ExprStmt { expr, .. } => StatementIR::ExprStmtIR {
-            expr: lower_expr(expr),
-        },
-        Stmt::If { condition, then_body, else_body, .. } => StatementIR::IfStmtIR {
-            condition: lower_expr(condition),
-            then_body: lower_block(then_body),
-            else_body: else_body.as_ref().map(|b| lower_block(b)),
-        },
-        _ => StatementIR::ExprStmtIR {
-            expr: ExprIR::LiteralExpr { value: serde_json::Value::Null },
-        },
-    }).collect();
+    let statements: Vec<StatementIR> = block
+        .stmts
+        .iter()
+        .map(|stmt| match stmt {
+            Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
+                name: name.clone(),
+                value: init.as_ref().map(lower_expr),
+                r#type: None,
+            },
+            Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
+                value: value.as_ref().map(lower_expr),
+            },
+            Stmt::ExprStmt { expr, .. } => StatementIR::ExprStmtIR {
+                expr: lower_expr(expr),
+            },
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => StatementIR::IfStmtIR {
+                condition: lower_expr(condition),
+                then_body: lower_block(then_body),
+                else_body: else_body.as_ref().map(lower_block),
+            },
+            _ => StatementIR::ExprStmtIR {
+                expr: ExprIR::LiteralExpr {
+                    value: serde_json::Value::Null,
+                },
+            },
+        })
+        .collect();
 
     BlockIR {
         statements,
@@ -582,7 +676,9 @@ fn lower_expr(expr: &Expr) -> ExprIR {
             ExprIR::LiteralExpr { value }
         }
         Expr::VarRef(name, _) => ExprIR::IdentifierExpr { name: name.clone() },
-        Expr::BinaryOp { left, op, right, .. } => ExprIR::BinaryOpExpr {
+        Expr::BinaryOp {
+            left, op, right, ..
+        } => ExprIR::BinaryOpExpr {
             op: format!("{:?}", op).to_lowercase(),
             left: Box::new(lower_expr(left)),
             right: Box::new(lower_expr(right)),
@@ -606,27 +702,35 @@ fn lower_expr(expr: &Expr) -> ExprIR {
             if let Expr::VarRef(name, _) = func.as_ref() {
                 ExprIR::IdentifierExpr { name: name.clone() }
             } else {
-                ExprIR::LiteralExpr { value: serde_json::Value::Null }
+                ExprIR::LiteralExpr {
+                    value: serde_json::Value::Null,
+                }
             }
         }
         Expr::FieldAccess { object, field, .. } => ExprIR::FieldAccessExpr {
             object: Box::new(lower_expr(object)),
             field: field.clone(),
         },
-        Expr::StoreFieldAccess { store_alias, field_name, .. } => {
-            ExprIR::StoreFieldAccessExpr {
-                store_alias: store_alias.clone(),
-                field_name: field_name.clone(),
-                call_args: vec![],
-            }
-        }
-        _ => ExprIR::LiteralExpr { value: serde_json::Value::Null },
+        Expr::StoreFieldAccess {
+            store_alias,
+            field_name,
+            ..
+        } => ExprIR::StoreFieldAccessExpr {
+            store_alias: store_alias.clone(),
+            field_name: field_name.clone(),
+            call_args: vec![],
+        },
+        _ => ExprIR::LiteralExpr {
+            value: serde_json::Value::Null,
+        },
     }
 }
 
 fn lower_type(ty: &TypeAnnotation) -> TypeIR {
     match ty {
-        TypeAnnotation::Named { name, type_args, .. } => {
+        TypeAnnotation::Named {
+            name, type_args, ..
+        } => {
             let kind = name.clone();
             let args: Vec<TypeIR> = type_args.iter().map(lower_type).collect();
             TypeIR {
@@ -646,7 +750,13 @@ fn lower_type(ty: &TypeAnnotation) -> TypeIR {
             if let Some(first) = types.first() {
                 lower_type(first)
             } else {
-                TypeIR { kind: "void".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }
+                TypeIR {
+                    kind: "void".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }
             }
         }
         TypeAnnotation::Fn { .. } => TypeIR {

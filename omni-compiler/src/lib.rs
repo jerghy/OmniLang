@@ -7,13 +7,13 @@
 //!   4. IR lowering → Intent IR
 //!   5. Codegen / JSON serialization
 
+pub mod codegen;
+pub mod error;
+pub mod ir;
 pub mod lexer;
 pub mod parser;
 pub mod semantic;
-pub mod ir;
-pub mod codegen;
 pub mod sourcemap;
-pub mod error;
 
 use serde::{Deserialize, Serialize};
 
@@ -105,26 +105,34 @@ fn rust_to_c_string(s: String) -> *mut c_char {
 }
 
 /// Compile .omni source to IR JSON. Returns JSON string (caller must free with omni_free_string).
+/// # Safety
+/// `source` must be a valid, null-terminated C string or null.
 #[no_mangle]
-pub extern "C" fn omni_compile_to_ir(source: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn omni_compile_to_ir(source: *const c_char) -> *mut c_char {
     let source_str = unsafe {
         if source.is_null() {
             return rust_to_c_string(
-                r#"{"success":false,"ir":null,"errors":[{"message":"null source pointer"}]}"#.into(),
+                r#"{"success":false,"ir":null,"errors":[{"message":"null source pointer"}]}"#
+                    .into(),
             );
         }
         CStr::from_ptr(source).to_str().unwrap_or("")
     };
     let result = compile(source_str);
     let json = serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#, e)
+        format!(
+            r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#,
+            e
+        )
     });
     rust_to_c_string(json)
 }
 
 /// Free a string previously returned by omni_compile_to_ir or omni_compile_to_omniview.
+/// # Safety
+/// `ptr` must be a valid pointer previously returned by an omni_* function, or null.
 #[no_mangle]
-pub extern "C" fn omni_free_string(ptr: *mut c_char) {
+pub unsafe extern "C" fn omni_free_string(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
     }

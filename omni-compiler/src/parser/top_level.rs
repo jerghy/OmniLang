@@ -106,7 +106,11 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(PropDecl { name, type_ann, default })
+        Ok(PropDecl {
+            name,
+            type_ann,
+            default,
+        })
     }
 
     fn parse_signal_decl(&mut self) -> Result<SignalDecl, ParseError> {
@@ -119,7 +123,11 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(SignalDecl { name, type_ann, init })
+        Ok(SignalDecl {
+            name,
+            type_ann,
+            init,
+        })
     }
 
     fn parse_computed_decl(&mut self) -> Result<ComputedDecl, ParseError> {
@@ -132,7 +140,11 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(ComputedDecl { name, type_ann, body })
+        Ok(ComputedDecl {
+            name,
+            type_ann,
+            body,
+        })
     }
 
     fn parse_event_decl(&mut self) -> Result<EventDecl, ParseError> {
@@ -149,7 +161,11 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(EventDecl { name, type_ann, is_optional })
+        Ok(EventDecl {
+            name,
+            type_ann,
+            is_optional,
+        })
     }
 
     fn parse_ref_decl(&mut self) -> Result<RefDecl, ParseError> {
@@ -188,7 +204,12 @@ impl<'a> Parser<'a> {
             return_type,
             is_async: false,
             body,
-            span: Span { start: start.start, end: start.end, line: start.line, col: start.col },
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
@@ -258,18 +279,32 @@ impl<'a> Parser<'a> {
 
     fn parse_lifecycle_hook(&mut self) -> Result<LifecycleHook, ParseError> {
         let kind = match self.peek_kind() {
-            TokenKind::AtMount => { self.advance(); LifecycleKind::Mount }
-            TokenKind::AtUnmount => { self.advance(); LifecycleKind::Unmount }
+            TokenKind::AtMount => {
+                self.advance();
+                LifecycleKind::Mount
+            }
+            TokenKind::AtUnmount => {
+                self.advance();
+                LifecycleKind::Unmount
+            }
             TokenKind::AtEffect => {
                 self.advance();
                 let deps = self.parse_effect_deps()?;
                 let body = self.parse_block()?;
-                return Ok(LifecycleHook { kind: LifecycleKind::Effect, body, deps });
+                return Ok(LifecycleHook {
+                    kind: LifecycleKind::Effect,
+                    body,
+                    deps,
+                });
             }
             _ => unreachable!(),
         };
         let body = self.parse_block()?;
-        Ok(LifecycleHook { kind, body, deps: vec![] })
+        Ok(LifecycleHook {
+            kind,
+            body,
+            deps: vec![],
+        })
     }
 
     fn parse_effect_deps(&mut self) -> Result<Vec<String>, ParseError> {
@@ -281,7 +316,9 @@ impl<'a> Parser<'a> {
                 deps.push(self.expect_ident("expected dep name")?);
                 while self.peek_kind() == TokenKind::Comma {
                     self.advance();
-                    if self.peek_kind() == TokenKind::RParen { break; }
+                    if self.peek_kind() == TokenKind::RParen {
+                        break;
+                    }
                     deps.push(self.expect_ident("expected dep name")?);
                 }
             }
@@ -318,7 +355,12 @@ impl<'a> Parser<'a> {
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
-        Ok(StoreDef { name, signals, getters, actions })
+        Ok(StoreDef {
+            name,
+            signals,
+            getters,
+            actions,
+        })
     }
 
     fn parse_getter_decl(&mut self) -> Result<GetterDecl, ParseError> {
@@ -331,7 +373,11 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(GetterDecl { name, type_ann, body })
+        Ok(GetterDecl {
+            name,
+            type_ann,
+            body,
+        })
     }
 
     // ── Theme ──────────────────────────────────────────
@@ -353,10 +399,12 @@ impl<'a> Parser<'a> {
                 let val = match &val_t.kind {
                     TokenKind::StringLiteral(s) => s.clone(),
                     TokenKind::Ident(s) => s.clone(),
-                    _ => return Err(ParseError {
-                        message: "Expected string or identifier value".into(),
-                        span: val_t.span,
-                    }),
+                    _ => {
+                        return Err(ParseError {
+                            message: "Expected string or identifier value".into(),
+                            span: val_t.span,
+                        })
+                    }
                 };
                 values.push((key, val));
                 if self.peek_kind() == TokenKind::Comma {
@@ -364,7 +412,10 @@ impl<'a> Parser<'a> {
                 }
             }
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
-            categories.push(ThemeCategory { name: cat_name, values });
+            categories.push(ThemeCategory {
+                name: cat_name,
+                values,
+            });
         }
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
         Ok(ThemeDef { categories })
@@ -389,7 +440,10 @@ impl<'a> Parser<'a> {
             let field_name = self.expect_ident("expected field name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let type_ann = self.parse_type_annotation()?;
-            fields.push(StructField { name: field_name, type_ann });
+            fields.push(StructField {
+                name: field_name,
+                type_ann,
+            });
             if self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
@@ -400,7 +454,12 @@ impl<'a> Parser<'a> {
             name,
             is_nominal,
             fields,
-            span: Span { start: start.start, end: start.end, line: start.line, col: start.col },
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
@@ -423,23 +482,38 @@ impl<'a> Parser<'a> {
                     let fname = self.expect_ident("expected field name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let ft = self.parse_type_annotation()?;
-                    f.push(StructField { name: fname, type_ann: ft });
-                    if self.peek_kind() == TokenKind::Comma { self.advance(); }
+                    f.push(StructField {
+                        name: fname,
+                        type_ann: ft,
+                    });
+                    if self.peek_kind() == TokenKind::Comma {
+                        self.advance();
+                    }
                 }
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 f
             } else {
                 vec![]
             };
-            variants.push(Variant { name: variant_name, fields });
-            if self.peek_kind() != TokenKind::Pipe { break; }
+            variants.push(Variant {
+                name: variant_name,
+                fields,
+            });
+            if self.peek_kind() != TokenKind::Pipe {
+                break;
+            }
             self.advance(); // '|'
         }
 
         Ok(TaggedUnionDef {
             name,
             variants,
-            span: Span { start: start.start, end: start.end, line: start.line, col: start.col },
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
@@ -459,10 +533,12 @@ impl<'a> Parser<'a> {
         let t = self.advance();
         let path = match &t.kind {
             TokenKind::StringLiteral(s) => s.clone(),
-            _ => return Err(ParseError {
-                message: "Expected string path after 'from'".into(),
-                span: t.span,
-            }),
+            _ => {
+                return Err(ParseError {
+                    message: "Expected string path after 'from'".into(),
+                    span: t.span,
+                })
+            }
         };
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();

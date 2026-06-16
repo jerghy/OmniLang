@@ -123,8 +123,9 @@ class RustBridge:
             if result_json:
                 parsed = json.loads(result_json)
                 # Unwrap CompileResult: {success, ir?, errors[]} -> IRProgram dict
-                if isinstance(parsed, dict) and "ir" in parsed:
-                    if parsed.get("success") and parsed["ir"] is not None:
+                # Note: "ir" is skip_serialized when None, so check for "success" too
+                if isinstance(parsed, dict) and ("ir" in parsed or "success" in parsed):
+                    if parsed.get("success") and parsed.get("ir") is not None:
                         return parsed["ir"]  # Return just the IRProgram
                     elif parsed.get("errors"):
                         return {"_rust_errors": parsed["errors"]}

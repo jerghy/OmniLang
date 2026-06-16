@@ -121,16 +121,31 @@ pub enum Literal {
 
 #[derive(Debug, Clone)]
 pub enum BinaryOpKind {
-    Add, Sub, Mul, Div, Mod,
-    Eq, Neq, Lt, Gt, LtEq, GtEq,
-    And, Or,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    Neq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    And,
+    Or,
     Assign,
-    AddAssign, SubAssign, MulAssign, DivAssign, ModAssign,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
 }
 
 #[derive(Debug, Clone)]
 pub enum UnaryOpKind {
-    Not, Neg,
+    Not,
+    Neg,
 }
 
 #[derive(Debug, Clone)]

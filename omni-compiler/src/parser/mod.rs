@@ -85,10 +85,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
-                        message: format!(
-                            "Unexpected token at top level: {:?}",
-                            t.kind
-                        ),
+                        message: format!("Unexpected token at top level: {:?}", t.kind),
                         span: t.span,
                     });
                 }

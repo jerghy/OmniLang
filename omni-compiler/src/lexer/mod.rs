@@ -94,7 +94,14 @@ impl Lexer {
             }
             Some('%') => {
                 self.advance();
-                self.if_next('=', TokenKind::PercentEq, TokenKind::Percent, start, line, col)
+                self.if_next(
+                    '=',
+                    TokenKind::PercentEq,
+                    TokenKind::Percent,
+                    start,
+                    line,
+                    col,
+                )
             }
             Some('=') => {
                 self.advance();
@@ -254,12 +261,7 @@ impl Lexer {
         }
     }
 
-    fn check_dot_continuation(
-        &mut self,
-        start: usize,
-        line: u32,
-        col: u32,
-    ) -> Token {
+    fn check_dot_continuation(&mut self, start: usize, line: u32, col: u32) -> Token {
         if self.peek() == Some('.') {
             self.advance();
             if self.peek() == Some('.') {
@@ -328,17 +330,32 @@ impl Lexer {
                 Some('\\') => {
                     self.advance();
                     match self.peek() {
-                        Some('"') => { s.push('"'); self.advance(); }
-                        Some('\\') => { s.push('\\'); self.advance(); }
-                        Some('n') => { s.push('\n'); self.advance(); }
-                        Some('t') => { s.push('\t'); self.advance(); }
-                        Some('r') => { s.push('\r'); self.advance(); }
+                        Some('"') => {
+                            s.push('"');
+                            self.advance();
+                        }
+                        Some('\\') => {
+                            s.push('\\');
+                            self.advance();
+                        }
+                        Some('n') => {
+                            s.push('\n');
+                            self.advance();
+                        }
+                        Some('t') => {
+                            s.push('\t');
+                            self.advance();
+                        }
+                        Some('r') => {
+                            s.push('\r');
+                            self.advance();
+                        }
                         Some('u') => {
                             self.advance();
                             if self.peek() == Some('{') {
                                 self.advance();
                                 let mut hex = String::new();
-                                while self.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                                while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
                                     hex.push(self.advance().unwrap());
                                 }
                                 if self.peek() == Some('}') {
@@ -351,10 +368,15 @@ impl Lexer {
                                 }
                             }
                         }
-                        _ => { s.push('\\'); }
+                        _ => {
+                            s.push('\\');
+                        }
                     }
                 }
-                Some(c) => { s.push(c); self.advance(); }
+                Some(c) => {
+                    s.push(c);
+                    self.advance();
+                }
             }
         }
         Token::new(TokenKind::StringLiteral(s), start, self.pos, line, col)
@@ -369,14 +391,26 @@ impl Lexer {
         loop {
             match self.peek() {
                 None => break,
-                Some('`') => { self.advance(); break; }
+                Some('`') => {
+                    self.advance();
+                    break;
+                }
                 Some('\\') => {
                     self.advance();
-                    if self.peek() == Some('`') { s.push('`'); self.advance(); }
-                    else if self.peek() == Some('\\') { s.push('\\'); self.advance(); }
-                    else { s.push('\\'); }
+                    if self.peek() == Some('`') {
+                        s.push('`');
+                        self.advance();
+                    } else if self.peek() == Some('\\') {
+                        s.push('\\');
+                        self.advance();
+                    } else {
+                        s.push('\\');
+                    }
                 }
-                Some(c) => { s.push(c); self.advance(); }
+                Some(c) => {
+                    s.push(c);
+                    self.advance();
+                }
             }
         }
         Token::new(TokenKind::TemplateString(s), start, self.pos, line, col)
@@ -391,36 +425,48 @@ impl Lexer {
         if self.peek() == Some('0') {
             match self.peek_n(1) {
                 Some('x') | Some('X') => {
-                    self.advance(); self.advance();
+                    self.advance();
+                    self.advance();
                     let mut hex = String::new();
-                    while self.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                    while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
                         hex.push(self.advance().unwrap());
                     }
                     return Token::new(
                         TokenKind::IntLiteral(i64::from_str_radix(&hex, 16).unwrap_or(0)),
-                        start, self.pos, line, col,
+                        start,
+                        self.pos,
+                        line,
+                        col,
                     );
                 }
                 Some('o') | Some('O') => {
-                    self.advance(); self.advance();
+                    self.advance();
+                    self.advance();
                     let mut oct = String::new();
-                    while self.peek().map_or(false, |c| ('0'..='7').contains(&c)) {
+                    while self.peek().is_some_and(|c| ('0'..='7').contains(&c)) {
                         oct.push(self.advance().unwrap());
                     }
                     return Token::new(
                         TokenKind::IntLiteral(i64::from_str_radix(&oct, 8).unwrap_or(0)),
-                        start, self.pos, line, col,
+                        start,
+                        self.pos,
+                        line,
+                        col,
                     );
                 }
                 Some('b') | Some('B') => {
-                    self.advance(); self.advance();
+                    self.advance();
+                    self.advance();
                     let mut bin = String::new();
                     while self.peek() == Some('0') || self.peek() == Some('1') {
                         bin.push(self.advance().unwrap());
                     }
                     return Token::new(
                         TokenKind::IntLiteral(i64::from_str_radix(&bin, 2).unwrap_or(0)),
-                        start, self.pos, line, col,
+                        start,
+                        self.pos,
+                        line,
+                        col,
                     );
                 }
                 _ => {}
@@ -429,13 +475,13 @@ impl Lexer {
 
         let mut num = String::new();
         let mut is_float = false;
-        while self.peek().map_or(false, |c| c.is_ascii_digit()) {
+        while self.peek().is_some_and(|c| c.is_ascii_digit()) {
             num.push(self.advance().unwrap());
         }
-        if self.peek() == Some('.') && self.peek_n(1).map_or(false, |c| c.is_ascii_digit()) {
+        if self.peek() == Some('.') && self.peek_n(1).is_some_and(|c| c.is_ascii_digit()) {
             is_float = true;
             num.push(self.advance().unwrap());
-            while self.peek().map_or(false, |c| c.is_ascii_digit()) {
+            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
                 num.push(self.advance().unwrap());
             }
         }
@@ -445,7 +491,7 @@ impl Lexer {
             if self.peek() == Some('+') || self.peek() == Some('-') {
                 num.push(self.advance().unwrap());
             }
-            while self.peek().map_or(false, |c| c.is_ascii_digit()) {
+            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
                 num.push(self.advance().unwrap());
             }
         }
@@ -453,12 +499,18 @@ impl Lexer {
         if is_float {
             Token::new(
                 TokenKind::FloatLiteral(num.parse().unwrap_or(0.0)),
-                start, self.pos, line, col,
+                start,
+                self.pos,
+                line,
+                col,
             )
         } else {
             Token::new(
                 TokenKind::IntLiteral(num.parse().unwrap_or(0)),
-                start, self.pos, line, col,
+                start,
+                self.pos,
+                line,
+                col,
             )
         }
     }
@@ -468,29 +520,58 @@ impl Lexer {
         let line = self.line;
         let col = self.col;
         let mut ident = String::new();
-        while self.peek().map_or(false, |c| c.is_alphanumeric() || c == '_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
             ident.push(self.advance().unwrap());
         }
         let kind = match ident.as_str() {
-            "fn" => TokenKind::Fn, "let" => TokenKind::Let, "mut" => TokenKind::Mut,
-            "if" => TokenKind::If, "else" => TokenKind::Else, "while" => TokenKind::While,
-            "for" => TokenKind::For, "in" => TokenKind::In, "return" => TokenKind::Return,
-            "break" => TokenKind::Break, "continue" => TokenKind::Continue,
-            "print" => TokenKind::Print, "println" => TokenKind::Println,
-            "async" => TokenKind::Async, "await" => TokenKind::Await, "match" => TokenKind::Match,
-            "struct" => TokenKind::Struct, "class" => TokenKind::Class,
-            "interface" => TokenKind::Interface, "impl" => TokenKind::Impl,
-            "extends" => TokenKind::Extends, "implements" => TokenKind::Implements,
-            "type" => TokenKind::Type, "nominal" => TokenKind::Nominal,
-            "static" => TokenKind::Static, "private" => TokenKind::Private, "override" => TokenKind::Override,
-            "import" => TokenKind::Import, "from" => TokenKind::From, "export" => TokenKind::Export,
-            "true" => TokenKind::True, "false" => TokenKind::False, "null" => TokenKind::Null,
-            "component" => TokenKind::Component, "signal" => TokenKind::Signal,
-            "computed" => TokenKind::Computed, "prop" => TokenKind::Prop,
-            "event" => TokenKind::Event, "ref" => TokenKind::Ref,
-            "store" => TokenKind::Store, "view" => TokenKind::View,
-            "style" => TokenKind::Style, "action" => TokenKind::Action,
-            "getter" => TokenKind::Getter, "theme" => TokenKind::Theme,
+            "fn" => TokenKind::Fn,
+            "let" => TokenKind::Let,
+            "mut" => TokenKind::Mut,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
+            "while" => TokenKind::While,
+            "for" => TokenKind::For,
+            "in" => TokenKind::In,
+            "return" => TokenKind::Return,
+            "break" => TokenKind::Break,
+            "continue" => TokenKind::Continue,
+            "print" => TokenKind::Print,
+            "println" => TokenKind::Println,
+            "async" => TokenKind::Async,
+            "await" => TokenKind::Await,
+            "match" => TokenKind::Match,
+            "struct" => TokenKind::Struct,
+            "class" => TokenKind::Class,
+            "interface" => TokenKind::Interface,
+            "impl" => TokenKind::Impl,
+            "extends" => TokenKind::Extends,
+            "implements" => TokenKind::Implements,
+            "type" => TokenKind::Type,
+            "nominal" => TokenKind::Nominal,
+            "static" => TokenKind::Static,
+            "private" => TokenKind::Private,
+            "override" => TokenKind::Override,
+            "import" => TokenKind::Import,
+            "from" => TokenKind::From,
+            "export" => TokenKind::Export,
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
+            "null" => TokenKind::Null,
+            "component" => TokenKind::Component,
+            "signal" => TokenKind::Signal,
+            "computed" => TokenKind::Computed,
+            "prop" => TokenKind::Prop,
+            "event" => TokenKind::Event,
+            "ref" => TokenKind::Ref,
+            "store" => TokenKind::Store,
+            "view" => TokenKind::View,
+            "style" => TokenKind::Style,
+            "action" => TokenKind::Action,
+            "getter" => TokenKind::Getter,
+            "theme" => TokenKind::Theme,
             "bind" => TokenKind::Bind,
             _ => TokenKind::Ident(ident),
         };
@@ -503,16 +584,25 @@ impl Lexer {
         let col = self.col;
         self.advance(); // @
         let mut kw = String::from("@");
-        while self.peek().map_or(false, |c| c.is_alphanumeric() || c == '_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
             kw.push(self.advance().unwrap());
         }
         let kind = match kw.as_str() {
-            "@store" => TokenKind::AtStore, "@if" => TokenKind::AtIf,
-            "@else" => TokenKind::AtElse, "@for" => TokenKind::AtFor,
-            "@empty" => TokenKind::AtEmpty, "@slot" => TokenKind::AtSlot,
-            "@native" => TokenKind::AtNative, "@fallback" => TokenKind::AtFallback,
-            "@error" => TokenKind::AtError, "@mount" => TokenKind::AtMount,
-            "@unmount" => TokenKind::AtUnmount, "@effect" => TokenKind::AtEffect,
+            "@store" => TokenKind::AtStore,
+            "@if" => TokenKind::AtIf,
+            "@else" => TokenKind::AtElse,
+            "@for" => TokenKind::AtFor,
+            "@empty" => TokenKind::AtEmpty,
+            "@slot" => TokenKind::AtSlot,
+            "@native" => TokenKind::AtNative,
+            "@fallback" => TokenKind::AtFallback,
+            "@error" => TokenKind::AtError,
+            "@mount" => TokenKind::AtMount,
+            "@unmount" => TokenKind::AtUnmount,
+            "@effect" => TokenKind::AtEffect,
             // Unknown @-prefixed words are event bindings like @onPress, @onChange
             _ => TokenKind::Ident(kw),
         };

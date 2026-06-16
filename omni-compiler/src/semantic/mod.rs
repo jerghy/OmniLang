@@ -28,6 +28,12 @@ pub struct SemanticAnalyzer {
     dependencies: HashMap<String, Vec<String>>,
 }
 
+impl Default for SemanticAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         SemanticAnalyzer {
@@ -53,7 +59,11 @@ impl SemanticAnalyzer {
         // Pass 5: Validate constraints
         self.validate_constraints(program);
 
-        if self.diagnostics.iter().any(|d| matches!(d.severity, crate::error::Severity::Error)) {
+        if self
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.severity, crate::error::Severity::Error))
+        {
             return Err(self.diagnostics);
         }
 
@@ -70,53 +80,63 @@ impl SemanticAnalyzer {
             self.symbols.push_scope(&format!("component:{}", comp.name));
 
             for prop in &comp.props {
-                self.symbols.declare(Symbol {
-                    name: prop.name.clone(),
-                    kind: SymbolKind::Prop,
-                    type_ann: Some(type_to_string(&prop.type_ann)),
-                    mutable: false,
-                    declared_at: prop.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: prop.name.clone(),
+                        kind: SymbolKind::Prop,
+                        type_ann: Some(type_to_string(&prop.type_ann)),
+                        mutable: false,
+                        declared_at: prop.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for sig in &comp.signals {
-                self.symbols.declare(Symbol {
-                    name: sig.name.clone(),
-                    kind: SymbolKind::Signal,
-                    type_ann: Some(type_to_string(&sig.type_ann)),
-                    mutable: true,
-                    declared_at: sig.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: sig.name.clone(),
+                        kind: SymbolKind::Signal,
+                        type_ann: Some(type_to_string(&sig.type_ann)),
+                        mutable: true,
+                        declared_at: sig.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for c in &comp.computeds {
-                self.symbols.declare(Symbol {
-                    name: c.name.clone(),
-                    kind: SymbolKind::Computed,
-                    type_ann: Some(type_to_string(&c.type_ann)),
-                    mutable: false,
-                    declared_at: c.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: c.name.clone(),
+                        kind: SymbolKind::Computed,
+                        type_ann: Some(type_to_string(&c.type_ann)),
+                        mutable: false,
+                        declared_at: c.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for ev in &comp.events {
-                self.symbols.declare(Symbol {
-                    name: ev.name.clone(),
-                    kind: SymbolKind::Event,
-                    type_ann: Some(type_to_string(&ev.type_ann)),
-                    mutable: false,
-                    declared_at: ev.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: ev.name.clone(),
+                        kind: SymbolKind::Event,
+                        type_ann: Some(type_to_string(&ev.type_ann)),
+                        mutable: false,
+                        declared_at: ev.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for r in &comp.refs {
-                self.symbols.declare(Symbol {
-                    name: r.name.clone(),
-                    kind: SymbolKind::Ref,
-                    type_ann: Some(type_to_string(&r.type_ann)),
-                    mutable: false,
-                    declared_at: r.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: r.name.clone(),
+                        kind: SymbolKind::Ref,
+                        type_ann: Some(type_to_string(&r.type_ann)),
+                        mutable: false,
+                        declared_at: r.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             // Functions and actions
@@ -140,23 +160,27 @@ impl SemanticAnalyzer {
             self.symbols.push_scope(&format!("store:{}", store.name));
 
             for sig in &store.signals {
-                self.symbols.declare(Symbol {
-                    name: sig.name.clone(),
-                    kind: SymbolKind::Signal,
-                    type_ann: Some(type_to_string(&sig.type_ann)),
-                    mutable: true,
-                    declared_at: sig.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: sig.name.clone(),
+                        kind: SymbolKind::Signal,
+                        type_ann: Some(type_to_string(&sig.type_ann)),
+                        mutable: true,
+                        declared_at: sig.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for g in &store.getters {
-                self.symbols.declare(Symbol {
-                    name: g.name.clone(),
-                    kind: SymbolKind::Getter,
-                    type_ann: Some(type_to_string(&g.type_ann)),
-                    mutable: false,
-                    declared_at: g.type_ann.span().start,
-                }).ok();
+                self.symbols
+                    .declare(Symbol {
+                        name: g.name.clone(),
+                        kind: SymbolKind::Getter,
+                        type_ann: Some(type_to_string(&g.type_ann)),
+                        mutable: false,
+                        declared_at: g.type_ann.span().start,
+                    })
+                    .ok();
             }
 
             for a in &store.actions {
@@ -230,7 +254,12 @@ impl SemanticAnalyzer {
     fn collect_block_symbols(&mut self, block: &Block) {
         for stmt in &block.stmts {
             match stmt {
-                Stmt::VarDecl { name, type_ann, mutable, .. } => {
+                Stmt::VarDecl {
+                    name,
+                    type_ann,
+                    mutable,
+                    ..
+                } => {
                     let _ = self.symbols.declare(Symbol {
                         name: name.clone(),
                         kind: SymbolKind::Variable,
@@ -249,7 +278,12 @@ impl SemanticAnalyzer {
                     });
                     self.collect_block_symbols(body);
                 }
-                Stmt::If { then_body, else_ifs, else_body, .. } => {
+                Stmt::If {
+                    then_body,
+                    else_ifs,
+                    else_body,
+                    ..
+                } => {
                     self.collect_block_symbols(then_body);
                     for (_, body) in else_ifs {
                         self.collect_block_symbols(body);
@@ -282,7 +316,8 @@ impl SemanticAnalyzer {
                 }
                 self.resolve_block_refs(&f.body);
                 self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
-                    .parent.unwrap_or(0);
+                    .parent
+                    .unwrap_or(0);
             }
             for a in &comp.actions {
                 let action_scope_name = format!("action:{}", a.name);
@@ -323,21 +358,38 @@ impl SemanticAnalyzer {
     fn resolve_stmt_refs(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::VarDecl { init, .. } => {
-                if let Some(e) = init { self.resolve_expr_refs(e); }
+                if let Some(e) = init {
+                    self.resolve_expr_refs(e);
+                }
             }
             Stmt::ExprStmt { expr, .. } => self.resolve_expr_refs(expr),
-            Stmt::Return { value, .. } => { if let Some(e) = value { self.resolve_expr_refs(e); } }
+            Stmt::Return {
+                value: Some(e), ..
+            } => {
+                self.resolve_expr_refs(e);
+            }
+            Stmt::Return { .. } => {}
             Stmt::Assign { value, .. } => self.resolve_expr_refs(value),
-            Stmt::If { condition, then_body, else_ifs, else_body, .. } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+                ..
+            } => {
                 self.resolve_expr_refs(condition);
                 self.resolve_block_refs(then_body);
                 for (cond, body) in else_ifs {
                     self.resolve_expr_refs(cond);
                     self.resolve_block_refs(body);
                 }
-                if let Some(body) = else_body { self.resolve_block_refs(body); }
+                if let Some(body) = else_body {
+                    self.resolve_block_refs(body);
+                }
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.resolve_expr_refs(condition);
                 self.resolve_block_refs(body);
             }
@@ -354,13 +406,11 @@ impl SemanticAnalyzer {
         match expr {
             Expr::VarRef(name, span) => {
                 if !self.symbols.contains(name) {
-                    self.diagnostics.push(
-                        Diagnostic::error(
-                            "E0001",
-                            &format!("Undeclared variable '{}'", name),
-                            span,
-                        )
-                    );
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0001",
+                        &format!("Undeclared variable '{}'", name),
+                        span,
+                    ));
                 }
             }
             Expr::BinaryOp { left, right, .. } => {
@@ -370,11 +420,15 @@ impl SemanticAnalyzer {
             Expr::UnaryOp { operand, .. } => self.resolve_expr_refs(operand),
             Expr::FuncCall { func, args, .. } => {
                 self.resolve_expr_refs(func);
-                for a in args { self.resolve_expr_refs(a); }
+                for a in args {
+                    self.resolve_expr_refs(a);
+                }
             }
             Expr::MethodCall { object, args, .. } => {
                 self.resolve_expr_refs(object);
-                for a in args { self.resolve_expr_refs(a); }
+                for a in args {
+                    self.resolve_expr_refs(a);
+                }
             }
             Expr::FieldAccess { object, .. } => self.resolve_expr_refs(object),
             Expr::IndexGet { object, index, .. } => {
@@ -382,7 +436,9 @@ impl SemanticAnalyzer {
                 self.resolve_expr_refs(index);
             }
             Expr::ArrayLiteral { elements, .. } => {
-                for e in elements { self.resolve_expr_refs(e); }
+                for e in elements {
+                    self.resolve_expr_refs(e);
+                }
             }
             Expr::MapLiteral { entries, .. } => {
                 for (k, v) in entries {
@@ -390,7 +446,12 @@ impl SemanticAnalyzer {
                     self.resolve_expr_refs(v);
                 }
             }
-            Expr::IfExpr { condition, then_expr, else_expr, .. } => {
+            Expr::IfExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
                 self.resolve_expr_refs(condition);
                 self.resolve_expr_refs(then_expr);
                 self.resolve_expr_refs(else_expr);
@@ -429,7 +490,9 @@ impl SemanticAnalyzer {
 /// Convert a TypeAnnotation to a human-readable string.
 fn type_to_string(ty: &TypeAnnotation) -> String {
     match ty {
-        TypeAnnotation::Named { name, type_args, .. } => {
+        TypeAnnotation::Named {
+            name, type_args, ..
+        } => {
             if type_args.is_empty() {
                 name.clone()
             } else {
@@ -442,7 +505,11 @@ fn type_to_string(ty: &TypeAnnotation) -> String {
             let t: Vec<_> = types.iter().map(type_to_string).collect();
             t.join(" | ")
         }
-        TypeAnnotation::Fn { params, return_type, .. } => {
+        TypeAnnotation::Fn {
+            params,
+            return_type,
+            ..
+        } => {
             let p: Vec<_> = params.iter().map(type_to_string).collect();
             format!("fn({}) -> {}", p.join(", "), type_to_string(return_type))
         }

@@ -24,6 +24,11 @@ omnic = "omniview.cli:main"
 include = ["omnilang*", "omniview*", "editor*"]
 exclude = ["build*", "tests*", "tools*", "scripts*", "docs*"]
 
+[tool.pytest.ini_options]
+markers = [
+    "require_rust: test requires Rust compiler DLL",
+]
+
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"

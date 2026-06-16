@@ -30,8 +30,8 @@ fn test_integers() {
     let tokens = tokenize("42 0xFF 0o77 0b1010");
     assert_eq!(tokens[0].kind, TokenKind::IntLiteral(42));
     assert_eq!(tokens[1].kind, TokenKind::IntLiteral(255)); // 0xFF
-    assert_eq!(tokens[2].kind, TokenKind::IntLiteral(63));  // 0o77
-    assert_eq!(tokens[3].kind, TokenKind::IntLiteral(10));  // 0b1010
+    assert_eq!(tokens[2].kind, TokenKind::IntLiteral(63)); // 0o77
+    assert_eq!(tokens[3].kind, TokenKind::IntLiteral(10)); // 0b1010
 }
 
 #[test]
@@ -85,7 +85,8 @@ fn test_at_directives() {
 
 #[test]
 fn test_omni_keywords() {
-    let tokens = tokenize("component signal computed prop event store view style action getter bind");
+    let tokens =
+        tokenize("component signal computed prop event store view style action getter bind");
     let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
     assert!(kinds.contains(&&TokenKind::Component));
     assert!(kinds.contains(&&TokenKind::Signal));

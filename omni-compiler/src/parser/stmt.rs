@@ -67,10 +67,21 @@ impl<'a> Parser<'a> {
                 self.advance();
                 // Empty statement
                 Ok(Stmt::ExprStmt {
-                    expr: Expr::VarRef("".into(), Span {
-                        start: 0, end: 0, line: 0, col: 0,
-                    }),
-                    span: Span { start: 0, end: 0, line: 0, col: 0 },
+                    expr: Expr::VarRef(
+                        "".into(),
+                        Span {
+                            start: 0,
+                            end: 0,
+                            line: 0,
+                            col: 0,
+                        },
+                    ),
+                    span: Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0,
+                    },
                 })
             }
             _ => {
@@ -176,7 +187,12 @@ impl<'a> Parser<'a> {
         Ok(Stmt::While {
             condition,
             body,
-            span: Span { start: start.start, end: start.end, line: start.line, col: start.col },
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
@@ -191,20 +207,24 @@ impl<'a> Parser<'a> {
             var_name,
             iterable,
             body,
-            span: Span { start: start.start, end: start.end, line: start.line, col: start.col },
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
     fn parse_return_stmt(&mut self) -> Result<Stmt, ParseError> {
         let span = self.peek_span();
         self.advance(); // 'return'
-        let value = if self.peek_kind() != TokenKind::Semicolon
-            && self.peek_kind() != TokenKind::RBrace
-        {
-            Some(self.parse_expr()?)
-        } else {
-            None
-        };
+        let value =
+            if self.peek_kind() != TokenKind::Semicolon && self.peek_kind() != TokenKind::RBrace {
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
@@ -266,21 +286,38 @@ impl<'a> Parser<'a> {
             self.advance();
         }
 
-        let span = Span { start: start.start, end: start.end, line: start.line, col: start.col };
+        let span = Span {
+            start: start.start,
+            end: start.end,
+            line: start.line,
+            col: start.col,
+        };
 
         if is_optional {
             Ok(TypeAnnotation::Optional {
-                base: Box::new(TypeAnnotation::Named { name, type_args, span }),
+                base: Box::new(TypeAnnotation::Named {
+                    name,
+                    type_args,
+                    span,
+                }),
                 span: self.peek_span().clone(),
             })
         } else {
-            Ok(TypeAnnotation::Named { name, type_args, span })
+            Ok(TypeAnnotation::Named {
+                name,
+                type_args,
+                span,
+            })
         }
     }
 
     // ── Helpers ────────────────────────────────────────
 
-    pub(crate) fn expect_token(&mut self, expected: TokenKind, msg: &str) -> Result<(), ParseError> {
+    pub(crate) fn expect_token(
+        &mut self,
+        expected: TokenKind,
+        msg: &str,
+    ) -> Result<(), ParseError> {
         let t = self.peek();
         if t.kind != expected {
             return Err(ParseError {
@@ -307,6 +344,11 @@ impl<'a> Parser<'a> {
         self.tokens
             .get(self.pos)
             .map(|t| t.span.clone())
-            .unwrap_or(Span { start: 0, end: 0, line: 0, col: 0 })
+            .unwrap_or(Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            })
     }
 }

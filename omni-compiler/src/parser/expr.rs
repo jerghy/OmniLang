@@ -174,16 +174,25 @@ impl<'a> Parser<'a> {
 
     fn infix_bp(&self) -> (Bp, Bp) {
         match self.peek_kind() {
-            TokenKind::Eq | TokenKind::PlusEq | TokenKind::MinusEq
-            | TokenKind::StarEq | TokenKind::SlashEq | TokenKind::PercentEq => (1, 2),
+            TokenKind::Eq
+            | TokenKind::PlusEq
+            | TokenKind::MinusEq
+            | TokenKind::StarEq
+            | TokenKind::SlashEq
+            | TokenKind::PercentEq => (1, 2),
             TokenKind::OrOr => (3, 4),
             TokenKind::AndAnd => (5, 6),
-            TokenKind::EqEq | TokenKind::NotEq | TokenKind::Lt | TokenKind::Gt
-            | TokenKind::LtEq | TokenKind::GtEq => (7, 8),
+            TokenKind::EqEq
+            | TokenKind::NotEq
+            | TokenKind::Lt
+            | TokenKind::Gt
+            | TokenKind::LtEq
+            | TokenKind::GtEq => (7, 8),
             TokenKind::Plus | TokenKind::Minus => (9, 10),
             TokenKind::Star | TokenKind::Slash | TokenKind::Percent => (11, 12),
-            TokenKind::Dot | TokenKind::QuestionDot | TokenKind::LParen
-            | TokenKind::LBracket => (13, 14),
+            TokenKind::Dot | TokenKind::QuestionDot | TokenKind::LParen | TokenKind::LBracket => {
+                (13, 14)
+            }
             _ => (0, 0),
         }
     }
@@ -255,7 +264,12 @@ impl<'a> Parser<'a> {
                 Ok(Expr::FuncCall {
                     func: Box::new(left),
                     args,
-                    span: Span { start: span.start, end: span.end, line: span.line, col: span.col },
+                    span: Span {
+                        start: span.start,
+                        end: span.end,
+                        line: span.line,
+                        col: span.col,
+                    },
                 })
             }
             TokenKind::LBracket => {
@@ -277,7 +291,12 @@ impl<'a> Parser<'a> {
 
     // ── Helpers ────────────────────────────────────────
 
-    fn make_binary(&mut self, left: Expr, op: BinaryOpKind, bp: (Bp, Bp)) -> Result<Expr, ParseError> {
+    fn make_binary(
+        &mut self,
+        left: Expr,
+        op: BinaryOpKind,
+        bp: (Bp, Bp),
+    ) -> Result<Expr, ParseError> {
         let right = self.parse_expr_bp(bp.1)?;
         let span = Span {
             start: span_of(&left).start,
@@ -311,7 +330,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_compound_assign(
-        &mut self, left: Expr, op: BinaryOpKind, op_span: Span,
+        &mut self,
+        left: Expr,
+        op: BinaryOpKind,
+        op_span: Span,
     ) -> Result<Expr, ParseError> {
         let right = self.parse_expr_bp(1)?;
         let span = Span {

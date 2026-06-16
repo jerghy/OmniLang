@@ -205,7 +205,10 @@ impl<'a> Parser<'a> {
                     _ => {
                         let t = self.advance();
                         Err(ParseError {
-                            message: format!("Expected string or {{expr}} for prop value, got {:?}", t.kind),
+                            message: format!(
+                                "Expected string or {{expr}} for prop value, got {:?}",
+                                t.kind
+                            ),
                             span: t.span,
                         })
                     }
@@ -239,10 +242,12 @@ impl<'a> Parser<'a> {
                         let val = match &t.kind {
                             TokenKind::StringLiteral(s) => ClassValue::StringLiteral(s.clone()),
                             TokenKind::Ident(s) => ClassValue::StyleRef(s.clone()),
-                            _ => return Err(ParseError {
-                                message: format!("Expected class name, got {:?}", t.kind),
-                                span: t.span,
-                            }),
+                            _ => {
+                                return Err(ParseError {
+                                    message: format!("Expected class name, got {:?}", t.kind),
+                                    span: t.span,
+                                })
+                            }
                         };
                         Ok(ElementProp::Class { value: val })
                     }
@@ -252,9 +257,15 @@ impl<'a> Parser<'a> {
                 // Boolean attribute: just the name, e.g., <input disabled>
                 Ok(ElementProp::Static {
                     name,
-                    value: Expr::Literal(Literal::Bool(true), Span {
-                        start: 0, end: 0, line: 0, col: 0,
-                    }),
+                    value: Expr::Literal(
+                        Literal::Bool(true),
+                        Span {
+                            start: 0,
+                            end: 0,
+                            line: 0,
+                            col: 0,
+                        },
+                    ),
                 })
             }
         }
@@ -291,10 +302,12 @@ impl<'a> Parser<'a> {
                 // Lexer combined: @onPress as single Ident token
                 name[1..].to_string() // strip '@' prefix
             }
-            _ => return Err(ParseError {
-                message: format!("Expected @event binding, got {:?}", t.kind),
-                span: t.span,
-            }),
+            _ => {
+                return Err(ParseError {
+                    message: format!("Expected @event binding, got {:?}", t.kind),
+                    span: t.span,
+                })
+            }
         };
         let handler = if self.peek_kind() == TokenKind::Eq {
             self.advance();
@@ -325,10 +338,12 @@ impl<'a> Parser<'a> {
                                     EventHandler::FnRef(name.clone())
                                 }
                             }
-                            _ => return Err(ParseError {
-                                message: format!("Expected event handler, got {:?}", t.kind),
-                                span: t.span,
-                            }),
+                            _ => {
+                                return Err(ParseError {
+                                    message: format!("Expected event handler, got {:?}", t.kind),
+                                    span: t.span,
+                                })
+                            }
                         }
                     };
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -463,10 +478,12 @@ impl<'a> Parser<'a> {
                         StyleValue::Ident(s.clone())
                     }
                 }
-                _ => return Err(ParseError {
-                    message: format!("Unexpected style value: {:?}", t.kind),
-                    span: t.span,
-                }),
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unexpected style value: {:?}", t.kind),
+                        span: t.span,
+                    })
+                }
             };
 
             properties.push((key, value));
@@ -476,7 +493,10 @@ impl<'a> Parser<'a> {
         }
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
-        Ok(StyleRule { class_name, properties })
+        Ok(StyleRule {
+            class_name,
+            properties,
+        })
     }
 }
 
@@ -484,8 +504,7 @@ impl<'a> Parser<'a> {
 fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
     let units = ["px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm"];
     for unit in &units {
-        if s.ends_with(unit) {
-            let num_str = &s[..s.len() - unit.len()];
+        if let Some(num_str) = s.strip_suffix(unit) {
             if let Ok(n) = num_str.parse::<f64>() {
                 return Some((n, unit.to_string()));
             }
