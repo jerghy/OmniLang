@@ -34,9 +34,34 @@ impl<'a> Parser<'a> {
                 TokenKind::Event => events.push(self.parse_event_decl()?),
                 TokenKind::Ref => refs.push(self.parse_ref_decl()?),
                 TokenKind::Store => {
-                    // "store SomeStore" — store reference
+                    // "store SomeStore" or "store SomeStore { ... }" (inline definition)
                     self.advance();
                     let store_name = self.expect_ident("expected store name")?;
+                    if self.peek_kind() == TokenKind::LBrace {
+                        // Inline store definition — parse and extract signals/actions
+                        self.advance(); // '{'
+                        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                            match self.peek_kind() {
+                                TokenKind::Signal => {
+                                    let sig = self.parse_signal_decl()?;
+                                    signals.push(sig);
+                                }
+                                TokenKind::Action => {
+                                    let action = self.parse_action_def()?;
+                                    actions.push(action);
+                                }
+                                TokenKind::Fn => {
+                                    let f = self.parse_function_def()?;
+                                    fns.push(f);
+                                }
+                                _ => {
+                                    // Skip unknown items inside inline store
+                                    self.advance();
+                                }
+                            }
+                        }
+                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    }
                     store_refs.push(store_name);
                     if self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
@@ -171,6 +196,37 @@ impl<'a> Parser<'a> {
     fn parse_computed_decl(&mut self) -> Result<ComputedDecl, ParseError> {
         self.advance(); // 'computed'
         let name = self.expect_ident("expected computed name")?;
+
+        // Handle function-like computed: computed name() -> Type { body }
+        if self.peek_kind() == TokenKind::LParen {
+            self.advance(); // '('
+            self.expect_token(TokenKind::RParen, "expected ')'")?;
+            let type_ann = if self.peek_kind() == TokenKind::Arrow {
+                self.advance(); // '->'
+                self.parse_type_annotation()?
+            } else {
+                TypeAnnotation::Named {
+                    name: "auto".into(),
+                    type_args: vec![],
+                    span: Span { start: 0, end: 0, line: 0, col: 0 },
+                }
+            };
+            let body = self.parse_block()?;
+            // Wrap the block body as the computed expression
+            // Use trailing expression if present
+            let body_expr = if let Some(trailing) = body.trailing_expr {
+                *trailing
+            } else {
+                Expr::Literal(Literal::Null, Span { start: 0, end: 0, line: 0, col: 0 })
+            };
+            return Ok(ComputedDecl {
+                name,
+                type_ann,
+                body: body_expr,
+            });
+        }
+
+        // Simple computed: computed name: Type = expr
         self.expect_token(TokenKind::Colon, "expected ':'")?;
         let type_ann = self.parse_type_annotation()?;
         self.expect_token(TokenKind::Eq, "expected '='")?;

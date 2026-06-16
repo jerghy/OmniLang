@@ -62,6 +62,7 @@ impl Lexer {
 
         match self.peek() {
             None => Token::new(TokenKind::Eof, start, self.pos, line, col),
+            Some('\'') => self.read_single_quoted_string(),
             Some('"') => self.read_string(),
             Some('`') => self.read_template_string(),
             Some(c) if c.is_ascii_digit() => self.read_number(),
@@ -320,6 +321,44 @@ impl Lexer {
                 _ => break,
             }
         }
+    }
+
+    fn read_single_quoted_string(&mut self) -> Token {
+        let start = self.pos;
+        let line = self.line;
+        let col = self.col;
+        self.advance(); // opening '
+        let mut s = String::new();
+        loop {
+            match self.peek() {
+                None => break,
+                Some('\'') => {
+                    self.advance();
+                    break;
+                }
+                Some('\\') => {
+                    self.advance();
+                    if self.peek() == Some('\'') {
+                        s.push('\'');
+                        self.advance();
+                    } else if self.peek() == Some('\\') {
+                        s.push('\\');
+                        self.advance();
+                    } else {
+                        s.push('\\');
+                    }
+                }
+                Some('<') | Some('>') => {
+                    // HTML boundary in view text
+                    break;
+                }
+                Some(c) => {
+                    s.push(c);
+                    self.advance();
+                }
+            }
+        }
+        Token::new(TokenKind::StringLiteral(s), start, self.pos, line, col)
     }
 
     fn read_string(&mut self) -> Token {

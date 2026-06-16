@@ -164,6 +164,15 @@ impl<'a> Parser<'a> {
                 })
             }
 
+            TokenKind::DotDotDot => {
+                // Spread expression: ...expr (reserved for P2)
+                // Parse the spread target, but mark as not yet implemented
+                Ok(Expr::NotYetImplemented {
+                    feature: "spread".into(),
+                    span,
+                })
+            }
+
             _ => Err(ParseError {
                 message: format!("Unexpected token in expression: {:?}", t.kind),
                 span,

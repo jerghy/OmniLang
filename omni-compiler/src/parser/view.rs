@@ -47,11 +47,16 @@ impl<'a> Parser<'a> {
                 Ok(ViewNode::Text(text))
             }
             TokenKind::LBrace => {
-                // Interpolation: { expr }
+                // Interpolation: { expr } or empty braces {} (JSX comments stripped)
                 self.advance();
-                let expr = self.parse_expr()?;
-                self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                Ok(ViewNode::Interpolation(expr))
+                if self.peek_kind() == TokenKind::RBrace {
+                    self.advance(); // consume '}'
+                    Ok(ViewNode::Text(String::new()))  // Empty braces → empty text
+                } else {
+                    let expr = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    Ok(ViewNode::Interpolation(expr))
+                }
             }
             _ => {
                 let t = self.advance();
@@ -95,6 +100,11 @@ impl<'a> Parser<'a> {
                     props.push(prop);
                 }
                 TokenKind::Ident(_) => {
+                    let prop = self.parse_element_prop()?;
+                    props.push(prop);
+                }
+                // Contextual keywords as attribute names (type, style, etc.)
+                ref kind if is_keyword_attr_name(kind) => {
                     let prop = self.parse_element_prop()?;
                     props.push(prop);
                 }
@@ -538,6 +548,19 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// Check if a token kind is a keyword that can be used as an HTML attribute name.
+fn is_keyword_attr_name(kind: &TokenKind) -> bool {
+    matches!(
+        kind,
+        TokenKind::Type
+            | TokenKind::Style
+            | TokenKind::Ref
+            | TokenKind::Bind
+            | TokenKind::For
+            | TokenKind::If
+    )
+}
+
 /// Check if an identifier looks like an event handler name (onPress, onClick, etc.)
 fn is_event_like(name: &str) -> bool {
     if name.len() < 4 || !name.starts_with("on") {
@@ -583,7 +606,19 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Dollar
             | TokenKind::Hash
             | TokenKind::StringLiteral(_)
-    )
+            | TokenKind::Percent
+    ) || is_keyword_attr_name(kind)
+        || matches!(
+            kind,
+            TokenKind::Export | TokenKind::Interface | TokenKind::Class
+                | TokenKind::Extends | TokenKind::Implements
+                | TokenKind::Import | TokenKind::From
+                | TokenKind::Async | TokenKind::Await
+                | TokenKind::Match | TokenKind::Override
+                | TokenKind::Static | TokenKind::Private
+                | TokenKind::Nominal
+                | TokenKind::In
+        )
 }
 
 /// Convert a text token to its string representation.
@@ -608,6 +643,14 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Pipe => "|".into(),
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
-        _ => String::new(),
+        TokenKind::Percent => "%".into(),
+        // Fallback: try keyword_as_ident_name for keyword tokens
+        other => {
+            if let Some(name) = crate::parser::stmt::keyword_as_ident_name(other) {
+                name
+            } else {
+                String::new()
+            }
+        }
     }
 }
