@@ -4,7 +4,7 @@
 
 **Goal:** Implement the full import/export module system for OmniLang across Python framework, Rust compiler DLL, and all 4 logic + 4 UI codegen targets.
 
-**Architecture:** The work spans 6 phases matching the spec: (1) syntax/parsing in both Python grammars and the Rust compiler, (2) Python ModuleLoader V2 with path map building, (3) Rust cross-file semantic analysis, (4) codegen for all 8 targets, (5) CLI and config unification, (6) editor integration. The Rust DLL stays filesystem-free — Python does all I/O, Rust receives `Map<FilePath, SourceText>` and returns `Map<FilePath, GeneratedCode>`.
+**Architecture:** The work spans 6 phases matching the spec: (1) syntax/parsing in both Python grammars and the Rust compiler, (2) Python ModuleLoader V2 with path map building, (3) Rust multi-file parse + cross-file validation + cycle detection, (4) Python codegen for all 8 targets, (5) CLI and config unification, (6) editor integration. The Rust DLL stays filesystem-free — Python does all I/O + codegen, Rust receives `{source_map, path_mapping}` and returns `{success, errors}` (validation only). Codegen remains in Python where all 8 target generators already live.
 
 **Tech Stack:** Python 3.10+ (Lark parser, dataclasses), Rust 2021 edition (hand-written recursive-descent parser, serde, thiserror), TOML for config.
 
@@ -33,16 +33,20 @@ omniview/codegen/vue.py                 MODIFY — update import/export codegen
 omniview/codegen/dioxus.py              MODIFY — update import/export codegen
 omniview/codegen/flutter.py             MODIFY — update import/export codegen
 omniview/codegen/base.py                MODIFY — update base generator if needed
+omniview/codegen/rust_bridge.py         CREATE — Python ctypes bridge to Rust DLL
 omniview/cli.py                         MODIFY — update build/init commands
 omnilang/cli.py                         MODIFY — update build/init commands
 omni-compiler/src/lexer/token.rs        MODIFY — add Pub token
-omni-compiler/src/lexer/mod.rs          MODIFY — add "pub" keyword mapping
-omni-compiler/src/parser/ast.rs         MODIFY — new AST nodes, updated Program
+omni-compiler/src/lexer/mod.rs          MODIFY — add "pub" keyword mapping, verify From/As
+omni-compiler/src/parser/ast.rs         MODIFY — new AST nodes (ImportStmt enum, Visibility, TypeAlias), updated Program
 omni-compiler/src/parser/mod.rs         MODIFY — new parse dispatch
-omni-compiler/src/parser/top_level.rs   MODIFY — rewrite parse_import, add parse_export
-omni-compiler/src/lib.rs                MODIFY — multi-file API
+omni-compiler/src/parser/top_level.rs   MODIFY — rewrite parse_import, add parse_export, add parse_type_alias
+omni-compiler/src/semantic/mod.rs       MODIFY — handle new import variants in all 5 passes
+omni-compiler/src/semantic/cycles.rs    CREATE — Tarjan SCC cycle detection with path_mapping
+omni-compiler/src/ir/mod.rs             MODIFY — skip import statements in IR lowering
+omni-compiler/src/lib.rs                MODIFY — multi-file validate_multi API, omni_validate_multi C FFI
 omni-compiler/tests/lexer_tests.rs      MODIFY — add pub token test
-omni-compiler/tests/parser_tests.rs     MODIFY — add import/export tests
+omni-compiler/tests/parser_tests.rs     MODIFY — add import/export/pub tests
 ```
 
 ---
@@ -64,7 +68,7 @@ In `omni-compiler/src/lexer/token.rs`, add `Pub` after existing keyword variants
 Pub,
 ```
 
-- [ ] **Step 2: Add "pub" keyword mapping in lexer**
+- [ ] **Step 2: Add "pub" and verify "from"/"as" keyword mappings in lexer**
 
 In `omni-compiler/src/lexer/mod.rs`, find the `read_ident_or_keyword()` method and add the `"pub"` mapping alongside other keywords:
 
@@ -72,7 +76,19 @@ In `omni-compiler/src/lexer/mod.rs`, find the `read_ident_or_keyword()` method a
 "pub" => TokenKind::Pub,
 ```
 
-Insert in alphabetical order among the existing keyword match arms (around line where `"prop"`, `"return"`, etc. are defined).
+Also verify that `"from"` and `"as"` are already mapped:
+```rust
+"from" => TokenKind::From,   // should already exist
+"as" => TokenKind::As,       // should already exist
+```
+
+If `From` or `As` variants are missing from `TokenKind` in `token.rs`, add them:
+```rust
+From,
+As,
+```
+
+Insert in alphabetical order among the existing keyword match arms.
 
 - [ ] **Step 3: Add lexer test for `pub` keyword**
 
@@ -106,6 +122,11 @@ git commit -m "feat(rust-lexer): add Pub token and keyword mapping"
 ---
 
 ### Task 1.2: Add new AST nodes to Rust compiler
+
+> **Naming note:** Rust uses `ExportFrom` for re-exports while Python uses `ExportFromStmt`.
+> This is intentional — Rust convention drops the `Stmt` suffix since the type system
+> already communicates the node kind, while Python AST nodes use `Stmt` suffixes
+> for consistency with the existing codebase pattern. Same concept, idiomatic name per language.
 
 **Files:**
 - Modify: `omni-compiler/src/parser/ast.rs`
@@ -176,7 +197,7 @@ pub enum ImportStmt {
 }
 ```
 
-- [ ] **Step 3: Add `Visibility` to `FunctionDef`, `StructDef`**
+- [ ] **Step 3: Add `Visibility` to `FunctionDef`, `StructDef`, and `TypeAlias`**
 
 Add `pub visibility: Visibility` field to `FunctionDef`:
 
@@ -198,6 +219,17 @@ pub struct StructDef {
 }
 ```
 
+Add `pub visibility: Visibility` field to `TypeAlias` (create if it doesn't exist; otherwise add the field):
+
+```rust
+pub struct TypeAlias {
+    pub visibility: Visibility,  // new field
+    pub name: String,
+    pub type_ann: TypeAnnotation,
+    pub span: Span,
+}
+```
+
 - [ ] **Step 4: Update `Program` struct**
 
 Replace the `imports: Vec<ImportStmt>` field and add `exports`:
@@ -209,6 +241,7 @@ pub struct Program {
     pub themes: Vec<ThemeDef>,
     pub functions: Vec<FunctionDef>,
     pub structs: Vec<StructDef>,
+    pub type_aliases: Vec<TypeAlias>,
     pub tagged_unions: Vec<TaggedUnionDef>,
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,
@@ -423,23 +456,42 @@ pub fn parse_struct_def(&mut self) -> Result<StructDef, ParseError> {
 }
 ```
 
-- [ ] **Step 7: Add `As` token if not present**
-
-Check `TokenKind` in `token.rs`. If `As` is not already a variant, add it:
+- [ ] **Step 6a: Add `parse_type_alias` with `pub` support**
 
 ```rust
-As,
+/// Parse: [pub] type Name = TypeAnnotation;
+pub fn parse_type_alias(&mut self) -> Result<TypeAlias, ParseError> {
+    let visibility = if self.peek_kind() == TokenKind::Pub {
+        self.advance();
+        Visibility::Public
+    } else {
+        Visibility::Private
+    };
+    self.expect_token(TokenKind::Type, "expected 'type'")?;
+    let name = self.expect_ident("expected type alias name")?;
+    self.expect_token(TokenKind::Eq, "expected '=' in type alias")?;
+    let type_ann = self.parse_type_annotation()?;
+    self.consume_semicolon();
+    Ok(TypeAlias {
+        visibility,
+        name,
+        type_ann,
+        span: self.span(),
+    })
+}
 ```
 
-And add `"as" => TokenKind::As` in `read_ident_or_keyword()`.
+- [ ] **Step 7: Verify `From` and `As` tokens** (also covered in Task 1.1 Step 2)
 
-- [ ] **Step 8: Verify compilation and fix all match exhaustiveness**
+These are prerequisites for the parser. If not already present in `TokenKind`, they were added in Task 1.1.
+
+- [ ] **Step 8: Verify compilation and fix match exhaustiveness**
 
 ```bash
 cd omni-compiler && cargo check 2>&1
 ```
 
-Fix any non-exhaustive match errors in semantic analysis and IR modules (add catch-all arms for new variants with `todo!()` comments).
+Fix any non-exhaustive match errors in semantic analysis and IR modules by adding catch-all arms. These will be replaced with proper handling in Task 3.2.
 
 - [ ] **Step 9: Run existing parser tests (expect failures on import tests)**
 
@@ -871,30 +923,45 @@ git commit -m "feat(loader): implement _extract_imports and _extract_exports for
 **Files:**
 - Modify: `omniview/modules/loader.py`
 
-- [ ] **Step 1: Add `build_source_map` method**
+- [ ] **Step 1: Add `build_source_map` method with path mapping**
 
 Add to the `ModuleLoader` class:
 
 ```python
-def build_source_map(self, entry_file: str | Path) -> dict[str, str]:
-    """Load all transitive dependencies and return {file_path: source_text} map.
+def build_source_map(self, entry_file: str | Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Load all transitive dependencies and return (source_map, path_mapping).
     
-    This is the primary interface for the Rust compiler DLL: Python does all
-    file I/O, builds a complete source map, and passes it to Rust.
+    source_map: {resolved_absolute_path: source_text}
+    path_mapping: {original_import_path: resolved_absolute_path}
+    
+    The path_mapping is critical for the Rust compiler: import statements in
+    source code contain unresolved paths like "./lib.omni" or "@components/button.omni",
+    but source_map is keyed by resolved absolute paths. The Rust compiler uses
+    path_mapping to bridge the two during cross-file validation.
     
     Args:
         entry_file: Path to entry .omni file.
     
     Returns:
-        Dict mapping absolute file paths to their source text.
+        Tuple of (source_map, path_mapping).
     """
     self.load(entry_file)  # populate self._loaded
     
     source_map: dict[str, str] = {}
-    for file_path, module in self._loaded.items():
-        source_map[str(file_path)] = module.source
+    path_mapping: dict[str, str] = {}
     
-    return source_map
+    for file_path, module in self._loaded.items():
+        abs_path = str(file_path.resolve())
+        source_map[abs_path] = module.source
+        
+        # Map each original import path to its resolved absolute path
+        for imp in module.imports:
+            # imp is the original path as written in source, e.g. "./lib.omni"
+            resolved = self.resolver.resolve(imp, file_path)
+            if resolved:
+                path_mapping[imp] = str(resolved.path.resolve())
+    
+    return source_map, path_mapping
 ```
 
 - [ ] **Step 2: Update `load` method return type**
@@ -913,7 +980,7 @@ class LoadedModule:
     import_lines: dict[str, int] = field(default_factory=dict)
 ```
 
-- [ ] **Step 3: Verify source map building**
+- [ ] **Step 3: Verify source map and path mapping**
 
 ```bash
 cd D:/space/OmniLang && python -c "
@@ -929,10 +996,13 @@ f2 = d / 'button.omni'
 f2.write_text('import omniview;\ncomponent Button { prop label: string; view { <button>{label}</button> } }')
 
 loader = ModuleLoader(str(d))
-source_map = loader.build_source_map(str(f1))
+source_map, path_mapping = loader.build_source_map(str(f1))
 print('Files loaded:', len(source_map))
 for path in source_map:
-    print(f'  {path}')
+    print(f'  source: {path}')
+print('Path mappings:')
+for orig, resolved in path_mapping.items():
+    print(f'  {orig} → {resolved}')
 "
 ```
 
@@ -1127,37 +1197,50 @@ git commit -m "feat(resolver): enforce .omni extension, support config-based ali
 
 ## Phase 3: Cross-File Semantic Analysis (Rust)
 
-### Task 3.1: Update Rust compiler API for multi-file input
+### Task 3.1: Update Rust compiler API for multi-file validation
 
 **Files:**
 - Modify: `omni-compiler/src/lib.rs`
 
-- [ ] **Step 1: Add multi-file compile function**
+**Design note:** The Rust DLL does **parsing + cross-file validation + cycle detection only**. It does NOT do codegen. Codegen for all 8 targets is implemented in Python (Phase 4). This is because all existing codegen infrastructure already lives in Python (`omnilang/codegen/*.py`, `omniview/codegen/*.py`), and codegen is mostly string manipulation that's easier to maintain in Python. The Rust DLL's role is the computationally intensive work: parsing all files, building symbol tables, and validating cross-file references.
 
-Add a new public function that accepts multiple sources:
+- [ ] **Step 1: Add multi-file validation function**
+
+Add a new public function that accepts multiple sources with resolved paths:
 
 ```rust
 use std::collections::HashMap;
 
-/// Result of compiling multiple files.
+/// Result of multi-file validation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MultiFileResult {
     pub success: bool,
-    /// Map from file path to generated code for that file.
-    pub outputs: HashMap<String, String>,
+    /// Parsed programs keyed by resolved absolute path (returned even on validation
+    /// errors so Python can use them for codegen if only warnings exist).
+    pub programs: HashMap<String, Program>,
     pub errors: Vec<String>,
 }
 
-/// Compile multiple .omni source files together with cross-file validation.
+/// Validate multiple .omni source files with cross-file checks.
 ///
-/// This is the primary API for the Python framework. Python does all file I/O,
-/// builds a `HashMap<FilePath, SourceText>`, and calls this function once.
-/// The compiler parses all files, resolves cross-file imports, validates
-/// visibility and cycles, then generates output for each input file.
-pub fn compile_multi(sources: HashMap<String, String>, targets: &[&str]) -> MultiFileResult {
+/// This is the primary API for the Python framework. Python does all file I/O
+/// and path resolution, builds:
+///   - `sources`: HashMap<ResolvedAbsolutePath, SourceText>
+///   - `path_mapping`: HashMap<OriginalImportPath, ResolvedAbsolutePath>
+///
+/// The `path_mapping` is critical: import statements in source code contain
+/// unresolved paths like "./lib.omni" or "@components/button.omni", but the
+/// `sources` map is keyed by resolved absolute paths. The mapping bridges
+/// the two so cross-file validation can find target files.
+///
+/// The compiler parses all files, resolves cross-file imports using the mapping,
+/// validates visibility and cycles. Codegen is done separately in Python.
+pub fn validate_multi(
+    sources: HashMap<String, String>,
+    path_mapping: HashMap<String, String>,
+) -> MultiFileResult {
     let mut errors: Vec<String> = Vec::new();
     let mut programs: HashMap<String, Program> = HashMap::new();
-    let mut outputs: HashMap<String, String> = HashMap::new();
 
     // Phase 1: Parse all sources
     for (path, source) in &sources {
@@ -1174,29 +1257,35 @@ pub fn compile_multi(sources: HashMap<String, String>, targets: &[&str]) -> Mult
     if !errors.is_empty() {
         return MultiFileResult {
             success: false,
-            outputs: HashMap::new(),
+            programs,
             errors,
         };
     }
 
-    // Phase 2: Cross-file validation
-    if let Err(more_errors) = validate_cross_file(&programs, &sources) {
-        errors.extend(more_errors);
-        return MultiFileResult {
-            success: false,
-            outputs: HashMap::new(),
-            errors,
-        };
-    }
-
-    // Phase 3: Generate output for each file
+    // Phase 2: Per-file consistency checks (omniview double-check)
     for (path, program) in &programs {
-        // ... codegen per target
+        if let Err(file_errors) = validate_file_consistency(path, program, &sources) {
+            errors.extend(file_errors);
+        }
+    }
+
+    // Phase 3: Cross-file import validation
+    if let Err(more_errors) = validate_cross_file(&programs, &path_mapping) {
+        errors.extend(more_errors);
+    }
+
+    // Phase 4: Cycle detection
+    let cycles = detect_cycles(&programs, &path_mapping);
+    for cycle in &cycles {
+        errors.push(format!(
+            "circular import detected: {}",
+            cycle.join(" → ")
+        ));
     }
 
     MultiFileResult {
-        success: true,
-        outputs,
+        success: errors.is_empty(),
+        programs,
         errors,
     }
 }
@@ -1207,17 +1296,58 @@ fn compile_single_parse(source: &str) -> Result<Program, String> {
 }
 ```
 
-- [ ] **Step 2: Add `validate_cross_file` stub**
+- [ ] **Step 2: Add `validate_file_consistency` (omniview double-check)**
+
+Per spec §1.1: if a file has `import omniview;` but no UI declarations, or has UI declarations but no `import omniview;`, it's an error.
+
+```rust
+/// Check per-file consistency: omniview marker must match file contents.
+fn validate_file_consistency(
+    file_path: &str,
+    program: &Program,
+    sources: &HashMap<String, String>,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    
+    let has_omniview_marker = program.imports.iter().any(|imp| {
+        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+    });
+    
+    let has_ui_declarations = !program.components.is_empty()
+        || !program.stores.is_empty()
+        || !program.themes.is_empty();
+    
+    if has_omniview_marker && !has_ui_declarations {
+        errors.push(format!(
+            "{}: has 'import omniview;' but no component/store/theme declarations. \
+             Either add UI declarations or remove the omniview import.",
+            file_path
+        ));
+    }
+    
+    if !has_omniview_marker && has_ui_declarations {
+        errors.push(format!(
+            "{}: has UI declarations (component/store/theme) but missing 'import omniview;'. \
+             Add 'import omniview;' to mark this as a view file.",
+            file_path
+        ));
+    }
+    
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+}
+```
+
+- [ ] **Step 3: Add `validate_cross_file` using path_mapping**
 
 ```rust
 fn validate_cross_file(
     programs: &HashMap<String, Program>,
-    sources: &HashMap<String, String>,
+    path_mapping: &HashMap<String, String>,  // original_import_path → resolved_absolute_path
 ) -> Result<(), Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
 
-    // Build symbol table: for each file, collect all pub-visible names
-    let mut pub_symbols: HashMap<String, HashMap<String, SymbolKind>> = HashMap::new();
+    // Build pub-visible symbol table for each file
+    let mut pub_symbols: HashMap<&str, HashMap<String, SymbolKind>> = HashMap::new();
     
     for (path, program) in programs {
         let mut symbols = HashMap::new();
@@ -1231,6 +1361,11 @@ fn validate_cross_file(
                 symbols.insert(strukt.name.clone(), SymbolKind::Struct);
             }
         }
+        for ta in &program.type_aliases {
+            if ta.visibility == Visibility::Public {
+                symbols.insert(ta.name.clone(), SymbolKind::TypeAlias);
+            }
+        }
         // components, stores, themes are always public
         for comp in &program.components {
             symbols.insert(comp.name.clone(), SymbolKind::Component);
@@ -1238,13 +1373,13 @@ fn validate_cross_file(
         for store in &program.stores {
             symbols.insert(store.name.clone(), SymbolKind::Store);
         }
-        // Re-exports from export_froms
+        // Re-exports
         for exp in &program.exports {
             for name in &exp.names {
                 symbols.insert(name.clone(), SymbolKind::ReExport(exp.path.clone()));
             }
         }
-        pub_symbols.insert(path.clone(), symbols);
+        pub_symbols.insert(path.as_str(), symbols);
     }
 
     // Validate each import in each file
@@ -1252,49 +1387,78 @@ fn validate_cross_file(
         for import in &program.imports {
             match import {
                 ImportStmt::Named(named) => {
-                    errors.extend(validate_named_import(
-                        file_path, &named.names, &named.path,
-                        programs, &pub_symbols,
-                    ));
+                    // Resolve the import path using the mapping from Python
+                    let resolved = path_mapping.get(&named.path);
+                    match resolved {
+                        Some(target) => {
+                            errors.extend(validate_named_import(
+                                file_path, &named.names, target,
+                                programs, &pub_symbols,
+                            ));
+                        }
+                        None => {
+                            errors.push(format!(
+                                "{}: could not resolve import path '{}'",
+                                file_path, named.path
+                            ));
+                        }
+                    }
                 }
                 ImportStmt::Namespace(ns) => {
-                    if !programs.contains_key(&ns.path) {
-                        // Path resolution happens in Python; here we check if the
-                        // resolved file path exists in our program map
-                        errors.push(format!(
-                            "{}: imported file '{}' not found in compilation",
-                            file_path, ns.path
-                        ));
+                    let resolved = path_mapping.get(&ns.path);
+                    match resolved {
+                        Some(target) => {
+                            if !programs.contains_key(target.as_str()) {
+                                errors.push(format!(
+                                    "{}: imported file '{}' (resolved to '{}') not found in compilation",
+                                    file_path, ns.path, target
+                                ));
+                            }
+                        }
+                        None => {
+                            errors.push(format!(
+                                "{}: could not resolve import path '{}'",
+                                file_path, ns.path
+                            ));
+                        }
                     }
                 }
                 ImportStmt::TypeOnly(ti) => {
-                    errors.extend(validate_named_import(
-                        file_path, &ti.names, &ti.path,
-                        programs, &pub_symbols,
-                    ));
+                    let resolved = path_mapping.get(&ti.path);
+                    match resolved {
+                        Some(target) => {
+                            errors.extend(validate_named_import(
+                                file_path, &ti.names, target,
+                                programs, &pub_symbols,
+                            ));
+                        }
+                        None => {
+                            errors.push(format!(
+                                "{}: could not resolve import path '{}'",
+                                file_path, ti.path
+                            ));
+                        }
+                    }
                 }
                 ImportStmt::Lib(_) => {
-                    // 'import omniview;' — validated elsewhere
+                    // 'import omniview;' — validated in validate_file_consistency
                 }
             }
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
 }
 ```
 
-- [ ] **Step 3: Add helper types**
+- [ ] **Step 4: Add helper types and validation function**
 
 ```rust
 #[derive(Debug, Clone, PartialEq)]
 enum SymbolKind {
     Function,
     Struct,
+    TypeAlias,
     Component,
     Store,
     Theme,
@@ -1304,9 +1468,9 @@ enum SymbolKind {
 fn validate_named_import(
     importing_file: &str,
     names: &[String],
-    target_path: &str,
+    target_path: &str,  // now a resolved absolute path (from path_mapping)
     programs: &HashMap<String, Program>,
-    pub_symbols: &HashMap<String, HashMap<String, SymbolKind>>,
+    pub_symbols: &HashMap<&str, HashMap<String, SymbolKind>>,
 ) -> Vec<String> {
     let mut errors = Vec::new();
     
@@ -1334,16 +1498,21 @@ fn validate_named_import(
 }
 ```
 
-- [ ] **Step 4: Add Tarjan SCC cycle detection**
+- [ ] **Step 5: Add Tarjan SCC cycle detection**
 
 Create `omni-compiler/src/semantic/cycles.rs`:
 
 ```rust
 use std::collections::{HashMap, HashSet};
+use crate::parser::ast::{Program, ImportStmt};
 
 /// Detect circular imports using Tarjan's strongly connected components algorithm.
+/// `path_mapping` resolves each import's path to the canonical file key used in `programs`.
 /// Returns list of cycles found (each cycle is a list of file paths).
-pub fn detect_cycles(programs: &HashMap<String, crate::parser::ast::Program>) -> Vec<Vec<String>> {
+pub fn detect_cycles(
+    programs: &HashMap<String, Program>,
+    path_mapping: &HashMap<String, String>,
+) -> Vec<Vec<String>> {
     let file_paths: Vec<&String> = programs.keys().collect();
     let path_to_idx: HashMap<&String, usize> = file_paths
         .iter()
@@ -1354,18 +1523,29 @@ pub fn detect_cycles(programs: &HashMap<String, crate::parser::ast::Program>) ->
     let n = file_paths.len();
     let mut graph: Vec<Vec<usize>> = vec![vec![]; n];
     
-    // Build adjacency list from imports
+    // Build adjacency list from imports, resolving through path_mapping
     for (path, program) in programs {
         let from = path_to_idx[path];
         for import in &program.imports {
-            let target = match import {
+            let import_path = match import {
                 ImportStmt::Named(n) => &n.path,
                 ImportStmt::Namespace(ns) => &ns.path,
                 ImportStmt::TypeOnly(t) => &t.path,
                 ImportStmt::Lib(_) => continue,
             };
-            if let Some(&to) = path_to_idx.get(target) {
-                graph[from].push(to);
+            // Resolve import path to canonical key
+            if let Some(resolved) = path_mapping.get(import_path) {
+                if let Some(&to) = path_to_idx.get(resolved) {
+                    graph[from].push(to);
+                }
+            }
+        }
+        // Also add edges for re-exports
+        for exp in &program.exports {
+            if let Some(resolved) = path_mapping.get(&exp.path) {
+                if let Some(&to) = path_to_idx.get(resolved) {
+                    graph[from].push(to);
+                }
             }
         }
     }
@@ -1436,7 +1616,7 @@ pub fn detect_cycles(programs: &HashMap<String, crate::parser::ast::Program>) ->
 }
 ```
 
-- [ ] **Step 5: Verify compilation**
+- [ ] **Step 6: Verify compilation**
 
 ```bash
 cd omni-compiler && cargo check 2>&1
@@ -1444,16 +1624,171 @@ cd omni-compiler && cargo check 2>&1
 
 Fix any compilation errors.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add omni-compiler/src/lib.rs omni-compiler/src/semantic/cycles.rs omni-compiler/src/semantic/mod.rs
-git commit -m "feat(rust-semantic): multi-file API, cross-file validation, Tarjan cycle detection"
+git commit -m "feat(rust-semantic): multi-file validation API, omniview double-check, cross-file validation with path_mapping, Tarjan cycle detection"
 ```
 
 ---
 
-### Task 3.2: Add Rust parser tests for new syntax
+### Task 3.2: Update semantic analysis and IR lowering for new AST variants
+
+**Files:**
+- Modify: `omni-compiler/src/semantic/mod.rs`
+- Modify: `omni-compiler/src/ir/mod.rs`
+
+**Context:** Task 1.3 added `todo!()` catch-all arms in semantic analysis and IR lowering for the new `ImportStmt` enum variants and `ExportFrom`. This task replaces those with proper handling so the compiler doesn't panic at runtime.
+
+- [ ] **Step 1: Handle imports in semantic analysis passes**
+
+In `omni-compiler/src/semantic/mod.rs`, update each analysis pass to process the new import variants:
+
+```rust
+// In the symbol collection pass (Pass 1), process all import variants:
+for import in &program.imports {
+    match import {
+        ImportStmt::Named(named) => {
+            // Register imported names in the symbol table so they can be
+            // resolved when used in expressions. The names are validated
+            // by validate_cross_file before semantic analysis runs.
+            for name in &named.names {
+                symbols.declare(name, SymbolInfo {
+                    kind: SymbolKind::Import,
+                    source_file: named.path.clone(),
+                    is_pub: false, // imports are file-local unless re-exported
+                });
+            }
+        }
+        ImportStmt::Namespace(ns) => {
+            // Register the namespace alias as a module reference
+            symbols.declare(&ns.alias, SymbolInfo {
+                kind: SymbolKind::Namespace,
+                source_file: ns.path.clone(),
+                is_pub: false,
+            });
+        }
+        ImportStmt::TypeOnly(ti) => {
+            // Type-only imports: register in type scope only
+            for name in &ti.names {
+                symbols.declare_type(name, SymbolInfo {
+                    kind: SymbolKind::TypeImport,
+                    source_file: ti.path.clone(),
+                    is_pub: false,
+                });
+            }
+        }
+        ImportStmt::Lib(name) => {
+            // 'import omniview;' — no symbol registration needed
+            // (validated by validate_file_consistency)
+        }
+    }
+}
+
+// Process re-exports from this file:
+for exp in &program.exports {
+    for name in &exp.names {
+        symbols.declare(name, SymbolInfo {
+            kind: SymbolKind::ReExport,
+            source_file: exp.path.clone(),
+            is_pub: true,
+        });
+    }
+}
+```
+
+- [ ] **Step 2: Handle `pub` visibility in semantic analysis**
+
+Update function/struct/type_alias registration to check `visibility`:
+
+```rust
+for func in &program.functions {
+    symbols.declare(&func.name, SymbolInfo {
+        kind: SymbolKind::Function,
+        is_pub: func.visibility == Visibility::Public,
+        // ...
+    });
+}
+for strukt in &program.structs {
+    symbols.declare(&strukt.name, SymbolInfo {
+        kind: SymbolKind::Struct,
+        is_pub: strukt.visibility == Visibility::Public,
+        // ...
+    });
+}
+for ta in &program.type_aliases {
+    symbols.declare(&ta.name, SymbolInfo {
+        kind: SymbolKind::TypeAlias,
+        is_pub: ta.visibility == Visibility::Public,
+        // ...
+    });
+}
+```
+
+- [ ] **Step 3: Update IR lowering to skip imports**
+
+In `omni-compiler/src/ir/mod.rs`, the IR lowering pass should skip import statements (they have no runtime representation — they're resolved at compile time):
+
+```rust
+// In the AST→IR lowering loop, skip all import variants:
+for item in &program.imports {
+    // Imports are fully resolved during semantic analysis.
+    // No IR instructions are generated for import statements.
+    match item {
+        ImportStmt::Named(_) | ImportStmt::Namespace(_)
+        | ImportStmt::TypeOnly(_) | ImportStmt::Lib(_) => {}
+    }
+}
+// Re-exports also generate no IR:
+for _exp in &program.exports {
+    // Re-exports are a compile-time construct only.
+}
+```
+
+- [ ] **Step 4: Update single-file FFI functions**
+
+The existing `omni_compile_to_ir` and `omni_compile_to_omniview` C FFI functions in `lib.rs` use the single-file `compile()` pipeline. Ensure they handle the new AST variants gracefully (skip imports, respect visibility):
+
+```rust
+// In the single-file compile() function, after parsing:
+// Skip imports (they can't be validated in single-file mode, so emit a warning)
+for import in &program.imports {
+    match import {
+        ImportStmt::Named(n) | ImportStmt::TypeOnly(n) => {
+            // Single-file mode: imports can't be validated, emit warning
+            // but don't fail — the multi-file API should be used instead
+        }
+        ImportStmt::Namespace(ns) => { /* same */ }
+        ImportStmt::Lib(_) => { /* mode marker, already handled */ }
+    }
+}
+```
+
+- [ ] **Step 5: Verify compilation**
+
+```bash
+cd omni-compiler && cargo check 2>&1
+```
+
+Expected: no `todo!()` panics remain, all match arms covered.
+
+- [ ] **Step 6: Run full test suite**
+
+```bash
+cd omni-compiler && cargo test
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add omni-compiler/src/semantic/mod.rs omni-compiler/src/ir/mod.rs omni-compiler/src/lib.rs
+git commit -m "feat(rust-semantic): handle new import variants in semantic analysis and IR, update single-file FFI"
+```
+
+---
+
+### Task 3.3: Add Rust parser tests for new syntax
 
 **Files:**
 - Modify: `omni-compiler/tests/parser_tests.rs`
@@ -1960,6 +2295,16 @@ git commit -m "feat(codegen-ui): add import/export generation for React, Vue, Di
 
 ```python
 @dataclass
+class SourceConfig:
+    """[source] section in .omnilang.toml"""
+    dir: str = "src"
+
+@dataclass
+class OutputConfig:
+    """[output] section in .omnilang.toml"""
+    dir: str = "build"
+
+@dataclass
 class OmniConfig:
     """Root configuration for an OmniLang project."""
     project_name: str = ""
@@ -1981,9 +2326,9 @@ class OmniConfig:
     # Analyze
     analyze: AnalyzeConfig = field(default_factory=AnalyzeConfig)
     
-    # Source management
-    source_dir: str = "src"
-    output_dir: str = "build"
+    # Source/output (matches spec: [source] and [output] TOML sections)
+    source: SourceConfig = field(default_factory=SourceConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
 ```
 
 - [ ] **Step 2: Update `load_config` to parse new fields**
@@ -1991,12 +2336,17 @@ class OmniConfig:
 In `load_config()`, add parsing for `ui_target` and `aliases`:
 
 ```python
+raw_source = raw.get("source", {})
+raw_output = raw.get("output", {})
+
 config = OmniConfig(
     project_name=project.get("name", ""),
     project_version=project.get("version", "0.1.0"),
     targets=project.get("targets", ["rust", "dart", "js", "python"]),
     ui_target=project.get("ui_target", ""),      # NEW
     aliases=raw.get("aliases", {}),               # NEW
+    source=SourceConfig(dir=raw_source.get("dir", "src")),    # NEW nested
+    output=OutputConfig(dir=raw_output.get("dir", "build")),  # NEW nested
     # ... rest unchanged
 )
 ```
@@ -2017,10 +2367,11 @@ version = "0.1.0"
 # "@components" = "./src/components"
 # "@lib" = "./src/lib"
 
-# ── Source ─────────────────────────────────────
+[source]
+dir = "src"
 
-# source_dir = "src"
-# output_dir = "build"
+[output]
+dir = "build"
 
 # ── Target-specific options ────────────────────
 
@@ -2074,47 +2425,55 @@ def build_command(args):
     # Load project config
     config = load_config()
     
-    # Find entry file
-    entry = Path(args.file or (config.source_dir / 'main.omni'))
+    # Find entry file (uses [source] section per spec)
+    source_dir = Path(config.source.dir)
+    entry = Path(args.file or (source_dir / 'main.omni'))
     if not entry.exists():
         print(f"error: entry file '{entry}' not found")
         sys.exit(1)
     
     # Set up resolver with aliases from config
-    project_root = entry.parent.parent if entry.parent.name == config.source_dir else Path.cwd()
+    project_root = entry.parent.parent if entry.parent.name == source_dir.name else Path.cwd()
     resolver = ModuleResolver(
         project_root=project_root,
         aliases=config.aliases,
     )
     
-    # Load all transitive imports
+    # Load all transitive imports + path mapping
     loader = ModuleLoader(str(project_root))
     loader.resolver = resolver
     
     try:
-        source_map = loader.build_source_map(str(entry))
+        source_map, path_mapping = loader.build_source_map(str(entry))
     except ValueError as e:
         print(f"error: {e}")
         sys.exit(1)
     
-    print(f"Compiling {len(source_map)} file(s)...")
+    print(f"Validating {len(source_map)} file(s)...")
     
-    # Try Rust DLL first
-    output_map = None
+    # Phase 1: Rust cross-file validation (optional, graceful fallback)
+    rust_ok = False
     try:
         from omniview.codegen.rust_bridge import RustBridge
         bridge = RustBridge()
         if bridge.available:
-            output_map = bridge.compile_multi(source_map, config.targets)
-    except Exception:
-        pass
+            result = bridge.validate_multi(source_map, path_mapping)
+            if not result.get('success'):
+                for err in result.get('errors', []):
+                    print(f"  error: {err}", file=sys.stderr)
+                sys.exit(1)
+            rust_ok = True
+            print("  cross-file validation passed (Rust)")
+    except ImportError:
+        print("  (Rust bridge not available, skipping cross-file validation)")
+    except Exception as e:
+        print(f"  warning: Rust bridge error: {e}")
     
-    # Python fallback: compile file-by-file
-    if output_map is None:
-        output_map = _python_multi_compile(source_map, config)
+    # Phase 2: Python codegen (always runs, handles all 8 targets)
+    output_map = _python_multi_compile(source_map, config)
     
-    # Write outputs
-    output_dir = Path(config.output_dir)
+    # Write outputs (uses [output] section per spec)
+    output_dir = Path(config.output.dir)
     for file_path, code in output_map.items():
         out_path = output_dir / Path(file_path).relative_to(project_root)
         out_path = out_path.with_suffix(_target_extension(config))
@@ -2171,66 +2530,115 @@ git commit -m "feat(cli): update build command for multi-file compilation with c
 
 ---
 
-### Task 5.3: Update Rust FFI to match multi-file API
+### Task 5.3: Update Rust FFI and Python RustBridge
 
 **Files:**
 - Modify: `omni-compiler/src/lib.rs`
+- Verify/Create: `omniview/codegen/rust_bridge.py`
 
-- [ ] **Step 1: Add multi-file C FFI export**
+- [ ] **Step 0: Verify `RustBridge` base class exists**
+
+Check if `omniview/codegen/rust_bridge.py` exists. If not, create it with the base class:
+
+```python
+"""Rust compiler DLL bridge via C FFI (cdylib) or WASM."""
+import sys
+import json
+from ctypes import CDLL, c_char_p, byref
+
+class RustBridge:
+    """Bridge to the Rust compiler DLL. Gracefully degrades if DLL not available."""
+    
+    def __init__(self):
+        self._lib = None
+        self.available = False
+        try:
+            # Try loading the native DLL
+            self._lib = CDLL('./omni_compiler.dll')  # or .so/.dylib per platform
+            self.available = True
+        except OSError:
+            pass
+    
+    def _call(self, func_name: str, *args: str) -> str:
+        """Call a C FFI function that takes C strings and returns a C string."""
+        func = getattr(self._lib, func_name)
+        func.restype = c_char_p
+        c_args = [c_char_p(arg.encode('utf-8')) for arg in args]
+        result = func(*c_args)
+        return result.decode('utf-8') if isinstance(result, bytes) else str(result)
+```
+
+- [ ] **Step 1: Add multi-file C FFI export (validation only)**
+
+In `omni-compiler/src/lib.rs`, add the C FFI wrapper:
 
 ```rust
-/// Compile multiple .omni sources. Receives JSON `{ "path": "source", ... }`,
-/// returns JSON `{ "success": true, "outputs": { "path": "code", ... }, "errors": [] }`.
+/// Validate multiple .omni sources with cross-file checks.
+/// Receives JSON:
+///   `{ "sources": { "path": "source", ... }, "path_mapping": { "orig": "resolved", ... } }`
+/// Returns JSON:
+///   `{ "success": true/false, "errors": ["..."] }`
 #[no_mangle]
-pub extern "C" fn omni_compile_multi(
-    sources_json: *const c_char,
-    targets_json: *const c_char,
+pub extern "C" fn omni_validate_multi(
+    input_json: *const c_char,
 ) -> *mut c_char {
-    let sources_str = unsafe { CStr::from_ptr(sources_json) }.to_str().unwrap_or("");
-    let targets_str = unsafe { CStr::from_ptr(targets_json) }.to_str().unwrap_or("");
+    let input_str = unsafe { CStr::from_ptr(input_json) }.to_str().unwrap_or("{}");
     
-    let sources: HashMap<String, String> = serde_json::from_str(sources_str).unwrap_or_default();
-    let targets: Vec<&str> = serde_json::from_str(targets_str).unwrap_or_default();
+    #[derive(Deserialize)]
+    struct MultiInput {
+        sources: HashMap<String, String>,
+        path_mapping: HashMap<String, String>,
+    }
     
-    let result = compile_multi(sources, &targets);
+    let input: MultiInput = serde_json::from_str(input_str).unwrap_or(MultiInput {
+        sources: HashMap::new(),
+        path_mapping: HashMap::new(),
+    });
+    
+    let result = validate_multi(input.sources, input.path_mapping);
     let json = serde_json::to_string(&result).unwrap_or_else(|_| {
-        r#"{"success":false,"outputs":{},"errors":["serialization failed"]}"#.to_string()
+        r#"{"success":false,"programs":{},"errors":["serialization failed"]}"#.to_string()
     });
     
     CString::new(json).unwrap().into_raw()
 }
 ```
 
-- [ ] **Step 2: Update Python `RustBridge` to use new API**
+- [ ] **Step 2: Update Python `RustBridge` with `validate_multi` method**
 
-In `omniview/codegen/rust_bridge.py`, add `compile_multi` method:
+Add to `omniview/codegen/rust_bridge.py`:
 
 ```python
-def compile_multi(self, source_map: dict[str, str], targets: list[str]) -> dict[str, str] | None:
-    """Call omni_compile_multi via FFI."""
+def validate_multi(self, source_map: dict[str, str], path_mapping: dict[str, str]) -> dict | None:
+    """Call omni_validate_multi via FFI for cross-file validation.
+    
+    Returns the result dict with 'success' and 'errors' keys, or None if unavailable.
+    """
     if not self.available:
         return None
     
     import json
-    sources_json = json.dumps(source_map)
-    targets_json = json.dumps(targets)
+    input_data = {
+        'sources': source_map,
+        'path_mapping': path_mapping,
+    }
+    input_json = json.dumps(input_data)
     
-    result_json = self._call('omni_compile_multi', sources_json, targets_json)
+    result_json = self._call('omni_validate_multi', input_json)
     result = json.loads(result_json)
     
-    if result.get('success'):
-        return result.get('outputs', {})
-    else:
+    if not result.get('success'):
         for err in result.get('errors', []):
             print(f"  error: {err}", file=sys.stderr)
-        return None
+    
+    return result
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add omni-compiler/src/lib.rs omniview/codegen/rust_bridge.py
-git commit -m "feat(rust-ffi): add omni_compile_multi C FFI for multi-file compilation"
+git commit -m "feat(rust-ffi): add omni_validate_multi C FFI, create Python RustBridge base class"
 ```
 
 ---
@@ -2240,7 +2648,7 @@ git commit -m "feat(rust-ffi): add omni_compile_multi C FFI for multi-file compi
 ### Task 6.1: Update editor `.omni.json` schema docs
 
 **Files:**
-- Modify: `editor/server/omni_json/schema.py` (or relevant schema file)
+- Modify: `editor/server/omni_json/schema.py` (verify path exists; if `editor/server/omni_json/` doesn't exist, create the directory and `schema.py`)
 
 - [ ] **Step 1: Document `.omni.json` role change**
 
@@ -2279,7 +2687,8 @@ After all phases are complete, run the full verification:
 - [ ] **Rust parser tests**: `cargo test --test parser_tests` — all 16+ tests pass
 - [ ] **Rust lexer tests**: `cargo test --test lexer_tests` — all 18+ tests pass
 - [ ] **Module loader boundary test**: Logic file importing view file raises error
-- [ ] **Module loader source map**: `build_source_map()` returns correct map
+- [ ] **Module loader source map**: `build_source_map()` returns (source_map, path_mapping) tuple with correct mappings
+- [ ] **Omniview double-check**: File with `import omniview;` but no UI declarations → error; file with UI but no `import omniview;` → error
 - [ ] **Resolver .omni enforcement**: Missing `.omni` extension returns None
 - [ ] **Resolver aliases**: `@alias/path.omni` resolves correctly from config
 - [ ] **JS codegen**: All 5 import variants emit correct ES module syntax
@@ -2294,7 +2703,11 @@ After all phases are complete, run the full verification:
 - [ ] **Config validation**: Invalid `ui_target` produces clear error
 - [ ] **Config template**: `omnic init` generates `.omnilang.toml` with aliases section
 - [ ] **Config loading**: Aliases from `.omnilang.toml` flow to resolver
-- [ ] **Rust FFI**: `omni_compile_multi` accepts and returns JSON maps
+- [ ] **Rust semantic analysis**: Import variants processed in all 5 passes, no `todo!()` panics
+- [ ] **Rust IR lowering**: Import statements skipped (no runtime representation)
+- [ ] **Rust FFI**: `omni_validate_multi` accepts JSON `{sources, path_mapping}` and returns validation result
+- [ ] **RustBridge**: Python `RustBridge` base class exists and `validate_multi` method calls FFI correctly
 - [ ] **Backward compat**: Old-style `import { X } from "path"` still works
 - [ ] **Backward compat**: `import omniview;` still works as mode marker
+- [ ] **Backward compat**: `omni_compile_to_ir` / `omni_compile_to_omniview` single-file FFI still works (imports skipped gracefully)
 - [ ] **No regressions**: All existing tests pass (`cargo test`, `pytest`)
