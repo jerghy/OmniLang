@@ -12,5 +12,10 @@
     "grammars": [{ "language": "omnilang", "scopeName": "source.omni", "path": "./syntaxes/omnilang.tmLanguage.json" }],
     "snippets": [{ "language": "omnilang", "path": "./snippets/omnilang.json" }]
   },
-  "scripts": { "package": "vsce package" }
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
 }

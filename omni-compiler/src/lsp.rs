@@ -1581,5 +1581,36 @@ mod tests {
         let result3 = find_symbol_at_cursor(&ctx3);
         assert!(result3.is_some(), "Should find 'greet' at offset 3");
         assert_eq!(result3.unwrap().0, "greet");
+
+        // Test at usage site: "greet" is called at byte offset 53
+        // Source: "fn greet(name: String) -> String {\n    return name;\n}\n"
+        // Line 2: "    return name;" — 'name' is at byte 49-53
+        // Let's test with a source that has a usage:
+        let source2 = "fn greet(name: String) -> String {\n    return name;\n}\n\nfn main() {\n    greet(\"World\");\n}\n";
+        // 'greet' at usage: "    greet(\"World\");" — 'g' at col 5 (0-indexed)
+        // Line 5 is the 6th line: offset = 66 (5 lines before) + 5 (col 4, 0-indexed) = 71
+        // Wait, debug showed offset 70 = col 4 (space), offset 71 = col 5 ('g')
+        let greet_usage_offset = 71usize;
+        let ctx_usage = AnalysisContext::new(&AnalysisRequest {
+            files: vec![SourceFile {
+                path: "test.omni".to_string(),
+                content: source2.to_string(),
+                is_open: true,
+            }],
+            primary_file: "test.omni".to_string(),
+            operation: Operation::Hover,
+            cursor_offset: greet_usage_offset,
+            extra: Extra::default(),
+        });
+        let syms2 = ctx_usage.cross_symbols.get("test.omni").unwrap();
+        println!("Symbols count: {}", syms2.len());
+        for (name, kind, span) in syms2 {
+            println!("  {}: line={} col={} start={} end={}",
+                name, span.line, span.col, span.start, span.end);
+        }
+        let result_usage = find_symbol_at_cursor(&ctx_usage);
+        println!("find_symbol_at_cursor at usage offset {}: {:?}", greet_usage_offset, result_usage);
+        assert!(result_usage.is_some(), "Should find 'greet' at usage site offset {}", greet_usage_offset);
+        assert_eq!(result_usage.unwrap().0, "greet");
     }
 }

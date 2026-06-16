@@ -236,27 +236,89 @@ class OmniLangServer:
     # ── Main loop ────────────────────────────────────
 
     def start(self):
-        """Start the LSP server on stdio."""
+        """Start the LSP server on stdio with proper LSP message framing."""
         while True:
             try:
-                line = sys.stdin.readline()
-                if not line:
+                msg = self._read_message()
+                if msg is None:
                     break
-                self._handle_message(line.strip())
+                self._handle_message(msg)
             except EOFError:
                 break
             except Exception as e:
                 self._send_error(str(e))
 
-    def _handle_message(self, raw: str):
-        """Parse and dispatch an LSP message."""
+    @staticmethod
+    def _read_message() -> dict | None:
+        """Read one LSP message from stdin.
+
+        Uses binary stdin (sys.stdin.buffer) to avoid Windows \\r\\n
+        text-mode corruption. Supports two formats:
+          - LSP framing: Content-Length: <N>\\r\\n\\r\\n<json>
+          - Raw JSON:     single-line JSON (for manual testing)
+
+        Returns parsed JSON dict, or None on EOF.
+        """
+        import sys as _sys
+
+        # Use binary stdin to avoid newline conversion on Windows
+        stdin_bin = getattr(_sys.stdin, 'buffer', _sys.stdin)
+
+        # Read the first byte to check if it's JSON or framing
+        first_byte = stdin_bin.read(1)
+        if not first_byte or first_byte == b'':
+            return None
+
+        if first_byte == b'{':
+            # Raw JSON mode: read the rest of the line
+            rest = stdin_bin.readline()
+            line = (first_byte + rest).decode('utf-8').strip()
+            import json as _json
+            try:
+                return _json.loads(line)
+            except _json.JSONDecodeError:
+                return None
+
+        # LSP framing mode: read the full header line
+        header_line = (first_byte + stdin_bin.readline()).decode('utf-8')
+        header_stripped = header_line.strip()
+
+        content_length = 0
+        if header_stripped.lower().startswith("content-length:"):
+            try:
+                content_length = int(header_stripped.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+
+        # Read remaining headers until empty line (\\r\\n alone)
+        while True:
+            line = stdin_bin.readline()
+            if not line or line == b'':
+                return None
+            decoded = line.decode('utf-8').rstrip("\r\n")
+            if not decoded:
+                break
+            if decoded.lower().startswith("content-length:"):
+                try:
+                    content_length = int(decoded.split(":", 1)[1].strip())
+                except ValueError:
+                    pass
+
+        if content_length == 0:
+            return None
+
+        content_bytes = stdin_bin.read(content_length)
+        import json as _json
+        try:
+            return _json.loads(content_bytes.decode('utf-8'))
+        except _json.JSONDecodeError:
+            return None
+
+    def _handle_message(self, msg: dict):
+        """Dispatch an LSP message."""
         # Ensure pending diagnostics fire even if no further requests arrive
         self._run_pending_diagnostics()
 
-        try:
-            msg = json.loads(raw)
-        except json.JSONDecodeError:
-            return
         method = msg.get("method", "")
 
         if method == "initialize":
@@ -296,11 +358,13 @@ class OmniLangServer:
     # ── Send helpers ─────────────────────────────────
 
     def _send(self, msg: dict):
-        """Send an LSP message."""
+        """Send an LSP message (binary stdout to avoid Windows \\r\\n corruption)."""
         content = json.dumps(msg)
         header = f"Content-Length: {len(content)}\r\n\r\n"
-        sys.stdout.write(header + content)
-        sys.stdout.flush()
+        data = header + content
+        stdout_bin = getattr(sys.stdout, 'buffer', sys.stdout)
+        stdout_bin.write(data.encode('utf-8'))
+        stdout_bin.flush()
 
     def _send_result(self, msg_id: int | None, result: Any):
         self._send({"jsonrpc": "2.0", "id": msg_id, "result": result})
@@ -559,9 +623,6 @@ class OmniLangServer:
         """Call Rust analyze() for diagnostics and publish results."""
         from omnilang.rust_bridge import RustBridge
 
-        # Run pending diagnostics check before this one
-        self._run_pending_diagnostics()
-
         source = self.documents.get(uri, "")
         if not source:
             return
@@ -638,10 +699,26 @@ class OmniLangServer:
         col = pos.get("character", 0) + 1
         return uri, line, col
 
+    def _ensure_imports_resolved(self, uri: str):
+        """Eagerly resolve imports for a URI before semantic queries.
+
+        Diagnostics uses a 300ms debounce, but hover/definition/completion
+        requests may arrive earlier. This ensures the import graph is populated
+        so cross-file features work on the first request.
+        """
+        if uri in self.import_graph:
+            return
+        if uri not in self.documents:
+            return
+        self._pending_diagnostics.pop(uri, None)
+        self._publish_diagnostics(uri)
+
     def _call_analyze(self, msg: dict, operation: str, extra: dict | None = None):
         """Call Rust analyze() for a semantic operation, return parsed result."""
         from omnilang.rust_bridge import RustBridge
         uri, line, col = self._extract_position(msg)
+        # Resolve imports eagerly so cross-file features work immediately
+        self._ensure_imports_resolved(uri)
         request = self._build_analysis_request(uri, operation, line, col, extra)
         return RustBridge.analyze(request), uri
 
