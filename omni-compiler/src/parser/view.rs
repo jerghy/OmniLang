@@ -407,8 +407,19 @@ impl<'a> Parser<'a> {
 
         while self.peek_kind() == TokenKind::AtElse {
             self.advance();
+            // Handle both `@else @if` and `@else if` patterns
             if self.peek_kind() == TokenKind::AtIf {
                 self.advance(); // '@if' after '@else'
+                let cond = self.parse_expr()?;
+                self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                let mut b = Vec::new();
+                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                    b.push(self.parse_view_node()?);
+                }
+                self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                else_ifs.push((cond, b));
+            } else if self.peek_kind() == TokenKind::If {
+                self.advance(); // 'if' after '@else' (without @ prefix)
                 let cond = self.parse_expr()?;
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut b = Vec::new();

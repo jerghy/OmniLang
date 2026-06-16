@@ -591,21 +591,23 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
             ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback }))
         }
         ViewNode::ForDirective(for_dir) => {
-            let body = if for_dir.body.is_empty() {
-                None
-            } else {
-                Some(ViewTree::Element(ElementIR {
-                    tag: "fragment".into(),
-                    props: HashMap::new(),
-                    bindings: HashMap::new(),
-                    events: HashMap::new(),
-                    style_classes: None,
-                    inline_style: None,
-                    children: for_dir.body.iter().map(lower_view_node).collect(),
-                    test_id: None,
-                    ref_name: None,
-                    construction_kind: "list".into(),
-                }))
+            let lower_body = |nodes: &[ViewNode]| -> Option<ViewTree> {
+                if nodes.is_empty() {
+                    None
+                } else {
+                    Some(ViewTree::Element(ElementIR {
+                        tag: "fragment".into(),
+                        props: HashMap::new(),
+                        bindings: HashMap::new(),
+                        events: HashMap::new(),
+                        style_classes: None,
+                        inline_style: None,
+                        children: nodes.iter().map(lower_view_node).collect(),
+                        test_id: None,
+                        ref_name: None,
+                        construction_kind: "list".into(),
+                    }))
+                }
             };
 
             ViewTree::ListRendering(Box::new(ListRenderingIntent {
@@ -614,9 +616,9 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                     name: for_dir.item_name.clone(),
                     r#type: None,
                 },
-                body,
+                body: lower_body(&for_dir.body),
                 key_expr: None,
-                empty_body: None,
+                empty_body: for_dir.empty_body.as_ref().and_then(|nodes| lower_body(nodes.as_slice())),
             }))
         }
         ViewNode::SlotDirective(name) => ViewTree::Text(format!("<slot name={:?}>", name)),

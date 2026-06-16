@@ -35,6 +35,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         node_counter: 0,
         current_nid_path: Vec::new(),
         signal_names: std::collections::HashSet::new(),
+        in_for_template: false,
     };
 
     gen.emit_js_header();
@@ -64,6 +65,9 @@ struct OmniViewGenerator {
     current_nid_path: Vec<String>,
     /// Set of signal names in the current component (for .value / .set() generation)
     signal_names: std::collections::HashSet<String>,
+    /// When true, we're generating HTML for a @for template.
+    /// Text interpolations use data-bind-text markers instead of _effect() calls.
+    in_for_template: bool,
 }
 
 impl OmniViewGenerator {
@@ -388,25 +392,235 @@ function _bindText(nid) {
                 }
             }
             ViewTree::Conditional(cond) => {
-                // @if/@else — generate placeholder with all branches
-                // For now, emit a comment + the first branch as default
-                let mut out = format!("{}<!-- @if conditional -->\n", pad);
-                if let Some(first) = cond.branches.first() {
-                    if let Some(ref body) = first.body {
-                        out.push_str(&self.view_to_html(body, indent));
-                    }
-                }
-                out
+                self.emit_conditional_html(cond, indent)
             }
             ViewTree::ListRendering(list) => {
-                // @for — generate placeholder
-                let mut out = format!("{}<!-- @for {} in ... -->\n", pad, list.item_binding.name);
-                if let Some(ref body) = list.body {
-                    out.push_str(&self.view_to_html(body, indent));
-                }
-                out
+                self.emit_list_rendering_html(list, indent)
             }
         }
+    }
+
+    /// Generate HTML + JS for @if/@else-if/@else conditional rendering.
+    ///
+    /// Strategy:
+    ///   - Generate each branch's HTML in a hidden wrapper div.
+    ///   - Generate a JS _effect() that evaluates conditions and toggles display.
+    fn emit_conditional_html(&mut self, cond: &ConditionalIntent, indent: usize) -> String {
+        let pad = "  ".repeat(indent);
+        let nid = self.next_nid("if");
+        let mut out = String::new();
+        let mut branch_nids: Vec<String> = Vec::new();
+
+        // Generate HTML for each branch (all hidden by default)
+        for (i, branch) in cond.branches.iter().enumerate() {
+            let branch_nid = format!("{}-b{}", nid, i);
+            let display = if i == 0 { "block" } else { "none" };
+            out.push_str(&format!(
+                "{}<div data-nid=\"{}\" style=\"display:{}\">\n",
+                pad, branch_nid, display
+            ));
+            if let Some(ref body) = branch.body {
+                out.push_str(&self.view_to_html(body, indent + 1));
+            }
+            out.push_str(&format!("{}</div>\n", pad));
+            branch_nids.push(branch_nid);
+        }
+
+        // Fallback branch (else)
+        let fallback_nid = if cond.fallback.is_some() {
+            let fb_nid = format!("{}-else", nid);
+            out.push_str(&format!(
+                "{}<div data-nid=\"{}\" style=\"display:none\">\n",
+                pad, fb_nid
+            ));
+            if let Some(ref fallback) = cond.fallback {
+                out.push_str(&self.view_to_html(fallback, indent + 1));
+            }
+            out.push_str(&format!("{}</div>\n", pad));
+            Some(fb_nid)
+        } else {
+            None
+        };
+
+        // Generate the reactive JS _effect()
+        let mut conditions_js = Vec::new();
+        for (i, branch) in cond.branches.iter().enumerate() {
+            let cond_js = self.expr_to_js(&branch.condition);
+            conditions_js.push((cond_js, branch_nids[i].clone()));
+        }
+
+        self.js.push_str(&format!(
+            "\n/// ── @if conditional {} ──\n", nid
+        ));
+        self.js.push_str(&format!(
+            "_effect(() => {{\n"
+        ));
+
+        // For each branch, build the if/else if chain
+        for (i, (cond_js, branch_nid)) in conditions_js.iter().enumerate() {
+            let if_word = if i == 0 { "if" } else { "else if" };
+            self.js.push_str(&format!(
+                "  {} ({}) {{\n", if_word, cond_js
+            ));
+            // Show this branch
+            self.js.push_str(&format!(
+                "    const el = _el(\"{}\"); if (el) el.style.display = \"block\";\n",
+                branch_nid
+            ));
+            // Hide all other branches
+            for other in &branch_nids {
+                if other != branch_nid {
+                    self.js.push_str(&format!(
+                        "    const o = _el(\"{}\"); if (o) o.style.display = \"none\";\n",
+                        other
+                    ));
+                }
+            }
+            if let Some(ref fb) = fallback_nid {
+                self.js.push_str(&format!(
+                    "    const f = _el(\"{}\"); if (f) f.style.display = \"none\";\n",
+                    fb
+                ));
+            }
+            self.js.push_str("  }\n");
+        }
+
+        // Else clause (fallback)
+        if let Some(ref fb_nid) = fallback_nid {
+            self.js.push_str("  else {\n");
+            self.js.push_str(&format!(
+                "    const el = _el(\"{}\"); if (el) el.style.display = \"block\";\n",
+                fb_nid
+            ));
+            for other in &branch_nids {
+                self.js.push_str(&format!(
+                    "    const o = _el(\"{}\"); if (o) o.style.display = \"none\";\n",
+                    other
+                ));
+            }
+            self.js.push_str("  }\n");
+        }
+
+        self.js.push_str("});\n");
+
+        out
+    }
+
+    /// Generate HTML + JS for @for list rendering.
+    ///
+    /// Strategy:
+    ///   - Generate a `<template>` element containing one item's HTML.
+    ///   - Generate a container div.
+    ///   - Generate a JS _effect() that iterates the data and clones the template.
+    fn emit_list_rendering_html(&mut self, list: &ListRenderingIntent, indent: usize) -> String {
+        let pad = "  ".repeat(indent);
+        let nid = self.next_nid("for");
+        let template_nid = format!("{}-tpl", nid);
+        let container_nid = format!("{}-ctr", nid);
+        let item_var = &list.item_binding.name;
+        let iterable_js = self.expr_to_js(&list.iterable);
+
+        // Generate template for one item (with in_for_template flag)
+        let item_html = if let Some(ref body) = list.body {
+            self.in_for_template = true;
+            let html = self.view_to_html(body, indent + 1);
+            self.in_for_template = false;
+            html
+        } else {
+            format!("{}  <!-- empty item -->\n", pad)
+        };
+
+        let mut out = String::new();
+        out.push_str(&format!(
+            "{}<template data-nid=\"{}\">\n{}</template>\n",
+            pad, template_nid, item_html
+        ));
+        out.push_str(&format!(
+            "{}<div data-nid=\"{}\">\n",
+            pad, container_nid
+        ));
+
+        // Empty state placeholder
+        if list.empty_body.is_some() {
+            let empty_nid = format!("{}-empty", nid);
+            out.push_str(&format!(
+                "{}  <div data-nid=\"{}\">\n", pad, empty_nid
+            ));
+            if let Some(ref empty_body) = list.empty_body {
+                out.push_str(&self.view_to_html(empty_body, indent + 2));
+            }
+            out.push_str(&format!("{}  </div>\n", pad));
+        }
+
+        out.push_str(&format!("{}</div>\n", pad));
+
+        // Generate the reactive JS _effect()
+        self.js.push_str(&format!(
+            "\n/// ── @for {item} in ... ──\n", item = item_var
+        ));
+        self.js.push_str(&format!(
+            "_effect(() => {{\n"
+        ));
+        self.js.push_str(&format!(
+            "  const data = {};\n", iterable_js
+        ));
+        self.js.push_str(&format!(
+            "  const tpl = _el(\"{}\");\n", template_nid
+        ));
+        self.js.push_str(&format!(
+            "  const ctr = _el(\"{}\");\n", container_nid
+        ));
+        self.js.push_str("  if (!tpl || !ctr) return;\n");
+
+        // Re-render loop: clear container, clone template for each item
+        self.js.push_str("  // Clear existing rendered items\n");
+        self.js.push_str(&format!(
+            "  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n"
+        ));
+
+        // Handle empty state
+        if list.empty_body.is_some() {
+            let empty_nid = format!("{}-empty", nid);
+            self.js.push_str(&format!(
+                "  const emptyEl = _el(\"{}\");\n", empty_nid
+            ));
+            self.js.push_str("  if (!data || data.length === 0) {\n");
+            self.js.push_str("    if (emptyEl) emptyEl.style.display = \"block\";\n");
+            self.js.push_str("    return;\n");
+            self.js.push_str("  }\n");
+            self.js.push_str("  if (emptyEl) emptyEl.style.display = \"none\";\n");
+        } else {
+            self.js.push_str("  if (!data || data.length === 0) return;\n");
+        }
+
+        // Iterate and clone
+        self.js.push_str(&format!(
+            "  data.forEach(({}, _idx) => {{\n", item_var
+        ));
+        self.js.push_str("    const clone = tpl.content.firstElementChild.cloneNode(true);\n");
+        self.js.push_str("    clone.setAttribute('data-for-item', _idx);\n");
+        self.js.push_str("    // Bind text interpolation markers\n");
+        self.js.push_str(&format!(
+            "    clone.querySelectorAll('[data-bind-text]').forEach(el => {{\n"
+        ));
+        self.js.push_str(&format!(
+            "      const expr = el.getAttribute('data-bind-text');\n"
+        ));
+        self.js.push_str("      if (expr) {\n");
+        self.js.push_str("        try {\n");
+        self.js.push_str(&format!(
+            "          el.textContent = String(({{ {} }})[expr]);\n",
+            item_var
+        ));
+        self.js.push_str("        } catch(e) { el.textContent = ''; }\n");
+        self.js.push_str("      }\n");
+        self.js.push_str("    });\n");
+        self.js.push_str("    ctr.appendChild(clone);\n");
+        self.js.push_str("  });\n");
+
+        self.js.push_str("});\n");
+
+        out
     }
 
     fn element_to_html(&mut self, el: &ElementIR, indent: usize) -> String {
@@ -495,6 +709,27 @@ function _bindText(nid) {
             }
         }
 
+        // Pre-scan children for interpolations → add data-bind-text to attrs
+        // This MUST happen BEFORE writing the opening tag
+        let mut interp_effects: Vec<String> = Vec::new();
+        for child in &el.children {
+            if let ViewTree::Text(ref text) = child {
+                if text.starts_with('{') && text.ends_with('}') {
+                    let expr = &text[1..text.len() - 1];
+                    if self.in_for_template {
+                        // Inside @for template: use data-bind-text marker
+                        attrs.push_str(&format!(" data-bind-text=\"{}\"", expr));
+                    } else {
+                        // Generate reactive text binding for signals after DOM insert
+                        interp_effects.push(format!(
+                            "_effect(() => {{ const el = _el(\"{}\"); if (el) el.textContent = String({}.value); }});\n",
+                            nid, expr
+                        ));
+                    }
+                }
+            }
+        }
+
         // Self-closing tags
         let void_tags = [
             "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
@@ -508,26 +743,16 @@ function _bindText(nid) {
 
         // Children
         for child in &el.children {
-            // Check for text interpolation
             let child_html = self.view_to_html(child, indent + 1);
             out.push_str(&child_html);
         }
 
-        // Check if any children are interpolations → reactive text binding
-        for child in &el.children {
-            if let ViewTree::Text(ref text) = child {
-                if text.starts_with('{') && text.ends_with('}') {
-                    let expr = &text[1..text.len() - 1];
-                    // Generate reactive text binding
-                    self.js.push_str(&format!(
-                        "_effect(() => {{ const el = _el(\"{}\"); if (el) el.textContent = String({}.value); }});\n",
-                        nid, expr
-                    ));
-                }
-            }
-        }
-
         out.push_str(&format!("{}</{}>\n", pad, html_tag));
+
+        // Emit any interpolation _effect() calls
+        for effect in &interp_effects {
+            self.js.push_str(effect);
+        }
 
         // Record source map entry
         self.source_map.push(SourceMapEntry {
