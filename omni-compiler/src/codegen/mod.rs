@@ -10,6 +10,7 @@ pub mod python;
 pub mod javascript;
 pub mod rust;
 pub mod dart;
+pub mod react;
 
 use std::collections::HashMap;
 
@@ -172,9 +173,7 @@ pub fn compile(
         Target::TypeScript => javascript::JavaScriptCodegen::new(true).generate(ir, source_files),
         Target::Rust => rust::RustCodegen.generate(ir, source_files),
         Target::Dart => dart::DartCodegen.generate(ir, source_files),
-        Target::React => {
-            CompileOutput::error("React codegen not yet implemented in Rust".into())
-        }
+        Target::React => react::ReactCodegen.generate(ir, source_files),
         Target::Vue => {
             CompileOutput::error("Vue codegen not yet implemented in Rust".into())
         }
