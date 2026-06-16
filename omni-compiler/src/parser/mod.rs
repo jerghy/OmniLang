@@ -6,10 +6,6 @@ use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
 use ast::Program;
 
-fn eof_token() -> Token {
-    Token::new(TokenKind::Eof, 0, 0, 0, 0)
-}
-
 /// Parse a token stream into an AST Program.
 pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
     let mut parser = Parser::new(tokens);
@@ -28,7 +24,10 @@ impl<'a> Parser<'a> {
     }
 
     fn peek(&self) -> Token {
-        self.tokens.get(self.pos).cloned().unwrap_or_else(eof_token)
+        self.tokens
+            .get(self.pos)
+            .cloned()
+            .unwrap_or_else(|| Token::new(TokenKind::Eof, 0, 0, 0, 0))
     }
 
     fn peek_kind(&self) -> TokenKind {
@@ -46,7 +45,7 @@ impl<'a> Parser<'a> {
         t
     }
 
-    fn expect(&mut self, msg: &str) -> Result<Token, ParseError> {
+    fn expect_advance(&mut self, msg: &str) -> Result<Token, ParseError> {
         let t = self.peek();
         if matches!(t.kind, TokenKind::Eof) {
             return Err(ParseError {
@@ -57,15 +56,113 @@ impl<'a> Parser<'a> {
         Ok(self.advance())
     }
 
-    fn parse_program(&mut self) -> Result<Program, ParseError> {
+    /// Parse a complete OmniLang program.
+    pub fn parse_program(&mut self) -> Result<Program, ParseError> {
+        let mut components = Vec::new();
+        let mut stores = Vec::new();
+        let mut themes = Vec::new();
+        let mut functions = Vec::new();
+        let mut structs = Vec::new();
+        let mut tagged_unions = Vec::new();
+        let mut imports = Vec::new();
+
+        while self.peek_kind() != TokenKind::Eof {
+            match self.peek_kind() {
+                TokenKind::Component => {
+                    components.push(self.parse_component_def()?);
+                }
+                TokenKind::Store => {
+                    stores.push(self.parse_store_def()?);
+                }
+                TokenKind::Theme => {
+                    themes.push(self.parse_theme_def()?);
+                }
+                TokenKind::Import => {
+                    imports.push(self.parse_import()?);
+                }
+                TokenKind::Fn => {
+                    functions.push(self.parse_function_def()?);
+                }
+                TokenKind::Struct => {
+                    structs.push(self.parse_struct_def()?);
+                }
+                TokenKind::Type => {
+                    // Type alias or tagged union
+                    tagged_unions.push(self.parse_tagged_union_def()?);
+                }
+                _ => {
+                    let t = self.advance();
+                    return Err(ParseError {
+                        message: format!(
+                            "Unexpected token at top level: {:?}",
+                            t.kind
+                        ),
+                        span: t.span,
+                    });
+                }
+            }
+        }
+
         Ok(Program {
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
-            functions: vec![],
-            structs: vec![],
-            tagged_unions: vec![],
-            imports: vec![],
+            components,
+            stores,
+            themes,
+            functions,
+            structs,
+            tagged_unions,
+            imports,
+        })
+    }
+
+    // ── Top-level parsers ─────────────────────────────
+
+    fn parse_component_def(&mut self) -> Result<ast::ComponentDef, ParseError> {
+        // TODO: implement component parsing (Task 1.4 sub-steps)
+        Err(ParseError {
+            message: "component parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_store_def(&mut self) -> Result<ast::StoreDef, ParseError> {
+        Err(ParseError {
+            message: "store parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_theme_def(&mut self) -> Result<ast::ThemeDef, ParseError> {
+        Err(ParseError {
+            message: "theme parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_function_def(&mut self) -> Result<ast::FunctionDef, ParseError> {
+        Err(ParseError {
+            message: "function parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_struct_def(&mut self) -> Result<ast::StructDef, ParseError> {
+        Err(ParseError {
+            message: "struct parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_tagged_union_def(&mut self) -> Result<ast::TaggedUnionDef, ParseError> {
+        Err(ParseError {
+            message: "tagged union parsing not yet implemented".into(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_import(&mut self) -> Result<ast::ImportStmt, ParseError> {
+        Err(ParseError {
+            message: "import parsing not yet implemented".into(),
+            span: self.peek().span,
         })
     }
 }
