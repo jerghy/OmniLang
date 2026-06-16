@@ -1,0 +1,29 @@
+[package]
+name = "omni-compiler"
+version = "0.1.0"
+edition = "2021"
+description = "OmniLang compiler — .omni -> Intent IR -> target code"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# WASM support
+wasm-bindgen = { version = "0.2", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+
+# Error handling
+thiserror = "1"
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
+native = []
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
