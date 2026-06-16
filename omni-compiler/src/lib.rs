@@ -294,14 +294,6 @@ fn validate_file_consistency(
         || !program.stores.is_empty()
         || !program.themes.is_empty();
 
-    if has_omniview_marker && !has_ui_declarations {
-        errors.push(format!(
-            "{}: has 'import omniview;' but no component/store/theme declarations. \
-             Either add UI declarations or remove the omniview import.",
-            file_path
-        ));
-    }
-
     if !has_omniview_marker && has_ui_declarations {
         errors.push(format!(
             "{}: has UI declarations (component/store/theme) but missing 'import omniview;'. \
