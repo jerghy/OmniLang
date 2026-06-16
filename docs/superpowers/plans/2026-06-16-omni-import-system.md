@@ -759,7 +759,13 @@ git commit -m "feat(python-ast): add ImportNamespaceStmt, ExportFromStmt, is_pub
 
 - [ ] **Step 1: Update `omnilang/parser.py` program handler**
 
-In the `program` method, add handling for new statement types in the `for item in items` loop (around line 91):
+In the `program` method, add handling for new statement types in the `for item in items` loop (around line 91). Also initialize `type_aliases` accumulator list before the loop:
+
+```python
+type_aliases = []  # NEW accumulator
+```
+
+Inside the `for item in items` loop:
 
 ```python
 elif isinstance(item, ImportNamespaceStmt):
@@ -768,6 +774,8 @@ elif isinstance(item, ExportFromStmt):
     export_froms.append(item)
 elif isinstance(item, ImportTypeStmt):
     type_imports.append(item)
+elif isinstance(item, TypeAlias):
+    type_aliases.append(item)
 ```
 
 Update the `Program(...)` constructor call to include the new fields:
@@ -776,6 +784,7 @@ Update the `Program(...)` constructor call to include the new fields:
 return Program(
     functions=funcs,
     structs=structs,
+    type_aliases=type_aliases,           # NEW
     tagged_unions=tagged_unions,
     classes=classes,
     imports=imports,
@@ -823,9 +832,28 @@ def export_from_stmt(self, items):
         elif isinstance(item, Token) and item.type == "STRING_LIT":
             path = str(item)[1:-1]
     return ExportFromStmt(names=names, path=path, span=self._span(*items))
+
+def type_alias(self, items):
+    """Handle type_alias: ['pub'] 'type' CNAME ['<' generic_params '>'] '=' type_ann ';'
+    
+    Items may start with Token('pub') if declared pub.
+    """
+    is_pub = False
+    if items and isinstance(items[0], Token) and str(items[0]) == "pub":
+        is_pub = True
+        items = items[1:]  # skip pub token
+    # After optional 'pub', items: Token('type'), Token(CNAME), Token('='), type_ann, Token(';')
+    name = ""
+    type_ann = None
+    for item in items:
+        if isinstance(item, Token) and item.type == "CNAME":
+            name = str(item)
+        elif hasattr(item, 'type_name'):  # TypeAnnotation or similar AST node
+            type_ann = item
+    return TypeAlias(name=name, type_ann=type_ann, is_pub=is_pub, span=self._span(*items))
 ```
 
-- [ ] **Step 3: Handle `pub` modifier in function_def and struct_def**
+- [ ] **Step 3: Handle `pub` modifier in function_def, struct_def, and type_alias**
 
 In `function_def`, check for the `"pub"` keyword at the start of items. Add `is_pub=True` if present:
 
@@ -839,7 +867,7 @@ def function_def(self, items):
     # ... rest of existing parsing, pass is_pub=is_pub to FunctionDef(...)
 ```
 
-Same pattern for `struct_def`.
+Same pattern for `struct_def` and `type_alias` (the `type_alias` transformer method added in Step 2 already includes this logic).
 
 - [ ] **Step 4: Apply same changes to `omniview/parser.py`**
 
@@ -858,6 +886,8 @@ import type { Order } from \"./types.omni\";
 export { Button } from \"./ui.omni\";
 pub fn main() { return 1; }
 pub struct Point { x: i32; y: i32; }
+pub type ID = i32;
+type Secret = string;
 '''
 prog = parse(src)
 print('imports:', len(prog.imports))
@@ -865,10 +895,13 @@ print('lib_imports:', prog.lib_imports)
 print('type_imports:', len(prog.type_imports))
 print('namespace_imports:', len(prog.namespace_imports))
 print('export_froms:', len(prog.export_froms))
+print('type_aliases:', len(prog.type_aliases))
 for f in prog.functions:
     print(f'fn {f.name} is_pub={f.is_pub}')
 for s in prog.structs:
     print(f'struct {s.name} is_pub={s.is_pub}')
+for ta in prog.type_aliases:
+    print(f'type {ta.name} is_pub={ta.is_pub}')
 "
 ```
 
@@ -1702,6 +1735,16 @@ pub fn detect_cycles(
 }
 ```
 
+- [ ] **Step 5a: Register the cycles module in `semantic/mod.rs`**
+
+In `omni-compiler/src/semantic/mod.rs`, add the module declaration:
+
+```rust
+pub mod cycles;
+```
+
+This is required so Rust can find the `detect_cycles` function called in Step 1 (`use crate::semantic::cycles::detect_cycles`).
+
 - [ ] **Step 6: Verify compilation**
 
 ```bash
@@ -1727,9 +1770,21 @@ git commit -m "feat(rust-semantic): multi-file validation API, omniview double-c
 
 **Context:** Task 1.3 added `todo!()` catch-all arms in semantic analysis and IR lowering for the new `ImportStmt` enum variants and `ExportFrom`. This task replaces those with proper handling so the compiler doesn't panic at runtime.
 
-- [ ] **Step 1: Handle imports in semantic analysis passes**
+> **Note on `SymbolKind`:** The code in this task extends the **existing** `SymbolKind` enum in `omni-compiler/src/semantic/mod.rs` (the semantic analysis symbol table) with new variants: `Import`, `Namespace`, `TypeImport`, `ReExport`. This is a **different** enum from the cross-file validation `SymbolKind` defined in Task 3.1 Step 4 (which has variants `Function`, `Struct`, `TypeAlias`, `Component`, `Store`, `Theme`, `ReExport(String)`). The two enums serve different purposes — semantic symbol table vs. cross-file validation — and live in different modules. They happen to share some variant names but are distinct types.
 
-In `omni-compiler/src/semantic/mod.rs`, update each analysis pass to process the new import variants:
+- [ ] **Step 1: Extend the existing semantic `SymbolKind` enum**
+
+In `omni-compiler/src/semantic/mod.rs`, first extend the existing `SymbolKind` enum with new variants needed for imports:
+
+```rust
+// Add these variants to the EXISTING SymbolKind enum in semantic/mod.rs:
+Import,       // imported name (from named imports)
+Namespace,    // namespace alias (from namespace imports)
+TypeImport,   // type-only import
+ReExport,     // re-exported name
+```
+
+Then update each analysis pass to process the new import variants:
 
 ```rust
 // In the symbol collection pass (Pass 1), process all import variants:
@@ -1986,6 +2041,28 @@ fn test_parse_pub_struct() {
     assert_eq!(program.structs.len(), 1);
     assert_eq!(program.structs[0].visibility, Visibility::Public);
 }
+
+#[test]
+fn test_parse_pub_type_alias() {
+    let tokens = tokenize("pub type ID = i32;");
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    assert_eq!(program.type_aliases.len(), 1);
+    assert_eq!(program.type_aliases[0].visibility, Visibility::Public);
+    assert_eq!(program.type_aliases[0].name, "ID");
+}
+
+#[test]
+fn test_parse_private_type_alias() {
+    let tokens = tokenize("type Secret = string;");
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    assert_eq!(program.type_aliases.len(), 1);
+    assert_eq!(program.type_aliases[0].visibility, Visibility::Private);
+    assert_eq!(program.type_aliases[0].name, "Secret");
+}
 ```
 
 - [ ] **Step 2: Run all parser tests**
@@ -2008,7 +2085,7 @@ Expected: all tests pass.
 
 ```bash
 git add omni-compiler/tests/parser_tests.rs
-git commit -m "test(rust-parser): comprehensive import/export/pub tests (8 new tests)"
+git commit -m "test(rust-parser): comprehensive import/export/pub tests (10 new tests)"
 ```
 
 ---
