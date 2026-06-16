@@ -5,6 +5,8 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#style_block" },
+    { "include": "#jsx_tags" },
     { "include": "#numbers" },
     { "include": "#directives" },
     { "include": "#keywords" },
@@ -38,6 +40,44 @@
             { "name": "constant.character.escape.omni", "match": "\\\\." },
             { "name": "string.interpolated.omni", "begin": "\\$\\{", "end": "\\}" }
           ]
+        }
+      ]
+    },
+    "style_block": {
+      "name": "meta.style.omni",
+      "begin": "\\b(style)\\s*\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.omni" }
+      },
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        {
+          "name": "entity.other.attribute-name.css",
+          "match": "\\b[a-zA-Z_][\\w-]*(?=\\s*:)"
+        },
+        {
+          "name": "entity.name.tag.css",
+          "match": "\\.[a-zA-Z_][\\w-]*"
+        },
+        { "name": "constant.numeric.omni", "match": "\\b\\d+(\\.\\d+)?\\b" },
+        { "name": "keyword.operator.omni", "match": "[;:{}().]" }
+      ]
+    },
+    "jsx_tags": {
+      "patterns": [
+        {
+          "name": "support.class.component.omni",
+          "match": "</?[A-Z][a-zA-Z]*"
+        },
+        {
+          "name": "entity.name.tag.omni",
+          "match": "</?[a-z][a-zA-Z]*"
+        },
+        {
+          "name": "entity.other.attribute-name.omni",
+          "match": "\\b(onClick|bind:\\w+|class|style|placeholder|testId|type|id|key|ref|disabled|checked|value|htmlFor|href|src|alt|title|role|aria-\\w+|data-\\w+)\\b\\s*(?=\\=)"
         }
       ]
     },
