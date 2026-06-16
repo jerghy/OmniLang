@@ -36,15 +36,21 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         current_nid_path: Vec::new(),
         signal_names: std::collections::HashSet::new(),
         in_for_template: false,
+        deferred_js: String::new(),
+        all_deferred_js: String::new(),
+        dom_emitted: false,
     };
 
     gen.emit_js_header();
     gen.emit_signal_runtime();
 
-    // Generate each component
+    // Generate each component (signals, fns, accumulate views)
     for (comp_name, comp) in &ir.components {
         gen.generate_component(comp_name, comp);
     }
+
+    // Emit ONE innerHTML insertion with accumulated HTML + ALL deferred bindings
+    gen.emit_dom_and_bindings();
 
     gen.finalize_js();
 
@@ -68,6 +74,13 @@ struct OmniViewGenerator {
     /// When true, we're generating HTML for a @for template.
     /// Text interpolations use data-bind-text markers instead of _effect() calls.
     in_for_template: bool,
+    /// Deferred event/reactive binding JS — emitted AFTER DOM insertion.
+    /// This ensures the DOM exists before we try to bind events.
+    deferred_js: String,
+    /// Accumulated deferred JS from ALL components (flushed once after final innerHTML).
+    all_deferred_js: String,
+    /// Track whether we've already emitted the innerHTML insertion script.
+    dom_emitted: bool,
 }
 
 impl OmniViewGenerator {
@@ -106,7 +119,7 @@ function _signal(name, init) {
       if (val !== v) {
         val = v;
         const s = new Set(subs);
-        s.forEach(fn => fn());
+        s.forEach(e => e.run());
       }
     },
     get() { return signal.value; },
@@ -341,6 +354,23 @@ function _bindText(nid) {
                     target, target, amt
                 ));
             }
+            "push" => {
+                let item = intent
+                    .amount
+                    .as_ref()
+                    .map(|e| self.expr_to_js(e))
+                    .unwrap_or_else(|| "undefined".into());
+                self.js.push_str(&format!(
+                    "  {}.value.push({}); {}.set({}.value.slice());\n",
+                    target, item, target, target
+                ));
+            }
+            "pop" => {
+                self.js.push_str(&format!(
+                    "  {}.value.pop(); {}.set({}.value.slice());\n",
+                    target, target, target
+                ));
+            }
             _ => {
                 self.js
                     .push_str(&format!("  /* mutation: {} {} */\n", target, op));
@@ -355,13 +385,35 @@ function _bindText(nid) {
     fn emit_view(&mut self, view: &ViewTree) {
         self.current_nid_path.clear();
 
-        // Generate initial DOM HTML
+        // Swap js with deferred_js so view_to_html event/effect code
+        // goes into the deferred buffer (emitted after DOM insertion)
+        std::mem::swap(&mut self.js, &mut self.deferred_js);
+
+        // Generate initial DOM HTML (events/effects go to deferred_js)
         self.html.push_str("<div id=\"root\">\n");
         let html = self.view_to_html(view, 1);
         self.html.push_str(&html);
         self.html.push_str("</div>\n");
 
-        // Generate DOM insertion script
+        // Swap back — events/effects are now in deferred_js
+        std::mem::swap(&mut self.js, &mut self.deferred_js);
+
+        // Accumulate deferred_js — emit only once after ALL components
+        if !self.deferred_js.is_empty() {
+            self.all_deferred_js.push_str(&self.deferred_js);
+            self.deferred_js.clear();
+        }
+    }
+
+    /// Emit ONE innerHTML insertion + ALL accumulated deferred bindings/effects.
+    /// Called once after all components have been generated.
+    fn emit_dom_and_bindings(&mut self) {
+        if self.dom_emitted || self.html.is_empty() {
+            return;
+        }
+        self.dom_emitted = true;
+
+        // Emit DOM insertion script
         self.js.push_str("\n/// ── Initial DOM ──\n");
         self.js.push_str("document.getElementById(\"root\").innerHTML = `");
         let escaped = self
@@ -372,8 +424,11 @@ function _bindText(nid) {
         self.js.push_str(&escaped);
         self.js.push_str("`;\n\n");
 
-        // Generate event bindings and reactive text bindings
-        // These are emitted during view_to_html via the nid-based callbacks
+        // Emit ALL accumulated deferred event bindings and reactive effects
+        if !self.all_deferred_js.is_empty() {
+            self.js.push_str("\n/// ── Event Bindings & Reactive Effects ──\n");
+            self.js.push_str(&self.all_deferred_js);
+        }
     }
 
     fn next_nid(&mut self, tag: &str) -> String {
@@ -486,7 +541,7 @@ function _bindText(nid) {
             self.js.push_str("  }\n");
         }
 
-        // Else clause (fallback)
+        // Else clause (fallback or hide-all)
         if let Some(ref fb_nid) = fallback_nid {
             self.js.push_str("  else {\n");
             self.js.push_str(&format!(
@@ -497,6 +552,16 @@ function _bindText(nid) {
                 self.js.push_str(&format!(
                     "    const o = _el(\"{}\"); if (o) o.style.display = \"none\";\n",
                     other
+                ));
+            }
+            self.js.push_str("  }\n");
+        } else {
+            // No @else branch — hide all branches when no condition matches
+            self.js.push_str("  else {\n");
+            for branch_nid in &branch_nids {
+                self.js.push_str(&format!(
+                    "    const o = _el(\"{}\"); if (o) o.style.display = \"none\";\n",
+                    branch_nid
                 ));
             }
             self.js.push_str("  }\n");
@@ -642,8 +707,20 @@ function _bindText(nid) {
                 "testId" | "test_id" => {
                     attrs.push_str(&format!(" data-testid=\"{}\"", self.expr_to_static_str(value)));
                 }
+                // Real HTML attributes — emit as-is, not data-*
+                "class" | "id" | "placeholder" | "type" | "value" | "disabled"
+                | "checked" | "required" | "readonly" | "href" | "src" | "alt"
+                | "title" | "name" | "rows" | "cols" | "max" | "min" | "step"
+                | "autocomplete" | "autofocus" | "multiple" | "pattern" | "selected" => {
+                    let val_str = self.expr_to_static_str(value);
+                    if !val_str.is_empty() {
+                        attrs.push_str(&format!(" {}=\"{}\"", name, val_str));
+                    } else {
+                        attrs.push_str(&format!(" {}", name));
+                    }
+                }
                 _ => {
-                    // Emit as data attribute for now
+                    // Emit as data attribute for unknown props
                     let val_str = self.expr_to_static_str(value);
                     if !val_str.is_empty() {
                         attrs.push_str(&format!(" data-{}=\"{}\"", name, val_str));
@@ -781,13 +858,7 @@ function _bindText(nid) {
 
     fn expr_to_js(&self, expr: &ExprIR) -> String {
         match expr {
-            ExprIR::LiteralExpr { value } => match value {
-                serde_json::Value::String(s) => format!("\"{}\"", s.replace('"', "\\\"")),
-                serde_json::Value::Number(n) => n.to_string(),
-                serde_json::Value::Bool(b) => b.to_string(),
-                serde_json::Value::Null => "null".into(),
-                _ => format!("{:?}", value),
-            },
+            ExprIR::LiteralExpr { value } => serde_value_to_js(value),
             ExprIR::IdentifierExpr { name } => {
                 // Signal references → emit .value for reading
                 if self.signal_names.contains(name.as_str()) {
@@ -868,6 +939,31 @@ function _bindText(nid) {
                 _ => String::new(),
             },
             _ => String::new(),
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════
+// Value Serialization
+// ══════════════════════════════════════════════════════════
+
+/// Convert a serde_json::Value to JavaScript syntax.
+fn serde_value_to_js(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => "null".into(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => format!("\"{}\"", s.replace('"', "\\\"")),
+        serde_json::Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(serde_value_to_js).collect();
+            format!("[{}]", items.join(", "))
+        }
+        serde_json::Value::Object(obj) => {
+            let entries: Vec<String> = obj
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, serde_value_to_js(v)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
         }
     }
 }

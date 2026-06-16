@@ -623,8 +623,87 @@ impl<'a> Parser<'a> {
 
     // ── Style rule ─────────────────────────────────────
 
+    /// Parse style rules from `style { .class1 { ... } .class2 { ... } }` block.
+    /// Returns a list of StyleRule — one per CSS class rule.
+    pub fn parse_style_rules(&mut self) -> Result<Vec<StyleRule>, ParseError> {
+        self.advance(); // 'style'
+        self.expect_token(TokenKind::LBrace, "expected '{' after 'style'")?;
+
+        let mut rules = Vec::new();
+        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            // Each rule: .className { prop: value; ... }
+            if self.peek_kind() == TokenKind::Dot {
+                self.advance(); // consume '.'
+            }
+            let mut class_name = self.expect_ident("expected class name")?;
+            // Handle hyphenated class names: .app-shell, .btn-add, etc.
+            while self.peek_kind() == TokenKind::Minus {
+                self.advance(); // consume '-'
+                let next = self.expect_ident("expected identifier after '-'")?;
+                class_name = format!("{}-{}", class_name, next);
+            }
+            self.expect_token(TokenKind::LBrace, "expected '{'")?;
+
+            let mut properties = Vec::new();
+            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                let key = self.expect_ident("expected property name")?;
+                self.expect_token(TokenKind::Colon, "expected ':'")?;
+
+                let mut value = {
+                    let t = self.advance();
+                    match &t.kind {
+                        TokenKind::IntLiteral(n) => StyleValue::Number(*n as f64),
+                        TokenKind::FloatLiteral(n) => StyleValue::Number(*n),
+                        TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                        TokenKind::Ident(s) => {
+                            let mut ident = s.clone();
+                            // Handle hyphenated idents: space-between, nowrap, etc.
+                            while self.peek_kind() == TokenKind::Minus {
+                                self.advance(); // consume '-'
+                                let next = self.expect_ident("expected identifier after '-'")?;
+                                ident = format!("{}-{}", ident, next);
+                            }
+                            // Check for dimension: 16px, 1.5rem
+                            if let Some(unit) = try_parse_dimension(&ident) {
+                                StyleValue::Dimension(unit.0, unit.1)
+                            } else if ident.starts_with('#') {
+                                StyleValue::HexColor(ident)
+                            } else {
+                                StyleValue::Ident(ident)
+                            }
+                        }
+                        _ => {
+                            return Err(ParseError {
+                                message: format!("Unexpected style value: {:?}", t.kind),
+                                span: t.span,
+                            })
+                        }
+                    }
+                };
+
+                properties.push((key, value));
+                if self.peek_kind() == TokenKind::Semicolon {
+                    self.advance();
+                }
+            }
+
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            rules.push(StyleRule {
+                class_name,
+                properties,
+            });
+        }
+
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(rules)
+    }
+
+    /// Parse a single style rule (legacy syntax): `style .className { ... }`
     pub fn parse_style_rule(&mut self) -> Result<StyleRule, ParseError> {
         self.advance(); // 'style'
+        if self.peek_kind() == TokenKind::Dot {
+            self.advance(); // consume '.'
+        }
         let class_name = self.expect_ident("expected class name")?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
@@ -633,26 +712,35 @@ impl<'a> Parser<'a> {
             let key = self.expect_ident("expected property name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
 
-            let t = self.advance();
-            let value = match &t.kind {
-                TokenKind::IntLiteral(n) => StyleValue::Number(*n as f64),
-                TokenKind::FloatLiteral(n) => StyleValue::Number(*n),
-                TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
-                TokenKind::Ident(s) => {
-                    // Check for dimension: 16px, 1.5rem
-                    if let Some(unit) = try_parse_dimension(s) {
-                        StyleValue::Dimension(unit.0, unit.1)
-                    } else if s.starts_with('#') {
-                        StyleValue::HexColor(s.clone())
-                    } else {
-                        StyleValue::Ident(s.clone())
+            let mut value = {
+                let t = self.advance();
+                match &t.kind {
+                    TokenKind::IntLiteral(n) => StyleValue::Number(*n as f64),
+                    TokenKind::FloatLiteral(n) => StyleValue::Number(*n),
+                    TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                    TokenKind::Ident(s) => {
+                        let mut ident = s.clone();
+                        // Handle hyphenated idents: space-between, nowrap, etc.
+                        while self.peek_kind() == TokenKind::Minus {
+                            self.advance(); // consume '-'
+                            let next = self.expect_ident("expected identifier after '-'")?;
+                            ident = format!("{}-{}", ident, next);
+                        }
+                        // Check for dimension: 16px, 1.5rem
+                        if let Some(unit) = try_parse_dimension(&ident) {
+                            StyleValue::Dimension(unit.0, unit.1)
+                        } else if ident.starts_with('#') {
+                            StyleValue::HexColor(ident)
+                        } else {
+                            StyleValue::Ident(ident)
+                        }
                     }
-                }
-                _ => {
-                    return Err(ParseError {
-                        message: format!("Unexpected style value: {:?}", t.kind),
-                        span: t.span,
-                    })
+                    _ => {
+                        return Err(ParseError {
+                            message: format!("Unexpected style value: {:?}", t.kind),
+                            span: t.span,
+                        })
+                    }
                 }
             };
 
@@ -679,6 +767,7 @@ fn is_keyword_attr_name(kind: &TokenKind) -> bool {
             | TokenKind::Ref
             | TokenKind::For
             | TokenKind::If
+            | TokenKind::Class
     )
 }
 

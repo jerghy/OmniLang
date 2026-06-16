@@ -401,6 +401,45 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
 
     let view = comp.view.as_ref().map(lower_view_block);
 
+    let styles: Vec<StyleRuleIR> = comp.styles.iter().map(|s| {
+        let properties: HashMap<String, ExprIR> = s.properties.iter().map(|(k, v)| {
+            let ir_val = match v {
+                StyleValue::Number(n) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0))),
+                },
+                StyleValue::String(str_val) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(str_val.clone()),
+                },
+                StyleValue::Ident(id) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(id.clone()),
+                },
+                StyleValue::HexColor(h) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(h.clone()),
+                },
+                StyleValue::Dimension(val, unit) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(format!("{}{}", val, unit)),
+                },
+                StyleValue::List(parts) => {
+                    let s: String = parts.iter().map(|p| match p {
+                        StyleValuePart::Ident(id) => id.clone(),
+                        StyleValuePart::Number(n) => n.to_string(),
+                        StyleValuePart::Dimension(val, unit) => format!("{}{}", val, unit),
+                        StyleValuePart::HexColor(h) => h.clone(),
+                    }).collect::<Vec<_>>().join(" ");
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(s),
+                    }
+                }
+            };
+            (k.clone(), ir_val)
+        }).collect();
+        StyleRuleIR {
+            class_name: s.class_name.clone(),
+            properties,
+            output_mode: "css".into(),
+        }
+    }).collect();
+
     ComponentIR {
         name: comp.name.clone(),
         generic_params: vec![],
@@ -413,7 +452,7 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
         store_refs: comp.store_refs.clone(),
         refs: vec![],
         view,
-        styles: vec![],
+        styles,
     }
 }
 
@@ -512,7 +551,38 @@ fn lower_view_node(node: &ViewNode) -> ViewTree {
                         };
                         events.insert(name.clone(), ir_handler);
                     }
-                    _ => {}
+                    ElementProp::Class { value } => {
+                        // class: styleRef or class: "literal-class"
+                        let class_str = match value {
+                            ClassValue::StyleRef(s) => s.clone(),
+                            ClassValue::StringLiteral(s) => s.clone(),
+                            ClassValue::ClassMap(entries) => {
+                                entries.iter()
+                                    .map(|(k, _v)| k.clone())
+                                    .collect::<Vec<_>>()
+                                    .join(" ")
+                            }
+                        };
+                        props.insert("class".into(), ExprIR::LiteralExpr {
+                            value: serde_json::Value::String(class_str),
+                        });
+                    }
+                    ElementProp::Style { entries: _entries } => {
+                        // style: { key: value, ... } — passed as inline_style
+                        // TODO: lower style entries to inline_style field
+                    }
+                    ElementProp::TestId(id) => {
+                        // test-id="..." attribute
+                        props.insert("data-testid".into(), ExprIR::LiteralExpr {
+                            value: serde_json::Value::String(id.clone()),
+                        });
+                    }
+                    ElementProp::Ref(r) => {
+                        // ref="..." attribute
+                        props.insert("data-ref".into(), ExprIR::LiteralExpr {
+                            value: serde_json::Value::String(r.clone()),
+                        });
+                    }
                 }
             }
 
@@ -775,6 +845,18 @@ fn mutation_for_method(
             amount,
             item: None,
         }),
+        "push" => Some(MutationIntent {
+            target,
+            operation: "push".into(),
+            amount,
+            item: None,
+        }),
+        "pop" => Some(MutationIntent {
+            target,
+            operation: "pop".into(),
+            amount,
+            item: None,
+        }),
         _ => None,
     }
 }
@@ -872,11 +954,20 @@ fn lower_expr(expr: &Expr) -> ExprIR {
         Expr::MethodCall {
             object, method, args, ..
         } => {
-            // Lower signal.get() / signal.set(value)
+            // Lower signal.get() / signal.set(value) / array.len()
             if method == "get" {
                 ExprIR::FieldAccessExpr {
                     object: Box::new(lower_expr(object)),
                     field: "value".into(),
+                }
+            } else if method == "len" {
+                // Array length: tasks.len() → tasks.value.length
+                ExprIR::FieldAccessExpr {
+                    object: Box::new(ExprIR::FieldAccessExpr {
+                        object: Box::new(lower_expr(object)),
+                        field: "value".into(),
+                    }),
+                    field: "length".into(),
                 }
             } else if method == "set" {
                 // signal.set(value) → MutationIntent (handled at statement level)
@@ -905,9 +996,50 @@ fn lower_expr(expr: &Expr) -> ExprIR {
             field_name: field_name.clone(),
             call_args: vec![],
         },
+        Expr::ArrayLiteral { elements, .. } => {
+            let items: Vec<serde_json::Value> = elements
+                .iter()
+                .map(|e| lower_expr_to_json(e))
+                .collect();
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Array(items),
+            }
+        }
+        Expr::MapLiteral { entries, .. } => {
+            let map: serde_json::Map<String, serde_json::Value> = entries
+                .iter()
+                .map(|(k, v)| {
+                    let key = match lower_expr(k) {
+                        ExprIR::LiteralExpr { value } => match value {
+                            serde_json::Value::String(s) => s,
+                            other => format!("{}", other),
+                        },
+                        other => format!("{:?}", other),
+                    };
+                    (key, lower_expr_to_json(v))
+                })
+                .collect();
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Object(map),
+            }
+        }
+        Expr::TernaryExpr { condition, then_expr, else_expr, .. } => ExprIR::TernaryIR {
+            cond: Box::new(lower_expr(condition)),
+            then_expr: Box::new(lower_expr(then_expr)),
+            else_expr: Box::new(lower_expr(else_expr)),
+        },
         _ => ExprIR::LiteralExpr {
             value: serde_json::Value::Null,
         },
+    }
+}
+
+/// Lower an expression to a serde_json::Value (for literal extraction).
+fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
+    match lower_expr(expr) {
+        ExprIR::LiteralExpr { value } => value,
+        ExprIR::IdentifierExpr { name } => serde_json::Value::String(name),
+        other => serde_json::Value::String(format!("{:?}", other)),
     }
 }
 

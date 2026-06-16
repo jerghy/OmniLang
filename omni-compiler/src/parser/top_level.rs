@@ -128,7 +128,10 @@ impl<'a> Parser<'a> {
                     }
                     view = Some(self.parse_view_block()?);
                 }
-                TokenKind::Style => styles.push(self.parse_style_rule()?),
+                TokenKind::Style => {
+                    let mut rules = self.parse_style_rules()?;
+                    styles.append(&mut rules);
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
