@@ -9,7 +9,8 @@
   "main": "./extension.js",
   "contributes": {
     "languages": [{ "id": "omnilang", "extensions": [".omni"], "configuration": "./language-configuration.json" }],
-    "grammars": [{ "language": "omnilang", "scopeName": "source.omni", "path": "./syntaxes/omnilang.tmLanguage.json" }]
+    "grammars": [{ "language": "omnilang", "scopeName": "source.omni", "path": "./syntaxes/omnilang.tmLanguage.json" }],
+    "snippets": [{ "language": "omnilang", "path": "./snippets/omnilang.json" }]
   },
   "scripts": { "package": "vsce package" }
 }

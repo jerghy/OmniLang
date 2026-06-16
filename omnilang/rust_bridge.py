@@ -167,6 +167,44 @@ class RustBridge:
                     "errors": [f"Rust compile_to_target failed: {e}"],
                     "files": {}}
 
+    @classmethod
+    def analyze(cls, request: dict) -> dict | None:
+        """Call omni_analyze via FFI for LSP semantic operations.
+
+        Args:
+            request: AnalysisRequest dict matching the Rust struct schema.
+
+        Returns:
+            AnalysisResult dict with primary_result and other_diagnostics,
+            or None if Rust compiler is not available.
+        """
+        if not cls.is_available():
+            return None
+
+        import json
+        request_json = json.dumps(request)
+        result = cls._call_dll("omni_analyze", request_json)
+        return result
+
+    @classmethod
+    def format(cls, source: str) -> str | None:
+        """Format .omni source via Rust FFI.
+
+        Returns formatted source, or None if Rust compiler is not available.
+        """
+        if not cls.is_available():
+            return None
+
+        result = cls._call_dll("omni_format", source)
+        if result is None:
+            return None
+        # omni_format returns the formatted string directly (not JSON-wrapped)
+        # But _call_dll tries json.loads(). Handle both cases.
+        if isinstance(result, str):
+            return result
+        # If it parsed as dict (error JSON), that means omni_format failed
+        return None
+
     # ── Private ────────────────────────────────────────
 
     @classmethod
@@ -204,7 +242,11 @@ class RustBridge:
             dll.omni_free_string(ptr)
 
             if result_json:
-                parsed = json.loads(result_json)
+                try:
+                    parsed = json.loads(result_json)
+                except json.JSONDecodeError:
+                    # Non-JSON return (e.g., formatted source from omni_format)
+                    return result_json
                 # Unwrap CompileResult: {success, ir?, errors[]} -> IRProgram dict
                 # Note: "ir" is skip_serialized when None, so check for "success" too
                 # OmniView results have "files" instead of "ir"

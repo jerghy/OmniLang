@@ -1,0 +1,71 @@
+{
+  "component": {
+    "prefix": "comp",
+    "body": [
+      "component ${1:Name} {",
+      "    ${2:signal count: int = 0;}",
+      "",
+      "    view {",
+      "        ${3:// UI elements}",
+      "    }",
+      "}",
+      ""
+    ],
+    "description": "OmniLang component with view block"
+  },
+  "store": {
+    "prefix": "store",
+    "body": [
+      "store ${1:Name} {",
+      "    signal ${2:field}: ${3:Type} = ${4:default};",
+      "}",
+      ""
+    ],
+    "description": "OmniLang store with signal"
+  },
+  "function": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:params}) -> ${3:Type} {",
+      "    ${4:// body}",
+      "}",
+      ""
+    ],
+    "description": "OmniLang function with return type"
+  },
+  "view": {
+    "prefix": "view",
+    "body": [
+      "view {",
+      "    ${1:// UI elements}",
+      "}",
+      ""
+    ],
+    "description": "OmniLang view block"
+  },
+  "ifDirective": {
+    "prefix": "if",
+    "body": [
+      "@if ${1:condition} {",
+      "    ${2:// content}",
+      "}"
+    ],
+    "description": "@if directive"
+  },
+  "forDirective": {
+    "prefix": "for",
+    "body": [
+      "@for ${1:item} in ${2:items} {",
+      "    ${3:// content}",
+      "}"
+    ],
+    "description": "@for directive"
+  },
+  "signal": {
+    "prefix": "sig",
+    "body": [
+      "signal ${1:name}: ${2:Type} = ${3:value};"
+    ],
+    "description": "Signal declaration"
+  }
+}
