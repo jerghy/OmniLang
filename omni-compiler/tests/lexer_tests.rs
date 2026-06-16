@@ -19,6 +19,13 @@ fn test_keywords() {
 }
 
 #[test]
+fn test_pub_keyword() {
+    let tokens = tokenize("pub fn add(a: i32, b: i32) -> i32 { a + b }");
+    let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+    assert!(kinds.iter().any(|k| matches!(k, TokenKind::Pub)));
+}
+
+#[test]
 fn test_identifiers() {
     let tokens = tokenize("hello world_123");
     assert_eq!(tokens[0].kind, TokenKind::Ident("hello".into()));
