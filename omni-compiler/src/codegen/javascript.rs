@@ -1,14 +1,24 @@
-//! JavaScript codegen -- placeholder.
+//! JavaScript/TypeScript codegen -- placeholder.
 //!
 //! TODO: implement JavaScript codegen
 
 use std::collections::HashMap;
 
-use super::{CompileOutput};
+use super::{Codegen, CompileOutput};
 
-/// Compile IR program to JavaScript output files.
-///
-/// Returns an error stub until implemented.
-pub fn compile_files(_ir: &crate::ir::IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-    CompileOutput::error("JavaScript codegen not yet implemented in Rust".into())
+pub struct JavaScriptCodegen {
+    ts_mode: bool,
+}
+
+impl JavaScriptCodegen {
+    pub fn new(ts_mode: bool) -> Self {
+        Self { ts_mode }
+    }
+}
+
+impl Codegen for JavaScriptCodegen {
+    fn generate(&self, _ir: &crate::ir::IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+        let label = if self.ts_mode { "TypeScript" } else { "JavaScript" };
+        CompileOutput::error(format!("{label} codegen: not yet implemented"))
+    }
 }

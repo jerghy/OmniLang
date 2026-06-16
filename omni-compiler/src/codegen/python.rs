@@ -4,11 +4,12 @@
 
 use std::collections::HashMap;
 
-use super::{CompileOutput};
+use super::{Codegen, CompileOutput};
 
-/// Compile IR program to Python output files.
-///
-/// Returns an error stub until implemented.
-pub fn compile_files(_ir: &crate::ir::IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-    CompileOutput::error("Python codegen not yet implemented in Rust".into())
+pub struct PythonCodegen;
+
+impl Codegen for PythonCodegen {
+    fn generate(&self, _ir: &crate::ir::IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
+        CompileOutput::error("Python codegen: not yet implemented".into())
+    }
 }

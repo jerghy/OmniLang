@@ -75,27 +75,24 @@ pub struct CompiledFile {
 /// Result of code generation for a target.
 #[derive(Debug, Clone)]
 pub struct CompileOutput {
-    pub success: bool,
     pub files: Vec<CompiledFile>,
-    pub error: Option<String>,
+    pub errors: Vec<String>,
 }
 
 impl CompileOutput {
     /// Build a successful output with the given files.
     pub fn success(files: Vec<CompiledFile>) -> Self {
         Self {
-            success: true,
             files,
-            error: None,
+            errors: vec![],
         }
     }
 
     /// Build an error output with a message.
     pub fn error(msg: String) -> Self {
         Self {
-            success: false,
             files: vec![],
-            error: Some(msg),
+            errors: vec![msg],
         }
     }
 }
@@ -138,7 +135,7 @@ impl std::str::FromStr for Target {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "python" => Ok(Target::Python),
+            "python" | "py" => Ok(Target::Python),
             "javascript" | "js" => Ok(Target::JavaScript),
             "typescript" | "ts" => Ok(Target::TypeScript),
             "rust" | "rs" => Ok(Target::Rust),
@@ -164,19 +161,17 @@ pub trait Codegen {
 /// Routes to each target's codegen module. Framework targets and
 /// stub modules return error until implemented.
 pub fn compile(
-    target: Target,
     ir: &IRProgram,
+    target: Target,
     source_files: &HashMap<String, String>,
 ) -> CompileOutput {
     match target {
         Target::OmniView => omniview::compile_files(ir, source_files),
-        Target::Python => python::compile_files(ir, source_files),
-        Target::JavaScript => javascript::compile_files(ir, source_files),
-        Target::Rust => rust::compile_files(ir, source_files),
-        Target::Dart => dart::compile_files(ir, source_files),
-        Target::TypeScript => {
-            CompileOutput::error("TypeScript codegen not yet implemented in Rust".into())
-        }
+        Target::Python => python::PythonCodegen.generate(ir, source_files),
+        Target::JavaScript => javascript::JavaScriptCodegen::new(false).generate(ir, source_files),
+        Target::TypeScript => javascript::JavaScriptCodegen::new(true).generate(ir, source_files),
+        Target::Rust => rust::RustCodegen.generate(ir, source_files),
+        Target::Dart => dart::DartCodegen.generate(ir, source_files),
         Target::React => {
             CompileOutput::error("React codegen not yet implemented in Rust".into())
         }
@@ -200,6 +195,7 @@ mod tests {
     #[test]
     fn test_target_parse_all() {
         assert_eq!(Target::from_str("python").unwrap(), Target::Python);
+        assert_eq!(Target::from_str("py").unwrap(), Target::Python);
         assert_eq!(Target::from_str("javascript").unwrap(), Target::JavaScript);
         assert_eq!(Target::from_str("js").unwrap(), Target::JavaScript);
         assert_eq!(Target::from_str("typescript").unwrap(), Target::TypeScript);
