@@ -7,19 +7,31 @@ start: program
 
 // ── Top Level ───────────────────────────────────────
 
-program: (function_def | struct_def | tagged_union_def | class_def | interface_def | import_stmt | import_type_stmt | import_lib | export_stmt | impl_block)*
+program: (function_def | struct_def | tagged_union_def | class_def | interface_def | import_stmt | import_lib | import_type_stmt | import_namespace_stmt | export_stmt | export_from_stmt | impl_block)*
 
 import_stmt: "import" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 import_type_stmt: "import" "type" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 import_lib: "import" CNAME ";"
+
+// import "./path.omni" as name;
+import_namespace_stmt: "import" STRING_LIT "as" CNAME ";"
+
+// ── Exports ──────────────────────────────────
+
+// export { A, B } from "./path.omni";
+export_from_stmt: "export" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
+
+// pub fn / pub struct / pub type — visibility modifier on declarations
+
 export_stmt: "export" (function_def | struct_def | class_def | tagged_union_def | interface_def)
 
-function_def: [ASYNC] FN CNAME ["<" generic_params ">"] "(" [params] ")" ["->" return_type] block
+function_def: ["pub"] "fn" CNAME ["<" generic_params ">"] "(" [params] ")" ["->" type_ann] block
 
 params: param ("," param)*
 param: CNAME ":" type
      | "..." CNAME ":" type   // rest parameter
 return_type: type
+type_ann: type
 
 // ── Generics (Phase 2, grammar added in Phase 1) ────
 
@@ -175,13 +187,17 @@ call_args: expr ("," expr)*
 
 // ── Struct definition ───────────────────────────────
 
-struct_def: ["nominal"] "struct" CNAME ["<" generic_params ">"] "{" struct_field* "}"
-struct_field: CNAME ":" type ","?
+struct_def: ["pub"] "struct" CNAME ["<" generic_params ">"] "{" [struct_field (";" struct_field)* ";"] "}"
+struct_field: CNAME ":" type
 
 // ── Tagged union definition ──────────────────────────
 
 tagged_union_def: "type" CNAME ["<" generic_params ">"] "=" variant ("|" variant)*
 variant: CNAME ["{" struct_field* "}"]
+
+// ── Type alias ─────────────────────────────────────────
+
+type_alias: ["pub"] "type" CNAME ["<" generic_params ">"] "=" type_ann ";"
 
 impl_block: "impl" CNAME ["<" generic_params ">"] "{" function_def* "}"
 
