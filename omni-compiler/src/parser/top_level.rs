@@ -302,6 +302,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(FunctionDef {
+            visibility: Visibility::Private,
             name,
             params,
             return_type,
@@ -554,6 +555,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         Ok(StructDef {
+            visibility: Visibility::Private,
             name,
             is_nominal,
             fields,
@@ -623,6 +625,7 @@ impl<'a> Parser<'a> {
     // ── Import ─────────────────────────────────────────
 
     pub fn parse_import(&mut self) -> Result<ImportStmt, ParseError> {
+        let start = self.peek_span();
         self.advance(); // 'import'
         let mut names = Vec::new();
         names.push(self.expect_ident("expected import name")?);
@@ -643,9 +646,19 @@ impl<'a> Parser<'a> {
                 })
             }
         };
+        let end = self.peek_span();
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(ImportStmt { names, path })
+        Ok(ImportStmt::Named(NamedImport {
+            names,
+            path,
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
+        }))
     }
 }

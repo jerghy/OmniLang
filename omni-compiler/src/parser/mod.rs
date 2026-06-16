@@ -98,8 +98,10 @@ impl<'a> Parser<'a> {
             themes,
             functions,
             structs,
+            type_aliases: vec![],
             tagged_unions,
             imports,
+            exports: vec![],
         })
     }
 }

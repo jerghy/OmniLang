@@ -3,6 +3,8 @@
 //! All AST nodes defined per spec §3.3.1. The parser produces a Program from token stream.
 //! Types follow the Python AST structure with Rust idioms (Box for recursion, enum dispatch).
 
+use serde::{Deserialize, Serialize};
+
 use crate::lexer::Span;
 
 // ── Base types ────────────────────────────────────────
@@ -242,6 +244,7 @@ pub struct Param {
 
 #[derive(Debug, Clone)]
 pub struct FunctionDef {
+    pub visibility: Visibility,
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeAnnotation>,
@@ -258,6 +261,7 @@ pub struct StructField {
 
 #[derive(Debug, Clone)]
 pub struct StructDef {
+    pub visibility: Visibility,
     pub name: String,
     pub is_nominal: bool,
     pub fields: Vec<StructField>,
@@ -275,6 +279,14 @@ pub struct TaggedUnionDef {
 pub struct Variant {
     pub name: String,
     pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeAlias {
+    pub visibility: Visibility,
+    pub name: String,
+    pub type_ann: TypeAnnotation,
+    pub span: Span,
 }
 
 // ── OmniView-Specific AST ─────────────────────────────
@@ -470,6 +482,64 @@ pub struct ThemeCategory {
     pub values: Vec<(String, String)>,
 }
 
+// ── Visibility ────────────────────────────────────────
+
+/// Visibility modifier for declarations.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Visibility {
+    Public,
+    Private,
+}
+
+impl Default for Visibility {
+    fn default() -> Self {
+        Visibility::Private
+    }
+}
+
+// ── Import / Export Types ─────────────────────────────
+
+/// Named import: `import { A, B } from "./path.omni";`
+#[derive(Debug, Clone)]
+pub struct NamedImport {
+    pub names: Vec<String>,
+    pub path: String,
+    pub span: Span,
+}
+
+/// Namespace import: `import "./path.omni" as name;`
+#[derive(Debug, Clone)]
+pub struct NamespaceImport {
+    pub path: String,
+    pub alias: String,
+    pub span: Span,
+}
+
+/// Type-only import: `import type { A, B } from "./path.omni";`
+#[derive(Debug, Clone)]
+pub struct TypeImport {
+    pub names: Vec<String>,
+    pub path: String,
+    pub span: Span,
+}
+
+/// Re-export: `export { A, B } from "./path.omni";`
+#[derive(Debug, Clone)]
+pub struct ExportFrom {
+    pub names: Vec<String>,
+    pub path: String,
+    pub span: Span,
+}
+
+/// All import variants in one enum
+#[derive(Debug, Clone)]
+pub enum ImportStmt {
+    Named(NamedImport),
+    Namespace(NamespaceImport),
+    TypeOnly(TypeImport),
+    Lib(String), // "omniview" — bare import marker
+}
+
 // ── Top-Level Program ─────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -479,12 +549,8 @@ pub struct Program {
     pub themes: Vec<ThemeDef>,
     pub functions: Vec<FunctionDef>,
     pub structs: Vec<StructDef>,
+    pub type_aliases: Vec<TypeAlias>,
     pub tagged_unions: Vec<TaggedUnionDef>,
     pub imports: Vec<ImportStmt>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImportStmt {
-    pub names: Vec<String>,
-    pub path: String,
+    pub exports: Vec<ExportFrom>,
 }
