@@ -149,6 +149,8 @@ pub struct Location {
 pub struct TextEdit {
     pub range: LspRange,
     pub new_text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1320,6 +1322,7 @@ fn compute_rename(ctx: &AnalysisContext) -> (Vec<TextEdit>, Option<LspRange>) {
     let edits = refs.into_iter().map(|loc| TextEdit {
         range: loc.range,
         new_text: String::new(), // caller fills from Extra.new_name
+        file_path: Some(loc.file_path),
     }).collect();
 
     (edits, rename_range)
