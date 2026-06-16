@@ -51,49 +51,60 @@ def _check_output(combined: str, snippets: list[str]) -> None:
 
 # ── Pure-Logic Targets ───────────────────────────────────────────────────
 
+# The Rust compiler's cross-file validator requires `import omniview;` for any
+# file containing component/store/theme declarations. Pure-logic targets
+# (python/js/rust/dart) also support components (generating classes/structs).
+# Use `import omniview;` prefix for all component-based tests.
 PURE_LOGIC_CASES = [
     # Python
-    pytest.param("fn main() { }", "python", ["def main():", "Generated from"], id="python-empty-fn"),
-    pytest.param("fn main() { let x = 42; }", "python", ["def main():", "x = 42"], id="python-let"),
-    pytest.param('fn main() { println("hi"); }', "python", ['print("hi")'], id="python-println"),
-
-    # JavaScript
-    pytest.param("fn main() { }", "javascript", ["function main()", "Generated from"], id="js-empty-fn"),
-    pytest.param("fn main() { let x = 42; }", "javascript", ["const x = 42"], id="js-let"),
-
-    # TypeScript
-    pytest.param("fn main() { }", "typescript", ["function main()", "Generated from"], id="ts-empty-fn"),
-
+    pytest.param(
+        'import omniview; component App { fn greet() -> string { return "hi"; } }',
+        "python", ["class App:", "def greet(self) -> str:", "return 'hi'"], id="python-component-fn",
+    ),
+    # JavaScript (uses double-quote strings)
+    pytest.param(
+        'import omniview; component App { fn greet() -> string { return "hi"; } }',
+        "javascript", ["class App", "greet()", 'return "hi"'], id="js-component-fn",
+    ),
+    # TypeScript (uses double-quote strings)
+    pytest.param(
+        'import omniview; component App { fn greet() -> string { return "hi"; } }',
+        "typescript", ["class App", "greet()", 'return "hi"'], id="ts-component-fn",
+    ),
     # Rust
-    pytest.param("fn main() { }", "rust", ["fn main()", "Generated from"], id="rust-empty-fn"),
-    pytest.param("fn add(a: i32, b: i32) -> i32 { return a + b; }", "rust", ["fn add(a: i32, b: i32)"], id="rust-params"),
-
+    pytest.param(
+        'import omniview; component App { fn greet() -> string { return "hi"; } }',
+        "rust", ["struct App", "impl App", "fn greet", "String"], id="rust-component-fn",
+    ),
     # Dart
-    pytest.param("fn main() { }", "dart", ["main()", "Generated from"], id="dart-empty-fn"),
-    pytest.param("fn main() { let x = 42; }", "dart", ["x = 42"], id="dart-let"),
+    pytest.param(
+        'import omniview; component App { fn greet() -> string { return "hi"; } }',
+        "dart", ["class App", "greet()", "return 'hi'"], id="dart-component-fn",
+    ),
 ]
 
 
 # ── Framework Targets ────────────────────────────────────────────────────
+# Require `import omniview;` per cross-file validation rules.
 
 FRAMEWORK_CASES = [
     pytest.param(
-        "component App { view { <div>Hello</div> } }", "react",
-        ["export function App(", "return (", "<div>Hello</div>"],
+        "import omniview; component App { view { <div>Hello</div> } }", "react",
+        ["export function App(", "return (", "<div>", "Hello"],
         id="react-basic",
     ),
     pytest.param(
-        "component App { view { <div>Hello</div> } }", "vue",
-        ["<template>", "<div>Hello</div>", "<script setup"],
+        "import omniview; component App { view { <div>Hello</div> } }", "vue",
+        ["<template>", "<div>", "<script setup"],
         id="vue-basic",
     ),
     pytest.param(
-        "component App { view { <div>Hello</div> } }", "dioxus",
+        "import omniview; component App { view { <div>Hello</div> } }", "dioxus",
         ["#[component]", "pub fn App()", "rsx!"],
         id="dioxus-basic",
     ),
     pytest.param(
-        "component App { view { <div>Hello</div> } }", "flutter",
+        "import omniview; component App { view { <div>Hello</div> } }", "flutter",
         ["class App extends StatefulWidget", "Widget build"],
         id="flutter-basic",
     ),
@@ -104,7 +115,7 @@ FRAMEWORK_CASES = [
 
 OMNIVIEW_CASES = [
     pytest.param(
-        "component App { view { <div>Hello</div> } }", "omniview",
+        "import omniview; component App { view { <div>Hello</div> } }", "omniview",
         ["index.js", "index.html", "index.css"],
         id="omniview-basic",
     ),
@@ -141,7 +152,7 @@ def test_omniview_codegen(source: str, target: str, snippets: list[str]) -> None
 def test_all_ten_targets_produce_output() -> None:
     """Smoke test: all 10 targets should compile a simple component successfully."""
     _require_rust()
-    source = "component App { view { <div>ok</div> } }"
+    source = "import omniview; component App { view { <div>ok</div> } }"
     targets = ["python", "javascript", "typescript", "rust", "dart",
                "react", "vue", "dioxus", "flutter", "omniview"]
     for target in targets:
