@@ -97,3 +97,51 @@ class CodegenBase:
         """Map a semantic style property to framework-specific output."""
         mapping = self.STYLE_MAP.get(prop, {})
         return mapping.get(value, mapping.get("_default"))
+
+
+class _DictAccessor:
+    """Wrap a dict for attribute-style access (minimal migration from dataclass->dict).
+
+    Used by codegens that expect dataclass-style `.name` access but receive
+    Rust-generated IR JSON dicts. All codegens should use `.get()` / `_get()`
+    for compatibility; this accessor provides a safety net for direct access patterns.
+    """
+    _reserved = {'_data'}
+
+    def __init__(self, data: dict):
+        self.__dict__['_data'] = data
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            return self.__dict__.get(name)
+        val = self.__dict__['_data'].get(name)
+        if isinstance(val, dict):
+            return _DictAccessor(val)
+        if isinstance(val, list):
+            return [_DictAccessor(item) if isinstance(item, dict) else item for item in val]
+        return val
+
+    def __setattr__(self, name, value):
+        self.__dict__['_data'][name] = value
+
+    def __contains__(self, key):
+        return key in self.__dict__['_data']
+
+    def get(self, key, default=None):
+        val = self.__dict__['_data'].get(key, default)
+        if isinstance(val, dict):
+            return _DictAccessor(val)
+        if isinstance(val, list):
+            return [_DictAccessor(item) if isinstance(item, dict) else item for item in val]
+        return val
+
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
+    def __repr__(self):
+        return f"_DictAccessor({self.__dict__['_data']!r})"
+
+
+def ir_dict_to_accessor(d: dict) -> _DictAccessor:
+    """Convert an IR dict to attribute-style accessor."""
+    return _DictAccessor(d)
