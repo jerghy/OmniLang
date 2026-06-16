@@ -132,6 +132,32 @@ class ModuleLoader:
 
         return source_map, path_mapping
 
+    def _is_view_file(self, source: str) -> bool:
+        """Check if a .omni source file is a view (UI) file.
+
+        A file is a view file if it contains `import omniview;`.
+        """
+        return 'import omniview' in source
+
+    def _check_boundary(self, from_file: str, to_file: str, to_source: str):
+        """Enforce: logic files cannot import view files.
+
+        Raises ValueError if a logic file tries to import a view file.
+        """
+        # The importer may not be in _loaded yet (still being processed),
+        # so read its source directly from disk.
+        from_source = Path(from_file).read_text(encoding="utf-8")
+
+        from_is_view = self._is_view_file(from_source)
+        to_is_view = self._is_view_file(to_source)
+
+        if not from_is_view and to_is_view:
+            raise ValueError(
+                f"logic file '{Path(from_file).name}' cannot import view file "
+                f"'{Path(to_file).name}'. "
+                f"View files can import logic files, but not the reverse."
+            )
+
     def _load_recursive(self, file_path: str) -> LoadedModule:
         """Load a single file and recursively load its imports.
 
@@ -191,6 +217,10 @@ class ModuleLoader:
                     imp_span = getattr(imp, 'span', None)
                     if imp_span:
                         import_lines[resolved_path] = imp_span.line
+                    # Read dependency source for boundary check
+                    dep_source = Path(resolved_path).read_text(encoding="utf-8")
+                    self._check_boundary(file_path, resolved_path, dep_source)
+
                     # Recursively load dependency (cycle detection via _import_stack)
                     self._load_recursive(resolved_path)
 
