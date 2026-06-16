@@ -794,7 +794,10 @@ fn collect_refs_from_expr(
                 }
             }
         }
-        Expr::StructLiteral { fields, .. } => {
+        Expr::StructLiteral { type_name, fields, span } => {
+            if type_name == search_name {
+                refs.push(Location { file_path: file_path.to_string(), range: span_to_lsp_range(span) });
+            }
             for (_, val) in fields {
                 collect_refs_from_expr(val, search_name, file_path, refs);
             }
@@ -802,9 +805,14 @@ fn collect_refs_from_expr(
         Expr::ClosureExpr { body, .. } => {
             collect_refs_from_expr(body, search_name, file_path, refs);
         }
+        Expr::StoreFieldAccess { store_alias, span, .. } => {
+            if store_alias == search_name {
+                refs.push(Location { file_path: file_path.to_string(), range: span_to_lsp_range(span) });
+            }
+        }
         // Expr variants without sub-expressions that can contain VarRef:
         Expr::VarRef(_, _) | Expr::Literal(_, _)
-        | Expr::StoreFieldAccess { .. } | Expr::NotYetImplemented { .. } => {}
+        | Expr::NotYetImplemented { .. } => {}
     }
 }
 
@@ -1374,11 +1382,16 @@ pub fn analyze(request: AnalysisRequest) -> AnalysisResult {
 
         Operation::Rename => {
             let (edits, range) = compute_rename(&ctx);
-            let new_name = request.extra.new_name.unwrap_or_default();
-            result.edits = edits.into_iter().map(|mut e| {
-                e.new_text = new_name.clone();
-                e
-            }).collect();
+            let new_name = match request.extra.new_name {
+                Some(ref n) if !n.is_empty() => n.clone(),
+                _ => String::new(), // invalid/missing → edits remain empty below
+            };
+            if !new_name.is_empty() {
+                result.edits = edits.into_iter().map(|mut e| {
+                    e.new_text = new_name.clone();
+                    e
+                }).collect();
+            }
             result.rename_range = range;
         }
 
