@@ -86,7 +86,8 @@ impl OmniViewGenerator {
     /// Based on the design from Spec §3.7.
     fn emit_signal_runtime(&mut self) {
         self.js.push_str(
-            r#"/// ─── Signal Runtime ───────────────────────────────
+            r#"/// ─── OmniView Native Runtime v2 — reactive signal system ───
+/// Inline runtime for WASM-compiled output. No external dependencies.
 let _activeEffect = null;
 const _subs = new Map();
 
@@ -984,6 +985,31 @@ use std::collections::HashMap;
 
 use super::{CompileOutput, CompiledFile};
 
+/// Wrap OmniView output in a complete debug-ready HTML document.
+/// Useful for loading directly in a browser for debugging / WASM preview.
+pub fn wrap_debug_html(js: &str, css: &str, body_html: &str) -> String {
+    format!(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniView Debug</title>
+<style>
+/* OmniView reset */
+*, *::before, *::after {{ box-sizing: border-box; }}
+body {{ margin: 0; padding: 8px; font-family: system-ui, sans-serif; }}
+{css}
+</style>
+</head>
+<body>
+{body_html}
+<script>
+{js}
+</script>
+</body>
+</html>"#)
+}
+
 /// Wrap `generate()` into the standard `CompileOutput` format.
 ///
 /// Called by `super::compile()` when the target is `Target::OmniView`.
@@ -1003,4 +1029,24 @@ pub fn compile_files(ir: &crate::ir::IRProgram, _source_files: &HashMap<String, 
             content: output.css,
         },
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wrap_debug_html() {
+        let html = wrap_debug_html(
+            "/// OmniView Native Runtime v2 — reactive signal system\nconsole.log('hi');",
+            "body { color: red; }",
+            "<div>Hello</div>",
+        );
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("OmniView Debug"));
+        assert!(html.contains("console.log('hi');"));
+        assert!(html.contains("body { color: red; }"));
+        assert!(html.contains("<div>Hello</div>"));
+        assert!(html.contains("OmniView Native Runtime v2"));
+    }
 }
