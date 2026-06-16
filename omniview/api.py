@@ -112,6 +112,39 @@ def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
         # Rust not available — fall back to Python native pipeline
         # TODO: delete this branch when Rust compiler is mature
 
+    # ── Rust codegen path for pure-logic targets ──
+    if not is_ui_mode:
+        from omniview.codegen.rust_bridge import RustBridge
+        RUST_CODEGEN_TARGETS = {"python", "py", "js", "javascript", "typescript", "ts",
+                                "rust", "rs", "dart", "omniview"}
+        if RustBridge.is_available() and target in RUST_CODEGEN_TARGETS:
+            rust_result = RustBridge.compile_to_target({filepath: source}, target)
+            if rust_result is not None:
+                if rust_result.get("success"):
+                    return CompileResult(
+                        success=True,
+                        files=rust_result.get("files", {}),
+                        source=source,
+                    )
+                else:
+                    for err in rust_result.get("errors", []):
+                        if isinstance(err, dict):
+                            errors.append(CompileError(
+                                file=err.get("file", filepath),
+                                line=err.get("line", 1),
+                                col=err.get("col", 0),
+                                severity=err.get("severity", "error"),
+                                code="RUST_CODEGEN",
+                                message=str(err.get("message", err)),
+                            ))
+                        else:
+                            errors.append(CompileError(
+                                file=filepath, line=1, severity="error",
+                                code="RUST_CODEGEN", message=str(err),
+                            ))
+                    return CompileResult(success=False, files={}, errors=errors, source=source)
+            # compile_to_target returned None — DLL/function not available, fall through
+
     try:
         if is_ui_mode:
             compiled_files = _compile_ui_mode(source, filepath, target, errors, debug_mode)

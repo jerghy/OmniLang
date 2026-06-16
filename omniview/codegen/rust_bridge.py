@@ -102,6 +102,71 @@ class RustBridge:
         result = cls._call_dll("omni_validate_multi", input_json)
         return result
 
+    @classmethod
+    def compile_to_target(cls, sources: dict[str, str], target: str,
+                          path_mapping: dict[str, str] | None = None) -> dict | None:
+        """Compile .omni source files to target code via Rust DLL.
+
+        Calls omni_compile_multi_to_target C FFI which handles parsing,
+        semantic analysis, and codegen entirely in Rust.
+
+        Args:
+            sources: {path: source_text}
+            target: target name (python/js/rust/dart/omniview/...)
+            path_mapping: {import_path: resolved_path}
+
+        Returns:
+            { success: bool, files: {path: content}, errors: [...] }
+            or None if Rust compiler (or this specific function) is not available.
+        """
+        import ctypes
+
+        dll = cls._load_dll()
+        if dll is None:
+            return None
+
+        try:
+            func = dll.omni_compile_multi_to_target
+        except AttributeError:
+            return None  # Function not exported yet — caller should fall through
+
+        func.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
+                         ctypes.c_void_p, ctypes.c_uint32,
+                         ctypes.c_void_p, ctypes.c_uint32]
+        func.restype = ctypes.c_void_p
+
+        sources_bytes = json.dumps(sources).encode("utf-8")
+        target_bytes = target.encode("utf-8")
+        mapping_bytes = json.dumps(path_mapping or {}).encode("utf-8")
+
+        try:
+            ptr = func(
+                ctypes.cast(sources_bytes, ctypes.c_void_p),
+                ctypes.c_uint32(len(sources_bytes)),
+                ctypes.cast(target_bytes, ctypes.c_void_p),
+                ctypes.c_uint32(len(target_bytes)),
+                ctypes.cast(mapping_bytes, ctypes.c_void_p),
+                ctypes.c_uint32(len(mapping_bytes)),
+            )
+            if ptr is None:
+                return {"success": False, "errors": ["Rust returned null"], "files": {}}
+
+            result_json = ctypes.cast(ptr, ctypes.c_char_p).value
+            if result_json:
+                result_json = result_json.decode("utf-8")
+
+            dll.omni_free_string.argtypes = [ctypes.c_void_p]
+            dll.omni_free_string.restype = None
+            dll.omni_free_string(ptr)
+
+            return json.loads(result_json) if result_json else {
+                "success": False, "errors": ["empty result"], "files": {}
+            }
+        except Exception as e:
+            return {"success": False,
+                    "errors": [f"Rust compile_to_target failed: {e}"],
+                    "files": {}}
+
     # ── Private ────────────────────────────────────────
 
     @classmethod
