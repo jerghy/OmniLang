@@ -7,7 +7,7 @@ start: program
 
 // ── Top Level ───────────────────────────────────────
 
-program: (function_def | struct_def | tagged_union_def | class_def | interface_def | import_stmt | import_lib | import_type_stmt | import_namespace_stmt | export_stmt | export_from_stmt | impl_block)*
+program: (function_def | struct_def | tagged_union_def | type_alias | class_def | interface_def | import_stmt | import_lib | import_type_stmt | import_namespace_stmt | export_stmt | export_from_stmt | impl_block)*
 
 import_stmt: "import" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 import_type_stmt: "import" "type" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
