@@ -207,6 +207,8 @@ struct AnalysisContext {
     cursor_offset: usize,
     /// Cross-file symbol table: file_path -> [(name, kind, span)]
     cross_symbols: HashMap<String, Vec<(String, SymbolKind, Span)>>,
+    /// Parse errors collected during initial parse, available for diagnostics
+    parse_errors: HashMap<String, crate::error::ParseError>,
 }
 
 #[derive(Debug, Clone)]
@@ -279,6 +281,7 @@ impl AnalysisContext {
     fn new(request: &AnalysisRequest) -> Self {
         let mut files: HashMap<String, ParsedFile> = HashMap::new();
         let mut cross_symbols: HashMap<String, Vec<(String, SymbolKind, Span)>> = HashMap::new();
+        let mut parse_errors: HashMap<String, crate::error::ParseError> = HashMap::new();
 
         for sf in &request.files {
             let tokens = lexer::tokenize(&sf.content);
@@ -293,8 +296,9 @@ impl AnalysisContext {
                         tokens,
                     });
                 }
-                Err(_) => {
-                    // Store empty program -- parse error will be in diagnostics
+                Err(e) => {
+                    // Store empty program but preserve parse error for diagnostics
+                    parse_errors.insert(sf.path.clone(), e);
                     files.insert(sf.path.clone(), ParsedFile {
                         path: sf.path.clone(),
                         content: sf.content.clone(),
@@ -310,6 +314,7 @@ impl AnalysisContext {
             primary_file: request.primary_file.clone(),
             cursor_offset: request.cursor_offset,
             cross_symbols,
+            parse_errors,
         }
     }
 }
@@ -354,7 +359,7 @@ fn collect_file_symbols(
         let _ = st;
     }
 
-    // Named import symbols: collect each imported name with the import's span
+    // Import symbols: collect each imported name/alias with the import's span
     for imp in &program.imports {
         match imp {
             ImportStmt::Named(n) => {
@@ -362,7 +367,15 @@ fn collect_file_symbols(
                     symbols.push((name.clone(), SymbolKind::Import, n.span.clone()));
                 }
             }
-            _ => {}
+            ImportStmt::Namespace(ns) => {
+                symbols.push((ns.alias.clone(), SymbolKind::Import, ns.span.clone()));
+            }
+            ImportStmt::TypeOnly(t) => {
+                for name in &t.names {
+                    symbols.push((name.clone(), SymbolKind::Import, t.span.clone()));
+                }
+            }
+            ImportStmt::Lib(_) => {} // bare import marker, no user-visible symbols
         }
     }
 
