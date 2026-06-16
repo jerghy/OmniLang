@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from omniview.api import compile_omni
-from omniview.codegen.rust_bridge import RustBridge
+from omnilang.api import compile_omni
+from omnilang.rust_bridge import RustBridge
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────

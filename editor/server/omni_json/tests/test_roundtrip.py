@@ -10,7 +10,7 @@ from editor.server.omni_json.exporter import OmniJsonExporter
 from editor.server.omni_json.importer import OmniJsonImporter
 from editor.server.omni_json.serializer import OmniJsonSerializer
 from editor.server.omni_json.schema import OmniJsonDocument, ComponentSnapshot, OmniMetadata
-from omniview.api import compile_omni
+from omnilang.api import compile_omni
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "tests", "frameworks", "behavior")
 
