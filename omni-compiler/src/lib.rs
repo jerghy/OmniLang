@@ -571,7 +571,15 @@ pub fn compile_multi_to_target(
         }
     }
 
-    // Phase 4: Dispatch to target codegen
+    // Phase 4: Run lint rules against ASTs and merged IR
+    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
+    let warnings: Vec<String> = lint_diags
+        .iter()
+        .filter(|d| matches!(d.severity, crate::semantic::lints::LintSeverity::Warning | crate::semantic::lints::LintSeverity::Info))
+        .map(|d| format!("[{}] {}:{}: {} (rule: {})", d.file, d.line, d.col, d.message, d.rule))
+        .collect();
+
+    // Phase 5: Dispatch to target codegen
     let output = codegen::compile(&merged_ir, target, &sources);
     let files_map: HashMap<String, String> = output
         .files
@@ -586,6 +594,7 @@ pub fn compile_multi_to_target(
         "success": all_errors.is_empty(),
         "files": files_map,
         "errors": all_errors,
+        "warnings": warnings,
     }))
     .unwrap_or_else(|e| {
         format!(

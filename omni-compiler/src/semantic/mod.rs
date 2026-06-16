@@ -1,6 +1,7 @@
 //! Semantic analysis — multi-pass: collect, resolve, type-check, deps, validate.
 
 pub mod cycles;
+pub mod lints;
 pub mod symbols;
 
 use std::collections::HashMap;
