@@ -6,6 +6,8 @@
 
 **Architecture:** The work spans 6 phases matching the spec: (1) syntax/parsing in both Python grammars and the Rust compiler, (2) Python ModuleLoader V2 with path map building, (3) Rust multi-file parse + cross-file validation + cycle detection, (4) Python codegen for all 8 targets, (5) CLI and config unification, (6) editor integration. The Rust DLL stays filesystem-free — Python does all I/O + codegen, Rust receives `{source_map, path_mapping}` and returns `{success, errors}` (validation only). Codegen remains in Python where all 8 target generators already live.
 
+> **Note on spec divergence:** The spec (§5.2, §5.4) describes Rust DLL returning `Map<FilePath, GeneratedCode>`. This plan intentionally diverges: Rust does validation-only, Python does codegen. Rationale: all existing codegen infrastructure lives in Python (`omnilang/codegen/*.py`, `omniview/codegen/*.py`); codegen is mostly string manipulation easier to maintain in Python; the Rust DLL's strength is fast parsing + cross-file analysis. The spec should be updated post-implementation to reflect this architectural decision.
+
 **Tech Stack:** Python 3.10+ (Lark parser, dataclasses), Rust 2021 edition (hand-written recursive-descent parser, serde, thiserror), TOML for config.
 
 ---
@@ -66,6 +68,11 @@ In `omni-compiler/src/lexer/token.rs`, add `Pub` after existing keyword variants
 ```rust
 // In TokenKind enum, add after existing keywords:
 Pub,
+Export,
+```
+If `Type` is not already present, add it too:
+```rust
+Type,
 ```
 
 - [ ] **Step 2: Add "pub" and verify "from"/"as" keyword mappings in lexer**
@@ -76,16 +83,23 @@ In `omni-compiler/src/lexer/mod.rs`, find the `read_ident_or_keyword()` method a
 "pub" => TokenKind::Pub,
 ```
 
-Also verify that `"from"` and `"as"` are already mapped:
+Add the `"export"` keyword mapping alongside `"pub"`:
+```rust
+"export" => TokenKind::Export,
+```
+
+Also verify that `"from"`, `"as"`, and `"type"` are already mapped:
 ```rust
 "from" => TokenKind::From,   // should already exist
 "as" => TokenKind::As,       // should already exist
+"type" => TokenKind::Type,   // should already exist (used for type aliases)
 ```
 
-If `From` or `As` variants are missing from `TokenKind` in `token.rs`, add them:
+If `From`, `As`, or `Type` variants are missing from `TokenKind` in `token.rs`, add them:
 ```rust
 From,
 As,
+Type,
 ```
 
 Insert in alphabetical order among the existing keyword match arms.
@@ -413,46 +427,69 @@ pub fn error(&self, msg: impl Into<String>) -> ParseError {
 
 - [ ] **Step 4: Update `parse_program` in `mod.rs`**
 
-Add `Export` token dispatch in the top-level match:
+Add `Pub`, `Export`, and `Type` token dispatch in the top-level match of `parse_program`:
 
 ```rust
+// Pub can precede fn, struct, or type — peek ahead to decide
+TokenKind::Pub => {
+    self.advance(); // consume 'pub'
+    match self.peek_kind() {
+        TokenKind::Fn => {
+            let mut func = self.parse_function_def()?;
+            func.visibility = Visibility::Public;
+            program.functions.push(func);
+        }
+        TokenKind::Struct => {
+            let mut strukt = self.parse_struct_def()?;
+            strukt.visibility = Visibility::Public;
+            program.structs.push(strukt);
+        }
+        TokenKind::Type => {
+            let mut ta = self.parse_type_alias()?;
+            ta.visibility = Visibility::Public;
+            program.type_aliases.push(ta);
+        }
+        _ => return Err(self.error("expected 'fn', 'struct', or 'type' after 'pub'")),
+    }
+}
 TokenKind::Export => {
     let exp = self.parse_export()?;
     program.exports.push(exp);
 }
+// Type alias without pub prefix
+TokenKind::Type => {
+    let ta = self.parse_type_alias()?;
+    program.type_aliases.push(ta);
+}
 ```
+
+**Important:** With this dispatch approach, `parse_function_def`, `parse_struct_def`, and `parse_type_alias` should NO longer check for `Pub` internally — they always receive `Visibility::Private` and the caller sets visibility. Update Step 5, Step 6, and Step 6a accordingly:
 
 - [ ] **Step 5: Update `parse_function_def` to handle `pub`**
 
-In `parse_function_def` (in `top_level.rs`), check for `Pub` token before `Fn`:
+In `parse_function_def` (in `top_level.rs`), the function no longer checks for `Pub` — that's handled by `parse_program`:
 
 ```rust
 pub fn parse_function_def(&mut self) -> Result<FunctionDef, ParseError> {
-    let visibility = if self.peek_kind() == TokenKind::Pub {
-        self.advance();
-        Visibility::Public
-    } else {
-        Visibility::Private
-    };
+    // NOTE: 'pub' is consumed by parse_program before calling this.
+    // Visibility is set by the caller (parse_program).
     self.expect_token(TokenKind::Fn, "expected 'fn'")?;
     // ... rest of existing function parsing
-    // Add `visibility` to the FunctionDef constructor
+    // Add `visibility: Visibility::Private` to the FunctionDef constructor
+    // (the caller will override to Public if needed)
 }
 ```
 
 - [ ] **Step 6: Update `parse_struct_def` to handle `pub`**
 
-Same pattern — check for `Pub` before `Struct`:
+Same pattern — no longer checks for `Pub` internally. `parse_program` handles visibility:
 
 ```rust
 pub fn parse_struct_def(&mut self) -> Result<StructDef, ParseError> {
-    let visibility = if self.peek_kind() == TokenKind::Pub {
-        self.advance();
-        Visibility::Public
-    } else {
-        Visibility::Private
-    };
+    // NOTE: 'pub' is consumed by parse_program before calling this.
+    self.expect_token(TokenKind::Struct, "expected 'struct'")?;
     // ... rest
+    // Add `visibility: Visibility::Private` to constructor
 }
 ```
 
@@ -460,20 +497,15 @@ pub fn parse_struct_def(&mut self) -> Result<StructDef, ParseError> {
 
 ```rust
 /// Parse: [pub] type Name = TypeAnnotation;
+/// NOTE: 'pub' is consumed by parse_program before calling this.
 pub fn parse_type_alias(&mut self) -> Result<TypeAlias, ParseError> {
-    let visibility = if self.peek_kind() == TokenKind::Pub {
-        self.advance();
-        Visibility::Public
-    } else {
-        Visibility::Private
-    };
     self.expect_token(TokenKind::Type, "expected 'type'")?;
     let name = self.expect_ident("expected type alias name")?;
     self.expect_token(TokenKind::Eq, "expected '=' in type alias")?;
     let type_ann = self.parse_type_annotation()?;
     self.consume_semicolon();
     Ok(TypeAlias {
-        visibility,
+        visibility: Visibility::Private, // caller overrides for pub
         name,
         type_ann,
         span: self.span(),
@@ -577,6 +609,12 @@ import_namespace_stmt: "import" STRING_LIT "as" CNAME ";"
 export_from_stmt: "export" "{" CNAME ("," CNAME)* "}" "from" STRING_LIT ";"
 ```
 
+- [ ] **Step 2a: Note on grammar ordering**
+
+The two grammars use different ordering strategies:
+- **OmniLang**: `(fn | struct | import | export | ...)*` — declarations and imports can be intermixed freely, matching typical general-purpose language conventions.
+- **OmniView**: `(imports)* (components)*` — all imports MUST come before all UI declarations. This is stricter by design: OmniView files have a simpler structure (imports → components/stores/themes), and enforcing this ordering avoids ambiguity between import statements and component prop declarations.
+
 - [ ] **Step 3: Verify grammar parses correctly**
 
 ```bash
@@ -614,6 +652,13 @@ git commit -m "feat(grammar): add namespace import, export from, import type, pu
 Add after the existing `ImportStmt` (around line 507):
 
 ```python
+@dataclass(frozen=True)
+class ImportTypeStmt:
+    """import type { A, B } from "./path.omni";"""
+    names: list[str]
+    path: str
+    span: Span | None = None
+
 @dataclass(frozen=True)
 class ImportNamespaceStmt:
     """import "./path.omni" as name;"""
@@ -662,9 +707,19 @@ class StructDef:
     # ... rest
 ```
 
-- [ ] **Step 4: Add `is_pub` to `TypeAlias` if it exists, or create it**
+- [ ] **Step 4: Add `TypeAlias` dataclass with `is_pub` field**
 
-Search for type alias node. If `TypeAlias` exists, add `is_pub: bool = False`. If not, check how `type ID = int;` is represented currently.
+Add a new `TypeAlias` dataclass (if it doesn't exist) or update the existing one with `is_pub`:
+
+```python
+@dataclass(frozen=True)
+class TypeAlias:
+    """type ID = int; or pub type ID = int;"""
+    name: str
+    type_ann: TypeAnnotation
+    is_pub: bool = False
+    span: Span | None = None
+```
 
 - [ ] **Step 5: Update `Program` to include new import types**
 
@@ -672,7 +727,9 @@ Search for type alias node. If `TypeAlias` exists, add `is_pub: bool = False`. I
 @dataclass(frozen=True)
 class Program:
     functions: list[FunctionDef] = field(default_factory=list)
-    # ... existing
+    structs: list[StructDef] = field(default_factory=list)
+    type_aliases: list[TypeAlias] = field(default_factory=list)           # NEW
+    # ... existing tagged_unions, classes, interfaces ...
     imports: list[ImportStmt] = field(default_factory=list)
     type_imports: list[ImportTypeStmt] = field(default_factory=list)      # NEW
     namespace_imports: list[ImportNamespaceStmt] = field(default_factory=list)  # NEW
@@ -1442,6 +1499,35 @@ fn validate_cross_file(
                 }
                 ImportStmt::Lib(_) => {
                     // 'import omniview;' — validated in validate_file_consistency
+                }
+            }
+        }
+    }
+
+    // Also enforce logic→view boundary (defense-in-depth; Python also checks this)
+    for (file_path, program) in programs {
+        let is_logic = !program.imports.iter().any(|imp| {
+            matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+        });
+        if !is_logic { continue; }
+        for import in &program.imports {
+            let target_path: Option<&String> = match import {
+                ImportStmt::Named(n) => path_mapping.get(&n.path),
+                ImportStmt::Namespace(ns) => path_mapping.get(&ns.path),
+                ImportStmt::TypeOnly(t) => path_mapping.get(&t.path),
+                ImportStmt::Lib(_) => None,
+            };
+            if let Some(target) = target_path {
+                if let Some(target_prog) = programs.get(target.as_str()) {
+                    let target_is_view = target_prog.imports.iter().any(|imp| {
+                        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+                    });
+                    if target_is_view {
+                        errors.push(format!(
+                            "{}: logic file cannot import view file '{}'",
+                            file_path, target
+                        ));
+                    }
                 }
             }
         }
@@ -2707,7 +2793,7 @@ After all phases are complete, run the full verification:
 - [ ] **Rust IR lowering**: Import statements skipped (no runtime representation)
 - [ ] **Rust FFI**: `omni_validate_multi` accepts JSON `{sources, path_mapping}` and returns validation result
 - [ ] **RustBridge**: Python `RustBridge` base class exists and `validate_multi` method calls FFI correctly
-- [ ] **Backward compat**: Old-style `import { X } from "path"` still works
-- [ ] **Backward compat**: `import omniview;` still works as mode marker
-- [ ] **Backward compat**: `omni_compile_to_ir` / `omni_compile_to_omniview` single-file FFI still works (imports skipped gracefully)
+- [ ] **Backward compat**: `import omniview;` still works as mode marker (bare library import)
+- [ ] **Backward compat**: `import { X } from "./path.omni"` still works (named import, same syntax as before)
+- [ ] **Backward compat**: Existing single-file APIs `omni_compile_to_ir` / `omni_compile_to_omniview` still work (imports produce a warning in single-file mode, not a hard error)
 - [ ] **No regressions**: All existing tests pass (`cargo test`, `pytest`)
