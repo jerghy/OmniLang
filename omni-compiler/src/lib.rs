@@ -539,3 +539,38 @@ pub unsafe extern "C" fn omni_compile_to_omniview(source: *const c_char) -> *mut
     });
     rust_to_c_string(json)
 }
+
+/// Validate multiple .omni sources with cross-file checks.
+/// Receives JSON: `{ "sources": { "path": "source", ... }, "path_mapping": { "orig": "resolved", ... } }`
+/// Returns JSON: `{ "success": true/false, "errors": ["..."] }`
+/// # Safety
+/// `input_json` must be a valid, null-terminated C string containing JSON.
+#[no_mangle]
+pub unsafe extern "C" fn omni_validate_multi(input_json: *const c_char) -> *mut c_char {
+    let input_str = unsafe {
+        if input_json.is_null() {
+            return rust_to_c_string(
+                r#"{"success":false,"errors":["null input pointer"]}"#.into(),
+            );
+        }
+        CStr::from_ptr(input_json).to_str().unwrap_or("{}")
+    };
+
+    #[derive(Deserialize)]
+    struct MultiInput {
+        sources: HashMap<String, String>,
+        path_mapping: HashMap<String, String>,
+    }
+
+    let input: MultiInput = serde_json::from_str(input_str).unwrap_or(MultiInput {
+        sources: HashMap::new(),
+        path_mapping: HashMap::new(),
+    });
+
+    let result = validate_multi(input.sources, input.path_mapping);
+    let json = serde_json::to_string(&result).unwrap_or_else(|_| {
+        r#"{"success":false,"errors":["serialization failed"]}"#.to_string()
+    });
+
+    rust_to_c_string(json)
+}

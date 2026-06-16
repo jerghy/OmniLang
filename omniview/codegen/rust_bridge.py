@@ -84,6 +84,24 @@ class RustBridge:
             raise RuntimeError("Rust OmniView compilation failed")
         return result
 
+    @classmethod
+    def validate_multi(cls, source_map: dict[str, str], path_mapping: dict[str, str]) -> dict | None:
+        """Call omni_validate_multi via FFI for cross-file validation.
+
+        Returns the result dict with 'success' and 'errors' keys, or None if unavailable.
+        """
+        if not cls.is_available():
+            return None
+
+        import json
+        input_data = {
+            'sources': source_map,
+            'path_mapping': path_mapping,
+        }
+        input_json = json.dumps(input_data)
+        result = cls._call_dll("omni_validate_multi", input_json)
+        return result
+
     # ── Private ────────────────────────────────────────
 
     @classmethod
