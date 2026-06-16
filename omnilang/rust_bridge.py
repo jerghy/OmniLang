@@ -233,7 +233,7 @@ class RustBridge:
 
         import ctypes
         dll_paths = [
-            str(Path(__file__).parent.parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll"),
+            str(Path(__file__).parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll"),
             str(Path("omni-compiler/target/release/omni_compiler.dll")),
         ]
         for p in dll_paths:
