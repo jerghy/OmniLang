@@ -91,6 +91,7 @@ struct AnalysisResult {
 
 struct PerFileResult {
     diagnostics: Vec<Diagnostic>,       // always populated
+    resolved_imports: Vec<ResolvedImport>, // Diagnostics fills this for graph building
     items: Vec<CompletionItem>,         // Completion
     hover: Option<HoverInfo>,           // Hover
     definitions: Vec<Location>,         // Definition
@@ -103,17 +104,27 @@ struct PerFileResult {
     folds: Vec<FoldingRange>,          // FoldingRanges
 }
 
+struct ResolvedImport { source_path: String, resolved_path: String }
+
 // Shared sub-structures
 struct Diagnostic { severity, range, message, code, related_info }
 struct CompletionItem { label, kind, detail, documentation, insert_text, sort_text }
 struct Location { file_path, range }
-struct Range { start_line, start_col, end_line, end_col }
+struct Range { start_line, start_col, end_line, end_col }   // 1-based, same as Span
 struct HoverInfo { contents, range }
 struct SignatureInfo { label, parameters, active_parameter }
 struct SymbolInfo { name, kind, range, children }
 struct FoldingRange { start_line, end_line, kind }
 struct TextEdit { range, new_text }
+struct FileDiagnostics { file_path, diagnostics: Vec<Diagnostic> }
 ```
+
+### Coordinate convention
+
+- Rust `Span` uses **1-based** line/col (existing convention in `lexer::token::Span`)
+- Rust returns all `Range` values as **1-based** — matches internal Span
+- Python converts to **0-based** LSP positions before sending responses
+- `cursor_offset` uses **byte offset** (UTF-8), matching Span's `start`/`end` fields
 
 ### Multi-file behavior
 
@@ -126,11 +137,27 @@ struct TextEdit { range, new_text }
 
 ```rust
 // Returns JSON, caller must free with omni_free_string
+// Panic-safe: catch_unwind ensures no unwind across FFI boundary
 #[no_mangle]
-pub extern "C" fn omni_analyze(request_json: *const c_char) -> *mut c_char;
+pub extern "C" fn omni_analyze(request_json: *const c_char) -> *mut c_char {
+    let request_str = unsafe { CStr::from_ptr(request_json) }.to_str().unwrap_or("");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let request: AnalysisRequest = serde_json::from_str(request_str)?;
+        let result = analyze(request);
+        Ok::<_, serde_json::Error>(serde_json::to_string(&result)?)
+    }));
+    match result {
+        Ok(Ok(json)) => CString::new(json).unwrap().into_raw(),
+        _ => CString::new(r#"{"success":false,"primary_result":{"diagnostics":[]},"other_diagnostics":[]}"#).unwrap().into_raw(),
+    }
+}
 
 #[no_mangle]
-pub extern "C" fn omni_free_string(ptr: *mut c_char);
+pub extern "C" fn omni_free_string(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        unsafe { drop(CString::from_raw(ptr)); }
+    }
+}
 ```
 
 ## Python LSP Server
@@ -139,7 +166,7 @@ pub extern "C" fn omni_free_string(ptr: *mut c_char);
 
 ```python
 class DocumentState:
-    path: str          # "src/button.omni"
+    path: str          # absolute path, e.g. "D:/project/src/button.omni"
     content: str       # current source text
     version: int       # LSP document version
     is_open: bool      # editor has this open
@@ -147,7 +174,25 @@ class DocumentState:
 
 - `didOpen` / `didChange`: update content, set is_open=true, trigger debounced diagnostics
 - `didClose`: set is_open=false, retain content (still needed for import chains)
-- Workspace also tracks an import graph to know which files to include in `files` param
+- All paths are **absolute** — Python normalizes URIs before calling Rust
+- Workspace tracks an **import graph** — which files depend on which others
+
+### Import graph discovery
+
+Python needs to know which files to include in `files: Vec<SourceFile>`. Two mechanisms:
+
+1. **Rust returns imports from `analyze()`**: Each `Diagnostics` operation also populates a
+   `resolved_imports: Vec<ResolvedImport>` field in `PerFileResult`, listing every
+   `import { X } from "./path"` with the resolved absolute path. Python persists these
+   across calls to build the dependency graph.
+
+2. **Project scan on startup**: Python scans the workspace root for all `.omni` files
+   (respecting `.gitignore` and any `exclude` patterns in `.omnilang.toml`) and
+   pre-loads their content for import resolution.
+
+When `primary_file` changes, Python follows the import graph to decide which
+additional files to include — both upstream (files that `primary_file` imports) and
+downstream (files that import `primary_file`, for cascade diagnostics).
 
 ### Diagnostic flow
 
@@ -155,6 +200,47 @@ class DocumentState:
 2. Collect workspace files (open + import dependencies)
 3. Call `rust_bridge.analyze(request)` with `Operation::Diagnostics`
 4. Publish diagnostics to primary file + cascade to other open editors
+
+### LSP capabilities (updated from current)
+
+The existing server advertises: hover, definition, completion, references, codeAction, rename.
+The redesign adds:
+
+| Capability | Config |
+|-----------|--------|
+| `semanticTokensProvider` | `{ full: true, range: false }` |
+| `foldingRangeProvider` | `true` |
+| `signatureHelpProvider` | `{ triggerCharacters: ["(", ","] }` |
+| `documentSymbolProvider` | `true` |
+| `documentFormattingProvider` | `true` |
+
+### AST removal
+
+The current server has `_HAS_AST = False` with all AST-dependent code stubbed out.
+In the redesign:
+- `_HAS_AST`, `_get_or_parse()`, `_find_symbol_at()`, `_find_function_def()`,
+  `_find_symbol_in_block()`, `_find_symbol_in_expr()`, `_find_symbol_in_trailing()`,
+  `_find_var_decl_in_block()`, `_wrap_omniview_ast()`, `_parse_via_rust()` — all removed
+- All semantic handlers call `rust_bridge.analyze()` directly instead
+- `_is_omniview_file()` detection stays — needed for keyword completion fallback
+
+### Formatting handler
+
+```python
+def _handle_formatting(self, msg: dict):
+    uri = msg["params"]["textDocument"]["uri"]
+    source = self.documents.get(uri, "")
+    formatted = rust_bridge.format(source)  # standalone, not via analyze()
+    if formatted != source:
+        # Return a single edit replacing the entire document
+        lines = source.split("\n")
+        self._send_result(msg["id"], [{
+            "range": _make_lsp_range(1, 1, len(lines), len(lines[-1]) + 1),
+            "newText": formatted,
+        }])
+    else:
+        self._send_result(msg["id"], [])
+```
 
 ### CLI integration
 
@@ -183,19 +269,36 @@ vscode-extension/
 ### extension.js (rewrite from current 47-line diagnostic-only version)
 
 ```js
-const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
+const vscode = require('vscode');
+const { LanguageClient } = require('vscode-languageclient/node');
+
+let client;
 
 function activate(context) {
-    const server = spawn('omnic', ['lsp'], { cwd: workspaceFolder });
-    const client = new LanguageClient(
+    // Let LanguageClient handle the server process lifecycle
+    client = new LanguageClient(
         'omnilang',
         'OmniLang Language Server',
-        () => ({ writer: server.stdin, reader: server.stdout }),
+        { command: 'omnic', args: ['lsp'] },
         { documentSelector: [{ language: 'omnilang' }] }
     );
+
     context.subscriptions.push(client.start());
 }
+
+function deactivate() {
+    if (client) {
+        return client.stop();
+    }
+}
+
+module.exports = { activate, deactivate };
 ```
+
+Key points:
+- LanguageClient spawns `omnic lsp` itself — no manual spawn/stream wiring
+- `deactivate()` cleans up the server process on extension unload
+- If `omnic` is not on PATH, the LanguageClient will show a standard error notification
 
 ### Features handled automatically by LSP client
 
