@@ -19,6 +19,20 @@ TARGET_EXTENSIONS = {
 
 def cmd_build(args):
     """Compile .omni source to target language(s)."""
+
+    # Load project config for aliases and source/output settings
+    aliases = {}
+    output_dir = getattr(args, 'output', './build')
+    try:
+        from omnilang.config import load_config
+        cfg = load_config()
+        if cfg.aliases:
+            aliases = cfg.aliases
+        if not getattr(args, 'output', None):
+            output_dir = cfg.output.dir if cfg.output.dir else "build"
+    except ImportError:
+        pass
+
     if not os.path.exists(args.file):
         print(f"Error: file not found: {args.file}", file=sys.stderr)
         sys.exit(1)
@@ -28,6 +42,39 @@ def cmd_build(args):
         with open(args.file, "r", encoding="utf-8") as f:
             source = f.read()
 
+        # Check for imports → use multi-file loader
+        if any(kw in source for kw in ('import ', 'export ')):
+            from omnilang.modules.loader import ModuleLoader
+            project_root = os.path.dirname(os.path.abspath(args.file))
+            loader = ModuleLoader(project_root, aliases=aliases)
+            modules = loader.load_project(args.file)
+
+            # Compile each module
+            base_name = os.path.splitext(os.path.basename(args.file))[0]
+            targets = [args.target] if args.target else ["rust", "dart", "js", "python"]
+
+            os.makedirs(output_dir, exist_ok=True)
+
+            from omnilang.semantic import analyze as semantic_analyze
+            from omnilang.codegen import generate
+
+            for mod_path, prog in modules:
+                mod_name = os.path.splitext(os.path.basename(mod_path))[0]
+                source_lines = {mod_path: open(mod_path, encoding="utf-8").read().split("\n")}
+                type_map, rename_map = semantic_analyze(prog, source_lines)
+
+                for target in targets:
+                    code = generate(prog, target, rename_map, type_map)
+                    ext = TARGET_EXTENSIONS[target]
+                    out_path = os.path.join(output_dir, f"{mod_name}{ext}")
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(code)
+                    print(f"  -> {out_path}")
+
+            print(f"Compiled {len(modules)} module(s) to {len(targets)} target(s).")
+            return
+
+        # Single-file compilation (no imports)
         # Compile pipeline
         prog = parse(source, filename=args.file)
 
@@ -38,12 +85,12 @@ def cmd_build(args):
         base_name = os.path.splitext(os.path.basename(args.file))[0]
         targets = [args.target] if args.target else ["rust", "dart", "js", "python"]
 
-        os.makedirs(args.output, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
 
         for target in targets:
             code = generate(prog, target, rename_map, type_map)
             ext = TARGET_EXTENSIONS[target]
-            out_path = os.path.join(args.output, f"{base_name}{ext}")
+            out_path = os.path.join(output_dir, f"{base_name}{ext}")
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(code)
             print(f"  -> {out_path}")

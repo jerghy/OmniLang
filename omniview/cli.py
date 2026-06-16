@@ -73,15 +73,19 @@ def build_command(args: list[str]) -> int:
     target = "react"  # Phase 0 default
     output_dir = "build_output"
     generate_sourcemap = False
+    target_explicit = False
+    output_explicit = False
 
     # Parse flags
     i = 1
     while i < len(args):
         if args[i] == "--target" and i + 1 < len(args):
             target = args[i + 1]
+            target_explicit = True
             i += 2
         elif args[i] == "--output" and i + 1 < len(args):
             output_dir = args[i + 1]
+            output_explicit = True
             i += 2
         elif args[i] == "--sourcemap":
             generate_sourcemap = True
@@ -92,6 +96,20 @@ def build_command(args: list[str]) -> int:
     if not os.path.exists(input_file):
         print(f"Error: File not found: {input_file}", file=sys.stderr)
         return 1
+
+    # ── Load project config for aliases, ui_target, and output settings ──
+    aliases = {}
+    try:
+        from omnilang.config import load_config
+        cfg = load_config()
+        if cfg.aliases:
+            aliases = cfg.aliases
+        if cfg.ui_target and not target_explicit:
+            target = cfg.ui_target
+        if not output_explicit:
+            output_dir = cfg.output.dir if cfg.output.dir else "build"
+    except ImportError:
+        pass
 
     try:
         # Read source
@@ -178,11 +196,15 @@ def build_command(args: list[str]) -> int:
         # ── Multi-file module resolution ───────────────────
         cross_file_imports = {}  # component_name → relative_import_path
         loaded_modules = {}
+        source_map: dict[str, str] = {}
 
         if program.imports:
             from omniview.modules.loader import ModuleLoader
             project_root = os.path.dirname(os.path.abspath(input_file))
             loader = ModuleLoader(project_root)
+            # Inject path aliases from .omnilang.toml config
+            if aliases:
+                loader.resolver.add_aliases(aliases)
             try:
                 all_modules = loader.load(input_file)
                 export_map = loader.get_export_map()
@@ -206,6 +228,31 @@ def build_command(args: list[str]) -> int:
                         loaded_modules[mod.path] = mod.ir_map
                 if all_modules:
                     print(f"  Resolved {len(all_modules)} module(s) from {len(program.imports)} import(s)")
+
+                # Build source_map for Rust bridge validation
+                src_map, path_map = loader.build_source_map(input_file)
+                source_map = src_map
+
+                # ── Rust bridge validation ────────────────────────
+                from omniview.codegen.rust_bridge import RustBridge
+                if RustBridge.is_available():
+                    for abs_path, src_text in source_map.items():
+                        ir_result = RustBridge.compile_to_ir(src_text)
+                        if "_rust_errors" in ir_result:
+                            for err in ir_result["_rust_errors"]:
+                                relative = os.path.relpath(abs_path, project_root)
+                                print(f"  Rust validation ({relative}): "
+                                      f"line {err.get('line', 1)}: {err.get('message', str(err))}",
+                                      file=sys.stderr)
+                        elif "_rust_warnings" in ir_result:
+                            for w in ir_result["_rust_warnings"]:
+                                relative = os.path.relpath(abs_path, project_root)
+                                print(f"  Rust validation warning ({relative}): "
+                                      f"line {w.get('line', 1)}: {w.get('message', str(w))}",
+                                      file=sys.stderr)
+                        else:
+                            relative = os.path.relpath(abs_path, project_root)
+                            print(f"  Rust validation passed: {relative}")
 
             except FileNotFoundError as e:
                 print(f"Error: {e}", file=sys.stderr)
