@@ -183,8 +183,16 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a static prop: name="value" or name={expr}
+    /// Also handles hyphenated names like margin-left, background-color
     fn parse_element_prop(&mut self) -> Result<ElementProp, ParseError> {
-        let name = self.expect_ident("expected prop name")?;
+        let mut name = self.expect_ident("expected prop name")?;
+
+        // Handle hyphenated attribute names: margin-left, background-color, etc.
+        while self.peek_kind() == TokenKind::Minus {
+            self.advance(); // consume '-'
+            let next = self.expect_ident("expected identifier after '-'")?;
+            name = format!("{}-{}", name, next);
+        }
 
         match self.peek_kind() {
             TokenKind::Eq => {
@@ -571,6 +579,10 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Not
             | TokenKind::LParen
             | TokenKind::RParen
+            | TokenKind::Pipe
+            | TokenKind::Dollar
+            | TokenKind::Hash
+            | TokenKind::StringLiteral(_)
     )
 }
 
@@ -592,6 +604,10 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Not => "!".into(),
         TokenKind::LParen => "(".into(),
         TokenKind::RParen => ")".into(),
+        TokenKind::StringLiteral(s) => format!("\"{}\"", s),
+        TokenKind::Pipe => "|".into(),
+        TokenKind::Hash => "#".into(),
+        TokenKind::Dollar => "$".into(),
         _ => String::new(),
     }
 }

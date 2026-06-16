@@ -42,6 +42,44 @@ impl<'a> Parser<'a> {
                         self.advance();
                     }
                 }
+                TokenKind::Const => {
+                    self.advance(); // 'const'
+                    // Handle $prefixed identifiers: $logoUrl
+                    let name = if self.peek_kind() == TokenKind::Dollar {
+                        self.advance();
+                        let id = self.expect_ident("expected identifier after $")?;
+                        format!("${}", id)
+                    } else {
+                        self.expect_ident("expected constant name")?
+                    };
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let t = self.advance();
+                    let value = match &t.kind {
+                        TokenKind::StringLiteral(s) => Expr::Literal(Literal::String(s.clone()), t.span.clone()),
+                        TokenKind::IntLiteral(n) => Expr::Literal(Literal::Int(*n), t.span.clone()),
+                        TokenKind::FloatLiteral(f) => Expr::Literal(Literal::Float(*f), t.span.clone()),
+                        TokenKind::True => Expr::Literal(Literal::Bool(true), t.span.clone()),
+                        TokenKind::False => Expr::Literal(Literal::Bool(false), t.span.clone()),
+                        TokenKind::Null => Expr::Literal(Literal::Null, t.span.clone()),
+                        _ => return Err(ParseError {
+                            message: format!("Expected literal value for const, got {:?}", t.kind),
+                            span: t.span,
+                        }),
+                    };
+                    if self.peek_kind() == TokenKind::Semicolon {
+                        self.advance();
+                    }
+                    // Store as a signal-like declaration for now
+                    signals.push(SignalDecl {
+                        name,
+                        type_ann: TypeAnnotation::Named {
+                            name: "auto".into(),
+                            type_args: vec![],
+                            span: Span { start: 0, end: 0, line: 0, col: 0 },
+                        },
+                        init: value,
+                    });
+                }
                 TokenKind::Fn => fns.push(self.parse_function_def()?),
                 TokenKind::Action => actions.push(self.parse_action_def()?),
                 TokenKind::AtMount | TokenKind::AtUnmount | TokenKind::AtEffect => {

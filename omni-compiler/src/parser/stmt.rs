@@ -333,10 +333,16 @@ impl<'a> Parser<'a> {
         let t = self.advance();
         match &t.kind {
             TokenKind::Ident(name) => Ok(name.clone()),
-            _ => Err(ParseError {
-                message: format!("{} — found {:?}", msg, t.kind),
-                span: t.span,
-            }),
+            _ => {
+                // Accept contextual keywords as identifiers
+                if let Some(name) = keyword_as_ident_name(&t.kind) {
+                    return Ok(name);
+                }
+                Err(ParseError {
+                    message: format!("{} — found {:?}", msg, t.kind),
+                    span: t.span,
+                })
+            }
         }
     }
 
@@ -350,5 +356,62 @@ impl<'a> Parser<'a> {
                 line: 0,
                 col: 0,
             })
+    }
+}
+
+/// Convert keyword tokens to their identifier name string when used in context
+/// where identifiers are expected (parameter names, variable names, etc.).
+/// Returns None for tokens that are not valid as identifiers.
+pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<String> {
+    match kind {
+        // OmniView keywords that can be used as variable/param names
+        TokenKind::Event => Some("event".into()),
+        TokenKind::Signal => Some("signal".into()),
+        TokenKind::Computed => Some("computed".into()),
+        TokenKind::Prop => Some("prop".into()),
+        TokenKind::Ref => Some("ref".into()),
+        TokenKind::Store => Some("store".into()),
+        TokenKind::Action => Some("action".into()),
+        TokenKind::Getter => Some("getter".into()),
+        TokenKind::View => Some("view".into()),
+        TokenKind::Style => Some("style".into()),
+        TokenKind::Theme => Some("theme".into()),
+        TokenKind::Component => Some("component".into()),
+        TokenKind::Bind => Some("bind".into()),
+        // om nilang keywords
+        TokenKind::Fn => Some("fn".into()),
+        TokenKind::Const => Some("const".into()),
+        TokenKind::Let => Some("let".into()),
+        TokenKind::Mut => Some("mut".into()),
+        TokenKind::If => Some("if".into()),
+        TokenKind::Else => Some("else".into()),
+        TokenKind::While => Some("while".into()),
+        TokenKind::For => Some("for".into()),
+        TokenKind::In => Some("in".into()),
+        TokenKind::Return => Some("return".into()),
+        TokenKind::Async => Some("async".into()),
+        TokenKind::Await => Some("await".into()),
+        TokenKind::Match => Some("match".into()),
+        TokenKind::Struct => Some("struct".into()),
+        TokenKind::Class => Some("class".into()),
+        TokenKind::Interface => Some("interface".into()),
+        TokenKind::Impl => Some("impl".into()),
+        TokenKind::Extends => Some("extends".into()),
+        TokenKind::Implements => Some("implements".into()),
+        TokenKind::Type => Some("type".into()),
+        TokenKind::Nominal => Some("nominal".into()),
+        TokenKind::Static => Some("static".into()),
+        TokenKind::Private => Some("private".into()),
+        TokenKind::Override => Some("override".into()),
+        TokenKind::Import => Some("import".into()),
+        TokenKind::From => Some("from".into()),
+        TokenKind::Export => Some("export".into()),
+        TokenKind::Print => Some("print".into()),
+        TokenKind::Println => Some("println".into()),
+        // Literal keywords
+        TokenKind::True => Some("true".into()),
+        TokenKind::False => Some("false".into()),
+        TokenKind::Null => Some("null".into()),
+        _ => None,
     }
 }

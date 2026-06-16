@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum TokenKind {
     // Keywords (omnilang)
     Fn,
+    Const,
     Let,
     Mut,
     If,
@@ -104,6 +105,8 @@ pub enum TokenKind {
     Arrow,
     FatArrow,
     Pipe,
+    Dollar,
+    Hash,
     LParen,
     RParen,
     LBrace,
