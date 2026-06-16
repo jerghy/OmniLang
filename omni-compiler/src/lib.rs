@@ -90,3 +90,51 @@ pub fn compile(source: &str) -> CompileResult {
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+// ═══════════════════════════════════════════════════════
+// Native FFI (for Python ctypes/cffi)
+// ═══════════════════════════════════════════════════════
+
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+
+fn rust_to_c_string(s: String) -> *mut c_char {
+    CString::new(s)
+        .unwrap_or_else(|_| CString::new("{}").unwrap())
+        .into_raw()
+}
+
+/// Compile .omni source to IR JSON. Returns JSON string (caller must free with omni_free_string).
+#[no_mangle]
+pub extern "C" fn omni_compile_to_ir(source: *const c_char) -> *mut c_char {
+    let source_str = unsafe {
+        if source.is_null() {
+            return rust_to_c_string(
+                r#"{"success":false,"ir":null,"errors":[{"message":"null source pointer"}]}"#.into(),
+            );
+        }
+        CStr::from_ptr(source).to_str().unwrap_or("")
+    };
+    let result = compile(source_str);
+    let json = serde_json::to_string(&result).unwrap_or_else(|e| {
+        format!(r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#, e)
+    });
+    rust_to_c_string(json)
+}
+
+/// Free a string previously returned by omni_compile_to_ir or omni_compile_to_omniview.
+#[no_mangle]
+pub extern "C" fn omni_free_string(ptr: *mut c_char) {
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = CString::from_raw(ptr);
+    }
+}
+
+/// Return compiler version as C string (caller must free).
+#[no_mangle]
+pub extern "C" fn omni_version() -> *mut c_char {
+    rust_to_c_string(env!("CARGO_PKG_VERSION").to_string())
+}

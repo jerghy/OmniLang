@@ -89,7 +89,68 @@ class RustBridge:
     @classmethod
     def _try_dll(cls, source: str) -> dict | None:
         """Try compiling via ctypes DLL call."""
-        # TODO: Implement when Rust DLL is built (Phase 1)
+        return cls._call_dll("omni_compile_to_ir", source)
+
+    @classmethod
+    def _call_dll(cls, func_name: str, source: str) -> dict | None:
+        """Call a function in the Rust DLL via ctypes."""
+        import ctypes
+
+        dll = cls._load_dll()
+        if dll is None:
+            return None
+
+        try:
+            func = getattr(dll, func_name)
+            func.argtypes = [ctypes.c_char_p]
+            func.restype = ctypes.c_void_p
+
+            source_bytes = source.encode("utf-8")
+            ptr = func(source_bytes)
+            if ptr is None:
+                return None
+
+            # Read the returned C string
+            result_json = ctypes.cast(ptr, ctypes.c_char_p).value
+            if result_json:
+                result_json = result_json.decode("utf-8")
+
+            # Free the C string
+            dll.omni_free_string.argtypes = [ctypes.c_void_p]
+            dll.omni_free_string.restype = None
+            dll.omni_free_string(ptr)
+
+            if result_json:
+                parsed = json.loads(result_json)
+                # Unwrap CompileResult: {success, ir?, errors[]} -> IRProgram dict
+                if isinstance(parsed, dict) and "ir" in parsed:
+                    if parsed.get("success") and parsed["ir"] is not None:
+                        return parsed["ir"]  # Return just the IRProgram
+                    elif parsed.get("errors"):
+                        return {"_rust_errors": parsed["errors"]}
+                return parsed
+        except Exception:
+            pass
+        return None
+
+    @classmethod
+    def _load_dll(cls):
+        """Load the omni_compiler DLL. Returns ctypes.CDLL or None."""
+        if cls._dll is not None:
+            return cls._dll
+
+        import ctypes
+        dll_paths = [
+            str(Path(__file__).parent.parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll"),
+            str(Path("omni-compiler/target/release/omni_compiler.dll")),
+        ]
+        for p in dll_paths:
+            try:
+                if Path(p).exists():
+                    cls._dll = ctypes.CDLL(p)
+                    return cls._dll
+            except OSError:
+                continue
         return None
 
     @classmethod

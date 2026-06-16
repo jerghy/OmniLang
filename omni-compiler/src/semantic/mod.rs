@@ -266,18 +266,49 @@ impl SemanticAnalyzer {
     // ── Pass 2: Resolve references ─────────────────────
 
     fn resolve_references(&mut self, program: &Program) {
-        // Walk all expressions and check VarRef names resolve
+        // Walk all expressions and check VarRef names resolve.
+        // Push the same scope hierarchy as collect_symbols so resolution works.
         for comp in &program.components {
+            // Find the component scope by name
+            let comp_scope_name = format!("component:{}", comp.name);
+            if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
+                self.symbols.current_scope = scope_idx;
+            }
+
             for f in &comp.fns {
+                let fn_scope_name = format!("fn:{}", f.name);
+                if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
+                    self.symbols.current_scope = fn_idx;
+                }
                 self.resolve_block_refs(&f.body);
+                self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
+                    .parent.unwrap_or(0);
             }
             for a in &comp.actions {
+                let action_scope_name = format!("action:{}", a.name);
+                if let Some(a_idx) = self.find_scope(&action_scope_name) {
+                    self.symbols.current_scope = a_idx;
+                }
                 self.resolve_block_refs(&a.body);
+                if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
+                    self.symbols.current_scope = parent;
+                }
             }
+            self.symbols.current_scope = 0; // back to global
         }
         for f in &program.functions {
+            let fn_scope_name = format!("fn:{}", f.name);
+            if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
+                self.symbols.current_scope = fn_idx;
+            }
             self.resolve_block_refs(&f.body);
+            self.symbols.current_scope = 0;
         }
+    }
+
+    /// Find a scope by name (linear scan — sufficient for our scale).
+    fn find_scope(&self, name: &str) -> Option<usize> {
+        self.symbols.scopes.iter().position(|s| s.name == name)
     }
 
     fn resolve_block_refs(&mut self, block: &Block) {

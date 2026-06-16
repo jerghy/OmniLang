@@ -6,17 +6,26 @@ from omniview.tests.helpers import make_counter_ir_dict, ir_dataclass_to_dict
 
 
 def test_react_codegen_from_dict_matches_pipeline():
-    """React codegen: dict input -> same output as full Python pipeline."""
-    from omniview.api import compile_omni
+    """React codegen: dict input -> same output as Python pipeline (dataclass)."""
     from omniview.codegen.react import ReactCodegen
+    import omniview.preprocessor as pp
+    from omnilang.lexer import create_omniview_parser
+    from omniview.parser import OmniViewTransformer
+    from omniview.semantic.analyzer import SemanticAnalyzer
+    from omniview.lowering import IRFixture
 
     source = open("build/test/counter/Counter.omni", encoding="utf-8").read()
 
-    # Path A: Full Python pipeline (dataclass)
-    result_a = compile_omni(source, filepath="counter/Counter.omni", target="react")
-    assert result_a.success, f"Python pipeline errors: {result_a.errors}"
+    # Path A: Python pipeline -> dataclass IR -> codegen
+    pre = pp.preprocess(source)
+    tree = create_omniview_parser().parse(pre.processed_source)
+    ast = OmniViewTransformer(block_map=pre.blocks).transform(tree)
+    analysis = SemanticAnalyzer(source_lines=source.split('\n')).analyze(ast)
+    ir_map = IRFixture().lower_program(ast)
+    result_a = ReactCodegen().generate_component(ir_map["Counter"])
+    assert result_a.success, f"Dataclass pipeline errors: {result_a.errors}"
 
-    # Path B: IR dict -> codegen directly
+    # Path B: Same IR as dict -> codegen directly
     ir_dict = make_counter_ir_dict()
     comp_dict = ir_dict["components"]["Counter"]
     result_b = ReactCodegen().generate_component(comp_dict)

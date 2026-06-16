@@ -133,17 +133,19 @@ impl<'a> Parser<'a> {
                     TokenKind::StringLiteral(_) | TokenKind::LBrace => {
                         children.push(self.parse_view_node()?);
                     }
-                    _ => {
-                        let t = self.peek();
-                        // Plain text between tags
-                        if matches!(t.kind, TokenKind::Ident(_)) {
-                            let text = self.advance();
-                            if let TokenKind::Ident(s) = &text.kind {
-                                children.push(ViewNode::Text(s.clone()));
-                            }
-                        } else {
-                            break;
+                    // Collect consecutive text tokens (Idents, colons, etc.) into one Text node
+                    _ if is_text_token(&self.peek_kind()) => {
+                        let mut text = String::new();
+                        while is_text_token(&self.peek_kind()) {
+                            let t = self.advance();
+                            text.push_str(&token_text(&t.kind));
                         }
+                        if !text.is_empty() {
+                            children.push(ViewNode::Text(text));
+                        }
+                    }
+                    _ => {
+                        break;
                     }
                 }
             }
@@ -490,4 +492,48 @@ fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
         }
     }
     None
+}
+
+/// Check if a token kind represents text content between view elements.
+fn is_text_token(kind: &TokenKind) -> bool {
+    use crate::lexer::TokenKind;
+    matches!(
+        kind,
+        TokenKind::Ident(_)
+            | TokenKind::Colon
+            | TokenKind::Comma
+            | TokenKind::Dot
+            | TokenKind::IntLiteral(_)
+            | TokenKind::FloatLiteral(_)
+            | TokenKind::Plus
+            | TokenKind::Minus
+            | TokenKind::Star
+            | TokenKind::Slash
+            | TokenKind::QuestionMark
+            | TokenKind::Not
+            | TokenKind::LParen
+            | TokenKind::RParen
+    )
+}
+
+/// Convert a text token to its string representation.
+fn token_text(kind: &TokenKind) -> String {
+    use crate::lexer::TokenKind;
+    match kind {
+        TokenKind::Ident(s) => s.clone(),
+        TokenKind::IntLiteral(n) => n.to_string(),
+        TokenKind::FloatLiteral(f) => f.to_string(),
+        TokenKind::Colon => ":".into(),
+        TokenKind::Comma => ",".into(),
+        TokenKind::Dot => ".".into(),
+        TokenKind::Plus => "+".into(),
+        TokenKind::Minus => "-".into(),
+        TokenKind::Star => "*".into(),
+        TokenKind::Slash => "/".into(),
+        TokenKind::QuestionMark => "?".into(),
+        TokenKind::Not => "!".into(),
+        TokenKind::LParen => "(".into(),
+        TokenKind::RParen => ")".into(),
+        _ => String::new(),
+    }
 }

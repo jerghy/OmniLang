@@ -357,25 +357,45 @@ class WireHandle {
 // ═══════════════════════════════════════════════════════
 
 class OmniDriver {
-  /** @internal Access the Zustand store (design mode) or code graph store (code mode).
-   *  Returns a facade that has .elements, .wires, .addElement(), etc. from the active store. */
-  _store(): any {
-    if (((window as any).__OMNI_MODE__ || "design") === "code") {
-      return new Proxy({} as any, {
-        get: (_target, prop) => {
-          const cg = useCodeGraphStore.getState();
-          const graph = cg.getActiveGraph();
-          if (prop === "elements") return graph.elements;
-          if (prop === "wires") return graph.wires;
-          if (prop === "selectedElementIds") return [];
-          if (prop === "previewUrl") return null;
-          if (prop === "activeFileContent") return "";
-          if (prop === "activeFilePath") return "";
-          if (prop === "projectDir") return "";
-          const val = (cg as any)[prop];
-          return typeof val === "function" ? val.bind(cg) : val;
-        },
-      });
+  /** @internal Access the design-mode Zustand store (always, for view elements, file ops, etc.). */
+  _store() {
+    return useEditorStore.getState();
+  }
+
+  /** @internal Check if we are in code mode. */
+  private _isCodeMode(): boolean {
+    return ((window as any).__OMNI_MODE__ || "design") === "code";
+  }
+
+  /** @internal Access the code graph store for tab/graph operations. */
+  private _cgStore() {
+    return useCodeGraphStore.getState();
+  }
+
+  /** @internal Access the active store (design or code graph) for element/wire CRUD.
+   *  Returns an object with .elements, .wires, .addElement(), .addWire(), .removeWire(). */
+  private _activeStore(): any {
+    if (this._isCodeMode()) {
+      const cg = useCodeGraphStore.getState();
+      const graph = cg.getActiveGraph();
+      return {
+        get elements() { return graph.elements; },
+        get wires() { return graph.wires; },
+        addElement: (el: ElementData) => cg.addElement(el),
+        removeElement: (id: string) => cg.removeElement(id),
+        setProp: (id: string, prop: string, value: unknown) => cg.setProp(id, prop, value),
+        getProp: (id: string, prop: string) => cg.getProp(id, prop),
+        addWire: (w: WireData) => cg.addWire(w),
+        removeWire: (id: string) => cg.removeWire(id),
+        setElementSource: (id: string, source: string) => cg.setElementSource(id, source),
+        setElementPorts: (id: string, ports: any) => cg.setElementPorts(id, ports),
+        selectElement: (_id: string | null, _multi?: boolean) => {},
+        get selectedElementIds() { return []; },
+        get previewUrl() { return null; },
+        get activeFileContent() { return ""; },
+        get activeFilePath() { return ""; },
+        get projectDir() { return ""; },
+      };
     }
     return useEditorStore.getState();
   }
@@ -427,17 +447,17 @@ class OmniDriver {
 
   /** Alias for getElements() — all elements on the canvas. */
   get elements(): ElementData[] {
-    return this._store().elements;
+    return this._activeStore().elements;
   }
 
   /** Get all wires currently on the canvas. */
   getWires(): WireData[] {
-    return this._store().wires;
+    return this._activeStore().wires;
   }
 
   /** Alias for getWires() — all wires on the canvas. */
   get wires(): WireData[] {
-    return this._store().wires;
+    return this._activeStore().wires;
   }
 
   /** Get the currently selected element, or null. */
@@ -627,7 +647,12 @@ class OmniDriver {
       nodeCategory: config.category,
     };
 
-    this._store().addElement(el);
+    // Route to code graph store when in code mode
+    if (this._isCodeMode()) {
+      this._cgStore().addElement(el);
+    } else {
+      this._store().addElement(el);
+    }
 
     return new ElementHandle(id, this);
   }
@@ -787,9 +812,10 @@ class OmniDriver {
     wireId?: string,
   ): WireHandle {
     this._ensureHelp();
+    const store = this._activeStore();
     const id = wireId || `wire-${fromId}-${fromPort}-${toId}-${toPort}`;
-    const fromEl = this._store().elements.find((e) => e.id === fromId);
-    const toEl = this._store().elements.find((e) => e.id === toId);
+    const fromEl = store.elements.find((e: ElementData) => e.id === fromId);
+    const toEl = store.elements.find((e: ElementData) => e.id === toId);
 
     if (!fromEl) throw new Error(`Source element ${fromId} not found`);
     if (!toEl) throw new Error(`Target element ${toId} not found`);
@@ -800,7 +826,7 @@ class OmniDriver {
 
     // Run shared validation (same as FlowCanvas.handleConnect)
     const issues = validateConnection(
-      fromEl, fromPort, toEl, toPort, this._store().wires, fromPorts, toPorts,
+      fromEl, fromPort, toEl, toPort, store.wires, fromPorts, toPorts,
     );
 
     // Log all issues
@@ -819,13 +845,13 @@ class OmniDriver {
       return new WireHandle(id, this);
     }
 
-    this._store().addWire({ id, fromId, fromPort, toId, toPort });
+    store.addWire({ id, fromId, fromPort, toId, toPort });
     return new WireHandle(id, this);
   }
 
   /** Disconnect a wire by ID. */
   disconnect(wireId: string): void {
-    this._store().removeWire(wireId);
+    this._activeStore().removeWire(wireId);
   }
 
   // ── Property Operations ───────────────────────────
@@ -1518,13 +1544,15 @@ class OmniDriver {
       ports: [...inPorts, outPort], nodeCategory: "function" as ElementData["nodeCategory"],
       config: { fnName, fnParams, fnReturnType, description: "" },
     };
-    this._store().addElement(el);
+    // customFn always goes to code graph store
+    this._cgStore().addElement(el);
     return new ElementHandle(id, this);
   }
 
   /** Create a return node associated with a customFn. */
   returnNode(parentFnId: string): ElementHandle {
-    const fnEl = this._store().elements.find((e) => e.id === parentFnId);
+    const cgStore = this._cgStore();
+    const fnEl = cgStore.getActiveGraph().elements.find((e: ElementData) => e.id === parentFnId);
     if (!fnEl || fnEl.tag !== "customFn") {
       throw new Error(`[OmniDriver] returnNode: parentFnId "${parentFnId}" is not a customFn node`);
     }
@@ -1537,18 +1565,19 @@ class OmniDriver {
       nodeCategory: "function" as ElementData["nodeCategory"],
       config: { parentFnId, returnType },
     };
-    this._store().addElement(el);
+    this._cgStore().addElement(el);
     return new ElementHandle(id, this);
   }
 
   /** Validate a customFn — scan for return nodes and check type consistency. */
   validateFunction(fnId: string): import("./types").FunctionValidationReport {
-    const el = this._store().elements.find((e) => e.id === fnId);
+    const graph = this._cgStore().getActiveGraph();
+    const el = graph.elements.find((e: ElementData) => e.id === fnId);
     if (!el || el.tag !== "customFn") {
       return { valid: false, returnType: "unknown", errors: [`Element "${fnId}" is not a customFn node`], reachableReturnPaths: 0 };
     }
     const expectedType = (el.config?.fnReturnType as string) || "void";
-    const wires = this._store().wires;
+    const wires = graph.wires;
 
     // BFS from customFn to find all reachable return nodes
     const visited = new Set<string>();
@@ -1558,8 +1587,8 @@ class OmniDriver {
       const current = queue.shift()!;
       if (visited.has(current)) continue;
       visited.add(current);
-      for (const w of wires.filter((wr) => wr.fromId === current)) {
-        const target = this._store().elements.find((e) => e.id === w.toId);
+      for (const w of wires.filter((wr: WireData) => wr.fromId === current)) {
+        const target = graph.elements.find((e: ElementData) => e.id === w.toId);
         if (!target) continue;
         if (target.tag === "return") { reachableReturnNodes.push(target); }
         else { queue.push(target.id); }
@@ -1567,8 +1596,8 @@ class OmniDriver {
     }
 
     // Also find return nodes that reference this fn as parent (fallback for disconnected tests)
-    const parentRefReturns = this._store().elements.filter(
-      (e) => e.tag === "return" && e.config?.parentFnId === fnId,
+    const parentRefReturns = graph.elements.filter(
+      (e: ElementData) => e.tag === "return" && e.config?.parentFnId === fnId,
     );
     const allReturnNodes = [...new Map(
       [...reachableReturnNodes, ...parentRefReturns].map((n) => [n.id, n]),
