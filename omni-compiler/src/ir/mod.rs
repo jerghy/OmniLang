@@ -1,10 +1,11 @@
 //! Intent IR types and AST -> IR lowering.
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::parser::ast::Program;
+use serde::{Deserialize, Serialize};
+
+use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use crate::sourcemap::SourceMapEntry;
 
@@ -72,7 +73,7 @@ pub struct EventHandlerIR {
 }
 
 // ═══════════════════════════════════════════════════════
-// Block IR
+// Block IR & Statements
 // ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,25 +157,6 @@ pub struct ListRenderingIntent {
     pub empty_body: Option<ViewTree>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BindIntent {
-    pub source: SignalRefIR,
-    pub element_type: String,
-    pub direction: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventIntent {
-    pub event_name: String,
-    pub handler: EventHandlerIR,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SlotIntent {
-    pub name: Option<String>,
-    pub body: Option<ViewTree>,
-}
-
 // ═══════════════════════════════════════════════════════
 // Element IR
 // ═══════════════════════════════════════════════════════
@@ -203,12 +185,11 @@ pub enum ViewTree {
     Element(ElementIR),
     Conditional(Box<ConditionalIntent>),
     ListRendering(Box<ListRenderingIntent>),
-    Slot(Box<SlotIntent>),
     Text(String),
 }
 
 // ═══════════════════════════════════════════════════════
-// Style
+// Style & Function IR
 // ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,10 +198,6 @@ pub struct StyleRuleIR {
     pub properties: HashMap<String, ExprIR>,
     pub output_mode: String,
 }
-
-// ═══════════════════════════════════════════════════════
-// Function IR
-// ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionIR {
@@ -267,10 +244,6 @@ pub struct StoreIR {
     pub actions: Vec<serde_json::Value>,
 }
 
-// ═══════════════════════════════════════════════════════
-// Top-level IR Program
-// ═══════════════════════════════════════════════════════
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IRProgram {
     pub version: String,
@@ -279,13 +252,409 @@ pub struct IRProgram {
     pub source_map: HashMap<String, SourceMapEntry>,
 }
 
+// ═══════════════════════════════════════════════════════
+// Lowering: AST -> IR
+// ═══════════════════════════════════════════════════════
+
 /// Lower AST -> IR.
-pub fn lower(program: &Program, semantics: &SemanticResult) -> IRProgram {
-    let _ = (program, semantics);
+pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
+    let mut components = HashMap::new();
+    let mut stores = HashMap::new();
+
+    for comp in &program.components {
+        let ir = lower_component(comp);
+        components.insert(comp.name.clone(), ir);
+    }
+
+    for store in &program.stores {
+        let ir = lower_store(store);
+        stores.insert(store.name.clone(), ir);
+    }
+
     IRProgram {
         version: "1.0".to_string(),
-        components: HashMap::new(),
-        stores: HashMap::new(),
+        components,
+        stores,
         source_map: HashMap::new(),
+    }
+}
+
+fn lower_component(comp: &ComponentDef) -> ComponentIR {
+    let states: Vec<StateIntent> = comp.signals.iter().map(|s| StateIntent {
+        name: s.name.clone(),
+        r#type: lower_type(&s.type_ann),
+        initial_value: lower_expr(&s.init),
+        mutability: "mutable".into(),
+        update_semantics: "setter-call".into(),
+        accessor_style: "direct".into(),
+        is_copy: false,
+    }).collect();
+
+    let computeds: Vec<ComputedIntent> = comp.computeds.iter().map(|c| ComputedIntent {
+        name: c.name.clone(),
+        r#type: lower_type(&c.type_ann),
+        body: lower_expr(&c.body),
+        deps: vec![],
+    }).collect();
+
+    let effects: Vec<EffectIntent> = comp.lifecycles.iter()
+        .filter(|lc| matches!(lc.kind, LifecycleKind::Effect))
+        .map(|lc| EffectIntent {
+            deps: lc.deps.clone(),
+            body: lower_block(&lc.body),
+        }).collect();
+
+    let lifecycles: Vec<LifecycleIntent> = comp.lifecycles.iter()
+        .filter(|lc| !matches!(lc.kind, LifecycleKind::Effect))
+        .map(|lc| LifecycleIntent {
+            kind: match lc.kind {
+                LifecycleKind::Mount => "mount".into(),
+                LifecycleKind::Unmount => "unmount".into(),
+                LifecycleKind::Effect => "effect".into(),
+            },
+            body: lower_block(&lc.body),
+        }).collect();
+
+    let fns: Vec<FunctionIR> = comp.fns.iter().map(|f| FunctionIR {
+        name: f.name.clone(),
+        params: f.params.iter().map(|p| ParamIR {
+            name: p.name.clone(),
+            r#type: p.type_ann.as_ref().map(lower_type),
+        }).collect(),
+        return_type: f.return_type.as_ref().map(lower_type),
+        body: lower_block(&f.body),
+    }).collect();
+
+    let props: HashMap<String, TypeIR> = comp.props.iter()
+        .map(|p| (p.name.clone(), lower_type(&p.type_ann)))
+        .collect();
+
+    let view = comp.view.as_ref().map(|v| lower_view_block(v));
+
+    ComponentIR {
+        name: comp.name.clone(),
+        generic_params: vec![],
+        props,
+        states,
+        computeds,
+        effects,
+        lifecycles,
+        fns,
+        store_refs: comp.store_refs.clone(),
+        refs: vec![],
+        view,
+        styles: vec![],
+    }
+}
+
+fn lower_store(store: &StoreDef) -> StoreIR {
+    let signals: HashMap<String, TypeIR> = store.signals.iter()
+        .map(|s| (s.name.clone(), lower_type(&s.type_ann)))
+        .collect();
+
+    let signal_defaults: HashMap<String, serde_json::Value> = store.signals.iter()
+        .map(|s| {
+            let val = match &s.init {
+                Expr::Literal(Literal::Int(n), _) => serde_json::Value::Number((*n).into()),
+                Expr::Literal(Literal::Float(f), _) => {
+                    serde_json::json!(f)
+                }
+                Expr::Literal(Literal::String(s), _) => serde_json::Value::String(s.clone()),
+                Expr::Literal(Literal::Bool(b), _) => serde_json::Value::Bool(*b),
+                Expr::Literal(Literal::Null, _) => serde_json::Value::Null,
+                _ => serde_json::Value::String(format!("{:?}", s.init)),
+            };
+            (s.name.clone(), val)
+        }).collect();
+
+    let getters: HashMap<String, ExprIR> = store.getters.iter()
+        .map(|g| (g.name.clone(), lower_expr(&g.body)))
+        .collect();
+
+    let actions: Vec<serde_json::Value> = store.actions.iter()
+        .map(|_| serde_json::Value::Null)
+        .collect();
+
+    StoreIR {
+        name: store.name.clone(),
+        signals,
+        signal_defaults,
+        getters,
+        actions,
+    }
+}
+
+fn lower_view_block(view: &ViewBlock) -> ViewTree {
+    if let Some(first) = view.children.first() {
+        lower_view_node(first)
+    } else {
+        ViewTree::Text("".into())
+    }
+}
+
+fn lower_view_node(node: &ViewNode) -> ViewTree {
+    match node {
+        ViewNode::Element(el) => {
+            let mut props = HashMap::new();
+            let mut bindings = HashMap::new();
+            let mut events = HashMap::new();
+
+            for prop in &el.props {
+                match prop {
+                    ElementProp::Static { name, value } => {
+                        props.insert(name.clone(), lower_expr(value));
+                    }
+                    ElementProp::Bind { name, signal_path } => {
+                        bindings.insert(name.clone(), SignalRefIR {
+                            owner: None,
+                            name: signal_path.clone(),
+                        });
+                    }
+                    ElementProp::Event { name, handler } => {
+                        let ir_handler = match handler {
+                            EventHandler::InlineFn { body, .. } => EventHandlerIR {
+                                kind: "inline_fn".into(),
+                                body: Some(lower_block(body)),
+                                r#ref: None,
+                            },
+                            EventHandler::FnRef(fn_name) => EventHandlerIR {
+                                kind: "fn_ref".into(),
+                                body: None,
+                                r#ref: Some(fn_name.clone()),
+                            },
+                            EventHandler::StoreAction { store, action } => EventHandlerIR {
+                                kind: "store_action".into(),
+                                body: None,
+                                r#ref: Some(format!("{}.{}", store, action)),
+                            },
+                        };
+                        events.insert(name.clone(), ir_handler);
+                    }
+                    _ => {}
+                }
+            }
+
+            let children: Vec<ViewTree> = el.children.iter()
+                .map(lower_view_node)
+                .collect();
+
+            ViewTree::Element(ElementIR {
+                tag: el.tag.clone(),
+                props,
+                bindings,
+                events,
+                style_classes: None,
+                inline_style: None,
+                children,
+                test_id: None,
+                ref_name: None,
+                construction_kind: "tag-mapping".into(),
+            })
+        }
+        ViewNode::Text(s) => ViewTree::Text(s.clone()),
+        ViewNode::Interpolation(expr) => {
+            // Represent interpolation as a text node containing an IdentifierExpr
+            if let Expr::VarRef(name, _) = expr {
+                ViewTree::Text(format!("{{{}}}", name))
+            } else {
+                ViewTree::Text("{...}".into())
+            }
+        }
+        ViewNode::IfDirective(if_dir) => {
+            let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
+                condition: lower_expr(&if_dir.condition),
+                body: Some(ViewTree::Element(ElementIR {
+                    tag: "fragment".into(),
+                    props: HashMap::new(),
+                    bindings: HashMap::new(),
+                    events: HashMap::new(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: if_dir.body.iter().map(lower_view_node).collect(),
+                    test_id: None,
+                    ref_name: None,
+                    construction_kind: "conditional".into(),
+                })),
+            }).chain(if_dir.else_ifs.iter().map(|(cond, body)| ConditionalBranch {
+                condition: lower_expr(cond),
+                body: Some(ViewTree::Element(ElementIR {
+                    tag: "fragment".into(),
+                    props: HashMap::new(),
+                    bindings: HashMap::new(),
+                    events: HashMap::new(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: body.iter().map(lower_view_node).collect(),
+                    test_id: None,
+                    ref_name: None,
+                    construction_kind: "conditional".into(),
+                })),
+            })).collect();
+
+            let fallback = if_dir.else_body.as_ref().map(|body| {
+                ViewTree::Element(ElementIR {
+                    tag: "fragment".into(),
+                    props: HashMap::new(),
+                    bindings: HashMap::new(),
+                    events: HashMap::new(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: body.iter().map(lower_view_node).collect(),
+                    test_id: None,
+                    ref_name: None,
+                    construction_kind: "conditional".into(),
+                })
+            });
+
+            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback }))
+        }
+        ViewNode::ForDirective(for_dir) => {
+            let body = if for_dir.body.is_empty() {
+                None
+            } else {
+                Some(ViewTree::Element(ElementIR {
+                    tag: "fragment".into(),
+                    props: HashMap::new(),
+                    bindings: HashMap::new(),
+                    events: HashMap::new(),
+                    style_classes: None,
+                    inline_style: None,
+                    children: for_dir.body.iter().map(lower_view_node).collect(),
+                    test_id: None,
+                    ref_name: None,
+                    construction_kind: "list".into(),
+                }))
+            };
+
+            ViewTree::ListRendering(Box::new(ListRenderingIntent {
+                iterable: lower_expr(&for_dir.iterable),
+                item_binding: BindingIR { name: for_dir.item_name.clone(), r#type: None },
+                body,
+                key_expr: None,
+                empty_body: None,
+            }))
+        }
+        ViewNode::SlotDirective(name) => {
+            ViewTree::Text(format!("<slot name={:?}>", name))
+        }
+    }
+}
+
+fn lower_block(block: &Block) -> BlockIR {
+    let statements: Vec<StatementIR> = block.stmts.iter().map(|stmt| match stmt {
+        Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
+            name: name.clone(),
+            value: init.as_ref().map(lower_expr),
+            r#type: None,
+        },
+        Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
+            value: value.as_ref().map(lower_expr),
+        },
+        Stmt::ExprStmt { expr, .. } => StatementIR::ExprStmtIR {
+            expr: lower_expr(expr),
+        },
+        Stmt::If { condition, then_body, else_body, .. } => StatementIR::IfStmtIR {
+            condition: lower_expr(condition),
+            then_body: lower_block(then_body),
+            else_body: else_body.as_ref().map(|b| lower_block(b)),
+        },
+        _ => StatementIR::ExprStmtIR {
+            expr: ExprIR::LiteralExpr { value: serde_json::Value::Null },
+        },
+    }).collect();
+
+    BlockIR {
+        statements,
+        execution_mode: "client-only".into(),
+    }
+}
+
+fn lower_expr(expr: &Expr) -> ExprIR {
+    match expr {
+        Expr::Literal(lit, _) => {
+            let value = match lit {
+                Literal::Int(n) => serde_json::Value::Number((*n).into()),
+                Literal::Float(f) => serde_json::json!(f),
+                Literal::String(s) => serde_json::Value::String(s.clone()),
+                Literal::Bool(b) => serde_json::Value::Bool(*b),
+                Literal::Null => serde_json::Value::Null,
+            };
+            ExprIR::LiteralExpr { value }
+        }
+        Expr::VarRef(name, _) => ExprIR::IdentifierExpr { name: name.clone() },
+        Expr::BinaryOp { left, op, right, .. } => ExprIR::BinaryOpExpr {
+            op: format!("{:?}", op).to_lowercase(),
+            left: Box::new(lower_expr(left)),
+            right: Box::new(lower_expr(right)),
+        },
+        Expr::UnaryOp { op, operand, .. } => ExprIR::UnaryOpExpr {
+            op: format!("{:?}", op).to_lowercase(),
+            operand: Box::new(lower_expr(operand)),
+        },
+        Expr::FuncCall { func, args, .. } => {
+            // Map function calls into store field access or plain identifier
+            if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
+                if let Expr::VarRef(obj_name, _) = object.as_ref() {
+                    return ExprIR::StoreFieldAccessExpr {
+                        store_alias: obj_name.clone(),
+                        field_name: field.clone(),
+                        call_args: args.iter().map(lower_expr).collect(),
+                    };
+                }
+            }
+            // Fallback: return identifier for function name
+            if let Expr::VarRef(name, _) = func.as_ref() {
+                ExprIR::IdentifierExpr { name: name.clone() }
+            } else {
+                ExprIR::LiteralExpr { value: serde_json::Value::Null }
+            }
+        }
+        Expr::FieldAccess { object, field, .. } => ExprIR::FieldAccessExpr {
+            object: Box::new(lower_expr(object)),
+            field: field.clone(),
+        },
+        Expr::StoreFieldAccess { store_alias, field_name, .. } => {
+            ExprIR::StoreFieldAccessExpr {
+                store_alias: store_alias.clone(),
+                field_name: field_name.clone(),
+                call_args: vec![],
+            }
+        }
+        _ => ExprIR::LiteralExpr { value: serde_json::Value::Null },
+    }
+}
+
+fn lower_type(ty: &TypeAnnotation) -> TypeIR {
+    match ty {
+        TypeAnnotation::Named { name, type_args, .. } => {
+            let kind = name.clone();
+            let args: Vec<TypeIR> = type_args.iter().map(lower_type).collect();
+            TypeIR {
+                kind,
+                type_args: args,
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }
+        }
+        TypeAnnotation::Optional { base, .. } => {
+            let mut inner = lower_type(base);
+            inner.is_nullable = true;
+            inner
+        }
+        TypeAnnotation::Union { types, .. } => {
+            if let Some(first) = types.first() {
+                lower_type(first)
+            } else {
+                TypeIR { kind: "void".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }
+            }
+        }
+        TypeAnnotation::Fn { .. } => TypeIR {
+            kind: "function".into(),
+            type_args: vec![],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        },
     }
 }
