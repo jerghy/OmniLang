@@ -89,6 +89,11 @@ impl<'a> Parser<'a> {
                     let prop = self.parse_event_prop()?;
                     props.push(prop);
                 }
+                TokenKind::Ident(ref name) if is_event_like(name) => {
+                    // onPress, onClick, onChange, etc. without @ prefix
+                    let prop = self.parse_event_prop_no_at(name)?;
+                    props.push(prop);
+                }
                 TokenKind::Ident(_) => {
                     let prop = self.parse_element_prop()?;
                     props.push(prop);
@@ -309,65 +314,79 @@ impl<'a> Parser<'a> {
                 })
             }
         };
-        let handler = if self.peek_kind() == TokenKind::Eq {
-            self.advance();
-            match self.peek_kind() {
-                TokenKind::LBrace => {
-                    self.advance();
-                    // Check if it's an inline fn: (params) => { body }
-                    let handler = if self.peek_kind() == TokenKind::LParen {
-                        self.advance();
-                        let params = self.parse_params()?;
-                        self.expect_token(TokenKind::RParen, "expected ')'")?;
-                        self.expect_token(TokenKind::FatArrow, "expected '=>'")?;
-                        let body = self.parse_block()?;
-                        EventHandler::InlineFn { params, body }
-                    } else {
-                        // fn reference: fnName or store.action
-                        let t = self.advance();
-                        match &t.kind {
-                            TokenKind::Ident(name) => {
-                                if self.peek_kind() == TokenKind::Dot {
-                                    self.advance();
-                                    let action = self.expect_ident("expected action name")?;
-                                    EventHandler::StoreAction {
-                                        store: name.clone(),
-                                        action,
-                                    }
-                                } else {
-                                    EventHandler::FnRef(name.clone())
-                                }
-                            }
-                            _ => {
-                                return Err(ParseError {
-                                    message: format!("Expected event handler, got {:?}", t.kind),
-                                    span: t.span,
-                                })
-                            }
-                        }
-                    };
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    handler
-                }
-                _ => {
-                    let t = self.advance();
-                    return Err(ParseError {
-                        message: format!("Expected {{handler}} after '=', got {:?}", t.kind),
-                        span: t.span,
-                    });
-                }
-            }
-        } else {
-            return Err(ParseError {
-                message: "Expected '=' after event name".into(),
-                span: self.peek_span(),
-            });
-        };
-
+        let handler = self.parse_event_handler_value()?;
         Ok(ElementProp::Event {
             name: event_name,
             handler,
         })
+    }
+
+    /// Parse onEvent={handler} (no @ prefix) — event name is already known.
+    fn parse_event_prop_no_at(&mut self, event_name: &str) -> Result<ElementProp, ParseError> {
+        // Consume the event name ident token
+        self.advance();
+        let handler = self.parse_event_handler_value()?;
+        Ok(ElementProp::Event {
+            name: event_name.to_string(),
+            handler,
+        })
+    }
+
+    /// Parse the ={handler} part of an event binding.
+    fn parse_event_handler_value(&mut self) -> Result<EventHandler, ParseError> {
+        if self.peek_kind() != TokenKind::Eq {
+            return Err(ParseError {
+                message: "Expected '=' after event name".into(),
+                span: self.peek_span(),
+            });
+        }
+        self.advance(); // '='
+        match self.peek_kind() {
+            TokenKind::LBrace => {
+                self.advance();
+                let handler = if self.peek_kind() == TokenKind::LParen {
+                    // Inline fn: (params) => { body }
+                    self.advance();
+                    let params = self.parse_params()?;
+                    self.expect_token(TokenKind::RParen, "expected ')'")?;
+                    self.expect_token(TokenKind::FatArrow, "expected '=>'")?;
+                    let body = self.parse_block()?;
+                    EventHandler::InlineFn { params, body }
+                } else {
+                    // fn reference: fnName or store.action
+                    let t = self.advance();
+                    match &t.kind {
+                        TokenKind::Ident(name) => {
+                            if self.peek_kind() == TokenKind::Dot {
+                                self.advance();
+                                let action = self.expect_ident("expected action name")?;
+                                EventHandler::StoreAction {
+                                    store: name.clone(),
+                                    action,
+                                }
+                            } else {
+                                EventHandler::FnRef(name.clone())
+                            }
+                        }
+                        _ => {
+                            return Err(ParseError {
+                                message: format!("Expected event handler, got {:?}", t.kind),
+                                span: t.span,
+                            })
+                        }
+                    }
+                };
+                self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                Ok(handler)
+            }
+            _ => {
+                let t = self.advance();
+                Err(ParseError {
+                    message: format!("Expected {{handler}} after '=', got {:?}", t.kind),
+                    span: t.span,
+                })
+            }
+        }
     }
 
     // ── Directives ─────────────────────────────────────
@@ -498,6 +517,15 @@ impl<'a> Parser<'a> {
             properties,
         })
     }
+}
+
+/// Check if an identifier looks like an event handler name (onPress, onClick, etc.)
+fn is_event_like(name: &str) -> bool {
+    if name.len() < 4 || !name.starts_with("on") {
+        return false;
+    }
+    // Check third char is uppercase: onPress, onClick, onChange, etc.
+    name.chars().nth(2).map_or(false, |c| c.is_uppercase())
 }
 
 /// Try to parse a string like "16px" into (16.0, "px").
