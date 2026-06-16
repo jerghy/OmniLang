@@ -329,6 +329,27 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    /// Try to parse an identifier (including contextual keywords).
+    /// Returns Some(name) and consumes the token, or None without consuming.
+    pub(crate) fn try_parse_ident(&mut self) -> Option<String> {
+        let t = self.peek();
+        match &t.kind {
+            TokenKind::Ident(name) => {
+                let name = name.clone();
+                self.advance();
+                Some(name)
+            }
+            _ => {
+                if let Some(name) = keyword_as_ident_name(&t.kind) {
+                    self.advance();
+                    Some(name)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     pub(crate) fn expect_ident(&mut self, msg: &str) -> Result<String, ParseError> {
         let t = self.advance();
         match &t.kind {

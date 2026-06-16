@@ -13,6 +13,7 @@
 use crate::error::ParseError;
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
+use crate::parser::stmt::keyword_as_ident_name;
 use crate::parser::Parser;
 
 /// Binding power: (left_bp, right_bp). Higher = tighter.
@@ -55,23 +56,13 @@ impl<'a> Parser<'a> {
 
             TokenKind::Ident(name) => {
                 let name = name.clone();
-                // Check for function call
-                if self.peek_kind() == TokenKind::LParen {
-                    self.advance(); // consume '('
-                    let args = self.parse_call_args()?;
-                    Ok(Expr::FuncCall {
-                        func: Box::new(Expr::VarRef(name.clone(), span.clone())),
-                        args,
-                        span: Span {
-                            start: span.start,
-                            end: self.peek().span.start,
-                            line: span.line,
-                            col: span.col,
-                        },
-                    })
-                } else {
-                    Ok(Expr::VarRef(name, span))
-                }
+                self.parse_ident_expr(name, span)
+            }
+
+            // Contextual keywords as identifiers in expressions
+            ref kind if keyword_as_ident_name(kind).is_some() => {
+                let name = keyword_as_ident_name(kind).unwrap();
+                self.parse_ident_expr(name, span)
             }
 
             TokenKind::Minus => {
@@ -164,9 +155,45 @@ impl<'a> Parser<'a> {
                 })
             }
 
+            TokenKind::Pipe => {
+                // Closure expression: |param1, param2| body
+                let mut params: Vec<String> = Vec::new();
+                loop {
+                    match self.peek_kind() {
+                        TokenKind::Pipe => {
+                            self.advance(); // closing |
+                            break;
+                        }
+                        TokenKind::Comma => {
+                            self.advance();
+                        }
+                        _ => {
+                            // Try to parse as identifier (including contextual keywords)
+                            if let Some(name) = self.try_parse_ident() {
+                                params.push(name);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let body = self.parse_expr()?;
+                Ok(Expr::ClosureExpr {
+                    params,
+                    body: Box::new(body),
+                    span: Span {
+                        start: span.start,
+                        end: self.peek().span.start,
+                        line: span.line,
+                        col: span.col,
+                    },
+                })
+            }
+
             TokenKind::DotDotDot => {
                 // Spread expression: ...expr (reserved for P2)
-                // Parse the spread target, but mark as not yet implemented
+                // Parse the spread target to avoid leaving unconsumed tokens
+                let _target = self.parse_expr()?;
                 Ok(Expr::NotYetImplemented {
                     feature: "spread".into(),
                     span,
@@ -235,14 +262,18 @@ impl<'a> Parser<'a> {
             // Postfix: method call, index, function call
             TokenKind::Dot | TokenKind::QuestionDot => {
                 let next = self.advance();
-                match &next.kind {
-                    TokenKind::Ident(method) => {
+                let field_name = match &next.kind {
+                    TokenKind::Ident(method) => Some(method.clone()),
+                    other => keyword_as_ident_name(other),
+                };
+                match field_name {
+                    Some(field) => {
                         if self.peek_kind() == TokenKind::LParen {
                             self.advance(); // consume '('
                             let args = self.parse_call_args()?;
                             Ok(Expr::MethodCall {
                                 object: Box::new(left),
-                                method: method.clone(),
+                                method: field,
                                 args,
                                 span: Span {
                                     start: span.start,
@@ -254,7 +285,7 @@ impl<'a> Parser<'a> {
                         } else {
                             Ok(Expr::FieldAccess {
                                 object: Box::new(left),
-                                field: method.clone(),
+                                field,
                                 span: Span {
                                     start: span.start,
                                     end: next.span.end,
@@ -361,7 +392,28 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_call_args(&mut self) -> Result<Vec<Expr>, ParseError> {
+    /// Handle an identifier (or contextual keyword) in expression context:
+    /// VarRef, FuncCall, or MethodCall.
+    fn parse_ident_expr(&mut self, name: String, span: Span) -> Result<Expr, ParseError> {
+        if self.peek_kind() == TokenKind::LParen {
+            self.advance(); // consume '('
+            let args = self.parse_call_args()?;
+            Ok(Expr::FuncCall {
+                func: Box::new(Expr::VarRef(name.clone(), span.clone())),
+                args,
+                span: Span {
+                    start: span.start,
+                    end: self.peek().span.start,
+                    line: span.line,
+                    col: span.col,
+                },
+            })
+        } else {
+            Ok(Expr::VarRef(name, span))
+        }
+    }
+
+    pub(crate) fn parse_call_args(&mut self) -> Result<Vec<Expr>, ParseError> {
         let mut args = Vec::new();
         if self.peek_kind() != TokenKind::RParen {
             args.push(self.parse_expr()?);
@@ -429,6 +481,7 @@ pub fn span_of(expr: &Expr) -> &Span {
         Expr::TemplateString { span, .. } => span,
         Expr::StructLiteral { span, .. } => span,
         Expr::StoreFieldAccess { span, .. } => span,
+        Expr::ClosureExpr { span, .. } => span,
         Expr::NotYetImplemented { span, .. } => span,
     }
 }

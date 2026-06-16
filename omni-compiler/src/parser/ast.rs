@@ -103,6 +103,13 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Closure / lambda expression: |params| body
+    ClosureExpr {
+        params: Vec<String>,
+        body: Box<Expr>,
+        span: Span,
+    },
+
     /// Reserved for P2 features; parser emits this instead of crashing
     NotYetImplemented {
         feature: String,

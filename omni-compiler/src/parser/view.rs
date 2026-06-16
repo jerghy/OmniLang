@@ -3,6 +3,7 @@
 use crate::error::ParseError;
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
+use crate::parser::stmt::keyword_as_ident_name;
 use crate::parser::Parser;
 
 impl<'a> Parser<'a> {
@@ -58,6 +59,10 @@ impl<'a> Parser<'a> {
                     Ok(ViewNode::Interpolation(expr))
                 }
             }
+            // Component call syntax: Card(prop: value, ...) { children }
+            _ if self.is_component_call_start() => {
+                self.parse_component_call()
+            }
             _ => {
                 let t = self.advance();
                 Err(ParseError {
@@ -66,6 +71,76 @@ impl<'a> Parser<'a> {
                 })
             }
         }
+    }
+
+    /// Check if current position starts a component call: Name(...
+    fn is_component_call_start(&self) -> bool {
+        let kind = self.peek_kind();
+        let is_ident_like = matches!(kind, TokenKind::Ident(_))
+            || keyword_as_ident_name(&kind).is_some();
+        if !is_ident_like {
+            return false;
+        }
+        // Check next token is '(' (props) or '{' (children only)
+        self.tokens
+            .get(self.pos + 1)
+            .map_or(false, |t| matches!(t.kind, TokenKind::LParen | TokenKind::LBrace))
+    }
+
+    /// Parse component call syntax: Name(prop: value, ...) { children }
+    fn parse_component_call(&mut self) -> Result<ViewNode, ParseError> {
+        let t = self.advance();
+        let tag = match &t.kind {
+            TokenKind::Ident(name) => name.clone(),
+            other => keyword_as_ident_name(other)
+                .unwrap_or_else(|| "unknown".into()),
+        };
+
+        let mut props = Vec::new();
+
+        // Parse optional props: (name: value, ...)
+        if self.peek_kind() == TokenKind::LParen {
+            self.advance(); // '('
+            while self.peek_kind() != TokenKind::RParen && self.peek_kind() != TokenKind::Eof {
+                let prop_name = self.expect_ident("expected prop name")?;
+                self.expect_token(TokenKind::Colon, "expected ':'")?;
+                let prop_value = self.parse_expr()?;
+                props.push(ElementProp::Static {
+                    name: prop_name,
+                    value: prop_value,
+                });
+                if self.peek_kind() == TokenKind::Comma {
+                    self.advance();
+                }
+            }
+            self.expect_token(TokenKind::RParen, "expected ')'")?;
+        }
+
+        // Parse optional children block: { ... }
+        let mut children = Vec::new();
+        let self_closing = if self.peek_kind() == TokenKind::LBrace {
+            self.advance();
+            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                children.push(self.parse_view_node()?);
+            }
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            false
+        } else {
+            true // Self-closing: no children block, no props block
+        };
+
+        Ok(ViewNode::Element(Element {
+            tag,
+            props,
+            children,
+            self_closing,
+            span: Span {
+                start: t.span.start,
+                end: self.peek_span().end,
+                line: t.span.line,
+                col: t.span.col,
+            },
+        }))
     }
 
     /// Parse an HTML-like element: <Tag prop1="val" prop2={expr}> children </Tag>
@@ -294,20 +369,46 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse bind:signalPath for two-way binding.
+    /// Parse bind:property={signal} for two-way binding.
     fn parse_bind_prop(&mut self) -> Result<ElementProp, ParseError> {
         self.advance(); // 'bind'
-        let name = self.expect_ident("expected bind property name")?;
         self.expect_token(TokenKind::Colon, "expected ':'")?;
-        let signal_path = self.expect_ident("expected signal path")?;
+        let name = self.expect_ident("expected bind property name")?;
 
-        // Handle nested paths like "store.field"
-        let signal_path = if self.peek_kind() == TokenKind::Dot {
-            self.advance();
-            let field = self.expect_ident("expected field name")?;
-            format!("{}.{}", signal_path, field)
+        // Parse ={signal_path}
+        let signal_path = if self.peek_kind() == TokenKind::Eq {
+            self.advance(); // '='
+            match self.peek_kind() {
+                TokenKind::LBrace => {
+                    self.advance();
+                    let path = self.expect_ident("expected signal path")?;
+                    // Handle nested paths like "store.field"
+                    let path = if self.peek_kind() == TokenKind::Dot {
+                        self.advance();
+                        let field = self.expect_ident("expected field name")?;
+                        format!("{}.{}", path, field)
+                    } else {
+                        path
+                    };
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    path
+                }
+                TokenKind::Ident(id) => {
+                    self.advance();
+                    id.clone()
+                }
+                _ => {
+                    return Err(ParseError {
+                        message: "Expected {signalPath} or signalName for bind value".into(),
+                        span: self.peek_span(),
+                    })
+                }
+            }
         } else {
-            signal_path
+            return Err(ParseError {
+                message: "Expected '=' after bind:property".into(),
+                span: self.peek_span(),
+            });
         };
 
         Ok(ElementProp::Bind { name, signal_path })
@@ -371,7 +472,7 @@ impl<'a> Parser<'a> {
                     let body = self.parse_block()?;
                     EventHandler::InlineFn { params, body }
                 } else {
-                    // fn reference: fnName or store.action
+                    // fn reference: fnName, fnName(args), or store.action
                     let t = self.advance();
                     match &t.kind {
                         TokenKind::Ident(name) => {
@@ -381,6 +482,27 @@ impl<'a> Parser<'a> {
                                 EventHandler::StoreAction {
                                     store: name.clone(),
                                     action,
+                                }
+                            } else if self.peek_kind() == TokenKind::LParen {
+                                // fnName(args) — call expression as handler
+                                // Wrap as inline fn: () => { fnName(args); }
+                                self.advance(); // '('
+                                let args = self.parse_call_args()?;
+                                let body = Block {
+                                    stmts: vec![Stmt::ExprStmt {
+                                        expr: Expr::FuncCall {
+                                            func: Box::new(Expr::VarRef(name.clone(), t.span.clone())),
+                                            args,
+                                            span: t.span.clone(),
+                                        },
+                                        span: t.span.clone(),
+                                    }],
+                                    trailing_expr: None,
+                                    span: t.span.clone(),
+                                };
+                                EventHandler::InlineFn {
+                                    params: vec![],
+                                    body,
                                 }
                             } else {
                                 EventHandler::FnRef(name.clone())
@@ -555,7 +677,6 @@ fn is_keyword_attr_name(kind: &TokenKind) -> bool {
         TokenKind::Type
             | TokenKind::Style
             | TokenKind::Ref
-            | TokenKind::Bind
             | TokenKind::For
             | TokenKind::If
     )

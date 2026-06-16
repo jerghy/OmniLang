@@ -33,6 +33,15 @@ impl<'a> Parser<'a> {
                 TokenKind::Computed => computeds.push(self.parse_computed_decl()?),
                 TokenKind::Event => events.push(self.parse_event_decl()?),
                 TokenKind::Ref => refs.push(self.parse_ref_decl()?),
+                TokenKind::AtStore => {
+                    // @store StoreName; — store reference with @ prefix
+                    self.advance();
+                    let store_name = self.expect_ident("expected store name")?;
+                    store_refs.push(store_name);
+                    if self.peek_kind() == TokenKind::Semicolon {
+                        self.advance();
+                    }
+                }
                 TokenKind::Store => {
                     // "store SomeStore" or "store SomeStore { ... }" (inline definition)
                     self.advance();
