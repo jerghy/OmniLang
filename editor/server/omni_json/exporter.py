@@ -47,7 +47,7 @@ class OmniJsonExporter:
         Caller merges the returned CanvasData into the document.
         """
         self._last_source = source
-        from omniview.api import parse_view_tree, parse_code_blocks
+        from omnilang.api import parse_view_tree, parse_code_blocks
 
         # Parse view tree for elements (UI structure from .omni source)
         view_trees: list[dict[str, Any]] = []

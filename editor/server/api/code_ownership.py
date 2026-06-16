@@ -188,7 +188,7 @@ def parse_ownership_ast_nodes(
             - sourceLineStart: 0-based 起始行（回退显示用）
             - sourceLineEnd: 0-based 结束行（回退显示用）
     """
-    from omniview.api import parse_code_blocks
+    from omnilang.api import parse_code_blocks
 
     # Parse line-based regions first
     regions = parse_ownership_regions(source)

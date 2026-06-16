@@ -84,7 +84,7 @@ class OmniFilePoller:
 
     def _compile_and_send(self, omni_file: Path) -> None:
         """Compile a .omni file and send result via WebSocket."""
-        from omniview.api import compile_omni
+        from omnilang.api import compile_omni
 
         try:
             source = omni_file.read_text(encoding="utf-8")

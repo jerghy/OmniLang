@@ -455,10 +455,8 @@ class OmniJsonImporter:
 
     @staticmethod
     def _format_source(source: str) -> str:
-        """Pass reconstructed source through OmniViewFormatter for canonical output."""
-        from omniview.formatter import OmniViewFormatter
-        formatter = OmniViewFormatter()
-        return formatter.format(source)
+        """Return source as-is. (Formatter removed — to be re-added post-merge.)"""
+        return source
 
 
 # ── Module-level convenience ──────────────────────────────────
