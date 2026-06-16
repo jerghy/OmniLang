@@ -60,7 +60,7 @@ impl<'a> Parser<'a> {
                                     actions.push(action);
                                 }
                                 TokenKind::Fn => {
-                                    let f = self.parse_function_def()?;
+                                    let f = self.parse_function_def(Visibility::Private)?;
                                     fns.push(f);
                                 }
                                 _ => {
@@ -114,7 +114,7 @@ impl<'a> Parser<'a> {
                         init: value,
                     });
                 }
-                TokenKind::Fn => fns.push(self.parse_function_def()?),
+                TokenKind::Fn => fns.push(self.parse_function_def(Visibility::Private)?),
                 TokenKind::Action => actions.push(self.parse_action_def()?),
                 TokenKind::AtMount | TokenKind::AtUnmount | TokenKind::AtEffect => {
                     lifecycles.push(self.parse_lifecycle_hook()?)
@@ -284,7 +284,7 @@ impl<'a> Parser<'a> {
 
     // ── Function / Action ──────────────────────────────
 
-    pub fn parse_function_def(&mut self) -> Result<FunctionDef, ParseError> {
+    pub fn parse_function_def(&mut self, visibility: Visibility) -> Result<FunctionDef, ParseError> {
         let start = self.peek_span();
         self.advance(); // 'fn'
         let name = self.expect_ident("expected function name")?;
@@ -302,7 +302,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(FunctionDef {
-            visibility: Visibility::Private,
+            visibility,
             name,
             params,
             return_type,
@@ -527,7 +527,7 @@ impl<'a> Parser<'a> {
 
     // ── Struct ─────────────────────────────────────────
 
-    pub fn parse_struct_def(&mut self) -> Result<StructDef, ParseError> {
+    pub fn parse_struct_def(&mut self, visibility: Visibility) -> Result<StructDef, ParseError> {
         let start = self.peek_span();
         self.advance(); // 'struct'
         let is_nominal = if self.peek_kind() == TokenKind::Nominal {
@@ -555,7 +555,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         Ok(StructDef {
-            visibility: Visibility::Private,
+            visibility,
             name,
             is_nominal,
             fields,
@@ -627,30 +627,101 @@ impl<'a> Parser<'a> {
     pub fn parse_import(&mut self) -> Result<ImportStmt, ParseError> {
         let start = self.peek_span();
         self.advance(); // 'import'
-        let mut names = Vec::new();
-        names.push(self.expect_ident("expected import name")?);
 
-        while self.peek_kind() == TokenKind::Comma {
-            self.advance();
-            names.push(self.expect_ident("expected import name")?);
-        }
-
-        self.expect_token(TokenKind::From, "expected 'from'")?;
-        let t = self.advance();
-        let path = match &t.kind {
-            TokenKind::StringLiteral(s) => s.clone(),
-            _ => {
-                return Err(ParseError {
-                    message: "Expected string path after 'from'".into(),
-                    span: t.span,
-                })
+        match self.peek_kind() {
+            TokenKind::Type => {
+                // import type { A, B } from "./path.omni";
+                self.advance(); // 'type'
+                let names = self.parse_import_name_list()?;
+                self.expect_token(TokenKind::From, "expected 'from' after 'import type'")?;
+                let path = self.expect_string("expected module path string")?;
+                self.consume_semicolon();
+                let end = self.peek_span();
+                Ok(ImportStmt::TypeOnly(TypeImport {
+                    names,
+                    path,
+                    span: Span {
+                        start: start.start,
+                        end: end.end,
+                        line: start.line,
+                        col: start.col,
+                    },
+                }))
             }
-        };
-        let end = self.peek_span();
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
+            TokenKind::LBrace => {
+                // import { A, B } from "./path.omni";
+                let names = self.parse_import_name_list()?;
+                self.expect_token(TokenKind::From, "expected 'from'")?;
+                let path = self.expect_string("expected module path string")?;
+                self.consume_semicolon();
+                let end = self.peek_span();
+                Ok(ImportStmt::Named(NamedImport {
+                    names,
+                    path,
+                    span: Span {
+                        start: start.start,
+                        end: end.end,
+                        line: start.line,
+                        col: start.col,
+                    },
+                }))
+            }
+            TokenKind::StringLiteral(_) => {
+                // import "./path.omni" as name;
+                let path = self.expect_string("expected module path string")?;
+                self.expect_token(TokenKind::As, "expected 'as' after path")?;
+                let alias = self.expect_ident("expected alias name")?;
+                self.consume_semicolon();
+                let end = self.peek_span();
+                Ok(ImportStmt::Namespace(NamespaceImport {
+                    path,
+                    alias,
+                    span: Span {
+                        start: start.start,
+                        end: end.end,
+                        line: start.line,
+                        col: start.col,
+                    },
+                }))
+            }
+            _ => {
+                // import omniview; — bare import (lib marker)
+                let name = self.expect_ident("expected import name, '{', or string")?;
+                self.consume_semicolon();
+                Ok(ImportStmt::Lib(name))
+            }
         }
-        Ok(ImportStmt::Named(NamedImport {
+    }
+
+    /// Parse `{ Name1, Name2 }` import/export name list.
+    fn parse_import_name_list(&mut self) -> Result<Vec<String>, ParseError> {
+        self.expect_token(TokenKind::LBrace, "expected '{'")?;
+        let mut names = Vec::new();
+        if self.peek_kind() != TokenKind::RBrace {
+            names.push(self.expect_ident("expected import name")?);
+            while self.peek_kind() == TokenKind::Comma {
+                self.advance();
+                if self.peek_kind() == TokenKind::RBrace {
+                    break; // trailing comma
+                }
+                names.push(self.expect_ident("expected import name")?);
+            }
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(names)
+    }
+
+    // ── Export ─────────────────────────────────────────
+
+    pub fn parse_export(&mut self) -> Result<ExportFrom, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // 'export'
+        let names = self.parse_import_name_list()?;
+        self.expect_token(TokenKind::From, "expected 'from'")?;
+        let path = self.expect_string("expected module path string")?;
+        self.consume_semicolon();
+        let end = self.peek_span();
+        Ok(ExportFrom {
             names,
             path,
             span: Span {
@@ -659,6 +730,29 @@ impl<'a> Parser<'a> {
                 line: start.line,
                 col: start.col,
             },
-        }))
+        })
+    }
+
+    // ── Type Alias ─────────────────────────────────────
+
+    pub fn parse_type_alias(&mut self, visibility: Visibility) -> Result<TypeAlias, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // 'type'
+        let name = self.expect_ident("expected type name")?;
+        self.expect_token(TokenKind::Eq, "expected '='")?;
+        let type_ann = self.parse_type_annotation()?;
+        self.consume_semicolon();
+        let end = self.peek_span();
+        Ok(TypeAlias {
+            visibility,
+            name,
+            type_ann,
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
+        })
     }
 }
