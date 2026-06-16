@@ -1,4 +1,31 @@
-"""Brace-balanced preprocessor for OmniView .omni source files.
+"""
+⚠️ DEPRECATED: This preprocessor is scheduled for deletion (Phase 5.3).
+
+The Rust parser (omni-compiler/src/parser/) handles inline blocks natively
+via recursive descent — no preprocessing step needed.
+
+Verification (2026-06-16):
+- Rust lexer (src/lexer/) handles // and /* */ comment stripping natively
+  via skip_whitespace_and_comments(); JSX-style {/* ... */} comments are
+  handled by the lexer stripping inner /* ... */ and leaving {} which the
+  view parser treats as empty interpolation → empty Text node.
+- Statement blocks (fn bodies, action bodies, lifecycle hooks) are parsed
+  directly by parse_block() in stmt.rs, called from:
+    - parse_function_def() (top_level.rs:302)
+    - parse_action_def() (top_level.rs:341)
+    - parse_lifecycle_hook() (top_level.rs:397, 406)
+    - parse_event_handler_value() (view.rs:472)
+- Nested if/while/for blocks are handled by recursive descent in stmt.rs
+  (parse_if_stmt, parse_while_stmt, parse_for_stmt).
+- Balanced braces are handled natively by the recursive descent parser;
+  no placeholder substitution is needed.
+- 316 Rust tests pass (254 unit + 24 codegen + 13 lexer + 7 logic codegen
+  + 15 parser + 3 semantic), including all 15 parser tests.
+- 34/35 preprocessor tests pass (1 skipped — TodoMVC fixture not available).
+
+See: docs/superpowers/specs/2026-06-16-omni-architecture-redesign.md (Section 10)
+
+Brace-balanced preprocessor for OmniView .omni source files.
 
 Extracts statement blocks (fn bodies, action bodies, lifecycle hook bodies)
 and replaces them with placeholder tokens. The OmniView Lark grammar then
