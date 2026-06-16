@@ -117,6 +117,7 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_function(self, func: FunctionDef):
         prefix = "async " if func.is_async else ""
+        export_kw = "export " if getattr(func, 'is_pub', False) else ""
         if self._ts_mode:
             params_parts = []
             for p in func.params:
@@ -132,10 +133,10 @@ class JavaScriptGenerator(CodeGenerator):
             if func.generic_params:
                 gens = [gp.name for gp in func.generic_params]
                 generic_str = f"<{', '.join(gens)}>"
-            self._emit(f"{prefix}function {func.name}{generic_str}({params_str}): {ret_type} {{")
+            self._emit(f"{export_kw}{prefix}function {func.name}{generic_str}({params_str}): {ret_type} {{")
         else:
             params_str = ", ".join(p.name for p in func.params)
-            self._emit(f"{prefix}function {func.name}({params_str}) {{")
+            self._emit(f"{export_kw}{prefix}function {func.name}({params_str}) {{")
         self._indent()
         if func.body:
             self._gen_block(func.body)
@@ -635,19 +636,35 @@ class JavaScriptGenerator(CodeGenerator):
         return "_"
 
     def _gen_imports_exports(self, prog: Program):
-        """Generate JS ES module import/export statements."""
-        from omnilang.ast_nodes import ImportStmt
-        # Emit imports
+        """Generate ES module import/export statements for all import variants."""
+
+        # Named imports: import { A, B } from "./path.omni"
         for imp in getattr(prog, 'imports', []):
-            if isinstance(imp, ImportTypeStmt) and self._ts_mode:
+            names = ", ".join(imp.names)
+            js_path = imp.path.replace('.omni', '.js' if not self._ts_mode else '.ts')
+            self._emit(f'import {{ {names} }} from "{js_path}";')
+
+        # Namespace imports: import "./path.omni" as name
+        for imp in getattr(prog, 'namespace_imports', []):
+            js_path = imp.path.replace('.omni', '.js' if not self._ts_mode else '.ts')
+            self._emit(f'import * as {imp.alias} from "{js_path}";')
+
+        # Type-only imports: import type { A, B } from "./types.omni"
+        for imp in getattr(prog, 'type_imports', []):
+            if self._ts_mode:
                 names = ", ".join(imp.names)
-                self._emit(f'import type {{ {names} }} from "{imp.path}";')
-            elif isinstance(imp, ImportStmt):
-                names = ", ".join(imp.names)
-                self._emit(f'import {{ {names} }} from "{imp.path}";')
-        # Exports are handled inline in struct/union/function generators
-        for exp in getattr(prog, 'exports', []):
-            pass
+                ts_path = imp.path.replace('.omni', '.ts')
+                self._emit(f'import type {{ {names} }} from "{ts_path}";')
+            # In plain JS mode, type imports are omitted entirely
+
+        # Re-exports: export { A, B } from "./ui.omni"
+        for exp in getattr(prog, 'export_froms', []):
+            names = ", ".join(exp.names)
+            js_path = exp.path.replace('.omni', '.js' if not self._ts_mode else '.ts')
+            self._emit(f'export {{ {names} }} from "{js_path}";')
+
+        if prog.imports or getattr(prog, 'namespace_imports', []):
+            self._emit()  # blank line after imports
 
     def _gen_tagged_union(self, tu: TaggedUnionDef):
         """JS: tagged unions are discriminated union objects with _tag field."""
@@ -687,19 +704,20 @@ class JavaScriptGenerator(CodeGenerator):
 
     def _gen_struct_def(self, sd: StructDef):
         """Generate JavaScript class or TypeScript interface from OmniLang struct definition."""
+        export_kw = "export " if getattr(sd, 'is_pub', False) else ""
         if self._ts_mode:
             generic_str = ""
             if sd.generic_params:
                 gens = [gp.name for gp in sd.generic_params]
                 generic_str = f"<{', '.join(gens)}>"
-            self._emit(f"export interface {sd.name}{generic_str} {{")
+            self._emit(f"{export_kw}interface {sd.name}{generic_str} {{")
             self._indent()
             for f in sd.fields:
                 self._emit(f"{f.name}: {self._ts_type(f.type_ann)};")
             self._dedent()
             self._emit("}")
         else:
-            self._emit(f"class {sd.name} {{")
+            self._emit(f"{export_kw}class {sd.name} {{")
             self._indent()
             # Constructor
             params = ", ".join(f.name for f in sd.fields)
