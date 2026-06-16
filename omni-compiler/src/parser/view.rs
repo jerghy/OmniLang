@@ -85,6 +85,10 @@ impl<'a> Parser<'a> {
                     self_closing = true;
                     break;
                 }
+                TokenKind::Ident(ref name) if name.starts_with('@') => {
+                    let prop = self.parse_event_prop()?;
+                    props.push(prop);
+                }
                 TokenKind::Ident(_) => {
                     let prop = self.parse_element_prop()?;
                     props.push(prop);
@@ -275,8 +279,21 @@ impl<'a> Parser<'a> {
 
     /// Parse @eventName={handler} for event binding.
     fn parse_event_prop(&mut self) -> Result<ElementProp, ParseError> {
-        self.advance(); // '@'
-        let event_name = self.expect_ident("expected event name")?;
+        let t = self.advance();
+        let event_name = match &t.kind {
+            TokenKind::At => {
+                // Traditional: @ is separate token
+                self.expect_ident("expected event name")?
+            }
+            TokenKind::Ident(name) if name.starts_with('@') => {
+                // Lexer combined: @onPress as single Ident token
+                name[1..].to_string() // strip '@' prefix
+            }
+            _ => return Err(ParseError {
+                message: format!("Expected @event binding, got {:?}", t.kind),
+                span: t.span,
+            }),
+        };
         let handler = if self.peek_kind() == TokenKind::Eq {
             self.advance();
             match self.peek_kind() {

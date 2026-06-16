@@ -513,7 +513,8 @@ impl Lexer {
             "@native" => TokenKind::AtNative, "@fallback" => TokenKind::AtFallback,
             "@error" => TokenKind::AtError, "@mount" => TokenKind::AtMount,
             "@unmount" => TokenKind::AtUnmount, "@effect" => TokenKind::AtEffect,
-            _ => TokenKind::Error(format!("Unknown directive: {}", kw)),
+            // Unknown @-prefixed words are event bindings like @onPress, @onChange
+            _ => TokenKind::Ident(kw),
         };
         Token::new(kind, start, self.pos, line, col)
     }

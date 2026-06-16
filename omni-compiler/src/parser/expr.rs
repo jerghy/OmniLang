@@ -30,7 +30,8 @@ impl<'a> Parser<'a> {
 
         loop {
             let bp = self.infix_bp();
-            if bp.0 < min_bp {
+            // (0, 0) means "not an infix operator" — break
+            if bp == (0, 0) || bp.0 < min_bp {
                 break;
             }
             left = self.parse_infix(left, bp)?;
