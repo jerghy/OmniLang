@@ -43,6 +43,11 @@ _REACT_DIST = Path(__file__).parent.parent / "client" / "dist"
 if (_REACT_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(_REACT_DIST / "assets")), name="assets")
 
+# Mount WASM compiler files
+_WASM_DIR = Path(__file__).parent.parent / "public" / "wasm"
+if _WASM_DIR.exists():
+    app.mount("/wasm", StaticFiles(directory=str(_WASM_DIR)), name="wasm")
+
 
 # ═══════════════════════════════════════════════════════
 # Static — 编辑器最小 HTML (M1a)
@@ -252,6 +257,80 @@ async def api_compile(req: CompileRequest, request: Request):
         "diff": {k: v for k, v in (result.diff or {}).items()},
         "errors": [e.to_dict() for e in result.errors],
     }
+
+
+class CompileFromIRRequest(BaseModel):
+    """POST /api/compile-from-ir 请求体 — 从 IR JSON 编译到目标框架"""
+    ir: dict  # IRProgram dict (Rust WASM output)
+    target: str = "react"
+
+
+@app.post("/api/compile-from-ir")
+async def api_compile_from_ir(req: CompileFromIRRequest):
+    """从 IR JSON 编译到目标框架代码（Python codegen 消费 Rust 输出的 IR）。
+
+    当 Rust WASM 在浏览器中产生 IR 后，通过此端点生成框架代码。
+    """
+    from omniview.codegen.ir_reader import IRReader
+    from omniview.api import _get_codegen
+
+    reader = IRReader(req.ir)
+    if not reader.is_valid:
+        return {"success": False, "files": {}, "errors": reader.errors}
+
+    codegen = _get_codegen(req.target, "<input>", [], debug_mode=False)
+    if codegen is None:
+        return {"success": False, "files": {}, "errors": [f"Unsupported target: {req.target}"]}
+
+    results = {}
+    all_errors = []
+
+    for name, comp in reader.components().items():
+        result = codegen.generate_component(comp)
+        results.update(result.files)
+        all_errors.extend(result.errors)
+
+    for name, store in reader.stores().items():
+        result = codegen.generate_store(store)
+        results.update(result.files)
+        all_errors.extend(result.errors)
+
+    return {"success": len(all_errors) == 0, "files": results, "errors": all_errors}
+
+
+@app.get("/api/wasm/version")
+async def api_wasm_version():
+    """返回 Rust 编译器版本信息（用于检查 WASM 是否可用）。"""
+    from omniview.codegen.rust_bridge import RustBridge
+    return {
+        "rust_available": RustBridge.is_available(),
+        "wasm_supported": True,  # Browser feature-check at runtime
+    }
+
+
+class GenerateSourceRequest(BaseModel):
+    """POST /api/generate-source 请求体 — 从项目状态生成 .omni 源码"""
+    document: dict  # 完整 .omni.json document
+    componentName: str = "App"
+
+
+@app.post("/api/generate-source")
+async def api_generate_source(req: GenerateSourceRequest):
+    """从编辑器画布状态反向生成 .omni 源码。
+
+    接收完整的 .omni.json document（包含 design/codeTabs），
+    返回有效的 .omni 源码字符串。用于 save 前同步 sourceCode。
+    """
+    from omniview.codegen.source import OmniViewSourceCodegen
+
+    try:
+        codegen = OmniViewSourceCodegen()
+        source = codegen.generate(req.document, component_name=req.componentName)
+        return {"success": True, "source": source, "errors": []}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "source": "", "errors": [str(e)]}
 
 
 class FsReadRequest(BaseModel):
