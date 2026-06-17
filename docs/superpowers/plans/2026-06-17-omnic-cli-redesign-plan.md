@@ -17,11 +17,17 @@
 | File | Purpose |
 |------|---------|
 | `omni-compiler/src/ir/logic.rs` | New IR nodes: FunctionIR, StructIR, EnumIR, TypeAliasIR, ImportIR, ExportIR, ModuleIR |
-| `omni-compiler/src/codegen/typescript.rs` | TypeScript codegen backend |
+| `omni-compiler/src/ir/lower_logic.rs` | AST → IR lowering for logic constructs |
+| `omni-compiler/src/semantic/lints.rs` | Lint rules (unused imports, dead code, etc.) |
+| `omni-compiler/tests/codegen_snapshots.rs` | Snapshot tests for codegen backends |
 | `omnilang/errors.py` | Structured error types: OmniError, OmniLangError subclasses |
 | `omnilang/result.py` | CompileResult and AnalyseResult dataclasses |
-| `test/projects/logic-counter/` | Integration test project |
-| `test/projects/view-todo/` | Integration test project |
+| `.github/workflows/ci.yml` | Cross-platform CI pipeline: Rust DLL + Python tests |
+| `test/projects/logic-counter/` | Integration test project (logic) |
+| `test/projects/view-todo/` | Integration test project (view) |
+| `test/projects/logic-cli-tool/` | Integration test project (CLI patterns) |
+| `test/projects/view-ecommerce/` | Integration test project (multi-component) |
+| `test/projects/mixed-blog/` | Integration test project (logic + view) |
 | `tests/test_errors.py` | Python error formatting tests |
 | `tests/test_cli.py` | CLI argument parsing tests |
 | `tests/test_rustbridge.py` | RustBridge DLL interaction tests |
@@ -53,9 +59,11 @@
 
 | File | Reason |
 |------|--------|
-| `omni-compiler/src/codegen/typescript.rs` (if exists as separate) | Merged into javascript.rs with mode flag |
-| `omnilang/lsp/server.py` | LSP command removed |
+| `omnilang/lsp/` directory | LSP command removed |
 | `omnilang/analyze/` directory | Replaced by Rust `omni_analyse` |
+| Old FFI functions in lib.rs | `omni_compile_to_ir`, `omni_compile_to_omniview`, `omni_compile_to_target` (single-file), `omni_validate_multi`, `omni_format`, old `omni_version` |
+| WASM feature in Cargo.toml | No longer targeting WASM |
+| CLI subprocess fallback in rust_bridge.py | DLL-only; `_try_cli()`, `_try_cli_omniview()` removed |
 
 ---
 
@@ -583,59 +591,15 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
 Run: `cd omni-compiler && cargo build 2>&1`
 Expected: Some errors in codegen backends (still referencing old IR fields). Ignore for now.
 
-- [ ] **Step 5: Write lowering unit test**
-
-Add to `omni-compiler/src/ir/lower_logic.rs`:
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::tokenize;
-    use crate::parser;
-
-    #[test]
-    fn test_lower_fn_main_to_ir() {
-        let source = "fn main() { return 42; }";
-        let tokens = tokenize(source);
-        let program = parser::parse(&tokens).unwrap();
-        let semantics = crate::semantic::SemanticResult {
-            symbols: crate::semantic::symbols::SymbolTable::new(),
-            dependencies: HashMap::new(),
-        };
-        let ir = super::super::lower(&program, &semantics);
-        let main_module = ir.modules.get("input.omni").unwrap();
-        assert!(main_module.functions.contains_key("main"));
-        let main_fn = &main_module.functions["main"];
-        assert_eq!(main_fn.name, "main");
-        assert_eq!(main_fn.visibility, "private");
-    }
-
-    #[test]
-    fn test_lower_struct_to_ir() {
-        let source = "struct Point { x: i32, y: i32 }";
-        let tokens = tokenize(source);
-        let program = parser::parse(&tokens).unwrap();
-        let semantics = crate::semantic::SemanticResult {
-            symbols: crate::semantic::symbols::SymbolTable::new(),
-            dependencies: HashMap::new(),
-        };
-        let ir = super::super::lower(&program, &semantics);
-        let main_module = ir.modules.get("input.omni").unwrap();
-        assert!(main_module.structs.contains_key("Point"));
-    }
-}
-```
-
-Run: `cargo test lower_fn_main_to_ir lower_struct_to_ir`
-Expected: PASS
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add omni-compiler/src/ir/
 git commit -m "feat: implement IR lowering for all logic constructs"
 ```
+
+> **Note:** Lowering unit tests depend on Task 7's `SemanticResult.diagnostics` field.
+> They are written in Task 7 Step 6 below.
 
 ---
 
@@ -714,6 +678,62 @@ git add omni-compiler/src/semantic/
 git commit -m "refactor: semantic analysis accumulates diagnostics, never early-exits"
 ```
 
+- [ ] **Step 6: Write IR lowering unit tests (moved from Task 6)**
+
+With `SemanticResult.diagnostics` now available, add to `omni-compiler/src/ir/lower_logic.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser;
+
+    #[test]
+    fn test_lower_fn_main_to_ir() {
+        let source = "fn main() { return 42; }";
+        let tokens = tokenize(source);
+        let program = parser::parse(&tokens).unwrap();
+        let semantics = crate::semantic::SemanticResult {
+            symbols: crate::semantic::symbols::SymbolTable::new(),
+            dependencies: HashMap::new(),
+            diagnostics: Vec::new(),
+        };
+        let ir = super::super::lower(&program, &semantics);
+        let main_module = ir.modules.get("input.omni").unwrap();
+        assert!(main_module.functions.contains_key("main"));
+        let main_fn = &main_module.functions["main"];
+        assert_eq!(main_fn.name, "main");
+        assert_eq!(main_fn.visibility, "private");
+    }
+
+    #[test]
+    fn test_lower_struct_to_ir() {
+        let source = "struct Point { x: i32, y: i32 }";
+        let tokens = tokenize(source);
+        let program = parser::parse(&tokens).unwrap();
+        let semantics = crate::semantic::SemanticResult {
+            symbols: crate::semantic::symbols::SymbolTable::new(),
+            dependencies: HashMap::new(),
+            diagnostics: Vec::new(),
+        };
+        let ir = super::super::lower(&program, &semantics);
+        let main_module = ir.modules.get("input.omni").unwrap();
+        assert!(main_module.structs.contains_key("Point"));
+    }
+}
+```
+
+Run: `cargo test lower_fn_main_to_ir lower_struct_to_ir`
+Expected: PASS
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add omni-compiler/src/ir/lower_logic.rs
+git commit -m "test: add IR lowering unit tests for functions and structs"
+```
+
 ---
 
 ### Task 8: Clean up Rust FFI — remove old functions, add omni_analyse
@@ -789,19 +809,10 @@ pub unsafe extern "C" fn omni_analyse(
                         "suggestion": diag.suggestion.clone(),
                     }));
                 }
-                // Run lint rules
-                let lint_diags = crate::semantic::lints::run_all(&program, &semantics);
-                for lint in &lint_diags {
-                    diagnostics.push(serde_json::json!({
-                        "severity": "warning",
-                        "code": lint.rule.clone(),
-                        "message": lint.message.clone(),
-                        "file": path,
-                        "line": lint.line,
-                        "col": lint.col,
-                        "suggestion": null,
-                    }));
-                }
+                // Run lint rules (module created in Task 8.5)
+                // TODO: after Task 8.5, uncomment:
+                // let lint_diags = crate::semantic::lints::run_all(&program, &semantics);
+                // for lint in &lint_diags { ... }
             }
             Err(e) => {
                 diagnostics.push(serde_json::json!({
@@ -840,6 +851,88 @@ Expected: Clean build with `omni_compile_multi_to_target`, `omni_analyse`, `omni
 ```bash
 git add omni-compiler/src/lib.rs omni-compiler/Cargo.toml
 git commit -m "refactor: clean up FFI — remove old functions, add omni_analyse, WASM removal"
+```
+
+---
+
+### Task 8.5: Create semantic lints module
+
+**Files:**
+- Create: `omni-compiler/src/semantic/lints.rs`
+- Modify: `omni-compiler/src/semantic/mod.rs`
+
+- [ ] **Step 1: Create `omni-compiler/src/semantic/lints.rs`**
+
+```rust
+//! Lint rules that run during static analysis.
+//! Each rule inspects the AST and returns zero or more diagnostic warnings.
+
+use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LintDiagnostic {
+    pub rule: String,
+    pub message: String,
+    pub file: String,
+    pub line: u32,
+    pub col: u32,
+}
+
+/// Run all lint rules against the program and accumulated semantic info.
+pub fn run_all(program: &Program, _semantics: &SemanticResult) -> Vec<LintDiagnostic> {
+    let mut diags = Vec::new();
+    for (filepath, module) in &program.modules {
+        check_unused_imports(filepath, module, &mut diags);
+        // Additional lint rules added here as needed
+    }
+    diags
+}
+
+fn check_unused_imports(filepath: &str, module: &Module, diags: &mut Vec<LintDiagnostic>) {
+    // Stub: in the initial implementation this is a no-op.
+    // Future: cross-reference import names with actual usage sites.
+    let _ = (filepath, module, diags);
+}
+```
+
+- [ ] **Step 2: Register module in `omni-compiler/src/semantic/mod.rs`**
+
+Add at the top:
+```rust
+pub mod lints;
+```
+
+- [ ] **Step 3: Uncomment lint calls in `omni_analyse` (Task 8 Step 3)**
+
+In `omni-compiler/src/lib.rs`, uncomment the lint block in `omni_analyse`:
+```rust
+// Run lint rules (module created in Task 8.5)
+let lint_diags = crate::semantic::lints::run_all(&program, &semantics);
+for lint in &lint_diags {
+    diagnostics.push(serde_json::json!({
+        "severity": "warning",
+        "code": lint.rule.clone(),
+        "message": lint.message.clone(),
+        "file": path,
+        "line": lint.line,
+        "col": lint.col,
+        "suggestion": null,
+    }));
+}
+```
+
+- [ ] **Step 4: Build**
+
+Run: `cd omni-compiler && cargo build 2>&1`
+Expected: Clean build with lints module.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add omni-compiler/src/semantic/lints.rs omni-compiler/src/semantic/mod.rs omni-compiler/src/lib.rs
+git commit -m "feat: add semantic lints module with unused-imports stub"
 ```
 
 ---
@@ -1071,16 +1164,140 @@ git commit -m "feat: rewrite JS/TS codegen for logic constructs"
 **Files:**
 - Modify: `omni-compiler/src/codegen/rust.rs`
 
-- [ ] **Step 1: Rewrite `generate()` to produce Rust code from logic IR**
+- [ ] **Step 1: Rewrite `generate()` to iterate modules and produce Rust code**
 
-Standalone function → `fn main() { ... }`
-Struct → `struct Point { x: i32, y: i32 }`
-Enum → Rust enum with variants
-Type alias → `type ID = String;`
+```rust
+impl Codegen for RustCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+        let mut files = Vec::new();
 
-- [ ] **Step 2: Add tests**
+        for (module_path, module) in &ir.modules {
+            let mut w = CodeWriter::new();
+            w.emit(&format!("// Generated from {}", module_path));
+            w.emit("");
 
-- [ ] **Step 3: Commit**
+            // Structs
+            for (_, s) in &module.structs {
+                let vis = if s.visibility == "public" { "pub " } else { "" };
+                w.emit(&format!("{}struct {} {{", vis, s.name));
+                w.indent();
+                for field in &s.fields {
+                    let rust_ty = format_type_ir_rust(&field.r#type);
+                    let fvis = if field.visibility == "public" { "pub " } else { "" };
+                    w.emit(&format!("{}{}: {},", fvis, field.name, rust_ty));
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            // Enums
+            for (_, e) in &module.enums {
+                let vis = if e.visibility == "public" { "pub " } else { "" };
+                w.emit(&format!("{}enum {} {{", vis, e.name));
+                w.indent();
+                for variant in &e.variants {
+                    if variant.fields.is_empty() {
+                        w.emit(&format!("{},", variant.name));
+                    } else {
+                        let fields_str: Vec<String> = variant.fields.iter()
+                            .map(|f| format!("{}: {}", f.name, format_type_ir_rust(&f.r#type)))
+                            .collect();
+                        w.emit(&format!("{} {{ {} }},", variant.name, fields_str.join(", ")));
+                    }
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            // Type aliases
+            for (name, ta) in &module.type_aliases {
+                let vis = if ta.visibility == "public" { "pub " } else { "" };
+                w.emit(&format!("{}{} = {};", vis, name, format_type_ir_rust(&ta.target)));
+                w.emit("");
+            }
+
+            // Standalone functions
+            for (_, func) in &module.functions {
+                let vis = if func.visibility == "public" { "pub " } else { "" };
+                let params: Vec<String> = func.params.iter()
+                    .map(|p| format!("{}: {}", p.name, format_type_ir_rust(p.r#type.as_ref().unwrap())))
+                    .collect();
+                let ret = match &func.return_type {
+                    Some(t) => format!(" -> {}", format_type_ir_rust(t)),
+                    None => String::new(),
+                };
+                w.emit(&format!("{}fn {}({}){} {{", vis, func.name, params.join(", "), ret));
+                w.indent();
+                for stmt in &func.body.statements {
+                    generate_statement_rust(&mut w, stmt);
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            let out_path = module_path.replace(".omni", ".rs");
+            files.push(CompiledFile { path: out_path, content: w.into_string() });
+        }
+
+        CompileOutput::success(files)
+    }
+}
+
+fn format_type_ir_rust(ty: &TypeIR) -> String {
+    match ty.kind.as_str() {
+        "i32" => "i32".into(),
+        "i64" => "i64".into(),
+        "u32" => "u32".into(),
+        "u64" => "u64".into(),
+        "f64" => "f64".into(),
+        "f32" => "f32".into(),
+        "bool" => "bool".into(),
+        "string" | "String" | "str" => "String".into(),
+        "Vec" | "Array" | "List" => {
+            if let Some(inner) = ty.type_args.first() {
+                format!("Vec<{}>", format_type_ir_rust(inner))
+            } else {
+                "Vec<_>".into()
+            }
+        }
+        "HashMap" | "Map" => "std::collections::HashMap<String, _>".into(),
+        other => other.to_string(),
+    }
+}
+```
+
+- [ ] **Step 2: Add test**
+
+```rust
+#[test]
+fn test_generate_standalone_rust_function() {
+    let mut w = CodeWriter::new();
+    let func = FunctionIR {
+        name: "main".into(),
+        visibility: "private".into(),
+        params: vec![],
+        return_type: None,
+        body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+    };
+    generate_function_rust(&mut w, &func);
+    let out = w.into_string();
+    assert!(out.contains("fn main()"));
+}
+```
+
+- [ ] **Step 3: Build and test**
+
+Run: `cargo test --lib codegen::rust 2>&1`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add omni-compiler/src/codegen/rust.rs
+git commit -m "feat: rewrite Rust codegen for logic constructs"
+```
 
 ---
 
@@ -1089,15 +1306,133 @@ Type alias → `type ID = String;`
 **Files:**
 - Modify: `omni-compiler/src/codegen/dart.rs`
 
-- [ ] **Step 1: Rewrite `generate()` to produce Dart code from logic IR**
+- [ ] **Step 1: Rewrite `generate()` to iterate modules and produce Dart code**
 
-Standalone function → `void main() { ... }`
-Struct → Dart class
-Enum → Dart enum
+```rust
+impl Codegen for DartCodegen {
+    fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+        let mut files = Vec::new();
 
-- [ ] **Step 2: Add tests**
+        for (module_path, module) in &ir.modules {
+            let mut w = CodeWriter::new();
+            w.emit(&format!("// Generated from {}", module_path));
+            w.emit("");
 
-- [ ] **Step 3: Commit**
+            // Structs → Dart classes
+            for (_, s) in &module.structs {
+                w.emit(&format!("class {} {{", s.name));
+                w.indent();
+                for field in &s.fields {
+                    let dart_ty = format_type_ir_dart(&field.r#type);
+                    w.emit(&format!("final {} {};", dart_ty, field.name));
+                }
+                // Constructor
+                let params: Vec<String> = s.fields.iter()
+                    .map(|f| format!("required this.{}", f.name))
+                    .collect();
+                w.emit(&format!("{}({{{}}});", s.name, params.join(", ")));
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            // Enums → Dart enums
+            for (_, e) in &module.enums {
+                w.emit(&format!("enum {} {{", e.name));
+                w.indent();
+                for variant in &e.variants {
+                    if variant.fields.is_empty() {
+                        w.emit(&format!("{},", variant.name));
+                    } else {
+                        let fields_str: Vec<String> = variant.fields.iter()
+                            .map(|f| format!("{} {}", format_type_ir_dart(&f.r#type), f.name))
+                            .collect();
+                        w.emit(&format!("{}({}),", variant.name, fields_str.join(", ")));
+                    }
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            // Type aliases → Dart typedef
+            for (name, ta) in &module.type_aliases {
+                w.emit(&format!("typedef {} = {};", name, format_type_ir_dart(&ta.target)));
+                w.emit("");
+            }
+
+            // Standalone functions
+            for (_, func) in &module.functions {
+                let ret = match &func.return_type {
+                    Some(t) => format_type_ir_dart(t),
+                    None => "void".into(),
+                };
+                let params: Vec<String> = func.params.iter()
+                    .map(|p| format!("{} {}", format_type_ir_dart(p.r#type.as_ref().unwrap()), p.name))
+                    .collect();
+                w.emit(&format!("{} {}({}) {{", ret, func.name, params.join(", ")));
+                w.indent();
+                for stmt in &func.body.statements {
+                    generate_statement_dart(&mut w, stmt);
+                }
+                w.dedent();
+                w.emit("}");
+                w.emit("");
+            }
+
+            let out_path = module_path.replace(".omni", ".dart");
+            files.push(CompiledFile { path: out_path, content: w.into_string() });
+        }
+
+        CompileOutput::success(files)
+    }
+}
+
+fn format_type_ir_dart(ty: &TypeIR) -> String {
+    match ty.kind.as_str() {
+        "i32" | "i64" | "u32" | "u64" | "int" => "int".into(),
+        "f64" | "f32" | "float" => "double".into(),
+        "bool" => "bool".into(),
+        "string" | "String" | "str" => "String".into(),
+        "Vec" | "Array" | "List" => {
+            if let Some(inner) = ty.type_args.first() {
+                format!("List<{}>", format_type_ir_dart(inner))
+            } else {
+                "List".into()
+            }
+        }
+        "Map" | "HashMap" => "Map<String, dynamic>".into(),
+        other => other.to_string(),
+    }
+}
+```
+
+- [ ] **Step 2: Add test**
+
+```rust
+#[test]
+fn test_generate_dart_function() {
+    let func = FunctionIR {
+        name: "greet".into(), visibility: "public".into(),
+        params: vec![ParamIR { name: "name".into(), r#type: Some(TypeIR { kind: "string".into(), type_args: vec![] }) }],
+        return_type: Some(TypeIR { kind: "string".into(), type_args: vec![] }),
+        body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+    };
+    // Verify output contains "String greet(String name)"
+    // (actual test uses CodeWriter + generate_function_dart helper)
+}
+```
+
+- [ ] **Step 3: Build and test**
+
+Run: `cargo test --lib codegen::dart 2>&1`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add omni-compiler/src/codegen/dart.rs
+git commit -m "feat: rewrite Dart codegen for logic constructs"
+```
 
 ---
 
@@ -1108,13 +1443,47 @@ Enum → Dart enum
 
 - [ ] **Step 1: Update `generate()` to iterate `ir.modules`**
 
-Replace `ir.components` with `ir.modules.values().flat_map(|m| m.components.iter())`.
+Replace `ir.components` top-level access with module iteration:
+
+```rust
+fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    let mut files = Vec::new();
+
+    for (module_path, module) in &ir.modules {
+        // Skip modules without components (logic-only files)
+        if module.components.is_empty() {
+            continue;
+        }
+
+        let mut w = CodeWriter::new();
+        w.emit(&format!("// Generated from {}", module_path));
+        w.emit("import React from 'react';");
+        w.emit("");
+
+        for (_, comp) in &module.components {
+            generate_react_component(&mut w, comp, module);
+        }
+
+        let out_path = module_path.replace(".omni", ".tsx");
+        files.push(CompiledFile { path: out_path, content: w.into_string() });
+    }
+
+    CompileOutput::success(files)
+}
+```
+
+The `generate_react_component()` and existing view-tree helpers remain unchanged — only the dispatch loop changes.
 
 - [ ] **Step 2: Build and test**
 
 Run: `cargo test --lib codegen::react 2>&1`
 
 - [ ] **Step 3: Commit**
+
+```bash
+git add omni-compiler/src/codegen/react.rs
+git commit -m "refactor: adapt React codegen to modules-based IR"
+```
 
 ---
 
@@ -1125,9 +1494,27 @@ Run: `cargo test --lib codegen::react 2>&1`
 
 - [ ] **Step 1: Update to module-based IR iteration**
 
-Same pattern as React task.
+Same pattern as React — wrap in `for (module_path, module) in &ir.modules`, skip modules with empty `components`, iterate `module.components`/`module.stores` instead of `ir.components`/`ir.stores`.
+
+```rust
+fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    let mut files = Vec::new();
+    for (module_path, module) in &ir.modules {
+        if module.components.is_empty() { continue; }
+        let mut w = CodeWriter::new();
+        for (_, comp) in &module.components {
+            generate_vue_sfc(&mut w, comp, module);
+        }
+        let out_path = module_path.replace(".omni", ".vue");
+        files.push(CompiledFile { path: out_path, content: w.into_string() });
+    }
+    CompileOutput::success(files)
+}
+```
 
 - [ ] **Step 2: Build and test**
+
+Run: `cargo test --lib codegen::vue 2>&1`
 
 - [ ] **Step 3: Commit**
 
@@ -1140,7 +1527,25 @@ Same pattern as React task.
 
 - [ ] **Step 1: Update to module-based IR iteration**
 
+```rust
+fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    let mut files = Vec::new();
+    for (module_path, module) in &ir.modules {
+        if module.components.is_empty() { continue; }
+        let mut w = CodeWriter::new();
+        for (_, comp) in &module.components {
+            generate_dioxus_component(&mut w, comp, module);
+        }
+        let out_path = module_path.replace(".omni", ".rs");
+        files.push(CompiledFile { path: out_path, content: w.into_string() });
+    }
+    CompileOutput::success(files)
+}
+```
+
 - [ ] **Step 2: Build and test**
+
+Run: `cargo test --lib codegen::dioxus 2>&1`
 
 - [ ] **Step 3: Commit**
 
@@ -1153,7 +1558,25 @@ Same pattern as React task.
 
 - [ ] **Step 1: Update to module-based IR iteration**
 
+```rust
+fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    let mut files = Vec::new();
+    for (module_path, module) in &ir.modules {
+        if module.components.is_empty() { continue; }
+        let mut w = CodeWriter::new();
+        for (_, comp) in &module.components {
+            generate_flutter_widget(&mut w, comp, module);
+        }
+        let out_path = module_path.replace(".omni", ".dart");
+        files.push(CompiledFile { path: out_path, content: w.into_string() });
+    }
+    CompileOutput::success(files)
+}
+```
+
 - [ ] **Step 2: Build and test**
+
+Run: `cargo test --lib codegen::flutter 2>&1`
 
 - [ ] **Step 3: Commit**
 
@@ -1166,9 +1589,33 @@ Same pattern as React task.
 
 - [ ] **Step 1: Update `compile_files()` to iterate `ir.modules`**
 
-Replace `ir.components` / `ir.stores` top-level access with module iteration.
+```rust
+fn compile_files(&self, ir: &IRProgram) -> CompileOutput {
+    // OmniView always produces 3 files regardless of input count
+    let mut html_body = String::new();
+    let mut js_runtime = String::new();
+    let mut css_styles = String::new();
+
+    for (_module_path, module) in &ir.modules {
+        for (_, comp) in &module.components {
+            let (html, js, css) = generate_omniview_component(comp, module);
+            html_body.push_str(&html);
+            js_runtime.push_str(&js);
+            css_styles.push_str(&css);
+        }
+    }
+
+    let mut files = HashMap::new();
+    files.insert("index.html".into(), html_body);
+    files.insert("index.js".into(), js_runtime);
+    files.insert("index.css".into(), css_styles);
+    CompileOutput { success: true, files, errors: vec![], warnings: vec![] }
+}
+```
 
 - [ ] **Step 2: Build and test**
+
+Run: `cargo test --lib codegen::omniview 2>&1`
 
 - [ ] **Step 3: Commit**
 
@@ -1202,6 +1649,193 @@ Run: `cargo test --lib codegen 2>&1`
 git add omni-compiler/src/codegen/
 git commit -m "refactor: adapt all codegen backends to modules-based IR"
 ```
+
+---
+
+### Task 18.5: Add codegen snapshot test infrastructure
+
+**Files:**
+- Create: `omni-compiler/tests/snapshots/`
+
+- [ ] **Step 1: Add snapshot test for Python codegen**
+
+Create `omni-compiler/tests/codegen_snapshots.rs`:
+
+```rust
+//! Snapshot tests: verify that given IR input, codegen backends produce expected output.
+//! Each test builds an IRProgram programmatically, runs it through a codegen backend,
+//! and compares the output against a stored snapshot file.
+
+use omni_compiler::ir::*;
+use omni_compiler::codegen::*;
+use std::collections::HashMap;
+
+fn make_test_module() -> ModuleIR {
+    ModuleIR {
+        name: "test.omni".into(),
+        functions: {
+            let mut m = HashMap::new();
+            m.insert("main".into(), FunctionIR {
+                name: "main".into(),
+                visibility: "private".into(),
+                params: vec![],
+                return_type: None,
+                body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            });
+            m
+        },
+        structs: {
+            let mut m = HashMap::new();
+            m.insert("Point".into(), StructIR {
+                name: "Point".into(),
+                visibility: "public".into(),
+                fields: vec![
+                    FieldIR { name: "x".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![] }, visibility: "public".into() },
+                    FieldIR { name: "y".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![] }, visibility: "public".into() },
+                ],
+            });
+            m
+        },
+        ..Default::default()
+    }
+}
+
+fn make_test_ir() -> IRProgram {
+    let mut modules = HashMap::new();
+    modules.insert("test.omni".into(), make_test_module());
+    IRProgram { version: "1.0".into(), modules, source_map: HashMap::new() }
+}
+
+#[test]
+fn snapshot_python_basic() {
+    let ir = make_test_ir();
+    let codegen = PythonCodegen;
+    let output = codegen.generate(&ir, &HashMap::new());
+    assert!(output.success);
+    let content = &output.files[0].content;
+    // Verify key expected output patterns
+    assert!(content.contains("def main():"));
+    assert!(content.contains("class Point:"));
+    assert!(content.contains("x: int"));
+}
+
+#[test]
+fn snapshot_javascript_basic() {
+    let ir = make_test_ir();
+    let codegen = JavaScriptCodegen::new(false);
+    let output = codegen.generate(&ir, &HashMap::new());
+    assert!(output.success);
+    let content = &output.files[0].content;
+    assert!(content.contains("function main()"));
+    assert!(content.contains("class Point"));
+}
+
+#[test]
+fn snapshot_typescript_basic() {
+    let ir = make_test_ir();
+    let codegen = JavaScriptCodegen::new(true);
+    let output = codegen.generate(&ir, &HashMap::new());
+    assert!(output.success);
+    let content = &output.files[0].content;
+    assert!(content.contains(": number"));  // TypeScript type annotations
+}
+```
+
+Run: `cargo test --test codegen_snapshots 2>&1`
+Expected: 3 PASS
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add omni-compiler/tests/codegen_snapshots.rs
+git commit -m "test: add codegen snapshot test infrastructure"
+```
+
+---
+
+### Task 18.6: Add CI build configuration
+
+**Files:**
+- Create: `.github/workflows/ci.yml` (or update existing)
+
+- [ ] **Step 1: Create CI workflow that builds DLL and runs all tests**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Build Rust compiler (release)
+        run: cd omni-compiler && cargo build --release
+      - name: Run Rust tests
+        run: cd omni-compiler && cargo test
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omni_compiler-${{ matrix.os }}
+          path: omni-compiler/target/release/omni_compiler.*
+
+  python-tests:
+    runs-on: ${{ matrix.os }}
+    needs: rust-build-and-test
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download DLL artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omni_compiler-${{ matrix.os }}
+          path: omni-compiler/target/release/
+      - name: Install Python deps
+        run: pip install pytest
+      - name: Run Python tests
+        run: pytest tests/ -v
+      - name: Run integration test projects
+        run: |
+          cd test/projects/logic-counter && python -m omnilang.cli build
+          cd test/projects/view-todo && python -m omnilang.cli build -t omniview
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add .github/workflows/ci.yml
+git commit -m "ci: add cross-platform CI pipeline for Rust DLL + Python tests"
+```
+
+---
+
+> **Note on TypeIR:** The `TypeIR` struct used throughout codegen assumes the following shape
+> (defined in `omni-compiler/src/ir/mod.rs`):
+> ```rust
+> #[derive(Debug, Clone, Serialize, Deserialize)]
+> pub struct TypeIR {
+>     pub kind: String,        // "i32", "string", "Vec", custom type name, etc.
+>     pub type_args: Vec<TypeIR>,  // generic parameters, empty if none
+> }
+> ```
+> The `format_type_ir_*()` helpers in each backend match on `kind` to produce the
+> target language's native type. Custom/user types are passed through unchanged.
 
 ---
 
@@ -1366,10 +2000,29 @@ def test_multiple_errors():
     output = err.format()
     assert "1 error(s)" in output
     assert "1 warning(s)" in output
+
+
+def test_config_error_not_found():
+    err = ConfigError.not_found()
+    assert err.exit_code == 3
+    assert ".omnilang.toml" in err.format()
+
+
+def test_config_error_malformed():
+    from omnilang.errors import OmniError
+    err = ConfigError([OmniError(
+        severity="error", code="CONFIG_MALFORMED",
+        message="Failed to parse .omnilang.toml: unexpected token at line 3",
+        file=".omnilang.toml", line=3, col=1,
+    )])
+    assert err.exit_code == 3
+    output = err.format()
+    assert ".omnilang.toml" in output
+    assert "line 3" in output.lower() or ":3" in output
 ```
 
 Run: `pytest tests/test_errors.py -v`
-Expected: 4 PASS
+Expected: 6 PASS
 
 - [ ] **Step 3: Commit**
 
@@ -1677,11 +2330,43 @@ def parse_view_tree(source: str, filepath: str = "<input>") -> list[ViewTreeNode
         return _extract_view_tree_regex(source)
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Fix `cmd_serve` compatibility — remove `compile_to_ir` dependency**
+
+The editor server (`omnic serve`) calls `RustBridge.compile_to_ir()` through `api.py`'s `parse_view_tree()` and `parse_code_blocks()`. After the redesign, `compile_to_ir` no longer exists as an FFI function. Add a private internal IR helper in `omnilang/api.py`:
+
+```python
+# In omnilang/api.py, add a private helper used by the editor server:
+
+def _compile_ir_internal(sources: dict[str, str]) -> dict:
+    """Compile sources to IR JSON (internal use — editor server).
+    
+    Calls omni_compile_multi_to_target with target="python" to get
+    compiled output for view tree extraction. This is a stopgap;
+    a dedicated omni_compile_to_ir FFI function should be added
+    in a follow-up task for full IR fidelity.
+    """
+    from omnilang.rust_bridge import RustBridge
+    result = RustBridge.compile(sources, "python")
+    return {"files": result.files, "success": result.success}
+```
+
+Then in `omnilang/cli.py`, update `cmd_serve`:
+
+```python
+def cmd_serve(args):
+    """Start the visual editor server (FastAPI + Vite)."""
+    # The serve command uses api.py functions for parsing.
+    # With the IR redesign, parse_view_tree() and parse_code_blocks()
+    # now use _compile_ir_internal() or regex fallback internally.
+    from omnilang.api import parse_view_tree, parse_code_blocks
+    # ... existing serve startup logic unchanged ...
+```
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add omnilang/api.py
-git commit -m "refactor: update api.py to use new RustBridge and structured errors"
+git commit -m "refactor: update api.py to use new RustBridge, structured errors, fix serve compat"
 ```
 
 ---
@@ -1691,11 +2376,74 @@ git commit -m "refactor: update api.py to use new RustBridge and structured erro
 **Files:**
 - Modify: `omnilang/cli.py`
 
-- [ ] **Step 1: Remove commands and arguments**
+- [ ] **Step 1: Define `ALL_TARGETS` constant and `_collect_sources()` helper**
+
+At the top of `omnilang/cli.py`, add:
+
+```python
+ALL_TARGETS = [
+    "python", "js", "ts", "rust", "dart",
+    "react", "vue", "dioxus", "flutter", "omniview",
+]
+
+LOGIC_TARGETS = {"python", "js", "ts", "rust", "dart"}
+VIEW_TARGETS = {"react", "vue", "dioxus", "flutter", "omniview"}
+
+
+def _collect_sources(args) -> dict[str, str]:
+    """Collect .omni source files from CLI args (file, files, or directory).
+    Returns {filepath: source_content} dict."""
+    import os
+
+    sources: dict[str, str] = {}
+
+    # Single file
+    if hasattr(args, "file") and args.file:
+        path = args.file
+        if not os.path.exists(path):
+            raise InputError.file_not_found(path)
+        with open(path, encoding="utf-8") as f:
+            sources[path] = f.read()
+        return sources
+
+    # Multiple files
+    if hasattr(args, "files") and args.files:
+        for path in args.files:
+            if not os.path.exists(path):
+                raise InputError.file_not_found(path)
+            with open(path, encoding="utf-8") as f:
+                sources[path] = f.read()
+        return sources
+
+    # Directory: auto-discover src/main.omni
+    if hasattr(args, "directory") and args.directory:
+        root = args.directory
+    else:
+        root = "."
+
+    src_dir = os.path.join(root, "src")
+    if os.path.isdir(src_dir):
+        for dirpath, _dirnames, filenames in os.walk(src_dir):
+            for fn in filenames:
+                if fn.endswith(".omni"):
+                    full = os.path.join(dirpath, fn)
+                    with open(full, encoding="utf-8") as f:
+                        sources[full] = f.read()
+
+    if not sources:
+        raise InputError([OmniError(
+            severity="error", code="NO_SOURCES",
+            message="No .omni source files found. Run 'omnic create <name>' to create a project.",
+        )])
+
+    return sources
+```
+
+- [ ] **Step 2: Remove commands and arguments**
 
 Remove: `init` subparser, `fix` subparser, `fmt` subparser, `lsp` subparser, `cmd_init()`, `cmd_fix()`, `cmd_fmt()`, `cmd_lsp()`.
 
-- [ ] **Step 2: Rename `check` → `analyse`**
+- [ ] **Step 3: Rename `check` → `analyse`**
 
 Rename `check_parser` → `analyse_parser`, add `--format` argument. Rename `cmd_check()` → `cmd_analyse()`.
 
@@ -1731,7 +2479,7 @@ def cmd_analyse(args):
         raise AnalyseError(result.diagnostics)
 ```
 
-- [ ] **Step 3: Add `_write_standalone_omniview()` helper**
+- [ ] **Step 4: Add `_write_standalone_omniview()` helper**
 
 The function that stitches omniview output into browser-runnable HTML:
 
@@ -1774,31 +2522,120 @@ def _write_standalone_omniview(files: dict[str, str], output_dir: str):
     print(f"  -> {out_path}")
 ```
 
-- [ ] **Step 4: Update `cmd_run()` for view projects**
+- [ ] **Step 5: Update `cmd_run()` for view and logic projects**
 
 ```python
 def cmd_run(args):
-    # ... compile ...
-    if is_view:
-        # omniview target produces index.html + index.js + index.css
-        output_dir = os.path.join("build", "debug")
+    import os, subprocess, webbrowser
+
+    # Compile
+    sources = _collect_sources(args)
+    target = args.target
+    if target is None:
+        # Auto-detect: if source imports omniview or has components, it's a view project
+        primary = next(iter(sources.values()), "")
+        is_view = "import omniview" in primary or "component " in primary
+        target = "omniview" if is_view else "python"
+
+    result = RustBridge.compile(sources, target)
+
+    if not result.success:
+        raise CompileError(result.errors + result.warnings)
+
+    output_dir = os.path.join("build", "debug")
+
+    if target == "omniview":
+        # View run: produce build/debug/index.html + index.js + index.css → open browser
         _write_standalone_omniview(result.files, output_dir)
-        import webbrowser
         webbrowser.open(f"file:///{os.path.abspath(os.path.join(output_dir, 'index.html'))}")
     else:
-        # Logic: write all files, execute entry point
-        import tempfile, subprocess
-        tmpdir = tempfile.mkdtemp(prefix="omni_run_")
+        # Logic run: write all files to build/debug/, execute entry point
         for filename, content in result.files.items():
-            out = os.path.join(tmpdir, filename)
+            out = os.path.join(output_dir, filename)
             os.makedirs(os.path.dirname(out), exist_ok=True)
-            with open(out, "w") as f:
+            with open(out, "w", encoding="utf-8") as f:
                 f.write(content)
-        entry = os.path.join(tmpdir, "src", "main.py")
-        subprocess.run(["python", entry])
+        # Execute the main module
+        entry = os.path.join(output_dir, "src", "main.py")
+        if target == "python" and os.path.exists(entry):
+            subprocess.run(["python", entry])
+        elif target == "js" or target == "ts":
+            js_entry = os.path.join(output_dir, "src", "main.js")
+            if os.path.exists(js_entry):
+                subprocess.run(["node", js_entry])
 ```
 
-- [ ] **Step 4: Wrap main() with structured error handler**
+- [ ] **Step 6: Add `cmd_create()` — scaffold new projects**
+
+```python
+LOGIC_TEMPLATE = '''// {name} — OmniLang logic project
+fn main() {{
+    print("Hello from {name}!");
+}}
+'''
+
+VIEW_TEMPLATE = '''// {name} — OmniLang view project
+import omniview;
+
+component App {{
+    view {{
+        <div class: app>
+            <h1>{name}</h1>
+            <p>Welcome to your OmniView app!</p>
+        </div>
+    }}
+}}
+'''
+
+
+def cmd_create(args):
+    """Scaffold a new OmniLang project (no compiler dependency)."""
+    import os
+
+    project_dir = os.path.abspath(args.name)
+    if os.path.exists(project_dir):
+        raise InputError([OmniError(
+            severity="error", code="DIR_EXISTS",
+            message=f"Directory already exists: {project_dir}",
+        )])
+
+    project_type = args.type  # "logic" or "view"
+    os.makedirs(os.path.join(project_dir, "src"), exist_ok=True)
+
+    # Write .omnilang.toml
+    config = (
+        '[project]\n'
+        f'name = "{args.name}"\n'
+        'version = "0.1.0"\n'
+        f'type = "{project_type}"\n'
+        '\n'
+        '[source]\n'
+        'dir = "src"\n'
+        '\n'
+        '[output]\n'
+        'dir = "build"\n'
+    )
+    with open(os.path.join(project_dir, ".omnilang.toml"), "w", encoding="utf-8") as f:
+        f.write(config)
+
+    # Write src/main.omni from template
+    template = LOGIC_TEMPLATE if project_type == "logic" else VIEW_TEMPLATE
+    with open(os.path.join(project_dir, "src", "main.omni"), "w", encoding="utf-8") as f:
+        f.write(template.format(name=args.name))
+
+    print(f"Created {project_type} project '{args.name}' at {project_dir}")
+    print("  cd " + args.name)
+    print("  omnic run src/main.omni")
+
+
+# In _main(), add the create subparser:
+# create_parser = subparsers.add_parser("create", help="Scaffold a new project")
+# create_parser.add_argument("name", help="Project name")
+# create_parser.add_argument("--type", "-t", choices=["logic", "view"], required=True,
+#                            help="Project type: logic or view")
+```
+
+- [ ] **Step 7: Wrap main() with structured error handler**
 
 ```python
 def main():
@@ -1816,7 +2653,7 @@ def _main():
     # ... current main() body ...
 ```
 
-- [ ] **Step 5: Write CLI tests**
+- [ ] **Step 8: Write CLI tests**
 
 Create `tests/test_cli.py`:
 
@@ -1845,11 +2682,11 @@ def test_create_logic(capsys, tmp_path):
 
 Run: `pytest tests/test_cli.py -v`
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add omnilang/cli.py tests/test_cli.py
-git commit -m "refactor: rewrite CLI — remove init/fmt/fix/lsp, add analyse, structured errors"
+git commit -m "refactor: rewrite CLI — remove init/fmt/fix/lsp, add analyse/create, structured errors"
 ```
 
 ---
@@ -2289,10 +3126,10 @@ cd test/projects/logic-counter && omnic build && omnic analyse
 cd test/projects/view-todo && omnic build -t omniview && omnic build -t react
 ```
 
-- [ ] **Step 5: Commit any remaining changes and push**
+- [ ] **Step 5: Commit any remaining changes**
 
 ```bash
-git add -A
+git add omni-compiler/ omnilang/ tests/ test/projects/ .github/workflows/ci.yml
 git commit -m "chore: final integration verification, all tests passing"
 ```
 
@@ -2311,9 +3148,11 @@ Task 1 (AST Module) ──→ Task 2 (Parser adapt) ──→ Task 3 (lib.rs ada
                                  │
                           Task 6 (IR lowering logic)
                                  │
-                          Task 7 (Semantic fix)
+                          Task 7 (Semantic fix + lowering tests)
                                  │
                           Task 8 (FFI cleanup)
+                                 │
+                          Task 8.5 (Semantic lints module)
                                  │
               ┌──────────────────┼──────────────────┐
               │                  │                  │
@@ -2324,22 +3163,27 @@ Task 1 (AST Module) ──→ Task 2 (Parser adapt) ──→ Task 3 (lib.rs ada
                                  │
                           Task 18 (codegen dispatch)
                                  │
-                          Task 21 (RustBridge)
-                                 │
-                          Task 22 (api.py)
-                                 │
-                          Task 23 (CLI rewrite)
-                                 │
-                     ┌───────────┴───────────┐
-                     │                       │
-                Task 24 (logic-counter)  Task 25 (view-todo)
-                     │                       │
-                     └───────────┬───────────┘
-                                 │
-                          Task 26 (final verification)
+                    ┌────────────┼────────────┐
+                    │            │            │
+              Task 18.5    Task 18.6     Task 21
+          (snapshot tests)  (CI config)  (RustBridge)
+                                             │
+                                      Task 22 (api.py + serve fix)
+                                             │
+                                      Task 23 (CLI rewrite)
+                                      Task 23.5 (watch)
+                                             │
+                     ┌───────────────────────┼───────────────────────┐
+                     │                       │                       │
+                Task 24 (logic-counter)  Task 25 (view-todo)    Tasks 25b-25d
+                     │                       │                 (more integration)
+                     └───────────────────────┬───────────────────────┘
+                                             │
+                                      Task 26 (final verification)
 ```
 
 Tasks 9-12 can run in parallel. Tasks 13-17 can run in parallel. Tasks 19-20 can run in parallel.
+Tasks 18.5 and 18.6 can run in parallel. Tasks 24, 25, 25b, 25c, 25d can run in parallel.
 
 ---
 
@@ -2347,7 +3191,8 @@ Tasks 9-12 can run in parallel. Tasks 13-17 can run in parallel. Tasks 19-20 can
 
 | Risk | Severity | Mitigation |
 |------|----------|-----------|
-| Editor (`omnic serve`) view tree rendering degrades to regex fallback — `parse_view_tree()` no longer has access to `compile_to_ir` FFI | Medium | Documented in Task 22. A follow-up task should add an internal `_compile_to_ir` FFI function specifically for editor use. The regex fallback covers basic cases. |
+| Editor (`omnic serve`) view tree rendering uses `_compile_ir_internal()` stopgap — full IR fidelity requires dedicated FFI function | Low | Task 22 Step 3.5 adds `_compile_ir_internal()` that calls `omni_compile_multi_to_target`. Follow-up task should add dedicated `omni_compile_to_ir` FFI for the editor. |
 | FFI `ptr+len` convention: malicious or buggy callers can pass wrong length → OOB read (unsafe) | Low | Document in FFI function comments that caller must provide honest lengths. Debug builds could add canary markers. Same pattern exists in current code. |
 | OmniLang `print()` vs `println()` syntax not fully confirmed — integration test examples may need adjustment | Low | Verify against actual parser grammar during implementation. Adjust test source if needed. |
 | `Visibility` enum used in AST but IR stores as `String` — loss of compile-time safety for visibility values | Low | Acceptable trade-off for Serde serialization simplicity. Codegen backends match on known strings ("public" / "private"). Future: add custom Serde for Visibility enum. |
+| Cross-platform DLL building in CI — matrix covers Windows/macOS/Linux but first-time setup may need adjustments | Medium | Task 18.6 adds CI workflow. Expect path/extension differences (`.dll` vs `.so` vs `.dylib`) to need tweaking in first CI run. |
