@@ -1,0 +1,10 @@
+import omniview;
+import { TodoList } from "./components/TodoList.omni";
+
+component App {
+    view {
+        <div class: app>
+            <TodoList />
+        </div>
+    }
+}

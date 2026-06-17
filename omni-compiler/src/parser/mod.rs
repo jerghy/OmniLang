@@ -6,6 +6,8 @@ pub mod stmt;
 pub mod top_level;
 pub mod view;
 
+use std::collections::HashMap;
+
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
 use ast::{Program, Visibility};
@@ -13,7 +15,10 @@ use ast::{Program, Visibility};
 /// Parse a token stream into an AST Program.
 pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
     let mut parser = Parser::new(tokens);
-    parser.parse_program()
+    let module = parser.parse_module()?;
+    let mut modules = HashMap::new();
+    modules.insert("input.omni".to_string(), module);
+    Ok(Program { modules })
 }
 
 /// The recursive descent parser.
@@ -49,125 +54,6 @@ impl<'a> Parser<'a> {
         t
     }
 
-    /// Parse a complete OmniLang program.
-    pub fn parse_program(&mut self) -> Result<Program, ParseError> {
-        let mut components = Vec::new();
-        let mut stores = Vec::new();
-        let mut themes = Vec::new();
-        let mut functions = Vec::new();
-        let mut structs = Vec::new();
-        let mut tagged_unions = Vec::new();
-        let mut type_aliases = Vec::new();
-        let mut imports = Vec::new();
-        let mut exports = Vec::new();
-
-        while self.peek_kind() != TokenKind::Eof {
-            match self.peek_kind() {
-                TokenKind::Component => {
-                    components.push(self.parse_component_def()?);
-                }
-                TokenKind::Store => {
-                    stores.push(self.parse_store_def()?);
-                }
-                TokenKind::Theme => {
-                    themes.push(self.parse_theme_def()?);
-                }
-                TokenKind::Import => {
-                    imports.push(self.parse_import()?);
-                }
-                TokenKind::Export => {
-                    exports.push(self.parse_export()?);
-                }
-                TokenKind::Fn => {
-                    functions.push(self.parse_function_def(Visibility::Private)?);
-                }
-                TokenKind::Struct => {
-                    structs.push(self.parse_struct_def(Visibility::Private)?);
-                }
-                TokenKind::Pub => {
-                    self.advance(); // 'pub'
-                    match self.peek_kind() {
-                        TokenKind::Fn => {
-                            functions.push(self.parse_function_def(Visibility::Public)?);
-                        }
-                        TokenKind::Struct => {
-                            structs.push(self.parse_struct_def(Visibility::Public)?);
-                        }
-                        TokenKind::Type => {
-                            type_aliases.push(self.parse_type_alias(Visibility::Public)?);
-                        }
-                        _ => {
-                            let t = self.advance();
-                            return Err(ParseError {
-                                message: format!(
-                                    "Expected fn, struct, or type after 'pub', got {:?}",
-                                    t.kind
-                                ),
-                                span: t.span,
-                            });
-                        }
-                    }
-                }
-                TokenKind::Type => {
-                    // Peek ahead to determine if tagged union or type alias.
-                    // Tagged unions have the form: type Name = Variant1 | Variant2 { ... }
-                    // Type aliases have the form: type Name = SomeTypeAnnotation;
-                    let saved = self.pos;
-                    self.advance(); // 'type'
-                    let name_ok = self.expect_ident("expected type name").is_ok();
-                    let eq_ok = self.expect_token(TokenKind::Eq, "expected '='").is_ok();
-                    self.pos = saved;
-
-                    if !name_ok || !eq_ok {
-                        // Can't parse — try tagged union (original behavior)
-                        tagged_unions.push(self.parse_tagged_union_def()?);
-                    } else {
-                        // Advance past 'type' Name '='
-                        self.advance(); // 'type'
-                        self.advance(); // name
-                        self.advance(); // '='
-
-                        // Check if next token starts a variant: Ident { ... } or Ident | ...
-                        let is_tagged = match self.peek_kind() {
-                            TokenKind::Ident(_) => self
-                                .tokens
-                                .get(self.pos + 1)
-                                .is_some_and(|t| t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe),
-                            _ => false,
-                        };
-
-                        self.pos = saved; // reset to 'type'
-
-                        if is_tagged {
-                            tagged_unions.push(self.parse_tagged_union_def()?);
-                        } else {
-                            type_aliases.push(self.parse_type_alias(Visibility::Private)?);
-                        }
-                    }
-                }
-                _ => {
-                    let t = self.advance();
-                    return Err(ParseError {
-                        message: format!("Unexpected token at top level: {:?}", t.kind),
-                        span: t.span,
-                    });
-                }
-            }
-        }
-
-        Ok(Program {
-            components,
-            stores,
-            themes,
-            functions,
-            structs,
-            type_aliases,
-            tagged_unions,
-            imports,
-            exports,
-        })
-    }
-
     // ── Helpers ────────────────────────────────────────
 
     /// Check if the next token is a left brace `{`.
@@ -200,5 +86,64 @@ impl<'a> Parser<'a> {
             message: msg.into(),
             span: self.peek_span(),
         }
+    }
+}
+
+#[cfg(test)]
+mod roundtrip_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+
+    #[test]
+    fn roundtrip_function_def() {
+        let source = "pub fn main() { return 42; }";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        assert_eq!(program.modules.len(), 1);
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.functions.len(), 1);
+        let func = &module.functions[0];
+        assert_eq!(func.name, "main");
+        assert!(matches!(func.visibility, Visibility::Public));
+    }
+
+    #[test]
+    fn roundtrip_struct_def() {
+        let source = "struct Point { x: i32, y: i32 }";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.structs.len(), 1);
+        assert_eq!(module.structs[0].name, "Point");
+        assert_eq!(module.structs[0].fields.len(), 2);
+    }
+
+    #[test]
+    fn roundtrip_enum_def() {
+        let source = "type Color = Red | Green | Blue";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.tagged_unions.len(), 1);
+    }
+
+    #[test]
+    fn roundtrip_type_alias() {
+        let source = "type UserId = i32;";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.type_aliases.len(), 1);
+        assert_eq!(module.type_aliases[0].name, "UserId");
+    }
+
+    #[test]
+    fn roundtrip_import_export() {
+        let source = "import { add } from \"./utils/math.omni\";\nexport { main } from \"./utils/math.omni\";";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.imports.len(), 1);
+        assert_eq!(module.exports.len(), 1);
     }
 }

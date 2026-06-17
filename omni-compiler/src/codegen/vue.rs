@@ -16,7 +16,7 @@ impl Codegen for VueCodegen {
         let mut files = Vec::new();
 
         // Each component -> .vue SFC
-        for (name, comp) in &ir.components {
+        for (name, comp) in ir.all_components() {
             let sfc = self.gen_component_sfc(name, comp, ir);
             files.push(CompiledFile {
                 path: format!("{}.vue", name),
@@ -25,7 +25,7 @@ impl Codegen for VueCodegen {
         }
 
         // Each store -> useXxx.ts composable
-        for (name, store) in &ir.stores {
+        for (name, store) in ir.all_stores() {
             let hook = self.gen_store_hook(name, store);
             files.push(CompiledFile {
                 path: format!("use{}.ts", name),
@@ -94,7 +94,7 @@ impl VueCodegen {
         // Store hook imports
         let mut store_hook_imports = Vec::new();
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 store_hook_imports.push(format!(
                     "import {{ {} }} from './use{}';",
@@ -124,7 +124,7 @@ impl VueCodegen {
 
         // Store composable calls
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 w.emit(&format!("const {} = {}();", store_ref, hook_name));
             }
@@ -1049,56 +1049,60 @@ mod tests {
 
     // ── gen_component_sfc tests ──────────────────────────────
 
+    /// Build IRProgram with a single module containing the given components.
+    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+        IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components,
+                    ..Default::default()
+                },
+            )]),
+            source_map: HashMap::new(),
+        }
+    }
+
     #[test]
     fn test_vue_empty_component() {
         let codegen = VueCodegen;
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
-                },
-            )]),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-        let sfc = codegen.gen_component_sfc("App", &ir.components.get("App").unwrap(), &ir);
-        // SFC has 3 sections
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
+        let sfc = codegen.gen_component_sfc("App", comp_ref, &ir);
         assert!(sfc.contains("<template>"));
         assert!(sfc.contains("</template>"));
         assert!(sfc.contains("<script setup lang=\"ts\">"));
         assert!(sfc.contains("</script>"));
         assert!(sfc.contains("<style scoped>"));
         assert!(sfc.contains("</style>"));
-        // Default imports
         assert!(sfc.contains("import { ref } from 'vue';"));
-        // Default fallback view
         assert!(sfc.contains("<div class=\"container\">"));
-        // Default CSS
         assert!(sfc.contains(".container {"));
     }
 
     #[test]
     fn test_vue_component_with_state() {
         let codegen = VueCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let state = StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -1116,26 +1120,28 @@ mod tests {
             accessor_style: "direct".into(),
             is_copy: false,
         };
-        let comp = ComponentIR {
-            name: "Counter".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![state],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Counter".into(), comp);
-        let comp_ref = ir.components.get("Counter").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Counter".into(),
+            ComponentIR {
+                name: "Counter".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![state],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Counter").unwrap();
         let sfc = codegen.gen_component_sfc("Counter", comp_ref, &ir);
-        // Vue ref with type
         assert!(sfc.contains("const count = ref<number>(0);"));
-        // SFC sections
         assert!(sfc.contains("<template>"));
         assert!(sfc.contains("</template>"));
         assert!(sfc.contains("<script setup lang=\"ts\">"));
@@ -1145,12 +1151,6 @@ mod tests {
     #[test]
     fn test_vue_component_with_props() {
         let codegen = VueCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let mut props = HashMap::new();
         props.insert(
             "name".into(),
@@ -1172,24 +1172,27 @@ mod tests {
                 needs_partial_eq: false,
             },
         );
-        let comp = ComponentIR {
-            name: "Greeting".into(),
-            generic_params: vec![],
-            props,
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Greeting".into(), comp);
-        let comp_ref = ir.components.get("Greeting").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Greeting".into(),
+            ComponentIR {
+                name: "Greeting".into(),
+                generic_params: vec![],
+                props,
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Greeting").unwrap();
         let sfc = codegen.gen_component_sfc("Greeting", comp_ref, &ir);
-        // defineProps
         assert!(sfc.contains("defineProps"));
         assert!(sfc.contains("name: string;"));
         assert!(sfc.contains("age: number;"));
@@ -1198,12 +1201,6 @@ mod tests {
     #[test]
     fn test_vue_component_with_effect() {
         let codegen = VueCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let effect = EffectIntent {
             deps: vec!["count".into()],
             body: BlockIR {
@@ -1215,24 +1212,27 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "Watcher".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![effect],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Watcher".into(), comp);
-        let comp_ref = ir.components.get("Watcher").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Watcher".into(),
+            ComponentIR {
+                name: "Watcher".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![effect],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Watcher").unwrap();
         let sfc = codegen.gen_component_sfc("Watcher", comp_ref, &ir);
-        // watchEffect + import
         assert!(sfc.contains("watchEffect(() => {"));
         assert!(sfc.contains("import { ref, watchEffect } from 'vue';"));
     }
@@ -1240,12 +1240,6 @@ mod tests {
     #[test]
     fn test_vue_component_with_lifecycle_mount() {
         let codegen = VueCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let lc = LifecycleIntent {
             kind: "mount".into(),
             body: BlockIR {
@@ -1253,22 +1247,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "App".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![lc],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("App".into(), comp);
-        let comp_ref = ir.components.get("App").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![lc],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
         let sfc = codegen.gen_component_sfc("App", comp_ref, &ir);
         assert!(sfc.contains("onMounted(() => {"));
         assert!(sfc.contains("import { ref, onMounted } from 'vue';"));
@@ -1384,8 +1382,15 @@ mod tests {
         let codegen = VueCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1429,8 +1434,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1467,8 +1479,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1516,8 +1535,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);

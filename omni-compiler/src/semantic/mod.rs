@@ -11,16 +11,19 @@ use crate::lexer::Span;
 use crate::parser::ast::*;
 use symbols::*;
 
-/// Result of semantic analysis.
+/// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).
 #[derive(Debug)]
 pub struct SemanticResult {
     pub symbols: SymbolTable,
     pub dependencies: HashMap<String, Vec<String>>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Run all semantic analysis passes on the parsed program.
-pub fn analyze(program: &Program) -> Result<SemanticResult, Vec<Diagnostic>> {
-    let analyzer = SemanticAnalyzer::new();
+/// Always returns a `SemanticResult` (never early-exits) — diagnostics are accumulated
+/// in the result for downstream processing.
+pub fn analyze(program: &Program) -> SemanticResult {
+    let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(program)
 }
 
@@ -45,168 +48,167 @@ impl SemanticAnalyzer {
         }
     }
 
-    pub fn analyze(mut self, program: &Program) -> Result<SemanticResult, Vec<Diagnostic>> {
-        // Pass 1: Collect symbols
-        self.collect_symbols(program);
-
-        // Pass 2: Resolve references (placeholder for now)
-        self.resolve_references(program);
-
-        // Pass 3: Type checking (placeholder)
-        self.type_check(program);
-
-        // Pass 4: Collect dependencies (placeholder)
-        self.collect_dependencies(program);
-
-        // Pass 5: Validate constraints
-        self.validate_constraints(program);
-
-        if self
-            .diagnostics
-            .iter()
-            .any(|d| matches!(d.severity, crate::error::Severity::Error))
-        {
-            return Err(self.diagnostics);
+    pub fn analyze(&mut self, program: &Program) -> SemanticResult {
+        // Pass 1: Collect symbols from all modules
+        for (_filepath, module) in &program.modules {
+            self.collect_module_symbols(module);
         }
 
-        Ok(SemanticResult {
-            symbols: self.symbols,
-            dependencies: self.dependencies,
-        })
+        // Pass 2: Resolve types per module
+        for (_filepath, module) in &program.modules {
+            self.resolve_module_types(module);
+        }
+
+        // Pass 3: Collect dependencies per module
+        for (_filepath, module) in &program.modules {
+            self.collect_module_dependencies(module);
+        }
+
+        // Pass 4: Validate per module
+        for (_filepath, module) in &program.modules {
+            self.validate_module(module);
+        }
+
+        // Always return what we have — diagnostics accumulated in self.diagnostics
+        SemanticResult {
+            symbols: std::mem::take(&mut self.symbols),
+            dependencies: std::mem::take(&mut self.dependencies),
+            diagnostics: std::mem::take(&mut self.diagnostics),
+        }
     }
 
     // ── Pass 1: Collect symbols ────────────────────────
 
-    fn collect_symbols(&mut self, program: &Program) {
-        for comp in &program.components {
-            self.symbols.push_scope(&format!("component:{}", comp.name));
+    fn collect_module_symbols(&mut self, module: &Module) {
+        for comp in &module.components {
+                self.symbols.push_scope(&format!("component:{}", comp.name));
 
-            for prop in &comp.props {
-                self.symbols
-                    .declare(Symbol {
-                        name: prop.name.clone(),
-                        kind: SymbolKind::Prop,
-                        type_ann: Some(type_to_string(&prop.type_ann)),
-                        mutable: false,
-                        declared_at: prop.type_ann.span().start,
-                    })
-                    .ok();
+                for prop in &comp.props {
+                    self.symbols
+                        .declare(Symbol {
+                            name: prop.name.clone(),
+                            kind: SymbolKind::Prop,
+                            type_ann: Some(type_to_string(&prop.type_ann)),
+                            mutable: false,
+                            declared_at: prop.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for sig in &comp.signals {
+                    self.symbols
+                        .declare(Symbol {
+                            name: sig.name.clone(),
+                            kind: SymbolKind::Signal,
+                            type_ann: Some(type_to_string(&sig.type_ann)),
+                            mutable: true,
+                            declared_at: sig.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for c in &comp.computeds {
+                    self.symbols
+                        .declare(Symbol {
+                            name: c.name.clone(),
+                            kind: SymbolKind::Computed,
+                            type_ann: Some(type_to_string(&c.type_ann)),
+                            mutable: false,
+                            declared_at: c.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for ev in &comp.events {
+                    self.symbols
+                        .declare(Symbol {
+                            name: ev.name.clone(),
+                            kind: SymbolKind::Event,
+                            type_ann: Some(type_to_string(&ev.type_ann)),
+                            mutable: false,
+                            declared_at: ev.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for r in &comp.refs {
+                    self.symbols
+                        .declare(Symbol {
+                            name: r.name.clone(),
+                            kind: SymbolKind::Ref,
+                            type_ann: Some(type_to_string(&r.type_ann)),
+                            mutable: false,
+                            declared_at: r.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                // Functions and actions
+                for f in &comp.fns {
+                    self.collect_fn_symbols(f);
+                }
+                for a in &comp.actions {
+                    self.collect_action_symbols(a);
+                }
+
+                // Lifecycle hooks
+                for lc in &comp.lifecycles {
+                    self.collect_block_symbols(&lc.body);
+                }
+
+                self.symbols.pop_scope(); // component scope
             }
 
-            for sig in &comp.signals {
-                self.symbols
-                    .declare(Symbol {
-                        name: sig.name.clone(),
-                        kind: SymbolKind::Signal,
-                        type_ann: Some(type_to_string(&sig.type_ann)),
-                        mutable: true,
-                        declared_at: sig.type_ann.span().start,
-                    })
-                    .ok();
+            // Stores
+            for store in &module.stores {
+                self.symbols.push_scope(&format!("store:{}", store.name));
+
+                for sig in &store.signals {
+                    self.symbols
+                        .declare(Symbol {
+                            name: sig.name.clone(),
+                            kind: SymbolKind::Signal,
+                            type_ann: Some(type_to_string(&sig.type_ann)),
+                            mutable: true,
+                            declared_at: sig.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for g in &store.getters {
+                    self.symbols
+                        .declare(Symbol {
+                            name: g.name.clone(),
+                            kind: SymbolKind::Getter,
+                            type_ann: Some(type_to_string(&g.type_ann)),
+                            mutable: false,
+                            declared_at: g.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for a in &store.actions {
+                    self.collect_action_symbols(a);
+                }
+
+                self.symbols.pop_scope();
             }
 
-            for c in &comp.computeds {
-                self.symbols
-                    .declare(Symbol {
-                        name: c.name.clone(),
-                        kind: SymbolKind::Computed,
-                        type_ann: Some(type_to_string(&c.type_ann)),
-                        mutable: false,
-                        declared_at: c.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for ev in &comp.events {
-                self.symbols
-                    .declare(Symbol {
-                        name: ev.name.clone(),
-                        kind: SymbolKind::Event,
-                        type_ann: Some(type_to_string(&ev.type_ann)),
-                        mutable: false,
-                        declared_at: ev.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for r in &comp.refs {
-                self.symbols
-                    .declare(Symbol {
-                        name: r.name.clone(),
-                        kind: SymbolKind::Ref,
-                        type_ann: Some(type_to_string(&r.type_ann)),
-                        mutable: false,
-                        declared_at: r.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            // Functions and actions
-            for f in &comp.fns {
+            // Top-level functions
+            for f in &module.functions {
                 self.collect_fn_symbols(f);
             }
-            for a in &comp.actions {
-                self.collect_action_symbols(a);
+
+            // Structs
+            for s in &module.structs {
+                let _ = self.symbols.declare(Symbol {
+                    name: s.name.clone(),
+                    kind: SymbolKind::Unknown,
+                    type_ann: None,
+                    mutable: false,
+                    declared_at: s.span.start,
+                });
             }
-
-            // Lifecycle hooks
-            for lc in &comp.lifecycles {
-                self.collect_block_symbols(&lc.body);
-            }
-
-            self.symbols.pop_scope(); // component scope
-        }
-
-        // Stores
-        for store in &program.stores {
-            self.symbols.push_scope(&format!("store:{}", store.name));
-
-            for sig in &store.signals {
-                self.symbols
-                    .declare(Symbol {
-                        name: sig.name.clone(),
-                        kind: SymbolKind::Signal,
-                        type_ann: Some(type_to_string(&sig.type_ann)),
-                        mutable: true,
-                        declared_at: sig.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for g in &store.getters {
-                self.symbols
-                    .declare(Symbol {
-                        name: g.name.clone(),
-                        kind: SymbolKind::Getter,
-                        type_ann: Some(type_to_string(&g.type_ann)),
-                        mutable: false,
-                        declared_at: g.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for a in &store.actions {
-                self.collect_action_symbols(a);
-            }
-
-            self.symbols.pop_scope();
-        }
-
-        // Top-level functions
-        for f in &program.functions {
-            self.collect_fn_symbols(f);
-        }
-
-        // Structs
-        for s in &program.structs {
-            let _ = self.symbols.declare(Symbol {
-                name: s.name.clone(),
-                kind: SymbolKind::Unknown,
-                type_ann: None,
-                mutable: false,
-                declared_at: s.span.start,
-            });
-        }
     }
 
     fn collect_fn_symbols(&mut self, f: &FunctionDef) {
@@ -301,46 +303,46 @@ impl SemanticAnalyzer {
 
     // ── Pass 2: Resolve references ─────────────────────
 
-    fn resolve_references(&mut self, program: &Program) {
+    fn resolve_module_types(&mut self, module: &Module) {
         // Walk all expressions and check VarRef names resolve.
         // Push the same scope hierarchy as collect_symbols so resolution works.
-        for comp in &program.components {
-            // Find the component scope by name
-            let comp_scope_name = format!("component:{}", comp.name);
-            if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
-                self.symbols.current_scope = scope_idx;
-            }
+        for comp in &module.components {
+                // Find the component scope by name
+                let comp_scope_name = format!("component:{}", comp.name);
+                if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
+                    self.symbols.current_scope = scope_idx;
+                }
 
-            for f in &comp.fns {
+                for f in &comp.fns {
+                    let fn_scope_name = format!("fn:{}", f.name);
+                    if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
+                        self.symbols.current_scope = fn_idx;
+                    }
+                    self.resolve_block_refs(&f.body);
+                    self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
+                        .parent
+                        .unwrap_or(0);
+                }
+                for a in &comp.actions {
+                    let action_scope_name = format!("action:{}", a.name);
+                    if let Some(a_idx) = self.find_scope(&action_scope_name) {
+                        self.symbols.current_scope = a_idx;
+                    }
+                    self.resolve_block_refs(&a.body);
+                    if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
+                        self.symbols.current_scope = parent;
+                    }
+                }
+                self.symbols.current_scope = 0; // back to global
+            }
+            for f in &module.functions {
                 let fn_scope_name = format!("fn:{}", f.name);
                 if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
                     self.symbols.current_scope = fn_idx;
                 }
                 self.resolve_block_refs(&f.body);
-                self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
-                    .parent
-                    .unwrap_or(0);
+                self.symbols.current_scope = 0;
             }
-            for a in &comp.actions {
-                let action_scope_name = format!("action:{}", a.name);
-                if let Some(a_idx) = self.find_scope(&action_scope_name) {
-                    self.symbols.current_scope = a_idx;
-                }
-                self.resolve_block_refs(&a.body);
-                if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
-                    self.symbols.current_scope = parent;
-                }
-            }
-            self.symbols.current_scope = 0; // back to global
-        }
-        for f in &program.functions {
-            let fn_scope_name = format!("fn:{}", f.name);
-            if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
-                self.symbols.current_scope = fn_idx;
-            }
-            self.resolve_block_refs(&f.body);
-            self.symbols.current_scope = 0;
-        }
     }
 
     /// Find a scope by name (linear scan — sufficient for our scale).
@@ -462,16 +464,10 @@ impl SemanticAnalyzer {
         }
     }
 
-    // ── Pass 3: Type checking ──────────────────────────
+    // ── Pass 3 (renumbered): Collect dependencies ──────
 
-    fn type_check(&mut self, _program: &Program) {
-        // TODO: Full type inference in a future iteration
-    }
-
-    // ── Pass 4: Collect dependencies ───────────────────
-
-    fn collect_dependencies(&mut self, program: &Program) {
-        for comp in &program.components {
+    fn collect_module_dependencies(&mut self, module: &Module) {
+        for comp in &module.components {
             let mut deps = Vec::new();
             for c in &comp.computeds {
                 deps.push(c.name.clone());
@@ -480,9 +476,9 @@ impl SemanticAnalyzer {
         }
     }
 
-    // ── Pass 5: Validate constraints ───────────────────
+    // ── Pass 4: Validate ───────────────────────────────
 
-    fn validate_constraints(&mut self, _program: &Program) {
+    fn validate_module(&mut self, _module: &Module) {
         // TODO: bind: on signals only, @for key check, break/continue in loops
     }
 }

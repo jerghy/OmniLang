@@ -126,9 +126,9 @@ pub mod rules {
 
         fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
-            for (name, comp) in &ir.components {
+            for (name, comp) in ir.all_components() {
                 for store_ref in &comp.store_refs {
-                    if !ir.stores.contains_key(store_ref) {
+                    if !ir.all_stores().contains_key(store_ref.as_str()) {
                         diags.push(LintDiagnostic {
                             rule: self.name().into(),
                             severity: self.severity(),
@@ -203,7 +203,7 @@ pub mod rules {
 
         fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
-            for (comp_name, comp) in &ir.components {
+            for (comp_name, comp) in ir.all_components() {
                 for func in &comp.fns {
                     if let Some(ref ret_type) = func.return_type {
                         let kind = ret_type.kind.as_str();
@@ -259,15 +259,15 @@ pub mod rules {
 
             // Collect all stores referenced by any component
             let mut used_stores: HashSet<&str> = HashSet::new();
-            for comp in ir.components.values() {
+            for (_name, comp) in ir.all_components() {
                 for store_ref in &comp.store_refs {
                     used_stores.insert(store_ref.as_str());
                 }
             }
 
             // Warn about stores that are never used
-            for store_name in ir.stores.keys() {
-                if !used_stores.contains(store_name.as_str()) {
+            for store_name in ir.all_stores().keys() {
+                if !used_stores.contains(store_name) {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
@@ -312,22 +312,24 @@ pub mod rules {
         fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
 
-            // Collect all imported names
+            // Collect all imported names across all modules
             let mut imported: HashMap<&str, (&ImportStmt, &[String])> = HashMap::new();
-            for import in &program.imports {
-                match import {
-                    ImportStmt::Named(named) => {
-                        for name in &named.names {
-                            imported.insert(name.as_str(), (import, &named.names));
+            for module in program.modules.values() {
+                for import in &module.imports {
+                    match import {
+                        ImportStmt::Named(named) => {
+                            for name in &named.names {
+                                imported.insert(name.as_str(), (import, &named.names));
+                            }
                         }
-                    }
-                    ImportStmt::TypeOnly(ti) => {
-                        for name in &ti.names {
-                            imported.insert(name.as_str(), (import, &ti.names));
+                        ImportStmt::TypeOnly(ti) => {
+                            for name in &ti.names {
+                                imported.insert(name.as_str(), (import, &ti.names));
+                            }
                         }
+                        // Namespace imports and lib markers are not name-level
+                        ImportStmt::Namespace(_) | ImportStmt::Lib(_) => {}
                     }
-                    // Namespace imports and lib markers are not name-level
-                    ImportStmt::Namespace(_) | ImportStmt::Lib(_) => {}
                 }
             }
 
@@ -335,56 +337,58 @@ pub mod rules {
                 return diags;
             }
 
-            // Collect all name references in the program
+            // Collect all name references across all modules
             let mut used: HashSet<&str> = HashSet::new();
-            for func in &program.functions {
-                collect_used_names_in_block(&func.body, &mut used);
-            }
-            for comp in &program.components {
-                // Component name itself
-                used.insert(comp.name.as_str());
-                // Signal initializers, computed bodies, lifecycle bodies
-                for sig in &comp.signals {
-                    collect_used_names_in_expr(&sig.init, &mut used);
-                }
-                for c in &comp.computeds {
-                    collect_used_names_in_expr(&c.body, &mut used);
-                }
-                for lc in &comp.lifecycles {
-                    collect_used_names_in_block(&lc.body, &mut used);
-                }
-                for func in &comp.fns {
+            for module in program.modules.values() {
+                for func in &module.functions {
                     collect_used_names_in_block(&func.body, &mut used);
                 }
-                // Actions are also functions:
-                for action in &comp.actions {
-                    collect_used_names_in_block(&action.body, &mut used);
+                for comp in &module.components {
+                    // Component name itself
+                    used.insert(comp.name.as_str());
+                    // Signal initializers, computed bodies, lifecycle bodies
+                    for sig in &comp.signals {
+                        collect_used_names_in_expr(&sig.init, &mut used);
+                    }
+                    for c in &comp.computeds {
+                        collect_used_names_in_expr(&c.body, &mut used);
+                    }
+                    for lc in &comp.lifecycles {
+                        collect_used_names_in_block(&lc.body, &mut used);
+                    }
+                    for func in &comp.fns {
+                        collect_used_names_in_block(&func.body, &mut used);
+                    }
+                    // Actions are also functions:
+                    for action in &comp.actions {
+                        collect_used_names_in_block(&action.body, &mut used);
+                    }
+                    // View blocks reference component names
+                    if let Some(ref view) = comp.view {
+                        collect_used_names_in_view(view, &mut used);
+                    }
                 }
-                // View blocks reference component names
-                if let Some(ref view) = comp.view {
-                    collect_used_names_in_view(view, &mut used);
+                for store in &module.stores {
+                    used.insert(store.name.as_str());
+                    for sig in &store.signals {
+                        collect_used_names_in_expr(&sig.init, &mut used);
+                    }
+                    for getter in &store.getters {
+                        collect_used_names_in_expr(&getter.body, &mut used);
+                    }
+                    for action in &store.actions {
+                        collect_used_names_in_block(&action.body, &mut used);
+                    }
                 }
-            }
-            for store in &program.stores {
-                used.insert(store.name.as_str());
-                for sig in &store.signals {
-                    collect_used_names_in_expr(&sig.init, &mut used);
+                for s in &module.structs {
+                    used.insert(s.name.as_str());
                 }
-                for getter in &store.getters {
-                    collect_used_names_in_expr(&getter.body, &mut used);
+                for ta in &module.type_aliases {
+                    used.insert(ta.name.as_str());
                 }
-                for action in &store.actions {
-                    collect_used_names_in_block(&action.body, &mut used);
+                for tu in &module.tagged_unions {
+                    used.insert(tu.name.as_str());
                 }
-            }
-            for s in &program.structs {
-                used.insert(s.name.as_str());
-            }
-            for ta in &program.type_aliases {
-                used.insert(ta.name.as_str());
-            }
-            for tu in &program.tagged_unions {
-                used.insert(tu.name.as_str());
             }
 
             // Check imports
@@ -685,21 +689,38 @@ pub mod rules {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ast::{Block, Expr, FunctionDef, NamedImport, Stmt, Visibility};
+    use crate::ir::ModuleIR;
+    use crate::parser::ast::{Block, Expr, FunctionDef, Module, NamedImport, Stmt, Visibility};
     use crate::lexer::Span;
+
+    /// Helper to construct an IRProgram with a single module for testing.
+    fn make_test_ir(
+        components: HashMap<String, crate::ir::ComponentIR>,
+        stores: HashMap<String, crate::ir::StoreIR>,
+    ) -> IRProgram {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "main".to_string(),
+            ModuleIR {
+                name: "main".to_string(),
+                components,
+                stores,
+                ..Default::default()
+            },
+        );
+        IRProgram {
+            version: "1.0".into(),
+            modules,
+            source_map: HashMap::new(),
+        }
+    }
 
     // ── UndefinedRef tests ───────────────────────────────
 
     #[test]
     fn test_undefined_ref_detects_missing_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -716,6 +737,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::UndefinedRef.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing store");
@@ -728,14 +750,8 @@ mod tests {
 
     #[test]
     fn test_undefined_ref_skips_existing_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "CounterStore".into(),
             crate::ir::StoreIR {
                 name: "CounterStore".into(),
@@ -745,8 +761,8 @@ mod tests {
                 actions: vec![],
             },
         );
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -763,6 +779,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, stores);
 
         let diags = rules::UndefinedRef.check_ir(&ir);
         assert_eq!(diags.len(), 0, "no diagnostics expected when store exists");
@@ -772,14 +789,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_detects_missing_return() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -791,6 +802,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "getCount".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "Int".into(),
@@ -814,6 +826,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing return");
@@ -826,14 +839,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_void_functions() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -845,6 +852,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "log".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "void".into(),
@@ -864,6 +872,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 0, "void functions should not trigger missing-return");
@@ -871,14 +880,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_when_return_present() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -890,6 +893,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "getCount".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "Int".into(),
@@ -913,6 +917,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 0, "functions with return should not trigger");
@@ -922,14 +927,8 @@ mod tests {
 
     #[test]
     fn test_dead_code_detects_unused_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "UnusedStore".into(),
             crate::ir::StoreIR {
                 name: "UnusedStore".into(),
@@ -939,6 +938,7 @@ mod tests {
                 actions: vec![],
             },
         );
+        let ir = make_test_ir(HashMap::new(), stores);
 
         let diags = rules::DeadCode.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused store");
@@ -951,14 +951,8 @@ mod tests {
 
     #[test]
     fn test_dead_code_skips_used_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "UsedStore".into(),
             crate::ir::StoreIR {
                 name: "UsedStore".into(),
@@ -968,8 +962,8 @@ mod tests {
                 actions: vec![],
             },
         );
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -986,6 +980,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, stores);
 
         let diags = rules::DeadCode.check_ir(&ir);
         assert_eq!(diags.len(), 0, "used stores should not trigger dead-code");
@@ -995,14 +990,16 @@ mod tests {
 
     #[test]
     fn test_unused_import_detects_unused_named_import() {
-        let program = Program {
+        let mut modules = HashMap::new();
+        modules.insert("test.omni".to_string(), Module {
+            name: "test".into(),
+            functions: vec![],
+            structs: vec![],
+            tagged_unions: vec![],
+            type_aliases: vec![],
             components: vec![],
             stores: vec![],
             themes: vec![],
-            functions: vec![],
-            structs: vec![],
-            type_aliases: vec![],
-            tagged_unions: vec![],
             imports: vec![ImportStmt::Named(
                 NamedImport {
                     names: vec!["unusedSymbol".into()],
@@ -1016,7 +1013,8 @@ mod tests {
                 },
             )],
             exports: vec![],
-        };
+        });
+        let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused import");
@@ -1029,10 +1027,9 @@ mod tests {
 
     #[test]
     fn test_unused_import_skips_used_import() {
-        let program = Program {
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
+        let mut modules = HashMap::new();
+        modules.insert("test.omni".to_string(), Module {
+            name: "test".into(),
             functions: vec![FunctionDef {
                 visibility: Visibility::Private,
                 name: "greet".into(),
@@ -1073,8 +1070,11 @@ mod tests {
                 },
             }],
             structs: vec![],
-            type_aliases: vec![],
             tagged_unions: vec![],
+            type_aliases: vec![],
+            components: vec![],
+            stores: vec![],
+            themes: vec![],
             imports: vec![ImportStmt::Named(
                 NamedImport {
                     names: vec!["usedSymbol".into()],
@@ -1088,7 +1088,8 @@ mod tests {
                 },
             )],
             exports: vec![],
-        };
+        });
+        let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");
         assert_eq!(
@@ -1103,12 +1104,7 @@ mod tests {
     #[test]
     fn test_run_all_empty_programs() {
         let programs: HashMap<String, Program> = HashMap::new();
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
+        let ir = make_test_ir(HashMap::new(), HashMap::new());
 
         let diags = run_all(&programs, &ir);
         assert_eq!(diags.len(), 0, "no diagnostics expected for empty input");

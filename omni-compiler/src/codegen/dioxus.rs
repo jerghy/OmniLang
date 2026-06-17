@@ -15,7 +15,7 @@ impl Codegen for DioxusCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
-        for (name, comp) in &ir.components {
+        for (name, comp) in ir.all_components() {
             let rs = self.gen_component_rs(name, comp, ir);
             files.push(CompiledFile {
                 path: format!("{}.rs", name),
@@ -23,7 +23,7 @@ impl Codegen for DioxusCodegen {
             });
         }
 
-        for (name, store) in &ir.stores {
+        for (name, store) in ir.all_stores() {
             let store_mod = self.gen_store_module(name, store);
             files.push(CompiledFile {
                 path: format!("{}.rs", to_snake_case(name)),
@@ -74,7 +74,7 @@ impl DioxusCodegen {
 
         // Store module imports
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let snake = to_snake_case(store_ref);
                 w.emit(&format!("mod {};", snake));
             }
@@ -85,7 +85,7 @@ impl DioxusCodegen {
 
         // Store hook calls
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let snake = to_snake_case(store_ref);
                 w.emit(&format!(
                     "let {} = {}::use_{}();",
@@ -1007,32 +1007,46 @@ mod tests {
 
     // ── gen_component_rs tests ──────────────────────────────
 
+    /// Build IRProgram with a single module containing the given components.
+    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+        IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components,
+                    ..Default::default()
+                },
+            )]),
+            source_map: HashMap::new(),
+        }
+    }
+
     #[test]
     fn test_empty_component() {
         let codegen = DioxusCodegen;
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
-                },
-            )]),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-        let rs = codegen.gen_component_rs("App", ir.components.get("App").unwrap(), &ir);
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
+        let rs = codegen.gen_component_rs("App", comp_ref, &ir);
         assert!(rs.contains("use dioxus::prelude::*;"));
         assert!(rs.contains("#[component]"));
         assert!(rs.contains("pub fn App() -> Element {"));
@@ -1043,12 +1057,6 @@ mod tests {
     #[test]
     fn test_component_with_state() {
         let codegen = DioxusCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let state = StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -1066,22 +1074,26 @@ mod tests {
             accessor_style: "direct".into(),
             is_copy: false,
         };
-        let comp = ComponentIR {
-            name: "Counter".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![state],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Counter".into(), comp);
-        let comp_ref = ir.components.get("Counter").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Counter".into(),
+            ComponentIR {
+                name: "Counter".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![state],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Counter").unwrap();
         let rs = codegen.gen_component_rs("Counter", comp_ref, &ir);
         assert!(rs.contains("pub fn Counter() -> Element {"));
         assert!(rs.contains("let mut count = use_signal(|| 0);"));
@@ -1090,12 +1102,6 @@ mod tests {
     #[test]
     fn test_component_with_props() {
         let codegen = DioxusCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let mut props = HashMap::new();
         props.insert(
             "name".into(),
@@ -1117,22 +1123,26 @@ mod tests {
                 needs_partial_eq: false,
             },
         );
-        let comp = ComponentIR {
-            name: "Greeting".into(),
-            generic_params: vec![],
-            props,
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Greeting".into(), comp);
-        let comp_ref = ir.components.get("Greeting").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Greeting".into(),
+            ComponentIR {
+                name: "Greeting".into(),
+                generic_params: vec![],
+                props,
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Greeting").unwrap();
         let rs = codegen.gen_component_rs("Greeting", comp_ref, &ir);
         assert!(rs.contains("#[derive(Props, PartialEq, Clone)]"));
         assert!(rs.contains("struct GreetingProps {"));
@@ -1144,12 +1154,6 @@ mod tests {
     #[test]
     fn test_component_with_effect() {
         let codegen = DioxusCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let effect = EffectIntent {
             deps: vec!["count".into()],
             body: BlockIR {
@@ -1161,22 +1165,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "Watcher".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![effect],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Watcher".into(), comp);
-        let comp_ref = ir.components.get("Watcher").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Watcher".into(),
+            ComponentIR {
+                name: "Watcher".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![effect],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Watcher").unwrap();
         let rs = codegen.gen_component_rs("Watcher", comp_ref, &ir);
         assert!(rs.contains("use_effect(move || async move {"));
     }
@@ -1184,12 +1192,6 @@ mod tests {
     #[test]
     fn test_component_with_computed() {
         let codegen = DioxusCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let computed = ComputedIntent {
             name: "double".into(),
             r#type: TypeIR {
@@ -1210,22 +1212,26 @@ mod tests {
             },
             deps: vec!["count".into()],
         };
-        let comp = ComponentIR {
-            name: "Calc".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![computed],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Calc".into(), comp);
-        let comp_ref = ir.components.get("Calc").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Calc".into(),
+            ComponentIR {
+                name: "Calc".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![computed],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Calc").unwrap();
         let rs = codegen.gen_component_rs("Calc", comp_ref, &ir);
         assert!(rs.contains("let double = use_memo(move || {"));
         assert!(rs.contains("count * 2"));
@@ -1298,8 +1304,15 @@ mod tests {
         let codegen = DioxusCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1343,8 +1356,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1378,8 +1398,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1427,8 +1454,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);

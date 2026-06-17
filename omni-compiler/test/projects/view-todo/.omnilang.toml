@@ -1,0 +1,10 @@
+[project]
+name = "view-todo"
+version = "0.1.0"
+type = "view"
+
+[source]
+dir = "src"
+
+[output]
+dir = "build"

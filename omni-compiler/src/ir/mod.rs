@@ -1,6 +1,10 @@
 //! Intent IR types and AST -> IR lowering.
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
+pub mod logic;
+pub mod lower_logic;
+pub use logic::*;
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -246,14 +250,6 @@ pub struct StyleRuleIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FunctionIR {
-    pub name: String,
-    pub params: Vec<ParamIR>,
-    pub return_type: Option<TypeIR>,
-    pub body: BlockIR,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParamIR {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -293,9 +289,28 @@ pub struct StoreIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IRProgram {
     pub version: String,
-    pub components: HashMap<String, ComponentIR>,
-    pub stores: HashMap<String, StoreIR>,
+    pub modules: HashMap<String, ModuleIR>,
     pub source_map: HashMap<String, SourceMapEntry>,
+}
+
+impl IRProgram {
+    /// Collect all components across all modules.
+    pub fn all_components(&self) -> HashMap<&str, &ComponentIR> {
+        self.modules
+            .iter()
+            .flat_map(|(_, m)| m.components.iter())
+            .map(|(k, v)| (k.as_str(), v))
+            .collect()
+    }
+
+    /// Collect all stores across all modules.
+    pub fn all_stores(&self) -> HashMap<&str, &StoreIR> {
+        self.modules
+            .iter()
+            .flat_map(|(_, m)| m.stores.iter())
+            .map(|(k, v)| (k.as_str(), v))
+            .collect()
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -304,23 +319,75 @@ pub struct IRProgram {
 
 /// Lower AST -> IR.
 pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
-    let mut components = HashMap::new();
-    let mut stores = HashMap::new();
+    let mut modules = HashMap::new();
 
-    for comp in &program.components {
-        let ir = lower_component(comp);
-        components.insert(comp.name.clone(), ir);
-    }
+    for (module_name, module) in &program.modules {
+        let mut components = HashMap::new();
+        let mut stores = HashMap::new();
+        let mut functions = HashMap::new();
+        let mut structs = HashMap::new();
+        let mut enums = HashMap::new();
+        let mut type_aliases = HashMap::new();
+        let mut imports: Vec<ImportIR> = Vec::new();
+        let mut exports: Vec<ExportIR> = Vec::new();
 
-    for store in &program.stores {
-        let ir = lower_store(store);
-        stores.insert(store.name.clone(), ir);
+        for comp in &module.components {
+            let ir = lower_component(comp);
+            components.insert(comp.name.clone(), ir);
+        }
+
+        for store in &module.stores {
+            let ir = lower_store(store);
+            stores.insert(store.name.clone(), ir);
+        }
+
+        for func in &module.functions {
+            let ir = lower_logic::lower_function(func);
+            functions.insert(func.name.clone(), ir);
+        }
+
+        for s in &module.structs {
+            let ir = lower_logic::lower_struct(s);
+            structs.insert(s.name.clone(), ir);
+        }
+
+        for tu in &module.tagged_unions {
+            let ir = lower_logic::lower_enum(tu);
+            enums.insert(tu.name.clone(), ir);
+        }
+
+        for ta in &module.type_aliases {
+            let ir = lower_logic::lower_type_alias(ta);
+            type_aliases.insert(ta.name.clone(), ir);
+        }
+
+        for imp in &module.imports {
+            imports.push(lower_logic::lower_import(imp));
+        }
+
+        for exp in &module.exports {
+            exports.push(lower_logic::lower_export(exp));
+        }
+
+        let module_ir = ModuleIR {
+            name: module_name.clone(),
+            functions,
+            structs,
+            enums,
+            type_aliases,
+            components,
+            stores,
+            themes: Vec::new(),
+            imports,
+            exports,
+        };
+
+        modules.insert(module_name.clone(), module_ir);
     }
 
     IRProgram {
         version: "1.0".to_string(),
-        components,
-        stores,
+        modules,
         source_map: HashMap::new(),
     }
 }
@@ -380,6 +447,7 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
         .iter()
         .map(|f| FunctionIR {
             name: f.name.clone(),
+            visibility: "private".to_string(),
             params: f
                 .params
                 .iter()
@@ -861,7 +929,7 @@ fn mutation_for_method(
     }
 }
 
-fn lower_block(block: &Block) -> BlockIR {
+pub(crate) fn lower_block(block: &Block) -> BlockIR {
     let mut statements: Vec<StatementIR> = block
         .stmts
         .iter()
@@ -887,7 +955,7 @@ fn lower_block(block: &Block) -> BlockIR {
     }
 }
 
-fn lower_expr(expr: &Expr) -> ExprIR {
+pub(crate) fn lower_expr(expr: &Expr) -> ExprIR {
     match expr {
         Expr::Literal(lit, _) => {
             let value = match lit {
@@ -1043,7 +1111,7 @@ fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
     }
 }
 
-fn lower_type(ty: &TypeAnnotation) -> TypeIR {
+pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
     match ty {
         TypeAnnotation::Named {
             name, type_args, ..

@@ -1,0 +1,10 @@
+import omniview;
+import { PostCard } from "./components/PostCard.omni";
+
+component App {
+    view {
+        <div class: app>
+            <PostCard />
+        </div>
+    }
+}

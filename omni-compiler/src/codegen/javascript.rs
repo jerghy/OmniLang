@@ -21,28 +21,57 @@ impl JavaScriptCodegen {
 }
 
 impl Codegen for JavaScriptCodegen {
-    fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
         let ext = if self.ts_mode { ".ts" } else { ".js" };
 
-        for (source_path, _source_text) in source_files {
+        for (module_key, module) in &ir.modules {
+            let module_name = module_key.strip_suffix(".omni").unwrap_or(module_key);
+            let source_path = format!("{}.omni", module_name);
+
             let mut w = CodeWriter::new();
             w.emit(&format!("// Generated from {}", source_path));
             w.emit("");
 
-            // Generate stores as standalone classes
-            for (store_name, store) in &ir.stores {
+            // Generate type aliases
+            for (_name, alias) in &module.type_aliases {
+                generate_type_alias(&mut w, alias, self.ts_mode);
+            }
+            if !module.structs.is_empty() || !module.enums.is_empty() || !module.functions.is_empty() {
+                w.emit("");
+            }
+
+            // Generate structs as classes
+            for (_name, struct_ir) in &module.structs {
+                generate_struct(&mut w, struct_ir, self.ts_mode);
+                w.emit("");
+            }
+
+            // Generate enums as frozen objects
+            for (_name, enum_ir) in &module.enums {
+                generate_enum(&mut w, enum_ir, self.ts_mode);
+                w.emit("");
+            }
+
+            // Generate standalone functions
+            for (_name, func) in &module.functions {
+                generate_standalone_function(&mut w, func, self.ts_mode);
+                w.emit("");
+            }
+
+            // Generate stores from this module
+            for (store_name, store) in &module.stores {
                 generate_store(&mut w, store_name, store, self.ts_mode);
                 w.emit("");
             }
 
-            // Generate components as classes
-            for (comp_name, comp) in &ir.components {
+            // Generate components from this module
+            for (comp_name, comp) in &module.components {
                 generate_component(&mut w, comp_name, comp, self.ts_mode);
                 w.emit("");
             }
 
-            let out_path = source_path.replace(".omni", ext);
+            let out_path = format!("{}{}", module_name, ext);
             files.push(CompiledFile {
                 path: out_path,
                 content: w.into_string(),
@@ -476,6 +505,115 @@ pub fn js_type(kind: &str, type_args: &[TypeIR], ts_mode: bool) -> String {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Type alias, struct, enum, and standalone function generation
+// ═══════════════════════════════════════════════════════════
+
+fn format_type_ir_js(ty: &TypeIR, ts_mode: bool) -> String {
+    js_type(&ty.kind, &ty.type_args, ts_mode)
+}
+
+fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR, ts_mode: bool) {
+    let export_prefix = if struct_ir.visibility == "public" { "export " } else { "" };
+    w.emit(&format!("{}class {} {{", export_prefix, struct_ir.name));
+    w.indent();
+
+    // Build constructor params with optional TS type annotations
+    let mut param_strs = Vec::new();
+    for field in &struct_ir.fields {
+        let mut s = field.name.clone();
+        if ts_mode {
+            let ann = format_type_ir_js(&field.r#type, true);
+            s.push_str(&format!(": {}", ann));
+        }
+        param_strs.push(s);
+    }
+    let all_params = param_strs.join(", ");
+
+    if !struct_ir.fields.is_empty() {
+        w.emit(&format!("constructor({}) {{", all_params));
+        w.indent();
+        for field in &struct_ir.fields {
+            w.emit(&format!("this.{} = {};", field.name, field.name));
+        }
+        w.dedent();
+        w.emit("}");
+    }
+
+    w.dedent();
+    w.emit("}");
+}
+
+fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR, _ts_mode: bool) {
+    let export_prefix = if enum_ir.visibility == "public" { "export " } else { "" };
+    w.emit(&format!("{}const {} = Object.freeze({{", export_prefix, enum_ir.name));
+    w.indent();
+    for (i, variant) in enum_ir.variants.iter().enumerate() {
+        if variant.payload.is_some() {
+            w.emit(&format!("{}: \"{}\",", variant.name, variant.name));
+        } else {
+            w.emit(&format!("{}: {},", variant.name, i));
+        }
+    }
+    w.dedent();
+    w.emit("});");
+}
+
+fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR, ts_mode: bool) {
+    if !ts_mode {
+        return; // Skip in JS mode
+    }
+    let target = format_type_ir_js(&alias.target, true);
+    let export_prefix = if alias.visibility == "public" { "export " } else { "" };
+    w.emit(&format!("{}type {} = {};", export_prefix, alias.name, target));
+}
+
+fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
+    let mut param_strs = Vec::new();
+    for p in &func.params {
+        let mut s = p.name.clone();
+        if ts_mode {
+            if let Some(ref ty) = p.r#type {
+                let ann = format_type_ir_js(ty, true);
+                if !ann.is_empty() {
+                    s.push_str(&format!(": {}", ann));
+                }
+            }
+        }
+        param_strs.push(s);
+    }
+
+    let ret_ann = if ts_mode {
+        func.return_type
+            .as_ref()
+            .map(|rt| {
+                let ann = format_type_ir_js(rt, true);
+                if ann.is_empty() { String::new() } else { format!(": {}", ann) }
+            })
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let all_params = param_strs.join(", ");
+
+    let prefix = if func.visibility == "public" { "export function " } else { "function " };
+
+    w.emit(&format!("{}{}({}){} {{", prefix, func.name, all_params, ret_ann));
+    w.indent();
+
+    if func.body.statements.is_empty() {
+        w.emit(";");
+    } else {
+        for stmt in &func.body.statements {
+            generate_statement(w, stmt, ts_mode);
+        }
+    }
+
+    w.dedent();
+    w.emit("}");
+}
+
+// ═══════════════════════════════════════════════════════════
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
@@ -658,6 +796,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doThing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -675,6 +814,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doThing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "void".into(),
@@ -698,6 +838,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "private".to_string(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -732,6 +873,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "private".to_string(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -817,6 +959,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
+                visibility: "private".to_string(),
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -1066,32 +1209,40 @@ mod tests {
         let codegen = JavaScriptCodegen::new(false);
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: None,
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "private".to_string(),
+                                params: vec![],
+                                return_type: None,
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1109,38 +1260,46 @@ mod tests {
         let codegen = JavaScriptCodegen::new(true);
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: Some(TypeIR {
-                            kind: "void".into(),
-                            type_args: vec![],
-                            is_nullable: false,
-                            needs_clone: false,
-                            needs_partial_eq: false,
-                        }),
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "private".to_string(),
+                                params: vec![],
+                                return_type: Some(TypeIR {
+                                    kind: "void".into(),
+                                    type_args: vec![],
+                                    is_nullable: false,
+                                    needs_clone: false,
+                                    needs_partial_eq: false,
+                                }),
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1151,5 +1310,221 @@ mod tests {
         let content = &output.files[0].content;
         assert!(content.contains("class App {"));
         assert!(content.contains("run(): void {"));
+    }
+
+    // ── Logic construct tests (standalone functions, structs, enums, type aliases) ──
+
+    #[test]
+    fn test_js_generate_struct() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Point".into(),
+            visibility: "public".to_string(),
+            fields: vec![
+                FieldIR {
+                    name: "x".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(), type_args: vec![],
+                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                    },
+                    visibility: "public".into(),
+                },
+                FieldIR {
+                    name: "y".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(), type_args: vec![],
+                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                    },
+                    visibility: "public".into(),
+                },
+            ],
+        };
+        generate_struct(&mut w, &struct_ir, false);
+        let out = w.into_string();
+        assert!(out.contains("class Point {"));
+        assert!(out.contains("constructor(x, y) {"));
+        assert!(out.contains("this.x = x;"));
+        assert!(out.contains("this.y = y;"));
+    }
+
+    #[test]
+    fn test_ts_generate_struct() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Point".into(),
+            visibility: "public".to_string(),
+            fields: vec![
+                FieldIR {
+                    name: "x".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(), type_args: vec![],
+                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                    },
+                    visibility: "public".into(),
+                },
+                FieldIR {
+                    name: "y".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(), type_args: vec![],
+                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                    },
+                    visibility: "public".into(),
+                },
+            ],
+        };
+        generate_struct(&mut w, &struct_ir, true);
+        let out = w.into_string();
+        assert!(out.contains("class Point {"));
+        assert!(out.contains("constructor(x: number, y: number) {"));
+    }
+
+    #[test]
+    fn test_js_generate_empty_struct() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Empty".into(),
+            visibility: "public".to_string(),
+            fields: vec![],
+        };
+        generate_struct(&mut w, &struct_ir, false);
+        let out = w.into_string();
+        assert!(out.contains("class Empty {"));
+        assert!(out.contains("}"));
+    }
+
+    #[test]
+    fn test_js_generate_enum() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Color".into(),
+            visibility: "public".to_string(),
+            variants: vec![
+                VariantIR { name: "Red".into(), payload: None },
+                VariantIR { name: "Green".into(), payload: None },
+                VariantIR { name: "Blue".into(), payload: None },
+            ],
+        };
+        generate_enum(&mut w, &enum_ir, false);
+        let out = w.into_string();
+        assert!(out.contains("const Color = Object.freeze({"));
+        assert!(out.contains("Red: 0,"));
+        assert!(out.contains("Green: 1,"));
+        assert!(out.contains("Blue: 2,"));
+        assert!(out.contains("});"));
+    }
+
+    #[test]
+    fn test_js_generate_empty_enum() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Empty".into(),
+            visibility: "public".to_string(),
+            variants: vec![],
+        };
+        generate_enum(&mut w, &enum_ir, false);
+        let out = w.into_string();
+        assert!(out.contains("const Empty = Object.freeze({"));
+        assert!(out.contains("});"));
+    }
+
+    #[test]
+    fn test_ts_generate_type_alias() {
+        let mut w = CodeWriter::new();
+        let alias = TypeAliasIR {
+            name: "UserId".into(),
+            visibility: "public".to_string(),
+            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+        };
+        generate_type_alias(&mut w, &alias, true);
+        assert_eq!(w.into_string(), "export type UserId = number;\n");
+    }
+
+    #[test]
+    fn test_js_skip_type_alias() {
+        let mut w = CodeWriter::new();
+        let alias = TypeAliasIR {
+            name: "UserId".into(),
+            visibility: "public".to_string(),
+            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+        };
+        generate_type_alias(&mut w, &alias, false);
+        // CodeWriter always appends trailing newline, even when empty
+        assert_eq!(w.into_string(), "\n");
+    }
+
+    #[test]
+    fn test_js_generate_standalone_function() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "main".into(),
+            visibility: "public".to_string(),
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func, false);
+        let out = w.into_string();
+        assert!(out.contains("function main() {"));
+        assert!(out.contains(";"));
+    }
+
+    #[test]
+    fn test_ts_generate_standalone_function() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "add".into(),
+            visibility: "public".to_string(),
+            params: vec![ParamIR {
+                name: "a".into(),
+                r#type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+            }],
+            return_type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func, true);
+        let out = w.into_string();
+        assert!(out.contains("function add(a: number): number {"));
+    }
+
+    #[test]
+    fn test_ts_generate_standalone_function_private() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "helper".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func, false);
+        let out = w.into_string();
+        assert!(out.contains("function helper() {"));
+        assert!(!out.contains("export"));
+    }
+
+    #[test]
+    fn test_format_type_ir_js() {
+        let ty = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_js(&ty, false), "");
+        assert_eq!(format_type_ir_js(&ty, true), "number");
+
+        let str_ty = TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_js(&str_ty, true), "string");
+
+        let vec_ty = TypeIR { kind: "Vec".into(), type_args: vec![ty.clone()], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_js(&vec_ty, true), "number[]");
+    }
+
+    #[test]
+    fn test_js_generate_struct_private() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Internal".into(),
+            visibility: "private".to_string(),
+            fields: vec![],
+        };
+        generate_struct(&mut w, &struct_ir, false);
+        let out = w.into_string();
+        assert!(!out.contains("export"));
     }
 }

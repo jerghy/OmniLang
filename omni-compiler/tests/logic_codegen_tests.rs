@@ -12,13 +12,26 @@ use omni_compiler::ir::*;
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
-fn empty_ir() -> IRProgram {
+fn make_ir(components: HashMap<String, ComponentIR>, stores: HashMap<String, StoreIR>) -> IRProgram {
+    let mut modules = HashMap::new();
+    modules.insert(
+        "main".to_string(),
+        ModuleIR {
+            name: "main".to_string(),
+            components,
+            stores,
+            ..Default::default()
+        },
+    );
     IRProgram {
         version: "0.1".into(),
-        components: HashMap::new(),
-        stores: HashMap::new(),
+        modules,
         source_map: HashMap::new(),
     }
+}
+
+fn empty_ir() -> IRProgram {
+    make_ir(HashMap::new(), HashMap::new())
 }
 
 fn simple_component_ir(comp_name: &str) -> IRProgram {
@@ -38,12 +51,7 @@ fn simple_component_ir(comp_name: &str) -> IRProgram {
         styles: vec![],
     };
     components.insert(comp_name.into(), comp);
-    IRProgram {
-        version: "0.1".into(),
-        components,
-        stores: HashMap::new(),
-        source_map: HashMap::new(),
-    }
+    make_ir(components, HashMap::new())
 }
 
 /// Build an IR program with one component that has a single function.
@@ -51,6 +59,7 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
     let mut components = HashMap::new();
     let func = FunctionIR {
         name: fn_name.into(),
+        visibility: "private".to_string(),
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -73,12 +82,7 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
         styles: vec![],
     };
     components.insert(comp_name.into(), comp);
-    IRProgram {
-        version: "0.1".into(),
-        components,
-        stores: HashMap::new(),
-        source_map: HashMap::new(),
-    }
+    make_ir(components, HashMap::new())
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -172,7 +176,26 @@ fn test_dart_empty_program() {
 
 #[test]
 fn test_compile_multiple_files() {
-    let ir = empty_ir();
+    let mut modules = HashMap::new();
+    modules.insert(
+        "main".to_string(),
+        ModuleIR {
+            name: "main".to_string(),
+            ..Default::default()
+        },
+    );
+    modules.insert(
+        "utils".to_string(),
+        ModuleIR {
+            name: "utils".to_string(),
+            ..Default::default()
+        },
+    );
+    let ir = IRProgram {
+        version: "0.1".into(),
+        modules,
+        source_map: HashMap::new(),
+    };
     let sources = HashMap::from([
         ("main.omni".into(), "".into()),
         ("utils.omni".into(), "".into()),

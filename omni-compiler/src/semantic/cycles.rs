@@ -32,25 +32,27 @@ pub fn detect_cycles(
     // Build adjacency list from imports, resolving through path_mapping
     for (path, program) in programs {
         let from = path_to_idx[path];
-        for import in &program.imports {
-            let import_path = match import {
-                ImportStmt::Named(n) => &n.path,
-                ImportStmt::Namespace(ns) => &ns.path,
-                ImportStmt::TypeOnly(t) => &t.path,
-                ImportStmt::Lib(_) => continue,
-            };
-            // Resolve import path to canonical key
-            if let Some(resolved) = path_mapping.get(import_path) {
-                if let Some(&to) = path_to_idx.get(resolved) {
-                    graph[from].push(to);
+        for module in program.modules.values() {
+            for import in &module.imports {
+                let import_path = match import {
+                    ImportStmt::Named(n) => &n.path,
+                    ImportStmt::Namespace(ns) => &ns.path,
+                    ImportStmt::TypeOnly(t) => &t.path,
+                    ImportStmt::Lib(_) => continue,
+                };
+                // Resolve import path to canonical key
+                if let Some(resolved) = path_mapping.get(import_path) {
+                    if let Some(&to) = path_to_idx.get(resolved) {
+                        graph[from].push(to);
+                    }
                 }
             }
-        }
-        // Also add edges for re-exports
-        for exp in &program.exports {
-            if let Some(resolved) = path_mapping.get(&exp.path) {
-                if let Some(&to) = path_to_idx.get(resolved) {
-                    graph[from].push(to);
+            // Also add edges for re-exports
+            for exp in &module.exports {
+                if let Some(resolved) = path_mapping.get(&exp.path) {
+                    if let Some(&to) = path_to_idx.get(resolved) {
+                        graph[from].push(to);
+                    }
                 }
             }
         }
@@ -128,17 +130,13 @@ mod tests {
     use crate::lexer::Span;
 
     fn make_program(imports: Vec<ImportStmt>) -> Program {
-        Program {
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
-            functions: vec![],
-            structs: vec![],
-            type_aliases: vec![],
-            tagged_unions: vec![],
-            imports,
-            exports: vec![],
-        }
+        let mut modules = HashMap::new();
+        modules.insert("input.omni".to_string(), {
+            let mut module = Module::default();
+            module.imports = imports;
+            module
+        });
+        Program { modules }
     }
 
     fn span() -> Span {

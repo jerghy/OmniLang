@@ -4,6 +4,7 @@
 //! Types follow the Python AST structure with Rust idioms (Box for recursion, enum dispatch).
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::lexer::Span;
 
@@ -540,17 +541,24 @@ pub enum ImportStmt {
     Lib(String), // "omniview" — bare import marker
 }
 
-// ── Top-Level Program ─────────────────────────────────
+// ── Module & Program ──────────────────────────────────
 
+/// A single source module — corresponds to one .omni file.
 #[derive(Debug, Clone, Default)]
-pub struct Program {
+pub struct Module {
+    pub name: String,
+    pub functions: Vec<FunctionDef>,
+    pub structs: Vec<StructDef>,
+    pub tagged_unions: Vec<TaggedUnionDef>,
+    pub type_aliases: Vec<TypeAlias>,
     pub components: Vec<ComponentDef>,
     pub stores: Vec<StoreDef>,
     pub themes: Vec<ThemeDef>,
-    pub functions: Vec<FunctionDef>,
-    pub structs: Vec<StructDef>,
-    pub type_aliases: Vec<TypeAlias>,
-    pub tagged_unions: Vec<TaggedUnionDef>,
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Program {
+    pub modules: HashMap<String, Module>,
 }

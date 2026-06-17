@@ -15,7 +15,7 @@ impl Codegen for FlutterCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
-        for (name, comp) in &ir.components {
+        for (name, comp) in ir.all_components() {
             let dart = self.gen_component_dart(name, comp, ir);
             files.push(CompiledFile {
                 path: format!("{}.dart", name),
@@ -23,7 +23,7 @@ impl Codegen for FlutterCodegen {
             });
         }
 
-        for (name, store) in &ir.stores {
+        for (name, store) in ir.all_stores() {
             let store_dart = self.gen_store_dart(name, store);
             files.push(CompiledFile {
                 path: format!("{}_store.dart", name),
@@ -46,7 +46,7 @@ impl FlutterCodegen {
 
         // Store imports
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 w.emit(&format!("import './{}_store.dart';", store_ref));
             }
         }
@@ -1213,6 +1213,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doSomething".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -1230,6 +1231,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "increment".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -1259,37 +1261,46 @@ mod tests {
 
     // ── gen_component_dart tests ──────────────────────────────
 
+    /// Build IRProgram with a single module containing the given components.
+    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+        IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components,
+                    ..Default::default()
+                },
+            )]),
+            source_map: HashMap::new(),
+        }
+    }
+
     #[test]
     fn test_empty_component() {
         let codegen = FlutterCodegen;
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
-                },
-            )]),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-        let dart = codegen.gen_component_dart(
-            "App",
-            ir.components.get("App").unwrap(),
-            &ir,
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
         );
-        // Structural checks
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
+        let dart = codegen.gen_component_dart("App", comp_ref, &ir);
         assert!(dart.contains("import 'package:flutter/material.dart';"));
         assert!(dart.contains("class App extends StatefulWidget {"));
         assert!(dart.contains("const App({super.key});"));
@@ -1297,7 +1308,6 @@ mod tests {
         assert!(dart.contains("class _AppState extends State<App> {"));
         assert!(dart.contains("@override"));
         assert!(dart.contains("Widget build(BuildContext context) {"));
-        // Default widget tree
         assert!(dart.contains("return Container("));
         assert!(dart.contains("child: Text('App'),"));
         assert!(dart.contains(");"));
@@ -1306,12 +1316,6 @@ mod tests {
     #[test]
     fn test_component_with_state() {
         let codegen = FlutterCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let state = StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -1329,63 +1333,59 @@ mod tests {
             accessor_style: "direct".into(),
             is_copy: false,
         };
-        let comp = ComponentIR {
-            name: "Counter".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![state],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![FunctionIR {
-                name: "increment".into(),
-                params: vec![],
-                return_type: None,
-                body: BlockIR {
-                    statements: vec![StatementIR::MutationStmt {
-                        intent: Some(MutationIntent {
-                            target: SignalRefIR {
-                                owner: None,
-                                name: "count".into(),
-                            },
-                            operation: "increment".into(),
-                            amount: Some(ExprIR::LiteralExpr {
-                                value: serde_json::json!(1),
+        let mut components = HashMap::new();
+        components.insert(
+            "Counter".into(),
+            ComponentIR {
+                name: "Counter".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![state],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![FunctionIR {
+                    name: "increment".into(),
+                    visibility: "private".to_string(),
+                    params: vec![],
+                    return_type: None,
+                    body: BlockIR {
+                        statements: vec![StatementIR::MutationStmt {
+                            intent: Some(MutationIntent {
+                                target: SignalRefIR {
+                                    owner: None,
+                                    name: "count".into(),
+                                },
+                                operation: "increment".into(),
+                                amount: Some(ExprIR::LiteralExpr {
+                                    value: serde_json::json!(1),
+                                }),
+                                item: None,
                             }),
-                            item: None,
-                        }),
-                    }],
-                    execution_mode: "client-only".into(),
-                },
-            }],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Counter".into(), comp);
-        let comp_ref = ir.components.get("Counter").unwrap();
+                        }],
+                        execution_mode: "client-only".into(),
+                    },
+                }],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Counter").unwrap();
         let dart = codegen.gen_component_dart("Counter", comp_ref, &ir);
-        // State variable declaration
         assert!(dart.contains("int count = 0;"));
-        // Function with setState (no return type when none specified in IR)
         assert!(dart.contains("increment() {"));
         assert!(dart.contains("setState(() {"));
         assert!(dart.contains("count += 1;"));
         assert!(dart.contains("});"));
-        // Build method
         assert!(dart.contains("Widget build(BuildContext context) {"));
     }
 
     #[test]
     fn test_component_with_props() {
         let codegen = FlutterCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let mut props = HashMap::new();
         props.insert(
             "name".into(),
@@ -1407,27 +1407,29 @@ mod tests {
                 needs_partial_eq: false,
             },
         );
-        let comp = ComponentIR {
-            name: "Greeting".into(),
-            generic_params: vec![],
-            props,
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Greeting".into(), comp);
-        let comp_ref = ir.components.get("Greeting").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Greeting".into(),
+            ComponentIR {
+                name: "Greeting".into(),
+                generic_params: vec![],
+                props,
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Greeting").unwrap();
         let dart = codegen.gen_component_dart("Greeting", comp_ref, &ir);
-        // Constructor params
         assert!(dart.contains("required this.name,"));
         assert!(dart.contains("required this.age,"));
-        // Final field declarations
         assert!(dart.contains("final String name;"));
         assert!(dart.contains("final int age;"));
     }
@@ -1435,12 +1437,6 @@ mod tests {
     #[test]
     fn test_component_with_mount_lifecycle() {
         let codegen = FlutterCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let lc = LifecycleIntent {
             kind: "mount".into(),
             body: BlockIR {
@@ -1452,22 +1448,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "App".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![lc],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("App".into(), comp);
-        let comp_ref = ir.components.get("App").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![lc],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
         let dart = codegen.gen_component_dart("App", comp_ref, &ir);
         assert!(dart.contains("@override"));
         assert!(dart.contains("void initState() {"));
@@ -1478,12 +1478,6 @@ mod tests {
     #[test]
     fn test_component_with_unmount_lifecycle() {
         let codegen = FlutterCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let lc = LifecycleIntent {
             kind: "unmount".into(),
             body: BlockIR {
@@ -1495,22 +1489,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "App".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![lc],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("App".into(), comp);
-        let comp_ref = ir.components.get("App").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![lc],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
         let dart = codegen.gen_component_dart("App", comp_ref, &ir);
         assert!(dart.contains("@override"));
         assert!(dart.contains("void dispose() {"));
@@ -1628,8 +1626,15 @@ mod tests {
         let codegen = FlutterCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1657,8 +1662,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1693,8 +1705,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1742,8 +1761,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);

@@ -12,27 +12,56 @@ use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 pub struct RustCodegen;
 
 impl Codegen for RustCodegen {
-    fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
-        for (source_path, _source_text) in source_files {
+        for (module_key, module) in &ir.modules {
+            let module_name = module_key.strip_suffix(".omni").unwrap_or(module_key);
+            let source_path = format!("{}.omni", module_name);
+
             let mut w = CodeWriter::new();
             w.emit(&format!("// Generated from {}", source_path));
             w.emit("");
 
-            // Generate stores (structs with impl blocks)
-            for (store_name, store) in &ir.stores {
+            // Generate type aliases
+            for (_name, alias) in &module.type_aliases {
+                generate_type_alias(&mut w, alias);
+            }
+            if !module.type_aliases.is_empty() {
+                w.emit("");
+            }
+
+            // Generate structs
+            for (_name, struct_ir) in &module.structs {
+                generate_struct(&mut w, struct_ir);
+                w.emit("");
+            }
+
+            // Generate enums
+            for (_name, enum_ir) in &module.enums {
+                generate_enum(&mut w, enum_ir);
+                w.emit("");
+            }
+
+            // Generate standalone functions
+            for (_name, func) in &module.functions {
+                generate_standalone_function(&mut w, func);
+                w.emit("");
+            }
+
+            // Generate stores from this module
+            for (store_name, store) in &module.stores {
                 generate_store(&mut w, store_name, store);
                 w.emit("");
             }
 
-            // Generate components as structs with impl blocks
-            for (comp_name, comp) in &ir.components {
+            // Generate components from this module
+            for (comp_name, comp) in &module.components {
                 generate_component(&mut w, comp_name, comp);
                 w.emit("");
             }
 
-            let out_path = source_path.replace(".omni", ".rs");
+            let out_path = format!("{}.rs", module_name);
             files.push(CompiledFile {
                 path: out_path,
                 content: w.into_string(),
@@ -476,6 +505,88 @@ pub fn rs_type(kind: &str, type_args: &[TypeIR]) -> String {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Logic construct generation (structs, enums, type aliases, standalone functions)
+// ═══════════════════════════════════════════════════════════
+
+fn format_type_ir_rust(ty: &TypeIR) -> String {
+    rs_type(&ty.kind, &ty.type_args)
+}
+
+fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR) {
+    let vis = if struct_ir.visibility == "public" { "pub " } else { "" };
+    w.emit(&format!("{}struct {} {{", vis, struct_ir.name));
+    w.indent();
+    for field in &struct_ir.fields {
+        let field_vis = if field.visibility == "public" { "pub " } else { "" };
+        let type_str = format_type_ir_rust(&field.r#type);
+        w.emit(&format!("{}{}: {},", field_vis, field.name, type_str));
+    }
+    w.dedent();
+    w.emit("}");
+}
+
+fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR) {
+    let vis = if enum_ir.visibility == "public" { "pub " } else { "" };
+    w.emit(&format!("{}enum {} {{", vis, enum_ir.name));
+    w.indent();
+    for variant in &enum_ir.variants {
+        if let Some(payload) = &variant.payload {
+            let payload_str = format_type_ir_rust(payload);
+            w.emit(&format!("{}({}),", variant.name, payload_str));
+        } else {
+            w.emit(&format!("{},", variant.name));
+        }
+    }
+    w.dedent();
+    w.emit("}");
+}
+
+fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR) {
+    let vis = if alias.visibility == "public" { "pub " } else { "" };
+    let target = format_type_ir_rust(&alias.target);
+    w.emit(&format!("{}type {} = {};", vis, alias.name, target));
+}
+
+fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR) {
+    let vis = if func.visibility == "public" { "pub " } else { "" };
+
+    // Build parameter list — NO &self for standalone
+    let mut param_strs = Vec::new();
+    for p in &func.params {
+        let mut s = p.name.clone();
+        if let Some(ref ty) = p.r#type {
+            let ann = format_type_ir_rust(ty);
+            s.push_str(&format!(": {}", ann));
+        }
+        param_strs.push(s);
+    }
+
+    // Determine return type annotation
+    let ret_ann = func
+        .return_type
+        .as_ref()
+        .map(|rt| format!(" -> {}", format_type_ir_rust(rt)))
+        .unwrap_or_default();
+
+    let all_params = param_strs.join(", ");
+
+    w.emit(&format!("{}fn {}({}){} {{", vis, func.name, all_params, ret_ann));
+    w.indent();
+
+    if func.body.statements.is_empty() {
+        // Empty body — need at least a semicolon or ()
+        w.emit(";");
+    } else {
+        for stmt in &func.body.statements {
+            generate_statement(w, stmt);
+        }
+    }
+
+    w.dedent();
+    w.emit("}");
+}
+
+// ═══════════════════════════════════════════════════════════
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
@@ -664,6 +775,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "do_thing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -681,6 +793,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "get_value".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "i32".into(),
@@ -704,6 +817,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "private".to_string(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -770,6 +884,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
+                visibility: "private".to_string(),
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -1055,32 +1170,40 @@ mod tests {
         let codegen = RustCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: None,
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "private".to_string(),
+                                params: vec![],
+                                return_type: None,
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1099,28 +1222,35 @@ mod tests {
         let codegen = RustCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([(
-                "AppStore".into(),
-                StoreIR {
-                    name: "AppStore".into(),
-                    signals: HashMap::from([
-                        (
-                            "count".into(),
-                            TypeIR {
-                                kind: "i32".into(),
-                                type_args: vec![],
-                                is_nullable: false,
-                                needs_clone: false,
-                                needs_partial_eq: false,
-                            },
-                        ),
-                    ]),
-                    signal_defaults: HashMap::from([
-                        ("count".into(), serde_json::json!(0)),
-                    ]),
-                    getters: HashMap::new(),
-                    actions: vec![],
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([(
+                        "AppStore".into(),
+                        StoreIR {
+                            name: "AppStore".into(),
+                            signals: HashMap::from([
+                                (
+                                    "count".into(),
+                                    TypeIR {
+                                        kind: "i32".into(),
+                                        type_args: vec![],
+                                        is_nullable: false,
+                                        needs_clone: false,
+                                        needs_partial_eq: false,
+                                    },
+                                ),
+                            ]),
+                            signal_defaults: HashMap::from([
+                                ("count".into(), serde_json::json!(0)),
+                            ]),
+                            getters: HashMap::new(),
+                            actions: vec![],
+                        },
+                    )]),
+                    ..Default::default()
                 },
             )]),
             source_map: HashMap::new(),
@@ -1133,5 +1263,208 @@ mod tests {
         assert!(content.contains("count: i32,"));
         assert!(content.contains("fn new() -> Self"));
         assert!(content.contains("count: 0,"));
+    }
+
+    // ── Logic construct tests (structs, enums, type aliases, standalone functions) ──
+
+    #[test]
+    fn test_rs_generate_struct() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Point".into(),
+            visibility: "public".to_string(),
+            fields: vec![
+                FieldIR {
+                    name: "x".into(),
+                    r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+                    visibility: "public".into(),
+                },
+                FieldIR {
+                    name: "y".into(),
+                    r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+                    visibility: "public".into(),
+                },
+            ],
+        };
+        generate_struct(&mut w, &struct_ir);
+        let out = w.into_string();
+        assert!(out.contains("pub struct Point {"));
+        assert!(out.contains("pub x: i32,"));
+        assert!(out.contains("pub y: i32,"));
+    }
+
+    #[test]
+    fn test_rs_generate_empty_struct() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Empty".into(),
+            visibility: "public".to_string(),
+            fields: vec![],
+        };
+        generate_struct(&mut w, &struct_ir);
+        let out = w.into_string();
+        assert!(out.contains("pub struct Empty {"));
+        assert!(out.contains("}"));
+    }
+
+    #[test]
+    fn test_rs_generate_enum() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Color".into(),
+            visibility: "public".to_string(),
+            variants: vec![
+                VariantIR { name: "Red".into(), payload: None },
+                VariantIR { name: "Green".into(), payload: None },
+                VariantIR { name: "Blue".into(), payload: None },
+            ],
+        };
+        generate_enum(&mut w, &enum_ir);
+        let out = w.into_string();
+        assert!(out.contains("pub enum Color {"));
+        assert!(out.contains("Red,"));
+        assert!(out.contains("Green,"));
+        assert!(out.contains("Blue,"));
+    }
+
+    #[test]
+    fn test_rs_generate_enum_with_payload() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Value".into(),
+            visibility: "public".to_string(),
+            variants: vec![
+                VariantIR {
+                    name: "Int".into(),
+                    payload: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+                },
+                VariantIR {
+                    name: "Text".into(),
+                    payload: Some(TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+                },
+            ],
+        };
+        generate_enum(&mut w, &enum_ir);
+        let out = w.into_string();
+        assert!(out.contains("pub enum Value {"));
+        assert!(out.contains("Int(i32),"));
+        assert!(out.contains("Text(String),"));
+    }
+
+    #[test]
+    fn test_rs_generate_empty_enum() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Empty".into(),
+            visibility: "public".to_string(),
+            variants: vec![],
+        };
+        generate_enum(&mut w, &enum_ir);
+        let out = w.into_string();
+        assert!(out.contains("pub enum Empty {"));
+        assert!(out.contains("}"));
+    }
+
+    #[test]
+    fn test_rs_generate_type_alias() {
+        let mut w = CodeWriter::new();
+        let alias = TypeAliasIR {
+            name: "UserId".into(),
+            visibility: "public".to_string(),
+            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+        };
+        generate_type_alias(&mut w, &alias);
+        assert_eq!(w.into_string(), "pub type UserId = i32;\n");
+    }
+
+    #[test]
+    fn test_rs_generate_standalone_function() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "main".into(),
+            visibility: "public".to_string(),
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func);
+        let out = w.into_string();
+        assert!(out.contains("pub fn main() {"));
+        assert!(out.contains(";"));
+    }
+
+    #[test]
+    fn test_rs_generate_standalone_function_with_params() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "add".into(),
+            visibility: "public".to_string(),
+            params: vec![ParamIR {
+                name: "a".into(),
+                r#type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+            }],
+            return_type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func);
+        let out = w.into_string();
+        assert!(out.contains("pub fn add(a: i32) -> i32 {"));
+        assert!(!out.contains("&self"));
+    }
+
+    #[test]
+    fn test_rs_generate_standalone_function_private() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "helper".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: None,
+            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+        };
+        generate_standalone_function(&mut w, &func);
+        let out = w.into_string();
+        assert!(out.contains("fn helper() {"));
+        assert!(!out.contains("pub fn"));
+    }
+
+    #[test]
+    fn test_format_type_ir_rust() {
+        let ty = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_rust(&ty), "i32");
+
+        let str_ty = TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_rust(&str_ty), "String");
+
+        let vec_ty = TypeIR { kind: "Vec".into(), type_args: vec![ty], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        assert_eq!(format_type_ir_rust(&vec_ty), "Vec<i32>");
+    }
+
+    #[test]
+    fn test_rs_generate_struct_private() {
+        let mut w = CodeWriter::new();
+        let struct_ir = StructIR {
+            name: "Internal".into(),
+            visibility: "private".to_string(),
+            fields: vec![],
+        };
+        generate_struct(&mut w, &struct_ir);
+        let out = w.into_string();
+        assert!(out.contains("struct Internal {"));
+        assert!(!out.contains("pub struct"));
+    }
+
+    #[test]
+    fn test_rs_generate_enum_private() {
+        let mut w = CodeWriter::new();
+        let enum_ir = EnumIR {
+            name: "Internal".into(),
+            visibility: "private".to_string(),
+            variants: vec![],
+        };
+        generate_enum(&mut w, &enum_ir);
+        let out = w.into_string();
+        assert!(out.contains("enum Internal {"));
+        assert!(!out.contains("pub enum"));
     }
 }

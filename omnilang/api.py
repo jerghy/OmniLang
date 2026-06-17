@@ -1,10 +1,10 @@
 """OmniLang compilation API entry point.
 
-Used by omniview/cli.py and editor/server/.
+Used by editor/server/ and omnilang/cli.py.
 Pure function compile_omni() — no file I/O, input source string, output dict.
 
 Usage:
-    from omnilang.api import compile_omni, CompileResult, CompileError
+    from omnilang.api import compile_omni, CompileResult
 
     result = compile_omni(source, filepath="/abs/path/to/App.omni", target="react")
     if result.success:
@@ -16,42 +16,9 @@ from __future__ import annotations
 
 import re as _re
 from dataclasses import dataclass, field
-from pathlib import Path
 
-
-# ── Error protocol ─────────────────────────────────────────
-
-@dataclass
-class CompileError:
-    """Unified compilation error format."""
-    file: str                           # Source filename
-    line: int                           # Line number (1-based)
-    col: int = 0                        # Column number (1-based)
-    severity: str = "error"             # "error" | "warning"
-    code: str = ""                      # Error code, e.g. "E0101"
-    message: str = ""                   # Human-readable description
-    suggestion: str | None = None       # Fix suggestion
-
-    def to_dict(self) -> dict:
-        return {
-            "file": self.file,
-            "line": self.line,
-            "col": self.col,
-            "severity": self.severity,
-            "code": self.code,
-            "message": self.message,
-            "suggestion": self.suggestion,
-        }
-
-
-@dataclass
-class CompileResult:
-    """Compilation result. success=True -> files/diff; success=False -> errors."""
-    success: bool
-    files: dict[str, str] = field(default_factory=dict)
-    diff: dict[str, str] | None = None
-    errors: list[CompileError] = field(default_factory=list)
-    source: str = ""
+from omnilang.errors import OmniError, CompileError, CompilerUnavailable
+from omnilang.result import CompileResult
 
 
 # ── UI mode detection ──────────────────────────────────────
@@ -59,146 +26,132 @@ class CompileResult:
 def _detect_ui_mode(source: str) -> bool:
     """Detect whether source is an OmniView UI file.
 
-    A file is a "view file" iff it contains 'import omniview;'.
+    A file is a "view file" iff it contains 'import omniview'.
     This is the single source of truth — the Rust compiler enforces
     that any file with component/store/theme must also have this import.
     """
     return "import omniview" in source
 
 
-# ── Main compile functions ─────────────────────────────────
+# ── Constants ──────────────────────────────────────────────
 
 # Valid targets
 PURE_LOGIC_TARGETS = {"python", "javascript", "js", "typescript", "ts",
                       "rust", "rs", "dart"}
-ALL_TARGETS = PURE_LOGIC_TARGETS | {"react", "vue", "dioxus", "flutter", "omniview"}
+ALL_TARGETS = frozenset(PURE_LOGIC_TARGETS | {"react", "vue", "dioxus", "flutter", "omniview"})
 
+
+# ── Main compile functions ─────────────────────────────────
 
 def compile_omni(source: str, filepath: str = "<input>", target: str = "react",
                  previous_files: dict[str, str] | None = None,
                  debug_mode: bool = False) -> CompileResult:
     """Compile a single .omni source -> {filename: content} dict.
 
-    Convenience wrapper around compile_omni_multi for single-file compilation.
-    See compile_omni_multi for full documentation.
-    """
-    return compile_omni_multi(
-        sources={filepath: source},
-        target=target,
-        previous_files=previous_files,
-        debug_mode=debug_mode,
-    )
-
-
-def compile_omni_multi(sources: dict[str, str], target: str = "react",
-                       path_mapping: dict[str, str] | None = None,
-                       previous_files: dict[str, str] | None = None,
-                       debug_mode: bool = False) -> CompileResult:
-    """Compile multiple .omni sources -> {filename: content} dict. Pure function, no file I/O.
-
-    Routes all compilation through the Rust compiler (omni-compiler) via RustBridge.
-    Supports cross-file imports — all sources are compiled together, enabling
-    type-checking and symbol resolution across files.
+    Backward-compatible wrapper used by the editor server.
+    Returns CompileResult with errors embedded (never raises on compile failure).
 
     Args:
-        sources: {filepath: source_text} dict. For single file, use compile_omni().
-        target: Target framework ("react"|"vue"|"dioxus"|"flutter"|"omniview"
-                |"python"|"js"|"typescript"|"rust"|"dart").
-        path_mapping: {import_path: resolved_filepath} for resolving imports.
-                      Auto-derived from sources keys if not provided.
+        source: Source code text.
+        filepath: Path for error reporting / file naming.
+        target: Target language/framework.
         previous_files: Previous compilation result (for diff computation).
         debug_mode: Enable runtime debug injection.
 
     Returns:
         CompileResult — success/files/diff/errors.
     """
-    errors: list[CompileError] = []
-
-    # Determine primary filepath for error reporting
-    primary_filepath = next(iter(sources.keys()), "<input>")
-
-    # Detect UI mode: any source file with 'import omniview' marks the project as UI
-    is_ui_mode = any(_detect_ui_mode(src) for src in sources.values())
-
-    if target not in ALL_TARGETS:
-        errors.append(CompileError(
-            file=primary_filepath, line=1, severity="error", code="UNSUPPORTED",
-            message=f"Unknown target '{target}'. Supported: {', '.join(sorted(ALL_TARGETS))}",
-        ))
-        return CompileResult(success=False, errors=errors, source="")
-
-    if not is_ui_mode and target not in PURE_LOGIC_TARGETS:
+    # Backward-compatible: if source is pure logic but target is a UI framework,
+    # fall back to python (same behavior as the old compile_omni_multi).
+    if not _detect_ui_mode(source) and target not in PURE_LOGIC_TARGETS:
         target = "python"
 
-    from omnilang.rust_bridge import RustBridge
-
-    if not RustBridge.is_available():
-        errors.append(CompileError(
-            file=primary_filepath, line=1, severity="error", code="RUST_UNAVAILABLE",
-            message="Rust compiler (omni-compiler) is not available. "
-                    "Build the Rust compiler or ensure omni_compiler.dll is in the release directory.",
-        ))
-        return CompileResult(success=False, errors=errors, source="")
-
-    # Auto-derive path_mapping from sources keys if not provided
-    if path_mapping is None:
-        path_mapping = _derive_path_mapping(sources)
-
-    # Route through Rust compiler (multi-file FFI)
-    rust_result = RustBridge.compile_to_target(sources, target, path_mapping)
-    if rust_result is None:
-        errors.append(CompileError(
-            file=primary_filepath, line=1, severity="error", code="RUST_CODEGEN_UNAVAILABLE",
-            message="Rust compiler compile_to_target function is not available. "
-                    "Update the Rust compiler to the latest version.",
-        ))
-        return CompileResult(success=False, errors=errors, source="")
-
-    if rust_result.get("success"):
-        # Compute diff
-        diff: dict[str, str] | None = None
-        if previous_files is not None:
-            diff = _compute_diff(previous_files, rust_result.get("files", {}))
-
-        result = CompileResult(
-            success=True,
-            files=rust_result.get("files", {}),
+    try:
+        result = compile_omni_multi(sources={filepath: source}, target=target)
+    except CompileError as e:
+        diff = _compute_diff(previous_files or {}, {}) if previous_files is not None else None
+        return CompileResult(
+            success=False,
             diff=diff,
-            source="\n".join(sources.values()),
+            errors=e.errors,
+        )
+    except CompilerUnavailable:
+        return CompileResult(
+            success=False,
+            errors=[OmniError(
+                severity="error", code="COMPILER_UNAVAILABLE",
+                message="Rust compiler not available. "
+                        "Build it with: cd omni-compiler && cargo build --release",
+                file=filepath,
+            )],
         )
 
-        # Forward Rust warnings
-        for warn in rust_result.get("warnings", []):
-            if isinstance(warn, dict):
-                result.errors.append(CompileError(
-                    file=warn.get("file", primary_filepath),
-                    line=warn.get("line", 1),
-                    col=warn.get("col", 0),
-                    severity="warning",
-                    code=warn.get("code", "RUST_WARN"),
-                    message=str(warn.get("message", warn)),
-                ))
+    diff = _compute_diff(previous_files, result.files) if previous_files is not None else None
+    return CompileResult(
+        success=result.success,
+        files=result.files,
+        diff=diff,
+        errors=result.errors,
+        warnings=result.warnings,
+    )
 
-        return result
-    else:
-        # Rust compilation failed
-        for err in rust_result.get("errors", []):
-            if isinstance(err, dict):
-                errors.append(CompileError(
-                    file=err.get("file", primary_filepath),
-                    line=err.get("line", 1),
-                    col=err.get("col", 0),
-                    severity=err.get("severity", "error"),
-                    code=err.get("code", "RUST_ERROR"),
-                    message=str(err.get("message", err)),
-                ))
-            else:
-                errors.append(CompileError(
-                    file=primary_filepath, line=1, severity="error",
-                    code="RUST_ERROR", message=str(err),
-                ))
-        return CompileResult(success=False, errors=errors, source="")
 
+def compile_omni_multi(
+    sources: dict[str, str],
+    target: str = "python",
+    path_mapping: dict[str, str] | None = None,
+    **_kwargs,
+) -> CompileResult:
+    """Compile multiple .omni sources via Rust compiler.
+
+    Routes all compilation through the Rust compiler (omni-compiler) via RustBridge.
+    Supports cross-file imports.
+
+    Args:
+        sources: {filepath: source_text} dict.
+        target: Target language/framework.
+        path_mapping: {import_path: resolved_filepath} for resolving imports.
+
+    Returns:
+        CompileResult with success flag and generated files.
+
+    Raises:
+        CompilerUnavailable: If the Rust compiler DLL cannot be found.
+        CompileError: If compilation fails with errors.
+    """
+    from omnilang.rust_bridge import RustBridge
+
+    primary = next(iter(sources.keys()), "<input>")
+
+    try:
+        result = RustBridge.compile(sources, target, path_mapping)
+    except CompilerUnavailable:
+        raise
+    except Exception as e:
+        raise CompileError([OmniError(
+            severity="error", code="BRIDGE_ERROR",
+            message=f"Rust compiler call failed: {e}",
+            file=primary,
+        )])
+
+    if not result.success and result.errors:
+        raise CompileError(result.errors + result.warnings)
+    return result
+
+
+# ── IR stopgap (editor server) ─────────────────────────────
+
+def _compile_ir_internal(sources: dict[str, str]) -> dict:
+    """Stopgap for editor server — compile sources and return raw dict.
+
+    Returns {"files": {...}, "success": True/False}.
+    """
+    from omnilang.rust_bridge import RustBridge
+    result = RustBridge.compile(sources, "python")
+    return {"files": result.files, "success": result.success}
+
+
+# ── Path mapping / diff helpers ────────────────────────────
 
 def _derive_path_mapping(sources: dict[str, str]) -> dict[str, str]:
     """Derive import path mapping from source file paths.
@@ -209,20 +162,15 @@ def _derive_path_mapping(sources: dict[str, str]) -> dict[str, str]:
     import os
     mapping: dict[str, str] = {}
     for filepath in sources:
-        # Map the filepath itself
         mapping[filepath] = filepath
-        # Map basename
         basename = os.path.basename(filepath)
         if basename not in mapping:
             mapping[basename] = filepath
-        # Map without extension
         stem = os.path.splitext(basename)[0]
         if stem not in mapping:
             mapping[stem] = filepath
     return mapping
 
-
-# ── Diff helper ────────────────────────────────────────────
 
 def _compute_diff(previous: dict[str, str], current: dict[str, str]) -> dict[str, str]:
     """Compute diff between two compilation results."""
@@ -259,123 +207,14 @@ class ViewTreeNode:
 def parse_view_tree(source: str, filepath: str = "<input>") -> list[ViewTreeNode]:
     """Parse .omni source -> extract view element tree (for canvas rendering).
 
-    Uses Rust compiler IR if available. Returns empty list if Rust is unavailable.
-    Only parses UI mode sources.
+    Uses regex-based extraction. (Rust IR no longer available via DLL.)
     """
-    try:
-        from omnilang.rust_bridge import RustBridge
-        if RustBridge.is_available():
-            ir_result = RustBridge.compile_to_ir(source)
-            if ir_result and "_rust_errors" not in ir_result:
-                components = ir_result.get("components", {}) if isinstance(ir_result, dict) else {}
-                result: list[ViewTreeNode] = []
-                for name, comp in components.items():
-                    view = comp.get("view") if isinstance(comp, dict) else None
-                    if view:
-                        root = _ir_view_to_tree(view, name)
-                        if root:
-                            result.append(root)
-                return result
-    except Exception:
-        pass
-
-    # Fallback: regex-based view tree extraction
     return _extract_view_tree_regex(source)
 
 
-def _ir_view_to_tree(node, name: str = "") -> ViewTreeNode | None:
-    """Convert Rust IR view node dict to ViewTreeNode.
-
-    Handles both tagged and _kind-dispatched IR formats.
-    String nodes are converted to Text ViewTreeNodes.
-    """
-    # Handle string children (text nodes)
-    if isinstance(node, str):
-        return ViewTreeNode(
-            id=f"text-{id(node)}",
-            tag="Text",
-            props={"label": node},
-        )
-
-    if not node or not isinstance(node, dict):
-        return None
-
-    kind = node.get("_kind", "")
-    tag = node.get("tag", "")
-
-    # Element: has a tag (with or without _kind)
-    if tag:
-        props = {}
-        for k, v in node.get("props", {}).items():
-            if isinstance(v, dict):
-                val = v.get("value", str(v))
-                props[k] = str(val) if not isinstance(val, (int, float, bool)) else str(val)
-            else:
-                props[k] = str(v) if v is not None else ""
-
-        # Add bindings as props
-        for k, v in node.get("bindings", {}).items():
-            owner = v.get("owner") if isinstance(v, dict) else None
-            vname = v.get("name", "?") if isinstance(v, dict) else str(v)
-            props[k] = f"{{bind:{vname}}}" if not owner else f"{{bind:{owner}.{vname}}}"
-
-        # Add events as props
-        for k, v in node.get("events", {}).items():
-            ref = v.get("ref", "") if isinstance(v, dict) else ""
-            props[k] = f"->{ref}()" if ref else "->fn()"
-
-        children = []
-        for child in node.get("children", []):
-            c = _ir_view_to_tree(child)
-            if c:
-                children.append(c)
-
-        test_id = node.get("test_id")
-
-        return ViewTreeNode(
-            id=f"el-{tag}-{id(node)}",
-            tag=tag,
-            props=props,
-            children=children,
-            test_id=test_id,
-        )
-
-    # Conditional
-    if kind == "ConditionalIntent" or "branches" in node:
-        container = ViewTreeNode(
-            id=f"if-{id(node)}",
-            tag="Container",
-            props={"data-directive": "@if"},
-        )
-        for branch in node.get("branches", []):
-            body = branch.get("body") if isinstance(branch, dict) else None
-            if isinstance(body, dict):
-                child = _ir_view_to_tree(body)
-                if child:
-                    container.children.append(child)
-        return container
-
-    # List rendering
-    if kind == "ListRenderingIntent" or "iterable" in node:
-        container = ViewTreeNode(
-            id=f"for-{id(node)}",
-            tag="Container",
-            props={"data-directive": f"@for {node.get('item_binding', {}).get('name', 'item')} in ..."},
-        )
-        body = node.get("body")
-        if isinstance(body, dict):
-            child = _ir_view_to_tree(body)
-            if child:
-                container.children.append(child)
-        return container
-
-    return None
-
-
 def _extract_view_tree_regex(source: str) -> list[ViewTreeNode]:
-    """Fallback regex-based view tree extraction when Rust is unavailable."""
+    """Fallback regex-based view tree extraction."""
     result: list[ViewTreeNode] = []
-    # Find top-level component definitions
     comp_pattern = _re.compile(r'component\s+(\w+)')
     for match in comp_pattern.finditer(source):
         name = match.group(1)
@@ -403,133 +242,9 @@ class CodeBlockNode:
 def parse_code_blocks(source: str, filepath: str = "<input>") -> list[CodeBlockNode]:
     """Parse .omni source -> extract store/signal/computed/action declarations.
 
-    Uses Rust compiler IR if available. Falls back to regex parsing.
-    These blocks can be rendered as canvas nodes with ports for visual wiring.
+    Uses regex-based extraction. (Rust IR no longer available via DLL.)
     """
-    try:
-        from omnilang.rust_bridge import RustBridge
-        if RustBridge.is_available():
-            ir_result = RustBridge.compile_to_ir(source)
-            if ir_result and "_rust_errors" not in ir_result and isinstance(ir_result, dict):
-                return _extract_blocks_from_ir(ir_result)
-    except Exception:
-        pass
-
-    # Fallback: regex-based extraction
     return _extract_blocks_regex(source)
-
-
-def _extract_blocks_from_ir(ir: dict) -> list[CodeBlockNode]:
-    """Extract code blocks from Rust IR."""
-    blocks: list[CodeBlockNode] = []
-    node_id = 0
-
-    # Process stores
-    for store_name, store in ir.get("stores", {}).items():
-        if not isinstance(store, dict):
-            continue
-        node_id += 1
-        blocks.append(CodeBlockNode(
-            id=f"cb-store-{store_name}",
-            blockType="store",
-            name=store_name,
-        ))
-
-        for sig in store.get("signals", []):
-            if not isinstance(sig, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-signal-{sig.get('name', '?')}",
-                blockType="signal",
-                name=sig.get("name", "?"),
-                parentStore=store_name,
-                typeAnnotation=_type_to_str(sig.get("type")),
-            ))
-
-        for getter in store.get("getters", []):
-            if not isinstance(getter, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-computed-{getter.get('name', '?')}",
-                blockType="computed",
-                name=getter.get("name", "?"),
-                parentStore=store_name,
-                typeAnnotation=_type_to_str(getter.get("type", getter.get("return_type"))),
-            ))
-
-        for action in store.get("actions", []):
-            if not isinstance(action, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{store_name}-action-{action.get('name', '?')}",
-                blockType="action",
-                name=action.get("name", "?"),
-                parentStore=store_name,
-            ))
-
-    # Process component-level declarations
-    for comp_name, comp in ir.get("components", {}).items():
-        if not isinstance(comp, dict):
-            continue
-        node_id += 1
-        blocks.append(CodeBlockNode(
-            id=f"cb-store-{comp_name}",
-            blockType="store",
-            name=comp_name,
-        ))
-
-        for state in comp.get("states", []):
-            if not isinstance(state, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-signal-{state.get('name', '?')}",
-                blockType="signal",
-                name=state.get("name", "?"),
-                parentStore=comp_name,
-                typeAnnotation=_type_to_str(state.get("type")),
-            ))
-
-        for computed in comp.get("computeds", []):
-            if not isinstance(computed, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-computed-{computed.get('name', '?')}",
-                blockType="computed",
-                name=computed.get("name", "?"),
-                parentStore=comp_name,
-                typeAnnotation=_type_to_str(computed.get("type")),
-            ))
-
-        for fn in comp.get("fns", []):
-            if not isinstance(fn, dict):
-                continue
-            node_id += 1
-            blocks.append(CodeBlockNode(
-                id=f"cb-{comp_name}-action-{fn.get('name', '?')}",
-                blockType="action",
-                name=fn.get("name", "?"),
-                parentStore=comp_name,
-            ))
-
-    return blocks
-
-
-def _type_to_str(type_obj) -> str | None:
-    """Convert a Rust IR type object to a string representation."""
-    if type_obj is None:
-        return None
-    if isinstance(type_obj, str):
-        return type_obj
-    if isinstance(type_obj, dict):
-        kind = type_obj.get("kind", "")
-        if kind and kind != "void":
-            return kind
-    return None
 
 
 def _extract_blocks_regex(source: str) -> list[CodeBlockNode]:
