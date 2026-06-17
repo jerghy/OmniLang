@@ -29,20 +29,6 @@ pub struct CompileResult {
     pub errors: Vec<error::Diagnostic>,
 }
 
-/// Compile .omni source to IR JSON. Returns JSON string.
-/// This is the WASM entry point and also used by native FFI.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub fn compile_to_ir(source: &str) -> String {
-    let result = compile(source);
-    serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(
-            r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#,
-            e
-        )
-    })
-}
-
 /// Compile .omni source -> IR. Core function shared by WASM and native.
 pub fn compile(source: &str) -> CompileResult {
     let mut errors: Vec<error::Diagnostic> = Vec::new();
@@ -77,13 +63,6 @@ pub fn compile(source: &str) -> CompileResult {
         ir: Some(ir_program),       // always return IR (even with warnings)
         errors,
     }
-}
-
-/// Return compiler version.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub fn version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
 }
 
 // ═══════════════════════════════════════════════════════
@@ -154,19 +133,6 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
         source_map: Some(output.source_map),
         errors,
     }
-}
-
-/// Compile .omni source to OmniView (JS + HTML + CSS). Returns JSON string.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub fn compile_to_omniview(source: &str) -> String {
-    let result = compile_omniview(source);
-    serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(
-            r#"{{"success":false,"files":null,"source_map":null,"errors":[{{"message":"{}"}}]}}"#,
-            e
-        )
-    })
 }
 
 // ═══════════════════════════════════════════════════════
@@ -587,7 +553,7 @@ pub fn compile_multi_to_target(
 // ═══════════════════════════════════════════════════════
 
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::os::raw::c_char;
 
 fn rust_to_c_string(s: String) -> *mut c_char {
@@ -596,31 +562,7 @@ fn rust_to_c_string(s: String) -> *mut c_char {
         .into_raw()
 }
 
-/// Compile .omni source to IR JSON. Returns JSON string (caller must free with omni_free_string).
-/// # Safety
-/// `source` must be a valid, null-terminated C string or null.
-#[no_mangle]
-pub unsafe extern "C" fn omni_compile_to_ir(source: *const c_char) -> *mut c_char {
-    let source_str = unsafe {
-        if source.is_null() {
-            return rust_to_c_string(
-                r#"{"success":false,"ir":null,"errors":[{"message":"null source pointer"}]}"#
-                    .into(),
-            );
-        }
-        CStr::from_ptr(source).to_str().unwrap_or("")
-    };
-    let result = compile(source_str);
-    let json = serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(
-            r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#,
-            e
-        )
-    });
-    rust_to_c_string(json)
-}
-
-/// Free a string previously returned by omni_compile_to_ir or omni_compile_to_omniview.
+/// Free a string previously returned by an omni_* function.
 /// # Safety
 /// `ptr` must be a valid pointer previously returned by an omni_* function, or null.
 #[no_mangle]
@@ -639,63 +581,121 @@ pub extern "C" fn omni_version() -> *mut c_char {
     rust_to_c_string(env!("CARGO_PKG_VERSION").to_string())
 }
 
-/// Compile .omni source to OmniView (JS + HTML + CSS + SourceMap). Returns JSON string (caller must free).
+/// Analyze multiple .omni sources and return diagnostics (errors, warnings, lint results).
+///
+/// Takes JSON: `{ "sources": { "path": "source", ... }, "path_mapping": { "orig": "resolved", ... } }`
+/// Returns JSON: `{ "success": bool, "diagnostics": [...] }`
+///
 /// # Safety
-/// `source` must be a valid, null-terminated C string or null.
+/// `request_json_ptr` must be valid for `request_json_len` bytes, or null.
 #[no_mangle]
-pub unsafe extern "C" fn omni_compile_to_omniview(source: *const c_char) -> *mut c_char {
-    let source_str = unsafe {
-        if source.is_null() {
-            return rust_to_c_string(
-                r#"{"success":false,"files":null,"source_map":null,"errors":[{"message":"null source pointer"}]}"#
-                    .into(),
-            );
-        }
-        CStr::from_ptr(source).to_str().unwrap_or("")
-    };
-    let result = compile_omniview(source_str);
-    let json = serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(
-            r#"{{"success":false,"files":null,"source_map":null,"errors":[{{"message":"{}"}}]}}"#,
-            e
-        )
-    });
-    rust_to_c_string(json)
-}
-
-/// Validate multiple .omni sources with cross-file checks.
-/// Receives JSON: `{ "sources": { "path": "source", ... }, "path_mapping": { "orig": "resolved", ... } }`
-/// Returns JSON: `{ "success": true/false, "errors": ["..."] }`
-/// # Safety
-/// `input_json` must be a valid, null-terminated C string containing JSON.
-#[no_mangle]
-pub unsafe extern "C" fn omni_validate_multi(input_json: *const c_char) -> *mut c_char {
-    let input_str = unsafe {
-        if input_json.is_null() {
-            return rust_to_c_string(
-                r#"{"success":false,"errors":["null input pointer"]}"#.into(),
-            );
-        }
-        CStr::from_ptr(input_json).to_str().unwrap_or("{}")
+pub unsafe extern "C" fn omni_analyse(
+    request_json_ptr: *const u8,
+    request_json_len: u32,
+) -> *mut c_char {
+    let request_str = if request_json_ptr.is_null() {
+        return rust_to_c_string(
+            r#"{"success":false,"diagnostics":[{"message":"null pointer","severity":"error"}]}"#.into(),
+        );
+    } else {
+        let slice = unsafe { std::slice::from_raw_parts(request_json_ptr, request_json_len as usize) };
+        std::str::from_utf8(slice).unwrap_or("{}")
     };
 
     #[derive(Deserialize)]
-    struct MultiInput {
+    struct AnalyseRequest {
         sources: HashMap<String, String>,
+        #[serde(default)]
+        #[allow(dead_code)]
         path_mapping: HashMap<String, String>,
     }
 
-    let input: MultiInput = serde_json::from_str(input_str).unwrap_or(MultiInput {
+    let input: AnalyseRequest = serde_json::from_str(request_str).unwrap_or(AnalyseRequest {
         sources: HashMap::new(),
         path_mapping: HashMap::new(),
     });
 
-    let result = validate_multi(input.sources, input.path_mapping);
-    let json = serde_json::to_string(&result).unwrap_or_else(|_| {
-        r#"{"success":false,"errors":["serialization failed"]}"#.to_string()
+    let mut diagnostics: Vec<serde_json::Value> = Vec::new();
+    let mut programs: HashMap<String, Program> = HashMap::new();
+
+    // Phase 1: Parse all sources
+    for (path, source) in &input.sources {
+        let tokens = crate::lexer::tokenize(source);
+        match crate::parser::parse(&tokens) {
+            Ok(program) => {
+                programs.insert(path.clone(), program);
+            }
+            Err(e) => {
+                diagnostics.push(serde_json::json!({
+                    "severity": "error",
+                    "code": "PARSE_ERROR",
+                    "message": e.message,
+                    "file": path,
+                    "line": e.span.line,
+                    "col": e.span.col,
+                    "suggestion": null,
+                }));
+            }
+        }
+    }
+
+    // Phase 2: Semantic analysis + IR lowering
+    let mut merged_ir = ir::IRProgram {
+        version: "1.0".to_string(),
+        modules: HashMap::new(),
+        source_map: HashMap::new(),
+    };
+
+    for (path, program) in &programs {
+        let semantics = crate::semantic::analyze(program);
+        for diag in &semantics.diagnostics {
+            diagnostics.push(serde_json::json!({
+                "severity": match diag.severity {
+                    crate::error::Severity::Error => "error",
+                    crate::error::Severity::Warning => "warning",
+                    crate::error::Severity::Info => "info",
+                },
+                "code": diag.code,
+                "message": diag.message,
+                "file": path,
+                "line": diag.line,
+                "col": diag.col,
+                "suggestion": diag.suggestion,
+            }));
+        }
+        let ir_program = ir::lower(program, &semantics);
+        for (mod_name, mod_ir) in ir_program.modules {
+            merged_ir.modules.entry(mod_name).or_insert(mod_ir);
+        }
+        for (key, entry) in ir_program.source_map {
+            merged_ir.source_map.entry(key).or_insert(entry);
+        }
+    }
+
+    // Phase 3: Run lint rules
+    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
+    for lint in &lint_diags {
+        diagnostics.push(serde_json::json!({
+            "severity": match lint.severity {
+                crate::semantic::lints::LintSeverity::Error => "error",
+                crate::semantic::lints::LintSeverity::Warning => "warning",
+                crate::semantic::lints::LintSeverity::Info => "info",
+            },
+            "code": lint.rule,
+            "message": lint.message,
+            "file": lint.file,
+            "line": lint.line,
+            "col": lint.col,
+            "suggestion": null,
+        }));
+    }
+
+    let response = serde_json::json!({
+        "success": diagnostics.iter().all(|d| d["severity"] != "error"),
+        "diagnostics": diagnostics,
     });
 
-    rust_to_c_string(json)
+    rust_to_c_string(response.to_string())
 }
 
 /// Compile multiple .omni sources to a target language via C FFI.
@@ -775,62 +775,3 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     rust_to_c_string(result)
 }
 
-/// Compile a single .omni source to a target language via C FFI.
-///
-/// Convenience wrapper — wraps source as "input.omni" and calls compile_multi_to_target.
-///
-/// # Parameters (ptr + len convention)
-/// - `source_ptr/len`: .omni source text
-/// - `target_ptr/len`: target language string (e.g. "python", "js", "rust", "dart")
-///
-/// Returns a JSON string (caller must free with omni_free_string).
-/// # Safety
-/// All pointers must be valid for the given length, or null.
-#[no_mangle]
-pub unsafe extern "C" fn omni_compile_to_target(
-    source_ptr: *const u8,
-    source_len: u32,
-    target_ptr: *const u8,
-    target_len: u32,
-) -> *mut c_char {
-    let source_str = if source_ptr.is_null() {
-        return rust_to_c_string(
-            r#"{"success":false,"files":{},"errors":["null source pointer"]}"#.into(),
-        );
-    } else {
-        let slice = unsafe { std::slice::from_raw_parts(source_ptr, source_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("")
-    };
-
-    let target_str = if target_ptr.is_null() {
-        return rust_to_c_string(
-            r#"{"success":false,"files":{},"errors":["null target pointer"]}"#.into(),
-        );
-    } else {
-        let slice = unsafe { std::slice::from_raw_parts(target_ptr, target_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("")
-    };
-
-    let target: codegen::Target = match target_str.parse() {
-        Ok(t) => t,
-        Err(e) => {
-            return rust_to_c_string(
-                serde_json::to_string(&serde_json::json!({
-                    "success": false,
-                    "files": {},
-                    "errors": [e]
-                }))
-                .unwrap_or_else(|_| {
-                    r#"{"success":false,"files":{},"errors":["serialization error"]}"#.into()
-                }),
-            );
-        }
-    };
-
-    let mut sources = HashMap::new();
-    sources.insert("input.omni".to_string(), source_str.to_string());
-    let path_mapping = HashMap::new();
-
-    let result = compile_multi_to_target(sources, target, path_mapping);
-    rust_to_c_string(result)
-}
