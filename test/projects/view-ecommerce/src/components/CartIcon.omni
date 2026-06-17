@@ -1,0 +1,12 @@
+import omniview;
+
+component CartIcon {
+    signal count: i32 = 0;
+
+    view {
+        <div class: cart-icon>
+            <span class: badge>{count}</span>
+            <span>Cart</span>
+        </div>
+    }
+}

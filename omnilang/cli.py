@@ -2,9 +2,9 @@
 
 Commands:
     omnic build [files...] [--target TARGET] [--output DIR]   Compile .omni to target
-    omnic analyse <file.omni> [--format json]                 Static analysis
+    omnic analyse [files...] [--format json]                  Static analysis
     omnic run <file.omni> [--target TARGET]                   Compile and run
-    omnic create [dir] [--name NAME] [--type logic|view]      Scaffold a project
+    omnic create <name> --type logic|view                     Scaffold a project
     omnic serve --dir DIR [--port PORT]                       Visual editor server
     omnic watch <file.omni> [--target TARGET] [--output DIR]  Watch and auto-rebuild
 
@@ -17,7 +17,7 @@ import argparse
 import os
 import sys
 
-from omnilang.errors import OmniLangError, CompilerUnavailable, AnalyseError, InputError, OmniError
+from omnilang.errors import OmniLangError, CompilerUnavailable, AnalyseError, InputError, OmniError, CompileError
 from omnilang.rust_bridge import RustBridge
 
 
@@ -32,6 +32,28 @@ TARGET_EXTENSIONS: dict[str, str] = {
     "ts": ".ts",
     "python": ".py",
 }
+
+
+# ── Templates (per spec §3.5) ──────────────────────────────
+
+LOGIC_TEMPLATE = """// {name} — OmniLang logic project
+fn main() {{
+    print("Hello from {name}!");
+}}
+"""
+
+VIEW_TEMPLATE = """// {name} — OmniLang view project
+import omniview;
+
+component App {{
+    view {{
+        <div class: app>
+            <h1>{name}</h1>
+            <p>Welcome to your OmniView app!</p>
+        </div>
+    }}
+}}
+"""
 
 
 # ════════════════════════════════════════════════════════════
@@ -147,6 +169,12 @@ def cmd_build(args):
     from omnilang.api import compile_omni_multi
     result = compile_omni_multi(sources, target=target)
 
+    if not result.success:
+        raise CompileError([OmniError(
+            severity="error", code="BUILD_FAILED",
+            message="Compilation failed. Check diagnostics above for details.",
+        )])
+
     # Write output files
     os.makedirs(output_dir, exist_ok=True)
     for filename, content in result.files.items():
@@ -163,17 +191,18 @@ def cmd_build(args):
 # ════════════════════════════════════════════════════════════
 
 def cmd_analyse(args):
-    """Run static analysis on .omni source (via Rust compiler)."""
-    filepath = args.file
+    """Run static analysis on .omni source (via Rust compiler).
 
-    if not os.path.exists(filepath):
-        raise InputError.file_not_found(filepath)
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        source = f.read()
+    Supports 3 modes (spec §3.2):
+      omnic analyse              # auto-discover and analyse all files
+      omnic analyse app.omni     # single file
+      omnic analyse src/         # directory
+    """
+    # Collect sources (auto-discover, single file, or directory)
+    sources = _collect_sources(args.files or [])
 
     try:
-        result = RustBridge.analyse({filepath: source})
+        result = RustBridge.analyse(sources)
     except CompilerUnavailable:
         raise
 
@@ -239,9 +268,12 @@ def _write_standalone_omniview(output_dir: str, body: str, js: str, css: str) ->
 
 
 def cmd_run(args):
-    """Compile and run an OmniLang file."""
+    """Compile and run an OmniLang file.
+
+    Output goes to build/debug/ per spec §3.2 and §3.3.
+    Target is auto-detected when --target/-t is omitted.
+    """
     import subprocess
-    import tempfile
 
     filepath = args.file
     target = args.target
@@ -252,14 +284,26 @@ def cmd_run(args):
     with open(filepath, "r", encoding="utf-8") as f:
         source = f.read()
 
+    # Auto-detect target if not specified (spec §3.3)
+    if target is None:
+        target = _detect_target({filepath: source})
+
     from omnilang.api import compile_omni_multi
     result = compile_omni_multi({filepath: source}, target=target)
 
-    tmpdir = tempfile.mkdtemp(prefix="omni_run_")
+    if not result.success:
+        raise CompileError([OmniError(
+            severity="error", code="RUN_FAILED",
+            message="Compilation failed. Check diagnostics above for details.",
+        )])
+
+    # Output to build/debug/ per spec §3.2 / §3.3
+    output_dir = os.path.join("build", "debug")
+    os.makedirs(output_dir, exist_ok=True)
 
     # Write all output files
     for filename, content in result.files.items():
-        out_path = os.path.join(tmpdir, filename)
+        out_path = os.path.join(output_dir, filename)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -267,12 +311,12 @@ def cmd_run(args):
     # OmniView: open in browser
     if target == "omniview":
         if "index.html" in result.files:
-            index_path = os.path.join(tmpdir, "index.html")
+            index_path = os.path.join(output_dir, "index.html")
         else:
             body = result.files.get("body.html", "")
             js = result.files.get("index.js", "")
             css = result.files.get("index.css", "")
-            index_path = _write_standalone_omniview(tmpdir, body, js, css)
+            index_path = _write_standalone_omniview(output_dir, body, js, css)
 
         import webbrowser
         webbrowser.open(f"file://{os.path.abspath(index_path)}")
@@ -285,7 +329,7 @@ def cmd_run(args):
         print("No output generated.", file=sys.stderr)
         sys.exit(1)
 
-    out_path = os.path.join(tmpdir, first_name)
+    out_path = os.path.join(output_dir, first_name)
 
     # Execute based on target
     if target == "python":
@@ -298,7 +342,7 @@ def cmd_run(args):
         subprocess.run(["dart", "run", out_path])
     elif target == "rust":
         import shutil
-        rust_dir = os.path.join(tmpdir, "rust_proj")
+        rust_dir = os.path.join(output_dir, "rust_proj")
         src_dir = os.path.join(rust_dir, "src")
         os.makedirs(src_dir, exist_ok=True)
         shutil.copy(out_path, os.path.join(src_dir, "main.rs"))
@@ -316,18 +360,26 @@ def cmd_run(args):
 # ════════════════════════════════════════════════════════════
 
 def cmd_create(args):
-    """Scaffold a new OmniLang project with .omnilang.toml and src/main.omni."""
-    target_dir = args.dir or "."
-    project_name = args.name or os.path.basename(os.path.abspath(target_dir))
-    project_type = args.type or "logic"  # "logic" or "view"
+    """Scaffold a new OmniLang project with .omnilang.toml and src/main.omni.
 
-    os.makedirs(target_dir, exist_ok=True)
+    Usage: omnic create <name> --type logic|view
+    """
+    project_name = args.name
+    project_type = args.type
+    project_dir = os.path.abspath(project_name)
+
+    if os.path.exists(project_dir):
+        raise InputError([OmniError(
+            severity="error", code="DIR_EXISTS",
+            message=f"Directory '{project_name}' already exists.",
+        )])
+
+    os.makedirs(project_dir, exist_ok=True)
 
     # Create .omnilang.toml
-    config_path = os.path.join(target_dir, ".omnilang.toml")
-    if not os.path.exists(config_path):
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(f"""[project]
+    config_path = os.path.join(project_dir, ".omnilang.toml")
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(f"""[project]
 name = "{project_name}"
 version = "0.1.0"
 
@@ -337,44 +389,22 @@ dir = "src"
 [output]
 dir = "build"
 """)
-        print(f"  Config: {config_path}")
+    print(f"  Config: {config_path}")
 
     # Create src directory
-    src_dir = os.path.join(target_dir, "src")
+    src_dir = os.path.join(project_dir, "src")
     os.makedirs(src_dir, exist_ok=True)
 
-    # Create main.omni template
+    # Create main.omni from template
     main_path = os.path.join(src_dir, "main.omni")
-    if not os.path.exists(main_path):
-        if project_type == "view":
-            template = """import omniview;
+    template = LOGIC_TEMPLATE if project_type == "logic" else VIEW_TEMPLATE
+    with open(main_path, "w", encoding="utf-8") as f:
+        f.write(template.format(name=project_name))
+    print(f"  Source: {main_path}")
 
-component Main {
-    let count = signal(0);
-
-    fn increment() {
-        count.set(count.get() + 1);
-    }
-
-    view {
-        <div>
-            <h1>Hello from OmniLang!</h1>
-            <p>Count: {count}</p>
-            <button @on:click={increment()}>Increment</button>
-        </div>
-    }
-}
-"""
-        else:
-            template = """fn main() {
-    println("Hello from OmniLang!");
-}
-"""
-        with open(main_path, "w", encoding="utf-8") as f:
-            f.write(template)
-        print(f"  Source: {main_path}")
-
-    print(f"Created OmniLang project in {os.path.abspath(target_dir)}")
+    print(f"\nCreated {project_type} project '{project_name}' at {project_dir}")
+    print(f"  cd {project_name}")
+    print(f"  omnic run src/main.omni")
 
 
 # ════════════════════════════════════════════════════════════
@@ -466,17 +496,6 @@ def cmd_watch(args):
 
 
 # ════════════════════════════════════════════════════════════
-# LSP
-# ════════════════════════════════════════════════════════════
-
-def cmd_lsp(args):
-    """Start the OmniLang Language Server Protocol server on stdio."""
-    from omnilang.lsp.server import OmniLangServer
-    server = OmniLangServer()
-    server.start()
-
-
-# ════════════════════════════════════════════════════════════
 # Main
 # ════════════════════════════════════════════════════════════
 
@@ -512,19 +531,22 @@ def _main():
 
     # ── analyse ──
     ap = subparsers.add_parser("analyse", help="Run static analysis on .omni source")
-    ap.add_argument("file", help="Source file (.omni)")
+    ap.add_argument(
+        "files", nargs="*",
+        help="Source file(s) (.omni) or directory (default: auto-discover src/)",
+    )
     ap.add_argument("--format", choices=["terminal", "json"], default="terminal", help="Output format")
 
     # ── run ──
     rp = subparsers.add_parser("run", help="Compile and run an OmniLang file")
     rp.add_argument("file", help="Source file (.omni)")
-    rp.add_argument("--target", "-t", choices=ALL_TARGETS, default="python", help="Target (default: python)")
+    rp.add_argument("--target", "-t", choices=ALL_TARGETS, help="Target (auto-detected if omitted)")
 
     # ── create ──
     cp = subparsers.add_parser("create", help="Scaffold a new OmniLang project")
-    cp.add_argument("dir", nargs="?", default=".", help="Project directory (default: .)")
-    cp.add_argument("--name", "-n", help="Project name (default: directory name)")
-    cp.add_argument("--type", choices=["logic", "view"], default="logic", help="Project type (default: logic)")
+    cp.add_argument("name", help="Project name")
+    cp.add_argument("--type", "-t", choices=["logic", "view"], required=True,
+                    help="Project type (required): logic or view")
 
     # ── serve ──
     sp = subparsers.add_parser("serve", help="Start the visual editor server")
@@ -540,9 +562,6 @@ def _main():
     wp.add_argument("--target", "-t", choices=ALL_TARGETS, default="react", help="Target (default: react)")
     wp.add_argument("--output", "-o", default="./build", help="Output directory (default: ./build)")
 
-    # ── lsp ──
-    lsp_parser = subparsers.add_parser("lsp", help="Start the OmniLang LSP server (stdio JSON-RPC)")
-
     args = parser.parse_args()
 
     if args.command == "build":
@@ -557,8 +576,6 @@ def _main():
         cmd_serve(args)
     elif args.command == "watch":
         cmd_watch(args)
-    elif args.command == "lsp":
-        cmd_lsp(args)
     else:
         parser.print_help()
 

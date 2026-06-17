@@ -1,0 +1,25 @@
+import omniview;
+import { ProductList } from "./components/ProductList.omni";
+import { CartIcon } from "./components/CartIcon.omni";
+
+store CartStore {
+    signal items: Vec<string> = [];
+    signal total: f64 = 0.0;
+
+    get count: i32 = items.len();
+}
+
+component App {
+    store_ref CartStore as cart;
+
+    view {
+        <div class: app>
+            <header>
+                <CartIcon count={cart.count} />
+            </header>
+            <main>
+                <ProductList />
+            </main>
+        </div>
+    }
+}

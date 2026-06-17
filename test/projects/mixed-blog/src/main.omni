@@ -1,0 +1,26 @@
+import omniview;
+import { Post, format_date } from "./models/post.omni";
+import { PostCard } from "./components/PostCard.omni";
+
+component App {
+    signal posts: Vec<Post> = [];
+
+    fn load_posts() {
+        posts = [
+            Post { title: "First Post", body: "Hello world!", author: "Alice" },
+            Post { title: "Second Post", body: "OmniLang is great!", author: "Bob" },
+        ];
+    }
+
+    view {
+        <div class: blog>
+            <h1>My Blog</h1>
+            @for post in posts {
+                <PostCard post={post} />
+            }
+            @empty {
+                <p>No posts yet. <button @on:click={load_posts()}>Load Posts</button></p>
+            }
+        </div>
+    }
+}

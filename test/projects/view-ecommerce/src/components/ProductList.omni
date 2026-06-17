@@ -1,0 +1,19 @@
+import omniview;
+
+component ProductList {
+    signal products: Vec<string> = ["Widget", "Gadget", "Thingamajig"];
+
+    view {
+        <div class: product-list>
+            <h2>Products</h2>
+            <ul>
+                @for product in products {
+                    <li>{product}</li>
+                }
+                @empty {
+                    <li class: empty>No products available</li>
+                }
+            </ul>
+        </div>
+    }
+}
