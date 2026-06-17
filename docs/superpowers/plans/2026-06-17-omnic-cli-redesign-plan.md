@@ -248,7 +248,7 @@ use super::*;
 pub struct FunctionIR {
     pub name: String,
     pub visibility: String,  // "public" | "private"
-    pub generics: Vec<String>,
+    // generics: Vec<String> — reserved for future parser support
     pub params: Vec<ParamIR>,
     pub return_type: Option<TypeIR>,
     pub body: BlockIR,
@@ -258,7 +258,7 @@ pub struct FunctionIR {
 pub struct StructIR {
     pub name: String,
     pub visibility: String,
-    pub generics: Vec<String>,
+    // generics: Vec<String> — reserved for future parser support
     pub fields: Vec<FieldIR>,
 }
 
@@ -279,7 +279,7 @@ pub struct EnumIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,
-    pub payload: Option<TypeIR>,
+    pub fields: Vec<FieldIR>,  // named fields with types
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -319,6 +319,8 @@ pub struct ModuleIR {
     pub components: HashMap<String, super::ComponentIR>,
     #[serde(default)]
     pub stores: HashMap<String, super::StoreIR>,
+    #[serde(default)]
+    pub themes: Vec<serde_json::Value>,  // ThemeIR kept as JSON for now
     #[serde(default)]
     pub imports: Vec<ImportIR>,
     #[serde(default)]
@@ -426,7 +428,6 @@ pub fn lower_function(func: &FunctionDef) -> FunctionIR {
             Visibility::Public => "public".into(),
             Visibility::Private => "private".into(),
         },
-        generics: vec![],
         params: func.params.iter().map(|p| ParamIR {
             name: p.name.clone(),
             r#type: p.type_ann.as_ref().map(lower_type),
@@ -443,7 +444,6 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
             Visibility::Public => "public".into(),
             Visibility::Private => "private".into(),
         },
-        generics: vec![],
         fields: s.fields.iter().map(|f| FieldIR {
             name: f.name.clone(),
             r#type: lower_type(&f.type_ann),
@@ -458,7 +458,11 @@ pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
         visibility: "public".into(),
         variants: tu.variants.iter().map(|v| VariantIR {
             name: v.name.clone(),
-            payload: v.fields.first().map(|f| lower_type(&f.type_ann)),
+            fields: v.fields.iter().map(|f| FieldIR {
+                name: f.name.clone(),
+                r#type: lower_type(&f.type_ann),
+                visibility: "public".into(),
+            }).collect(),
         }).collect(),
     }
 }
@@ -550,6 +554,12 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
         for store in &module.stores {
             ir.stores.insert(store.name.clone(), lower_store(store));
         }
+        for theme in &module.themes {
+            // Themes are passed through as serialized JSON for now
+            if let Ok(json) = serde_json::to_value(theme) {
+                ir.themes.push(json);
+            }
+        }
         for imp in &module.imports {
             ir.imports.push(lower_logic::lower_import(imp));
         }
@@ -634,9 +644,20 @@ git commit -m "feat: implement IR lowering for all logic constructs"
 **Files:**
 - Modify: `omni-compiler/src/semantic/mod.rs`
 
-- [ ] **Step 1: Change `analyze()` to always return a result**
+- [ ] **Step 1: Add `diagnostics` field to `SemanticResult`, change analyze to accumulate**
 
-Change the return type from `Result<SemanticResult, Vec<Diagnostic>>` to just `SemanticResult` with accumulated diagnostics:
+In `omni-compiler/src/semantic/mod.rs`, update the struct:
+
+```rust
+#[derive(Debug)]
+pub struct SemanticResult {
+    pub symbols: SymbolTable,
+    pub dependencies: HashMap<String, Vec<String>>,
+    pub diagnostics: Vec<Diagnostic>,  // accumulated errors + warnings
+}
+```
+
+Then change `analyze()` to always return a result, never early-exit:
 
 ```rust
 pub fn analyze(program: &Program) -> SemanticResult {
@@ -658,13 +679,16 @@ pub fn analyze(&mut self, program: &Program) -> SemanticResult {
     for (_filepath, module) in &program.modules {
         self.validate_module(module);
     }
-    // Always return what we have
+    // Always return what we have — diagnostics accumulated in self.diagnostics
     SemanticResult {
         symbols: std::mem::take(&mut self.symbols),
         dependencies: std::mem::take(&mut self.dependencies),
+        diagnostics: std::mem::take(&mut self.diagnostics),
     }
 }
 ```
+
+The existing `push_diagnostic()` calls that used to `Err(diags)` now push to `self.diagnostics` instead.
 
 - [ ] **Step 2: Adapt existing methods to work per-module**
 
@@ -750,9 +774,33 @@ pub unsafe extern "C" fn omni_analyse(
             Ok(program) => {
                 let semantics = semantic::analyze(&program);
                 // Collect diagnostics from semantic analysis
-                // Also run lint rules
-                for (_filepath, module) in &program.modules {
-                    // Collect lint diagnostics
+                for diag in &semantics.diagnostics {
+                    diagnostics.push(serde_json::json!({
+                        "severity": match diag.level {
+                            crate::error::DiagnosticLevel::Error => "error",
+                            crate::error::DiagnosticLevel::Warning => "warning",
+                            _ => "info",
+                        },
+                        "code": diag.code,
+                        "message": diag.message.clone(),
+                        "file": path,
+                        "line": diag.span.line,
+                        "col": diag.span.col,
+                        "suggestion": diag.suggestion.clone(),
+                    }));
+                }
+                // Run lint rules
+                let lint_diags = crate::semantic::lints::run_all(&program, &semantics);
+                for lint in &lint_diags {
+                    diagnostics.push(serde_json::json!({
+                        "severity": "warning",
+                        "code": lint.rule.clone(),
+                        "message": lint.message.clone(),
+                        "file": path,
+                        "line": lint.line,
+                        "col": lint.col,
+                        "suggestion": null,
+                    }));
                 }
             }
             Err(e) => {
@@ -1445,6 +1493,10 @@ from omnilang.result import CompileResult, AnalyseResult
 class RustBridge:
     _dll: ctypes.CDLL | None = None
     _checked: bool = False
+    _dll_search_paths: list[Path] = [
+        Path(__file__).parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll",
+    ]
+    MIN_VERSION: str = "0.1.0"
 
     @classmethod
     def _load(cls) -> ctypes.CDLL:
@@ -1453,12 +1505,19 @@ class RustBridge:
         if cls._checked:
             raise CompilerUnavailable()
 
-        dll_paths = [
-            Path(__file__).parent.parent / "omni-compiler" / "target" / "release" / "omni_compiler.dll",
-        ]
-        for p in dll_paths:
+        for p in cls._dll_search_paths:
             if p.exists():
                 cls._dll = ctypes.CDLL(str(p))
+                # Verify ABI compatibility
+                ver_func = cls._dll.omni_version
+                ver_func.argtypes = []
+                ver_func.restype = ctypes.c_void_p
+                ptr = ver_func()
+                if ptr:
+                    version = ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8")
+                    cls._dll.omni_free_string(ptr)
+                    # Parse and check version
+                    # If incompatible, raise clear error
                 return cls._dll
 
         cls._checked = True
@@ -1533,17 +1592,18 @@ from omnilang.errors import CompilerUnavailable
 
 
 def test_compiler_unavailable_when_dll_missing():
-    # Temporarily break DLL path to test error
     import omnilang.rust_bridge as rb
-    old_paths = rb.RustBridge._dll_paths if hasattr(rb.RustBridge, '_dll_paths') else None
+    old_paths = list(rb.RustBridge._dll_search_paths)
     try:
+        # Point to a nonexistent path to trigger CompilerUnavailable
+        rb.RustBridge._dll_search_paths = [Path("/nonexistent/omni_compiler.dll")]
+        rb.RustBridge._checked = False
+        rb.RustBridge._dll = None
         with pytest.raises(CompilerUnavailable) as exc:
-            rb.RustBridge._checked = False
-            rb.RustBridge._dll = None
-            # Force check with no valid paths
             rb.RustBridge._load()
-        assert "omni_compiler.dll" in str(exc.value)
+        assert "omni_compiler.dll" in exc.value.format()
     finally:
+        rb.RustBridge._dll_search_paths = old_paths
         rb.RustBridge._dll = None
         rb.RustBridge._checked = False
 ```
@@ -1671,7 +1731,50 @@ def cmd_analyse(args):
         raise AnalyseError(result.diagnostics)
 ```
 
-- [ ] **Step 3: Update `cmd_run()` for view projects**
+- [ ] **Step 3: Add `_write_standalone_omniview()` helper**
+
+The function that stitches omniview output into browser-runnable HTML:
+
+```python
+def _write_standalone_omniview(files: dict[str, str], output_dir: str):
+    """Assemble OmniView output (body snippet, JS runtime, CSS) into a
+    standalone, browser-runnable HTML file."""
+    import os
+
+    body = files.get("index.html", "")
+    js = files.get("index.js", "")
+    css = files.get("index.css", "")
+
+    standalone = (
+        "<!DOCTYPE html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        "<title>OmniView App</title>\n"
+        "<style>\n"
+        "*,*::before,*::after{box-sizing:border-box}\n"
+        "body{margin:0;padding:20px;font-family:system-ui,sans-serif;background:#0a0a1a}\n"
+        f"{css}\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"{body}\n"
+        "<script>\n"
+        f"{js}\n"
+        "</script>\n"
+        "</body>\n"
+        "</html>"
+    )
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, "index.html")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(standalone)
+    print(f"  -> {out_path}")
+```
+
+- [ ] **Step 4: Update `cmd_run()` for view projects**
 
 ```python
 def cmd_run(args):
@@ -1751,6 +1854,103 @@ git commit -m "refactor: rewrite CLI — remove init/fmt/fix/lsp, add analyse, s
 
 ---
 
+### Task 23.5: Add `omnic watch` command
+
+**Files:**
+- Modify: `omnilang/cli.py`
+
+- [ ] **Step 1: Add watch subparser and command function**
+
+```python
+def cmd_watch(args):
+    """Watch .omni files and auto-rebuild on changes."""
+    import os
+    import time
+
+    input_file = args.file
+    target = args.target
+
+    if not os.path.exists(input_file):
+        raise InputError.file_not_found(input_file)
+
+    print(f"Watching {input_file} (target={target})")
+    print("Press Ctrl+C to stop.")
+
+    last_mtime = os.path.getmtime(input_file)
+    build_count = 0
+
+    from omnilang.rust_bridge import RustBridge
+
+    try:
+        while True:
+            time.sleep(0.5)
+            try:
+                current_mtime = os.path.getmtime(input_file)
+            except OSError:
+                continue
+
+            if current_mtime != last_mtime:
+                last_mtime = current_mtime
+                build_count += 1
+                timestamp = time.strftime("%H:%M:%S")
+
+                try:
+                    with open(input_file, encoding="utf-8") as f:
+                        source = f.read()
+                except Exception:
+                    continue
+
+                from omnilang.config import load_config
+                config = None
+                try:
+                    config = load_config()
+                except Exception:
+                    pass
+
+                output_dir = args.output
+                if config is not None and args.output == "./build":
+                    output_dir = config.get("output", {}).get("dir", "build")
+
+                try:
+                    result = RustBridge.compile({input_file: source}, target)
+                    if result.success:
+                        os.makedirs(output_dir, exist_ok=True)
+                        for filename, content in result.files.items():
+                            out_path = os.path.join(output_dir, filename)
+                            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                            with open(out_path, "w", encoding="utf-8") as f:
+                                f.write(content)
+                        print(f"[{timestamp}] #{build_count} OK")
+                    else:
+                        for err in result.errors:
+                            print(err.format(), file=sys.stderr)
+                        print(f"[{timestamp}] #{build_count} FAILED")
+                except OmniLangError as e:
+                    print(f"[{timestamp}] #{build_count} FAILED: {e}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print(f"\nStopped. ({build_count} build(s))")
+```
+
+In `_main()`, add the subparser:
+
+```python
+watch_parser = subparsers.add_parser("watch", help="Watch .omni files and auto-rebuild")
+watch_parser.add_argument("file", help="Source file (.omni)")
+watch_parser.add_argument("--target", "-t", choices=ALL_TARGETS, default="python",
+                          help="Target language/framework (default: python)")
+watch_parser.add_argument("--output", "-o", default="./build",
+                          help="Output directory (default: ./build)")
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add omnilang/cli.py
+git commit -m "feat: add omnic watch command"
+```
+
+---
+
 ### Task 24: End-to-end smoke test — logic-counter project
 
 **Files:**
@@ -1778,7 +1978,7 @@ struct Counter {
 fn main() {
     let c = Counter { value: 0 };
     let result = add(c.value, 5);
-    println(result);
+    print(result);
 }
 ```
 
@@ -1894,6 +2094,171 @@ Expected: `build/src/main.tsx` and `build/src/components/TodoList.tsx`.
 
 ---
 
+### Task 25b: Integration test — logic-cli-tool project
+
+**Files:**
+- Create: `test/projects/logic-cli-tool/`
+
+- [ ] **Step 1: Create project with CLI-like patterns**
+
+```
+test/projects/logic-cli-tool/
+├── .omnilang.toml
+└── src/
+    └── main.omni
+```
+
+`src/main.omni`:
+```
+struct Args {
+    command: string,
+    verbose: bool,
+}
+
+fn run(args: Args) -> string {
+    if args.verbose {
+        return "Running in verbose mode: " + args.command;
+    }
+    return args.command;
+}
+
+fn main() {
+    let args = Args { command: "build", verbose: true };
+    print(run(args));
+}
+```
+
+- [ ] **Step 2: Build → verify multi-target output**
+
+```bash
+omnic build -t python && python build/src/main.py
+omnic build -t js && node build/src/main.js
+```
+Expected: "Running in verbose mode: build" (both targets).
+
+- [ ] **Step 3: Commit**
+
+---
+
+### Task 25c: Integration test — view-ecommerce project
+
+**Files:**
+- Create: `test/projects/view-ecommerce/`
+
+- [ ] **Step 1: Create project with multiple components and stores**
+
+```
+test/projects/view-ecommerce/
+├── .omnilang.toml
+└── src/
+    ├── main.omni
+    └── components/
+        ├── ProductList.omni
+        └── CartIcon.omni
+```
+
+`src/main.omni`:
+```
+import omniview;
+import { ProductList } from "./components/ProductList.omni";
+import { CartIcon } from "./components/CartIcon.omni";
+
+store CartStore {
+    signal items: Vec<string> = [];
+    signal total: f64 = 0.0;
+
+    get count: i32 = items.len();
+}
+
+component App {
+    store_ref CartStore as cart;
+
+    view {
+        <div class: app>
+            <header>
+                <CartIcon count={cart.count} />
+            </header>
+            <main>
+                <ProductList />
+            </main>
+        </div>
+    }
+}
+```
+
+- [ ] **Step 2: Build to react (multi-file) and verify output count matches input count**
+
+```bash
+omnic build -t react
+```
+Expected: 3 `.tsx` files (main.tsx, ProductList.tsx, CartIcon.tsx).
+
+- [ ] **Step 3: Commit**
+
+---
+
+### Task 25d: Integration test — mixed-blog project
+
+**Files:**
+- Create: `test/projects/mixed-blog/`
+
+- [ ] **Step 1: Create project with logic + view cross-references**
+
+```
+test/projects/mixed-blog/
+├── .omnilang.toml
+└── src/
+    ├── main.omni
+    ├── models/
+    │   └── post.omni
+    └── components/
+        └── PostCard.omni
+```
+
+`src/models/post.omni` (logic file):
+```
+pub struct Post {
+    title: string,
+    body: string,
+    author: string,
+}
+
+pub fn format_date(timestamp: i64) -> string {
+    return "2026-06-17";  // simplified
+}
+```
+
+`src/components/PostCard.omni` (view file):
+```
+import omniview;
+import { Post } from "../models/post.omni";
+import { format_date } from "../models/post.omni";
+
+component PostCard {
+    signal post: Post = Post { title: "", body: "", author: "" };
+
+    view {
+        <div class: card>
+            <h2>{post.title}</h2>
+            <p>{post.body}</p>
+            <span>By {post.author}</span>
+        </div>
+    }
+}
+```
+
+- [ ] **Step 2: Build → verify cross-file imports resolve correctly**
+
+```bash
+omnic build -t react
+omnic analyse
+```
+Expected: No import resolution errors.
+
+- [ ] **Step 3: Commit**
+
+---
+
 ### Task 26: Build and run all tests end-to-end
 
 - [ ] **Step 1: Build Rust DLL**
@@ -1975,3 +2340,14 @@ Task 1 (AST Module) ──→ Task 2 (Parser adapt) ──→ Task 3 (lib.rs ada
 ```
 
 Tasks 9-12 can run in parallel. Tasks 13-17 can run in parallel. Tasks 19-20 can run in parallel.
+
+---
+
+## Additional Risks (from plan review)
+
+| Risk | Severity | Mitigation |
+|------|----------|-----------|
+| Editor (`omnic serve`) view tree rendering degrades to regex fallback — `parse_view_tree()` no longer has access to `compile_to_ir` FFI | Medium | Documented in Task 22. A follow-up task should add an internal `_compile_to_ir` FFI function specifically for editor use. The regex fallback covers basic cases. |
+| FFI `ptr+len` convention: malicious or buggy callers can pass wrong length → OOB read (unsafe) | Low | Document in FFI function comments that caller must provide honest lengths. Debug builds could add canary markers. Same pattern exists in current code. |
+| OmniLang `print()` vs `println()` syntax not fully confirmed — integration test examples may need adjustment | Low | Verify against actual parser grammar during implementation. Adjust test source if needed. |
+| `Visibility` enum used in AST but IR stores as `String` — loss of compile-time safety for visibility values | Low | Acceptable trade-off for Serde serialization simplicity. Codegen backends match on known strings ("public" / "private"). Future: add custom Serde for Visibility enum. |
