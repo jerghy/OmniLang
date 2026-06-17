@@ -297,9 +297,13 @@ def cmd_run(args):
     with open(filepath, "r", encoding="utf-8") as f:
         source = f.read()
 
-    # Auto-detect target if not specified (spec §3.3)
+    # Auto-detect target if not specified
     if target is None:
         target = _detect_target({filepath: source})
+        # For view projects, 'run' defaults to omniview (HTML+JS+CSS in browser),
+        # not a framework target like react/vue which can't be executed directly.
+        if target in ("react", "vue", "dioxus", "flutter"):
+            target = "omniview"
 
     from omnilang.api import compile_omni_multi
     result = compile_omni_multi({filepath: source}, target=target)
