@@ -10,7 +10,7 @@ use omni_compiler::semantic;
 fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
     let tokens = lexer::tokenize(source);
     let program = parser::parse(&tokens).expect("parse failed");
-    let semantics = semantic::analyze(&program).expect("semantic analysis failed");
+    let semantics = semantic::analyze(&program);
     let ir_program = ir::lower(&program, &semantics);
     omniview::generate(&ir_program)
 }
