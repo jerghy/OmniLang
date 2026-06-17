@@ -43,6 +43,15 @@ class RustBridge:
         raise CompilerUnavailable()
 
     @classmethod
+    def is_available(cls) -> bool:
+        """Check if the Rust compiler DLL is available."""
+        try:
+            cls._load()
+            return True
+        except CompilerUnavailable:
+            return False
+
+    @classmethod
     def compile(cls, sources: dict[str, str], target: str,
                 path_mapping: dict[str, str] | None = None) -> CompileResult:
         """Compile .omni source files to target code via Rust DLL.

@@ -297,6 +297,15 @@ def load_config(path: str | Path | None = None) -> OmniConfig:
     return config
 
 
+def find_config_dir(start: str | None = None) -> Path | None:
+    """Walk upward from start (or cwd) to find a directory containing .omnilang.toml."""
+    current = Path(start).resolve() if start else Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / ".omnilang.toml").exists():
+            return parent
+    return None
+
+
 def _find_config(path: str | Path | None = None) -> Path | None:
     """Find .omnilang.toml by walking up from path or cwd."""
     if path:

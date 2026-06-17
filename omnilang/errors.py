@@ -32,6 +32,18 @@ class OmniError:
             msg += f"\n  Suggestion: {self.suggestion}"
         return msg
 
+    def to_dict(self) -> dict:
+        """Serialize to dict for JSON responses (editor API)."""
+        return {
+            "file": self.file,
+            "line": self.line,
+            "col": self.col,
+            "severity": self.severity,
+            "code": self.code,
+            "message": self.message,
+            "suggestion": self.suggestion,
+        }
+
 
 class OmniLangError(Exception):
     """Base exception for all omnic CLI errors."""
