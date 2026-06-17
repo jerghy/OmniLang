@@ -176,7 +176,26 @@ fn test_dart_empty_program() {
 
 #[test]
 fn test_compile_multiple_files() {
-    let ir = empty_ir();
+    let mut modules = HashMap::new();
+    modules.insert(
+        "main".to_string(),
+        ModuleIR {
+            name: "main".to_string(),
+            ..Default::default()
+        },
+    );
+    modules.insert(
+        "utils".to_string(),
+        ModuleIR {
+            name: "utils".to_string(),
+            ..Default::default()
+        },
+    );
+    let ir = IRProgram {
+        version: "0.1".into(),
+        modules,
+        source_map: HashMap::new(),
+    };
     let sources = HashMap::from([
         ("main.omni".into(), "".into()),
         ("utils.omni".into(), "".into()),
