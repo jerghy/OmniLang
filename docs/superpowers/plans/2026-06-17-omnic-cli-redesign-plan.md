@@ -20,6 +20,7 @@
 | `omni-compiler/src/ir/lower_logic.rs` | AST → IR lowering for logic constructs |
 | `omni-compiler/src/semantic/lints.rs` | Lint rules (unused imports, dead code, etc.) |
 | `omni-compiler/tests/codegen_snapshots.rs` | Snapshot tests for codegen backends |
+| `omnilang/config.py` | Project configuration loader — reads .omnilang.toml |
 | `omnilang/errors.py` | Structured error types: OmniError, OmniLangError subclasses |
 | `omnilang/result.py` | CompileResult and AnalyseResult dataclasses |
 | `.github/workflows/ci.yml` | Cross-platform CI pipeline: Rust DLL + Python tests |
@@ -163,11 +164,79 @@ Expected: Fewer errors than before. Fix remaining issues in parser sub-modules.
 Run: `cargo test --lib parser 2>&1`
 Expected: Existing parser tests adapt or are updated.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Add parser round-trip tests for all construct types**
+
+Per spec §8.1, add round-trip tests that verify `.omni` source → AST → survives the parse round-trip. Add to `omni-compiler/src/parser/mod.rs`:
+
+```rust
+#[cfg(test)]
+mod roundtrip_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+
+    #[test]
+    fn roundtrip_function_def() {
+        let source = "pub fn main() { return 42; }";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        assert_eq!(program.modules.len(), 1);
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.functions.len(), 1);
+        let func = &module.functions[0];
+        assert_eq!(func.name, "main");
+        assert!(matches!(func.visibility, Visibility::Public));
+    }
+
+    #[test]
+    fn roundtrip_struct_def() {
+        let source = "struct Point { x: i32, y: i32 }";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.structs.len(), 1);
+        assert_eq!(module.structs[0].name, "Point");
+        assert_eq!(module.structs[0].fields.len(), 2);
+    }
+
+    #[test]
+    fn roundtrip_enum_def() {
+        let source = "enum Color { Red, Green, Blue(i32) }";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.tagged_unions.len(), 1);
+    }
+
+    #[test]
+    fn roundtrip_type_alias() {
+        let source = "type UserId = i32;";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.type_aliases.len(), 1);
+        assert_eq!(module.type_aliases[0].name, "UserId");
+    }
+
+    #[test]
+    fn roundtrip_import_export() {
+        let source = "import { add } from \"./utils/math.omni\";\npub export { main };";
+        let tokens = tokenize(source);
+        let program = parse(&tokens).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.imports.len(), 1);
+        assert_eq!(module.exports.len(), 1);
+    }
+}
+```
+
+Run: `cargo test roundtrip_`
+Expected: 5 PASS
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add omni-compiler/src/parser/
-git commit -m "refactor: adapt parser to populate Module in modules map"
+git commit -m "refactor: adapt parser to populate Module in modules map, add round-trip tests"
 ```
 
 ---
@@ -287,7 +356,7 @@ pub struct EnumIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantIR {
     pub name: String,
-    pub fields: Vec<FieldIR>,  // named fields with types
+    pub payload: Option<TypeIR>,  // single optional payload type
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,6 +398,9 @@ pub struct ModuleIR {
     pub stores: HashMap<String, super::StoreIR>,
     #[serde(default)]
     pub themes: Vec<serde_json::Value>,  // ThemeIR kept as JSON for now
+    // NOTE: `themes` is not in spec §4.2 ModuleIR — retained for backward compat
+    // with existing theme definitions in the codebase. Themes are passed through
+    // as serialized JSON without IR-level processing.
     #[serde(default)]
     pub imports: Vec<ImportIR>,
     #[serde(default)]
@@ -466,11 +538,7 @@ pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
         visibility: "public".into(),
         variants: tu.variants.iter().map(|v| VariantIR {
             name: v.name.clone(),
-            fields: v.fields.iter().map(|f| FieldIR {
-                name: f.name.clone(),
-                r#type: lower_type(&f.type_ann),
-                visibility: "public".into(),
-            }).collect(),
+            payload: v.fields.first().map(|f| lower_type(&f.type_ann)),
         }).collect(),
     }
 }
@@ -1197,13 +1265,13 @@ impl Codegen for RustCodegen {
                 w.emit(&format!("{}enum {} {{", vis, e.name));
                 w.indent();
                 for variant in &e.variants {
-                    if variant.fields.is_empty() {
-                        w.emit(&format!("{},", variant.name));
-                    } else {
-                        let fields_str: Vec<String> = variant.fields.iter()
-                            .map(|f| format!("{}: {}", f.name, format_type_ir_rust(&f.r#type)))
-                            .collect();
-                        w.emit(&format!("{} {{ {} }},", variant.name, fields_str.join(", ")));
+                    match &variant.payload {
+                        None => {
+                            w.emit(&format!("{},", variant.name));
+                        }
+                        Some(payload_ty) => {
+                            w.emit(&format!("{} ( {} ),", variant.name, format_type_ir_rust(payload_ty)));
+                        }
                     }
                 }
                 w.dedent();
@@ -1341,13 +1409,13 @@ impl Codegen for DartCodegen {
                 w.emit(&format!("enum {} {{", e.name));
                 w.indent();
                 for variant in &e.variants {
-                    if variant.fields.is_empty() {
-                        w.emit(&format!("{},", variant.name));
-                    } else {
-                        let fields_str: Vec<String> = variant.fields.iter()
-                            .map(|f| format!("{} {}", format_type_ir_dart(&f.r#type), f.name))
-                            .collect();
-                        w.emit(&format!("{}({}),", variant.name, fields_str.join(", ")));
+                    match &variant.payload {
+                        None => {
+                            w.emit(&format!("{},", variant.name));
+                        }
+                        Some(payload_ty) => {
+                            w.emit(&format!("{}({}),", variant.name, format_type_ir_dart(payload_ty)));
+                        }
                     }
                 }
                 w.dedent();
@@ -1891,6 +1959,10 @@ class OmniLangError(Exception):
         super().__init__("")
 
     def format(self) -> str:
+        """Format all diagnostics with a trailing summary count.
+        
+        Delegates to OmniError.format() for individual diagnostic formatting.
+        """
         if not self.errors:
             return "An unknown error occurred."
         lines = [e.format() for e in self.errors]
@@ -2354,12 +2426,25 @@ Then in `omnilang/cli.py`, update `cmd_serve`:
 
 ```python
 def cmd_serve(args):
-    """Start the visual editor server (FastAPI + Vite)."""
-    # The serve command uses api.py functions for parsing.
-    # With the IR redesign, parse_view_tree() and parse_code_blocks()
-    # now use _compile_ir_internal() or regex fallback internally.
+    """Start the visual editor server (FastAPI + Vite).
+    
+    Spec: omnic serve --dir <dir> [--port] [--vite-port]
+    No changes from current behavior — editor API surface remains stable.
+    """
     from omnilang.api import parse_view_tree, parse_code_blocks
     # ... existing serve startup logic unchanged ...
+```
+
+In `_main()`, add the serve subparser:
+
+```python
+serve_parser = subparsers.add_parser("serve", help="Start the visual editor server")
+serve_parser.add_argument("--dir", "-d", default=".",
+                          help="Project directory (default: current)")
+serve_parser.add_argument("--port", "-p", type=int, default=8000,
+                          help="FastAPI port (default: 8000)")
+serve_parser.add_argument("--vite-port", type=int, default=5173,
+                          help="Vite dev server port (default: 5173)")
 ```
 
 - [ ] **Step 4: Commit**
@@ -2392,36 +2477,48 @@ VIEW_TARGETS = {"react", "vue", "dioxus", "flutter", "omniview"}
 
 def _collect_sources(args) -> dict[str, str]:
     """Collect .omni source files from CLI args (file, files, or directory).
-    Returns {filepath: source_content} dict."""
+    
+    All subparsers (build, run, analyse, watch) use a positional `files` arg
+    with nargs='*'. When empty, auto-discover from src/.
+    
+    Returns {filepath: source_content} dict.
+    """
     import os
 
     sources: dict[str, str] = {}
 
-    # Single file
-    if hasattr(args, "file") and args.file:
-        path = args.file
-        if not os.path.exists(path):
-            raise InputError.file_not_found(path)
-        with open(path, encoding="utf-8") as f:
-            sources[path] = f.read()
-        return sources
-
-    # Multiple files
+    # Collect paths from the positional `files` argument
+    raw_paths: list[str] = []
     if hasattr(args, "files") and args.files:
-        for path in args.files:
-            if not os.path.exists(path):
+        raw_paths = args.files
+    elif hasattr(args, "file") and args.file:
+        raw_paths = [args.file]
+
+    if raw_paths:
+        for path in raw_paths:
+            if os.path.isdir(path):
+                # Directory: walk recursively
+                for dirpath, _dirnames, filenames in os.walk(path):
+                    for fn in filenames:
+                        if fn.endswith(".omni"):
+                            full = os.path.join(dirpath, fn)
+                            with open(full, encoding="utf-8") as f:
+                                sources[full] = f.read()
+            elif os.path.isfile(path) and path.endswith(".omni"):
+                with open(path, encoding="utf-8") as f:
+                    sources[path] = f.read()
+            elif os.path.isfile(path):
+                raise InputError([OmniError(
+                    severity="error", code="NOT_OMNI",
+                    message=f"Not an .omni file: {path}",
+                    file=path,
+                )])
+            else:
                 raise InputError.file_not_found(path)
-            with open(path, encoding="utf-8") as f:
-                sources[path] = f.read()
         return sources
 
-    # Directory: auto-discover src/main.omni
-    if hasattr(args, "directory") and args.directory:
-        root = args.directory
-    else:
-        root = "."
-
-    src_dir = os.path.join(root, "src")
+    # No paths given — auto-discover src/**/*.omni from cwd
+    src_dir = os.path.join(os.getcwd(), "src")
     if os.path.isdir(src_dir):
         for dirpath, _dirnames, filenames in os.walk(src_dir):
             for fn in filenames:
@@ -2437,6 +2534,44 @@ def _collect_sources(args) -> dict[str, str]:
         )])
 
     return sources
+```
+
+Additionally, create `omnilang/config.py` for reading `.omnilang.toml` project configuration:
+
+```python
+"""Project configuration loader — reads .omnilang.toml."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+
+def find_config_dir(start: str | None = None) -> Path | None:
+    """Walk upward from start (or cwd) to find a directory containing .omnilang.toml."""
+    current = Path(start).resolve() if start else Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / ".omnilang.toml").exists():
+            return parent
+    return None
+
+
+def load_config(project_dir: str | None = None) -> dict | None:
+    """Load .omnilang.toml from project_dir or auto-discovered project root.
+    
+    Returns None if no config file is found (caller decides whether that's an error).
+    """
+    try:
+        import tomllib  # Python 3.11+
+    except ImportError:
+        import tomli as tomllib  # Python <3.11 fallback
+
+    root = find_config_dir(project_dir)
+    if root is None:
+        return None
+
+    config_path = root / ".omnilang.toml"
+    with open(config_path, "rb") as f:
+        return tomllib.load(f)
 ```
 
 - [ ] **Step 2: Remove commands and arguments**
@@ -2522,7 +2657,70 @@ def _write_standalone_omniview(files: dict[str, str], output_dir: str):
     print(f"  -> {out_path}")
 ```
 
-- [ ] **Step 5: Update `cmd_run()` for view and logic projects**
+- [ ] **Step 5: Add `cmd_build()` — the main compilation command**
+
+The build command is the primary compilation path. It collects sources, compiles through the DLL, and writes output files preserving directory structure per spec §3.3.
+
+```python
+def cmd_build(args):
+    """Compile .omni source files to a target language."""
+    import os, sys
+    from omnilang.rust_bridge import RustBridge
+    from omnilang.errors import CompileError, OmniError
+
+    # Collect sources
+    sources = _collect_sources(args)
+    target = args.target
+
+    if target is None:
+        # Auto-detect: view if source has components or omniview import, else logic
+        primary = next(iter(sources.values()), "")
+        is_view = "import omniview" in primary or "component " in primary
+        target = "omniview" if is_view else "python"
+
+    # Compile through DLL
+    try:
+        result = RustBridge.compile(sources, target)
+    except CompilerUnavailable:
+        raise
+
+    if not result.success:
+        raise CompileError(result.errors + result.warnings)
+
+    # Write output files
+    output_dir = getattr(args, "output", None) or "build"
+    os.makedirs(output_dir, exist_ok=True)
+
+    if target == "omniview":
+        # OmniView always produces 3 files: index.html, index.js, index.css
+        _write_standalone_omniview(result.files, output_dir)
+    else:
+        # Logic and view targets: one output file per input, preserving dir structure
+        for rel_path, content in result.files.items():
+            out_path = os.path.join(output_dir, rel_path)
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"  -> {out_path}")
+
+    # Emit warnings
+    for w in result.warnings:
+        print(w.format(), file=sys.stderr)
+```
+
+In `_main()`, add/update the build subparser:
+
+```python
+build_parser = subparsers.add_parser("build", help="Compile .omni files to target language")
+build_parser.add_argument("files", nargs="*", default=None,
+                          help="Source files or directories (default: auto-discover src/)")
+build_parser.add_argument("--target", "-t", choices=ALL_TARGETS, default=None,
+                          help="Target language/framework (default: auto-detect)")
+build_parser.add_argument("--output", "-o", default="build",
+                          help="Output directory (default: build)")
+```
+
+- [ ] **Step 6: Update `cmd_run()` for view and logic projects**
 
 ```python
 def cmd_run(args):
@@ -2565,7 +2763,7 @@ def cmd_run(args):
                 subprocess.run(["node", js_entry])
 ```
 
-- [ ] **Step 6: Add `cmd_create()` — scaffold new projects**
+- [ ] **Step 7: Add `cmd_create()` — scaffold new projects**
 
 ```python
 LOGIC_TEMPLATE = '''// {name} — OmniLang logic project
@@ -2628,14 +2826,17 @@ def cmd_create(args):
     print("  omnic run src/main.omni")
 
 
-# In _main(), add the create subparser:
-# create_parser = subparsers.add_parser("create", help="Scaffold a new project")
-# create_parser.add_argument("name", help="Project name")
-# create_parser.add_argument("--type", "-t", choices=["logic", "view"], required=True,
-#                            help="Project type: logic or view")
+In `_main()`, add the create subparser:
+
+```python
+create_parser = subparsers.add_parser("create", help="Scaffold a new project")
+create_parser.add_argument("name", help="Project name")
+create_parser.add_argument("--type", "-t", choices=["logic", "view"], required=True,
+                           help="Project type: logic or view")
+```
 ```
 
-- [ ] **Step 7: Wrap main() with structured error handler**
+- [ ] **Step 8: Wrap main() with structured error handler**
 
 ```python
 def main():
@@ -2653,7 +2854,7 @@ def _main():
     # ... current main() body ...
 ```
 
-- [ ] **Step 8: Write CLI tests**
+- [ ] **Step 9: Write CLI tests**
 
 Create `tests/test_cli.py`:
 
@@ -2682,7 +2883,7 @@ def test_create_logic(capsys, tmp_path):
 
 Run: `pytest tests/test_cli.py -v`
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add omnilang/cli.py tests/test_cli.py
@@ -2831,7 +3032,7 @@ pub fn add(a: i32, b: i32) -> i32 {
 [project]
 name = "logic-counter"
 version = "0.1.0"
-targets = ["python"]
+targets = ["python", "js", "ts", "rust", "dart"]
 
 [source]
 dir = "src"
@@ -2840,18 +3041,61 @@ dir = "src"
 dir = "build"
 ```
 
-- [ ] **Step 2: Build and verify Python output**
+- [ ] **Step 2: Build and verify all logic target outputs**
+
+Per spec §8.3, verify compiled output passes each language's runtime checks.
 
 Run from test project dir:
+
+**Python:**
 ```bash
-omnic build
+omnic build -t python
 ```
 Expected: `build/src/main.py` and `build/src/utils/math.py` exist.
-
 ```bash
 python -c "import sys; sys.path.insert(0, 'build'); from src import main"
 ```
 Expected: prints "5" (0 + 5).
+
+**JavaScript:**
+```bash
+omnic build -t js
+```
+Expected: `build/src/main.js` and `build/src/utils/math.js` exist.
+```bash
+node -e "require('./build/src/main.js')"
+```
+Expected: prints "5".
+
+**TypeScript:**
+```bash
+omnic build -t ts
+```
+Expected: `build/src/main.ts` and `build/src/utils/math.ts` exist.
+```bash
+npx tsc --noEmit build/src/main.ts 2>&1 || true
+```
+Expected: no type errors (informational — verify manually if tsc unavailable).
+
+**Rust:**
+```bash
+omnic build -t rust
+```
+Expected: `build/src/main.rs` and `build/src/utils/math.rs` exist.
+```bash
+rustc --edition 2021 build/src/main.rs -o /tmp/test_main 2>&1 || true
+```
+Expected: compiles successfully (informational — verify manually if rustc unavailable).
+
+**Dart:**
+```bash
+omnic build -t dart
+```
+Expected: `build/src/main.dart` and `build/src/utils/math.dart` exist.
+```bash
+dart analyze build/src/main.dart 2>&1 || true
+```
+Expected: no analysis errors (informational — verify manually if dart unavailable).
 
 - [ ] **Step 3: Run `omnic analyse`**
 
