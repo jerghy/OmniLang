@@ -272,11 +272,24 @@ def cmd_run(args):
 
     Output goes to build/debug/ per spec §3.2 and §3.3.
     Target is auto-detected when --target/-t is omitted.
+    File auto-discovers src/main.omni when omitted (project root).
     """
     import subprocess
 
     filepath = args.file
     target = args.target
+
+    # Auto-discover src/main.omni when no file specified (consistent with build/analyse)
+    if filepath is None:
+        default = os.path.join("src", "main.omni")
+        if os.path.exists(default):
+            filepath = default
+        else:
+            raise InputError([OmniError(
+                severity="error", code="NO_ENTRY",
+                message="No source file specified and src/main.omni not found. "
+                        "Run 'omnic create <name>' to create a project, or specify a file.",
+            )])
 
     if not os.path.exists(filepath):
         raise InputError.file_not_found(filepath)
@@ -539,7 +552,10 @@ def _main():
 
     # ── run ──
     rp = subparsers.add_parser("run", help="Compile and run an OmniLang file")
-    rp.add_argument("file", help="Source file (.omni)")
+    rp.add_argument(
+        "file", nargs="?", default=None,
+        help="Source file (.omni) — defaults to src/main.omni when in project root",
+    )
     rp.add_argument("--target", "-t", choices=ALL_TARGETS, help="Target (auto-detected if omitted)")
 
     # ── create ──

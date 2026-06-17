@@ -55,8 +55,21 @@ impl Codegen for PythonCodegen {
             }
 
             // Generate standalone functions
-            for (_name, func) in &module.functions {
+            let mut has_main = false;
+            for (fname, func) in &module.functions {
                 generate_function(&mut w, func, true);
+                w.emit("");
+                if fname == "main" {
+                    has_main = true;
+                }
+            }
+
+            // Entry point: if there's a main(), call it
+            if has_main {
+                w.emit("if __name__ == \"__main__\":");
+                w.indent();
+                w.emit("main()");
+                w.dedent();
                 w.emit("");
             }
 
@@ -383,6 +396,10 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             let t = format_expr_ir(then_expr);
             let e = format_expr_ir(else_expr);
             format!("{} if {} else {}", t, c, e)
+        }
+        ExprIR::CallExpr { name, args } => {
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir).collect();
+            format!("{}({})", name, arg_strs.join(", "))
         }
         ExprIR::StoreFieldAccessExpr {
             store_alias,

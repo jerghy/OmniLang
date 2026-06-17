@@ -1,11 +1,13 @@
-import { add } from "./utils/math.omni";
+fn add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
 
 struct Counter {
     value: i32,
 }
 
 fn main() {
-    let c = Counter { value: 0 };
-    let result = add(c.value, 5);
+    let value: i32 = 0;
+    let result = add(value, 5);
     print(result);
 }

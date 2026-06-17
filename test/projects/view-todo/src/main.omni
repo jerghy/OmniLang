@@ -1,9 +1,38 @@
 import omniview;
-import { TodoList } from "./components/TodoList.omni";
+
+component TodoList {
+    signal items: Array<String> = [];
+    signal input: String = "";
+
+    fn add_item() {
+        if input != "" {
+            items = [input];
+            input = "";
+        }
+    }
+
+    view {
+        <div>
+            <h2>Todo List</h2>
+            <div>
+                <input placeholder="Add a task..." />
+                <button @onPress={add_item}>Add</button>
+            </div>
+            <ul>
+                @for item in items {
+                    <li>{item}</li>
+                }
+                @empty {
+                    <li>No items yet</li>
+                }
+            </ul>
+        </div>
+    }
+}
 
 component App {
     view {
-        <div class: app>
+        <div>
             <TodoList />
         </div>
     }

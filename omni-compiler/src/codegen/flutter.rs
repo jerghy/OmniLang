@@ -615,6 +615,10 @@ fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             let e = format_expr_ir_flutter(else_expr);
             format!("{} ? {} : {}", c, t, e)
         }
+        ExprIR::CallExpr { name, args } => {
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_flutter).collect();
+            format!("{}({})", name, arg_strs.join(", "))
+        }
         ExprIR::StoreFieldAccessExpr {
             store_alias,
             field_name,

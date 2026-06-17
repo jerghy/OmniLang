@@ -668,6 +668,10 @@ fn format_expr_vue(expr: &ExprIR) -> String {
             let e = format_expr_vue(else_expr);
             format!("{} ? {} : {}", c, t, e)
         }
+        ExprIR::CallExpr { name, args } => {
+            let arg_strs: Vec<String> = args.iter().map(format_expr_vue).collect();
+            format!("{}({})", name, arg_strs.join(", "))
+        }
         ExprIR::StoreFieldAccessExpr {
             store_alias,
             field_name,

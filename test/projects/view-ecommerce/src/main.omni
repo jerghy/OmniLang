@@ -1,21 +1,48 @@
 import omniview;
-import { ProductList } from "./components/ProductList.omni";
-import { CartIcon } from "./components/CartIcon.omni";
 
 store CartStore {
-    signal items: Vec<string> = [];
+    signal items: Array<String> = [];
     signal total: f64 = 0.0;
 
-    get count: i32 = items.len();
+    getter count: i32 = 0;
+}
+
+component CartIcon {
+    signal count: i32 = 0;
+
+    view {
+        <div>
+            <span>{count}</span>
+            <span>Cart</span>
+        </div>
+    }
+}
+
+component ProductList {
+    signal products: Array<String> = ["Widget", "Gadget", "Thingamajig"];
+
+    view {
+        <div>
+            <h2>Products</h2>
+            <ul>
+                @for product in products {
+                    <li>{product}</li>
+                }
+                @empty {
+                    <li>No products available</li>
+                }
+            </ul>
+        </div>
+    }
 }
 
 component App {
-    store_ref CartStore as cart;
+    @store CartStore;
 
     view {
-        <div class: app>
+        <div>
             <header>
-                <CartIcon count={cart.count} />
+                <CartIcon />
             </header>
             <main>
                 <ProductList />

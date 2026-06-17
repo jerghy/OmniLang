@@ -382,6 +382,10 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             let e = format_expr_ir(else_expr);
             format!("if {} {{ {} }} else {{ {} }}", c, t, e)
         }
+        ExprIR::CallExpr { name, args } => {
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir).collect();
+            format!("{}({})", name, arg_strs.join(", "))
+        }
         ExprIR::StoreFieldAccessExpr {
             store_alias,
             field_name,

@@ -1,9 +1,0 @@
-pub struct Post {
-    title: string,
-    body: string,
-    author: string,
-}
-
-pub fn format_date(timestamp: i64) -> string {
-    return "2026-06-17";  // simplified
-}

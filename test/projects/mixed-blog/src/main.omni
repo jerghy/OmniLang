@@ -1,25 +1,40 @@
 import omniview;
-import { Post, format_date } from "./models/post.omni";
-import { PostCard } from "./components/PostCard.omni";
 
-component App {
-    signal posts: Vec<Post> = [];
+pub struct Post {
+    title: String,
+    body: String,
+    author: String,
+}
 
-    fn load_posts() {
-        posts = [
-            Post { title: "First Post", body: "Hello world!", author: "Alice" },
-            Post { title: "Second Post", body: "OmniLang is great!", author: "Bob" },
-        ];
-    }
+pub fn format_date(timestamp: i64) -> String {
+    return "2026-06-17";
+}
+
+component PostCard {
+    signal title: String = "";
+    signal body: String = "";
+    signal author: String = "";
 
     view {
-        <div class: blog>
+        <div>
+            <h2>{title}</h2>
+            <p>{body}</p>
+            <span>By {author}</span>
+        </div>
+    }
+}
+
+component App {
+    signal posts: Array<String> = ["First Post", "Second Post"];
+
+    view {
+        <div>
             <h1>My Blog</h1>
             @for post in posts {
-                <PostCard post={post} />
+                <PostCard title={post} />
             }
             @empty {
-                <p>No posts yet. <button @on:click={load_posts()}>Load Posts</button></p>
+                <p>No posts yet.</p>
             }
         </div>
     }

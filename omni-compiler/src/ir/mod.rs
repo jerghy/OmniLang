@@ -44,6 +44,10 @@ pub enum ExprIR {
         then_expr: Box<ExprIR>,
         else_expr: Box<ExprIR>,
     },
+    CallExpr {
+        name: String,
+        args: Vec<ExprIR>,
+    },
     StoreFieldAccessExpr {
         store_alias: String,
         field_name: String,
@@ -809,6 +813,12 @@ fn lower_stmt(stmt: &Stmt) -> StatementIR {
             then_body: lower_block(then_body),
             else_body: else_body.as_ref().map(lower_block),
         },
+        Stmt::Print { newline: _, arg, .. } => StatementIR::ExprStmtIR {
+            expr: ExprIR::CallExpr {
+                name: "print".into(),
+                args: vec![lower_expr(arg)],
+            },
+        },
         _ => StatementIR::ExprStmtIR {
             expr: ExprIR::LiteralExpr {
                 value: serde_json::Value::Null,
@@ -1006,9 +1016,12 @@ pub(crate) fn lower_expr(expr: &Expr) -> ExprIR {
                     };
                 }
             }
-            // Fallback: return identifier for function name
+            // Regular function call
             if let Expr::VarRef(name, _) = func.as_ref() {
-                ExprIR::IdentifierExpr { name: name.clone() }
+                ExprIR::CallExpr {
+                    name: name.clone(),
+                    args: args.iter().map(lower_expr).collect(),
+                }
             } else {
                 ExprIR::LiteralExpr {
                     value: serde_json::Value::Null,

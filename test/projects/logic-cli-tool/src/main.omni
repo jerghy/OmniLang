@@ -1,16 +1,11 @@
-struct Args {
-    command: string,
-    verbose: bool,
-}
-
-fn run(args: Args) -> string {
-    if args.verbose {
-        return "Running in verbose mode: " + args.command;
+fn run(command: String, verbose: bool) -> String {
+    if verbose {
+        return "Running in verbose mode: " + command;
     }
-    return args.command;
+    return command;
 }
 
 fn main() {
-    let args = Args { command: "build", verbose: true };
-    print(run(args));
+    let result = run("build", true);
+    print(result);
 }

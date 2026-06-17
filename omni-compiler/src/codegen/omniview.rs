@@ -881,6 +881,10 @@ function _bindText(nid) {
                 let obj = self.expr_to_js(object);
                 format!("{}.{}", obj, field)
             }
+            ExprIR::CallExpr { name, args } => {
+                let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
+                format!("{}({})", name, arg_strs.join(", "))
+            }
             ExprIR::StoreFieldAccessExpr {
                 store_alias,
                 field_name,

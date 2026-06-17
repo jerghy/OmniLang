@@ -54,8 +54,18 @@ impl Codegen for JavaScriptCodegen {
             }
 
             // Generate standalone functions
-            for (_name, func) in &module.functions {
+            let mut has_main = false;
+            for (fname, func) in &module.functions {
                 generate_standalone_function(&mut w, func, self.ts_mode);
+                w.emit("");
+                if fname == "main" {
+                    has_main = true;
+                }
+            }
+
+            // Entry point: if there's a main(), call it
+            if has_main {
+                w.emit("main();");
                 w.emit("");
             }
 
@@ -383,6 +393,10 @@ fn format_expr_ir(expr: &ExprIR, ts_mode: bool) -> String {
             let t = format_expr_ir(then_expr, ts_mode);
             let e = format_expr_ir(else_expr, ts_mode);
             format!("{} ? {} : {}", c, t, e)
+        }
+        ExprIR::CallExpr { name, args } => {
+            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a, ts_mode)).collect();
+            format!("{}({})", name, arg_strs.join(", "))
         }
         ExprIR::StoreFieldAccessExpr {
             store_alias,
