@@ -300,15 +300,9 @@ def cmd_run(args):
     # Auto-detect target if not specified
     if target is None:
         target = _detect_target({filepath: source})
-        # View frameworks can't be run directly — prompt user to be explicit
+        # View frameworks can't be run directly; run as omniview (HTML+JS+CSS in browser)
         if target in ("react", "vue", "dioxus", "flutter"):
-            print(
-                f"Note: detected view project. Use -t omniview to run in browser, "
-                f"or -t python/js to run compiled output.",
-                file=sys.stderr,
-            )
-            print(f"  omnic run {filepath} -t omniview", file=sys.stderr)
-            sys.exit(1)
+            target = "omniview"
 
     from omnilang.api import compile_omni_multi
     result = compile_omni_multi({filepath: source}, target=target)
@@ -330,15 +324,14 @@ def cmd_run(args):
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # OmniView: open in browser
+    # OmniView: assemble standalone HTML and open in browser
     if target == "omniview":
-        if "index.html" in result.files:
-            index_path = os.path.join(output_dir, "index.html")
-        else:
-            body = result.files.get("body.html", "")
-            js = result.files.get("index.js", "")
-            css = result.files.get("index.css", "")
-            index_path = _write_standalone_omniview(output_dir, body, js, css)
+        # Codegen produces body fragment + JS + CSS as separate files.
+        # Assemble them into a single self-contained index.html.
+        body = result.files.get("body.html", "") or result.files.get("index.html", "")
+        js = result.files.get("index.js", "")
+        css = result.files.get("index.css", "")
+        index_path = _write_standalone_omniview(output_dir, body, js, css)
 
         import webbrowser
         webbrowser.open(f"file://{os.path.abspath(index_path)}")
