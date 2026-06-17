@@ -2,6 +2,7 @@
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
 pub mod logic;
+pub mod lower_logic;
 pub use logic::*;
 
 use std::collections::HashMap;
@@ -323,6 +324,12 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
     for (module_name, module) in &program.modules {
         let mut components = HashMap::new();
         let mut stores = HashMap::new();
+        let mut functions = HashMap::new();
+        let mut structs = HashMap::new();
+        let mut enums = HashMap::new();
+        let mut type_aliases = HashMap::new();
+        let mut imports: Vec<ImportIR> = Vec::new();
+        let mut exports: Vec<ExportIR> = Vec::new();
 
         for comp in &module.components {
             let ir = lower_component(comp);
@@ -334,17 +341,45 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
             stores.insert(store.name.clone(), ir);
         }
 
+        for func in &module.functions {
+            let ir = lower_logic::lower_function(func);
+            functions.insert(func.name.clone(), ir);
+        }
+
+        for s in &module.structs {
+            let ir = lower_logic::lower_struct(s);
+            structs.insert(s.name.clone(), ir);
+        }
+
+        for tu in &module.tagged_unions {
+            let ir = lower_logic::lower_enum(tu);
+            enums.insert(tu.name.clone(), ir);
+        }
+
+        for ta in &module.type_aliases {
+            let ir = lower_logic::lower_type_alias(ta);
+            type_aliases.insert(ta.name.clone(), ir);
+        }
+
+        for imp in &module.imports {
+            imports.push(lower_logic::lower_import(imp));
+        }
+
+        for exp in &module.exports {
+            exports.push(lower_logic::lower_export(exp));
+        }
+
         let module_ir = ModuleIR {
             name: module_name.clone(),
-            functions: HashMap::new(),
-            structs: HashMap::new(),
-            enums: HashMap::new(),
-            type_aliases: HashMap::new(),
+            functions,
+            structs,
+            enums,
+            type_aliases,
             components,
             stores,
             themes: Vec::new(),
-            imports: Vec::new(),
-            exports: Vec::new(),
+            imports,
+            exports,
         };
 
         modules.insert(module_name.clone(), module_ir);
@@ -894,7 +929,7 @@ fn mutation_for_method(
     }
 }
 
-fn lower_block(block: &Block) -> BlockIR {
+pub(crate) fn lower_block(block: &Block) -> BlockIR {
     let mut statements: Vec<StatementIR> = block
         .stmts
         .iter()
@@ -920,7 +955,7 @@ fn lower_block(block: &Block) -> BlockIR {
     }
 }
 
-fn lower_expr(expr: &Expr) -> ExprIR {
+pub(crate) fn lower_expr(expr: &Expr) -> ExprIR {
     match expr {
         Expr::Literal(lit, _) => {
             let value = match lit {
@@ -1076,7 +1111,7 @@ fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
     }
 }
 
-fn lower_type(ty: &TypeAnnotation) -> TypeIR {
+pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
     match ty {
         TypeAnnotation::Named {
             name, type_args, ..
