@@ -1,6 +1,9 @@
 //! Intent IR types and AST -> IR lowering.
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
+pub mod logic;
+pub use logic::*;
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -246,14 +249,6 @@ pub struct StyleRuleIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FunctionIR {
-    pub name: String,
-    pub params: Vec<ParamIR>,
-    pub return_type: Option<TypeIR>,
-    pub body: BlockIR,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParamIR {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -382,6 +377,7 @@ fn lower_component(comp: &ComponentDef) -> ComponentIR {
         .iter()
         .map(|f| FunctionIR {
             name: f.name.clone(),
+            visibility: "private".to_string(),
             params: f
                 .params
                 .iter()
