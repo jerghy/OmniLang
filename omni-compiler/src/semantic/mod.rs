@@ -11,16 +11,19 @@ use crate::lexer::Span;
 use crate::parser::ast::*;
 use symbols::*;
 
-/// Result of semantic analysis.
+/// Result of semantic analysis — always returned (diagnostics may contain errors/warnings).
 #[derive(Debug)]
 pub struct SemanticResult {
     pub symbols: SymbolTable,
     pub dependencies: HashMap<String, Vec<String>>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Run all semantic analysis passes on the parsed program.
-pub fn analyze(program: &Program) -> Result<SemanticResult, Vec<Diagnostic>> {
-    let analyzer = SemanticAnalyzer::new();
+/// Always returns a `SemanticResult` (never early-exits) — diagnostics are accumulated
+/// in the result for downstream processing.
+pub fn analyze(program: &Program) -> SemanticResult {
+    let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(program)
 }
 
@@ -45,41 +48,39 @@ impl SemanticAnalyzer {
         }
     }
 
-    pub fn analyze(mut self, program: &Program) -> Result<SemanticResult, Vec<Diagnostic>> {
-        // Pass 1: Collect symbols
-        self.collect_symbols(program);
-
-        // Pass 2: Resolve references (placeholder for now)
-        self.resolve_references(program);
-
-        // Pass 3: Type checking (placeholder)
-        self.type_check(program);
-
-        // Pass 4: Collect dependencies (placeholder)
-        self.collect_dependencies(program);
-
-        // Pass 5: Validate constraints
-        self.validate_constraints(program);
-
-        if self
-            .diagnostics
-            .iter()
-            .any(|d| matches!(d.severity, crate::error::Severity::Error))
-        {
-            return Err(self.diagnostics);
+    pub fn analyze(&mut self, program: &Program) -> SemanticResult {
+        // Pass 1: Collect symbols from all modules
+        for (_filepath, module) in &program.modules {
+            self.collect_module_symbols(module);
         }
 
-        Ok(SemanticResult {
-            symbols: self.symbols,
-            dependencies: self.dependencies,
-        })
+        // Pass 2: Resolve types per module
+        for (_filepath, module) in &program.modules {
+            self.resolve_module_types(module);
+        }
+
+        // Pass 3: Collect dependencies per module
+        for (_filepath, module) in &program.modules {
+            self.collect_module_dependencies(module);
+        }
+
+        // Pass 4: Validate per module
+        for (_filepath, module) in &program.modules {
+            self.validate_module(module);
+        }
+
+        // Always return what we have — diagnostics accumulated in self.diagnostics
+        SemanticResult {
+            symbols: std::mem::take(&mut self.symbols),
+            dependencies: std::mem::take(&mut self.dependencies),
+            diagnostics: std::mem::take(&mut self.diagnostics),
+        }
     }
 
     // ── Pass 1: Collect symbols ────────────────────────
 
-    fn collect_symbols(&mut self, program: &Program) {
-        for module in program.modules.values() {
-            for comp in &module.components {
+    fn collect_module_symbols(&mut self, module: &Module) {
+        for comp in &module.components {
                 self.symbols.push_scope(&format!("component:{}", comp.name));
 
                 for prop in &comp.props {
@@ -208,7 +209,6 @@ impl SemanticAnalyzer {
                     declared_at: s.span.start,
                 });
             }
-        }
     }
 
     fn collect_fn_symbols(&mut self, f: &FunctionDef) {
@@ -303,11 +303,10 @@ impl SemanticAnalyzer {
 
     // ── Pass 2: Resolve references ─────────────────────
 
-    fn resolve_references(&mut self, program: &Program) {
+    fn resolve_module_types(&mut self, module: &Module) {
         // Walk all expressions and check VarRef names resolve.
         // Push the same scope hierarchy as collect_symbols so resolution works.
-        for module in program.modules.values() {
-            for comp in &module.components {
+        for comp in &module.components {
                 // Find the component scope by name
                 let comp_scope_name = format!("component:{}", comp.name);
                 if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
@@ -344,7 +343,6 @@ impl SemanticAnalyzer {
                 self.resolve_block_refs(&f.body);
                 self.symbols.current_scope = 0;
             }
-        }
     }
 
     /// Find a scope by name (linear scan — sufficient for our scale).
@@ -466,29 +464,21 @@ impl SemanticAnalyzer {
         }
     }
 
-    // ── Pass 3: Type checking ──────────────────────────
+    // ── Pass 3 (renumbered): Collect dependencies ──────
 
-    fn type_check(&mut self, _program: &Program) {
-        // TODO: Full type inference in a future iteration
-    }
-
-    // ── Pass 4: Collect dependencies ───────────────────
-
-    fn collect_dependencies(&mut self, program: &Program) {
-        for module in program.modules.values() {
-            for comp in &module.components {
-                let mut deps = Vec::new();
-                for c in &comp.computeds {
-                    deps.push(c.name.clone());
-                }
-                self.dependencies.insert(comp.name.clone(), deps);
+    fn collect_module_dependencies(&mut self, module: &Module) {
+        for comp in &module.components {
+            let mut deps = Vec::new();
+            for c in &comp.computeds {
+                deps.push(c.name.clone());
             }
+            self.dependencies.insert(comp.name.clone(), deps);
         }
     }
 
-    // ── Pass 5: Validate constraints ───────────────────
+    // ── Pass 4: Validate ───────────────────────────────
 
-    fn validate_constraints(&mut self, _program: &Program) {
+    fn validate_module(&mut self, _module: &Module) {
         // TODO: bind: on signals only, @for key check, break/continue in loops
     }
 }

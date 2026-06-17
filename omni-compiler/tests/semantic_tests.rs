@@ -15,12 +15,10 @@ component App {
     let tokens = tokenize(source);
     let program = parse(&tokens).unwrap();
     let result = analyze(&program);
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
     assert!(
-        errors.iter().any(|d| d.message.contains("Undeclared")),
+        result.diagnostics.iter().any(|d| d.message.contains("Undeclared")),
         "Expected undeclared variable error, got: {:?}",
-        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+        result.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 
@@ -66,5 +64,5 @@ component Counter {
     let program = parse(&tokens).unwrap();
     let result = analyze(&program);
     // Should not crash — symbol collection must complete
-    assert!(result.is_ok() || result.is_err());
+    let _ = result;
 }

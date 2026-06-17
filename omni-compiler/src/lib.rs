@@ -63,18 +63,11 @@ pub fn compile(source: &str) -> CompileResult {
         }
     };
 
-    // 3. Semantic analysis — continue even with diagnostics (IR is still useful)
-    let semantics = match semantic::analyze(&program) {
-        Ok(s) => s,
-        Err(diags) => {
-            errors.extend(diags);
-            // Still lower to IR — semantic issues shouldn't block codegen
-            semantic::SemanticResult {
-                symbols: semantic::symbols::SymbolTable::new(),
-                dependencies: std::collections::HashMap::new(),
-            }
-        }
-    };
+    // 3. Semantic analysis — accumulate diagnostics, always return partial result
+    let semantics = semantic::analyze(&program);
+    errors.extend(semantics.diagnostics.iter().filter(|d| {
+        matches!(d.severity, crate::error::Severity::Error)
+    }).cloned());
 
     // 4. Lower to IR
     let ir_program = ir::lower(&program, &semantics);
@@ -137,19 +130,13 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
         }
     };
 
-    // 3. Semantic analysis
-    let semantics = match semantic::analyze(&program) {
-        Ok(s) => s,
-        Err(diags) => {
-            errors.extend(diags);
-            return OmniViewResult {
-                success: false,
-                files: None,
-                source_map: None,
-                errors,
-            };
+    // 3. Semantic analysis — accumulate diagnostics, always proceed to lowering
+    let semantics = semantic::analyze(&program);
+    for d in &semantics.diagnostics {
+        if matches!(d.severity, crate::error::Severity::Error) {
+            errors.push(d.clone());
         }
-    };
+    }
 
     // 4. Lower to IR
     let ir_program = ir::lower(&program, &semantics);
@@ -545,18 +532,10 @@ pub fn compile_multi_to_target(
     };
 
     for (path, program) in &programs {
-        let semantics = match semantic::analyze(program) {
-            Ok(s) => s,
-            Err(diags) => {
-                for d in &diags {
-                    errors.push(format!("{}: {}", path, d.message));
-                }
-                semantic::SemanticResult {
-                    symbols: semantic::symbols::SymbolTable::new(),
-                    dependencies: HashMap::new(),
-                }
-            }
-        };
+        let semantics = semantic::analyze(program);
+        for d in &semantics.diagnostics {
+            errors.push(format!("{}: {}", path, d.message));
+        }
 
         let ir_program = ir::lower(program, &semantics);
 
