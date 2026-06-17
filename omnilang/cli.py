@@ -300,10 +300,15 @@ def cmd_run(args):
     # Auto-detect target if not specified
     if target is None:
         target = _detect_target({filepath: source})
-        # For view projects, 'run' defaults to omniview (HTML+JS+CSS in browser),
-        # not a framework target like react/vue which can't be executed directly.
+        # View frameworks can't be run directly — prompt user to be explicit
         if target in ("react", "vue", "dioxus", "flutter"):
-            target = "omniview"
+            print(
+                f"Note: detected view project. Use -t omniview to run in browser, "
+                f"or -t python/js to run compiled output.",
+                file=sys.stderr,
+            )
+            print(f"  omnic run {filepath} -t omniview", file=sys.stderr)
+            sys.exit(1)
 
     from omnilang.api import compile_omni_multi
     result = compile_omni_multi({filepath: source}, target=target)
