@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
-use ast::Program;
+use ast::{Program, Visibility};
 
 /// Parse a token stream into an AST Program.
 pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
