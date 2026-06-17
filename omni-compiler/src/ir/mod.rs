@@ -288,9 +288,28 @@ pub struct StoreIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IRProgram {
     pub version: String,
-    pub components: HashMap<String, ComponentIR>,
-    pub stores: HashMap<String, StoreIR>,
+    pub modules: HashMap<String, ModuleIR>,
     pub source_map: HashMap<String, SourceMapEntry>,
+}
+
+impl IRProgram {
+    /// Collect all components across all modules.
+    pub fn all_components(&self) -> HashMap<&str, &ComponentIR> {
+        self.modules
+            .iter()
+            .flat_map(|(_, m)| m.components.iter())
+            .map(|(k, v)| (k.as_str(), v))
+            .collect()
+    }
+
+    /// Collect all stores across all modules.
+    pub fn all_stores(&self) -> HashMap<&str, &StoreIR> {
+        self.modules
+            .iter()
+            .flat_map(|(_, m)| m.stores.iter())
+            .map(|(k, v)| (k.as_str(), v))
+            .collect()
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -299,10 +318,12 @@ pub struct IRProgram {
 
 /// Lower AST -> IR.
 pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
-    let mut components = HashMap::new();
-    let mut stores = HashMap::new();
+    let mut modules = HashMap::new();
 
-    for module in program.modules.values() {
+    for (module_name, module) in &program.modules {
+        let mut components = HashMap::new();
+        let mut stores = HashMap::new();
+
         for comp in &module.components {
             let ir = lower_component(comp);
             components.insert(comp.name.clone(), ir);
@@ -312,12 +333,26 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
             let ir = lower_store(store);
             stores.insert(store.name.clone(), ir);
         }
+
+        let module_ir = ModuleIR {
+            name: module_name.clone(),
+            functions: HashMap::new(),
+            structs: HashMap::new(),
+            enums: HashMap::new(),
+            type_aliases: HashMap::new(),
+            components,
+            stores,
+            themes: Vec::new(),
+            imports: Vec::new(),
+            exports: Vec::new(),
+        };
+
+        modules.insert(module_name.clone(), module_ir);
     }
 
     IRProgram {
         version: "1.0".to_string(),
-        components,
-        stores,
+        modules,
         source_map: HashMap::new(),
     }
 }

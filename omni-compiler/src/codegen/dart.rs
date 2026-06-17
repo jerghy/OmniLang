@@ -21,13 +21,13 @@ impl Codegen for DartCodegen {
             w.emit("");
 
             // Generate stores as standalone classes
-            for (store_name, store) in &ir.stores {
+            for (store_name, store) in ir.all_stores() {
                 generate_store(&mut w, store_name, store);
                 w.emit("");
             }
 
             // Generate components as classes
-            for (comp_name, comp) in &ir.components {
+            for (comp_name, comp) in ir.all_components() {
                 generate_component(&mut w, comp_name, comp);
                 w.emit("");
             }
@@ -643,6 +643,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doSomething".into(),
+            visibility: "public".into(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -660,6 +661,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "getValue".into(),
+            visibility: "public".into(),
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "i32".into(),
@@ -683,6 +685,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doThing".into(),
+            visibility: "public".into(),
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "void".into(),
@@ -707,6 +710,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "public".into(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -776,6 +780,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
+                visibility: "public".into(),
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -1024,32 +1029,40 @@ mod tests {
         let codegen = DartCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: None,
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "public".into(),
+                                params: vec![],
+                                return_type: None,
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1067,28 +1080,35 @@ mod tests {
         let codegen = DartCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([(
-                "AppStore".into(),
-                StoreIR {
-                    name: "AppStore".into(),
-                    signals: HashMap::from([
-                        (
-                            "count".into(),
-                            TypeIR {
-                                kind: "i32".into(),
-                                type_args: vec![],
-                                is_nullable: false,
-                                needs_clone: false,
-                                needs_partial_eq: false,
-                            },
-                        ),
-                    ]),
-                    signal_defaults: HashMap::from([
-                        ("count".into(), serde_json::json!(0)),
-                    ]),
-                    getters: HashMap::new(),
-                    actions: vec![],
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([(
+                        "AppStore".into(),
+                        StoreIR {
+                            name: "AppStore".into(),
+                            signals: HashMap::from([
+                                (
+                                    "count".into(),
+                                    TypeIR {
+                                        kind: "i32".into(),
+                                        type_args: vec![],
+                                        is_nullable: false,
+                                        needs_clone: false,
+                                        needs_partial_eq: false,
+                                    },
+                                ),
+                            ]),
+                            signal_defaults: HashMap::from([
+                                ("count".into(), serde_json::json!(0)),
+                            ]),
+                            getters: HashMap::new(),
+                            actions: vec![],
+                        },
+                    )]),
+                    ..Default::default()
                 },
             )]),
             source_map: HashMap::new(),

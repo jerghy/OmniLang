@@ -45,7 +45,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
     gen.emit_signal_runtime();
 
     // Generate each component (signals, fns, accumulate views)
-    for (comp_name, comp) in &ir.components {
+    for (comp_name, comp) in ir.all_components() {
         gen.generate_component(comp_name, comp);
     }
 

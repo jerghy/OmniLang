@@ -31,13 +31,13 @@ impl Codegen for JavaScriptCodegen {
             w.emit("");
 
             // Generate stores as standalone classes
-            for (store_name, store) in &ir.stores {
+            for (store_name, store) in ir.all_stores() {
                 generate_store(&mut w, store_name, store, self.ts_mode);
                 w.emit("");
             }
 
             // Generate components as classes
-            for (comp_name, comp) in &ir.components {
+            for (comp_name, comp) in ir.all_components() {
                 generate_component(&mut w, comp_name, comp, self.ts_mode);
                 w.emit("");
             }
@@ -658,6 +658,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doThing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -675,6 +676,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "doThing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "void".into(),
@@ -698,6 +700,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "private".to_string(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -732,6 +735,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
+            visibility: "private".to_string(),
             params: vec![
                 ParamIR {
                     name: "name".into(),
@@ -817,6 +821,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
+                visibility: "private".to_string(),
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -1066,32 +1071,40 @@ mod tests {
         let codegen = JavaScriptCodegen::new(false);
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: None,
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "private".to_string(),
+                                params: vec![],
+                                return_type: None,
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1109,38 +1122,46 @@ mod tests {
         let codegen = JavaScriptCodegen::new(true);
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: Some(TypeIR {
-                            kind: "void".into(),
-                            type_args: vec![],
-                            is_nullable: false,
-                            needs_clone: false,
-                            needs_partial_eq: false,
-                        }),
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([(
+                        "App".into(),
+                        ComponentIR {
+                            name: "App".into(),
+                            generic_params: vec![],
+                            props: HashMap::new(),
+                            states: vec![],
+                            computeds: vec![],
+                            effects: vec![],
+                            lifecycles: vec![],
+                            fns: vec![FunctionIR {
+                                name: "run".into(),
+                                visibility: "private".to_string(),
+                                params: vec![],
+                                return_type: Some(TypeIR {
+                                    kind: "void".into(),
+                                    type_args: vec![],
+                                    is_nullable: false,
+                                    needs_clone: false,
+                                    needs_partial_eq: false,
+                                }),
+                                body: BlockIR {
+                                    statements: vec![],
+                                    execution_mode: "client-only".into(),
+                                },
+                            }],
+                            store_refs: vec![],
+                            refs: vec![],
+                            view: None,
+                            styles: vec![],
                         },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+                    )]),
+                    stores: HashMap::new(),
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);

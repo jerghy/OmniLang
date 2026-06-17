@@ -540,8 +540,7 @@ pub fn compile_multi_to_target(
     // Phase 3: Per-file semantic analysis + IR lowering → merged IR
     let mut merged_ir = ir::IRProgram {
         version: "1.0".to_string(),
-        components: HashMap::new(),
-        stores: HashMap::new(),
+        modules: HashMap::new(),
         source_map: HashMap::new(),
     };
 
@@ -561,13 +560,9 @@ pub fn compile_multi_to_target(
 
         let ir_program = ir::lower(program, &semantics);
 
-        // Merge components
-        for (name, comp) in ir_program.components {
-            merged_ir.components.entry(name).or_insert(comp);
-        }
-        // Merge stores
-        for (name, store) in ir_program.stores {
-            merged_ir.stores.entry(name).or_insert(store);
+        // Merge modules
+        for (mod_name, mod_ir) in ir_program.modules {
+            merged_ir.modules.entry(mod_name).or_insert(mod_ir);
         }
         // Merge source maps
         for (key, entry) in ir_program.source_map {

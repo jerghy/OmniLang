@@ -15,7 +15,7 @@ impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
 
-        for (name, comp) in &ir.components {
+        for (name, comp) in ir.all_components() {
             // .tsx
             let tsx = self.gen_component_tsx(name, comp, ir);
             files.push(CompiledFile {
@@ -31,7 +31,7 @@ impl Codegen for ReactCodegen {
             });
         }
 
-        for (name, store) in &ir.stores {
+        for (name, store) in ir.all_stores() {
             let hook = self.gen_store_hook(name, store);
             files.push(CompiledFile {
                 path: format!("use{}.ts", name),
@@ -69,7 +69,7 @@ impl ReactCodegen {
         // Store hook imports
         let mut store_hook_imports = Vec::new();
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 store_hook_imports.push(format!(
                     "import {{ {} }} from './use{}';",
@@ -100,7 +100,7 @@ impl ReactCodegen {
 
         // Store hooks
         for store_ref in &comp.store_refs {
-            if ir.stores.contains_key(store_ref) {
+            if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
                 w.emit(&format!("const {} = {}();", store_ref, hook_name));
             }
@@ -808,6 +808,7 @@ fn to_react_event(event_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::ModuleIR;
 
     // ── Helper tests ─────────────────────────────────────────
 
@@ -1114,32 +1115,46 @@ mod tests {
 
     // ── gen_component_tsx tests ──────────────────────────────
 
+    /// Build IRProgram with a single module containing the given components.
+    fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
+        IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components,
+                    ..Default::default()
+                },
+            )]),
+            source_map: HashMap::new(),
+        }
+    }
+
     #[test]
     fn test_tsx_empty_component() {
         let codegen = ReactCodegen;
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
-                },
-            )]),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-        let tsx = codegen.gen_component_tsx("App", &ir.components.get("App").unwrap(), &ir);
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
+        let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
         assert!(tsx.contains("export function App() {"));
         assert!(tsx.contains("import styles from './App.module.css';"));
         assert!(tsx.contains("import React, { useState, useEffect, useMemo } from 'react';"));
@@ -1148,12 +1163,6 @@ mod tests {
     #[test]
     fn test_tsx_component_with_state() {
         let codegen = ReactCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let state = StateIntent {
             name: "count".into(),
             r#type: TypeIR {
@@ -1171,22 +1180,26 @@ mod tests {
             accessor_style: "direct".into(),
             is_copy: false,
         };
-        let comp = ComponentIR {
-            name: "Counter".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![state],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Counter".into(), comp);
-        let comp_ref = ir.components.get("Counter").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Counter".into(),
+            ComponentIR {
+                name: "Counter".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![state],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Counter").unwrap();
         let tsx = codegen.gen_component_tsx("Counter", comp_ref, &ir);
         assert!(tsx.contains("export function Counter() {"));
         assert!(tsx.contains("const [count, setCount] = useState(0);"));
@@ -1195,12 +1208,6 @@ mod tests {
     #[test]
     fn test_tsx_component_with_props() {
         let codegen = ReactCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let mut props = HashMap::new();
         props.insert(
             "name".into(),
@@ -1222,27 +1229,30 @@ mod tests {
                 needs_partial_eq: false,
             },
         );
-        let comp = ComponentIR {
-            name: "Greeting".into(),
-            generic_params: vec![],
-            props,
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Greeting".into(), comp);
-        let comp_ref = ir.components.get("Greeting").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Greeting".into(),
+            ComponentIR {
+                name: "Greeting".into(),
+                generic_params: vec![],
+                props,
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Greeting").unwrap();
         let tsx = codegen.gen_component_tsx("Greeting", comp_ref, &ir);
         assert!(tsx.contains("interface GreetingProps {"));
         assert!(tsx.contains("name: string;"));
         assert!(tsx.contains("age: number;"));
-        // Props from HashMap may appear in any order in destructuring
         assert!(tsx.contains("export function Greeting("));
         assert!(tsx.contains("}: GreetingProps) {"));
     }
@@ -1250,12 +1260,6 @@ mod tests {
     #[test]
     fn test_tsx_component_with_effect() {
         let codegen = ReactCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let effect = EffectIntent {
             deps: vec!["count".into()],
             body: BlockIR {
@@ -1267,22 +1271,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "Watcher".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![effect],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("Watcher".into(), comp);
-        let comp_ref = ir.components.get("Watcher").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "Watcher".into(),
+            ComponentIR {
+                name: "Watcher".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![effect],
+                lifecycles: vec![],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Watcher").unwrap();
         let tsx = codegen.gen_component_tsx("Watcher", comp_ref, &ir);
         assert!(tsx.contains("useEffect(() => {"));
         assert!(tsx.contains("}, [count]);"));
@@ -1291,12 +1299,6 @@ mod tests {
     #[test]
     fn test_tsx_component_with_lifecycle_mount() {
         let codegen = ReactCodegen;
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
         let lc = LifecycleIntent {
             kind: "mount".into(),
             body: BlockIR {
@@ -1304,22 +1306,26 @@ mod tests {
                 execution_mode: "client-only".into(),
             },
         };
-        let comp = ComponentIR {
-            name: "App".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![lc],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        ir.components.insert("App".into(), comp);
-        let comp_ref = ir.components.get("App").unwrap();
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![lc],
+                fns: vec![],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
+        let ir = make_ir(components);
+        let comp_ref = ir.modules.get("main").unwrap().components.get("App").unwrap();
         let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
         assert!(tsx.contains("useEffect(() => {"));
         assert!(tsx.contains("}, []);"));
@@ -1433,8 +1439,15 @@ mod tests {
         let codegen = ReactCodegen;
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1478,8 +1491,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::new(),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::new(),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1516,8 +1536,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::new(),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::new(),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
@@ -1565,8 +1592,15 @@ mod tests {
         };
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([("App".into(), comp)]),
-            stores: HashMap::from([("AppStore".into(), store)]),
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components: HashMap::from([("App".into(), comp)]),
+                    stores: HashMap::from([("AppStore".into(), store)]),
+                    ..Default::default()
+                },
+            )]),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);

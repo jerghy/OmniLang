@@ -126,9 +126,9 @@ pub mod rules {
 
         fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
-            for (name, comp) in &ir.components {
+            for (name, comp) in ir.all_components() {
                 for store_ref in &comp.store_refs {
-                    if !ir.stores.contains_key(store_ref) {
+                    if !ir.all_stores().contains_key(store_ref.as_str()) {
                         diags.push(LintDiagnostic {
                             rule: self.name().into(),
                             severity: self.severity(),
@@ -203,7 +203,7 @@ pub mod rules {
 
         fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
-            for (comp_name, comp) in &ir.components {
+            for (comp_name, comp) in ir.all_components() {
                 for func in &comp.fns {
                     if let Some(ref ret_type) = func.return_type {
                         let kind = ret_type.kind.as_str();
@@ -259,15 +259,15 @@ pub mod rules {
 
             // Collect all stores referenced by any component
             let mut used_stores: HashSet<&str> = HashSet::new();
-            for comp in ir.components.values() {
+            for (_name, comp) in ir.all_components() {
                 for store_ref in &comp.store_refs {
                     used_stores.insert(store_ref.as_str());
                 }
             }
 
             // Warn about stores that are never used
-            for store_name in ir.stores.keys() {
-                if !used_stores.contains(store_name.as_str()) {
+            for store_name in ir.all_stores().keys() {
+                if !used_stores.contains(store_name) {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
@@ -689,21 +689,38 @@ pub mod rules {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::ModuleIR;
     use crate::parser::ast::{Block, Expr, FunctionDef, Module, NamedImport, Stmt, Visibility};
     use crate::lexer::Span;
+
+    /// Helper to construct an IRProgram with a single module for testing.
+    fn make_test_ir(
+        components: HashMap<String, crate::ir::ComponentIR>,
+        stores: HashMap<String, crate::ir::StoreIR>,
+    ) -> IRProgram {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "main".to_string(),
+            ModuleIR {
+                name: "main".to_string(),
+                components,
+                stores,
+                ..Default::default()
+            },
+        );
+        IRProgram {
+            version: "1.0".into(),
+            modules,
+            source_map: HashMap::new(),
+        }
+    }
 
     // ── UndefinedRef tests ───────────────────────────────
 
     #[test]
     fn test_undefined_ref_detects_missing_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -720,6 +737,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::UndefinedRef.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing store");
@@ -732,14 +750,8 @@ mod tests {
 
     #[test]
     fn test_undefined_ref_skips_existing_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "CounterStore".into(),
             crate::ir::StoreIR {
                 name: "CounterStore".into(),
@@ -749,8 +761,8 @@ mod tests {
                 actions: vec![],
             },
         );
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -767,6 +779,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, stores);
 
         let diags = rules::UndefinedRef.check_ir(&ir);
         assert_eq!(diags.len(), 0, "no diagnostics expected when store exists");
@@ -776,14 +789,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_detects_missing_return() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -795,6 +802,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "getCount".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "Int".into(),
@@ -818,6 +826,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing return");
@@ -830,14 +839,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_void_functions() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -849,6 +852,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "log".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "void".into(),
@@ -868,6 +872,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 0, "void functions should not trigger missing-return");
@@ -875,14 +880,8 @@ mod tests {
 
     #[test]
     fn test_missing_return_skips_when_return_present() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -894,6 +893,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![crate::ir::FunctionIR {
                     name: "getCount".into(),
+                    visibility: "private".to_string(),
                     params: vec![],
                     return_type: Some(crate::ir::TypeIR {
                         kind: "Int".into(),
@@ -917,6 +917,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, HashMap::new());
 
         let diags = rules::MissingReturn.check_ir(&ir);
         assert_eq!(diags.len(), 0, "functions with return should not trigger");
@@ -926,14 +927,8 @@ mod tests {
 
     #[test]
     fn test_dead_code_detects_unused_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "UnusedStore".into(),
             crate::ir::StoreIR {
                 name: "UnusedStore".into(),
@@ -943,6 +938,7 @@ mod tests {
                 actions: vec![],
             },
         );
+        let ir = make_test_ir(HashMap::new(), stores);
 
         let diags = rules::DeadCode.check_ir(&ir);
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused store");
@@ -955,14 +951,8 @@ mod tests {
 
     #[test]
     fn test_dead_code_skips_used_store() {
-        let mut ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
-
-        ir.stores.insert(
+        let mut stores = HashMap::new();
+        stores.insert(
             "UsedStore".into(),
             crate::ir::StoreIR {
                 name: "UsedStore".into(),
@@ -972,8 +962,8 @@ mod tests {
                 actions: vec![],
             },
         );
-
-        ir.components.insert(
+        let mut components = HashMap::new();
+        components.insert(
             "App".into(),
             crate::ir::ComponentIR {
                 name: "App".into(),
@@ -990,6 +980,7 @@ mod tests {
                 styles: vec![],
             },
         );
+        let ir = make_test_ir(components, stores);
 
         let diags = rules::DeadCode.check_ir(&ir);
         assert_eq!(diags.len(), 0, "used stores should not trigger dead-code");
@@ -1113,12 +1104,7 @@ mod tests {
     #[test]
     fn test_run_all_empty_programs() {
         let programs: HashMap<String, Program> = HashMap::new();
-        let ir = IRProgram {
-            version: "1.0".into(),
-            components: HashMap::new(),
-            stores: HashMap::new(),
-            source_map: HashMap::new(),
-        };
+        let ir = make_test_ir(HashMap::new(), HashMap::new());
 
         let diags = run_all(&programs, &ir);
         assert_eq!(diags.len(), 0, "no diagnostics expected for empty input");

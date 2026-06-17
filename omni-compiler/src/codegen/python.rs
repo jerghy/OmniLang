@@ -21,13 +21,13 @@ impl Codegen for PythonCodegen {
             w.emit("");
 
             // Generate stores (standalone classes, no framework)
-            for (store_name, store) in &ir.stores {
+            for (store_name, store) in ir.all_stores() {
                 generate_store(&mut w, store_name, store);
                 w.emit("");
             }
 
             // Generate components as Python classes
-            for (comp_name, comp) in &ir.components {
+            for (comp_name, comp) in ir.all_components() {
                 generate_component(&mut w, comp_name, comp);
                 w.emit("");
             }
@@ -411,6 +411,7 @@ pub fn py_type(kind: &str, type_args: &[TypeIR]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::ModuleIR;
 
     #[test]
     fn test_py_type_primitives() {
@@ -546,6 +547,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "do_thing".into(),
+            visibility: "private".to_string(),
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -572,6 +574,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
+                visibility: "private".to_string(),
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -722,34 +725,43 @@ mod tests {
     #[test]
     fn test_full_pipeline_through_trait() {
         let codegen = PythonCodegen;
+        let mut components = HashMap::new();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                generic_params: vec![],
+                props: HashMap::new(),
+                states: vec![],
+                computeds: vec![],
+                effects: vec![],
+                lifecycles: vec![],
+                fns: vec![FunctionIR {
+                    name: "run".into(),
+                    visibility: "private".to_string(),
+                    params: vec![],
+                    return_type: None,
+                    body: BlockIR {
+                        statements: vec![],
+                        execution_mode: "client-only".into(),
+                    },
+                }],
+                store_refs: vec![],
+                refs: vec![],
+                view: None,
+                styles: vec![],
+            },
+        );
         let ir = IRProgram {
             version: "0.1".into(),
-            components: HashMap::from([(
-                "App".into(),
-                ComponentIR {
-                    name: "App".into(),
-                    generic_params: vec![],
-                    props: HashMap::new(),
-                    states: vec![],
-                    computeds: vec![],
-                    effects: vec![],
-                    lifecycles: vec![],
-                    fns: vec![FunctionIR {
-                        name: "run".into(),
-                        params: vec![],
-                        return_type: None,
-                        body: BlockIR {
-                            statements: vec![],
-                            execution_mode: "client-only".into(),
-                        },
-                    }],
-                    store_refs: vec![],
-                    refs: vec![],
-                    view: None,
-                    styles: vec![],
+            modules: HashMap::from([(
+                "main".to_string(),
+                ModuleIR {
+                    name: "main".to_string(),
+                    components,
+                    ..Default::default()
                 },
             )]),
-            stores: HashMap::new(),
             source_map: HashMap::new(),
         };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
