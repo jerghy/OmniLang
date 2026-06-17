@@ -286,13 +286,17 @@ fn validate_file_consistency(
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
-    let has_omniview_marker = program.imports.iter().any(|imp| {
-        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+    let has_omniview_marker = program.modules.values().any(|module| {
+        module.imports.iter().any(|imp| {
+            matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+        })
     });
 
-    let has_ui_declarations = !program.components.is_empty()
-        || !program.stores.is_empty()
-        || !program.themes.is_empty();
+    let has_ui_declarations = program.modules.values().any(|module| {
+        !module.components.is_empty()
+            || !module.stores.is_empty()
+            || !module.themes.is_empty()
+    });
 
     if !has_omniview_marker && has_ui_declarations {
         errors.push(format!(
@@ -325,31 +329,33 @@ fn build_pub_symbols(
     for (path, program) in programs {
         let mut symbols: HashMap<String, CrossFileSymbolKind> = HashMap::new();
 
-        for func in &program.functions {
-            if func.visibility == Visibility::Public {
-                symbols.insert(func.name.clone(), CrossFileSymbolKind::Function);
+        for module in program.modules.values() {
+            for func in &module.functions {
+                if func.visibility == Visibility::Public {
+                    symbols.insert(func.name.clone(), CrossFileSymbolKind::Function);
+                }
             }
-        }
-        for strukt in &program.structs {
-            if strukt.visibility == Visibility::Public {
-                symbols.insert(strukt.name.clone(), CrossFileSymbolKind::Struct);
+            for strukt in &module.structs {
+                if strukt.visibility == Visibility::Public {
+                    symbols.insert(strukt.name.clone(), CrossFileSymbolKind::Struct);
+                }
             }
-        }
-        for ta in &program.type_aliases {
-            if ta.visibility == Visibility::Public {
-                symbols.insert(ta.name.clone(), CrossFileSymbolKind::TypeAlias);
+            for ta in &module.type_aliases {
+                if ta.visibility == Visibility::Public {
+                    symbols.insert(ta.name.clone(), CrossFileSymbolKind::TypeAlias);
+                }
             }
-        }
-        for comp in &program.components {
-            symbols.insert(comp.name.clone(), CrossFileSymbolKind::Component);
-        }
-        for store in &program.stores {
-            symbols.insert(store.name.clone(), CrossFileSymbolKind::Store);
-        }
-        // Re-exports
-        for exp in &program.exports {
-            for name in &exp.names {
-                symbols.insert(name.clone(), CrossFileSymbolKind::ReExport(exp.path.clone()));
+            for comp in &module.components {
+                symbols.insert(comp.name.clone(), CrossFileSymbolKind::Component);
+            }
+            for store in &module.stores {
+                symbols.insert(store.name.clone(), CrossFileSymbolKind::Store);
+            }
+            // Re-exports
+            for exp in &module.exports {
+                for name in &exp.names {
+                    symbols.insert(name.clone(), CrossFileSymbolKind::ReExport(exp.path.clone()));
+                }
             }
         }
 
@@ -367,49 +373,51 @@ fn validate_cross_file(
     let pub_symbols = build_pub_symbols(programs);
 
     for (file_path, program) in programs {
-        for import in &program.imports {
-            match import {
-                ImportStmt::Named(named) => {
-                    if let Some(target) = path_mapping.get(&named.path) {
-                        errors.extend(validate_named_import(
-                            file_path, &named.names, target, &pub_symbols,
-                        ));
-                    } else {
-                        errors.push(format!(
-                            "{}: could not resolve import path '{}'",
-                            file_path, named.path
-                        ));
-                    }
-                }
-                ImportStmt::Namespace(ns) => {
-                    if let Some(target) = path_mapping.get(&ns.path) {
-                        if !programs.contains_key(target.as_str()) {
+        for module in program.modules.values() {
+            for import in &module.imports {
+                match import {
+                    ImportStmt::Named(named) => {
+                        if let Some(target) = path_mapping.get(&named.path) {
+                            errors.extend(validate_named_import(
+                                file_path, &named.names, target, &pub_symbols,
+                            ));
+                        } else {
                             errors.push(format!(
-                                "{}: imported file '{}' (resolved to '{}') not found in compilation",
-                                file_path, ns.path, target
+                                "{}: could not resolve import path '{}'",
+                                file_path, named.path
                             ));
                         }
-                    } else {
-                        errors.push(format!(
-                            "{}: could not resolve import path '{}'",
-                            file_path, ns.path
-                        ));
                     }
-                }
-                ImportStmt::TypeOnly(ti) => {
-                    if let Some(target) = path_mapping.get(&ti.path) {
-                        errors.extend(validate_named_import(
-                            file_path, &ti.names, target, &pub_symbols,
-                        ));
-                    } else {
-                        errors.push(format!(
-                            "{}: could not resolve import path '{}'",
-                            file_path, ti.path
-                        ));
+                    ImportStmt::Namespace(ns) => {
+                        if let Some(target) = path_mapping.get(&ns.path) {
+                            if !programs.contains_key(target.as_str()) {
+                                errors.push(format!(
+                                    "{}: imported file '{}' (resolved to '{}') not found in compilation",
+                                    file_path, ns.path, target
+                                ));
+                            }
+                        } else {
+                            errors.push(format!(
+                                "{}: could not resolve import path '{}'",
+                                file_path, ns.path
+                            ));
+                        }
                     }
-                }
-                ImportStmt::Lib(_) => {
-                    // 'import omniview;' — validated in validate_file_consistency
+                    ImportStmt::TypeOnly(ti) => {
+                        if let Some(target) = path_mapping.get(&ti.path) {
+                            errors.extend(validate_named_import(
+                                file_path, &ti.names, target, &pub_symbols,
+                            ));
+                        } else {
+                            errors.push(format!(
+                                "{}: could not resolve import path '{}'",
+                                file_path, ti.path
+                            ));
+                        }
+                    }
+                    ImportStmt::Lib(_) => {
+                        // 'import omniview;' — validated in validate_file_consistency
+                    }
                 }
             }
         }
@@ -417,29 +425,33 @@ fn validate_cross_file(
 
     // Enforce logic→view boundary
     for (file_path, program) in programs {
-        let is_logic = !program.imports.iter().any(|imp| {
-            matches!(imp, ImportStmt::Lib(name) if name == "omniview")
-        });
-        if !is_logic {
-            continue;
-        }
-        for import in &program.imports {
-            let target_path: Option<&String> = match import {
-                ImportStmt::Named(n) => path_mapping.get(&n.path),
-                ImportStmt::Namespace(ns) => path_mapping.get(&ns.path),
-                ImportStmt::TypeOnly(t) => path_mapping.get(&t.path),
-                ImportStmt::Lib(_) => None,
-            };
-            if let Some(target) = target_path {
-                if let Some(target_prog) = programs.get(target.as_str()) {
-                    let target_is_view = target_prog.imports.iter().any(|imp| {
-                        matches!(imp, ImportStmt::Lib(name) if name == "omniview")
-                    });
-                    if target_is_view {
-                        errors.push(format!(
-                            "{}: logic file cannot import view file '{}'",
-                            file_path, target
-                        ));
+        for module in program.modules.values() {
+            let is_logic = !module.imports.iter().any(|imp| {
+                matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+            });
+            if !is_logic {
+                continue;
+            }
+            for import in &module.imports {
+                let target_path: Option<&String> = match import {
+                    ImportStmt::Named(n) => path_mapping.get(&n.path),
+                    ImportStmt::Namespace(ns) => path_mapping.get(&ns.path),
+                    ImportStmt::TypeOnly(t) => path_mapping.get(&t.path),
+                    ImportStmt::Lib(_) => None,
+                };
+                if let Some(target) = target_path {
+                    if let Some(target_prog) = programs.get(target.as_str()) {
+                        let target_is_view = target_prog.modules.values().any(|tm| {
+                            tm.imports.iter().any(|imp| {
+                                matches!(imp, ImportStmt::Lib(name) if name == "omniview")
+                            })
+                        });
+                        if target_is_view {
+                            errors.push(format!(
+                                "{}: logic file cannot import view file '{}'",
+                                file_path, target
+                            ));
+                        }
                     }
                 }
             }

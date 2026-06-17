@@ -78,134 +78,136 @@ impl SemanticAnalyzer {
     // ── Pass 1: Collect symbols ────────────────────────
 
     fn collect_symbols(&mut self, program: &Program) {
-        for comp in &program.components {
-            self.symbols.push_scope(&format!("component:{}", comp.name));
+        for module in program.modules.values() {
+            for comp in &module.components {
+                self.symbols.push_scope(&format!("component:{}", comp.name));
 
-            for prop in &comp.props {
-                self.symbols
-                    .declare(Symbol {
-                        name: prop.name.clone(),
-                        kind: SymbolKind::Prop,
-                        type_ann: Some(type_to_string(&prop.type_ann)),
-                        mutable: false,
-                        declared_at: prop.type_ann.span().start,
-                    })
-                    .ok();
+                for prop in &comp.props {
+                    self.symbols
+                        .declare(Symbol {
+                            name: prop.name.clone(),
+                            kind: SymbolKind::Prop,
+                            type_ann: Some(type_to_string(&prop.type_ann)),
+                            mutable: false,
+                            declared_at: prop.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for sig in &comp.signals {
+                    self.symbols
+                        .declare(Symbol {
+                            name: sig.name.clone(),
+                            kind: SymbolKind::Signal,
+                            type_ann: Some(type_to_string(&sig.type_ann)),
+                            mutable: true,
+                            declared_at: sig.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for c in &comp.computeds {
+                    self.symbols
+                        .declare(Symbol {
+                            name: c.name.clone(),
+                            kind: SymbolKind::Computed,
+                            type_ann: Some(type_to_string(&c.type_ann)),
+                            mutable: false,
+                            declared_at: c.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for ev in &comp.events {
+                    self.symbols
+                        .declare(Symbol {
+                            name: ev.name.clone(),
+                            kind: SymbolKind::Event,
+                            type_ann: Some(type_to_string(&ev.type_ann)),
+                            mutable: false,
+                            declared_at: ev.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for r in &comp.refs {
+                    self.symbols
+                        .declare(Symbol {
+                            name: r.name.clone(),
+                            kind: SymbolKind::Ref,
+                            type_ann: Some(type_to_string(&r.type_ann)),
+                            mutable: false,
+                            declared_at: r.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                // Functions and actions
+                for f in &comp.fns {
+                    self.collect_fn_symbols(f);
+                }
+                for a in &comp.actions {
+                    self.collect_action_symbols(a);
+                }
+
+                // Lifecycle hooks
+                for lc in &comp.lifecycles {
+                    self.collect_block_symbols(&lc.body);
+                }
+
+                self.symbols.pop_scope(); // component scope
             }
 
-            for sig in &comp.signals {
-                self.symbols
-                    .declare(Symbol {
-                        name: sig.name.clone(),
-                        kind: SymbolKind::Signal,
-                        type_ann: Some(type_to_string(&sig.type_ann)),
-                        mutable: true,
-                        declared_at: sig.type_ann.span().start,
-                    })
-                    .ok();
+            // Stores
+            for store in &module.stores {
+                self.symbols.push_scope(&format!("store:{}", store.name));
+
+                for sig in &store.signals {
+                    self.symbols
+                        .declare(Symbol {
+                            name: sig.name.clone(),
+                            kind: SymbolKind::Signal,
+                            type_ann: Some(type_to_string(&sig.type_ann)),
+                            mutable: true,
+                            declared_at: sig.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for g in &store.getters {
+                    self.symbols
+                        .declare(Symbol {
+                            name: g.name.clone(),
+                            kind: SymbolKind::Getter,
+                            type_ann: Some(type_to_string(&g.type_ann)),
+                            mutable: false,
+                            declared_at: g.type_ann.span().start,
+                        })
+                        .ok();
+                }
+
+                for a in &store.actions {
+                    self.collect_action_symbols(a);
+                }
+
+                self.symbols.pop_scope();
             }
 
-            for c in &comp.computeds {
-                self.symbols
-                    .declare(Symbol {
-                        name: c.name.clone(),
-                        kind: SymbolKind::Computed,
-                        type_ann: Some(type_to_string(&c.type_ann)),
-                        mutable: false,
-                        declared_at: c.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for ev in &comp.events {
-                self.symbols
-                    .declare(Symbol {
-                        name: ev.name.clone(),
-                        kind: SymbolKind::Event,
-                        type_ann: Some(type_to_string(&ev.type_ann)),
-                        mutable: false,
-                        declared_at: ev.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for r in &comp.refs {
-                self.symbols
-                    .declare(Symbol {
-                        name: r.name.clone(),
-                        kind: SymbolKind::Ref,
-                        type_ann: Some(type_to_string(&r.type_ann)),
-                        mutable: false,
-                        declared_at: r.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            // Functions and actions
-            for f in &comp.fns {
+            // Top-level functions
+            for f in &module.functions {
                 self.collect_fn_symbols(f);
             }
-            for a in &comp.actions {
-                self.collect_action_symbols(a);
+
+            // Structs
+            for s in &module.structs {
+                let _ = self.symbols.declare(Symbol {
+                    name: s.name.clone(),
+                    kind: SymbolKind::Unknown,
+                    type_ann: None,
+                    mutable: false,
+                    declared_at: s.span.start,
+                });
             }
-
-            // Lifecycle hooks
-            for lc in &comp.lifecycles {
-                self.collect_block_symbols(&lc.body);
-            }
-
-            self.symbols.pop_scope(); // component scope
-        }
-
-        // Stores
-        for store in &program.stores {
-            self.symbols.push_scope(&format!("store:{}", store.name));
-
-            for sig in &store.signals {
-                self.symbols
-                    .declare(Symbol {
-                        name: sig.name.clone(),
-                        kind: SymbolKind::Signal,
-                        type_ann: Some(type_to_string(&sig.type_ann)),
-                        mutable: true,
-                        declared_at: sig.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for g in &store.getters {
-                self.symbols
-                    .declare(Symbol {
-                        name: g.name.clone(),
-                        kind: SymbolKind::Getter,
-                        type_ann: Some(type_to_string(&g.type_ann)),
-                        mutable: false,
-                        declared_at: g.type_ann.span().start,
-                    })
-                    .ok();
-            }
-
-            for a in &store.actions {
-                self.collect_action_symbols(a);
-            }
-
-            self.symbols.pop_scope();
-        }
-
-        // Top-level functions
-        for f in &program.functions {
-            self.collect_fn_symbols(f);
-        }
-
-        // Structs
-        for s in &program.structs {
-            let _ = self.symbols.declare(Symbol {
-                name: s.name.clone(),
-                kind: SymbolKind::Unknown,
-                type_ann: None,
-                mutable: false,
-                declared_at: s.span.start,
-            });
         }
     }
 
@@ -304,42 +306,44 @@ impl SemanticAnalyzer {
     fn resolve_references(&mut self, program: &Program) {
         // Walk all expressions and check VarRef names resolve.
         // Push the same scope hierarchy as collect_symbols so resolution works.
-        for comp in &program.components {
-            // Find the component scope by name
-            let comp_scope_name = format!("component:{}", comp.name);
-            if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
-                self.symbols.current_scope = scope_idx;
-            }
+        for module in program.modules.values() {
+            for comp in &module.components {
+                // Find the component scope by name
+                let comp_scope_name = format!("component:{}", comp.name);
+                if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
+                    self.symbols.current_scope = scope_idx;
+                }
 
-            for f in &comp.fns {
+                for f in &comp.fns {
+                    let fn_scope_name = format!("fn:{}", f.name);
+                    if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
+                        self.symbols.current_scope = fn_idx;
+                    }
+                    self.resolve_block_refs(&f.body);
+                    self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
+                        .parent
+                        .unwrap_or(0);
+                }
+                for a in &comp.actions {
+                    let action_scope_name = format!("action:{}", a.name);
+                    if let Some(a_idx) = self.find_scope(&action_scope_name) {
+                        self.symbols.current_scope = a_idx;
+                    }
+                    self.resolve_block_refs(&a.body);
+                    if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
+                        self.symbols.current_scope = parent;
+                    }
+                }
+                self.symbols.current_scope = 0; // back to global
+            }
+            for f in &module.functions {
                 let fn_scope_name = format!("fn:{}", f.name);
                 if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
                     self.symbols.current_scope = fn_idx;
                 }
                 self.resolve_block_refs(&f.body);
-                self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
-                    .parent
-                    .unwrap_or(0);
+                self.symbols.current_scope = 0;
             }
-            for a in &comp.actions {
-                let action_scope_name = format!("action:{}", a.name);
-                if let Some(a_idx) = self.find_scope(&action_scope_name) {
-                    self.symbols.current_scope = a_idx;
-                }
-                self.resolve_block_refs(&a.body);
-                if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
-                    self.symbols.current_scope = parent;
-                }
-            }
-            self.symbols.current_scope = 0; // back to global
-        }
-        for f in &program.functions {
-            let fn_scope_name = format!("fn:{}", f.name);
-            if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
-                self.symbols.current_scope = fn_idx;
-            }
-            self.resolve_block_refs(&f.body);
-            self.symbols.current_scope = 0;
         }
     }
 
@@ -471,12 +475,14 @@ impl SemanticAnalyzer {
     // ── Pass 4: Collect dependencies ───────────────────
 
     fn collect_dependencies(&mut self, program: &Program) {
-        for comp in &program.components {
-            let mut deps = Vec::new();
-            for c in &comp.computeds {
-                deps.push(c.name.clone());
+        for module in program.modules.values() {
+            for comp in &module.components {
+                let mut deps = Vec::new();
+                for c in &comp.computeds {
+                    deps.push(c.name.clone());
+                }
+                self.dependencies.insert(comp.name.clone(), deps);
             }
-            self.dependencies.insert(comp.name.clone(), deps);
         }
     }
 

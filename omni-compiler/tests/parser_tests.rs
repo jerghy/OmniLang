@@ -1,6 +1,11 @@
 use omni_compiler::lexer::tokenize;
 use omni_compiler::parser::parse;
-use omni_compiler::parser::ast::{ImportStmt, Visibility};
+use omni_compiler::parser::ast::{ImportStmt, Module, Visibility};
+
+/// Helper: extract the single module from a parsed Program.
+fn single_module(program: omni_compiler::parser::ast::Program) -> Module {
+    program.modules.into_iter().next().unwrap().1
+}
 
 #[test]
 fn test_parse_empty_program() {
@@ -8,8 +13,9 @@ fn test_parse_empty_program() {
     let result = parse(&tokens);
     assert!(result.is_ok());
     let program = result.unwrap();
-    assert!(program.components.is_empty());
-    assert!(program.functions.is_empty());
+    let module = single_module(program);
+    assert!(module.components.is_empty());
+    assert!(module.functions.is_empty());
 }
 
 #[test]
@@ -18,8 +24,9 @@ fn test_parse_import() {
     let result = parse(&tokens);
     assert!(result.is_ok());
     let program = result.unwrap();
-    assert_eq!(program.imports.len(), 1);
-    match &program.imports[0] {
+    let module = single_module(program);
+    assert_eq!(module.imports.len(), 1);
+    match &module.imports[0] {
         ImportStmt::Named(n) => {
             assert_eq!(n.names, vec!["React"]);
             assert_eq!(n.path, "./react.omni");
@@ -40,9 +47,10 @@ struct Point {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.structs.len(), 1);
-    assert_eq!(program.structs[0].name, "Point");
-    assert_eq!(program.structs[0].fields.len(), 2);
+    let module = single_module(program);
+    assert_eq!(module.structs.len(), 1);
+    assert_eq!(module.structs[0].name, "Point");
+    assert_eq!(module.structs[0].fields.len(), 2);
 }
 
 #[test]
@@ -56,9 +64,10 @@ fn add(a: i32, b: i32) -> i32 {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.functions.len(), 1);
-    assert_eq!(program.functions[0].name, "add");
-    assert_eq!(program.functions[0].params.len(), 2);
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert_eq!(module.functions[0].name, "add");
+    assert_eq!(module.functions[0].params.len(), 2);
 }
 
 #[test]
@@ -97,8 +106,9 @@ component Counter {
     let result = parse(&tokens);
     match &result {
         Ok(program) => {
-            assert_eq!(program.components.len(), 1);
-            let comp = &program.components[0];
+            let module = &program.modules["input.omni"];
+            assert_eq!(module.components.len(), 1);
+            let comp = &module.components[0];
             assert_eq!(comp.name, "Counter");
             assert_eq!(comp.signals.len(), 1);
             assert_eq!(comp.signals[0].name, "count");
@@ -117,7 +127,8 @@ fn test_parse_namespace_import() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    match &program.imports[0] {
+    let module = single_module(program);
+    match &module.imports[0] {
         ImportStmt::Namespace(ns) => {
             assert_eq!(ns.path, "./lib/math.omni");
             assert_eq!(ns.alias, "math");
@@ -132,7 +143,8 @@ fn test_parse_type_import() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    match &program.imports[0] {
+    let module = single_module(program);
+    match &module.imports[0] {
         ImportStmt::TypeOnly(t) => {
             assert_eq!(t.names, vec!["User", "Order"]);
             assert_eq!(t.path, "./types.omni");
@@ -147,7 +159,8 @@ fn test_parse_lib_import() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    match &program.imports[0] {
+    let module = single_module(program);
+    match &module.imports[0] {
         ImportStmt::Lib(name) => assert_eq!(name, "omniview"),
         _ => panic!("expected Lib import"),
     }
@@ -159,9 +172,10 @@ fn test_parse_export_from() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.exports.len(), 1);
-    assert_eq!(program.exports[0].names, vec!["Button", "Card"]);
-    assert_eq!(program.exports[0].path, "./ui.omni");
+    let module = single_module(program);
+    assert_eq!(module.exports.len(), 1);
+    assert_eq!(module.exports[0].names, vec!["Button", "Card"]);
+    assert_eq!(module.exports[0].path, "./ui.omni");
 }
 
 #[test]
@@ -170,9 +184,10 @@ fn test_parse_pub_function() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.functions.len(), 1);
-    assert_eq!(program.functions[0].visibility, Visibility::Public);
-    assert_eq!(program.functions[0].name, "add");
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert_eq!(module.functions[0].visibility, Visibility::Public);
+    assert_eq!(module.functions[0].name, "add");
 }
 
 #[test]
@@ -181,7 +196,8 @@ fn test_parse_private_function() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.functions[0].visibility, Visibility::Private);
+    let module = single_module(program);
+    assert_eq!(module.functions[0].visibility, Visibility::Private);
 }
 
 #[test]
@@ -190,8 +206,9 @@ fn test_parse_pub_struct() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.structs.len(), 1);
-    assert_eq!(program.structs[0].visibility, Visibility::Public);
+    let module = single_module(program);
+    assert_eq!(module.structs.len(), 1);
+    assert_eq!(module.structs[0].visibility, Visibility::Public);
 }
 
 #[test]
@@ -200,9 +217,10 @@ fn test_parse_pub_type_alias() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.type_aliases.len(), 1);
-    assert_eq!(program.type_aliases[0].visibility, Visibility::Public);
-    assert_eq!(program.type_aliases[0].name, "ID");
+    let module = single_module(program);
+    assert_eq!(module.type_aliases.len(), 1);
+    assert_eq!(module.type_aliases[0].visibility, Visibility::Public);
+    assert_eq!(module.type_aliases[0].name, "ID");
 }
 
 #[test]
@@ -211,7 +229,8 @@ fn test_parse_private_type_alias() {
     let result = parse(&tokens);
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
-    assert_eq!(program.type_aliases.len(), 1);
-    assert_eq!(program.type_aliases[0].visibility, Visibility::Private);
-    assert_eq!(program.type_aliases[0].name, "Secret");
+    let module = single_module(program);
+    assert_eq!(module.type_aliases.len(), 1);
+    assert_eq!(module.type_aliases[0].visibility, Visibility::Private);
+    assert_eq!(module.type_aliases[0].name, "Secret");
 }

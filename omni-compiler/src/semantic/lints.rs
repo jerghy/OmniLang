@@ -312,22 +312,24 @@ pub mod rules {
         fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
 
-            // Collect all imported names
+            // Collect all imported names across all modules
             let mut imported: HashMap<&str, (&ImportStmt, &[String])> = HashMap::new();
-            for import in &program.imports {
-                match import {
-                    ImportStmt::Named(named) => {
-                        for name in &named.names {
-                            imported.insert(name.as_str(), (import, &named.names));
+            for module in program.modules.values() {
+                for import in &module.imports {
+                    match import {
+                        ImportStmt::Named(named) => {
+                            for name in &named.names {
+                                imported.insert(name.as_str(), (import, &named.names));
+                            }
                         }
-                    }
-                    ImportStmt::TypeOnly(ti) => {
-                        for name in &ti.names {
-                            imported.insert(name.as_str(), (import, &ti.names));
+                        ImportStmt::TypeOnly(ti) => {
+                            for name in &ti.names {
+                                imported.insert(name.as_str(), (import, &ti.names));
+                            }
                         }
+                        // Namespace imports and lib markers are not name-level
+                        ImportStmt::Namespace(_) | ImportStmt::Lib(_) => {}
                     }
-                    // Namespace imports and lib markers are not name-level
-                    ImportStmt::Namespace(_) | ImportStmt::Lib(_) => {}
                 }
             }
 
@@ -335,56 +337,58 @@ pub mod rules {
                 return diags;
             }
 
-            // Collect all name references in the program
+            // Collect all name references across all modules
             let mut used: HashSet<&str> = HashSet::new();
-            for func in &program.functions {
-                collect_used_names_in_block(&func.body, &mut used);
-            }
-            for comp in &program.components {
-                // Component name itself
-                used.insert(comp.name.as_str());
-                // Signal initializers, computed bodies, lifecycle bodies
-                for sig in &comp.signals {
-                    collect_used_names_in_expr(&sig.init, &mut used);
-                }
-                for c in &comp.computeds {
-                    collect_used_names_in_expr(&c.body, &mut used);
-                }
-                for lc in &comp.lifecycles {
-                    collect_used_names_in_block(&lc.body, &mut used);
-                }
-                for func in &comp.fns {
+            for module in program.modules.values() {
+                for func in &module.functions {
                     collect_used_names_in_block(&func.body, &mut used);
                 }
-                // Actions are also functions:
-                for action in &comp.actions {
-                    collect_used_names_in_block(&action.body, &mut used);
+                for comp in &module.components {
+                    // Component name itself
+                    used.insert(comp.name.as_str());
+                    // Signal initializers, computed bodies, lifecycle bodies
+                    for sig in &comp.signals {
+                        collect_used_names_in_expr(&sig.init, &mut used);
+                    }
+                    for c in &comp.computeds {
+                        collect_used_names_in_expr(&c.body, &mut used);
+                    }
+                    for lc in &comp.lifecycles {
+                        collect_used_names_in_block(&lc.body, &mut used);
+                    }
+                    for func in &comp.fns {
+                        collect_used_names_in_block(&func.body, &mut used);
+                    }
+                    // Actions are also functions:
+                    for action in &comp.actions {
+                        collect_used_names_in_block(&action.body, &mut used);
+                    }
+                    // View blocks reference component names
+                    if let Some(ref view) = comp.view {
+                        collect_used_names_in_view(view, &mut used);
+                    }
                 }
-                // View blocks reference component names
-                if let Some(ref view) = comp.view {
-                    collect_used_names_in_view(view, &mut used);
+                for store in &module.stores {
+                    used.insert(store.name.as_str());
+                    for sig in &store.signals {
+                        collect_used_names_in_expr(&sig.init, &mut used);
+                    }
+                    for getter in &store.getters {
+                        collect_used_names_in_expr(&getter.body, &mut used);
+                    }
+                    for action in &store.actions {
+                        collect_used_names_in_block(&action.body, &mut used);
+                    }
                 }
-            }
-            for store in &program.stores {
-                used.insert(store.name.as_str());
-                for sig in &store.signals {
-                    collect_used_names_in_expr(&sig.init, &mut used);
+                for s in &module.structs {
+                    used.insert(s.name.as_str());
                 }
-                for getter in &store.getters {
-                    collect_used_names_in_expr(&getter.body, &mut used);
+                for ta in &module.type_aliases {
+                    used.insert(ta.name.as_str());
                 }
-                for action in &store.actions {
-                    collect_used_names_in_block(&action.body, &mut used);
+                for tu in &module.tagged_unions {
+                    used.insert(tu.name.as_str());
                 }
-            }
-            for s in &program.structs {
-                used.insert(s.name.as_str());
-            }
-            for ta in &program.type_aliases {
-                used.insert(ta.name.as_str());
-            }
-            for tu in &program.tagged_unions {
-                used.insert(tu.name.as_str());
             }
 
             // Check imports
@@ -685,7 +689,7 @@ pub mod rules {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ast::{Block, Expr, FunctionDef, NamedImport, Stmt, Visibility};
+    use crate::parser::ast::{Block, Expr, FunctionDef, Module, NamedImport, Stmt, Visibility};
     use crate::lexer::Span;
 
     // ── UndefinedRef tests ───────────────────────────────
@@ -995,14 +999,16 @@ mod tests {
 
     #[test]
     fn test_unused_import_detects_unused_named_import() {
-        let program = Program {
+        let mut modules = HashMap::new();
+        modules.insert("test.omni".to_string(), Module {
+            name: "test".into(),
+            functions: vec![],
+            structs: vec![],
+            tagged_unions: vec![],
+            type_aliases: vec![],
             components: vec![],
             stores: vec![],
             themes: vec![],
-            functions: vec![],
-            structs: vec![],
-            type_aliases: vec![],
-            tagged_unions: vec![],
             imports: vec![ImportStmt::Named(
                 NamedImport {
                     names: vec!["unusedSymbol".into()],
@@ -1016,7 +1022,8 @@ mod tests {
                 },
             )],
             exports: vec![],
-        };
+        });
+        let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused import");
@@ -1029,10 +1036,9 @@ mod tests {
 
     #[test]
     fn test_unused_import_skips_used_import() {
-        let program = Program {
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
+        let mut modules = HashMap::new();
+        modules.insert("test.omni".to_string(), Module {
+            name: "test".into(),
             functions: vec![FunctionDef {
                 visibility: Visibility::Private,
                 name: "greet".into(),
@@ -1073,8 +1079,11 @@ mod tests {
                 },
             }],
             structs: vec![],
-            type_aliases: vec![],
             tagged_unions: vec![],
+            type_aliases: vec![],
+            components: vec![],
+            stores: vec![],
+            themes: vec![],
             imports: vec![ImportStmt::Named(
                 NamedImport {
                     names: vec!["usedSymbol".into()],
@@ -1088,7 +1097,8 @@ mod tests {
                 },
             )],
             exports: vec![],
-        };
+        });
+        let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");
         assert_eq!(

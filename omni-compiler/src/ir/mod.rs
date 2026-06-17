@@ -307,14 +307,16 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
     let mut components = HashMap::new();
     let mut stores = HashMap::new();
 
-    for comp in &program.components {
-        let ir = lower_component(comp);
-        components.insert(comp.name.clone(), ir);
-    }
+    for module in program.modules.values() {
+        for comp in &module.components {
+            let ir = lower_component(comp);
+            components.insert(comp.name.clone(), ir);
+        }
 
-    for store in &program.stores {
-        let ir = lower_store(store);
-        stores.insert(store.name.clone(), ir);
+        for store in &module.stores {
+            let ir = lower_store(store);
+            stores.insert(store.name.clone(), ir);
+        }
     }
 
     IRProgram {
