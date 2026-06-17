@@ -1,0 +1,17 @@
+import omniview;
+
+component TodoList {
+    signal items: Vec<string> = [];
+    signal newItem: string = "";
+
+    fn addItem() {
+        items = items + [newItem];
+        newItem = "";
+    }
+
+    view {
+        <div class: todo-list>
+            <h2>Todo List</h2>
+        </div>
+    }
+}
