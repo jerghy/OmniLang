@@ -4,12 +4,14 @@
 import omniview;
 import { http_get } from "std/http";
 import { json_parse } from "std/json";
+import { fetch_demo, error_message } from "../lib/api";
 
 component DataFetching {
     signal status: String = "idle";
     signal resultText: String = "";
     signal errorMsg: String = "";
     signal url: String = "https://jsonplaceholder.typicode.com/todos/1";
+    signal apiDemoText: String = "";
 
     // async action: 使用 await http_get + json_parse 加载数据
     action loadData() async {
@@ -23,6 +25,20 @@ component DataFetching {
         let parsed = json_parse(raw);
         resultText = parsed;
         status = "success";
+    }
+
+    // async action: 调用 api.omni 的 fetch_demo（演示跨文件 pub async fn 导入）
+    action loadViaApi() async {
+        status = "loading";
+        let result = await fetch_demo(url);
+        let msg = error_message(result);
+        if msg == "" {
+            status = "success";
+            resultText = "api.omni fetch_demo OK";
+        } else {
+            status = "error";
+            errorMsg = msg;
+        }
     }
 
     fn reset() {
@@ -39,6 +55,7 @@ component DataFetching {
             <div class: controls>
                 <input bind:value={url} class: url-input></input>
                 <button class: btn-load @onPress={loadData}>Load</button>
+                <button class: btn-api @onPress={loadViaApi}>API</button>
                 <button class: btn-reset @onPress={reset}>Reset</button>
             </div>
 
@@ -61,7 +78,7 @@ component DataFetching {
             }
             @else {
                 <div class: status-box idle-box>
-                    <p class: idle-text>Click "Load" to fetch data from API</p>
+                    <p class: idle-text>Click Load for direct fetch, API to use api.omni</p>
                 </div>
             }
         </div>
@@ -73,6 +90,7 @@ component DataFetching {
         .controls { display: flex; gap: 8px; margin-bottom: 12px; }
         .url-input { flex: 1; padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
         .btn-load { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .btn-api { padding: 8px 16px; background: #8b5cf6; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
         .btn-reset { padding: 8px 16px; background: #6b7280; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
         .status-box { padding: 12px; border-radius: 8px; background: #f9fafb; border: 1px solid #d4d4d8; }
         .loading-box { border-color: #6366f1; background: #f0f4ff; }
