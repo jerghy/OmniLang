@@ -6,6 +6,21 @@ use crate::parser::ast::*;
 use crate::parser::stmt::keyword_as_ident_name;
 use crate::parser::Parser;
 
+/// Convert a StyleValue to a StyleValuePart for multi-value collection.
+fn style_value_to_part(value: &StyleValue) -> StyleValuePart {
+    match value {
+        StyleValue::Number(n) => StyleValuePart::Number(*n),
+        StyleValue::Ident(s) => StyleValuePart::Ident(s.clone()),
+        StyleValue::HexColor(h) => StyleValuePart::HexColor(h.clone()),
+        StyleValue::Dimension(v, u) => StyleValuePart::Dimension(*v, u.clone()),
+        StyleValue::String(s) => StyleValuePart::Ident(s.clone()),
+        StyleValue::List(parts) => parts
+            .first()
+            .cloned()
+            .unwrap_or(StyleValuePart::Number(0.0)),
+    }
+}
+
 impl<'a> Parser<'a> {
     /// Parse a view block: view { <Element>* }
     pub fn parse_view_block(&mut self) -> Result<ViewBlock, ParseError> {
@@ -23,7 +38,8 @@ impl<'a> Parser<'a> {
 
     /// Parse a single view node: element, directive, or text.
     fn parse_view_node(&mut self) -> Result<ViewNode, ParseError> {
-        match self.peek_kind() {
+        self.enter_recursion()?;
+        let result = match self.peek_kind() {
             TokenKind::Lt => {
                 // HTML-like element: <Tag ...> or <Tag .../>
                 self.parse_element()
@@ -33,11 +49,19 @@ impl<'a> Parser<'a> {
             TokenKind::AtSlot => {
                 self.advance();
                 let name = if self.peek_kind() == TokenKind::LParen {
+                    // @slot(name) syntax
                     self.advance();
                     let n = self.expect_ident("expected slot name")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
                     Some(n)
+                } else if matches!(self.peek_kind(), TokenKind::Ident(_))
+                    || keyword_as_ident_name(&self.peek_kind()).is_some()
+                {
+                    // @slot name syntax (without parens)
+                    let n = self.expect_ident("expected slot name")?;
+                    Some(n)
                 } else {
+                    // @slot — default/unnamed slot
                     None
                 };
                 Ok(ViewNode::SlotDirective(name))
@@ -52,7 +76,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 if self.peek_kind() == TokenKind::RBrace {
                     self.advance(); // consume '}'
-                    Ok(ViewNode::Text(String::new()))  // Empty braces → empty text
+                    Ok(ViewNode::Text(String::new())) // Empty braces → empty text
                 } else {
                     let expr = self.parse_expr()?;
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -60,9 +84,7 @@ impl<'a> Parser<'a> {
                 }
             }
             // Component call syntax: Card(prop: value, ...) { children }
-            _ if self.is_component_call_start() => {
-                self.parse_component_call()
-            }
+            _ if self.is_component_call_start() => self.parse_component_call(),
             _ => {
                 let t = self.advance();
                 Err(ParseError {
@@ -70,21 +92,23 @@ impl<'a> Parser<'a> {
                     span: t.span,
                 })
             }
-        }
+        };
+        self.leave_recursion();
+        result
     }
 
     /// Check if current position starts a component call: Name(...
     fn is_component_call_start(&self) -> bool {
         let kind = self.peek_kind();
-        let is_ident_like = matches!(kind, TokenKind::Ident(_))
-            || keyword_as_ident_name(&kind).is_some();
+        let is_ident_like =
+            matches!(kind, TokenKind::Ident(_)) || keyword_as_ident_name(&kind).is_some();
         if !is_ident_like {
             return false;
         }
         // Check next token is '(' (props) or '{' (children only)
         self.tokens
             .get(self.pos + 1)
-            .map_or(false, |t| matches!(t.kind, TokenKind::LParen | TokenKind::LBrace))
+            .is_some_and(|t| matches!(t.kind, TokenKind::LParen | TokenKind::LBrace))
     }
 
     /// Parse component call syntax: Name(prop: value, ...) { children }
@@ -92,8 +116,7 @@ impl<'a> Parser<'a> {
         let t = self.advance();
         let tag = match &t.kind {
             TokenKind::Ident(name) => name.clone(),
-            other => keyword_as_ident_name(other)
-                .unwrap_or_else(|| "unknown".into()),
+            other => keyword_as_ident_name(other).unwrap_or_else(|| "unknown".into()),
         };
 
         let mut props = Vec::new();
@@ -144,9 +167,38 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse an HTML-like element: <Tag prop1="val" prop2={expr}> children </Tag>
+    /// Also handles HTML comments: <!-- ... -->
     fn parse_element(&mut self) -> Result<ViewNode, ParseError> {
         let start = self.peek_span();
         self.advance(); // '<'
+
+        // Handle HTML comment: <!-- ... -->
+        if self.peek_kind() == TokenKind::Not {
+            self.advance(); // '!'
+            self.expect_token(TokenKind::Minus, "expected '-' in HTML comment")?;
+            self.expect_token(TokenKind::Minus, "expected '-' in HTML comment")?;
+            // Skip until --> (tokenized as Minus + Arrow because lexer
+            // merges `->` into a single Arrow token)
+            loop {
+                if self.peek_kind() == TokenKind::Minus
+                    && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Arrow)
+                {
+                    self.advance(); // '-'
+                    self.advance(); // '->' (Arrow)
+                    break;
+                }
+                if self.peek_kind() == TokenKind::Eof {
+                    return Err(ParseError {
+                        message: "unterminated HTML comment, expected '-->'".into(),
+                        span: self.peek_span(),
+                    });
+                }
+                self.advance();
+            }
+            // HTML comment emits no content node
+            return Ok(ViewNode::Text(String::new()));
+        }
+
         let tag = self.expect_ident("expected element tag")?;
 
         // Parse props until '>' or '/>'
@@ -223,12 +275,21 @@ impl<'a> Parser<'a> {
                     TokenKind::StringLiteral(_) | TokenKind::LBrace => {
                         children.push(self.parse_view_node()?);
                     }
-                    // Collect consecutive text tokens (Idents, colons, etc.) into one Text node
+                    // Collect consecutive text tokens (Idents, colons, etc.) into one Text node.
+                    // Reconstruct whitespace between tokens by checking span byte gaps: if token
+                    // N+1 starts after token N ends, the lexer skipped whitespace — insert a space.
                     _ if is_text_token(&self.peek_kind()) => {
                         let mut text = String::new();
+                        let mut prev_end: Option<usize> = None;
                         while is_text_token(&self.peek_kind()) {
                             let t = self.advance();
+                            if let Some(prev) = prev_end {
+                                if t.span.start > prev {
+                                    text.push(' ');
+                                }
+                            }
                             text.push_str(&token_text(&t.kind));
+                            prev_end = Some(t.span.end);
                         }
                         if !text.is_empty() {
                             children.push(ViewNode::Text(text));
@@ -267,6 +328,18 @@ impl<'a> Parser<'a> {
             && matches!(&tokens[pos + 2].kind, TokenKind::Ident(t) if t == tag)
     }
 
+    /// Check if the token at `pos` looks like the start of an attribute
+    /// (identifier followed by '=' or ':'), rather than another class name.
+    fn peek_is_attr_start(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return false;
+        }
+        matches!(
+            self.tokens[self.pos + 1].kind,
+            TokenKind::Eq | TokenKind::Colon
+        )
+    }
+
     /// Parse a static prop: name="value" or name={expr}
     /// Also handles hyphenated names like margin-left, background-color
     fn parse_element_prop(&mut self) -> Result<ElementProp, ParseError> {
@@ -291,7 +364,11 @@ impl<'a> Parser<'a> {
                                 value: Expr::Literal(Literal::String(s.clone()), t.span.clone()),
                             })
                         } else {
-                            unreachable!()
+                            // Should not reach here — outer match confirmed StringLiteral
+                            Err(ParseError {
+                                message: "expected string literal after '='".into(),
+                                span: t.span.clone(),
+                            })
                         }
                     }
                     TokenKind::LBrace => {
@@ -313,9 +390,37 @@ impl<'a> Parser<'a> {
                 }
             }
             TokenKind::Colon => {
+                // ref: name — element reference (not a class name)
+                if name == "ref" {
+                    self.advance(); // consume ':'
+                    let ref_name = self.expect_ident("expected ref name")?;
+                    return Ok(ElementProp::Ref(ref_name));
+                }
                 // style: entries or class: name
                 self.advance();
                 match self.peek_kind() {
+                    TokenKind::LBrace if name == "class" => {
+                        // class: { key: expr, ... } — dynamic class map
+                        self.advance(); // consume '{'
+                        let mut entries = Vec::new();
+                        if self.peek_kind() != TokenKind::RBrace {
+                            let key = self.expect_ident("expected class key")?;
+                            self.expect_token(TokenKind::Colon, "expected ':'")?;
+                            let val = self.parse_expr()?;
+                            entries.push((key, val));
+                            while self.peek_kind() == TokenKind::Comma {
+                                self.advance();
+                                let key = self.expect_ident("expected class key")?;
+                                self.expect_token(TokenKind::Colon, "expected ':'")?;
+                                let val = self.parse_expr()?;
+                                entries.push((key, val));
+                            }
+                        }
+                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                        Ok(ElementProp::Class {
+                            value: ClassValue::ClassMap(entries),
+                        })
+                    }
                     TokenKind::LBrace => {
                         self.advance();
                         let mut entries = Vec::new();
@@ -337,17 +442,90 @@ impl<'a> Parser<'a> {
                     }
                     _ => {
                         let t = self.advance();
-                        let val = match &t.kind {
-                            TokenKind::StringLiteral(s) => ClassValue::StringLiteral(s.clone()),
-                            TokenKind::Ident(s) => ClassValue::StyleRef(s.clone()),
-                            _ => {
-                                return Err(ParseError {
-                                    message: format!("Expected class name, got {:?}", t.kind),
-                                    span: t.span,
-                                })
+                        let first = match &t.kind {
+                            TokenKind::StringLiteral(s) => s.clone(),
+                            TokenKind::Ident(s) => {
+                                let mut class_name = s.clone();
+                                // Handle hyphenated class names: theme-bar, btn-add, etc.
+                                while self.peek_kind() == TokenKind::Minus {
+                                    self.advance(); // consume '-'
+                                    let next = self.expect_ident(
+                                        "expected identifier after '-' in class name",
+                                    )?;
+                                    class_name = format!("{}-{}", class_name, next);
+                                }
+                                class_name
+                            }
+                            ref k => {
+                                // Accept keywords that can be used as identifiers (e.g., theme, view, style)
+                                if let Some(name) = keyword_as_ident_name(k) {
+                                    let mut class_name = name;
+                                    while self.peek_kind() == TokenKind::Minus {
+                                        self.advance(); // consume '-'
+                                        let next = self.expect_ident(
+                                            "expected identifier after '-' in class name",
+                                        )?;
+                                        class_name = format!("{}-{}", class_name, next);
+                                    }
+                                    class_name
+                                } else {
+                                    return Err(ParseError {
+                                        message: format!("Expected class name, got {:?}", k),
+                                        span: t.span,
+                                    });
+                                }
                             }
                         };
-                        Ok(ElementProp::Class { value: val })
+                        // Collect additional space-separated class names: class: btn btn-plus
+                        let mut classes = vec![first];
+                        loop {
+                            // Peek — is the next token another class name?
+                            let next_is_class = match self.peek_kind() {
+                                TokenKind::Ident(_) => true,
+                                ref kind => keyword_as_ident_name(kind).is_some(),
+                            };
+                            if !next_is_class {
+                                break;
+                            }
+                            // Check: is this actually the start of the next attribute?
+                            // An ident followed by '=' or ':' is an attribute, not a class name
+                            if self.peek_is_attr_start() {
+                                break;
+                            }
+                            let next_t = self.advance();
+                            match &next_t.kind {
+                                TokenKind::Ident(s) => {
+                                    let mut cn = s.clone();
+                                    while self.peek_kind() == TokenKind::Minus {
+                                        self.advance();
+                                        let n = self.expect_ident(
+                                            "expected identifier after '-' in class name",
+                                        )?;
+                                        cn = format!("{}-{}", cn, n);
+                                    }
+                                    classes.push(cn);
+                                }
+                                k => {
+                                    if let Some(name) = keyword_as_ident_name(k) {
+                                        let mut cn = name;
+                                        while self.peek_kind() == TokenKind::Minus {
+                                            self.advance();
+                                            let n = self.expect_ident(
+                                                "expected identifier after '-' in class name",
+                                            )?;
+                                            cn = format!("{}-{}", cn, n);
+                                        }
+                                        classes.push(cn);
+                                    } else {
+                                        // Shouldn't happen — we already checked
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Ok(ElementProp::Class {
+                            value: ClassValue::StyleRef(classes.join(" ")),
+                        })
                     }
                 }
             }
@@ -491,7 +669,10 @@ impl<'a> Parser<'a> {
                                 let body = Block {
                                     stmts: vec![Stmt::ExprStmt {
                                         expr: Expr::FuncCall {
-                                            func: Box::new(Expr::VarRef(name.clone(), t.span.clone())),
+                                            func: Box::new(Expr::VarRef(
+                                                name.clone(),
+                                                t.span.clone(),
+                                            )),
                                             args,
                                             span: t.span.clone(),
                                         },
@@ -646,15 +827,54 @@ impl<'a> Parser<'a> {
 
             let mut properties = Vec::new();
             while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-                let key = self.expect_ident("expected property name")?;
+                let mut key = self.expect_ident("expected property name")?;
+                // Handle hyphenated CSS property names: font-family, min-height, etc.
+                while self.peek_kind() == TokenKind::Minus {
+                    self.advance(); // consume '-'
+                    let next = self.expect_ident("expected identifier after '-'")?;
+                    key = format!("{}-{}", key, next);
+                }
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
 
-                let mut value = {
+                let value = {
                     let t = self.advance();
                     match &t.kind {
-                        TokenKind::IntLiteral(n) => StyleValue::Number(*n as f64),
-                        TokenKind::FloatLiteral(n) => StyleValue::Number(*n),
+                        TokenKind::IntLiteral(n) => {
+                            let val = *n as f64;
+                            try_consume_dimension(self, val)
+                        }
+                        TokenKind::FloatLiteral(n) => try_consume_dimension(self, *n),
                         TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                        TokenKind::Hash => {
+                            // Hex color: #fff, #333, #0f0f23, #e4e4e7
+                            let mut hex = String::from("#");
+                            let next_t = self.advance();
+                            match &next_t.kind {
+                                TokenKind::IntLiteral(n) => {
+                                    hex.push_str(&n.to_string());
+                                    // Check for `#0` + `f0f23` pattern
+                                    if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                        let ident_t = self.advance();
+                                        if let TokenKind::Ident(s) = &ident_t.kind {
+                                            hex.push_str(s);
+                                        }
+                                    }
+                                }
+                                TokenKind::Ident(s) => {
+                                    hex.push_str(s);
+                                }
+                                _ => {
+                                    return Err(ParseError {
+                                        message: format!(
+                                            "Unexpected token after '#' in color value: {:?}",
+                                            next_t.kind
+                                        ),
+                                        span: next_t.span,
+                                    })
+                                }
+                            }
+                            StyleValue::HexColor(hex)
+                        }
                         TokenKind::Ident(s) => {
                             let mut ident = s.clone();
                             // Handle hyphenated idents: space-between, nowrap, etc.
@@ -679,6 +899,81 @@ impl<'a> Parser<'a> {
                             })
                         }
                     }
+                };
+
+                // Collect additional value parts for multi-value properties
+                // like `margin: 0 auto` or `border: 1 solid #333`
+                let mut parts: Vec<StyleValuePart> = Vec::new();
+                parts.push(style_value_to_part(&value));
+                loop {
+                    // Check if next token could be another value part
+                    match self.peek_kind() {
+                        TokenKind::Semicolon | TokenKind::RBrace => break,
+                        ref k
+                            if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() =>
+                        {
+                            break
+                        }
+                        _ => {}
+                    }
+                    // Try to parse another value part
+                    let next_part = {
+                        let t = self.advance();
+                        match &t.kind {
+                            TokenKind::IntLiteral(n) => {
+                                let val = *n as f64;
+                                try_consume_dimension_part(self, val)
+                            }
+                            TokenKind::FloatLiteral(n) => try_consume_dimension_part(self, *n),
+                            TokenKind::Ident(s) => {
+                                let mut ident = s.clone();
+                                while self.peek_kind() == TokenKind::Minus {
+                                    self.advance();
+                                    let next =
+                                        self.expect_ident("expected identifier after '-'")?;
+                                    ident = format!("{}-{}", ident, next);
+                                }
+                                if let Some(unit) = try_parse_dimension(&ident) {
+                                    StyleValuePart::Dimension(unit.0, unit.1)
+                                } else if ident.starts_with('#') {
+                                    StyleValuePart::HexColor(ident)
+                                } else {
+                                    StyleValuePart::Ident(ident)
+                                }
+                            }
+                            TokenKind::Hash => {
+                                let mut hex = String::from("#");
+                                let next_t = self.advance();
+                                match &next_t.kind {
+                                    TokenKind::IntLiteral(n) => {
+                                        hex.push_str(&n.to_string());
+                                        if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                            let ident_t = self.advance();
+                                            if let TokenKind::Ident(s) = &ident_t.kind {
+                                                hex.push_str(s);
+                                            }
+                                        }
+                                    }
+                                    TokenKind::Ident(s) => {
+                                        hex.push_str(s);
+                                    }
+                                    _ => {
+                                        break;
+                                    }
+                                }
+                                StyleValuePart::HexColor(hex)
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    };
+                    parts.push(next_part);
+                }
+                let value = if parts.len() == 1 {
+                    value
+                } else {
+                    StyleValue::List(parts)
                 };
 
                 properties.push((key, value));
@@ -709,15 +1004,61 @@ impl<'a> Parser<'a> {
 
         let mut properties = Vec::new();
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-            let key = self.expect_ident("expected property name")?;
+            let mut key = self.expect_ident("expected property name")?;
+            // Handle hyphenated CSS property names: font-family, min-height, etc.
+            while self.peek_kind() == TokenKind::Minus {
+                self.advance(); // consume '-'
+                let next = self.expect_ident("expected identifier after '-'")?;
+                key = format!("{}-{}", key, next);
+            }
             self.expect_token(TokenKind::Colon, "expected ':'")?;
 
-            let mut value = {
+            let value = {
                 let t = self.advance();
                 match &t.kind {
-                    TokenKind::IntLiteral(n) => StyleValue::Number(*n as f64),
-                    TokenKind::FloatLiteral(n) => StyleValue::Number(*n),
+                    TokenKind::IntLiteral(n) => {
+                        let val = *n as f64;
+                        try_consume_dimension(self, val)
+                    }
+                    TokenKind::FloatLiteral(n) => try_consume_dimension(self, *n),
                     TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                    TokenKind::Hash => {
+                        let mut hex = String::from("#");
+                        let next_t = self.advance();
+                        match &next_t.kind {
+                            TokenKind::IntLiteral(n) => {
+                                hex.push_str(&n.to_string());
+                                if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                    let ident_t = self.advance();
+                                    if let TokenKind::Ident(s) = &ident_t.kind {
+                                        hex.push_str(s);
+                                    }
+                                }
+                            }
+                            TokenKind::FloatLiteral(n) => {
+                                hex.push_str(&n.to_string());
+                                if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                    let ident_t = self.advance();
+                                    if let TokenKind::Ident(s) = &ident_t.kind {
+                                        hex.push_str(s);
+                                    }
+                                }
+                            }
+                            TokenKind::Ident(s) => {
+                                hex.push_str(s);
+                            }
+                            _ => {
+                                return Err(ParseError {
+                                    message: format!(
+                                        "Unexpected token after '#' in color value: {:?}",
+                                        next_t.kind
+                                    ),
+                                    span: next_t.span,
+                                })
+                            }
+                        }
+                        StyleValue::HexColor(hex)
+                    }
                     TokenKind::Ident(s) => {
                         let mut ident = s.clone();
                         // Handle hyphenated idents: space-between, nowrap, etc.
@@ -777,12 +1118,63 @@ fn is_event_like(name: &str) -> bool {
         return false;
     }
     // Check third char is uppercase: onPress, onClick, onChange, etc.
-    name.chars().nth(2).map_or(false, |c| c.is_uppercase())
+    name.chars().nth(2).is_some_and(|c| c.is_uppercase())
+}
+
+/// If the next token is an Ident that forms a valid CSS dimension with `val`,
+/// consume it and return StyleValue::Dimension. Otherwise return StyleValue::Number.
+fn try_consume_dimension(parser: &mut Parser, val: f64) -> StyleValue {
+    // Handle ident-based units: px, rem, fr, etc.
+    if let TokenKind::Ident(ref next_ident) = parser.peek_kind() {
+        let combined = format!("{}{}", val, next_ident);
+        if try_parse_dimension(&combined).is_some() {
+            parser.advance(); // consume the unit ident
+            return StyleValue::Dimension(val, next_ident.clone());
+        }
+    }
+    // Handle % symbol (tokenized as Percent, not Ident)
+    if parser.peek_kind() == TokenKind::Percent {
+        parser.advance();
+        return StyleValue::Dimension(val, "%".to_string());
+    }
+    StyleValue::Number(val)
+}
+
+/// Same as try_consume_dimension but returns StyleValuePart.
+fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> StyleValuePart {
+    // Handle ident-based units: px, rem, fr, etc.
+    if let TokenKind::Ident(ref next_ident) = parser.peek_kind() {
+        let combined = format!("{}{}", val, next_ident);
+        if try_parse_dimension(&combined).is_some() {
+            parser.advance();
+            return StyleValuePart::Dimension(val, next_ident.clone());
+        }
+    }
+    // Handle % symbol (tokenized as Percent, not Ident)
+    if parser.peek_kind() == TokenKind::Percent {
+        parser.advance();
+        return StyleValuePart::Dimension(val, "%".to_string());
+    }
+    StyleValuePart::Number(val)
 }
 
 /// Try to parse a string like "16px" into (16.0, "px").
 fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
-    let units = ["px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm"];
+    let units = [
+        "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm",
+        // CSS Grid
+        "fr",
+        // Time
+        "ms", "s",
+        // Angle
+        "deg", "rad", "grad", "turn",
+        // Viewport-relative (additional)
+        "vmin", "vmax", "svh", "svw", "lvh", "lvw", "dvh", "dvw",
+        // Container queries
+        "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax",
+        // Typography
+        "ch", "ex", "ic", "lh", "rlh",
+    ];
     for unit in &units {
         if let Some(num_str) = s.strip_suffix(unit) {
             if let Ok(n) = num_str.parse::<f64>() {
@@ -794,6 +1186,7 @@ fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
 }
 
 /// Check if a token kind represents text content between view elements.
+/// Any token that can produce a meaningful string representation is valid text.
 fn is_text_token(kind: &TokenKind) -> bool {
     use crate::lexer::TokenKind;
     matches!(
@@ -817,18 +1210,19 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Hash
             | TokenKind::StringLiteral(_)
             | TokenKind::Percent
+            // Compound-assignment and comparison operators
+            | TokenKind::PlusEq | TokenKind::MinusEq
+            | TokenKind::StarEq | TokenKind::SlashEq | TokenKind::PercentEq
+            | TokenKind::EqEq | TokenKind::NotEq
+            | TokenKind::LtEq | TokenKind::GtEq
+            | TokenKind::AndAnd | TokenKind::OrOr
+            | TokenKind::Arrow | TokenKind::FatArrow
+            | TokenKind::DotDotDot | TokenKind::QuestionDot
+            | TokenKind::At
+            | TokenKind::LBracket | TokenKind::RBracket
+            | TokenKind::TemplateString(_)
     ) || is_keyword_attr_name(kind)
-        || matches!(
-            kind,
-            TokenKind::Export | TokenKind::Interface | TokenKind::Class
-                | TokenKind::Extends | TokenKind::Implements
-                | TokenKind::Import | TokenKind::From
-                | TokenKind::Async | TokenKind::Await
-                | TokenKind::Match | TokenKind::Override
-                | TokenKind::Static | TokenKind::Private
-                | TokenKind::Nominal
-                | TokenKind::In
-        )
+        || keyword_as_ident_name(kind).is_some()
 }
 
 /// Convert a text token to its string representation.
@@ -854,13 +1248,26 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
         TokenKind::Percent => "%".into(),
+        TokenKind::PlusEq => "+=".into(),
+        TokenKind::MinusEq => "-=".into(),
+        TokenKind::StarEq => "*=".into(),
+        TokenKind::SlashEq => "/=".into(),
+        TokenKind::PercentEq => "%=".into(),
+        TokenKind::EqEq => "==".into(),
+        TokenKind::NotEq => "!=".into(),
+        TokenKind::LtEq => "<=".into(),
+        TokenKind::GtEq => ">=".into(),
+        TokenKind::AndAnd => "&&".into(),
+        TokenKind::OrOr => "||".into(),
+        TokenKind::Arrow => "->".into(),
+        TokenKind::FatArrow => "=>".into(),
+        TokenKind::DotDotDot => "...".into(),
+        TokenKind::QuestionDot => "?.".into(),
+        TokenKind::At => "@".into(),
+        TokenKind::LBracket => "[".into(),
+        TokenKind::RBracket => "]".into(),
+        TokenKind::TemplateString(s) => format!("`{}`", s),
         // Fallback: try keyword_as_ident_name for keyword tokens
-        other => {
-            if let Some(name) = crate::parser::stmt::keyword_as_ident_name(other) {
-                name
-            } else {
-                String::new()
-            }
-        }
+        other => crate::parser::stmt::keyword_as_ident_name(other).unwrap_or_default(),
     }
 }

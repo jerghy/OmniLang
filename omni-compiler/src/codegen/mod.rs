@@ -5,15 +5,15 @@
 //! - Python, JavaScript, Rust, Dart (planned): pure-logic codegen
 //! - React, Vue, Dioxus, Flutter (planned): framework-based codegen
 
-pub mod omniview;
-pub mod python;
-pub mod javascript;
-pub mod rust;
 pub mod dart;
-pub mod react;
-pub mod vue;
 pub mod dioxus;
 pub mod flutter;
+pub mod javascript;
+pub mod omniview;
+pub mod python;
+pub mod react;
+pub mod rust;
+pub mod vue;
 
 use std::collections::HashMap;
 
@@ -160,6 +160,76 @@ pub trait Codegen {
     fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput;
 }
 
+/// Sanitize a CSS value string to prevent injection attacks.
+///
+/// Rejects dangerous CSS value patterns that could execute JavaScript:
+/// `javascript:`, `expression(`, `-moz-binding`, `data:text/html`.
+/// Returns the original string if safe, or an empty string with a warning.
+pub fn sanitize_css_value(value: &str) -> String {
+    let lower = value.to_lowercase();
+    if lower.contains("javascript:")
+        || lower.contains("expression(")
+        || lower.contains("-moz-binding")
+        || lower.contains("data:text/html")
+    {
+        // Return a safe fallback — the dangerous value is suppressed
+        return String::new();
+    }
+    value.to_string()
+}
+
+/// Sanitize a module name for use as a file path component.
+///
+/// Strips directory traversal sequences (`..`, `/`, `\`) and leading dots
+/// to prevent path traversal when constructing output file paths.
+/// The actual file I/O is handled by the Python CLI; this ensures
+/// generated paths are safe regardless.
+pub fn sanitize_module_name(name: &str) -> String {
+    let sanitized = name
+        .strip_suffix(".omni")
+        .unwrap_or(name)
+        .replace("..", "_")
+        .replace(['/', '\\', ':'], "_")
+        .trim_start_matches('.')
+        .to_string();
+    // Guard against empty result (e.g., name was just "." or all dots)
+    if sanitized.is_empty() {
+        "module".to_string()
+    } else {
+        sanitized
+    }
+}
+
+/// Sanitize an identifier for use in JavaScript/TypeScript output.
+///
+/// Appends `_` to names that collide with JavaScript reserved keywords
+/// (e.g. `default` → `default_`, `class` → `class_`).
+/// This prevents syntax errors when OmniLang identifiers use names
+/// that are valid in Omni but reserved in JavaScript.
+pub fn sanitize_js_ident(name: &str) -> String {
+    // JavaScript reserved words (ES5+ strict mode) that cannot be used as identifiers
+    const JS_RESERVED: &[&str] = &[
+        "break", "case", "catch", "continue", "debugger", "default", "delete",
+        "do", "else", "finally", "for", "function", "if", "in", "instanceof",
+        "new", "return", "switch", "this", "throw", "try", "typeof", "var",
+        "void", "while", "with",
+        // ES6+
+        "class", "const", "enum", "export", "extends", "import", "super",
+        "implements", "interface", "let", "package", "private", "protected",
+        "public", "static", "yield",
+        // ES2017+
+        "async", "await",
+        // Always reserved as literals / special bindings
+        "arguments", "null", "true", "false",
+    ];
+
+    if JS_RESERVED.contains(&name) {
+        format!("{}_", name)
+    } else {
+        name.to_string()
+    }
+}
+
 /// Compile IR to the specified target.
 ///
 /// Routes to each target's codegen module. Framework targets and
@@ -169,6 +239,13 @@ pub fn compile(
     target: Target,
     source_files: &HashMap<String, String>,
 ) -> CompileOutput {
+    // Validate stdlib imports for the target
+    if let Err(errors) = validate_stdlib_imports(ir, target) {
+        return CompileOutput {
+            files: vec![],
+            errors,
+        };
+    }
     match target {
         Target::OmniView => omniview::compile_files(ir, source_files),
         Target::Python => python::PythonCodegen.generate(ir, source_files),
@@ -180,6 +257,56 @@ pub fn compile(
         Target::Vue => vue::VueCodegen.generate(ir, source_files),
         Target::Dioxus => dioxus::DioxusCodegen.generate(ir, source_files),
         Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
+    }
+}
+
+/// Try to format a stdlib function call. Returns `Some(code)` if the call
+/// matches a registered stdlib function, `None` otherwise (so backends fall
+/// through to their normal CallExpr handling).
+pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Option<String> {
+    // Check if name looks like "module_fn" stdlib pattern
+    if let Some((module, fn_name)) = name.split_once('_') {
+        if let Some(entry) = crate::stdlib::lookup(module, fn_name) {
+            if entry.available_targets.contains(&target) {
+                return Some((entry.codegen)(args, target));
+            }
+        }
+    }
+    // Also try direct lookup (for non-prefixed names)
+    // Stdlib functions are imported as simple names, and lowered as-is
+    for module in &["http", "json", "storage"] {
+        if let Some(entry) = crate::stdlib::lookup(module, name) {
+            if entry.available_targets.contains(&target) {
+                return Some((entry.codegen)(args, target));
+            }
+        }
+    }
+    None
+}
+
+/// Validate that all stdlib imports in the IR are available on the given target.
+pub fn validate_stdlib_imports(
+    ir: &crate::ir::IRProgram,
+    target: Target,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    for module in &ir.stdlib_imports {
+        if !crate::stdlib::module_available(module, target) {
+            let available = crate::stdlib::available_targets_for(module);
+            let available_str: Vec<String> =
+                available.iter().map(|t| format!("{:?}", t).to_lowercase()).collect();
+            errors.push(format!(
+                "stdlib module 'std/{}' is not available on target '{:?}'. Available targets: {}",
+                module,
+                target,
+                available_str.join(", ")
+            ));
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
     }
 }
 
@@ -231,5 +358,93 @@ mod tests {
         w.emit("}");
         let out = w.into_string();
         assert_eq!(out, "fn main() {\n    println!(\"hello\");\n}\n");
+    }
+
+    // ── Stdlib integration tests ───────────────────────
+
+    #[test]
+    fn test_try_format_stdlib_call_http_get_js() {
+        let result = try_format_stdlib_call(
+            "http_get",
+            &["\"url\"".into()],
+            Target::JavaScript,
+        );
+        assert!(result.is_some(), "http_get should be recognized");
+        assert!(result.unwrap().contains("fetch"), "JS http_get should use fetch");
+    }
+
+    #[test]
+    fn test_try_format_stdlib_call_json_parse_js() {
+        let result = try_format_stdlib_call(
+            "json_parse",
+            &["text".into()],
+            Target::JavaScript,
+        );
+        assert!(result.is_some(), "json_parse should be recognized");
+        assert_eq!(result.unwrap(), "JSON.parse(text)");
+    }
+
+    #[test]
+    fn test_try_format_stdlib_call_json_stringify_python() {
+        let result = try_format_stdlib_call(
+            "json_stringify",
+            &["obj".into()],
+            Target::Python,
+        );
+        assert!(result.is_some(), "json_stringify should be recognized");
+        assert_eq!(result.unwrap(), "json.dumps(obj)");
+    }
+
+    #[test]
+    fn test_try_format_stdlib_call_not_found() {
+        let result = try_format_stdlib_call(
+            "nonexistent_fn",
+            &[],
+            Target::JavaScript,
+        );
+        assert!(result.is_none(), "Unknown fn should return None");
+    }
+
+    #[test]
+    fn test_validate_stdlib_imports_storage_on_rust_fails() {
+        let ir = crate::ir::IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::new(),
+            source_map: HashMap::new(),
+            stdlib_imports: vec!["storage".into()],
+        };
+        let result = validate_stdlib_imports(&ir, Target::Rust);
+        assert!(result.is_err(), "storage on rust should fail");
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert!(
+            errors[0].contains("not available"),
+            "Error should mention not available. Got: {}",
+            errors[0]
+        );
+    }
+
+    #[test]
+    fn test_validate_stdlib_imports_all_valid() {
+        let ir = crate::ir::IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::new(),
+            source_map: HashMap::new(),
+            stdlib_imports: vec!["http".into(), "json".into()],
+        };
+        let result = validate_stdlib_imports(&ir, Target::JavaScript);
+        assert!(result.is_ok(), "http+json on JS should be valid. Got: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_validate_stdlib_imports_empty() {
+        let ir = crate::ir::IRProgram {
+            version: "1.0".into(),
+            modules: HashMap::new(),
+            source_map: HashMap::new(),
+            stdlib_imports: vec![],
+        };
+        let result = validate_stdlib_imports(&ir, Target::Rust);
+        assert!(result.is_ok(), "Empty imports should always be valid");
     }
 }

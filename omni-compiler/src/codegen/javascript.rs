@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 
+use super::{CodeWriter, Codegen, CompileOutput, CompiledFile, Target, try_format_stdlib_call};
 use crate::ir::*;
-use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 
 pub struct JavaScriptCodegen {
     pub ts_mode: bool,
@@ -26,7 +26,7 @@ impl Codegen for JavaScriptCodegen {
         let ext = if self.ts_mode { ".ts" } else { ".js" };
 
         for (module_key, module) in &ir.modules {
-            let module_name = module_key.strip_suffix(".omni").unwrap_or(module_key);
+            let module_name = super::sanitize_module_name(module_key);
             let source_path = format!("{}.omni", module_name);
 
             let mut w = CodeWriter::new();
@@ -34,21 +34,24 @@ impl Codegen for JavaScriptCodegen {
             w.emit("");
 
             // Generate type aliases
-            for (_name, alias) in &module.type_aliases {
+            for alias in module.type_aliases.values() {
                 generate_type_alias(&mut w, alias, self.ts_mode);
             }
-            if !module.structs.is_empty() || !module.enums.is_empty() || !module.functions.is_empty() {
+            if !module.structs.is_empty()
+                || !module.enums.is_empty()
+                || !module.functions.is_empty()
+            {
                 w.emit("");
             }
 
             // Generate structs as classes
-            for (_name, struct_ir) in &module.structs {
+            for struct_ir in module.structs.values() {
                 generate_struct(&mut w, struct_ir, self.ts_mode);
                 w.emit("");
             }
 
             // Generate enums as frozen objects
-            for (_name, enum_ir) in &module.enums {
+            for enum_ir in module.enums.values() {
                 generate_enum(&mut w, enum_ir, self.ts_mode);
                 w.emit("");
             }
@@ -132,7 +135,11 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         let body = format_expr_ir(&computed.body, ts_mode);
         let ret_ann = if ts_mode {
             let ann = js_type(&computed.r#type.kind, &computed.r#type.type_args, true);
-            if ann.is_empty() { String::new() } else { format!(": {}", ann) }
+            if ann.is_empty() {
+                String::new()
+            } else {
+                format!(": {}", ann)
+            }
         } else {
             String::new()
         };
@@ -166,7 +173,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
             let ann = js_type(&signal_type.kind, &signal_type.type_args, true);
             w.emit(&format!("{}: {};", signal_name, ann));
         }
-        for (getter_name, _getter_expr) in &store.getters {
+        for getter_name in store.getters.keys() {
             // Infer type for getter — use `any` for TS mode
             w.emit(&format!("get {}(): any;", getter_name));
         }
@@ -175,7 +182,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
     // Constructor with signal defaults
     w.emit("constructor() {");
     w.indent();
-    for (signal_name, _signal_type) in &store.signals {
+    for signal_name in store.signals.keys() {
         let default = store
             .signal_defaults
             .get(signal_name)
@@ -213,7 +220,8 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
     // Build parameter list — no `self` equivalent in JS classes
     let mut param_strs = Vec::new();
     for p in &func.params {
-        let mut s = p.name.clone();
+        let safe_name = super::sanitize_js_ident(&p.name);
+        let mut s = safe_name;
         if ts_mode {
             if let Some(ref ty) = p.r#type {
                 let ann = js_type(&ty.kind, &ty.type_args, true);
@@ -243,7 +251,11 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
     };
 
     let all_params = param_strs.join(", ");
-    w.emit(&format!("{}({}){} {{", func.name, all_params, ret_ann));
+    let async_prefix = if func.is_async { "async " } else { "" };
+    w.emit(&format!(
+        "{}{}({}){} {{",
+        async_prefix, func.name, all_params, ret_ann
+    ));
     w.indent();
 
     if func.body.statements.is_empty() {
@@ -266,7 +278,12 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
 
 fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
     match stmt {
-        StatementIR::LetStmtIR { name, value, r#type } => {
+        StatementIR::LetStmtIR {
+            name,
+            value,
+            r#type,
+        } => {
+            let safe_name = super::sanitize_js_ident(name);
             let rhs = value
                 .as_ref()
                 .map(|v| format_expr_ir(v, ts_mode))
@@ -277,13 +294,17 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
                     .as_ref()
                     .map(|t| {
                         let ann = js_type(&t.kind, &t.type_args, true);
-                        if ann.is_empty() { String::new() } else { format!(": {}", ann) }
+                        if ann.is_empty() {
+                            String::new()
+                        } else {
+                            format!(": {}", ann)
+                        }
                     })
                     .unwrap_or_default()
             } else {
                 String::new()
             };
-            w.emit(&format!("{} {}{} = {};", kw, name, type_hint, rhs));
+            w.emit(&format!("{} {}{} = {};", kw, safe_name, type_hint, rhs));
         }
         StatementIR::IfStmtIR {
             condition,
@@ -316,27 +337,51 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("return {};", rhs));
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(mut_intent) = intent {
-                let target = &mut_intent.target.name;
-                let amount = mut_intent
-                    .amount
-                    .as_ref()
-                    .map(|v| format_expr_ir(v, ts_mode))
-                    .unwrap_or_else(|| "0".into());
-                match mut_intent.operation.as_str() {
-                    "direct_assign" => {
-                        w.emit(&format!("this.{} = {};", target, amount));
-                    }
-                    "increment" => {
-                        w.emit(&format!("this.{} += {};", target, amount));
-                    }
-                    "decrement" => {
-                        w.emit(&format!("this.{} -= {};", target, amount));
-                    }
-                    other => {
-                        w.emit(&format!("// TODO: mutation operation '{}' on {}", other, target));
-                    }
+        StatementIR::MutationStmt { intent: None } => {}
+        StatementIR::MutationStmt {
+            intent: Some(mut_intent),
+        } => {
+            let target = &mut_intent.target.name;
+            let amount = mut_intent
+                .amount
+                .as_ref()
+                .map(|v| format_expr_ir(v, ts_mode))
+                .unwrap_or_else(|| "0".into());
+            match mut_intent.operation.as_str() {
+                "direct_assign" => {
+                    w.emit(&format!("this.{} = {};", target, amount));
+                }
+                "increment" => {
+                    w.emit(&format!("this.{} += {};", target, amount));
+                }
+                "decrement" => {
+                    w.emit(&format!("this.{} -= {};", target, amount));
+                }
+                "multiply" => {
+                    w.emit(&format!("this.{} *= {};", target, amount));
+                }
+                "divide" => {
+                    w.emit(&format!("this.{} /= {};", target, amount));
+                }
+                "modulo" => {
+                    w.emit(&format!("this.{} %= {};", target, amount));
+                }
+                "push" => {
+                    let item = mut_intent
+                        .item
+                        .as_ref()
+                        .map(|v| format_expr_ir(v, ts_mode))
+                        .unwrap_or_else(|| "undefined".into());
+                    w.emit(&format!("this.{}.push({});", target, item));
+                }
+                "pop" => {
+                    w.emit(&format!("this.{}.pop();", target));
+                }
+                other => {
+                    w.emit(&format!(
+                        "// TODO: mutation operation '{}' on {}",
+                        other, target
+                    ));
                 }
             }
         }
@@ -351,11 +396,43 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
             let arg_str = if args.is_empty() {
                 String::new()
             } else {
-                let formatted: Vec<String> = args.iter().map(|a| format_expr_ir(a, ts_mode)).collect();
+                let formatted: Vec<String> =
+                    args.iter().map(|a| format_expr_ir(a, ts_mode)).collect();
                 format!("({})", formatted.join(", "))
             };
             w.emit(&format!("// emit event: {}{}", event_name, arg_str));
         }
+        StatementIR::WhileStmtIR { condition, body } => {
+            let cond = format_expr_ir(condition, ts_mode);
+            w.emit(&format!("while ({}) {{", cond));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s, ts_mode);
+            }
+            w.dedent();
+            w.emit("}");
+        }
+        StatementIR::ForInStmtIR {
+            var_name,
+            iterable,
+            body,
+        } => {
+            let iter = format_expr_ir(iterable, ts_mode);
+            w.emit(&format!("for (const {} of {}) {{", var_name, iter));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s, ts_mode);
+            }
+            w.dedent();
+            w.emit("}");
+        }
+        StatementIR::BreakStmtIR => {
+            w.emit("break;");
+        }
+        StatementIR::ContinueStmtIR => {
+            w.emit("continue;");
+        }
+        _ => {}
     }
 }
 
@@ -363,47 +440,60 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
 // Expression formatting
 // ═══════════════════════════════════════════════════════════
 
-fn format_expr_ir(expr: &ExprIR, ts_mode: bool) -> String {
+fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
     match expr {
         ExprIR::LiteralExpr { value } => format_json_value(value),
-        ExprIR::IdentifierExpr { name } => name.clone(),
+        ExprIR::IdentifierExpr { name } => super::sanitize_js_ident(name),
         ExprIR::FieldAccessExpr { object, field } => {
-            format!("{}.{}", format_expr_ir(object, ts_mode), field)
+            format!("{}.{}", format_expr_ir(object, _ts_mode), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
             let js_op = binary_op_to_js(op);
-            let lhs = format_expr_ir(left, ts_mode);
-            let rhs = format_expr_ir(right, ts_mode);
+            let lhs = format_expr_ir(left, _ts_mode);
+            let rhs = format_expr_ir(right, _ts_mode);
             format!("{} {} {}", lhs, js_op, rhs)
         }
         ExprIR::UnaryOpExpr { op, operand } => {
             let js_op = match op.as_str() {
                 "not" => "!",
                 "neg" => "-",
+                "await" => "await ",
                 _ => op,
             };
-            format!("{}{}", js_op, format_expr_ir(operand, ts_mode))
+            format!("{}{}", js_op, format_expr_ir(operand, _ts_mode))
         }
         ExprIR::TernaryIR {
             cond,
             then_expr,
             else_expr,
         } => {
-            let c = format_expr_ir(cond, ts_mode);
-            let t = format_expr_ir(then_expr, ts_mode);
-            let e = format_expr_ir(else_expr, ts_mode);
+            let c = format_expr_ir(cond, _ts_mode);
+            let t = format_expr_ir(then_expr, _ts_mode);
+            let e = format_expr_ir(else_expr, _ts_mode);
             format!("{} ? {} : {}", c, t, e)
         }
         ExprIR::CallExpr { name, args } => {
-            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a, ts_mode)).collect();
-            format!("{}({})", name, arg_strs.join(", "))
+            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a, _ts_mode)).collect();
+            // Check stdlib intrinsics
+            let target = if _ts_mode { Target::TypeScript } else { Target::JavaScript };
+            if let Some(native) = try_format_stdlib_call(name, &arg_strs, target) {
+                return native;
+            }
+            match name.as_str() {
+                "println" => format!("console.log({})", arg_strs.join(", ")),
+                "print" => format!("process.stdout.write(String({}))", arg_strs.join(", ")),
+                _ => format!("{}({})", name, arg_strs.join(", ")),
+            }
         }
         ExprIR::StoreFieldAccessExpr {
             store_alias,
             field_name,
             call_args,
         } => {
-            let args: Vec<String> = call_args.iter().map(|a| format_expr_ir(a, ts_mode)).collect();
+            let args: Vec<String> = call_args
+                .iter()
+                .map(|a| format_expr_ir(a, _ts_mode))
+                .collect();
             let arg_str = if args.is_empty() {
                 String::new()
             } else {
@@ -411,6 +501,113 @@ fn format_expr_ir(expr: &ExprIR, ts_mode: bool) -> String {
             };
             format!("{}.{}{}", store_alias, field_name, arg_str)
         }
+        ExprIR::ArrayExpr { elements } => {
+            let items: Vec<String> = elements
+                .iter()
+                .map(|e| format_expr_ir(e, _ts_mode))
+                .collect();
+            format!("[{}]", items.join(", "))
+        }
+        ExprIR::StructExpr { fields, .. } => {
+            let entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v, _ts_mode)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        }
+        ExprIR::VariantLiteral { variant, fields, .. } => {
+            let mut entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v, _ts_mode)))
+                .collect();
+            entries.insert(0, format!("\"_variant\": \"{}\"", variant));
+            format!("{{{}}}", entries.join(", "))
+        }
+        ExprIR::MethodCallExpr {
+            object,
+            method,
+            args,
+            ..
+        } => {
+            let obj = format_expr_ir(object, _ts_mode);
+            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a, _ts_mode)).collect();
+            format!("{}.{}({})", obj, method, arg_strs.join(", "))
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            // Emit as IIFE with preceding statements
+            let stmts: Vec<String> = statements
+                .iter()
+                .map(|s| format!("  {};", format_stmt_ir(s, _ts_mode)))
+                .collect();
+            let tail_str = format_expr_ir(tail, _ts_mode);
+            format!(
+                "(() => {{\n{}\n  return {};\n}})()",
+                stmts.join("\n"),
+                tail_str
+            )
+        }
+        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::AwaitExpr { operand } => {
+            format!("await {}", format_expr_ir(operand, _ts_mode))
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            let matched_str = format_expr_ir(matched, _ts_mode);
+            let cases: Vec<String> = arms
+                .iter()
+                .map(|arm| {
+                    let body_expr = format_block_as_js_expr(&arm.body, _ts_mode);
+                    match &arm.pattern.kind {
+                        MatchPatternKindIR::Variant { name, .. } => {
+                            format!("  if (_v._variant === \"{}\") {{ return {}; }}", name, body_expr)
+                        }
+                        MatchPatternKindIR::Wildcard => {
+                            format!("  return {};", body_expr)
+                        }
+                        MatchPatternKindIR::Literal { value } => {
+                            let v = format_json_value(value);
+                            format!("  if (_v._variant === {}) {{ return {}; }}", v, body_expr)
+                        }
+                    }
+                })
+                .collect();
+            format!(
+                "(() => {{\n  const _v = {};\n{}\n}})()",
+                matched_str,
+                cases.join("\n  ")
+            )
+        }
+        ExprIR::ClosureExpr { .. } => "null".to_string(),
+    }
+}
+
+/// Format a block's trailing expression as a JS value (for match arm bodies).
+fn format_block_as_js_expr(block: &BlockIR, ts_mode: bool) -> String {
+    if let Some(last) = block.statements.last() {
+        match last {
+            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr, ts_mode),
+            StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(|e| format_expr_ir(e, ts_mode)).unwrap_or_else(|| "undefined".into())
+            }
+            _ => "undefined".into(),
+        }
+    } else {
+        "undefined".into()
+    }
+}
+
+/// Format a single statement IR node as a JS expression string (for block exprs).
+fn format_stmt_ir(stmt: &StatementIR, ts_mode: bool) -> String {
+    match stmt {
+        StatementIR::LetStmtIR { name, value, .. } => {
+            let safe_name = super::sanitize_js_ident(name);
+            let val = value
+                .as_ref()
+                .map(|e| format_expr_ir(e, ts_mode))
+                .unwrap_or_else(|| "undefined".into());
+            format!("let {} = {}", safe_name, val)
+        }
+        StatementIR::ExprStmtIR { expr } => format_expr_ir(expr, ts_mode),
+        _ => "/* stmt */".into(),
     }
 }
 
@@ -435,7 +632,8 @@ fn format_json_value(value: &serde_json::Value) -> String {
             }
         }
         serde_json::Value::String(s) => {
-            let escaped = s.replace('\\', "\\\\")
+            let escaped = s
+                .replace('\\', "\\\\")
                 .replace('"', "\\\"")
                 .replace('\n', "\\n")
                 .replace('\r', "\\r")
@@ -509,7 +707,7 @@ pub fn js_type(kind: &str, type_args: &[TypeIR], ts_mode: bool) -> String {
         }
         other => {
             // If it looks like a user-defined type (starts with uppercase), use as-is
-            if other.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if other.chars().next().is_some_and(|c| c.is_uppercase()) {
                 other.into()
             } else {
                 "any".into()
@@ -527,7 +725,11 @@ fn format_type_ir_js(ty: &TypeIR, ts_mode: bool) -> String {
 }
 
 fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR, ts_mode: bool) {
-    let export_prefix = if struct_ir.visibility == "public" { "export " } else { "" };
+    let export_prefix = if struct_ir.visibility == "public" {
+        "export "
+    } else {
+        ""
+    };
     w.emit(&format!("{}class {} {{", export_prefix, struct_ir.name));
     w.indent();
 
@@ -558,8 +760,15 @@ fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR, ts_mode: bool) {
 }
 
 fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR, _ts_mode: bool) {
-    let export_prefix = if enum_ir.visibility == "public" { "export " } else { "" };
-    w.emit(&format!("{}const {} = Object.freeze({{", export_prefix, enum_ir.name));
+    let export_prefix = if enum_ir.visibility == "public" {
+        "export "
+    } else {
+        ""
+    };
+    w.emit(&format!(
+        "{}const {} = Object.freeze({{",
+        export_prefix, enum_ir.name
+    ));
     w.indent();
     for (i, variant) in enum_ir.variants.iter().enumerate() {
         if variant.payload.is_some() {
@@ -577,8 +786,15 @@ fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR, ts_mode: bool) {
         return; // Skip in JS mode
     }
     let target = format_type_ir_js(&alias.target, true);
-    let export_prefix = if alias.visibility == "public" { "export " } else { "" };
-    w.emit(&format!("{}type {} = {};", export_prefix, alias.name, target));
+    let export_prefix = if alias.visibility == "public" {
+        "export "
+    } else {
+        ""
+    };
+    w.emit(&format!(
+        "{}type {} = {};",
+        export_prefix, alias.name, target
+    ));
 }
 
 fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
@@ -601,7 +817,11 @@ fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: 
             .as_ref()
             .map(|rt| {
                 let ann = format_type_ir_js(rt, true);
-                if ann.is_empty() { String::new() } else { format!(": {}", ann) }
+                if ann.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", ann)
+                }
             })
             .unwrap_or_default()
     } else {
@@ -610,9 +830,17 @@ fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: 
 
     let all_params = param_strs.join(", ");
 
-    let prefix = if func.visibility == "public" { "export function " } else { "function " };
+    let async_kw = if func.is_async { "async " } else { "" };
+    let prefix = if func.visibility == "public" {
+        format!("export {}function ", async_kw)
+    } else {
+        format!("{}function ", async_kw)
+    };
 
-    w.emit(&format!("{}{}({}){} {{", prefix, func.name, all_params, ret_ann));
+    w.emit(&format!(
+        "{}{}({}){} {{",
+        prefix, func.name, all_params, ret_ann
+    ));
     w.indent();
 
     if func.body.statements.is_empty() {
@@ -672,7 +900,10 @@ mod tests {
             needs_partial_eq: false,
         };
 
-        assert_eq!(js_type("Vec", &[i32_arg.clone()], true), "number[]");
+        assert_eq!(
+            js_type("Vec", std::slice::from_ref(&i32_arg), true),
+            "number[]"
+        );
         assert_eq!(
             js_type("HashMap", &[string_arg.clone(), i32_arg.clone()], true),
             "Record<string, number>"
@@ -744,12 +975,8 @@ mod tests {
     fn test_format_expr_binary() {
         let expr = ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr {
-                name: "a".into(),
-            }),
-            right: Box::new(ExprIR::IdentifierExpr {
-                name: "b".into(),
-            }),
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() }),
         };
         assert_eq!(format_expr_ir(&expr, false), "a + b");
     }
@@ -757,9 +984,7 @@ mod tests {
     #[test]
     fn test_format_expr_ternary() {
         let expr = ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr {
-                name: "x".into(),
-            }),
+            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -773,9 +998,7 @@ mod tests {
     #[test]
     fn test_format_expr_field_access() {
         let expr = ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr {
-                name: "obj".into(),
-            }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
             field: "prop".into(),
         };
         assert_eq!(format_expr_ir(&expr, false), "obj.prop");
@@ -796,9 +1019,7 @@ mod tests {
     fn test_format_expr_unary_neg() {
         let expr = ExprIR::UnaryOpExpr {
             op: "neg".into(),
-            operand: Box::new(ExprIR::IdentifierExpr {
-                name: "x".into(),
-            }),
+            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
         };
         assert_eq!(format_expr_ir(&expr, false), "-x");
     }
@@ -817,6 +1038,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func, false);
         let out = w.into_string();
@@ -841,6 +1063,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func, true);
         let out = w.into_string();
@@ -853,18 +1076,16 @@ mod tests {
         let func = FunctionIR {
             name: "greet".into(),
             visibility: "private".to_string(),
-            params: vec![
-                ParamIR {
-                    name: "name".into(),
-                    r#type: Some(TypeIR {
-                        kind: "string".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    }),
-                },
-            ],
+            params: vec![ParamIR {
+                name: "name".into(),
+                r#type: Some(TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }),
+            }],
             return_type: Some(TypeIR {
                 kind: "string".into(),
                 type_args: vec![],
@@ -876,6 +1097,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func, true);
         let out = w.into_string();
@@ -888,23 +1110,22 @@ mod tests {
         let func = FunctionIR {
             name: "greet".into(),
             visibility: "private".to_string(),
-            params: vec![
-                ParamIR {
-                    name: "name".into(),
-                    r#type: Some(TypeIR {
-                        kind: "string".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    }),
-                },
-            ],
+            params: vec![ParamIR {
+                name: "name".into(),
+                r#type: Some(TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }),
+            }],
             return_type: None,
             body: BlockIR {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func, false);
         let out = w.into_string();
@@ -912,7 +1133,86 @@ mod tests {
         assert!(!out.contains(": string"));
     }
 
-    // ── generate_component tests ──────────────────────────
+    #[test]
+    fn test_generate_async_function_js() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "fetchData".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: Some(TypeIR {
+                kind: "String".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }),
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: true,
+        };
+        generate_function(&mut w, &func, false);
+        let out = w.into_string();
+        assert!(
+            out.contains("async fetchData()"),
+            "JS async function should have 'async' prefix. Output:\n{}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_generate_async_function_ts() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "fetchData".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: Some(TypeIR {
+                kind: "String".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }),
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: true,
+        };
+        generate_function(&mut w, &func, true);
+        let out = w.into_string();
+        assert!(
+            out.contains("async fetchData()"),
+            "TS async function should have 'async' prefix. Output:\n{}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_format_await_expr_js() {
+        let expr = ExprIR::AwaitExpr {
+            operand: Box::new(ExprIR::CallExpr {
+                name: "fetch".into(),
+                args: vec![ExprIR::LiteralExpr {
+                    value: serde_json::json!("/api/data"),
+                }],
+            }),
+        };
+        let out = format_expr_ir(&expr, false);
+        assert!(
+            out.starts_with("await "),
+            "JS await should be prefix 'await'. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("fetch"),
+            "await expr should contain the awaited call. Output: {}",
+            out
+        );
+    }
 
     #[test]
     fn test_js_empty_component() {
@@ -921,6 +1221,7 @@ mod tests {
             name: "App".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -928,6 +1229,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -944,6 +1246,7 @@ mod tests {
             name: "App".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -951,6 +1254,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -967,6 +1271,7 @@ mod tests {
             name: "App".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -980,9 +1285,11 @@ mod tests {
                     statements: vec![],
                     execution_mode: "client-only".into(),
                 },
+                is_async: false,
             }],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -999,6 +1306,7 @@ mod tests {
             name: "Counter".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![StateIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1022,6 +1330,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -1039,6 +1348,7 @@ mod tests {
             name: "Counter".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![StateIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1062,6 +1372,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -1122,21 +1433,17 @@ mod tests {
         let mut w = CodeWriter::new();
         let store = StoreIR {
             name: "AppStore".into(),
-            signals: HashMap::from([
-                (
-                    "count".into(),
-                    TypeIR {
-                        kind: "i32".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    },
-                ),
-            ]),
-            signal_defaults: HashMap::from([
-                ("count".into(), serde_json::json!(0)),
-            ]),
+            signals: HashMap::from([(
+                "count".into(),
+                TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
+            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
             getters: HashMap::new(),
             actions: vec![],
         };
@@ -1233,6 +1540,7 @@ mod tests {
                             name: "App".into(),
                             generic_params: vec![],
                             props: HashMap::new(),
+                            prop_defaults: HashMap::new(),
                             states: vec![],
                             computeds: vec![],
                             effects: vec![],
@@ -1246,9 +1554,11 @@ mod tests {
                                     statements: vec![],
                                     execution_mode: "client-only".into(),
                                 },
+                                is_async: false,
                             }],
                             store_refs: vec![],
                             refs: vec![],
+                            event_names: vec![],
                             view: None,
                             styles: vec![],
                         },
@@ -1258,7 +1568,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        };
+        stdlib_imports: Vec::new(),
+    };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1284,6 +1595,7 @@ mod tests {
                             name: "App".into(),
                             generic_params: vec![],
                             props: HashMap::new(),
+                            prop_defaults: HashMap::new(),
                             states: vec![],
                             computeds: vec![],
                             effects: vec![],
@@ -1303,9 +1615,11 @@ mod tests {
                                     statements: vec![],
                                     execution_mode: "client-only".into(),
                                 },
+                                is_async: false,
                             }],
                             store_refs: vec![],
                             refs: vec![],
+                            event_names: vec![],
                             view: None,
                             styles: vec![],
                         },
@@ -1315,7 +1629,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        };
+        stdlib_imports: Vec::new(),
+    };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1338,16 +1653,22 @@ mod tests {
                 FieldIR {
                     name: "x".into(),
                     r#type: TypeIR {
-                        kind: "i32".into(), type_args: vec![],
-                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
                     },
                     visibility: "public".into(),
                 },
                 FieldIR {
                     name: "y".into(),
                     r#type: TypeIR {
-                        kind: "i32".into(), type_args: vec![],
-                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
                     },
                     visibility: "public".into(),
                 },
@@ -1371,16 +1692,22 @@ mod tests {
                 FieldIR {
                     name: "x".into(),
                     r#type: TypeIR {
-                        kind: "i32".into(), type_args: vec![],
-                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
                     },
                     visibility: "public".into(),
                 },
                 FieldIR {
                     name: "y".into(),
                     r#type: TypeIR {
-                        kind: "i32".into(), type_args: vec![],
-                        is_nullable: false, needs_clone: false, needs_partial_eq: false,
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
                     },
                     visibility: "public".into(),
                 },
@@ -1413,9 +1740,18 @@ mod tests {
             name: "Color".into(),
             visibility: "public".to_string(),
             variants: vec![
-                VariantIR { name: "Red".into(), payload: None },
-                VariantIR { name: "Green".into(), payload: None },
-                VariantIR { name: "Blue".into(), payload: None },
+                VariantIR {
+                    name: "Red".into(),
+                    payload: None,
+                },
+                VariantIR {
+                    name: "Green".into(),
+                    payload: None,
+                },
+                VariantIR {
+                    name: "Blue".into(),
+                    payload: None,
+                },
             ],
         };
         generate_enum(&mut w, &enum_ir, false);
@@ -1447,7 +1783,13 @@ mod tests {
         let alias = TypeAliasIR {
             name: "UserId".into(),
             visibility: "public".to_string(),
-            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+            target: TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            },
         };
         generate_type_alias(&mut w, &alias, true);
         assert_eq!(w.into_string(), "export type UserId = number;\n");
@@ -1459,7 +1801,13 @@ mod tests {
         let alias = TypeAliasIR {
             name: "UserId".into(),
             visibility: "public".to_string(),
-            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+            target: TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            },
         };
         generate_type_alias(&mut w, &alias, false);
         // CodeWriter always appends trailing newline, even when empty
@@ -1474,7 +1822,11 @@ mod tests {
             visibility: "public".to_string(),
             params: vec![],
             return_type: None,
-            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: false,
         };
         generate_standalone_function(&mut w, &func, false);
         let out = w.into_string();
@@ -1490,10 +1842,26 @@ mod tests {
             visibility: "public".to_string(),
             params: vec![ParamIR {
                 name: "a".into(),
-                r#type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+                r#type: Some(TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }),
             }],
-            return_type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
-            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            return_type: Some(TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }),
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: false,
         };
         generate_standalone_function(&mut w, &func, true);
         let out = w.into_string();
@@ -1508,7 +1876,11 @@ mod tests {
             visibility: "private".to_string(),
             params: vec![],
             return_type: None,
-            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: false,
         };
         generate_standalone_function(&mut w, &func, false);
         let out = w.into_string();
@@ -1518,14 +1890,32 @@ mod tests {
 
     #[test]
     fn test_format_type_ir_js() {
-        let ty = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let ty = TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_js(&ty, false), "");
         assert_eq!(format_type_ir_js(&ty, true), "number");
 
-        let str_ty = TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let str_ty = TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_js(&str_ty, true), "string");
 
-        let vec_ty = TypeIR { kind: "Vec".into(), type_args: vec![ty.clone()], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let vec_ty = TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![ty.clone()],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_js(&vec_ty, true), "number[]");
     }
 
@@ -1540,5 +1930,220 @@ mod tests {
         generate_struct(&mut w, &struct_ir, false);
         let out = w.into_string();
         assert!(!out.contains("export"));
+    }
+
+    #[test]
+    fn test_format_variant_literal_js() {
+        let expr = ExprIR::VariantLiteral {
+            union_type: "HttpResult".into(),
+            variant: "Ok".into(),
+            fields: vec![
+                ("value".into(), ExprIR::LiteralExpr {
+                    value: serde_json::json!(42),
+                }),
+            ],
+        };
+        let out = format_expr_ir(&expr, false);
+        assert!(
+            out.contains("\"_variant\": \"Ok\""),
+            "Variant literal should contain _variant marker. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("\"value\": 42"),
+            "Variant literal should contain fields. Output: {}",
+            out
+        );
+    }
+
+    // ── Match expression tests ─────────────────────────
+
+    #[test]
+    fn test_match_expr_single_variant() {
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ExprIR::IdentifierExpr {
+                name: "result".into(),
+            }),
+            arms: vec![MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Ok".into(),
+                        bindings: vec!["value".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::IdentifierExpr {
+                            name: "value".into(),
+                        }),
+                    }],
+                    execution_mode: "client-only".into(),
+                },
+            }],
+        };
+        let out = format_expr_ir(&expr, false);
+        assert!(
+            out.contains("_v._variant"),
+            "Match should check _variant. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("\"Ok\""),
+            "Match should check for Ok variant. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("return value"),
+            "Match arm should return value. Output: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_match_expr_with_wildcard() {
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ExprIR::IdentifierExpr {
+                name: "r".into(),
+            }),
+            arms: vec![
+                MatchArmIR {
+                    pattern: MatchPatternIR {
+                        kind: MatchPatternKindIR::Variant {
+                            name: "Ok".into(),
+                            bindings: vec!["v".into()],
+                        },
+                    },
+                    body: BlockIR {
+                        statements: vec![StatementIR::ReturnStmtIR {
+                            value: Some(ExprIR::IdentifierExpr { name: "v".into() }),
+                        }],
+                        execution_mode: "client-only".into(),
+                    },
+                },
+                MatchArmIR {
+                    pattern: MatchPatternIR {
+                        kind: MatchPatternKindIR::Wildcard,
+                    },
+                    body: BlockIR {
+                        statements: vec![StatementIR::ReturnStmtIR {
+                            value: Some(ExprIR::LiteralExpr {
+                                value: serde_json::json!(-1),
+                            }),
+                        }],
+                        execution_mode: "client-only".into(),
+                    },
+                },
+            ],
+        };
+        let out = format_expr_ir(&expr, false);
+        assert!(
+            out.contains("return -1"),
+            "Wildcard arm should return -1. Output: {}",
+            out
+        );
+        // Wildcard arm should not be guarded by an if-check
+        let ok_count = out.matches("\"Ok\"").count();
+        assert_eq!(ok_count, 1, "Ok should appear exactly once. Output: {}", out);
+    }
+
+    #[test]
+    fn test_match_expr_multiple_variants() {
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ExprIR::IdentifierExpr {
+                name: "r".into(),
+            }),
+            arms: vec![
+                MatchArmIR {
+                    pattern: MatchPatternIR {
+                        kind: MatchPatternKindIR::Variant {
+                            name: "Ok".into(),
+                            bindings: vec![],
+                        },
+                    },
+                    body: BlockIR {
+                        statements: vec![StatementIR::ReturnStmtIR {
+                            value: Some(ExprIR::LiteralExpr {
+                                value: serde_json::json!("success"),
+                            }),
+                        }],
+                        execution_mode: "client-only".into(),
+                    },
+                },
+                MatchArmIR {
+                    pattern: MatchPatternIR {
+                        kind: MatchPatternKindIR::Variant {
+                            name: "Err".into(),
+                            bindings: vec![],
+                        },
+                    },
+                    body: BlockIR {
+                        statements: vec![StatementIR::ReturnStmtIR {
+                            value: Some(ExprIR::LiteralExpr {
+                                value: serde_json::json!("failure"),
+                            }),
+                        }],
+                        execution_mode: "client-only".into(),
+                    },
+                },
+            ],
+        };
+        let out = format_expr_ir(&expr, false);
+        assert!(
+            out.contains("\"Ok\""),
+            "Should check Ok. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("\"Err\""),
+            "Should check Err. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("\"success\""),
+            "Should return success. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("\"failure\""),
+            "Should return failure. Output: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_format_block_as_js_expr_with_return() {
+        let block = BlockIR {
+            statements: vec![
+                StatementIR::LetStmtIR {
+                    name: "x".into(),
+                    value: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(1),
+                    }),
+                    r#type: None,
+                },
+                StatementIR::ReturnStmtIR {
+                    value: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(42),
+                    }),
+                },
+            ],
+            execution_mode: "client-only".into(),
+        };
+        let out = format_block_as_js_expr(&block, false);
+        assert_eq!(out, "42", "Should extract return value. Got: {}", out);
+    }
+
+    #[test]
+    fn test_format_block_as_js_expr_with_expr_stmt() {
+        let block = BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::IdentifierExpr {
+                    name: "result".into(),
+                },
+            }],
+            execution_mode: "client-only".into(),
+        };
+        let out = format_block_as_js_expr(&block, false);
+        assert_eq!(out, "result", "Should extract expr stmt. Got: {}", out);
     }
 }
