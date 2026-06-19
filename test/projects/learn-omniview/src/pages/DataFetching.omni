@@ -1,0 +1,88 @@
+// DataFetching.omni —— HTTP GET 远程数据加载
+// 演示：http_get + await + json_parse + match + @if 状态切换
+
+import omniview;
+import { http_get } from "std/http";
+import { json_parse } from "std/json";
+
+component DataFetching {
+    signal status: String = "idle";
+    signal resultText: String = "";
+    signal errorMsg: String = "";
+    signal url: String = "https://jsonplaceholder.typicode.com/todos/1";
+
+    // async action: 使用 await http_get + json_parse 加载数据
+    action loadData() async {
+        status = "loading";
+        let raw = await http_get(url);
+        if raw == "" {
+            status = "error";
+            errorMsg = "Empty response from server";
+            return;
+        }
+        let parsed = json_parse(raw);
+        resultText = parsed;
+        status = "success";
+    }
+
+    fn reset() {
+        status = "idle";
+        resultText = "";
+        errorMsg = "";
+    }
+
+    view {
+        <div class: data-fetching>
+            <h3 class: title>HTTP GET Demo</h3>
+            <p class: desc>async action + await http_get + json_parse + match</p>
+
+            <div class: controls>
+                <input bind:value={url} class: url-input></input>
+                <button class: btn-load @onPress={loadData}>Load</button>
+                <button class: btn-reset @onPress={reset}>Reset</button>
+            </div>
+
+            @if status == "loading" {
+                <div class: status-box loading-box>
+                    <p class: loading-text>Loading data...</p>
+                </div>
+            }
+            @else if status == "success" {
+                <div class: status-box success-box>
+                    <p class: label>Response:</p>
+                    <pre class: result>{resultText}</pre>
+                </div>
+            }
+            @else if status == "error" {
+                <div class: status-box error-box>
+                    <p class: label>Error:</p>
+                    <p class: error-text>{errorMsg}</p>
+                </div>
+            }
+            @else {
+                <div class: status-box idle-box>
+                    <p class: idle-text>Click "Load" to fetch data from API</p>
+                </div>
+            }
+        </div>
+    }
+    style {
+        .data-fetching { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .desc { font-size: 13px; color: #6b7280; margin: 0 0 12px 0; }
+        .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+        .url-input { flex: 1; padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
+        .btn-load { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .btn-reset { padding: 8px 16px; background: #6b7280; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .status-box { padding: 12px; border-radius: 8px; background: #f9fafb; border: 1px solid #d4d4d8; }
+        .loading-box { border-color: #6366f1; background: #f0f4ff; }
+        .success-box { border-color: #22c55d; background: #f0fdf4; }
+        .error-box { border-color: #f97316; background: #fff5f0; }
+        .idle-box { }
+        .label { font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 4px 0; }
+        .result { font-size: 12px; color: #333; margin: 0; max-height: 200px; overflow-y: auto; background: #fff; padding: 8px; border-radius: 4px; }
+        .loading-text { color: #6366f1; font-size: 14px; margin: 0; }
+        .idle-text { color: #6b7280; font-size: 14px; margin: 0; }
+        .error-text { color: #f97316; font-size: 14px; margin: 0; }
+    }
+}
