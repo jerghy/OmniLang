@@ -1,0 +1,182 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║    OmniView 教学项目 —— 多文件项目结构                          ║
+// ║                                                              ║
+// ║  运行：omnic run                                               ║
+// ║  编译：omnic build --target omniview                           ║
+// ║                                                              ║
+// ║  项目结构（34 个源文件）：                                     ║
+// ║    src/main.omni              ← 入口 + App 根组件             ║
+// ║    src/lib.omni               ← 工具函数                      ║
+// ║    src/lib/types.omni         ← pub struct + pub type         ║
+// ║    src/lib/reexports.omni     ← export { X } from "./..."     ║
+// ║    src/lib/stats.omni         ← 统计引擎（pub fn）            ║
+// ║    src/lib/validation.omni    ← 输入验证（tagged union）       ║
+// ║    src/lib/transform.omni     ← 数据转换（break/continue）    ║
+// ║    src/stores/TodoStore.omni  ← Store (multi-param + async)  ║
+// ║    src/stores/ThemeStore.omni ← 主题状态管理                   ║
+// ║    src/stores/NotificationStore.omni ← 通知队列               ║
+// ║    src/shared/theme.omni      ← theme 设计令牌                ║
+// ║    src/shared/constants.omni  ← 全局常量                       ║
+// ║    src/components/Header.omni       ← 静态标题               ║
+// ║    src/components/StatsPanel.omni   ← prop 接收 + if 表达式   ║
+// ║    src/components/StatsDashboard.omni ← ref + const + @unmount║
+// ║    src/components/Counter.omni      ← signal + computed       ║
+// ║    src/components/FeatureList.omni  ← @if + @for             ║
+// ║    src/components/FeatureCard.omni  ← struct + @else if       ║
+// ║    src/components/TodoList.omni     ← @for/@empty + 组合      ║
+// ║    src/components/TodoItem.omni     ← prop + event + signal   ║
+// ║    src/components/AddTodo.omni      ← bind:value + 生命周期    ║
+// ║    src/components/FilterBar.omni    ← @onChange + @onClick    ║
+// ║    src/components/ValidationInput.omni ← let + while + action ║
+// ║    src/components/Timer.omni        ← async + optional event  ║
+// ║    src/components/Modal.omni        ← @slot + @onKeyDown      ║
+// ║    src/components/FormPage.omni     ← 全事件 + boolean attrs  ║
+// ║    src/components/DataTable.omni    ← Map literal + closure   ║
+// ║    src/components/TabPanel.omni     ← custom tags + class map ║
+// ║    src/components/ThemeSwitcher.omni ← theme 切换              ║
+// ║    src/pages/Dashboard.omni         ← 仪表盘页面（组件聚合）   ║
+// ║    src/pages/TodoPage.omni          ← 待办页面（功能重构）     ║
+// ║    src/pages/SettingsPage.omni      ← 设置页面                ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// ── 页面级组件（每个页面聚合多个子组件） ──────────────────────────
+import { Header } from "./components/Header";
+import { FeatureList } from "./components/FeatureList";
+import { Dashboard } from "./pages/Dashboard";
+import { TodoPage } from "./pages/TodoPage";
+import { SettingsPage } from "./pages/SettingsPage";
+
+// ── 独立演示组件 ─────────────────────────────────────────────────
+import { ValidationInput } from "./components/ValidationInput";
+import { Timer } from "./components/Timer";
+import { Modal } from "./components/Modal";
+import { TabPanel } from "./components/TabPanel";
+import { DataTable } from "./components/DataTable";
+import { NotificationsPanel } from "./components/NotificationsPanel";
+import { FormPage } from "./components/FormPage";
+
+// Phase 8: 编译器新特性演示（match / await / variant / http / json / storage）
+import { DataFetching } from "./pages/DataFetching";
+import { DataSubmit } from "./pages/DataSubmit";
+import { UserSettings } from "./pages/UserSettings";
+
+// ── 全局 Store ─────────────────────────────────────────────────
+import { TodoStore } from "./stores/TodoStore";
+import { ThemeStore } from "./stores/ThemeStore";
+import { NotificationStore } from "./stores/NotificationStore";
+
+// Phase 7: 仅类型导入（type-only import）
+import type { StatisticsData } from "./lib/types";
+
+// Phase 7: 通过 reexports 导入（重新导出链：types → reexports → main）
+import { Percentage } from "./lib/reexports";
+
+// Phase 7: 命名空间导入（OmniLang 语法：import "path" as alias;）
+import "./lib/types" as Types;
+
+// ═══════════════════════════════════════════════════════════════
+// App —— 根组件，页面级路由入口
+// ═══════════════════════════════════════════════════════════════
+//
+// 数据流：
+//   @store TodoStore（全局单例）
+//        ↓ 各页面通过 @store 直接访问
+//   页面级组件：
+//     Dashboard  → StatsPanel + StatsDashboard + Counter + FeatureCard
+//     TodoPage   → TodoList + FilterBar（内嵌 AddTodo + TodoItem）
+//     SettingsPage → ThemeSwitcher + About
+//   FeatureList  → 独立功能列表（直接放在根组件中）
+//
+// 通信方式演示（4 种）：
+//   父→子 : prop（各组件通过 prop 接收数据）
+//   子→父 : event（内联回调直接调 Store action）
+//   跨组件: @store TodoStore / ThemeStore
+//   表单  : bind:value（见 AddTodo 组件）
+
+component App {
+    @store TodoStore;
+    @store ThemeStore;
+    @store NotificationStore;
+
+    // Phase 7: 使用 import type { Percentage } 的类型标注
+    signal completionRate: Percentage = 42.0;
+
+    view {
+        <div class: app>
+            <Header />
+            <Dashboard />
+            <TodoPage />
+            <FeatureList />
+            <SettingsPage />
+
+            <!-- ═══ 独立演示组件 ═══ -->
+            <section class: demo-section>
+                <h2 class: demo-section-title>独立演示组件</h2>
+
+                <div class: demo-row>
+                    <div class: demo-col>
+                        <ValidationInput />
+                    </div>
+                    <div class: demo-col>
+                        <Timer />
+                    </div>
+                </div>
+
+                <div class: demo-row>
+                    <div class: demo-col>
+                        <Modal />
+                    </div>
+                    <div class: demo-col>
+                        <TabPanel />
+                    </div>
+                </div>
+
+                <div class: demo-full>
+                    <DataTable />
+                </div>
+
+                <div class: demo-full>
+                    <FormPage />
+                </div>
+
+                <div class: demo-full>
+                    <NotificationsPanel />
+                </div>
+            </section>
+
+            <!-- ═══ 编译器新特性（Phase 8） ═══ -->
+            <section class: demo-section>
+                <h2 class: demo-section-title>Phase 8: 编译器新特性</h2>
+
+                <div class: demo-full>
+                    <DataFetching />
+                </div>
+
+                <div class: demo-full>
+                    <DataSubmit />
+                </div>
+
+                <div class: demo-full>
+                    <UserSettings />
+                </div>
+            </section>
+
+            <footer class: footer>
+                <p class: footer-text>OmniView 教学项目 · 34 源文件 · omnic run</p>
+            </footer>
+        </div>
+    }
+    style {
+        .app { max-width: 700px; width: 92vw; margin: 0 auto; background: #f9fafb; min-height: 100vh; }
+        .footer { text-align: center; padding: 24px; border-top: 1px solid #ddd; }
+        .footer-text { font-size: 13px; color: #888; }
+
+        .demo-section { margin: 24px 0; }
+        .demo-section-title { font-size: 20px; color: #1f2937; margin: 0 0 16px 0; padding: 0 4px; }
+        .demo-row { display: flex; gap: 12px; margin-bottom: 12px; }
+        .demo-col { flex: 1; min-width: 0; }
+        .demo-full { margin-bottom: 12px; }
+    }
+}
