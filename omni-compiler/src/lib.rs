@@ -14,6 +14,7 @@ pub mod lexer;
 pub mod parser;
 pub mod semantic;
 pub mod sourcemap;
+pub mod stdlib;
 
 use serde::{Deserialize, Serialize};
 
@@ -49,18 +50,22 @@ pub fn compile(source: &str) -> CompileResult {
         }
     };
 
-    // 3. Semantic analysis — accumulate diagnostics, always return partial result
+    // 3. Semantic analysis — accumulate ALL diagnostics, always return partial result
     let semantics = semantic::analyze(&program);
-    errors.extend(semantics.diagnostics.iter().filter(|d| {
-        matches!(d.severity, crate::error::Severity::Error)
-    }).cloned());
+    let has_semantic_errors = semantics
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d.severity, crate::error::Severity::Error));
+    // Collect ALL diagnostics (errors, warnings, info) into the output
+    errors.extend(semantics.diagnostics.clone());
 
     // 4. Lower to IR
     let ir_program = ir::lower(&program, &semantics);
 
     CompileResult {
-        success: errors.is_empty(),  // success=true only if no errors at all
-        ir: Some(ir_program),       // always return IR (even with warnings)
+        // success=true only if no Error-severity diagnostics
+        success: !has_semantic_errors,
+        ir: Some(ir_program), // always return IR (even with warnings)
         errors,
     }
 }
@@ -109,12 +114,15 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
         }
     };
 
-    // 3. Semantic analysis — accumulate diagnostics, always proceed to lowering
+    // 3. Semantic analysis — accumulate ALL diagnostics, always proceed to lowering
     let semantics = semantic::analyze(&program);
+    let has_errors = semantics
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d.severity, crate::error::Severity::Error));
+    // Collect ALL diagnostics (errors, warnings, info) into the output
     for d in &semantics.diagnostics {
-        if matches!(d.severity, crate::error::Severity::Error) {
-            errors.push(d.clone());
-        }
+        errors.push(d.clone());
     }
 
     // 4. Lower to IR
@@ -124,7 +132,7 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
     let output = codegen::omniview::generate(&ir_program);
 
     OmniViewResult {
-        success: true,
+        success: !has_errors,
         files: Some(OmniViewFiles {
             js: output.js,
             html: output.html,
@@ -205,7 +213,10 @@ pub fn validate_multi(
     }
 
     if !errors.is_empty() {
-        return MultiFileResult { success: false, errors };
+        return MultiFileResult {
+            success: false,
+            errors,
+        };
     }
 
     // Phase 2: Per-file consistency checks (omniview double-check)
@@ -223,32 +234,28 @@ pub fn validate_multi(
     // Phase 4: Cycle detection
     let cycles = semantic::cycles::detect_cycles(&programs, &path_mapping);
     for cycle in &cycles {
-        errors.push(format!(
-            "circular import detected: {}",
-            cycle.join(" → ")
-        ));
+        errors.push(format!("circular import detected: {}", cycle.join(" → ")));
     }
 
-    MultiFileResult { success: errors.is_empty(), errors }
+    MultiFileResult {
+        success: errors.is_empty(),
+        errors,
+    }
 }
 
 /// Check per-file consistency: omniview marker must match file contents.
-fn validate_file_consistency(
-    file_path: &str,
-    program: &Program,
-) -> Result<(), Vec<String>> {
+fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
     let has_omniview_marker = program.modules.values().any(|module| {
-        module.imports.iter().any(|imp| {
-            matches!(imp, ImportStmt::Lib(name) if name == "omniview")
-        })
+        module
+            .imports
+            .iter()
+            .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"))
     });
 
     let has_ui_declarations = program.modules.values().any(|module| {
-        !module.components.is_empty()
-            || !module.stores.is_empty()
-            || !module.themes.is_empty()
+        !module.components.is_empty() || !module.stores.is_empty() || !module.themes.is_empty()
     });
 
     if !has_omniview_marker && has_ui_declarations {
@@ -259,17 +266,22 @@ fn validate_file_consistency(
         ));
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 enum CrossFileSymbolKind {
     Function,
     Struct,
     TypeAlias,
     Component,
     Store,
-    Theme,
+    Theme, // reserved for future theme support
     ReExport(String),
 }
 
@@ -307,7 +319,10 @@ fn build_pub_symbols(
             // Re-exports
             for exp in &module.exports {
                 for name in &exp.names {
-                    symbols.insert(name.clone(), CrossFileSymbolKind::ReExport(exp.path.clone()));
+                    symbols.insert(
+                        name.clone(),
+                        CrossFileSymbolKind::ReExport(exp.path.clone()),
+                    );
                 }
             }
         }
@@ -330,9 +345,17 @@ fn validate_cross_file(
             for import in &module.imports {
                 match import {
                     ImportStmt::Named(named) => {
+                        // stdlib imports (std/http, std/json, etc.) are resolved
+                        // by the IR/stdlib layer, not via file path mapping
+                        if named.path.starts_with("std/") {
+                            continue;
+                        }
                         if let Some(target) = path_mapping.get(&named.path) {
                             errors.extend(validate_named_import(
-                                file_path, &named.names, target, &pub_symbols,
+                                file_path,
+                                &named.names,
+                                target,
+                                &pub_symbols,
                             ));
                         } else {
                             errors.push(format!(
@@ -342,6 +365,9 @@ fn validate_cross_file(
                         }
                     }
                     ImportStmt::Namespace(ns) => {
+                        if ns.path.starts_with("std/") {
+                            continue;
+                        }
                         if let Some(target) = path_mapping.get(&ns.path) {
                             if !programs.contains_key(target.as_str()) {
                                 errors.push(format!(
@@ -357,9 +383,15 @@ fn validate_cross_file(
                         }
                     }
                     ImportStmt::TypeOnly(ti) => {
+                        if ti.path.starts_with("std/") {
+                            continue;
+                        }
                         if let Some(target) = path_mapping.get(&ti.path) {
                             errors.extend(validate_named_import(
-                                file_path, &ti.names, target, &pub_symbols,
+                                file_path,
+                                &ti.names,
+                                target,
+                                &pub_symbols,
                             ));
                         } else {
                             errors.push(format!(
@@ -379,9 +411,10 @@ fn validate_cross_file(
     // Enforce logic→view boundary
     for (file_path, program) in programs {
         for module in program.modules.values() {
-            let is_logic = !module.imports.iter().any(|imp| {
-                matches!(imp, ImportStmt::Lib(name) if name == "omniview")
-            });
+            let is_logic = !module
+                .imports
+                .iter()
+                .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"));
             if !is_logic {
                 continue;
             }
@@ -395,9 +428,9 @@ fn validate_cross_file(
                 if let Some(target) = target_path {
                     if let Some(target_prog) = programs.get(target.as_str()) {
                         let target_is_view = target_prog.modules.values().any(|tm| {
-                            tm.imports.iter().any(|imp| {
-                                matches!(imp, ImportStmt::Lib(name) if name == "omniview")
-                            })
+                            tm.imports.iter().any(
+                                |imp| matches!(imp, ImportStmt::Lib(name) if name == "omniview"),
+                            )
                         });
                         if target_is_view {
                             errors.push(format!(
@@ -411,7 +444,11 @@ fn validate_cross_file(
         }
     }
 
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn validate_named_import(
@@ -495,6 +532,7 @@ pub fn compile_multi_to_target(
         version: "1.0".to_string(),
         modules: HashMap::new(),
         source_map: HashMap::new(),
+        stdlib_imports: Vec::new(),
     };
 
     for (path, program) in &programs {
@@ -505,9 +543,21 @@ pub fn compile_multi_to_target(
 
         let ir_program = ir::lower(program, &semantics);
 
-        // Merge modules
+        // Merge modules — combine declarations from multiple files
         for (mod_name, mod_ir) in ir_program.modules {
-            merged_ir.modules.entry(mod_name).or_insert(mod_ir);
+            merged_ir
+                .modules
+                .entry(mod_name)
+                .and_modify(|existing| {
+                    existing.components.extend(mod_ir.components.clone());
+                    existing.stores.extend(mod_ir.stores.clone());
+                    existing.functions.extend(mod_ir.functions.clone());
+                    existing.structs.extend(mod_ir.structs.clone());
+                    existing.type_aliases.extend(mod_ir.type_aliases.clone());
+                    existing.imports.extend(mod_ir.imports.clone());
+                    existing.exports.extend(mod_ir.exports.clone());
+                })
+                .or_insert(mod_ir);
         }
         // Merge source maps
         for (key, entry) in ir_program.source_map {
@@ -519,8 +569,19 @@ pub fn compile_multi_to_target(
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let warnings: Vec<String> = lint_diags
         .iter()
-        .filter(|d| matches!(d.severity, crate::semantic::lints::LintSeverity::Warning | crate::semantic::lints::LintSeverity::Info))
-        .map(|d| format!("[{}] {}:{}: {} (rule: {})", d.file, d.line, d.col, d.message, d.rule))
+        .filter(|d| {
+            matches!(
+                d.severity,
+                crate::semantic::lints::LintSeverity::Warning
+                    | crate::semantic::lints::LintSeverity::Info
+            )
+        })
+        .map(|d| {
+            format!(
+                "[{}] {}:{}: {} (rule: {})",
+                d.file, d.line, d.col, d.message, d.rule
+            )
+        })
         .collect();
 
     // Phase 5: Dispatch to target codegen
@@ -557,8 +618,11 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 
 fn rust_to_c_string(s: String) -> *mut c_char {
-    CString::new(s)
-        .unwrap_or_else(|_| CString::new("{}").unwrap())
+    // If the string contains an interior NUL byte, replace it
+    // with a placeholder rather than silently returning "{}"
+    let sanitized = s.replace('\0', "\\0");
+    CString::new(sanitized)
+        .unwrap_or_else(|_| CString::new("{\"error\":\"serialization failed\"}").unwrap())
         .into_raw()
 }
 
@@ -570,6 +634,9 @@ pub unsafe extern "C" fn omni_free_string(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
     }
+    // SAFETY: `ptr` is non-null (checked above) and was produced by
+    // CString::into_raw() from a prior omni_* call. We take ownership
+    // back via from_raw() so the CString is dropped and its memory freed.
     unsafe {
         let _ = CString::from_raw(ptr);
     }
@@ -595,10 +662,15 @@ pub unsafe extern "C" fn omni_analyse(
 ) -> *mut c_char {
     let request_str = if request_json_ptr.is_null() {
         return rust_to_c_string(
-            r#"{"success":false,"diagnostics":[{"message":"null pointer","severity":"error"}]}"#.into(),
+            r#"{"success":false,"diagnostics":[{"message":"null pointer","severity":"error"}]}"#
+                .into(),
         );
     } else {
-        let slice = unsafe { std::slice::from_raw_parts(request_json_ptr, request_json_len as usize) };
+        // SAFETY: `request_json_ptr` is non-null (checked above) and the
+        // caller guarantees it points to `request_json_len` bytes of valid
+        // UTF-8 data for the duration of this call.
+        let slice =
+            unsafe { std::slice::from_raw_parts(request_json_ptr, request_json_len as usize) };
         std::str::from_utf8(slice).unwrap_or("{}")
     };
 
@@ -610,10 +682,22 @@ pub unsafe extern "C" fn omni_analyse(
         path_mapping: HashMap<String, String>,
     }
 
-    let input: AnalyseRequest = serde_json::from_str(request_str).unwrap_or(AnalyseRequest {
-        sources: HashMap::new(),
-        path_mapping: HashMap::new(),
-    });
+    let input: AnalyseRequest = match serde_json::from_str(request_str) {
+        Ok(req) => req,
+        Err(e) => {
+            let err_json = serde_json::json!({
+                "diagnostics": [{
+                    "severity": "Error",
+                    "code": "E0000",
+                    "message": format!("Failed to parse request JSON: {}", e),
+                    "line": 0,
+                    "col": 0
+                }],
+                "success": false
+            });
+            return rust_to_c_string(err_json.to_string());
+        }
+    };
 
     let mut diagnostics: Vec<serde_json::Value> = Vec::new();
     let mut programs: HashMap<String, Program> = HashMap::new();
@@ -644,6 +728,7 @@ pub unsafe extern "C" fn omni_analyse(
         version: "1.0".to_string(),
         modules: HashMap::new(),
         source_map: HashMap::new(),
+        stdlib_imports: Vec::new(),
     };
 
     for (path, program) in &programs {
@@ -723,9 +808,11 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
             r#"{"success":false,"files":{},"errors":["null sources pointer"]}"#.into(),
         );
     } else {
-        let slice = unsafe {
-            std::slice::from_raw_parts(sources_json_ptr, sources_json_len as usize)
-        };
+        // SAFETY: `sources_json_ptr` is non-null (checked above) and the
+        // caller guarantees it points to `sources_json_len` bytes of valid
+        // UTF-8 data for the duration of this call.
+        let slice =
+            unsafe { std::slice::from_raw_parts(sources_json_ptr, sources_json_len as usize) };
         std::str::from_utf8(slice).unwrap_or("{}")
     };
 
@@ -734,6 +821,8 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
             r#"{"success":false,"files":{},"errors":["null target pointer"]}"#.into(),
         );
     } else {
+        // SAFETY: `target_ptr` is non-null (checked above) and the caller
+        // guarantees it points to `target_len` bytes of valid UTF-8 data.
         let slice = unsafe { std::slice::from_raw_parts(target_ptr, target_len as usize) };
         std::str::from_utf8(slice).unwrap_or("")
     };
@@ -741,14 +830,27 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     let path_mapping_str = if path_mapping_ptr.is_null() {
         "{}"
     } else {
-        let slice = unsafe {
-            std::slice::from_raw_parts(path_mapping_ptr, path_mapping_len as usize)
-        };
+        // SAFETY: `path_mapping_ptr` is non-null (implicit from else branch)
+        // and the caller guarantees it points to `path_mapping_len` bytes.
+        let slice =
+            unsafe { std::slice::from_raw_parts(path_mapping_ptr, path_mapping_len as usize) };
         std::str::from_utf8(slice).unwrap_or("{}")
     };
 
     // Parse sources
-    let sources: HashMap<String, String> = serde_json::from_str(sources_str).unwrap_or_default();
+    let sources: HashMap<String, String> = match serde_json::from_str(sources_str) {
+        Ok(s) => s,
+        Err(e) => {
+            return rust_to_c_string(
+                serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [format!("Failed to parse sources JSON: {}", e)]
+                })
+                .to_string(),
+            );
+        }
+    };
 
     // Parse target
     let target: codegen::Target = match target_str.parse() {
@@ -767,11 +869,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         }
     };
 
-    // Parse path_mapping
-    let path_mapping: HashMap<String, String> =
-        serde_json::from_str(path_mapping_str).unwrap_or_default();
+    // Parse path_mapping (optional — defaults to empty on parse failure)
+    let path_mapping: HashMap<String, String> = serde_json::from_str(path_mapping_str)
+        .unwrap_or_else(|e| {
+            // Log a diagnostic but continue — path_mapping is non-critical
+            eprintln!("[omni] warning: failed to parse path_mapping JSON: {}", e);
+            HashMap::new()
+        });
 
     let result = compile_multi_to_target(sources, target, path_mapping);
     rust_to_c_string(result)
 }
-
