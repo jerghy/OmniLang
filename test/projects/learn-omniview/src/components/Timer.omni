@@ -1,6 +1,7 @@
 // Timer.omni - async fn, optional event, @unmount cleanup
 
 import omniview;
+import { console_log, console_warn, console_error } from "std/console";
 
 async fn delay(ms: i32) -> i32 {
     return ms;
@@ -18,10 +19,12 @@ component Timer {
     fn start() {
         running = true;
         count = 0;
+        console_log("Timer started");
     }
 
     fn stop() {
         running = false;
+        console_log("Timer stopped");
     }
 
     fn reset() {
@@ -54,7 +57,7 @@ component Timer {
     // @unmount cleanup
     @unmount {
         running = false;
-        println("Timer unmounted, final count: " + count.to_string());
+        console_log("Timer unmounted, final count: " + count.to_string());
     }
 
     view {
