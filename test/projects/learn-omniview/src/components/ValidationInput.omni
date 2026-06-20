@@ -10,6 +10,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { string_length, string_contains, string_trim } from "std/string";
 
 component ValidationInput {
     signal input: String = "";
@@ -35,9 +36,11 @@ component ValidationInput {
 
     // 组件内 action（带参数和返回类型）
     action validate(text: String): String {
-        if text == "" { return "Input cannot be empty"; }
-        if text.len() < 3 { return "Need at least 3 characters"; }
-        if text.len() > 50 { return "Cannot exceed 50 characters"; }
+        let trimmed = string_trim(text);
+        if trimmed == "" { return "Input cannot be empty"; }
+        if string_length(trimmed) < 3 { return "Need at least 3 characters"; }
+        if string_length(trimmed) > 50 { return "Cannot exceed 50 characters"; }
+        if string_contains(trimmed, "@") { return "Email pattern not allowed in generic validation"; }
         return "OK Validation passed";
     }
 

@@ -2,6 +2,7 @@
 // Demonstrates full form event handling, accessibility attributes, and data attributes
 
 import omniview;
+import { string_length, string_contains, string_trim, string_starts_with } from "std/string";
 
 component FormPage {
     signal name: String = "";
@@ -18,14 +19,16 @@ component FormPage {
     fn handleMessageChange() { scrollPos = scrollPos + 1; }
 
     fn handleNameFocus() { focusField = "name"; }
-    fn handleNameBlur() { focusField = ""; if name == "" { nameError = "Name is required"; } }
+    fn handleNameBlur() { focusField = ""; if name == "" { nameError = "Name is required"; } else if string_length(name) < 2 { nameError = "Name must be at least 2 characters"; } else if string_starts_with(name, " ") { nameError = "Name must not start with a space"; } }
     fn handleEmailFocus() { focusField = "email"; }
-    fn handleEmailBlur() { focusField = ""; if email == "" { emailError = "Email is required"; } }
+    fn handleEmailBlur() { focusField = ""; if email == "" { emailError = "Email is required"; } else if !string_contains(email, "@") { emailError = "Email must contain @"; } }
 
     fn handleSubmit() {
         if name == "" { nameError = "Name is required"; }
+        else if string_length(name) < 2 { nameError = "Name must be at least 2 characters"; }
         if email == "" { emailError = "Email is required"; }
-        if name != "" && email != "" { submitted = true; }
+        else if !string_contains(email, "@") { emailError = "Email must contain @"; }
+        if nameError == "" && emailError == "" { submitted = true; }
     }
 
     fn handleScroll() { scrollPos = scrollPos + 1; }
@@ -38,6 +41,10 @@ component FormPage {
         emailError = "";
         submitted = false;
         scrollPos = 0;
+    }
+
+    fn getTrimmedMessage() -> String {
+        return string_trim(message);
     }
 
     fn getStatusText() -> String {
@@ -162,6 +169,14 @@ component FormPage {
                     </p>
                 </div>
 
+                <!-- Trimmed message display -->
+                @if message != "" {
+                    <div class: trimmed-area>
+                        <p class: trimmed-label>Trimmed message:</p>
+                        <p class: trimmed-value>"{getTrimmedMessage()}"</p>
+                    </div>
+                }
+
                 <!-- Form actions -->
                 <div class: actions>
                     <button
@@ -222,6 +237,9 @@ component FormPage {
         .actions { display: flex; gap: 8px; }
         .submit-btn { padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
         .reset-btn { padding: 12px 24px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 16px; cursor: pointer; color: #374151; }
+        .trimmed-area { margin: 8px 0; padding: 8px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
+        .trimmed-label { font-size: 12px; color: #6b7280; margin: 0 0 2px 0; }
+        .trimmed-value { font-size: 14px; color: #166534; margin: 0; font-family: monospace; }
         .conditional-area { padding: 8px 0; }
         .conditional-btn { padding: 10px 20px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 14px; cursor: pointer; color: #374151; }
         .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
