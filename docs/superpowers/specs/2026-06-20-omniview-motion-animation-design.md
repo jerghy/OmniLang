@@ -30,11 +30,31 @@ OmniView Motion is a cross-platform animation syntax that compiles to **Web** (W
 }
 ```
 
-The `@motion` keyword is a top-level or component-scoped definition, consistent with `@component`, `@store`, etc.
+The `@motion` keyword can be defined at:
+
+| Scope | Allowed | Example |
+|-------|---------|---------|
+| File top-level | ✅ | `@motion globalFade { ... }` |
+| Inside `component` | ✅ | Component-scoped, shadows file-level names |
+| Inside `store` | ❌ | Compile error |
+| Inside another `@motion` | ❌ | No nesting; use composition via reference |
+| Imported from another file | ✅ | `import { fadeIn } from "./animations.omni"` |
+
+Name resolution: current scope → parent scope → file-level → imports.
 
 ### 2.2 Two Mutually Exclusive Modes
 
-A `@motion` block is **either** a keyframe animation **or** a timeline. Mixing the two is a compile error.
+A `@motion` block is **either** a keyframe animation **or** a timeline **or** a pure-callback motion. Mixing features from different modes is a compile error.
+
+**Mode determination at parse time:**
+
+| First token(s) in body | Mode | Description |
+|------------------------|------|-------------|
+| `from`, `to`, `N%` | Keyframe | Must have NO timeline features |
+| `set`, IDENT reference, `stagger(`, `label` | Timeline | Must have NO percentage stops |
+| `onStart`, `onUpdate`, `onComplete`, `onRepeat` | Callback | Only callbacks + `over`; no visual tweens |
+
+If the body contains `then`, `with`, or `start:`, it is forced to timeline mode.
 
 #### Keyframe Mode (shared `over`)
 
@@ -86,6 +106,19 @@ Each item has its own `over` duration and optional `start` position. No percenta
 | `from { props }` (alone) | — | ❌ Must pair with `to` |
 | `set { props }` | Instant assignment (no animation) | ❌ Only allowed in timeline |
 
+#### Callback-Only Mode
+
+A motion with no visual tweens — drives logic purely via callbacks.
+
+```omni
+@motion countUp {
+  onUpdate: { displayValue = floor($progress * 100) }
+  over: 1000ms
+}
+```
+
+Callbacks are the only allowed body items; `to`/`from`/`set`/`stagger` are compile errors in this mode.
+
 ### 2.4 `set` — Instant Assignment
 
 `set` can only appear inside a timeline. It cannot be a standalone motion.
@@ -112,8 +145,16 @@ Each item in a timeline has an optional `start` parameter. Default is `">"` (aft
 | `"+=Ns"` | Start N seconds after previous ends | `"+=N"` |
 | `N.Ns` (number) | Absolute time from timeline start | Absolute position |
 
+**`with` grouping rule:** When items are connected by `with`, they form a group. A subsequent `then` starts after the *entire group* completes (i.e., after the longest item in the group ends).
+
+```omni
+to { x: 100 } over: 1s
+with to { y: 100 } over: 0.5s
+then to { scale: 2 } over: 0.3s    // starts at 1s (max(1s, 0.5s)), not 0.5s
+```
+
 Compile error if:
-- `start` used in keyframe mode
+- `start` used in keyframe or callback mode
 - `start` references a non-existent item
 - Circular reference via `start: "<"` chains
 
@@ -223,6 +264,15 @@ Every animatable property has a strict type. Type mismatches are compile errors.
 // ⚠️  boxShadow: ...→... (Flutter) → platform warning: Flutter does not support boxShadow
 ```
 
+**Additional format validation rules:**
+
+| Property | Rule | Error Type |
+|----------|------|------------|
+| `boxShadow` | Both sides must use identical value structure (all values with/without `rgba`, same spread format) | ❌ Error |
+| `clipPath` | Both sides of `→` must use the same CSS shape function (e.g., both `circle()`, both `inset()`) | ❌ Error |
+| `d` (SVG path) | Both path strings must have identical command structure (same number and types of segments) | ⚠️ Warning (runtime fallback: skip this property if interpolation fails) |
+| `$velocity` | Only valid in callbacks of `@drag-horizontal`/`@drag-vertical` triggered motions | ❌ Error in other contexts |
+
 ### 6.3 Transform Composition (Web)
 
 `x`, `y`, `scale`, `rotate` etc. are compiled into a single CSS `transform` property. The compiler ensures `from` and `to` have identical transform component sets, auto-filling missing components with defaults:
@@ -295,14 +345,16 @@ stagger(
 
 Total stagger duration (interval mode): `(count - 1) × each + motion.duration`
 
+When `stagger()` appears as a timeline item, subsequent `then` items start after the *last* staggered item completes (at total stagger duration from the stagger's own start time).
+
 ### 8.3 Stagger Direction (`from`)
 
 | Value | Behavior |
 |-------|----------|
 | `start` | Item[0] first → Item[N-1] last |
-| `center` | Item[N/2] first → ripples outward |
+| `center` | For odd N: item[floor(N/2)] starts first, ripples outward. For even N: items[floor((N-1)/2)] and items[ceil((N-1)/2)] both start at t=0 |
 | `end` | Item[N-1] first → Item[0] last |
-| `edges` | Item[0] and Item[N-1] first → ripples inward |
+| `edges` | Item[0] and Item[N-1] both start at t=0, ripples inward |
 
 ### 8.4 Stagger + `@for` + Key
 
@@ -370,7 +422,7 @@ Web: `IntersectionObserver`. Flutter: `VisibilityDetector`.
 }}>
 ```
 
-The active state is determined by element interaction state (idle/hover/pressed). This is syntactic sugar for `@hover` + `@press` + `@unhover` combinations.
+The active state is determined by element interaction state. Only three state names are accepted: `idle`, `hover`, `pressed`. Any other name is a compile error. `@states` is syntactic sugar for `@hover` + `@press` + `@unhover` combinations — the compiler expands it to these triggers internally.
 
 ### 9.6 `@scroll` (Scroll-Scrubbed Animation)
 
@@ -382,6 +434,17 @@ The active state is determined by element interaction state (idle/hover/pressed)
 ```
 
 The scroll position within the trigger range maps 0→1 to animation progress.
+
+`@scroll-start` and `@scroll-end` values follow the format `"{elementEdge} {viewportPosition}"`:
+
+| Element Edge | Viewport Position | Example | Meaning |
+|-------------|-------------------|---------|---------|
+| `top` | `N%` | `"top 80%"` | Element top reaches 80% from viewport top |
+| `center` | `N%` | `"center 50%"` | Element center reaches viewport center |
+| `bottom` | `N%` | `"bottom 20%"` | Element bottom reaches 20% from viewport top |
+| `top` | `top` / `center` / `bottom` | `"top bottom"` | Element top reaches viewport bottom |
+
+Phase 1 supports percentages and keywords only (no px values).
 
 ### 9.7 `@drag` (Gesture-Driven Animation)
 
@@ -639,24 +702,55 @@ When `respectReducedMotion: false`, the animation always plays with its defined 
 
 ## 20. Compile-Time Validation (Complete List)
 
-| Error | Type |
-|-------|------|
-| Non-interpolatable property (e.g., `display`, `position`) | ❌ Error |
-| Type mismatch (`opacity: 0→"hello"`) | ❌ Error |
-| Keyword value in animation (`width: auto→300px`) | ❌ Error |
-| Missing `to` after standalone `from` | ❌ Error |
-| `set` outside of timeline | ❌ Error |
-| Mixed keyframe + timeline mode | ❌ Error |
-| Undefined motion reference | ❌ Error |
-| Circular reference (`A then B then A`) | ❌ Error |
-| `@for` with stagger/enter/leave but no `key={}` | ❌ Error |
-| `driven-by` + `loop` | ❌ Error |
-| `ease` + `spring` simultaneously | ❌ Error |
-| `fill: both` + `loop: infinite` | ❌ Error |
-| Platform-unsupported property (e.g., `boxShadow` on Flutter) | ⚠️ Warning |
-| `over: 0ms` | ⚠️ Warning |
-| >10 animations on single element | ⚠️ Warning |
-| `loop: infinite` without reachable `kill()` | ⚠️ Warning |
+### 20.1 Errors (block compilation)
+
+| Error |
+|-------|
+| Non-interpolatable property (e.g., `display`, `position`) |
+| Type mismatch (`opacity: 0→"hello"`) |
+| Keyword value in animation (`width: auto→300px`) |
+| Missing `to` after standalone `from` |
+| `set` outside of timeline |
+| Mixed keyframe + timeline + callback features |
+| Undefined motion reference |
+| Circular reference (`A then B then A`) |
+| `@for` with stagger/enter/leave but no `key={}` |
+| `driven-by` + `loop` |
+| `ease` + `spring` simultaneously |
+| `fill: both` + `loop: infinite` |
+| `@states` with name other than `idle` / `hover` / `pressed` |
+| `clipPath` with different shape functions on each side of `→` |
+| `boxShadow` with different value structures on each side of `→` |
+| `$velocity` in non-gesture callback context |
+| `@motion` inside `store` or inside another `@motion` |
+| `stagger()` inside keyframe mode |
+
+### 20.2 Warnings (do not block compilation)
+
+| Warning |
+|---------|
+| Platform-unsupported property (e.g., `boxShadow` on Flutter, `elevation` on Web) |
+| `over: 0ms` (use `set` instead) |
+| >10 animations on single element (performance risk) |
+| `loop: infinite` without reachable `kill()` |
+| `direction: alternate` + `loop: 1` (plays forward then reverse — is this intended?) |
+| `d` attribute interpolation — path structure mismatch (runtime may skip) |
+| `opacity` value outside 0..1 range |
+| `over` > 3600s (suspiciously long) |
+| `over` < 0ms (negative duration), `delay` < 0ms, `loop: 0` — treated as errors, see 20.1 |
+
+### 20.3 Parameter Value Ranges
+
+| Parameter | Valid Range | Out of Range |
+|-----------|------------|--------------|
+| `over` | 0ms .. 3600s | < 0 → ❌ Error; > 3600s → ⚠️ Warning |
+| `delay` | 0ms .. 3600s | < 0 → ❌ Error |
+| `loop` | 1 .. 10000 or `infinite` | 0 or negative → ❌ Error |
+| `repeatDelay` | 0ms .. 3600s | < 0 → ❌ Error |
+| `timeScale` | 0.0 .. 100.0 | ≤ 0 → ❌ Error; > 100 → ⚠️ Warning |
+| `opacity` | 0.0 .. 1.0 | Outside → ⚠️ Warning |
+| `friction` (spring) | 0 .. 1000 | Outside → ❌ Error |
+| `tension` (spring) | 0 .. 1000 | Outside → ❌ Error |
 
 ---
 
@@ -709,18 +803,27 @@ When `respectReducedMotion: false`, the animation always plays with its defined 
 
 ```
 motion_def      := "@motion" IDENT "{" motion_body "}"
-motion_body     := keyframe_body | timeline_body
-keyframe_body   := (keyframe_stop)+ timing_spec?
+
+motion_body     := keyframe_body | timeline_body | callback_body
+
+keyframe_body   := (keyframe_stop)+ timing_spec? playback_spec*
 keyframe_stop   := ("from" | NUMBER "%") property_block ("ease:" easing)?
                  | "to" property_block ("ease:" easing)?
-timeline_body   := timeline_item (connector timeline_item)*
+// Mode detection: "from" | "to" | N"%" as first token → keyframe mode
+// Mode detection: presence of "then" | "with" | "start:" → forced to timeline mode
+
+timeline_body   := timeline_item (connector timeline_item)* playback_spec*
 connector       := "then" | "with"    // then = sequential, with = parallel
 timeline_item   := "set" property_block
                  | direction property_block timing_spec ("start:" position)?
                  | IDENT ("start:" position)?                         // motion reference
                  | "stagger" "(" motion_expr "," stagger_opts ")"
                  | "label" STRING ("onEnter:" expr_block)?
-                 | callback_spec
+// "then" after a "with" group: starts after longest item in group ends
+
+callback_body   := callback_spec+ "over:" duration playback_spec*
+// No visual tweens; only callbacks + timing
+
 timing_spec     := "over:" duration ("ease:" easing)? ("delay:" duration)? ("colorSpace:" IDENT)?
 direction       := "to" | "from" "to"
 position        := STRING  // ">" | "<" | "-=Ns" | "<+Ns" | "+=Ns" | NUMBER "s"
@@ -736,6 +839,16 @@ easing          := "linear" | "easeIn" | "easeOut" | "easeInOut"
                  | "steps" "(" "count:" NUMBER "," "direction:" IDENT ")"
 property_block  := "{" property (";" property)* ";"? "}"
 property        := IDENT ":" value ("→" value)?
+playback_spec   := "loop:" (NUMBER | "infinite")
+                 | "direction:" ("normal" | "reverse" | "alternate" | "alternateReverse")
+                 | "fill:" ("none" | "forwards" | "backwards" | "both")
+                 | "delay:" duration
+                 | "repeatDelay:" duration
+                 | "repeatRefresh:" ("true" | "false")
+                 | "timeScale:" NUMBER
+                 | "interrupt:" ("stop" | "complete" | "queue" | "replace")
+                 | "respectReducedMotion:" ("true" | "false")
+callback_spec   := ("onStart:" | "onUpdate:" | "onComplete:" | "onRepeat:" | "onInterrupt:") (IDENT | expr_block)
 ```
 
 ---
