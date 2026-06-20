@@ -12,7 +12,7 @@ import omniview;
 
 import { storage_get, storage_set } from "std/storage";
 import { json_parse, json_stringify } from "std/json";
-import { array_push, array_pop, array_length, array_contains, array_is_empty } from "std/array";
+import { array_push, array_pop, array_length, array_is_empty } from "std/array";
 
 store TodoStore {
     // ── 响应式状态 ─────────────────────────────────────────────

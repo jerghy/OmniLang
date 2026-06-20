@@ -2,7 +2,7 @@
 
 import omniview;
 
-import { storage_get, storage_set } from "std/storage";
+import { storage_set } from "std/storage";
 
 store NotificationStore {
     signal notifications: Array<String> = [];

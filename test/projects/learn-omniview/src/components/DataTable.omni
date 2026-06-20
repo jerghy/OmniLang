@@ -5,7 +5,7 @@
 // comment preservation, map/dict usage, and inline closures
 
 import omniview;
-import { array_sort, array_map, array_filter, array_length, array_contains } from "std/array";
+import { array_sort, array_filter, array_length } from "std/array";
 
 struct RowItem {
     id: i32,
@@ -18,7 +18,6 @@ component DataTable {
     signal scrollCount: i32 = 0;
     signal rows: Array<RowItem> = [];
     signal sortAsc: bool = true;
-    signal sortKey: String = "name";
 
     fn initRows() {
         rows = [
