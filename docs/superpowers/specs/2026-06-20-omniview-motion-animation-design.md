@@ -173,23 +173,56 @@ Values are snapshotted at animation start. Signal references are evaluated once 
 
 ### 4.2 Easing Catalog
 
-All easing parameters use `key: value` colon syntax.
+All easing functions use GSAP-style naming: `{Family}{Direction}` with camelCase. Direction defaults to `Out` when omitted. Parameterized curves use colon syntax for arguments.
 
-| Easing | Syntax | Web Mapping | Flutter Mapping |
-|--------|--------|-------------|-----------------|
-| Linear | `ease: linear` | `linear` | `Curves.linear` |
-| Ease In | `ease: easeIn` | `ease-in` | `Curves.easeIn` |
-| Ease Out | `ease: easeOut` | `ease-out` | `Curves.easeOut` |
-| Ease InOut | `ease: easeInOut` | `ease-in-out` | `Curves.easeInOut` |
-| Cubic Bezier | `ease: cubic(x1: 0.16, y1: 1, x2: 0.3, y2: 1)` | `cubic-bezier()` | `Cubic()` |
-| Spring | `ease: spring(tension: 200, friction: 15)` | JS spring simulation | `SpringSimulation` |
-| Spring + velocity | `ease: spring(tension: 200, friction: 15, velocity: 2)` | JS spring simulation | `SpringSimulation` |
-| Back | `ease: back(intensity: 1.7)` | Approximated cubic-bezier | `BackCurve` |
-| Elastic | `ease: elastic(amplitude: 1, period: 0.5)` | JS elastic simulation | `ElasticCurve` |
-| Bounce | `ease: bounce` | JS bounce simulation | `BounceCurve` |
-| Steps | `ease: steps(count: 5, direction: end)` | `steps()` | Custom stepped curve |
+#### 4.2.1 Standard Presets (no parameters)
 
-Compile error: `ease` and `spring` cannot both be specified.
+| Easing | Web Mapping | Flutter Mapping |
+|--------|-------------|-----------------|
+| `ease: linear` | `linear` | `Curves.linear` |
+| `ease: easeIn` | `ease-in` | `Curves.easeIn` |
+| `ease: easeOut` | `ease-out` | `Curves.easeOut` |
+| `ease: easeInOut` | `ease-in-out` | `Curves.easeInOut` |
+
+`easeIn`/`easeOut`/`easeInOut` are CSS-compatible cubic-bezier presets.
+
+#### 4.2.2 Power Curves (intensity 1–4, no parameters)
+
+| Easing | Meaning | Web | Flutter |
+|--------|---------|-----|---------|
+| `power1In`, `power1Out`, `power1InOut` | Quadratic (t²) — subtle | cubic-bezier | `Curves.easeInQuad` etc. |
+| `power2In`, `power2Out`, `power2InOut` | Cubic (t³) — moderate | cubic-bezier | `Curves.easeInCubic` etc. |
+| `power3In`, `power3Out`, `power3InOut` | Quartic (t⁴) — strong | cubic-bezier | `Curves.easeInQuart` etc. |
+| `power4In`, `power4Out`, `power4InOut` | Quintic (t⁵) — extreme | cubic-bezier | `Curves.easeInQuint` etc. |
+
+#### 4.2.3 Specialized Curves (Phase 1)
+
+| Family | Direction Variants | Parameters | Web | Flutter |
+|--------|-------------------|------------|-----|---------|
+| `backOut` | `backIn`, `backOut`, `backInOut` | `intensity:` (default: 1.70158) | Approx. cubic-bezier | `BackCurve` |
+| `bounceOut` | `bounceIn`, `bounceOut`, `bounceInOut` | none | JS bounce simulation | `BounceCurve` |
+| `elasticOut` | `elasticIn`, `elasticOut`, `elasticInOut` | `amplitude:` (default: 1), `period:` (default: 0.5) | JS elastic simulation | `ElasticCurve` |
+| `spring` | (no direction — physics-based) | `tension:`, `friction:`, `velocity:` (optional) | JS spring simulation | `SpringSimulation` |
+| `cubic` | (custom bezier) | `x1:`, `y1:`, `x2:`, `y2:` | `cubic-bezier()` | `Cubic()` |
+| `steps` | (stepped) | `count:`, `direction:` (`start`\|`end`) | `steps()` | Custom stepped Curve |
+
+#### 4.2.4 Future Curves (Phase 2)
+
+| Family | Direction Variants | Parameters |
+|--------|-------------------|------------|
+| `sineOut` | `sineIn`, `sineOut`, `sineInOut` | none |
+| `circOut` | `circIn`, `circOut`, `circInOut` | none |
+| `expoOut` | `expoIn`, `expoOut`, `expoInOut` | none |
+
+#### 4.2.5 Backward-Compatible Aliases
+
+| Old Syntax | Maps To | Notes |
+|-----------|---------|-------|
+| `ease: back(intensity: 1.7)` | `backOut(intensity: 1.7)` | Default direction = Out |
+| `ease: elastic(amplitude: 1, period: 0.5)` | `elasticOut(...)` | Default direction = Out |
+| `ease: bounce` | `bounceOut` | Default direction = Out |
+
+Compile error if: `ease` and `spring` both specified; unknown easing name.
 
 ### 4.3 Color Interpolation Mode
 
@@ -222,9 +255,12 @@ loop: 3 | infinite         // iteration count
 direction: normal | reverse | alternate | alternateReverse
 fill: none | forwards | backwards | both
 delay: 0ms
+paused: true | false       // start in paused state (default: false)
 repeatDelay: 0ms           // pause between iterations
 repeatRefresh: true | false  // re-evaluate from values each repeat
 ```
+
+When `paused: true`, the animation is fully initialized (including applying `from` state via `fill`) but does not auto-play. Use `ref.trigger.play()` to start. Per-element override: `<div @enter={fadeIn} @paused={false}>` overrides the motion's `paused` value.
 
 ### Parameter Conflict Rules (Compile Errors)
 
@@ -364,6 +400,61 @@ When stagger is applied to `@for item in items key={item.id}`:
 - Items with **unchanged keys** → no animation (stay in place)
 - Compile error if `@for` has stagger but no `key={}`
 
+### 8.5 Parent-Child Orchestration
+
+Three optional parameters on `@enter`/`@leave` triggers control the timing order between a parent element and its children's animations.
+
+#### `when` — Play Order
+
+```omni
+<ul @enter={
+  to { opacity: 1 } over: 300ms
+  when: beforeChildren     // parent FIRST, then children
+}>
+```
+
+| Value | Behavior |
+|-------|----------|
+| `withChildren` (default) | Parent and children play simultaneously |
+| `beforeChildren` | Parent animation completes fully, THEN all child `@enter` animations begin |
+| `afterChildren` | All child `@enter` animations complete fully, THEN parent begins |
+
+Compile error if `when` appears on `@motion` definitions or on triggers other than `@enter`/`@leave`.
+
+#### `delayChildren` — Extra Delay Before Children
+
+```omni
+<div @enter={
+  to { opacity: 1 } over: 300ms
+  when: beforeChildren
+  delayChildren: 100ms    // 100ms AFTER parent finishes, children start
+}>
+```
+
+With default `when: withChildren`: children start `delayChildren` after the parent's animation begins (not after it ends). Stacks with `when`: if `when: beforeChildren` + `delayChildren: 100ms`, children start 100ms after parent finishes.
+
+#### `staggerChildren` — Auto-Stagger Shorthand
+
+Convenience for staggering all direct children without explicit `stagger()` on each child:
+
+```omni
+<ul @enter={
+  to { opacity: 1; y: 0 } over: 300ms
+  staggerChildren: 60ms        // stagger each child by 60ms
+  staggerFrom: center           // optional direction (default: start)
+}>
+  @for item in items key={item.id} {
+    <li @enter={fadeIn} />     // children DON'T need explicit stagger()
+  }
+</ul>
+```
+
+Equivalent to wrapping each child's `@enter` in `stagger(motion, each: 60ms)`.
+
+**Interaction with child's own `stagger()`**: The parent's `staggerChildren` wraps the child's stagger — children start with the parent's stagger interval, and each child's own stagger plays independently within its start window. This enables nested stagger (e.g., sections stagger in, items within each section also stagger).
+
+**Compile-time:** `when`/`delayChildren`/`staggerChildren` only valid on `@enter`/`@leave` triggers (not on `@motion` definitions, `@hover`, `@press`, etc.). `staggerChildren` warns if element has no children.
+
 ---
 
 ## 9. Element Attachment
@@ -379,7 +470,7 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 | `@enter={motion}` | Element mounts into DOM | — |
 | `@leave={motion}` | Element unmounts from DOM | — |
 | `@hover={motion}` | Mouse/touch enters element | Automatically reverses from current progress |
-| `@unhover={motion}` | Mouse/touch leaves element | (Explicit leave animation, overrides default reverse) |
+| `@unhover={motion}` | Mouse/touch leaves element | (Explicit leave, overrides default reverse) |
 | `@press={motion}` | Element is pressed/tapped | Reverses on release |
 | `@focus={motion}` | Element receives focus | Reverses on blur |
 | `@animate={motion}` | Continuous play | — |
@@ -387,6 +478,10 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 | `@scroll={motion}` | Scroll position drives animation | — |
 | `@drag-horizontal={motion}` | Horizontal drag gesture | — |
 | `@drag-vertical={motion}` | Vertical drag gesture | — |
+| `@paused={bool}` | Per-element pause override | Overrides motion's `paused` value |
+| `states: { ... }` | Multi-state animation map (colon prop) | — |
+| `on: {signal}` | Signal driving `states:` active state (colon prop) | — |
+| `@if-mode: "wait"` | Component-level default for @if transition mode | — |
 
 ### 9.3 Hover Reverse Modes
 
@@ -412,17 +507,47 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 
 Web: `IntersectionObserver`. Flutter: `VisibilityDetector`.
 
-### 9.5 Multi-State Animation (`@states`)
+### 9.5 State-Driven Animation (`states:` + `on:`)
+
+Two colon-props for defining named animation states and binding a driving signal. Follows the existing `style:`, `class:`, `ref:` colon-prop pattern.
+
+#### Interaction States (reserved names)
+
+Reserved state names `idle`, `hover`, `pressed` auto-bind to mouse/touch events — no `on:` needed:
 
 ```omni
-<Panel @states={{
-  idle:    to { scale: 1; opacity: 1 } over: 150ms,
-  hover:   to { scale: 1.05; opacity: 1 } over: 150ms,
+<Panel states: {
+  idle:    to { scale: 1;   opacity: 1 }   over: 150ms,
+  hover:   to { scale: 1.05; opacity: 1 }   over: 150ms,
   pressed: to { scale: 0.95; opacity: 0.8 } over: 100ms
-}}>
+}>
 ```
 
-The active state is determined by element interaction state. Only three state names are accepted: `idle`, `hover`, `pressed`. Any other name is a compile error. `@states` is syntactic sugar for `@hover` + `@press` + `@unhover` combinations — the compiler expands it to these triggers internally.
+Compiler auto-generates mouseenter/mouseleave/mousedown/mouseup bindings for the reserved names.
+
+#### Custom Signal-Driven States
+
+Arbitrary state names driven by a signal value via `on:`:
+
+```omni
+<div states: {
+  loading: { opacity: 0.7; scale: 0.95 } over: 200ms ease: easeOut,
+  success: { opacity: 1; scale: 1 }      over: 300ms ease: easeOut,
+  error:   { opacity: 1; color: #ff0000 } over: 300ms
+} on: {status}>
+```
+
+When `status.value` changes to `"success"`, the runtime captures current computed style values and transitions to the target state's properties using that state's `over`/`ease`.
+
+**Compile-time validation:**
+- State names must be unique within the block
+- Reserved names (`idle`/`hover`/`pressed`) cannot be mixed with `on:` (they're interaction-only)
+- Custom state names require `on:` — otherwise compile error
+- `on:` value must be a signal expression
+- Signal value that doesn't match any state name → element stays at current values (no animation)
+- Optional `default` state catches unmatched signal values
+
+**Transition behavior:** When transitioning from state A to state B, properties in A but not B animate back to their element default. Properties only in B animate from current value to B's target. Properties in both animate from A's value to B's value.
 
 ### 9.6 `@scroll` (Scroll-Scrubbed Animation)
 
@@ -446,15 +571,48 @@ The scroll position within the trigger range maps 0→1 to animation progress.
 
 Phase 1 supports percentages and keywords only (no px values).
 
-### 9.7 `@drag` (Gesture-Driven Animation)
+### 9.8 `@drag` (Gesture-Driven Animation)
 
 ```omni
 <Card @drag-horizontal={swipeCard}
       @drag-scrub={true}                          // drag position scrubs animation
       @drag-momentum={friction: 0.95}             // inertia on release
       @drag-threshold={30%}                       // snap threshold
-      @drag-velocity-max={2000px}>                // velocity cap
+      @drag-velocity-max={2000px}                 // velocity cap
+      @drag-constraints="left:0 right:300"        // drag bounds
+      @drag-elastic={0.2}>                        // resistance past bounds
 ```
+
+#### Drag Constraints
+
+String-valued attribute using CSS-like `key:value` pairs:
+
+| Format | Meaning | Valid Axes |
+|--------|---------|------------|
+| `"left:N right:N"` | Horizontal bounds in px | `@drag-horizontal` only |
+| `"top:N bottom:N"` | Vertical bounds in px | `@drag-vertical` only |
+| `"parent"` | Use parent element's bounding rect | Both |
+| `"ref:NAME"` | Use named ref element's bounding rect | Both |
+
+Compile error if:
+- `left`/`right` used with `@drag-vertical` (axis mismatch)
+- `top`/`bottom` used with `@drag-horizontal` (axis mismatch)
+- `parent` combined with explicit edges
+- `ref:NAME` where NAME doesn't match any `ref:` on a sibling element
+
+#### Drag Elasticity
+
+```omni
+@drag-elastic={0.2}    // 0.0 = strict boundary, 1.0 = no resistance
+```
+
+| Value | Behavior |
+|-------|----------|
+| `0.0` (default) | Drag stops exactly at constraint. No overshoot. |
+| `0.1`–`0.9` | Resistance increases past bound. Spring-back on release. |
+| `1.0` | No resistance — infinite drag past bounds. |
+
+**Evaluation order:** constraints → threshold → momentum. Elastic rebound uses spring simulation with `tension = 200 / (1 - elasticity + 0.01)`.
 
 ### 9.8 `@driven-by` (External Progress Control)
 
@@ -481,23 +639,60 @@ Phase 1 supports percentages and keywords only (no px values).
 
 ---
 
-## 10. `@if` + Animation: Double-Branch Coexistence
+## 10. `@if` + Animation: Transition Modes
 
-When `@if condition` flips, both the old branch and new branch coexist in DOM during the animation transition:
+### 10.1 `mode` Attribute
+
+The `mode` attribute on `@if` controls how branch-switching interacts with `@enter`/`@leave` animations:
+
+```omni
+@if isOpen mode="sync" {
+  <Modal @enter={fadeIn} @leave={fadeOut} />
+}
+```
+
+| Mode | Behavior | Framer Motion Equivalent |
+|------|----------|--------------------------|
+| `"sync"` (default) | Old branch plays `@leave`, new branch inserted immediately with `@enter`. Both coexist in DOM during transition. | `<AnimatePresence>` default |
+| `"wait"` | Old branch plays `@leave` to completion → removed from DOM → new branch inserted → plays `@enter`. Sequential. | `mode="wait"` |
+| `"crossfade"` (Phase 2) | Both branches in DOM simultaneously with opacity crossfade. | Custom |
+
+### 10.2 Component-Level Default
+
+```omni
+@component App {
+  @if-mode: "wait"     // applies to all @if blocks in this component
+}
+```
+
+Per-`@if` `mode=` overrides the component-level `@if-mode`.
+
+### 10.3 `sync` Mode (Default — Double-Branch Coexistence)
+
+When `@if condition` flips in `sync` mode:
 
 1. Old branch starts its `@leave` animation (stays in DOM)
 2. New branch starts its `@enter` animation (inserted into DOM immediately)
 3. Old branch is removed from DOM after its `@leave` animation completes
 4. New branch animation runs independently
 
-```omni
-@if isOpen {
-  <Modal @enter={fadeIn} @leave={fadeOut} />
-}
-// isOpen: true → false:
-//   fadeOut plays (old Modal stays), new content inserted immediately
-//   Modal removed from DOM after fadeOut completes
-```
+### 10.4 `wait` Mode (Sequential)
+
+When `@if condition` flips in `wait` mode:
+
+1. Old branch starts its `@leave` animation (stays in DOM)
+2. Wait for `@leave` to complete
+3. Remove old branch from DOM
+4. Insert new branch into DOM
+5. New branch starts its `@enter` animation
+
+### 10.5 Edge Cases
+
+- **`@if` without `@else`**: `wait` still useful — prevents instant disappearance before `@leave` can play.
+- **Multiple `@else if` branches**: `mode` applies uniformly across all branch transitions. Only the currently active branch plays `@leave`.
+- **Branch without `@enter`/`@leave`**: That branch appears/disappears instantly regardless of mode.
+- **`mode` set but no animations on any branch**: Compiler warning — mode has no effect.
+- **Dynamic `mode`**: Phase 1 only accepts string literals (`"sync"` / `"wait"`). Unknown string is a compile error.
 
 ---
 
@@ -718,12 +913,20 @@ When `respectReducedMotion: false`, the animation always plays with its defined 
 | `driven-by` + `loop` |
 | `ease` + `spring` simultaneously |
 | `fill: both` + `loop: infinite` |
-| `@states` with name other than `idle` / `hover` / `pressed` |
 | `clipPath` with different shape functions on each side of `→` |
 | `boxShadow` with different value structures on each side of `→` |
 | `$velocity` in non-gesture callback context |
 | `@motion` inside `store` or inside another `@motion` |
 | `stagger()` inside keyframe mode |
+| Unknown easing name |
+| `when` / `delayChildren` / `staggerChildren` on non-`@enter`/`@leave` trigger or on `@motion` definition |
+| `states:` with custom names but no `on:` signal binding |
+| `states:` mixing reserved names (`idle`/`hover`/`pressed`) with `on:` |
+| `@if mode` with unknown mode string |
+| `@drag-constraints` axis mismatch (e.g., `left`/`right` with `@drag-vertical`) |
+| `@drag-constraints` mixing `parent` with explicit edge values |
+| `@drag-constraints` with `ref:NAME` where NAME is not a sibling ref |
+| `@drag-elastic` value outside 0.0..1.0 |
 
 ### 20.2 Warnings (do not block compilation)
 
@@ -759,16 +962,20 @@ When `respectReducedMotion: false`, the animation always plays with its defined 
 | OmniView Easing | Web (WAAPI/CSS) | Flutter |
 |------------------|------------------|---------|
 | `linear` | `linear` | `Curves.linear` |
-| `easeIn` | `ease-in` | `Curves.easeIn` |
-| `easeOut` | `ease-out` | `Curves.easeOut` |
-| `easeInOut` | `ease-in-out` | `Curves.easeInOut` |
-| `cubic(x1,y1,x2,y2)` | `cubic-bezier(x1,y1,x2,y2)` | `Cubic(x1,y1,x2,y2)` |
-| `spring(t,f)` | JS spring simulation (rAF loop) | `SpringSimulation(t,f)` |
-| `spring(t,f,v)` | JS spring simulation with velocity | `SpringSimulation(t,f)` + velocity |
-| `back(intensity)` | Approximated `cubic-bezier()` | `BackCurve(intensity)` |
-| `elastic(a,p)` | JS elastic simulation | `ElasticCurve(a,p)` |
-| `bounce` | JS bounce simulation | `BounceCurve` |
-| `steps(count,dir)` | `steps(count,dir)` | Custom stepped `Curve` |
+| `easeIn` / `easeOut` / `easeInOut` | `ease-in` / `ease-out` / `ease-in-out` | `Curves.easeIn` / `Curves.easeOut` / `Curves.easeInOut` |
+| `power1In` / `power1Out` / `power1InOut` | `cubic-bezier(...)` (quad) | `Curves.easeInQuad` etc. |
+| `power2In` / `power2Out` / `power2InOut` | `cubic-bezier(...)` (cubic) | `Curves.easeInCubic` etc. |
+| `power3In` / `power3Out` / `power3InOut` | `cubic-bezier(...)` (quart) | `Curves.easeInQuart` etc. |
+| `power4In` / `power4Out` / `power4InOut` | `cubic-bezier(...)` (quint) | `Curves.easeInQuint` etc. |
+| `backIn` / `backOut` / `backInOut(intensity:)` | Approx. `cubic-bezier()` | `BackCurve` |
+| `bounceIn` / `bounceOut` / `bounceInOut` | JS bounce simulation | `BounceCurve` |
+| `elasticIn` / `elasticOut` / `elasticInOut(amplitude:,period:)` | JS elastic simulation | `ElasticCurve` |
+| `spring(tension:,friction:,velocity?:)` | JS spring simulation (rAF) | `SpringSimulation` |
+| `cubic(x1:,y1:,x2:,y2:)` | `cubic-bezier()` | `Cubic()` |
+| `steps(count:,direction:)` | `steps()` | Custom stepped `Curve` |
+| `sineIn` / `sineOut` / `sineInOut` (Phase 2) | `cubic-bezier(...)` | `Curves.easeInSine` etc. |
+| `circIn` / `circOut` / `circInOut` (Phase 2) | `cubic-bezier(...)` | `Curves.easeInCirc` etc. |
+| `expoIn` / `expoOut` / `expoInOut` (Phase 2) | `cubic-bezier(...)` | `Curves.easeInExpo` etc. |
 
 ---
 
@@ -831,23 +1038,44 @@ stagger_opts    := stagger_timing "," stagger_dir
 stagger_timing  := "each:" duration | "amount:" duration
 stagger_dir     := "from:" ("start" | "center" | "end" | "edges")
 easing          := "linear" | "easeIn" | "easeOut" | "easeInOut"
+                 | "power1In" | "power1Out" | "power1InOut"
+                 | "power2In" | "power2Out" | "power2InOut"
+                 | "power3In" | "power3Out" | "power3InOut"
+                 | "power4In" | "power4Out" | "power4InOut"
+                 | "backIn" | "backOut" | "backInOut" ("(" "intensity:" NUMBER ")")?
+                 | "bounceIn" | "bounceOut" | "bounceInOut"
+                 | "elasticIn" | "elasticOut" | "elasticInOut" ("(" elastic_params ")")?
                  | "cubic" "(" cubic_params ")"
                  | "spring" "(" spring_params ")"
-                 | "back" "(" "intensity:" NUMBER ")"
-                 | "elastic" "(" "amplitude:" NUMBER "," "period:" NUMBER ")"
-                 | "bounce"
                  | "steps" "(" "count:" NUMBER "," "direction:" IDENT ")"
+                 // Phase 2: sineIn/sineOut/sineInOut, circIn/circOut/circInOut, expoIn/expoOut/expoInOut
+
+parent_child    := "when:" ("beforeChildren" | "afterChildren" | "withChildren")
+                 | "delayChildren:" duration
+                 | "staggerChildren:" duration
+                 | "staggerFrom:" ("start" | "center" | "end" | "edges")
 property_block  := "{" property (";" property)* ";"? "}"
 property        := IDENT ":" value ("→" value)?
 playback_spec   := "loop:" (NUMBER | "infinite")
                  | "direction:" ("normal" | "reverse" | "alternate" | "alternateReverse")
                  | "fill:" ("none" | "forwards" | "backwards" | "both")
                  | "delay:" duration
+                 | "paused:" ("true" | "false")
                  | "repeatDelay:" duration
                  | "repeatRefresh:" ("true" | "false")
                  | "timeScale:" NUMBER
                  | "interrupt:" ("stop" | "complete" | "queue" | "replace")
                  | "respectReducedMotion:" ("true" | "false")
+
+// Element-level props (colon syntax)
+colon_props     := "states:" "{" state_entry ("," state_entry)* "}"
+                 | "on:" "{" expr "}"
+state_entry     := IDENT ":" property_block ("over:" duration)? ("ease:" easing)?
+
+// @if with mode
+if_directive    := "@if" expr ("mode=" STRING)? "{" view_nodes "}"
+                 ("@else" "@if" expr "{" view_nodes "}")*
+                 ("@else" "{" view_nodes "}")?
 callback_spec   := ("onStart:" | "onUpdate:" | "onComplete:" | "onRepeat:" | "onInterrupt:") (IDENT | expr_block)
 ```
 
