@@ -6,6 +6,8 @@
 
 import omniview;
 
+import { storage_get, storage_set } from "std/storage";
+
 store ThemeStore {
     // 当前主题模式："light" 或 "dark"
     signal mode: String = "light";
@@ -26,6 +28,14 @@ store ThemeStore {
     // getter: 下一个模式标签
     getter nextLabel: String = if mode == "dark" { "Light" } else { "Dark" };
 
+    // ── Persistence actions ─────────────────────────────────────
+    action load() {
+        let raw = storage_get("theme-mode");
+        if raw != null {
+            mode = raw;
+        }
+    }
+
     // action: 切换深浅色模式
     action toggle() {
         if mode == "dark" {
@@ -34,6 +44,7 @@ store ThemeStore {
             mode = "dark";
         }
         toggleCount = toggleCount + 1;
+        storage_set("theme-mode", mode);
     }
 
     // action: 设置指定模式
@@ -43,5 +54,6 @@ store ThemeStore {
         } else {
             mode = "light";
         }
+        storage_set("theme-mode", mode);
     }
 }

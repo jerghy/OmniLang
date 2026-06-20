@@ -10,6 +10,9 @@
 
 import omniview;
 
+import { storage_get, storage_set } from "std/storage";
+import { json_parse, json_stringify } from "std/json";
+
 store TodoStore {
     // ── 响应式状态 ─────────────────────────────────────────────
     signal items: Array<String> = [];
@@ -20,11 +23,24 @@ store TodoStore {
     getter totalCount: i32 = items.len();
     getter filterStatus: String = filter;
 
+    // ── Persistence actions ─────────────────────────────────────
+    action load() {
+        let raw = storage_get("todo-items");
+        if raw != null {
+            items = json_parse(raw);
+        }
+    }
+
+    action save() {
+        storage_set("todo-items", json_stringify(items));
+    }
+
     // ── 基础 action（向后兼容 Phase 1）───────────────────────────
     action add(text: String) {
         if text != "" {
             items.push(text);
             lastAction = "added: " + text;
+            save();
         }
     }
 
@@ -42,11 +58,13 @@ store TodoStore {
             entry = "[URGENT] " + title + " (P" + priority.to_string() + " due " + due + ")";
             items.push(entry);
             lastAction = "urgent task added";
+            save();
             return "ok: urgent " + title;
         }
         entry = title + " [P" + priority.to_string() + " due " + due + "]";
         items.push(entry);
         lastAction = "task added";
+        save();
         return "ok: " + title;
     }
 
@@ -77,10 +95,12 @@ store TodoStore {
     action remove() {
         items.pop();
         lastAction = "removed last item";
+        save();
     }
 
     action clear() {
         items = [];
         lastAction = "all cleared";
+        save();
     }
 }
