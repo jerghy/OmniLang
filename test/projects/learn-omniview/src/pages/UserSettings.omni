@@ -27,6 +27,11 @@ component UserSettings {
         }
     }
 
+    // @effect：信号变化时自动保存
+    @effect(username, fontSize) {
+        saveSettings();
+    }
+
     // 保存设置到 localStorage + JSON 序列化
     fn saveSettings() {
         let payload = json_stringify(username);
