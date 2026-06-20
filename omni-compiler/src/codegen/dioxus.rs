@@ -577,6 +577,20 @@ fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) {
     }
 }
 
+fn format_block_as_dioxus_expr(block: &BlockIR) -> String {
+    if let Some(last) = block.statements.last() {
+        match last {
+            StatementIR::ExprStmtIR { expr } => format_expr_ir_dioxus(expr),
+            StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(|e| format_expr_ir_dioxus(e)).unwrap_or_else(|| "None".into())
+            }
+            _ => "None".into(),
+        }
+    } else {
+        "None".into()
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Expression formatting (Rust)
 // ═══════════════════════════════════════════════════════════
@@ -673,7 +687,22 @@ fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("{}.await", format_expr_ir_dioxus(operand))
         }
-                ExprIR::MatchExpr { .. } => "None".into(),
+                ExprIR::MatchExpr { matched, arms } => {
+            let m = format_expr_ir_dioxus(matched);
+            let cases: Vec<String> = arms.iter().map(|arm| {
+                let body = format_block_as_dioxus_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, .. } => {
+                        format!("    UnionType::{} {{ .. }} => {},", name, body)
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        format!("    _ => {},", body)
+                    }
+                    _ => String::new(),
+                }
+            }).collect();
+            format!("match &{} {{\n{}\n}}", m, cases.join("\n"))
+        }
         ExprIR::ClosureExpr { params, body } => {
             let b = format_expr_ir_dioxus(body);
             let p = params.join(", ");

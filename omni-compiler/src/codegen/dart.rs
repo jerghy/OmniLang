@@ -396,6 +396,20 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     }
 }
 
+fn format_block_as_dart_expr(block: &BlockIR) -> String {
+    if let Some(last) = block.statements.last() {
+        match last {
+            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
+            StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(|e| format_expr_ir(e)).unwrap_or_else(|| "null".into())
+            }
+            _ => "null".into(),
+        }
+    } else {
+        "null".into()
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Expression formatting
 // ═══════════════════════════════════════════════════════════
@@ -492,7 +506,22 @@ fn format_expr_ir(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir(operand))
         }
-                ExprIR::MatchExpr { .. } => "null".into(),
+                ExprIR::MatchExpr { matched, arms } => {
+            let m = format_expr_ir(matched);
+            let cases: Vec<String> = arms.iter().map(|arm| {
+                let body = format_block_as_dart_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, .. } => {
+                        format!("  case \"{}\": return {};", name, body)
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        format!("  default: return {};", body)
+                    }
+                    _ => String::new(),
+                }
+            }).collect();
+            format!("(() {{\nswitch ({m}._variant) {{\n{}\n}}\n}})()", cases.join("\n"))
+        }
         ExprIR::ClosureExpr { params, body } => {
             let b = format_expr_ir(body);
             if params.is_empty() {

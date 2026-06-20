@@ -392,6 +392,20 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     }
 }
 
+fn format_block_as_python_expr(block: &BlockIR) -> String {
+    if let Some(last) = block.statements.last() {
+        match last {
+            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
+            StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(|e| format_expr_ir(e)).unwrap_or_else(|| "None".into())
+            }
+            _ => "None".into(),
+        }
+    } else {
+        "None".into()
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Expression formatting
 // ═══════════════════════════════════════════════════════════
@@ -489,7 +503,24 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             entries.insert(0, format!("\"_variant\": \"{}\"", variant));
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::MatchExpr { .. } => "None".into(),
+        ExprIR::MatchExpr { matched, arms } => {
+            let m = format_expr_ir(matched);
+            let mut parts = Vec::new();
+            for (i, arm) in arms.iter().enumerate() {
+                let body = format_block_as_python_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, .. } => {
+                        let kw = if i == 0 { "if" } else { "elif" };
+                        parts.push(format!("({body}) {kw} {m}.get(\"_variant\") == \"{name}\""));
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        parts.push(format!("({body})"));
+                    }
+                    _ => {}
+                }
+            }
+            if parts.is_empty() { "None".into() } else { parts.join(" else ") }
+        }
         _ => "None".into(),
     }
 }

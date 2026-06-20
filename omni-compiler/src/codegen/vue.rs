@@ -699,6 +699,20 @@ fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
     }
 }
 
+fn format_block_as_vue_expr(block: &BlockIR) -> String {
+    if let Some(last) = block.statements.last() {
+        match last {
+            StatementIR::ExprStmtIR { expr } => format_expr_vue(expr),
+            StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(|e| format_expr_vue(e)).unwrap_or_else(|| "undefined".into())
+            }
+            _ => "undefined".into(),
+        }
+    } else {
+        "undefined".into()
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Expression formatting (Vue)
 // ═══════════════════════════════════════════════════════════
@@ -792,7 +806,25 @@ fn format_expr_vue(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_vue(operand))
         }
-                ExprIR::MatchExpr { .. } => "null".into(),
+                ExprIR::MatchExpr { matched, arms } => {
+            let m = format_expr_vue(matched);
+            let cases: Vec<String> = arms.iter().map(|arm| {
+                let body = format_block_as_vue_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, .. } => {
+                        format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body)
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        format!("return {};", body)
+                    }
+                    MatchPatternKindIR::Literal { value } => {
+                        let v = format_json_value_vue(value);
+                        format!("if (_v._variant === {}) {{ return {}; }}", v, body)
+                    }
+                }
+            }).collect();
+            format!("(() => {{ const _v = {}; {} }})()", m, cases.join(" "))
+        }
         ExprIR::ClosureExpr { params, body } => {
             let p = params.join(", ");
             let b = format_expr_vue(body);
