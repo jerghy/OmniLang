@@ -274,7 +274,7 @@ pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Op
     }
     // Also try direct lookup (for non-prefixed names)
     // Stdlib functions are imported as simple names, and lowered as-is
-    for module in &["http", "json", "storage"] {
+    for module in &["http", "json", "storage", "math", "string", "array", "console"] {
         if let Some(entry) = crate::stdlib::lookup(module, name) {
             if entry.available_targets.contains(&target) {
                 return Some((entry.codegen)(args, target));
@@ -403,6 +403,28 @@ mod tests {
             Target::JavaScript,
         );
         assert!(result.is_none(), "Unknown fn should return None");
+    }
+
+    #[test]
+    fn test_try_format_stdlib_call_math_abs_js() {
+        let result = try_format_stdlib_call(
+            "math_abs",
+            &["x".into()],
+            Target::JavaScript,
+        );
+        assert!(result.is_some(), "math_abs should be recognized");
+        assert_eq!(result.unwrap(), "Math.abs(x)");
+    }
+
+    #[test]
+    fn test_try_format_stdlib_call_console_log_js() {
+        let result = try_format_stdlib_call(
+            "console_log",
+            &["\"hi\"".into()],
+            Target::JavaScript,
+        );
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "console.log(\"hi\")");
     }
 
     #[test]
