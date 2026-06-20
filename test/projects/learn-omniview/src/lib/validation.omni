@@ -65,3 +65,13 @@ pub fn has_errors(items: Array<String>) -> bool {
     }
     return false;
 }
+
+// ── 5. format_result —— match 表达式 ─────────────────────────
+
+pub fn format_result(result: ValidationResult) -> String {
+    match result {
+        Valid { message } => { return "通过: " + message; },
+        Invalid { errors } => { return "失败: 发现 " + errors.len() + " 个错误"; },
+        Pending => { return "验证中..."; }
+    }
+}
