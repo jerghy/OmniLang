@@ -643,22 +643,34 @@ impl<'a> Parser<'a> {
 
     fn parse_effect_deps(&mut self) -> Result<Vec<String>, ParseError> {
         let mut deps = Vec::new();
-        // Parse: (dep1, dep2)
+        // Parse: (dep1, dep2) — deps can be dot-paths like "TodoStore.items"
         if self.peek_kind() == TokenKind::LParen {
             self.advance();
             if self.peek_kind() != TokenKind::RParen {
-                deps.push(self.expect_ident("expected dep name")?);
+                deps.push(self.parse_effect_dep_name()?);
                 while self.peek_kind() == TokenKind::Comma {
                     self.advance();
                     if self.peek_kind() == TokenKind::RParen {
                         break;
                     }
-                    deps.push(self.expect_ident("expected dep name")?);
+                    deps.push(self.parse_effect_dep_name()?);
                 }
             }
             self.expect_token(TokenKind::RParen, "expected ')'")?;
         }
         Ok(deps)
+    }
+
+    /// Parse a single effect dependency name, which may be a dot-path like `TodoStore.items`.
+    fn parse_effect_dep_name(&mut self) -> Result<String, ParseError> {
+        let path = self.expect_ident("expected dep name")?;
+        if self.peek_kind() == TokenKind::Dot {
+            self.advance();
+            let field = self.expect_ident("expected field name")?;
+            Ok(format!("{}.{}", path, field))
+        } else {
+            Ok(path)
+        }
     }
 
     // ── Store ──────────────────────────────────────────

@@ -499,6 +499,36 @@ function __omni_bindText(nid) {
             self.current_component = saved_component;
         }
 
+        // @effect hooks — stored separately in comp.effects (not in comp.lifecycles)
+        if !comp.effects.is_empty() {
+            let saved_component = self.current_component.clone();
+            self.current_component = name.to_string();
+            let saved_signal_names: std::collections::HashSet<String> =
+                self.signal_names.iter().cloned().collect();
+            for state in &comp.states {
+                let prefixed = format!("{}_{}", name, state.name);
+                self.signal_names.insert(prefixed);
+            }
+            for effect in &comp.effects {
+                let old_js_len = self.js.len();
+                for stmt in &effect.body.statements {
+                    self.emit_statement(stmt);
+                }
+                let body_js = self.js[old_js_len..].to_string();
+                self.js.truncate(old_js_len);
+
+                // Emit reactive effect via __omni_effect, which auto-tracks
+                // signal dependencies and re-runs when they change.
+                // Placed in mount_js so DOM elements are available.
+                self.mount_js.push_str(&format!(
+                    "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
+                    name, body_js
+                ));
+            }
+            self.signal_names = saved_signal_names;
+            self.current_component = saved_component;
+        }
+
         self.js.push('\n');
     }
 
