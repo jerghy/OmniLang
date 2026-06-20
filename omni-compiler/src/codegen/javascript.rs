@@ -580,7 +580,11 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
                 cases.join("\n  ")
             )
         }
-        ExprIR::ClosureExpr { .. } => "null".to_string(),
+        ExprIR::ClosureExpr { params, body } => {
+            let p = params.join(", ");
+            let b = format_expr_ir(body, false);
+            format!("(({p}) => {{ return {b}; }})")
+        }
     }
 }
 

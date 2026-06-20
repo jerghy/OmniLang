@@ -742,7 +742,15 @@ fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             format!("await {}", format_expr_ir_flutter(operand))
         }
                 ExprIR::MatchExpr { .. } => "null".into(),
-        ExprIR::ClosureExpr { .. } => "null".to_string(),
+        ExprIR::ClosureExpr { params, body } => {
+            let b = format_expr_ir_flutter(body);
+            if params.is_empty() {
+                format!("(() => {b})")
+            } else {
+                let p = params.join(", ");
+                format!("(({p}) => {b})")
+            }
+        }
     }
 }
 

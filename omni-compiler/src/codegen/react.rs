@@ -749,7 +749,11 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             format!("await {}", format_expr_ir_tsx(operand))
         }
                 ExprIR::MatchExpr { .. } => "null".into(),
-        ExprIR::ClosureExpr { .. } => "null".to_string(),
+        ExprIR::ClosureExpr { params, body } => {
+            let p = params.join(", ");
+            let b = format_expr_ir_tsx(body);
+            format!("(({p}) => ({b}))")
+        }
     }
 }
 

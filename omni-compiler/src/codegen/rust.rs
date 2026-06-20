@@ -505,7 +505,15 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             format!("{}.await", format_expr_ir(operand))
         }
                 ExprIR::MatchExpr { .. } => "None".into(),
-        ExprIR::ClosureExpr { .. } => "None".to_string(),
+        ExprIR::ClosureExpr { params, body } => {
+            let b = format_expr_ir(body);
+            if params.is_empty() {
+                format!("(|| {b})")
+            } else {
+                let p = params.join(", ");
+                format!("(|{p}| {b})")
+            }
+        }
     }
 }
 

@@ -671,7 +671,11 @@ fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
             format!("{}.await", format_expr_ir_dioxus(operand))
         }
                 ExprIR::MatchExpr { .. } => "None".into(),
-        ExprIR::ClosureExpr { .. } => "null".to_string(),
+        ExprIR::ClosureExpr { params, body } => {
+            let b = format_expr_ir_dioxus(body);
+            let p = params.join(", ");
+            format!("(move |{p}| {b})")
+        }
     }
 }
 
