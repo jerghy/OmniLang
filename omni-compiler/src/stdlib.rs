@@ -162,6 +162,22 @@ static REGISTRY: &[StdlibFn] = &[
     StdlibFn { module: "string", name: "string_trim", available_targets: &ALL_TARGETS, codegen: codegen_string_trim, is_async: false },
     StdlibFn { module: "string", name: "string_starts_with", available_targets: &ALL_TARGETS, codegen: codegen_string_starts_with, is_async: false },
     StdlibFn { module: "string", name: "string_ends_with", available_targets: &ALL_TARGETS, codegen: codegen_string_ends_with, is_async: false },
+    // ── std/array ─────────────────────────────────────
+    StdlibFn { module: "array", name: "array_length", available_targets: &ALL_TARGETS, codegen: codegen_array_length, is_async: false },
+    StdlibFn { module: "array", name: "array_get", available_targets: &ALL_TARGETS, codegen: codegen_array_get, is_async: false },
+    StdlibFn { module: "array", name: "array_push", available_targets: &ALL_TARGETS, codegen: codegen_array_push, is_async: false },
+    StdlibFn { module: "array", name: "array_pop", available_targets: &ALL_TARGETS, codegen: codegen_array_pop, is_async: false },
+    StdlibFn { module: "array", name: "array_remove", available_targets: &ALL_TARGETS, codegen: codegen_array_remove, is_async: false },
+    StdlibFn { module: "array", name: "array_map", available_targets: &ALL_TARGETS, codegen: codegen_array_map, is_async: false },
+    StdlibFn { module: "array", name: "array_filter", available_targets: &ALL_TARGETS, codegen: codegen_array_filter, is_async: false },
+    StdlibFn { module: "array", name: "array_find", available_targets: &ALL_TARGETS, codegen: codegen_array_find, is_async: false },
+    StdlibFn { module: "array", name: "array_sort", available_targets: &ALL_TARGETS, codegen: codegen_array_sort, is_async: false },
+    StdlibFn { module: "array", name: "array_contains", available_targets: &ALL_TARGETS, codegen: codegen_array_contains, is_async: false },
+    StdlibFn { module: "array", name: "array_is_empty", available_targets: &ALL_TARGETS, codegen: codegen_array_is_empty, is_async: false },
+    // ── std/console ───────────────────────────────────
+    StdlibFn { module: "console", name: "console_log", available_targets: &ALL_TARGETS, codegen: codegen_console_log, is_async: false },
+    StdlibFn { module: "console", name: "console_warn", available_targets: &ALL_TARGETS, codegen: codegen_console_warn, is_async: false },
+    StdlibFn { module: "console", name: "console_error", available_targets: &ALL_TARGETS, codegen: codegen_console_error, is_async: false },
 ];
 
 const ALL_TARGETS: [Target; 9] = [
@@ -618,6 +634,182 @@ fn codegen_string_ends_with(args: &[String], target: Target) -> String {
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// Array codegen
+// ═══════════════════════════════════════════════════════════
+
+fn codegen_array_length(args: &[String], target: Target) -> String {
+    let arr = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).length")
+        }
+        Target::Python => format!("len({arr})"),
+        Target::Rust | Target::Dioxus => format!("({arr}).len()"),
+        Target::Dart | Target::Flutter => format!("({arr}).length"),
+    }
+}
+
+fn codegen_array_get(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let idx = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr})[{idx}]")
+        }
+        Target::Python => format!("({arr})[{idx}] if 0 <= ({idx}) < len({arr}) else None"),
+        Target::Rust | Target::Dioxus => format!("({arr}).get({idx} as usize).cloned()"),
+        Target::Dart | Target::Flutter => format!("({idx}) >= 0 && ({idx}) < ({arr}).length ? ({arr})[{idx} as int] : null"),
+    }
+}
+
+fn codegen_array_push(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let item = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).push({item}), {arr}")
+        }
+        Target::Python => format!("({arr}).append({item}) or {arr}"),
+        Target::Rust | Target::Dioxus => format!("{{ ({arr}).push({item}); {arr} }}"),
+        Target::Dart | Target::Flutter => format!("({arr})..add({item})"),
+    }
+}
+
+fn codegen_array_pop(args: &[String], target: Target) -> String {
+    let arr = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).pop()")
+        }
+        Target::Python => format!("({arr}).pop() if {arr} else None"),
+        Target::Rust | Target::Dioxus => format!("({arr}).pop()"),
+        Target::Dart | Target::Flutter => format!("({arr}).isNotEmpty ? ({arr}).removeLast() : null"),
+    }
+}
+
+fn codegen_array_remove(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let idx = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).splice({idx}, 1), {arr}")
+        }
+        Target::Python => format!("({arr}).pop({idx}) or {arr}"),
+        Target::Rust | Target::Dioxus => format!("{{ ({arr}).remove({idx} as usize); {arr} }}"),
+        Target::Dart | Target::Flutter => format!("({arr})..removeAt({idx} as int)"),
+    }
+}
+
+fn codegen_array_map(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let fn_name = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).map({fn_name})")
+        }
+        Target::Python => format!("[{fn_name}(x) for x in {arr}]"),
+        Target::Rust | Target::Dioxus => format!("({arr}).iter().map({fn_name}).collect::<Vec<_>>()"),
+        Target::Dart | Target::Flutter => format!("({arr}).map({fn_name}).toList()"),
+    }
+}
+
+fn codegen_array_filter(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let fn_name = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).filter({fn_name})")
+        }
+        Target::Python => format!("[x for x in {arr} if {fn_name}(x)]"),
+        Target::Rust | Target::Dioxus => format!("({arr}).iter().filter(|x| {fn_name}(x)).cloned().collect::<Vec<_>>()"),
+        Target::Dart | Target::Flutter => format!("({arr}).where({fn_name}).toList()"),
+    }
+}
+
+fn codegen_array_find(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let fn_name = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).find({fn_name})")
+        }
+        Target::Python => format!("next((x for x in {arr} if {fn_name}(x)), None)"),
+        Target::Rust | Target::Dioxus => format!("({arr}).iter().find(|x| {fn_name}(x)).cloned()"),
+        Target::Dart | Target::Flutter => format!("({arr}).firstWhere({fn_name}, orElse: () => null)"),
+    }
+}
+
+fn codegen_array_sort(args: &[String], target: Target) -> String {
+    let arr = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("([...{arr}]).sort()")
+        }
+        Target::Python => format!("sorted({arr})"),
+        Target::Rust | Target::Dioxus => format!("{{ let mut v = ({arr}).clone(); v.sort(); v }}"),
+        Target::Dart | Target::Flutter => format!("List.from({arr})..sort()"),
+    }
+}
+
+fn codegen_array_contains(args: &[String], target: Target) -> String {
+    let arr = &args[0]; let item = &args[1];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).includes({item})")
+        }
+        Target::Python => format!("({item}) in ({arr})"),
+        Target::Rust | Target::Dioxus => format!("({arr}).contains(&{item})"),
+        Target::Dart | Target::Flutter => format!("({arr}).contains({item})"),
+    }
+}
+
+fn codegen_array_is_empty(args: &[String], target: Target) -> String {
+    let arr = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("({arr}).length === 0")
+        }
+        Target::Python => format!("len({arr}) == 0"),
+        Target::Rust | Target::Dioxus => format!("({arr}).is_empty()"),
+        Target::Dart | Target::Flutter => format!("({arr}).isEmpty"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Console codegen
+// ═══════════════════════════════════════════════════════════
+
+fn codegen_console_log(args: &[String], target: Target) -> String {
+    let msg = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("console.log({msg})")
+        }
+        Target::Python => format!("print({msg})"),
+        Target::Rust | Target::Dioxus => format!("println!(\"{{}}\", {msg})"),
+        Target::Dart | Target::Flutter => format!("print({msg})"),
+    }
+}
+
+fn codegen_console_warn(args: &[String], target: Target) -> String {
+    let msg = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("console.warn({msg})")
+        }
+        Target::Python => format!("import warnings; warnings.warn({msg})"),
+        Target::Rust | Target::Dioxus => format!("eprintln!(\"WARN: {{}}\", {msg})"),
+        Target::Dart | Target::Flutter => format!("print('WARN: ${{{msg}}}')"),
+    }
+}
+
+fn codegen_console_error(args: &[String], target: Target) -> String {
+    let msg = &args[0];
+    match target {
+        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            format!("console.error({msg})")
+        }
+        Target::Python => format!("import sys; print({msg}, file=sys.stderr)"),
+        Target::Rust | Target::Dioxus => format!("eprintln!(\"ERROR: {{}}\", {msg})"),
+        Target::Dart | Target::Flutter => format!("print('ERROR: ${{{msg}}}')"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -871,6 +1063,50 @@ mod tests {
     fn test_string_available_on_all_targets() {
         for target in &ALL_TARGETS {
             assert!(module_available("string", *target), "string should be available on {:?}", target);
+        }
+    }
+
+    // ── Array + Console module tests ──────────────────
+
+    #[test]
+    fn test_codegen_array_length_js() {
+        assert_eq!(codegen_array_length(&["arr".into()], Target::JavaScript), "(arr).length");
+    }
+
+    #[test]
+    fn test_codegen_array_push_js() {
+        let result = codegen_array_push(&["arr".into(), "item".into()], Target::JavaScript);
+        assert!(result.contains("push"), "Got: {}", result);
+        assert!(result.contains("arr"), "Got: {}", result);
+    }
+
+    #[test]
+    fn test_codegen_array_map_python() {
+        let result = codegen_array_map(&["arr".into(), "f".into()], Target::Python);
+        assert_eq!(result, "[f(x) for x in arr]");
+    }
+
+    #[test]
+    fn test_codegen_console_log_js() {
+        assert_eq!(codegen_console_log(&["\"hi\"".into()], Target::JavaScript), "console.log(\"hi\")");
+    }
+
+    #[test]
+    fn test_codegen_console_log_python() {
+        assert_eq!(codegen_console_log(&["\"hi\"".into()], Target::Python), "print(\"hi\")");
+    }
+
+    #[test]
+    fn test_codegen_console_error_rust() {
+        let result = codegen_console_error(&["msg".into()], Target::Rust);
+        assert!(result.contains("eprintln!"), "Got: {}", result);
+    }
+
+    #[test]
+    fn test_array_and_console_available_on_all_targets() {
+        for target in &ALL_TARGETS {
+            assert!(module_available("array", *target));
+            assert!(module_available("console", *target));
         }
     }
 }
