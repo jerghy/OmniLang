@@ -10,6 +10,10 @@
 
 import omniview;
 
+import { storage_get, storage_set } from "std/storage";
+import { json_parse, json_stringify } from "std/json";
+import { array_push, array_pop, array_length, array_is_empty } from "std/array";
+
 store TodoStore {
     // ── 响应式状态 ─────────────────────────────────────────────
     signal items: Array<String> = [];
@@ -17,14 +21,28 @@ store TodoStore {
     signal lastAction: String = "";    // 追踪最后一次操作
 
     // ── 派生值（getter）────────────────────────────────────────
-    getter totalCount: i32 = items.len();
+    getter totalCount: i32 = array_length(items);
     getter filterStatus: String = filter;
+    getter hasItems: bool = !array_is_empty(items);
+
+    // ── Persistence actions ─────────────────────────────────────
+    action load() {
+        let raw = storage_get("todo-items");
+        if raw != null {
+            items = json_parse(raw);
+        }
+    }
+
+    action save() {
+        storage_set("todo-items", json_stringify(items));
+    }
 
     // ── 基础 action（向后兼容 Phase 1）───────────────────────────
     action add(text: String) {
         if text != "" {
-            items.push(text);
+            items = array_push(items, text);
             lastAction = "added: " + text;
+            save();
         }
     }
 
@@ -40,26 +58,28 @@ store TodoStore {
         let mut entry = title;
         if priority > 5 {
             entry = "[URGENT] " + title + " (P" + priority.to_string() + " due " + due + ")";
-            items.push(entry);
+            items = array_push(items, entry);
             lastAction = "urgent task added";
+            save();
             return "ok: urgent " + title;
         }
         entry = title + " [P" + priority.to_string() + " due " + due + "]";
-        items.push(entry);
+        items = array_push(items, entry);
         lastAction = "task added";
+        save();
         return "ok: " + title;
     }
 
     // ── 异步 action 带返回类型 ──────────────────────────────────
     // 演示：async 关键字在返回类型之后
     action fetchReminders(): String async {
-        if items.len() == 0 {
+        if array_is_empty(items) {
             return "no items to sync";
         }
         // 模拟异步操作：统计并返回摘要
         let mut count = 0;
         let mut i = 0;
-        while i < items.len() {
+        while i < array_length(items) {
             count = count + 1;
             i = i + 1;
         }
@@ -75,12 +95,14 @@ store TodoStore {
     }
 
     action remove() {
-        items.pop();
+        array_pop(items);
         lastAction = "removed last item";
+        save();
     }
 
     action clear() {
         items = [];
         lastAction = "all cleared";
+        save();
     }
 }

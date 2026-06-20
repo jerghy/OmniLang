@@ -5,6 +5,7 @@
 // comment preservation, map/dict usage, and inline closures
 
 import omniview;
+import { array_sort, array_filter, array_length } from "std/array";
 
 struct RowItem {
     id: i32,
@@ -34,8 +35,9 @@ component DataTable {
     }
 
     fn handleScroll() { scrollCount = scrollCount + 1; }
-    fn toggleSort() { if sortAsc { sortAsc = false; } else { sortAsc = true; } }
+    fn toggleSort() { sortAsc = !sortAsc; rows = array_sort(rows, |a, b| a.name); }
     fn getSortIcon() -> String { if sortAsc { return "ASC"; } return "DESC"; }
+    fn getActiveRows() -> Array<RowItem> { return array_filter(rows, |r| r.status == "Active"); }
 
     fn getStatusClass(status: String) -> String {
         if status == "Active" { return "badge active"; }
@@ -75,7 +77,7 @@ component DataTable {
         let bonus = |s| s + 5;
         let mut total = 0;
         let mut i = 0;
-        while i < rows.len() {
+        while i < array_length(rows) {
             total = total + bonus(rows.get(i).score);
             i = i + 1;
         }
@@ -137,11 +139,11 @@ component DataTable {
                 <List class: summary-list>
                     <ListItem class: summary-item>
                         <img src="/dot.png" alt="dot" />
-                        Total items: {rows.len()}
+                        Total items: {array_length(rows)}
                     </ListItem>
                     <ListItem class: summary-item>
                         <img src="/dot.png" alt="dot" />
-                        Active items: many
+                        Active items: {array_length(getActiveRows())}
                     </ListItem>
                     <ListItem class: summary-item>
                         <img src="/dot.png" alt="dot" />

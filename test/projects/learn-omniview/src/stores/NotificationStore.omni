@@ -2,6 +2,8 @@
 
 import omniview;
 
+import { storage_set } from "std/storage";
+
 store NotificationStore {
     signal notifications: Array<String> = [];
     signal maxCount: i32 = 5;
@@ -18,6 +20,7 @@ store NotificationStore {
             return "max notifications reached";
         }
         notifications.push(message);
+        storage_set("notification-count", unreadCount.to_string());
         return "added";
     }
 
@@ -44,5 +47,10 @@ store NotificationStore {
 
     action clear() {
         notifications = [];
+    }
+
+    action clearAll() {
+        notifications = [];
+        storage_set("notification-count", "0");
     }
 }

@@ -2,6 +2,7 @@
 // 演示：http_get + await + json_parse + match + @if 状态切换
 
 import omniview;
+import { console_log, console_warn, console_error } from "std/console";
 import { http_get } from "std/http";
 import { json_parse } from "std/json";
 import { fetch_demo, error_message } from "../lib/api";
@@ -20,11 +21,13 @@ component DataFetching {
         if raw == "" {
             status = "error";
             errorMsg = "Empty response from server";
+            console_error(errorMsg);
             return;
         }
         let parsed = json_parse(raw);
         resultText = parsed;
         status = "success";
+        console_log("Fetch completed");
     }
 
     // async action: 调用 api.omni 的 fetch_demo（演示跨文件 pub async fn 导入）
@@ -35,9 +38,11 @@ component DataFetching {
         if msg == "" {
             status = "success";
             resultText = "api.omni fetch_demo OK";
+            console_log("Fetch completed");
         } else {
             status = "error";
             errorMsg = msg;
+            console_error(msg);
         }
     }
 

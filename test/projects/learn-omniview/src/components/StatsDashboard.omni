@@ -1,4 +1,5 @@
 import omniview;
+import { math_abs, math_random, math_ceil, math_floor, math_sqrt } from "std/math";
 
 component StatsDashboard {
     ref container: HtmlElement;
@@ -8,6 +9,7 @@ component StatsDashboard {
 
     signal counter: i32 = 0;
     signal removed: bool = false;
+    signal randomValue: f64 = 0.0;
 
     fn addFive() { counter += 5; }
     fn subThree() { counter -= 3; }
@@ -30,6 +32,8 @@ component StatsDashboard {
     }
 
     fn removeContainer() { removed = true; }
+
+    fn rollDice() { randomValue = math_random(); }
 
     @unmount {
         println("StatsDashboard unmounting, counter: " + counter.to_string());
@@ -55,6 +59,15 @@ component StatsDashboard {
                 </div>
             </div>
 
+            <div class: math-area>
+                <p class: small>math_abs(counter) = {math_abs(counter)} | math_sqrt(counter) = {math_sqrt(counter)}</p>
+            </div>
+
+            <div class: dice-area>
+                <p class: small>Random: {randomValue} | Ceil*100 = {math_ceil(randomValue * 100)} | Floor*100 = {math_floor(randomValue * 100)}</p>
+                <button class: btn @onPress={rollDice}>Roll Dice</button>
+            </div>
+
             <div class: array-area>
                 <p class: small>First value: {getFirst()}</p>
             </div>
@@ -75,6 +88,8 @@ component StatsDashboard {
         .counter-text { font-size: 24px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
         .btn-row { display: flex; gap: 6px; }
         .btn { padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; background: white; font-size: 14px; cursor: pointer; color: #374151; }
+        .math-area { background: #f0fdf4; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+        .dice-area { background: #fff7ed; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
         .array-area { margin-bottom: 12px; }
         .btn-danger { padding: 8px 16px; background: #fddddd; color: #dc2626; border: 1px solid #fdcaca; border-radius: 6px; font-size: 14px; cursor: pointer; }
     }

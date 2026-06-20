@@ -5,6 +5,16 @@ import omniview;
 component TabPanel {
     signal activeTab: String = "home";
 
+    // computed signal: automatically tracks activeTab dependency
+    // Returns a color string based on the currently active tab
+    computed activeStyle: String = if activeTab == "home" {
+        "#6366f1"
+    } else if activeTab == "about" {
+        "#10b981"
+    } else {
+        "#f59e0b"
+    };
+
     fn switchTo(tab: String) {
         activeTab = tab;
     }
@@ -44,7 +54,7 @@ component TabPanel {
             </div>
 
             @if activeTab == "home" {
-                <Card class: card>
+                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>Home Tab</h3>
                     <Flex class: row>
                         <Text>Custom tags: Card, Button, Flex, Text</Text>
@@ -53,20 +63,20 @@ component TabPanel {
                 </Card>
             }
             @else if activeTab == "about" {
-                <Card class: card>
+                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>About Tab</h3>
                     <p class: text>Custom tag mapping: Card to div, Button to button</p>
                     <p class: text>Inline style: syntax on Button elements</p>
                 </Card>
             }
             @else if activeTab == "settings" {
-                <Card class: card>
+                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: card-title>Settings Tab</h3>
                     <p class: text>Active tab: {activeTab}</p>
                 </Card>
             }
             @else {
-                <Card class: card>
+                <Card class: card style: { borderLeft: "5px solid " + activeStyle }>
                     <p class: text>Unknown tab</p>
                 </Card>
             }
@@ -76,7 +86,7 @@ component TabPanel {
         .tab-panel { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
         .tab-bar { display: flex; gap: 8px; margin-bottom: 16px; }
         .tab { }
-        .active { }
+        .active { background: #6366f1; color: white; }
         .card { background: #f9fafb; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
         .card-title { font-size: 18px; color: #222; margin-bottom: 8px; }
         .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }

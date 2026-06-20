@@ -5,6 +5,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
+import { console_log, console_warn, console_error } from "std/console";
 
 component AddTodo {
     // 自定义事件——子→父通信，携带输入文本
@@ -22,7 +23,7 @@ component AddTodo {
 
     // @mount —— 组件挂载后执行一次
     @mount {
-        println("AddTodo 已挂载");
+        console_log("AddTodo mounted");
     }
 
     // @effect —— 依赖变化时执行（在 DOM 更新后）
@@ -37,6 +38,8 @@ component AddTodo {
             // emit event → 父组件接收
             onAdd(input);
             input = "";
+        } else {
+            console_warn("Input is empty");
         }
     }
 

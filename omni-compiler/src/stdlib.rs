@@ -736,13 +736,36 @@ fn codegen_array_find(args: &[String], target: Target) -> String {
 
 fn codegen_array_sort(args: &[String], target: Target) -> String {
     let arr = &args[0];
+    let closure = args.get(1);
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("([...{arr}]).sort()")
+            if let Some(c) = closure {
+                format!("([...{arr}]).sort({c})")
+            } else {
+                format!("([...{arr}]).sort()")
+            }
         }
-        Target::Python => format!("sorted({arr})"),
-        Target::Rust | Target::Dioxus => format!("{{ let mut v = ({arr}).clone(); v.sort(); v }}"),
-        Target::Dart | Target::Flutter => format!("List.from({arr})..sort()"),
+        Target::Python => {
+            if let Some(c) = closure {
+                format!("sorted({arr}, key={c})")
+            } else {
+                format!("sorted({arr})")
+            }
+        }
+        Target::Rust | Target::Dioxus => {
+            if let Some(c) = closure {
+                format!("{{ let mut v = ({arr}).clone(); v.sort_by(|a, b| {c}); v }}")
+            } else {
+                format!("{{ let mut v = ({arr}).clone(); v.sort(); v }}")
+            }
+        }
+        Target::Dart | Target::Flutter => {
+            if let Some(c) = closure {
+                format!("List.from({arr})..sort({c})")
+            } else {
+                format!("List.from({arr})..sort()")
+            }
+        }
     }
 }
 
