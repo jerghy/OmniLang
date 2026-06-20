@@ -1,2 +1,0 @@
-import omniview;
-import { TodoApp } from "./components/TodoApp.omni";

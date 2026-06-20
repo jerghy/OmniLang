@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use omni_compiler::codegen::*;
-use omni_compiler::codegen::python::PythonCodegen;
 use omni_compiler::codegen::javascript::JavaScriptCodegen;
+use omni_compiler::codegen::python::PythonCodegen;
+use omni_compiler::codegen::*;
 use omni_compiler::ir::*;
 
 // ═══════════════════════════════════════════════════════════════
@@ -20,48 +20,55 @@ fn make_test_module() -> ModuleIR {
         name: "test.omni".into(),
         functions: {
             let mut m = HashMap::new();
-            m.insert("main".into(), FunctionIR {
-                name: "main".into(),
-                visibility: "private".into(),
-                params: vec![],
-                return_type: None,
-                body: BlockIR {
-                    statements: vec![],
-                    execution_mode: "client-only".into(),
+            m.insert(
+                "main".into(),
+                FunctionIR {
+                    name: "main".into(),
+                    visibility: "private".into(),
+                    params: vec![],
+                    return_type: None,
+                    body: BlockIR {
+                        statements: vec![],
+                        execution_mode: "client-only".into(),
+                    },
+                    is_async: false,
                 },
-            });
+            );
             m
         },
         structs: {
             let mut m = HashMap::new();
-            m.insert("Point".into(), StructIR {
-                name: "Point".into(),
-                visibility: "public".into(),
-                fields: vec![
-                    FieldIR {
-                        name: "x".into(),
-                        r#type: TypeIR {
-                            kind: "i32".into(),
-                            type_args: vec![],
-                            is_nullable: false,
-                            needs_clone: false,
-                            needs_partial_eq: false,
+            m.insert(
+                "Point".into(),
+                StructIR {
+                    name: "Point".into(),
+                    visibility: "public".into(),
+                    fields: vec![
+                        FieldIR {
+                            name: "x".into(),
+                            r#type: TypeIR {
+                                kind: "i32".into(),
+                                type_args: vec![],
+                                is_nullable: false,
+                                needs_clone: false,
+                                needs_partial_eq: false,
+                            },
+                            visibility: "public".into(),
                         },
-                        visibility: "public".into(),
-                    },
-                    FieldIR {
-                        name: "y".into(),
-                        r#type: TypeIR {
-                            kind: "i32".into(),
-                            type_args: vec![],
-                            is_nullable: false,
-                            needs_clone: false,
-                            needs_partial_eq: false,
+                        FieldIR {
+                            name: "y".into(),
+                            r#type: TypeIR {
+                                kind: "i32".into(),
+                                type_args: vec![],
+                                is_nullable: false,
+                                needs_clone: false,
+                                needs_partial_eq: false,
+                            },
+                            visibility: "public".into(),
                         },
-                        visibility: "public".into(),
-                    },
-                ],
-            });
+                    ],
+                },
+            );
             m
         },
         ..Default::default()
@@ -75,6 +82,7 @@ fn make_test_ir() -> IRProgram {
         version: "1.0".into(),
         modules,
         source_map: HashMap::new(),
+        stdlib_imports: Vec::new(),
     }
 }
 

@@ -1,0 +1,7 @@
+fn identity<T>(val: T) -> T {
+    return val;
+}
+fn main() {
+    let x: i32 = identity(42);
+    println(x.to_string());
+}

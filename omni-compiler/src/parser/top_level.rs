@@ -11,8 +11,10 @@ impl<'a> Parser<'a> {
     /// Parse the top-level of a single source module.
     /// Returns a `Module` with all top-level declarations populated.
     pub fn parse_module(&mut self) -> Result<Module, ParseError> {
-        let mut module = Module::default();
-        module.name = "input".to_string();
+        let mut module = Module {
+            name: "input".to_string(),
+            ..Default::default()
+        };
 
         while self.peek_kind() != TokenKind::Eof {
             match self.peek_kind() {
@@ -31,6 +33,13 @@ impl<'a> Parser<'a> {
                 TokenKind::Export => {
                     module.exports.push(self.parse_export()?);
                 }
+                TokenKind::Async => {
+                    self.advance(); // 'async'
+                    self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
+                    module
+                        .functions
+                        .push(self.parse_function_def_after_keyword(Visibility::Private, true)?);
+                }
                 TokenKind::Fn => {
                     module
                         .functions
@@ -44,6 +53,13 @@ impl<'a> Parser<'a> {
                 TokenKind::Pub => {
                     self.advance(); // 'pub'
                     match self.peek_kind() {
+                        TokenKind::Async => {
+                            self.advance(); // 'async'
+                            self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
+                            module.functions.push(
+                                self.parse_function_def_after_keyword(Visibility::Public, true)?,
+                            );
+                        }
                         TokenKind::Fn => {
                             module
                                 .functions
@@ -83,9 +99,7 @@ impl<'a> Parser<'a> {
 
                     if !name_ok || !eq_ok {
                         // Can't parse — try tagged union (original behavior)
-                        module
-                            .tagged_unions
-                            .push(self.parse_tagged_union_def()?);
+                        module.tagged_unions.push(self.parse_tagged_union_def()?);
                     } else {
                         // Advance past 'type' Name '='
                         self.advance(); // 'type'
@@ -94,21 +108,16 @@ impl<'a> Parser<'a> {
 
                         // Check if next token starts a variant: Ident { ... } or Ident | ...
                         let is_tagged = match self.peek_kind() {
-                            TokenKind::Ident(_) => self
-                                .tokens
-                                .get(self.pos + 1)
-                                .is_some_and(
-                                    |t| t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe,
-                                ),
+                            TokenKind::Ident(_) => self.tokens.get(self.pos + 1).is_some_and(|t| {
+                                t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe
+                            }),
                             _ => false,
                         };
 
                         self.pos = saved; // reset to 'type'
 
                         if is_tagged {
-                            module
-                                .tagged_unions
-                                .push(self.parse_tagged_union_def()?);
+                            module.tagged_unions.push(self.parse_tagged_union_def()?);
                         } else {
                             module
                                 .type_aliases
@@ -172,7 +181,9 @@ impl<'a> Parser<'a> {
                     if self.peek_kind() == TokenKind::LBrace {
                         // Inline store definition — parse and extract signals/actions
                         self.advance(); // '{'
-                        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                        while self.peek_kind() != TokenKind::RBrace
+                            && self.peek_kind() != TokenKind::Eof
+                        {
                             match self.peek_kind() {
                                 TokenKind::Signal => {
                                     let sig = self.parse_signal_decl()?;
@@ -201,7 +212,7 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::Const => {
                     self.advance(); // 'const'
-                    // Handle $prefixed identifiers: $logoUrl
+                                    // Handle $prefixed identifiers: $logoUrl
                     let name = if self.peek_kind() == TokenKind::Dollar {
                         self.advance();
                         let id = self.expect_ident("expected identifier after $")?;
@@ -212,16 +223,25 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::Eq, "expected '='")?;
                     let t = self.advance();
                     let value = match &t.kind {
-                        TokenKind::StringLiteral(s) => Expr::Literal(Literal::String(s.clone()), t.span.clone()),
+                        TokenKind::StringLiteral(s) => {
+                            Expr::Literal(Literal::String(s.clone()), t.span.clone())
+                        }
                         TokenKind::IntLiteral(n) => Expr::Literal(Literal::Int(*n), t.span.clone()),
-                        TokenKind::FloatLiteral(f) => Expr::Literal(Literal::Float(*f), t.span.clone()),
+                        TokenKind::FloatLiteral(f) => {
+                            Expr::Literal(Literal::Float(*f), t.span.clone())
+                        }
                         TokenKind::True => Expr::Literal(Literal::Bool(true), t.span.clone()),
                         TokenKind::False => Expr::Literal(Literal::Bool(false), t.span.clone()),
                         TokenKind::Null => Expr::Literal(Literal::Null, t.span.clone()),
-                        _ => return Err(ParseError {
-                            message: format!("Expected literal value for const, got {:?}", t.kind),
-                            span: t.span,
-                        }),
+                        _ => {
+                            return Err(ParseError {
+                                message: format!(
+                                    "Expected literal value for const, got {:?}",
+                                    t.kind
+                                ),
+                                span: t.span,
+                            })
+                        }
                     };
                     if self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
@@ -232,10 +252,20 @@ impl<'a> Parser<'a> {
                         type_ann: TypeAnnotation::Named {
                             name: "auto".into(),
                             type_args: vec![],
-                            span: Span { start: 0, end: 0, line: 0, col: 0 },
+                            span: Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         },
                         init: value,
                     });
+                }
+                TokenKind::Async => {
+                    self.advance(); // 'async'
+                    self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
+                    fns.push(self.parse_function_def_after_keyword(Visibility::Private, true)?);
                 }
                 TokenKind::Fn => fns.push(self.parse_function_def(Visibility::Private)?),
                 TokenKind::Action => actions.push(self.parse_action_def()?),
@@ -343,7 +373,12 @@ impl<'a> Parser<'a> {
                 TypeAnnotation::Named {
                     name: "auto".into(),
                     type_args: vec![],
-                    span: Span { start: 0, end: 0, line: 0, col: 0 },
+                    span: Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0,
+                    },
                 }
             };
             let body = self.parse_block()?;
@@ -352,7 +387,15 @@ impl<'a> Parser<'a> {
             let body_expr = if let Some(trailing) = body.trailing_expr {
                 *trailing
             } else {
-                Expr::Literal(Literal::Null, Span { start: 0, end: 0, line: 0, col: 0 })
+                Expr::Literal(
+                    Literal::Null,
+                    Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0,
+                    },
+                )
             };
             return Ok(ComputedDecl {
                 name,
@@ -410,9 +453,14 @@ impl<'a> Parser<'a> {
 
     // ── Function / Action ──────────────────────────────
 
-    pub fn parse_function_def(&mut self, visibility: Visibility) -> Result<FunctionDef, ParseError> {
+    /// Parse a function after 'fn' keyword has already been consumed.
+    pub fn parse_function_def_after_keyword(
+        &mut self,
+        visibility: Visibility,
+        is_async: bool,
+    ) -> Result<FunctionDef, ParseError> {
         let start = self.peek_span();
-        self.advance(); // 'fn'
+        // 'fn' already consumed by caller
         let name = self.expect_ident("expected function name")?;
         self.expect_token(TokenKind::LParen, "expected '('")?;
         let params = self.parse_params()?;
@@ -432,7 +480,50 @@ impl<'a> Parser<'a> {
             name,
             params,
             return_type,
-            is_async: false,
+            is_async,
+            body,
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
+        })
+    }
+
+    pub fn parse_function_def(
+        &mut self,
+        visibility: Visibility,
+    ) -> Result<FunctionDef, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // 'fn'
+        let name = self.expect_ident("expected function name")?;
+        self.expect_token(TokenKind::LParen, "expected '('")?;
+        let params = self.parse_params()?;
+        self.expect_token(TokenKind::RParen, "expected ')'")?;
+
+        let return_type = if self.peek_kind() == TokenKind::Arrow {
+            self.advance();
+            Some(self.parse_type_annotation()?)
+        } else {
+            None
+        };
+
+        let is_async = if self.peek_kind() == TokenKind::Async {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        let body = self.parse_block()?;
+
+        Ok(FunctionDef {
+            visibility,
+            name,
+            params,
+            return_type,
+            is_async,
             body,
             span: Span {
                 start: start.start,
@@ -444,6 +535,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_action_def(&mut self) -> Result<ActionDef, ParseError> {
+        let start = self.peek_span();
         self.advance(); // 'action'
         let name = self.expect_ident("expected action name")?;
         self.expect_token(TokenKind::LParen, "expected '('")?;
@@ -472,6 +564,12 @@ impl<'a> Parser<'a> {
             return_type,
             body,
             is_async,
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 
@@ -527,7 +625,13 @@ impl<'a> Parser<'a> {
                     deps,
                 });
             }
-            _ => unreachable!(),
+            _ => {
+                // Unknown lifecycle directive — report error instead of panicking
+                return Err(ParseError {
+                    message: format!("unknown lifecycle directive: {:?}", self.peek_kind()),
+                    span: self.peek_span().clone(),
+                });
+            }
         };
         let body = self.parse_block()?;
         Ok(LifecycleHook {
@@ -560,6 +664,7 @@ impl<'a> Parser<'a> {
     // ── Store ──────────────────────────────────────────
 
     pub fn parse_store_def(&mut self) -> Result<StoreDef, ParseError> {
+        let start = self.peek_span();
         self.advance(); // 'store'
         let name = self.expect_ident("expected store name")?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
@@ -590,6 +695,12 @@ impl<'a> Parser<'a> {
             signals,
             getters,
             actions,
+            span: Span {
+                start: start.start,
+                end: start.end,
+                line: start.line,
+                col: start.col,
+            },
         })
     }
 

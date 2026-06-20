@@ -1,0 +1,11 @@
+type Shape = Circle { radius: f64 } | Rectangle { width: f64, height: f64 };
+fn area(shape: Shape) -> f64 {
+    return match shape {
+        Circle { radius } => 3.14159 * radius * radius,
+        Rectangle { width, height } => width * height,
+    };
+}
+fn main() {
+    let c: Shape = Circle { radius: 5.0 };
+    println(area(c).to_string());
+}

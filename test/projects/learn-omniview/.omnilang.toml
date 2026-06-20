@@ -1,0 +1,20 @@
+[project]
+name = "learn-omniview"
+version = "1.0.0"
+
+# ── 路径别名（Phase 7：多源目录支持） ──────────────────────────
+# @lib 别名指向独立的 lib 子目录，使其作为逻辑源可被显式引用
+# 编译器递归发现 src/**/*.omni，src/lib/ 自动包含在内
+# 使用 import "@lib/types" 即可从别名路径导入
+[aliases]
+"@lib" = "./src/lib"
+"@shared" = "./src/shared"
+
+# 源文件目录（递归发现 src/**/*.omni）
+# 子目录 src/lib/ 和 src/shared/ 自动包含，无需额外配置
+[source]
+dir = "src"
+
+# 构建输出目录
+[output]
+dir = "build"

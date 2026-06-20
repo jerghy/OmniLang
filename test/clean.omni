@@ -1,0 +1,19 @@
+import omniview;
+store S { signal count: i32 = 0; }
+component Child {
+    prop total: i32 = 0;
+    view {
+        <div class: p>
+            @if total == 0 {
+                <p>Empty</p>
+            } else {
+                <p>Has {total}</p>
+            }
+        </div>
+    }
+    style { .p { padding: 20px; } }
+}
+component App {
+    @store S;
+    view { <div><Child total={S.count} /></div> }
+}

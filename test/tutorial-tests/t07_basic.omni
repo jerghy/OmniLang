@@ -1,0 +1,8 @@
+import omniview;
+component App {
+    view {
+        <div>
+            <h1>Hello, OmniView!</h1>
+        </div>
+    }
+}

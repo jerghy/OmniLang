@@ -438,10 +438,9 @@ fn compute_diagnostics(ctx: &AnalysisContext) -> Vec<LspDiagnostic> {
 
     // 2. Run semantic analysis on each successfully-parsed file
     for (_path, pf) in &ctx.files {
-        if let Err(sem_diags) = crate::semantic::analyze(&pf.program) {
-            for d in &sem_diags {
-                diags.push(diagnostic_to_lsp(d));
-            }
+        let sem_result = crate::semantic::analyze(&pf.program);
+        for d in &sem_result.diagnostics {
+            diags.push(diagnostic_to_lsp(d));
         }
     }
 
@@ -603,7 +602,10 @@ fn compute_definition(ctx: &AnalysisContext) -> Vec<Location> {
     };
 
     // Check if the symbol is an import — resolve to source file
-    let primary = ctx.files.get(&ctx.primary_file).unwrap();
+    let primary = match ctx.files.get(&ctx.primary_file) {
+        Some(p) => p,
+        None => return vec![],
+    };
     for imp in &primary.program.imports {
         match imp {
             ImportStmt::Named(n) if n.names.contains(&symbol_name) => {
@@ -1158,8 +1160,19 @@ fn compute_folding_ranges(ctx: &AnalysisContext) -> Vec<FoldingRange> {
     let source = &primary.content;
     let mut brace_stack: Vec<(usize, u32)> = Vec::new();
 
+    // Precompute line start offsets for O(1) line-number lookups
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(source.char_indices().filter_map(|(i, c)| {
+            if c == '\n' { Some(i + 1) } else { None }
+        }))
+        .collect();
+
     for (char_pos, ch) in source.char_indices() {
-        let line = source[..char_pos].chars().filter(|&c| c == '\n').count() as u32 + 1;
+        // Binary search for line number
+        let line = match line_starts.binary_search(&char_pos) {
+            Ok(idx) => idx as u32 + 1,
+            Err(idx) => idx as u32, // idx = number of newlines before this position
+        };
         match ch {
             '{' => brace_stack.push((char_pos, line)),
             '}' => {
@@ -1473,10 +1486,15 @@ pub fn format_source(source: &str) -> String {
     let mut last_pos = 0usize;
 
     for tok in &tokens {
-        let text = &source[tok.span.start..tok.span.end];
+        // Use safe byte-slicing to avoid panics on non-UTF-8 boundaries
+        let text = source
+            .get(tok.span.start..tok.span.end)
+            .unwrap_or("");
 
         // Emit any newlines between tokens as line breaks
-        let between = &source[last_pos..tok.span.start];
+        let between = source
+            .get(last_pos..tok.span.start)
+            .unwrap_or("");
         for ch in between.chars() {
             if ch == '\n' {
                 formatted.push(String::new()); // empty = newline marker

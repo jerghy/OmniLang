@@ -1,0 +1,143 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/transform.omni —— 数据转换引擎                            ║
+// ║  演示：for..in + break/continue 在纯逻辑中的使用                 ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── 1. find_first_match —— for..in + break（提前退出循环）──────
+
+pub fn find_first_match(values: Array<String>, min_len: i32) -> String {
+    for value in values {
+        if value.len() >= min_len {
+            return value;  // 提前 return 也相当于 break
+        }
+    }
+    return "";
+}
+
+// ── 2. count_valid —— for..in + continue（跳过不符合条件的项）───
+
+pub fn count_valid(values: Array<String>, min_len: i32) -> i32 {
+    let mut count = 0;
+    for value in values {
+        // continue: 跳过空字符串和过短的字符串
+        if value == "" {
+            continue;
+        }
+        if value.len() < min_len {
+            continue;
+        }
+        count = count + 1;
+    }
+    return count;
+}
+
+// ── 3. filter_positive —— for..in + continue（过滤模式）────────
+
+pub fn filter_positive(nums: Array<i32>) -> Array<i32> {
+    let mut result: Array<i32> = [];
+    for n in nums {
+        if n <= 0 {
+            continue;  // 跳过非正数
+        }
+        result.push(n);
+    }
+    return result;
+}
+
+// ── 4. find_index —— while + break（查找索引位置）──────────────
+
+pub fn find_index(values: Array<String>, target: String) -> i32 {
+    let mut i = 0;
+    while i < values.len() {
+        if values.get(i) == target {
+            break;  // break 提前退出 while 循环
+        }
+        i = i + 1;
+    }
+    // 如果找到了就返回索引，否则返回 -1
+    if i < values.len() {
+        return i;
+    }
+    return -1;
+}
+
+// ── 5. sum_until_negative —— while + break（哨兵模式）───────────
+
+pub fn sum_until_negative(nums: Array<i32>) -> i32 {
+    let mut sum = 0;
+    let mut i = 0;
+    while i < nums.len() {
+        if nums.get(i) < 0 {
+            break;  // 遇到负数立即停止
+        }
+        sum = sum + nums.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// ── 6. count_non_empty —— while + continue（跳过模式）──────────
+
+pub fn count_non_empty(items: Array<String>) -> i32 {
+    let mut count = 0;
+    let mut i = 0;
+    while i < items.len() {
+        if items.get(i) == "" {
+            i = i + 1;
+            continue;  // 跳过空字符串
+        }
+        count = count + 1;
+        i = i + 1;
+    }
+    return count;
+}
+
+// ── 7. find_first_long —— while + break/continue 组合 ──────────
+
+pub fn find_first_long(values: Array<String>, min_len: i32) -> String {
+    let mut i = 0;
+    while i < values.len() {
+        if values.get(i) == "" {
+            i = i + 1;
+            continue;  // 跳过空字符串
+        }
+        if values.get(i).len() >= min_len {
+            return values.get(i);  // 找到就返回
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// ── 8. find_first_vowel —— while + break（查找第一个元音）─────────
+// 由 ValidationInput 组件导入使用
+// NOTE: OmniLang 中 while 循环体内不支持 let 声明，直接使用表达式
+
+pub fn find_first_vowel(text: String) -> i32 {
+    let mut i = 0;
+    while i < text.len() {
+        if text.get(i) == "a" || text.get(i) == "e" || text.get(i) == "i" || text.get(i) == "o" || text.get(i) == "u" {
+            break;  // 找到元音立即退出
+        }
+        i = i + 1;
+    }
+    if i < text.len() { return i; }
+    return -1;
+}
+
+// ── 9. count_consonants —— while + continue（跳过元音）────────────
+
+pub fn count_consonants(text: String) -> i32 {
+    let mut count = 0;
+    let mut i = 0;
+    while i < text.len() {
+        if text.get(i) == "a" || text.get(i) == "e" || text.get(i) == "i" || text.get(i) == "o" || text.get(i) == "u" {
+            i = i + 1;
+            continue;  // 跳过元音，不计入辅音统计
+        }
+        count = count + 1;
+        i = i + 1;
+    }
+    return count;
+}

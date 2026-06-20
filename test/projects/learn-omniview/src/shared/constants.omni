@@ -1,0 +1,20 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  constants.omni —— 全局常量（Phase 6）                         ║
+// ║  演示：const 常量定义                                          ║
+// ║  注意：编译器不支持顶层 const，因此在 component 中定义            ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+component Constants {
+    // 应用元数据常量
+    const APP_NAME = "OmniView Learn";
+    const APP_VERSION = "1.0.0";
+    const logoUrl = "/assets/omnilang-logo.png";
+    const apiBase = "https://api.omnilang.dev/v1";
+
+    // 无需渲染，仅供导出常量引用
+    view {
+        <span></span>
+    }
+}

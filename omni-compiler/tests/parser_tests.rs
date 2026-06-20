@@ -1,6 +1,6 @@
 use omni_compiler::lexer::tokenize;
-use omni_compiler::parser::parse;
 use omni_compiler::parser::ast::{ImportStmt, Module, Visibility};
+use omni_compiler::parser::parse;
 
 /// Helper: extract the single module from a parsed Program.
 fn single_module(program: omni_compiler::parser::ast::Program) -> Module {
@@ -68,6 +68,99 @@ fn add(a: i32, b: i32) -> i32 {
     assert_eq!(module.functions.len(), 1);
     assert_eq!(module.functions[0].name, "add");
     assert_eq!(module.functions[0].params.len(), 2);
+}
+
+#[test]
+fn test_parse_async_fn_before_keyword() {
+    let source = r#"
+async fn fetchData() -> String {
+    return "data";
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert!(module.functions[0].is_async, "function should be async");
+    assert_eq!(module.functions[0].name, "fetchData");
+}
+
+#[test]
+fn test_parse_async_fn_after_return_type() {
+    let source = r#"
+fn fetchData() -> String async {
+    return "data";
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert!(module.functions[0].is_async, "function should be async");
+    assert_eq!(module.functions[0].name, "fetchData");
+}
+
+#[test]
+fn test_parse_async_fn_no_return_type() {
+    let source = r#"
+async fn log(msg: String) {
+    print(msg);
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert!(module.functions[0].is_async, "function should be async");
+    assert_eq!(module.functions[0].name, "log");
+}
+
+#[test]
+fn test_parse_await_expression() {
+    let source = r#"
+async fn demo() -> String {
+    return await fetch("/api");
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    let module = single_module(program);
+    assert_eq!(module.functions.len(), 1);
+    assert!(module.functions[0].is_async);
+}
+
+#[test]
+fn test_parse_await_method_call() {
+    // await obj.method(args) should parse as await(obj.method(args))
+    let source = r#"
+async fn demo() -> Data {
+    return await http.get("/api/users");
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+}
+
+#[test]
+fn test_parse_await_in_non_async_fn() {
+    // await in non-async fn is syntactically valid (semantic lint is separate)
+    let source = r#"
+fn demo() -> String {
+    return await fetch("/api");
+}
+"#;
+    let tokens = tokenize(source);
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
 #[test]
@@ -233,4 +326,62 @@ fn test_parse_private_type_alias() {
     assert_eq!(module.type_aliases.len(), 1);
     assert_eq!(module.type_aliases[0].visibility, Visibility::Private);
     assert_eq!(module.type_aliases[0].name, "Secret");
+}
+
+// ══════════════════════════════════════════════════════
+// Struct literal / tagged union variant construction
+// ══════════════════════════════════════════════════════
+
+#[test]
+fn test_parse_struct_literal() {
+    let tokens = tokenize("fn f() -> Point { Point { x: 1, y: 2 } }");
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+}
+
+#[test]
+fn test_parse_tagged_union_variant() {
+    let tokens = tokenize(
+        "fn f() -> HttpResult { Ok { value: 42 } }\n\
+         type HttpResult = Ok { value: i32 } | Err { error: String }",
+    );
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+    let program = result.unwrap();
+    let module = single_module(program);
+    // The tagged union should be parsed
+    assert_eq!(module.tagged_unions.len(), 1);
+    assert_eq!(module.tagged_unions[0].name, "HttpResult");
+    assert_eq!(module.tagged_unions[0].variants.len(), 2);
+}
+
+#[test]
+fn test_parse_struct_literal_nested() {
+    let tokens = tokenize(
+        "fn f() -> Rect { Rect { top_left: Point { x: 0, y: 0 }, bottom_right: Point { x: 10, y: 10 } } }",
+    );
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+}
+
+// ══════════════════════════════════════════════════════
+// Match expression
+// ══════════════════════════════════════════════════════
+
+#[test]
+fn test_parse_match_expression() {
+    let tokens = tokenize(
+        "fn f(r: HttpResult) -> i32 { match r { Ok { value } => { return value; }, Err => { return 0; } } }",
+    );
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
+}
+
+#[test]
+fn test_parse_match_with_wildcard() {
+    let tokens = tokenize(
+        "fn f(r: HttpResult) -> i32 { match r { Ok { value } => { return value; }, _ => { return -1; } } }",
+    );
+    let result = parse(&tokens);
+    assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }

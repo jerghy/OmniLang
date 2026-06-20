@@ -1,2 +1,2 @@
 [console_scripts]
-omnic = omniview.cli:main
+omnic = omnilang.cli:main

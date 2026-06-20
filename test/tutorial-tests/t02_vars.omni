@@ -1,0 +1,11 @@
+fn main() {
+    let x: i32 = 10;
+    println(x.to_string());
+
+    let mut y: f64 = 3.14;
+    y = y + 1.0;
+    println(y.to_string());
+
+    let name = "OmniLang";
+    println(name);
+}

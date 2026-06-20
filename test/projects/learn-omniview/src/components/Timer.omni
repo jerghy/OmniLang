@@ -1,0 +1,90 @@
+// Timer.omni - async fn, optional event, @unmount cleanup
+
+import omniview;
+
+async fn delay(ms: i32) -> i32 {
+    return ms;
+}
+
+component Timer {
+    signal count: i32 = 0;
+    signal running: bool = false;
+    signal interval: i32 = 1000;
+
+    // optional event - parent may or may not handle
+    event onTick: i32?;
+    event onComplete: String?;
+
+    fn start() {
+        running = true;
+        count = 0;
+    }
+
+    fn stop() {
+        running = false;
+    }
+
+    fn reset() {
+        count = 0;
+        running = false;
+    }
+
+    fn tick() {
+        if running {
+            count = count + 1;
+            // emit optional tick event
+            onTick(count);
+            if count >= 10 {
+                running = false;
+                onComplete("Timer finished after 10 ticks");
+            }
+        }
+    }
+
+    fn faster() {
+        if interval > 100 {
+            interval = interval - 100;
+        }
+    }
+
+    fn slower() {
+        interval = interval + 100;
+    }
+
+    // @unmount cleanup
+    @unmount {
+        running = false;
+        println("Timer unmounted, final count: " + count.to_string());
+    }
+
+    view {
+        <div class: timer>
+            <h3 class: title>Timer Demo</h3>
+            <p class: count-text>Count: {count} / 10</p>
+            <p class: info>Interval: {interval}ms | Status: {if running { "Running" } else { "Stopped" }}</p>
+
+            <div class: btn-row>
+                <button class: btn-start @onPress={start}>Start</button>
+                <button class: btn-stop @onPress={stop}>Stop</button>
+                <button class: btn-tick @onPress={tick}>Tick</button>
+                <button class: btn-reset @onPress={reset}>Reset</button>
+            </div>
+            <div class: btn-row>
+                <button class: btn-sm @onPress={faster}>Faster</button>
+                <button class: btn-sm @onPress={slower}>Slower</button>
+            </div>
+        </div>
+    }
+    style {
+        .timer { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; margin-bottom: 12px; color: #222; }
+        .count-text { font-size: 36px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
+        .info { font-size: 14px; color: #666; margin-bottom: 12px; }
+        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .btn-start { padding: 8px 16px; background: #22c55d; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .btn-stop { padding: 8px 16px; background: #f97316; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .btn-tick { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .btn-reset { padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .btn-sm { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff; font-size: 13px; cursor: pointer; color: #333; }
+    }
+}

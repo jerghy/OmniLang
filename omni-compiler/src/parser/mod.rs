@@ -10,7 +10,9 @@ use std::collections::HashMap;
 
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
-use ast::{Program, Visibility};
+use ast::Program;
+#[allow(unused_imports)]
+use ast::Visibility;
 
 /// Parse a token stream into an AST Program.
 pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
@@ -21,15 +23,43 @@ pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
     Ok(Program { modules })
 }
 
+/// Maximum recursion depth for the parser to prevent stack overflow.
+const MAX_RECURSION_DEPTH: usize = 256;
+
 /// The recursive descent parser.
 pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
+    depth: usize,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Parser { tokens, pos: 0 }
+        Parser {
+            tokens,
+            pos: 0,
+            depth: 0,
+        }
+    }
+
+    /// Increment recursion depth, returning an error if the limit is exceeded.
+    fn enter_recursion(&mut self) -> Result<(), ParseError> {
+        self.depth += 1;
+        if self.depth > MAX_RECURSION_DEPTH {
+            return Err(ParseError {
+                message: format!(
+                    "maximum recursion depth ({}) exceeded — input may be too deeply nested",
+                    MAX_RECURSION_DEPTH
+                ),
+                span: self.peek_span(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Decrement recursion depth on exit.
+    fn leave_recursion(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
     }
 
     fn peek(&self) -> Token {

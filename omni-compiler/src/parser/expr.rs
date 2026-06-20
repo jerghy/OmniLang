@@ -22,7 +22,20 @@ type Bp = u8;
 impl<'a> Parser<'a> {
     /// Parse an expression starting at current position. Uses Pratt parsing.
     pub fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.parse_expr_bp(0)
+        self.enter_recursion()?;
+        let mut expr = self.parse_expr_bp(0)?;
+
+        // After Pratt: check for struct literal suffix — TypeName { field: val, ... }
+        // NOT handled as infix to avoid stealing `{` from statement blocks (if/while/etc.)
+        if self.peek_kind() == TokenKind::LBrace {
+            if let Expr::VarRef(ref name, _) = expr {
+                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    expr = self.parse_struct_literal_suffix(name.clone())?;
+                }
+            }
+        }
+        self.leave_recursion();
+        Ok(expr)
     }
 
     /// Pratt: parse expression with minimum binding power.
@@ -38,6 +51,145 @@ impl<'a> Parser<'a> {
             left = self.parse_infix(left, bp)?;
         }
         Ok(left)
+    }
+
+    /// Parse struct literal fields after `TypeName {`.
+    /// Called by `parse_expr` when VarRef + LBrace is detected.
+    fn parse_struct_literal_suffix(&mut self, type_name: String) -> Result<Expr, ParseError> {
+        let span_start = self.peek().span.clone();
+        self.advance(); // consume '{'
+
+        let mut fields: Vec<(String, Expr)> = Vec::new();
+        if self.peek_kind() != TokenKind::RBrace {
+            loop {
+                let field_name = match self.advance().kind {
+                    TokenKind::Ident(name) => name,
+                    other => {
+                        return Err(ParseError {
+                            message: format!(
+                                "Expected field name in struct literal, got {:?}",
+                                other
+                            ),
+                            span: self.peek().span.clone(),
+                        });
+                    }
+                };
+                self.expect_token(TokenKind::Colon, "expected ':' after field name")?;
+                let value = self.parse_expr()?;
+                fields.push((field_name, value));
+                if self.peek_kind() == TokenKind::RBrace {
+                    break;
+                }
+                self.expect_token(TokenKind::Comma, "expected ',' or '}' after field value")?;
+                if self.peek_kind() == TokenKind::RBrace {
+                    break; // allow trailing comma
+                }
+            }
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}' to close struct literal")?;
+
+        Ok(Expr::StructLiteral {
+            type_name,
+            fields,
+            span: Span {
+                start: span_start.start,
+                end: self.peek().span.start,
+                line: span_start.line,
+                col: span_start.col,
+            },
+        })
+    }
+
+    /// Parse a match pattern: `_` | `Ident` | `Ident { binding, ... }` | literal
+    fn parse_match_pattern(&mut self) -> Result<MatchPattern, ParseError> {
+        let t = self.advance();
+        let span = t.span.clone();
+        match &t.kind {
+            TokenKind::Ident(name) if name == "_" => Ok(MatchPattern {
+                kind: MatchPatternKind::Wildcard,
+                span,
+            }),
+            TokenKind::Ident(name) => {
+                // Check for variant with bindings: Ident { binding, ... }
+                if self.peek_kind() == TokenKind::LBrace {
+                    self.advance(); // consume '{'
+                    let mut bindings: Vec<String> = Vec::new();
+                    if self.peek_kind() != TokenKind::RBrace {
+                        loop {
+                            if let TokenKind::Ident(b) = self.advance().kind {
+                                bindings.push(b);
+                            } else {
+                                return Err(ParseError {
+                                    message: "expected binding name in pattern".into(),
+                                    span: self.peek().span.clone(),
+                                });
+                            }
+                            if self.peek_kind() == TokenKind::RBrace {
+                                break;
+                            }
+                            self.expect_token(TokenKind::Comma, "expected ',' or '}' in pattern")?;
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}' after pattern bindings")?;
+                    Ok(MatchPattern {
+                        kind: MatchPatternKind::Variant {
+                            name: name.clone(),
+                            bindings,
+                        },
+                        span: Span {
+                            start: span.start,
+                            end: self.peek().span.start,
+                            line: span.line,
+                            col: span.col,
+                        },
+                    })
+                } else {
+                    // Plain variant name, no bindings
+                    Ok(MatchPattern {
+                        kind: MatchPatternKind::Variant {
+                            name: name.clone(),
+                            bindings: vec![],
+                        },
+                        span,
+                    })
+                }
+            }
+            TokenKind::IntLiteral(n) => Ok(MatchPattern {
+                kind: MatchPatternKind::Literal(Literal::Int(*n)),
+                span,
+            }),
+            TokenKind::StringLiteral(s) => Ok(MatchPattern {
+                kind: MatchPatternKind::Literal(Literal::String(s.clone())),
+                span,
+            }),
+            TokenKind::True => Ok(MatchPattern {
+                kind: MatchPatternKind::Literal(Literal::Bool(true)),
+                span,
+            }),
+            TokenKind::False => Ok(MatchPattern {
+                kind: MatchPatternKind::Literal(Literal::Bool(false)),
+                span,
+            }),
+            other => Err(ParseError {
+                message: format!("unexpected token in match pattern: {:?}", other),
+                span,
+            }),
+        }
+    }
+
+    /// Parse a match arm body: either a block `{ ... }` or a single expression
+    fn parse_match_body(&mut self) -> Result<Block, ParseError> {
+        if self.peek_kind() == TokenKind::LBrace {
+            self.parse_block()
+        } else {
+            let expr = self.parse_expr()?;
+            let span = span_of(&expr).clone();
+            Ok(Block {
+                stmts: vec![],
+                trailing_expr: Some(Box::new(expr)),
+                span,
+            })
+        }
     }
 
     // ── Prefix expressions ─────────────────────────────
@@ -59,8 +211,76 @@ impl<'a> Parser<'a> {
                 self.parse_ident_expr(name, span)
             }
 
+            // Await expression must be handled BEFORE contextual keywords.
+            // Binding power 0 ensures await a + b ≡ await (a + b).
+            TokenKind::Await => {
+                let operand = self.parse_expr_bp(0)?;
+                let end = span_of(&operand).end;
+                Ok(Expr::AwaitExpr {
+                    operand: Box::new(operand),
+                    span: Span {
+                        start: span.start,
+                        end,
+                        line: span.line,
+                        col: span.col,
+                    },
+                })
+            }
+
+            // If-expression must be handled BEFORE contextual keywords
+            // because `if` is also in keyword_as_ident_name
+            TokenKind::If => {
+                // If expression: if condition { expr } else { expr }
+                let condition = self.parse_expr()?;
+                self.expect_close(TokenKind::LBrace, "expected '{'")?;
+                let then_expr = self.parse_expr()?;
+                self.expect_close(TokenKind::RBrace, "expected '}'")?;
+                self.expect_close(TokenKind::Else, "expected 'else'")?;
+                self.expect_close(TokenKind::LBrace, "expected '{'")?;
+                let else_expr = self.parse_expr()?;
+                self.expect_close(TokenKind::RBrace, "expected '}'")?;
+                Ok(Expr::IfExpr {
+                    condition: Box::new(condition),
+                    then_expr: Box::new(then_expr),
+                    else_expr: Box::new(else_expr),
+                    span,
+                })
+            }
+
+            // Match expression: match expr { Pattern => body, ... }
+            TokenKind::Match => {
+                let matched = self.parse_expr()?;
+                self.expect_close(TokenKind::LBrace, "expected '{' after match expr")?;
+                let mut arms: Vec<MatchArm> = Vec::new();
+                while self.peek_kind() != TokenKind::RBrace {
+                    let pattern = self.parse_match_pattern()?;
+                    self.expect_token(TokenKind::FatArrow, "expected '=>' in match arm")?;
+                    let body = self.parse_match_body()?;
+                    arms.push(MatchArm { pattern, body });
+                    // Optional trailing comma
+                    if self.peek_kind() == TokenKind::Comma {
+                        self.advance();
+                    }
+                    if self.peek_kind() == TokenKind::RBrace {
+                        break;
+                    }
+                }
+                let end_span = self.peek().span.clone();
+                self.expect_close(TokenKind::RBrace, "expected '}' after match arms")?;
+                Ok(Expr::MatchExpr {
+                    matched: Box::new(matched),
+                    arms,
+                    span: Span {
+                        start: span.start,
+                        end: end_span.end,
+                        line: span.line,
+                        col: span.col,
+                    },
+                })
+            }
+
             // Contextual keywords as identifiers in expressions
-            ref kind if keyword_as_ident_name(kind).is_some() => {
+            kind if keyword_as_ident_name(kind).is_some() => {
                 let name = keyword_as_ident_name(kind).unwrap();
                 self.parse_ident_expr(name, span)
             }
@@ -134,24 +354,6 @@ impl<'a> Parser<'a> {
                         line: span.line,
                         col: span.col,
                     },
-                })
-            }
-
-            TokenKind::If => {
-                // If expression: if condition { expr } else { expr }
-                let condition = self.parse_expr()?;
-                self.expect_close(TokenKind::LBrace, "expected '{'")?;
-                let then_expr = self.parse_expr()?;
-                self.expect_close(TokenKind::RBrace, "expected '}'")?;
-                self.expect_close(TokenKind::Else, "expected 'else'")?;
-                self.expect_close(TokenKind::LBrace, "expected '{'")?;
-                let else_expr = self.parse_expr()?;
-                self.expect_close(TokenKind::RBrace, "expected '}'")?;
-                Ok(Expr::IfExpr {
-                    condition: Box::new(condition),
-                    then_expr: Box::new(then_expr),
-                    else_expr: Box::new(else_expr),
-                    span,
                 })
             }
 
@@ -323,7 +525,6 @@ impl<'a> Parser<'a> {
                     span,
                 })
             }
-
             _ => Err(ParseError {
                 message: format!("Unexpected infix token: {:?}", t.kind),
                 span,
@@ -481,7 +682,10 @@ pub fn span_of(expr: &Expr) -> &Span {
         Expr::TemplateString { span, .. } => span,
         Expr::StructLiteral { span, .. } => span,
         Expr::StoreFieldAccess { span, .. } => span,
+        Expr::Block { span, .. } => span,
         Expr::ClosureExpr { span, .. } => span,
+        Expr::AwaitExpr { span, .. } => span,
+        Expr::MatchExpr { span, .. } => span,
         Expr::NotYetImplemented { span, .. } => span,
     }
 }

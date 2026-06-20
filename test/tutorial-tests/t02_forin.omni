@@ -1,0 +1,6 @@
+fn main() {
+    let arr: Array<i32> = [10, 20, 30];
+    for item in arr {
+        println(item.to_string());
+    }
+}

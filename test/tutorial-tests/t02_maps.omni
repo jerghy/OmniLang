@@ -1,0 +1,6 @@
+fn main() {
+    let map: Map<String, String> = {"name": "Alice", "role": "admin"};
+    println(map.len().to_string());
+    println(map.contains("name").to_string());
+    println(map.get("name"));
+}

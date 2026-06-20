@@ -1,0 +1,7 @@
+async fn fetch() -> String {
+    return "data";
+}
+async fn main() {
+    let result: String = await fetch();
+    println(result);
+}

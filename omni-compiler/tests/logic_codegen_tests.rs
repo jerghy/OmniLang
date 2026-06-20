@@ -12,7 +12,10 @@ use omni_compiler::ir::*;
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
-fn make_ir(components: HashMap<String, ComponentIR>, stores: HashMap<String, StoreIR>) -> IRProgram {
+fn make_ir(
+    components: HashMap<String, ComponentIR>,
+    stores: HashMap<String, StoreIR>,
+) -> IRProgram {
     let mut modules = HashMap::new();
     modules.insert(
         "main".to_string(),
@@ -27,6 +30,7 @@ fn make_ir(components: HashMap<String, ComponentIR>, stores: HashMap<String, Sto
         version: "0.1".into(),
         modules,
         source_map: HashMap::new(),
+        stdlib_imports: Vec::new(),
     }
 }
 
@@ -40,6 +44,7 @@ fn simple_component_ir(comp_name: &str) -> IRProgram {
         name: comp_name.into(),
         generic_params: vec![],
         props: HashMap::new(),
+        prop_defaults: HashMap::new(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -47,6 +52,7 @@ fn simple_component_ir(comp_name: &str) -> IRProgram {
         fns: vec![],
         store_refs: vec![],
         refs: vec![],
+        event_names: vec![],
         view: None,
         styles: vec![],
     };
@@ -66,11 +72,13 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
             statements: vec![],
             execution_mode: "client-only".into(),
         },
+        is_async: false,
     };
     let comp = ComponentIR {
         name: comp_name.into(),
         generic_params: vec![],
         props: HashMap::new(),
+        prop_defaults: HashMap::new(),
         states: vec![],
         computeds: vec![],
         effects: vec![],
@@ -78,6 +86,7 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
         fns: vec![func],
         store_refs: vec![],
         refs: vec![],
+        event_names: vec![],
         view: None,
         styles: vec![],
     };
@@ -195,6 +204,7 @@ fn test_compile_multiple_files() {
         version: "0.1".into(),
         modules,
         source_map: HashMap::new(),
+    stdlib_imports: Vec::new(),
     };
     let sources = HashMap::from([
         ("main.omni".into(), "".into()),

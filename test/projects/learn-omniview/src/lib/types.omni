@@ -1,0 +1,40 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/types.omni —— 类型系统定义                               ║
+// ║  包含 struct、tagged union、type alias 等类型构造               ║
+// ║  注意：纯逻辑文件不写 import omniview;                          ║
+// ║  使用 pub 标记才能在跨文件导入时被访问                           ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── 1. pub struct（导出结构体，默认结构等价） ────────────────────
+
+pub struct Point {
+    x: i32,
+    y: i32,
+}
+
+// ── 2. nominal struct（名义/不透明结构体，禁止结构等价） ──────
+
+struct nominal UserId {
+    value: i32,
+}
+
+// ── 3. pub struct（多字段导出结构体） ──────────────────────────
+
+pub struct StatisticsData {
+    name: String,
+    count: i32,
+    percentage: f64,
+    active: bool,
+}
+
+// ── 4. tagged union（代数数据类型，带负载变体） ─────────────────
+
+type ValidationResult = Valid { message: String } | Invalid { errors: Array<String> } | Pending
+
+// ── 5. type alias（类型别名，私有） ────────────────────────────
+
+type Score = i32;
+
+// ── 6. pub type alias（导出类型别名） ──────────────────────────
+
+pub type Percentage = f64;

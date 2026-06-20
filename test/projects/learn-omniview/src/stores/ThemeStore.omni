@@ -1,0 +1,47 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ThemeStore.omni —— 主题状态管理（Phase 6）                     ║
+// ║  演示：signal 主题模式、getter 当前主题令牌、action toggle        ║
+// ║  注意：store 不支持 computed，使用 getter 代替                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+store ThemeStore {
+    // 当前主题模式："light" 或 "dark"
+    signal mode: String = "light";
+
+    // 切换次数追踪
+    signal toggleCount: i32 = 0;
+
+    // getter: 根据模式返回当前颜色令牌
+    getter currentBg: String = if mode == "dark" { "#111827" } else { "#ffffff" };
+    getter currentText: String = if mode == "dark" { "#f9fafb" } else { "#111827" };
+    getter currentPrimary: String = if mode == "dark" { "#a5b4fc" } else { "#6366f1" };
+    getter currentBorder: String = if mode == "dark" { "#4b5563" } else { "#d4d4d8" };
+    getter currentMuted: String = if mode == "dark" { "#1f2937" } else { "#f9fafb" };
+
+    // getter: 模式标签
+    getter modeLabel: String = if mode == "dark" { "Dark" } else { "Light" };
+
+    // getter: 下一个模式标签
+    getter nextLabel: String = if mode == "dark" { "Light" } else { "Dark" };
+
+    // action: 切换深浅色模式
+    action toggle() {
+        if mode == "dark" {
+            mode = "light";
+        } else {
+            mode = "dark";
+        }
+        toggleCount = toggleCount + 1;
+    }
+
+    // action: 设置指定模式
+    action setMode(newMode: String) {
+        if newMode == "dark" {
+            mode = "dark";
+        } else {
+            mode = "light";
+        }
+    }
+}

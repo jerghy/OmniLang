@@ -4,7 +4,7 @@
 use super::*;
 use crate::parser::ast::*;
 
-pub fn lower_function(func: &FunctionDef) -> FunctionIR {
+pub fn lower_function(func: &FunctionDef, variant_map: &HashMap<String, String>) -> FunctionIR {
     FunctionIR {
         name: func.name.clone(),
         visibility: match func.visibility {
@@ -20,7 +20,8 @@ pub fn lower_function(func: &FunctionDef) -> FunctionIR {
             })
             .collect(),
         return_type: func.return_type.as_ref().map(lower_type),
-        body: lower_block(&func.body),
+        body: lower_block(&func.body, variant_map),
+        is_async: func.is_async,
     }
 }
 
@@ -107,7 +108,6 @@ pub fn lower_export(exp: &ExportFrom) -> ExportIR {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::lexer::tokenize;
     use crate::parser;
     use std::collections::HashMap;

@@ -1,0 +1,97 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SettingsPage.omni —— 设置页面（Phase 6）                       ║
+// ║  演示：页面级组件组合、ThemeSwitcher + About 信息、                ║
+// ║        多 section 布局、响应式主题感知                            ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { ThemeStore } from "../stores/ThemeStore";
+import { ThemeSwitcher } from "../components/ThemeSwitcher";
+
+component SettingsPage {
+    @store ThemeStore;
+
+    // 关于信息信号
+    signal aboutExpanded: bool = false;
+
+    fn toggleAbout() {
+        aboutExpanded = !aboutExpanded;
+    }
+
+    view {
+        <div class: settings-page style: { background: ThemeStore.currentBg, color: ThemeStore.currentText }>
+            <!-- 页面标题 -->
+            <header class: page-header>
+                <h2 class: page-title>Settings</h2>
+                <p class: page-subtitle style: { color: ThemeStore.currentText }>
+                    Customize your experience
+                </p>
+            </header>
+
+            <!-- 主题切换区域 -->
+            <section class: section>
+                <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
+                    Appearance
+                </h3>
+                <ThemeSwitcher />
+            </section>
+
+            <!-- 关于区域 -->
+            <section class: section>
+                <div class: about-header @onPress={toggleAbout}>
+                    <h3 class: section-title style: { color: ThemeStore.currentPrimary }>
+                        About
+                    </h3>
+                    <span class: about-arrow>{if aboutExpanded { "^" } else { "v" }}</span>
+                </div>
+                @if aboutExpanded {
+                    <div class: about-content style: { background: ThemeStore.currentMuted }>
+                        <p class: about-text style: { color: ThemeStore.currentText }>
+                            OmniView Learn — a teaching project demonstrating the full
+                            feature set of the OmniView UI framework.
+                        </p>
+                        <div class: about-meta>
+                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                                Version: 1.0.0
+                            </span>
+                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                                Framework: OmniView v0.1.0
+                            </span>
+                            <span class: meta-item style: { color: ThemeStore.currentText }>
+                                Theme: {ThemeStore.modeLabel} Mode
+                            </span>
+                        </div>
+                        <p class: about-footer style: { color: ThemeStore.currentText }>
+                            Built with OmniLang — the language that compiles to every framework.
+                        </p>
+                    </div>
+                }
+            </section>
+
+            <!-- 当前主题状态摘要 -->
+            <footer class: page-footer>
+                <span class: footer-text style: { color: ThemeStore.currentText }>
+                    Current: {ThemeStore.modeLabel} mode
+                    | Toggles: {ThemeStore.toggleCount}
+                </span>
+            </footer>
+        </div>
+    }
+    style {
+        .settings-page { border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; }
+        .page-header { padding: 16px; margin: 0 0 8px 0; }
+        .page-title { font-size: 20px; font-weight: 700; margin: 0 0 4px 0; }
+        .page-subtitle { font-size: 13px; margin: 0; }
+        .section { padding: 0 16px 16px 16px; }
+        .section-title { font-size: 14px; font-weight: 600; margin: 0 0 8px 0; }
+        .about-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 8px 0; }
+        .about-arrow { font-size: 14px; color: #6b7280; }
+        .about-content { padding: 12px; border-radius: 8px; margin-top: 8px; }
+        .about-text { font-size: 13px; line-height: 1.6; margin: 0 0 12px 0; }
+        .about-meta { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+        .meta-item { font-size: 12px; }
+        .about-footer { font-size: 11px; margin: 0; font-style: italic; }
+        .page-footer { padding: 12px 16px; }
+        .footer-text { font-size: 11px; }
+    }
+}

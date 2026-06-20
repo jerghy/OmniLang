@@ -9,6 +9,7 @@ use crate::parser::Parser;
 impl<'a> Parser<'a> {
     /// Parse a block: { stmt* expr? }
     pub fn parse_block(&mut self) -> Result<Block, ParseError> {
+        self.enter_recursion()?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let start_span = self.peek_span();
 
@@ -30,7 +31,7 @@ impl<'a> Parser<'a> {
         let end_span = self.peek_span();
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
-        Ok(Block {
+        let block = Block {
             stmts,
             trailing_expr: trailing_expr.map(Box::new),
             span: Span {
@@ -39,7 +40,9 @@ impl<'a> Parser<'a> {
                 line: start_span.line,
                 col: start_span.col,
             },
-        })
+        };
+        self.leave_recursion();
+        Ok(block)
     }
 
     /// Parse a single statement.
@@ -55,33 +58,27 @@ impl<'a> Parser<'a> {
             TokenKind::Print | TokenKind::Println => self.parse_print_stmt(),
             TokenKind::LBrace => {
                 let block = self.parse_block()?;
+                let span = block.span.clone();
                 Ok(Stmt::ExprStmt {
-                    expr: Expr::NotYetImplemented {
-                        feature: "block expression".into(),
-                        span: block.span.clone(),
+                    expr: Expr::Block {
+                        body: block,
+                        span: span.clone(),
                     },
-                    span: block.span,
+                    span,
                 })
             }
             TokenKind::Semicolon => {
                 self.advance();
-                // Empty statement
+                // Empty statement — use a null literal instead of VarRef("")
+                let span = Span {
+                    start: 0,
+                    end: 0,
+                    line: 0,
+                    col: 0,
+                };
                 Ok(Stmt::ExprStmt {
-                    expr: Expr::VarRef(
-                        "".into(),
-                        Span {
-                            start: 0,
-                            end: 0,
-                            line: 0,
-                            col: 0,
-                        },
-                    ),
-                    span: Span {
-                        start: 0,
-                        end: 0,
-                        line: 0,
-                        col: 0,
-                    },
+                    expr: Expr::Literal(crate::parser::ast::Literal::Null, span.clone()),
+                    span,
                 })
             }
             _ => {
@@ -433,6 +430,11 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<String> {
         TokenKind::True => Some("true".into()),
         TokenKind::False => Some("false".into()),
         TokenKind::Null => Some("null".into()),
+        // Control flow keywords that may appear in text context
+        TokenKind::Break => Some("break".into()),
+        TokenKind::Continue => Some("continue".into()),
+        TokenKind::As => Some("as".into()),
+        TokenKind::Pub => Some("pub".into()),
         _ => None,
     }
 }

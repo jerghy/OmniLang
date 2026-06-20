@@ -1,0 +1,5 @@
+import { greet } from "./lib";
+fn main() {
+    let msg: String = greet("World");
+    println(msg);
+}

@@ -1,0 +1,230 @@
+// FormPage.omni - @onChange, @onSubmit, boolean attrs, hyphenated attrs, @onFocus/@onBlur, @onScroll
+// Demonstrates full form event handling, accessibility attributes, and data attributes
+
+import omniview;
+
+component FormPage {
+    signal name: String = "";
+    signal email: String = "";
+    signal message: String = "";
+    signal nameError: String = "";
+    signal emailError: String = "";
+    signal submitted: bool = false;
+    signal scrollPos: i32 = 0;
+    signal focusField: String = "";
+
+    fn handleNameChange() { nameError = ""; }
+    fn handleEmailChange() { emailError = ""; }
+    fn handleMessageChange() { scrollPos = scrollPos + 1; }
+
+    fn handleNameFocus() { focusField = "name"; }
+    fn handleNameBlur() { focusField = ""; if name == "" { nameError = "Name is required"; } }
+    fn handleEmailFocus() { focusField = "email"; }
+    fn handleEmailBlur() { focusField = ""; if email == "" { emailError = "Email is required"; } }
+
+    fn handleSubmit() {
+        if name == "" { nameError = "Name is required"; }
+        if email == "" { emailError = "Email is required"; }
+        if name != "" && email != "" { submitted = true; }
+    }
+
+    fn handleScroll() { scrollPos = scrollPos + 1; }
+
+    fn handleReset() {
+        name = "";
+        email = "";
+        message = "";
+        nameError = "";
+        emailError = "";
+        submitted = false;
+        scrollPos = 0;
+    }
+
+    fn getStatusText() -> String {
+        if submitted { return "Form submitted successfully"; }
+        if nameError != "" || emailError != "" { return "Please fix errors above"; }
+        return "Fill in the form";
+    }
+
+    fn getStatusClass() -> String {
+        if submitted { return "status success"; }
+        if nameError != "" || emailError != "" { return "status error"; }
+        return "status idle";
+    }
+
+    fn isFormValid() -> bool {
+        return name != "" && email != "";
+    }
+
+    view {
+        <div class: formpage>
+            <h2 class: title>FormPage Demo</h2>
+
+            <!-- Form demonstrating @onSubmit, @onChange, boolean attrs, aria/data attrs -->
+            <form class: form @onSubmit={handleSubmit}>
+                <!-- Name field with @onFocus, @onBlur, @onChange, required, aria-label, data-testid -->
+                <div class: field>
+                    <label class: label for="name">Name</label>
+                    <input
+                        id="name"
+                        class: input
+                        placeholder="Your name"
+                        bind:value={name}
+                        required
+                        aria-label="Full name input"
+                        data-testid="name-field"
+                        data-type="text"
+                        @onFocus={handleNameFocus}
+                        @onBlur={handleNameBlur}
+                        @onChange={handleNameChange}
+                    ></input>
+                    @if nameError != "" {
+                        <span class: error-text>{nameError}</span>
+                    }
+                </div>
+
+                <!-- Email field with boolean attrs and hyphenated attrs -->
+                <div class: field>
+                    <label class: label for="email">Email</label>
+                    <input
+                        id="email"
+                        class: input
+                        placeholder="your@email.com"
+                        bind:value={email}
+                        required
+                        aria-label="Email address input"
+                        data-testid="email-field"
+                        data-type="email"
+                        @onFocus={handleEmailFocus}
+                        @onBlur={handleEmailBlur}
+                        @onChange={handleEmailChange}
+                    ></input>
+                    @if emailError != "" {
+                        <span class: error-text>{emailError}</span>
+                    }
+                </div>
+
+                <!-- Message field with @onChange, @onScroll, readonly (conditional) -->
+                <div class: field>
+                    <label class: label for="msg">Message</label>
+                    <textarea
+                        id="msg"
+                        class: textarea
+                        placeholder="Your message (optional)"
+                        bind:value={message}
+                        aria-label="Message input"
+                        data-testid="msg-field"
+                        @onChange={handleMessageChange}
+                        @onScroll={handleScroll}
+                    ></textarea>
+                </div>
+
+                <!-- Disabled field demonstration -->
+                <div class: field>
+                    <label class: label for="disabled-field">Disabled field</label>
+                    <input
+                        id="disabled-field"
+                        class: input
+                        placeholder="This field is disabled"
+                        disabled
+                        aria-label="Disabled input"
+                        data-testid="disabled-field"
+                    ></input>
+                </div>
+
+                <!-- Readonly field demonstration -->
+                <div class: field>
+                    <label class: label for="readonly-field">Readonly field</label>
+                    <input
+                        id="readonly-field"
+                        class: input
+                        value="Read-only value"
+                        readonly
+                        aria-label="Read-only input"
+                        data-testid="readonly-field"
+                    ></input>
+                </div>
+
+                <!-- Scrollable area with @onScroll -->
+                <div class: scroll-box @onScroll={handleScroll}>
+                    <p class: scroll-title>Scrollable area (scroll count: {scrollPos})</p>
+                    <p class: scroll-line>Line 1: Scroll to trigger @onScroll</p>
+                    <p class: scroll-line>Line 2: More content below</p>
+                    <p class: scroll-line>Line 3: Keep scrolling</p>
+                    <p class: scroll-line>Line 4: Almost there</p>
+                    <p class: scroll-line>Line 5: Bottom reached</p>
+                </div>
+
+                <!-- Status display -->
+                <div class: status-area>
+                    <p class: { status: true, success: submitted, error: false, idle: false }>
+                        {getStatusText()}
+                    </p>
+                </div>
+
+                <!-- Form actions -->
+                <div class: actions>
+                    <button
+                        class: submit-btn
+                        type="submit"
+                        disabled={false}
+                        aria-label="Submit form"
+                        data-testid="submit-btn"
+                    >Submit</button>
+                    <button
+                        class: reset-btn
+                        type="button"
+                        @onPress={handleReset}
+                        aria-label="Reset form"
+                        data-testid="reset-btn"
+                    >Reset</button>
+                </div>
+
+                <!-- Conditional disabled button -->
+                <div class: conditional-area>
+                    <button
+                        class: conditional-btn
+                        @onPress={handleSubmit}
+                        disabled={false}
+                        aria-label="Conditional submit button"
+                        data-testid="conditional-btn"
+                    >
+                        {if isFormValid() { "Form is valid" } else { "Form incomplete" }}
+                    </button>
+                </div>
+            </form>
+
+            <!-- Focus indicator -->
+            @if focusField != "" {
+                <div class: focus-indicator>
+                    <p class: focus-text>Focused field: {focusField}</p>
+                </div>
+            }
+        </div>
+    }
+    style {
+        .formpage { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 24px 20px; margin: 16px 0; }
+        .title { font-size: 20px; color: #1f2937; margin: 0 0 20px 0; }
+        .form { display: flex; flex-direction: column; gap: 16px; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        .label { font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 4px; }
+        .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; color: #1f2937; }
+        .textarea { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; min-height: 80px; color: #1f2937; }
+        .error-text { font-size: 12px; color: #dc2626; }
+        .scroll-box { height: 120px; overflow-y: scroll; padding: 12px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; }
+        .scroll-title { font-size: 14px; font-weight: bold; color: #374151; margin: 0 0 8px 0; }
+        .scroll-line { font-size: 13px; color: #6b7280; margin: 2px 0; }
+        .status-area { padding: 12px; border-radius: 8px; }
+        .status { font-size: 14px; margin: 0; padding: 8px 12px; border-radius: 6px; }
+        .success { background: #d1fac5; color: #166534; }
+        .error { background: #fddddd; color: #991b1b; }
+        .idle { background: #f3f4f6; color: #6b7280; }
+        .actions { display: flex; gap: 8px; }
+        .submit-btn { padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .reset-btn { padding: 12px 24px; background: #f3f4f6; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 16px; cursor: pointer; color: #374151; }
+        .conditional-area { padding: 8px 0; }
+        .conditional-btn { padding: 10px 20px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 14px; cursor: pointer; color: #374151; }
+        .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
+        .focus-text { font-size: 13px; color: #1d40d0; margin: 0; }
+    }
+}

@@ -1,0 +1,11 @@
+// my-ui — OmniLang view project
+import omniview;
+
+component App {
+    view {
+        <div class: app>
+            <h1>my-ui</h1>
+            <p>Welcome to your OmniView app!</p>
+        </div>
+    }
+}

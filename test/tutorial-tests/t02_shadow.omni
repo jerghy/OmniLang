@@ -1,0 +1,9 @@
+fn main() {
+    let x: i32 = 5;
+    println(x.to_string());
+    {
+        let x: i32 = 10;
+        println(x.to_string());
+    }
+    println(x.to_string());
+}

@@ -16,9 +16,16 @@ component App {
     let program = parse(&tokens).unwrap();
     let result = analyze(&program);
     assert!(
-        result.diagnostics.iter().any(|d| d.message.contains("Undeclared")),
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("Undeclared")),
         "Expected undeclared variable error, got: {:?}",
-        result.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+        result
+            .diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -65,4 +72,79 @@ component Counter {
     let result = analyze(&program);
     // Should not crash — symbol collection must complete
     let _ = result;
+}
+
+#[test]
+fn test_break_outside_loop_emits_error() {
+    let source = r#"
+fn main() {
+    break;
+}
+"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens).unwrap();
+    let result = analyze(&program);
+    assert!(!result.diagnostics.is_empty(), "Should emit error for break outside loop");
+    assert!(result.diagnostics.iter().any(|d| d.message.contains("break")),
+        "Error should mention break. Got: {:?}", result.diagnostics);
+}
+
+#[test]
+fn test_continue_outside_loop_emits_error() {
+    let source = r#"
+fn main() {
+    continue;
+}
+"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens).unwrap();
+    let result = analyze(&program);
+    assert!(!result.diagnostics.is_empty(), "Should emit error for continue outside loop");
+    assert!(result.diagnostics.iter().any(|d| d.message.contains("continue")),
+        "Error should mention continue. Got: {:?}", result.diagnostics);
+}
+
+#[test]
+fn test_await_in_non_async_fn_emits_error() {
+    let source = r#"
+fn main() {
+    let x = await something();
+}
+"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens).unwrap();
+    let result = analyze(&program);
+    assert!(!result.diagnostics.is_empty(), "Should emit error for await in non-async fn");
+    assert!(result.diagnostics.iter().any(|d| d.message.contains("await")),
+        "Error should mention await. Got: {:?}", result.diagnostics);
+}
+
+#[test]
+fn test_break_in_while_loop_is_valid() {
+    let source = r#"
+fn main() {
+    while true {
+        break;
+    }
+}
+"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens).unwrap();
+    let result = analyze(&program);
+    assert!(result.diagnostics.is_empty(),
+        "break inside while loop should be valid. Got: {:?}", result.diagnostics);
+}
+
+#[test]
+fn test_await_in_async_fn_is_valid() {
+    let source = r#"
+async fn main() {
+    let x = await 42;
+}
+"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens).unwrap();
+    let result = analyze(&program);
+    assert!(result.diagnostics.is_empty(),
+        "await in async fn should be valid. Got: {:?}", result.diagnostics);
 }

@@ -19,23 +19,69 @@ fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
 fn test_counter_generates_signal_declaration() {
     let src = "component Counter { signal count: i32 = 0 view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("_signal(\"count\", 0)"));
+    // Signal names are now component-prefixed: Counter_count
+    assert!(
+        output.js.contains("_signal(\"Counter_count\", 0)"),
+        "JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
 fn test_counter_generates_function() {
-    let src = "component Counter { signal count: i32 = 0 fn inc() { count = count + 1 } view { <br/> } }";
+    let src =
+        "component Counter { signal count: i32 = 0 fn inc() { count = count + 1 } view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("function inc()"), "JS should contain function inc()");
+    // Functions inside components are qualified: Counter_inc
+    assert!(
+        output.js.contains("function Counter_inc()"),
+        "JS should contain function Counter_inc(). JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_counter_generates_async_function() {
+    let src = "component Data { async fn fetch() -> String { return \"ok\" } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("async function Data_fetch()"),
+        "JS should contain async function Data_fetch(). JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_await_generates_await_js() {
+    let src = "component Data { async fn load() -> String { return await fetch(\"/api\"); } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("await fetch"),
+        "JS should contain 'await fetch'. JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
 fn test_counter_has_signal_runtime() {
     let src = "component App { view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("function _signal("));
-    assert!(output.js.contains("function _effect("));
-    assert!(output.js.contains("function _el("));
+    // Verify the OmniView runtime is embedded (uses __omni_ prefix to avoid name collisions)
+    assert!(
+        output.js.contains("__omni_signal"),
+        "JS should contain __omni_signal. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("__omni_effect"),
+        "JS should contain __omni_effect. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("__omni_el"),
+        "JS should contain __omni_el. JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
@@ -58,14 +104,27 @@ fn test_html_has_data_nid() {
 fn test_event_binding_generated() {
     let src = "component App { fn handle() { } view { <Button @onPress={handle}>Go</Button> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("addEventListener(\"click\", handle)"));
+    // Event handlers use qualified function name: App_handle
+    assert!(
+        output.js.contains("addEventListener(\"click\""),
+        "JS should have click event listener"
+    );
+    assert!(
+        output.js.contains("App_handle"),
+        "JS should reference App_handle"
+    );
 }
 
 #[test]
 fn test_mutation_generated_for_assignment() {
     let src = "component App { signal x: i32 = 0 fn go() { x = x + 5 } view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("x.set(x.value + 5)"));
+    // Signal names are now component-prefixed: App_x
+    assert!(
+        output.js.contains("App_x.set(App_x.value + 5)"),
+        "JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
@@ -87,21 +146,39 @@ fn test_source_map_entries() {
 fn test_signal_initial_value_number() {
     let src = "component App { signal count: i32 = 42 view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("_signal(\"count\", 42)"));
+    // Signal names are now component-prefixed: App_count
+    assert!(
+        output.js.contains("_signal(\"App_count\", 42)"),
+        "JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
 fn test_signal_initial_value_string() {
     let src = "component App { signal name: String = \"hello\" view { <br/> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("_signal(\"name\", \"hello\")"));
+    // Signal names are now component-prefixed: App_name
+    assert!(
+        output.js.contains("_signal(\"App_name\", \"hello\")"),
+        "JS:\n{}",
+        output.js
+    );
 }
 
 #[test]
 fn test_onpress_without_at_generates_event() {
     let src = "component App { fn click() { } view { <Button onPress={click}>Go</Button> } }";
     let output = compile_omniview(src);
-    assert!(output.js.contains("addEventListener(\"click\", click)"));
+    // onPress without @ still generates event; function name is qualified: App_click
+    assert!(
+        output.js.contains("addEventListener(\"click\""),
+        "JS should have click event listener"
+    );
+    assert!(
+        output.js.contains("App_click"),
+        "JS should reference App_click"
+    );
 }
 
 // ══════════════════════════════════════════════════════
@@ -110,7 +187,8 @@ fn test_onpress_without_at_generates_event() {
 
 #[test]
 fn test_if_directive_generates_conditional_effect() {
-    let src = "component App { signal show: bool = true view { @if show { <Text>Visible</Text> } } }";
+    let src =
+        "component App { signal show: bool = true view { @if show { <Text>Visible</Text> } } }";
     let output = compile_omniview(src);
     // Should generate a _effect() for the conditional
     assert!(output.js.contains("_effect(() => {"));
@@ -146,7 +224,12 @@ fn test_if_directive_js_contains_condition_expression() {
     let src = "component App { signal show: bool = true view { @if show { <Text>Hi</Text> } } }";
     let output = compile_omniview(src);
     // JS effect should reference the signal
-    assert!(output.js.contains("show.value"));
+    // Signal names are now component-prefixed: App_show
+    assert!(
+        output.js.contains("App_show"),
+        "JS should contain App_show. Got:\n{}",
+        output.js
+    );
 }
 
 #[test]
@@ -222,4 +305,121 @@ fn test_for_directive_with_data_bind_text() {
     let output = compile_omniview(src);
     // Should have data-bind-text marker on the text element
     assert!(output.html.contains("data-bind-text"));
+}
+
+// ══════════════════════════════════════════════════════
+// Tagged union variant construction
+// ══════════════════════════════════════════════════════
+
+#[test]
+fn test_variant_literal_generates_variant_marker() {
+    let src = "component App { fn test() -> HttpResult { Ok { value: 42 } } view { <br/> } }\n\
+               type HttpResult = Ok { value: i32 } | Err { error: String }";
+    let output = compile_omniview(src);
+    // Variant should emit _variant marker in JS
+    assert!(
+        output.js.contains("\"_variant\": \"Ok\""),
+        "Variant literal should have _variant marker. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("\"value\": 42"),
+        "Variant literal should have field values. JS:\n{}",
+        output.js
+    );
+}
+
+// ══════════════════════════════════════════════════════
+// Match expression pipeline
+// ══════════════════════════════════════════════════════
+
+#[test]
+fn test_match_expression_generates_variant_check() {
+    let src = "component App { fn check(r: HttpResult) -> String { match r { Ok { value } => { return value; } Err { error } => { return error; } } } view { <br/> } }\n\
+               type HttpResult = Ok { value: String } | Err { error: String }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("_v._variant"),
+        "Match should produce _variant check. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("\"Ok\""),
+        "Match should check for Ok. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("\"Err\""),
+        "Match should check for Err. JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_match_with_wildcard_generates_fallback() {
+    let src = "component App { fn check(r: HttpResult) -> i32 { match r { Ok { value } => { return value; } _ => { return -1; } } } view { <br/> } }\n\
+               type HttpResult = Ok { value: i32 } | Err { error: String }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("return -1"),
+        "Wildcard should produce fallback return. JS:\n{}",
+        output.js
+    );
+}
+
+// ══════════════════════════════════════════════════════
+// Stdlib pipeline
+// ══════════════════════════════════════════════════════
+
+#[test]
+fn test_stdlib_http_get_generates_fetch() {
+    let src = "import { http_get } from \"std/http\";\n\
+               component App { async fn load() -> String { return await http_get(\"/api\"); } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("fetch("),
+        "http_get should produce fetch call. JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_stdlib_json_parse_generates_json_parse() {
+    let src = "import { json_parse } from \"std/json\";\n\
+               component App { fn parse(s: String) -> String { return json_parse(s); } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("JSON.parse"),
+        "json_parse should produce JSON.parse. JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_stdlib_json_stringify_generates_json_stringify() {
+    let src = "import { json_stringify } from \"std/json\";\n\
+               component App { fn dump(v: i32) -> String { return json_stringify(v); } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("JSON.stringify"),
+        "json_stringify should produce JSON.stringify. JS:\n{}",
+        output.js
+    );
+}
+
+#[test]
+fn test_stdlib_storage_generates_localstorage() {
+    let src = "import { storage_get, storage_set } from \"std/storage\";\n\
+               component App { fn save(k: String, v: String) { storage_set(k, v); } fn load(k: String) -> String { return storage_get(k); } view { <br/> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("localStorage.getItem"),
+        "storage_get should produce localStorage.getItem. JS:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("localStorage.setItem"),
+        "storage_set should produce localStorage.setItem. JS:\n{}",
+        output.js
+    );
 }

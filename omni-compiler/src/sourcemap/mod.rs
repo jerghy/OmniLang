@@ -120,8 +120,7 @@ mod tests {
             }],
         }];
         let json = source_map_json(&entries);
-        let parsed: Vec<serde_json::Value> =
-            serde_json::from_str(&json).expect("valid JSON array");
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).expect("valid JSON array");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["nodeId"], "btn");
         assert_eq!(parsed[0]["sourceLine"], 10);

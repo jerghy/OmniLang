@@ -1,0 +1,350 @@
+import omniview;
+
+component App {
+    // ── Counter ──
+    signal count: i32 = 0;
+
+    // ── Theme ──
+    signal theme: String = "blue";
+
+    // ── Todo ──
+    signal todo_input: String = "";
+    signal todos: Array<String> = [];
+    signal todo_count: i32 = 0;
+
+    // ── Tab ──
+    signal active_tab: String = "stats";
+
+    // ── Text counter ──
+    signal text_input: String = "";
+    signal char_count: i32 = 0;
+
+    // ═════════════════════════════
+    // Counter (3 handlers)
+    // ═════════════════════════════
+    fn increment() {
+        count = count + 1;
+    }
+
+    fn decrement() {
+        count = count - 1;
+    }
+
+    fn reset_counter() {
+        count = 0;
+    }
+
+    // ═════════════════════════════
+    // Theme (4 handlers)
+    // ═════════════════════════════
+    fn set_blue() {
+        theme = "blue";
+    }
+
+    fn set_green() {
+        theme = "green";
+    }
+
+    fn set_purple() {
+        theme = "purple";
+    }
+
+    fn set_orange() {
+        theme = "orange";
+    }
+
+    // ═════════════════════════════
+    // Tab (3 handlers)
+    // ═════════════════════════════
+    fn show_stats() {
+        active_tab = "stats";
+    }
+
+    fn show_tasks() {
+        active_tab = "tasks";
+    }
+
+    fn show_about() {
+        active_tab = "about";
+    }
+
+    // ═════════════════════════════
+    // Todo (2 handlers)
+    // ═════════════════════════════
+    fn add_todo() {
+        if todo_input != "" {
+            todos = [todo_input];
+            todo_input = "";
+            todo_count = todo_count + 1;
+        }
+    }
+
+    fn clear_todos() {
+        todos = [];
+        todo_count = 0;
+    }
+
+    // ═════════════════════════════
+    // View
+    // ═════════════════════════════
+    view {
+        <div class: dashboard>
+            <h1 class: title>Omni Dashboard</h1>
+
+            <div class: theme-bar>
+                <span class: theme-label>Theme — {theme}</span>
+                <button onClick={set_blue} class: theme-btn-blue>Blue</button>
+                <button onClick={set_green} class: theme-btn-green>Green</button>
+                <button onClick={set_purple} class: theme-btn-purple>Purple</button>
+                <button onClick={set_orange} class: theme-btn-orange>Orange</button>
+            </div>
+
+            <div class: tab-bar>
+                <button onClick={show_stats} class: tab-btn>Stats</button>
+                <button onClick={show_tasks} class: tab-btn>Tasks</button>
+                <button onClick={show_about} class: tab-btn>About</button>
+            </div>
+
+            <div class: section>
+                <h2 class: section-title>Counter</h2>
+                <p class: counter-value>Value: {count}</p>
+                <div class: btn-row>
+                    <button onClick={decrement} class: btn btn-minus>-</button>
+                    <button onClick={reset_counter} class: btn btn-reset>Reset</button>
+                    <button onClick={increment} class: btn btn-plus>+</button>
+                </div>
+            </div>
+
+            <div class: section>
+                <h2 class: section-title>Todo List ({todo_count})</h2>
+                <div class: input-row>
+                    <input placeholder="Add a task..." class: todo-input />
+                    <button onClick={add_todo} class: btn btn-add>Add</button>
+                    <button onClick={clear_todos} class: btn btn-clear>Clear All</button>
+                </div>
+                <ul class: todo-list>
+                    @for item in todos {
+                        <li class: todo-item>{item}</li>
+                    }
+                    @empty {
+                        <li class: todo-empty>No tasks yet</li>
+                    }
+                </ul>
+            </div>
+
+            <div class: section>
+                <h2 class: section-title>Text Counter</h2>
+                <input placeholder="Type something..." class: text-input />
+                <p class: char-count>Characters: {char_count}</p>
+            </div>
+        </div>
+    }
+
+    // ═════════════════════════════
+    // Styles
+    // ═════════════════════════════
+    style {
+        .dashboard {
+            max-width: 800;
+            padding: 24;
+            font-family: system-ui;
+            background: #0f0f23;
+            color: #e4e4e7;
+        }
+
+        .title {
+            font-size: 36;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 24;
+            color: #e4e4e7;
+        }
+
+        .theme-bar {
+            display: flex;
+            align-items: center;
+            gap: 8;
+            margin-bottom: 16;
+            padding: 12;
+            border-radius: 12;
+            background: #1a1a2e;
+        }
+
+        .theme-label {
+            font-weight: 600;
+            margin-right: 8;
+            color: #94a3b8;
+        }
+
+        .theme-btn-blue {
+            padding: 6;
+            border-radius: 6;
+            border-style: none;
+            cursor: pointer;
+            background: #3b82f6;
+            color: white;
+            font-weight: 600;
+        }
+
+        .theme-btn-green {
+            padding: 6;
+            border-radius: 6;
+            border-style: none;
+            cursor: pointer;
+            background: #22c55e;
+            color: white;
+            font-weight: 600;
+        }
+
+        .theme-btn-purple {
+            padding: 6;
+            border-radius: 6;
+            border-style: none;
+            cursor: pointer;
+            background: #a855f7;
+            color: white;
+            font-weight: 600;
+        }
+
+        .theme-btn-orange {
+            padding: 6;
+            border-radius: 6;
+            border-style: none;
+            cursor: pointer;
+            background: #f97316;
+            color: white;
+            font-weight: 600;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 4;
+            margin-bottom: 24;
+            background: #1a1a2e;
+            padding: 4;
+            border-radius: 10;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10;
+            border-style: none;
+            border-radius: 8;
+            cursor: pointer;
+            font-weight: 600;
+            background: transparent;
+            color: #94a3b8;
+        }
+
+        .section {
+            margin-bottom: 24;
+            padding: 20;
+            border-radius: 12;
+            background: #1f1f3a;
+            border-width: 1;
+            border-style: solid;
+            border-color: #2a2a4a;
+        }
+
+        .section-title {
+            font-size: 20;
+            font-weight: 700;
+            margin-bottom: 12;
+            color: #e4e4e7;
+        }
+
+        .counter-value {
+            font-size: 24;
+            font-weight: 600;
+            margin-bottom: 12;
+            color: #a78bfa;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8;
+        }
+
+        .btn {
+            padding: 8;
+            border-radius: 8;
+            border-style: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16;
+            color: white;
+        }
+
+        .btn-minus {
+            background: #ef4444;
+        }
+
+        .btn-reset {
+            background: #64748b;
+        }
+
+        .btn-plus {
+            background: #22c55e;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8;
+            margin-bottom: 12;
+        }
+
+        .todo-input {
+            flex: 1;
+            padding: 8;
+            border-radius: 8;
+            border-width: 1;
+            border-style: solid;
+            border-color: #333;
+            background: #0f0f23;
+            color: #e4e4e7;
+        }
+
+        .btn-add {
+            background: #3b82f6;
+        }
+
+        .btn-clear {
+            background: #ef4444;
+        }
+
+        .todo-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .todo-item {
+            padding: 8;
+            background: #252550;
+            border-radius: 6;
+            margin-bottom: 4;
+            color: #e4e4e7;
+        }
+
+        .todo-empty {
+            padding: 8;
+            color: #64748b;
+        }
+
+        .text-input {
+            width: 100;
+            padding: 8;
+            border-radius: 8;
+            border-width: 1;
+            border-style: solid;
+            border-color: #333;
+            background: #0f0f23;
+            color: #e4e4e7;
+            margin-bottom: 8;
+        }
+
+        .char-count {
+            font-size: 14;
+            color: #94a3b8;
+        }
+    }
+}

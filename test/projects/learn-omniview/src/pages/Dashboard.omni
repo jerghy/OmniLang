@@ -1,0 +1,71 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  Dashboard.omni —— 仪表盘页面（Phase 7 新增）                    ║
+// ║  演示：页面级组件组合——将多个独立 demo 聚合到一个视图中            ║
+// ║                                                              ║
+// ║  聚合组件：                                                    ║
+// ║    StatsPanel      — prop 接收 + if 表达式                     ║
+// ║    StatsDashboard  — ref + const + 复合赋值 + @unmount         ║
+// ║    Counter         — signal + computed + 内联回调              ║
+// ║    FeatureCard     — struct 字面量 + @else if + @onFocus/Blur  ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { StatsPanel } from "../components/StatsPanel";
+import { StatsDashboard } from "../components/StatsDashboard";
+import { Counter } from "../components/Counter";
+import { FeatureCard } from "../components/FeatureCard";
+
+component Dashboard {
+    // 本地状态：演示仪表盘级别的信号管理
+    signal totalItems: i32 = 42;
+    signal lastUpdated: String = "just now";
+
+    fn refresh() {
+        totalItems = totalItems + 1;
+        lastUpdated = "updated";
+    }
+
+    view {
+        <div class: dashboard-page>
+            <!-- 页面标题区 -->
+            <header class: page-header>
+                <h2 class: page-title>Dashboard</h2>
+                <p class: page-subtitle>
+                    Overview of {totalItems} items · Updated {lastUpdated}
+                </p>
+                <button class: refresh-btn @onPress={refresh}>Refresh</button>
+            </header>
+
+            <!-- 统计概览区域 -->
+            <section class: section>
+                <h3 class: section-title>Statistics</h3>
+                <StatsPanel total={totalItems} />
+                <StatsDashboard />
+            </section>
+
+            <!-- 交互演示区域 -->
+            <section class: section>
+                <h3 class: section-title>Interactions</h3>
+                <div class: demo-grid>
+                    <div class: demo-card>
+                        <Counter />
+                    </div>
+                    <div class: demo-card>
+                        <FeatureCard />
+                    </div>
+                </div>
+            </section>
+        </div>
+    }
+    style {
+        .dashboard-page { background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; max-width: 90vw; }
+        .page-header { padding: 20px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .page-title { font-size: 22px; font-weight: 700; color: #111; margin: 0; }
+        .page-subtitle { font-size: 13px; color: #888; margin: 0; flex: 1; }
+        .refresh-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .section { padding: 0 16px 16px 16px; }
+        .section-title { font-size: 14px; font-weight: 600; color: #666; margin: 16px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+        .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .demo-card { }
+    }
+}

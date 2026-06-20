@@ -201,8 +201,10 @@ def cmd_analyse(args):
     # Collect sources (auto-discover, single file, or directory)
     sources = _collect_sources(args.files or [])
 
+    from omnilang.api import _derive_path_mapping
+    path_mapping = _derive_path_mapping(sources)
     try:
-        result = RustBridge.analyse(sources)
+        result = RustBridge.analyse(sources, path_mapping)
     except CompilerUnavailable:
         raise
 
@@ -258,7 +260,7 @@ def _write_standalone_omniview(output_dir: str, body: str, js: str, css: str) ->
     <style>{css}</style>
 </head>
 <body>
-    {body}
+    <div id="root">{body}</div>
     <script>{js}</script>
 </body>
 </html>"""
@@ -294,18 +296,19 @@ def cmd_run(args):
     if not os.path.exists(filepath):
         raise InputError.file_not_found(filepath)
 
-    with open(filepath, "r", encoding="utf-8") as f:
-        source = f.read()
+    # Collect ALL project sources (not just the entry file) so cross-file
+    # imports like `import { X } from "./components/X"` resolve correctly.
+    sources = _collect_sources([])
 
     # Auto-detect target if not specified
     if target is None:
-        target = _detect_target({filepath: source})
+        target = _detect_target(sources)
         # View frameworks can't be run directly; run as omniview (HTML+JS+CSS in browser)
         if target in ("react", "vue", "dioxus", "flutter"):
             target = "omniview"
 
     from omnilang.api import compile_omni_multi
-    result = compile_omni_multi({filepath: source}, target=target)
+    result = compile_omni_multi(sources, target=target)
 
     if not result.success:
         raise CompileError([OmniError(

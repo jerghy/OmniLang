@@ -1,0 +1,85 @@
+// TabPanel.omni - custom tags (Card, Button, Flex, Text), class: map, inline style:
+
+import omniview;
+
+component TabPanel {
+    signal activeTab: String = "home";
+
+    fn switchTo(tab: String) {
+        activeTab = tab;
+    }
+
+    fn isActive(tab: String) -> bool {
+        return activeTab == tab;
+    }
+
+    fn getBtnBg(tab: String) -> String {
+        if isActive(tab) { return "#6366f1"; }
+        return "#f3f4f6";
+    }
+
+    fn getBtnColor(tab: String) -> String {
+        if isActive(tab) { return "white"; }
+        return "#374151";
+    }
+
+    view {
+        <div class: tab-panel>
+            <div class: tab-bar>
+                <Button
+                    class: { active: isActive("home"), tab: true }
+                    style: { padding: "10px 20px", border: "none", background: getBtnBg("home"), color: getBtnColor("home"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                    @onPress={() => { switchTo("home"); }}
+                >Home</Button>
+                <Button
+                    class: { active: isActive("about"), tab: true }
+                    style: { padding: "10px 20px", border: "none", background: getBtnBg("about"), color: getBtnColor("about"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                    @onPress={() => { switchTo("about"); }}
+                >About</Button>
+                <Button
+                    class: { active: isActive("settings"), tab: true }
+                    style: { padding: "10px 20px", border: "none", background: getBtnBg("settings"), color: getBtnColor("settings"), borderRadius: "8px", cursor: "pointer", fontSize: "14px" }
+                    @onPress={() => { switchTo("settings"); }}
+                >Settings</Button>
+            </div>
+
+            @if activeTab == "home" {
+                <Card class: card>
+                    <h3 class: card-title>Home Tab</h3>
+                    <Flex class: row>
+                        <Text>Custom tags: Card, Button, Flex, Text</Text>
+                    </Flex>
+                    <p class: text>class: map syntax demo on buttons above</p>
+                </Card>
+            }
+            @else if activeTab == "about" {
+                <Card class: card>
+                    <h3 class: card-title>About Tab</h3>
+                    <p class: text>Custom tag mapping: Card to div, Button to button</p>
+                    <p class: text>Inline style: syntax on Button elements</p>
+                </Card>
+            }
+            @else if activeTab == "settings" {
+                <Card class: card>
+                    <h3 class: card-title>Settings Tab</h3>
+                    <p class: text>Active tab: {activeTab}</p>
+                </Card>
+            }
+            @else {
+                <Card class: card>
+                    <p class: text>Unknown tab</p>
+                </Card>
+            }
+        </div>
+    }
+    style {
+        .tab-panel { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .tab-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab { }
+        .active { }
+        .card { background: #f9fafb; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+        .card-title { font-size: 18px; color: #222; margin-bottom: 8px; }
+        .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .text { font-size: 14px; color: #666; margin: 4px 0; }
+    }
+}

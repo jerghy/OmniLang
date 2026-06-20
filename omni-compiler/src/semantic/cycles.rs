@@ -2,8 +2,8 @@
 //!
 //! Detects circular imports across files. Cycles are a compile error.
 
-use std::collections::{HashMap, HashSet};
 use crate::parser::ast::{ImportStmt, Program};
+use std::collections::{HashMap, HashSet};
 
 /// Detect circular imports using Tarjan's strongly connected components algorithm.
 ///
@@ -108,8 +108,14 @@ pub fn detect_cycles(
                     break;
                 }
             }
+            // A length-1 SCC is a cycle only if the vertex has a self-loop
             if scc.len() > 1 {
                 state.cycles.push(scc);
+            } else {
+                // Check for self-import (vertex has an edge to itself)
+                if graph[v].contains(&v) {
+                    state.cycles.push(scc);
+                }
             }
         }
     }
@@ -126,21 +132,26 @@ pub fn detect_cycles(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ast::*;
     use crate::lexer::Span;
+    use crate::parser::ast::*;
 
     fn make_program(imports: Vec<ImportStmt>) -> Program {
-        let mut modules = HashMap::new();
-        modules.insert("input.omni".to_string(), {
-            let mut module = Module::default();
-            module.imports = imports;
-            module
-        });
+        let modules = HashMap::from([("input.omni".to_string(), {
+            Module {
+                imports,
+                ..Default::default()
+            }
+        })]);
         Program { modules }
     }
 
     fn span() -> Span {
-        Span { start: 0, end: 0, line: 0, col: 0 }
+        Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            col: 0,
+        }
     }
 
     #[test]

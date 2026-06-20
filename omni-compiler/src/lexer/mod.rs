@@ -66,7 +66,13 @@ impl Lexer {
             Some('"') => self.read_string(),
             Some('`') => self.read_template_string(),
             Some(c) if c.is_ascii_digit() => self.read_number(),
-            Some(c) if c.is_alphabetic() || c == '_' || (!c.is_ascii() && !c.is_whitespace() && !c.is_control()) => self.read_ident_or_keyword(),
+            Some(c)
+                if c.is_alphabetic()
+                    || c == '_'
+                    || (!c.is_ascii() && !c.is_whitespace() && !c.is_control()) =>
+            {
+                self.read_ident_or_keyword()
+            }
             Some('@') => self.read_at_keyword(),
             Some('.') => {
                 self.advance();
@@ -572,10 +578,11 @@ impl Lexer {
         let line = self.line;
         let col = self.col;
         let mut ident = String::new();
-        while self
-            .peek()
-            .is_some_and(|c| c.is_alphanumeric() || c == '_' || (!c.is_ascii() && !c.is_whitespace() && !c.is_control()))
-        {
+        while self.peek().is_some_and(|c| {
+            c.is_alphanumeric()
+                || c == '_'
+                || (!c.is_ascii() && !c.is_whitespace() && !c.is_control())
+        }) {
             ident.push(self.advance().unwrap());
         }
         let kind = match ident.as_str() {
@@ -639,10 +646,7 @@ impl Lexer {
         let col = self.col;
         self.advance(); // @
         let mut kw = String::from("@");
-        while self
-            .peek()
-            .is_some_and(|c| c.is_alphanumeric() || c == '_')
-        {
+        while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_') {
             kw.push(self.advance().unwrap());
         }
         let kind = match kw.as_str() {

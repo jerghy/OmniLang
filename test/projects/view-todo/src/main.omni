@@ -6,7 +6,7 @@ component TodoList {
 
     fn add_item() {
         if input != "" {
-            items = [input];
+            items.push(input);
             input = "";
         }
     }
@@ -15,7 +15,7 @@ component TodoList {
         <div>
             <h2>Todo List</h2>
             <div>
-                <input placeholder="Add a task..." />
+                <input bind:value={input} placeholder="Add a task..." />
                 <button @onPress={add_item}>Add</button>
             </div>
             <ul>

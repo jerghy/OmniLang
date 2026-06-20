@@ -48,7 +48,12 @@ pub trait LintRule {
     }
 
     /// Check against the merged IR (after lowering). Default: no-op.
-    fn check_ir(&self, _ir: &IRProgram) -> Vec<LintDiagnostic> {
+    /// `file_map` maps module keys to their source file paths for diagnostic locations.
+    fn check_ir(
+        &self,
+        _ir: &IRProgram,
+        _file_map: &HashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
         vec![]
     }
 }
@@ -58,12 +63,18 @@ pub trait LintRule {
 // ═══════════════════════════════════════════════════════════
 
 /// Run all registered lint rules against ASTs and merged IR.
-pub fn run_all(
-    programs: &HashMap<String, Program>,
-    ir: &IRProgram,
-) -> Vec<LintDiagnostic> {
+pub fn run_all(programs: &HashMap<String, Program>, ir: &IRProgram) -> Vec<LintDiagnostic> {
     let rules: Vec<Box<dyn LintRule>> = all_rules();
     let mut diags = Vec::new();
+
+    // Build file_map: module_key → source_file_path from IR
+    let file_map: HashMap<String, String> = programs
+        .keys()
+        .map(|path| {
+            // Use the path itself as key; lints can match against module names
+            (path.clone(), path.clone())
+        })
+        .collect();
 
     // AST-level checks — each file gets checked individually
     for (file_path, program) in programs {
@@ -72,9 +83,9 @@ pub fn run_all(
         }
     }
 
-    // IR-level checks — run against the merged program
+    // IR-level checks — run against the merged program with file context
     for rule in &rules {
-        diags.extend(rule.check_ir(ir));
+        diags.extend(rule.check_ir(ir, &file_map));
     }
 
     diags
@@ -124,7 +135,11 @@ pub mod rules {
             LintSeverity::Error
         }
 
-        fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
+        fn check_ir(
+            &self,
+            ir: &IRProgram,
+            _file_map: &HashMap<String, String>,
+        ) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
             for (name, comp) in ir.all_components() {
                 for store_ref in &comp.store_refs {
@@ -136,7 +151,7 @@ pub mod rules {
                                 "Component '{}' references undefined store '{}'",
                                 name, store_ref
                             ),
-                            file: String::new(),
+                            file: name.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -170,7 +185,11 @@ pub mod rules {
             LintSeverity::Error
         }
 
-        fn check_ir(&self, _ir: &IRProgram) -> Vec<LintDiagnostic> {
+        fn check_ir(
+            &self,
+            _ir: &IRProgram,
+            _file_map: &HashMap<String, String>,
+        ) -> Vec<LintDiagnostic> {
             // TODO: Full type checking against IR types
             // Requires: type inference results wired into IR,
             // or a separate type-checking pass that annotates IR nodes.
@@ -201,14 +220,19 @@ pub mod rules {
             LintSeverity::Warning
         }
 
-        fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
+        fn check_ir(
+            &self,
+            ir: &IRProgram,
+            _file_map: &HashMap<String, String>,
+        ) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
             for (comp_name, comp) in ir.all_components() {
                 for func in &comp.fns {
                     if let Some(ref ret_type) = func.return_type {
                         let kind = ret_type.kind.as_str();
                         if kind != "void" && kind != "()" && kind != "Unit" {
-                            let has_return = statements_contain_return(&func.body.statements, false);
+                            let has_return =
+                                statements_contain_return(&func.body.statements, false);
                             if !has_return {
                                 diags.push(LintDiagnostic {
                                     rule: self.name().into(),
@@ -254,7 +278,11 @@ pub mod rules {
             LintSeverity::Warning
         }
 
-        fn check_ir(&self, ir: &IRProgram) -> Vec<LintDiagnostic> {
+        fn check_ir(
+            &self,
+            ir: &IRProgram,
+            _file_map: &HashMap<String, String>,
+        ) -> Vec<LintDiagnostic> {
             let mut diags = Vec::new();
 
             // Collect all stores referenced by any component
@@ -271,10 +299,7 @@ pub mod rules {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
-                        message: format!(
-                            "Store '{}' is never used by any component",
-                            store_name
-                        ),
+                        message: format!("Store '{}' is never used by any component", store_name),
                         file: String::new(),
                         line: 0,
                         col: 0,
@@ -392,7 +417,7 @@ pub mod rules {
             }
 
             // Check imports
-            for (name, &(ref import, ref _names)) in &imported {
+            for (name, &(import, _names)) in &imported {
                 if !used.contains(name) {
                     // Get source location from the import
                     let (line, col) = import_span_line_col(import);
@@ -414,7 +439,7 @@ pub mod rules {
     // ── Helpers ──────────────────────────────────────────
 
     /// Recursively check if a block's statement tree contains a return.
-    pub fn statements_contain_return(stmts: &[StatementIR], in_loop: bool) -> bool {
+    pub fn statements_contain_return(stmts: &[StatementIR], _in_loop: bool) -> bool {
         for stmt in stmts {
             match stmt {
                 StatementIR::ReturnStmtIR { .. } => return true,
@@ -423,19 +448,36 @@ pub mod rules {
                     else_body,
                     ..
                 } => {
-                    if statements_contain_return(&then_body.statements, in_loop) {
+                    if statements_contain_return(&then_body.statements, _in_loop) {
                         return true;
                     }
                     if let Some(ref else_body) = else_body {
-                        if statements_contain_return(&else_body.statements, in_loop) {
+                        if statements_contain_return(&else_body.statements, _in_loop) {
                             return true;
                         }
+                    }
+                }
+                StatementIR::BlockStmtIR { body } => {
+                    if statements_contain_return(&body.statements, _in_loop) {
+                        return true;
+                    }
+                }
+                StatementIR::WhileStmtIR { body, .. } => {
+                    if statements_contain_return(&body.statements, true) {
+                        return true;
+                    }
+                }
+                StatementIR::ForInStmtIR { body, .. } => {
+                    if statements_contain_return(&body.statements, true) {
+                        return true;
                     }
                 }
                 StatementIR::LetStmtIR { .. }
                 | StatementIR::MutationStmt { .. }
                 | StatementIR::EventEmitStmtIR { .. }
-                | StatementIR::ExprStmtIR { .. } => {}
+                | StatementIR::ExprStmtIR { .. }
+                | StatementIR::BreakStmtIR
+                | StatementIR::ContinueStmtIR => {}
             }
         }
         false
@@ -453,9 +495,7 @@ pub mod rules {
 
     // ── AST name reference collectors ────────────────────
 
-    use crate::parser::ast::{
-        Block, Expr, Stmt, ViewBlock, ViewNode,
-    };
+    use crate::parser::ast::{Block, Expr, Stmt, ViewBlock, ViewNode};
 
     fn collect_used_names_in_block<'a>(block: &'a Block, used: &mut HashSet<&'a str>) {
         for stmt in &block.stmts {
@@ -492,13 +532,13 @@ pub mod rules {
                         collect_used_names_in_block(body, used);
                     }
                 }
-                crate::parser::ast::Stmt::While { condition, body, .. } => {
+                crate::parser::ast::Stmt::While {
+                    condition, body, ..
+                } => {
                     collect_used_names_in_expr(condition, used);
                     collect_used_names_in_block(body, used);
                 }
-                crate::parser::ast::Stmt::ForIn {
-                    iterable, body, ..
-                } => {
+                crate::parser::ast::Stmt::ForIn { iterable, body, .. } => {
                     collect_used_names_in_expr(iterable, used);
                     collect_used_names_in_block(body, used);
                 }
@@ -596,6 +636,16 @@ pub mod rules {
             Expr::ClosureExpr { body, .. } => {
                 collect_used_names_in_expr(body, used);
             }
+            Expr::AwaitExpr { operand, .. } => {
+                collect_used_names_in_expr(operand, used);
+            }
+            Expr::MatchExpr { matched, arms, .. } => {
+                collect_used_names_in_expr(matched, used);
+                for arm in arms {
+                    collect_used_names_in_block(&arm.body, used);
+                }
+            }
+            Expr::Block { .. } => {}
             Expr::NotYetImplemented { .. } => {}
         }
     }
@@ -622,22 +672,20 @@ pub mod rules {
                                 used.insert(signal_path.as_str());
                             }
                         }
-                        crate::parser::ast::ElementProp::Event { handler, .. } => {
-                            match handler {
-                                crate::parser::ast::EventHandler::InlineFn { body, .. } => {
-                                    collect_used_names_in_block(body, used);
-                                }
-                                crate::parser::ast::EventHandler::FnRef(name) => {
-                                    used.insert(name.as_str());
-                                }
-                                crate::parser::ast::EventHandler::StoreAction {
-                                    store, action, ..
-                                } => {
-                                    used.insert(store.as_str());
-                                    used.insert(action.as_str());
-                                }
+                        crate::parser::ast::ElementProp::Event { handler, .. } => match handler {
+                            crate::parser::ast::EventHandler::InlineFn { body, .. } => {
+                                collect_used_names_in_block(body, used);
                             }
-                        }
+                            crate::parser::ast::EventHandler::FnRef(name) => {
+                                used.insert(name.as_str());
+                            }
+                            crate::parser::ast::EventHandler::StoreAction {
+                                store, action, ..
+                            } => {
+                                used.insert(store.as_str());
+                                used.insert(action.as_str());
+                            }
+                        },
                         _ => {}
                     }
                 }
@@ -690,8 +738,8 @@ pub mod rules {
 mod tests {
     use super::*;
     use crate::ir::ModuleIR;
-    use crate::parser::ast::{Block, Expr, FunctionDef, Module, NamedImport, Stmt, Visibility};
     use crate::lexer::Span;
+    use crate::parser::ast::{Block, Expr, FunctionDef, Module, NamedImport, Stmt, Visibility};
 
     /// Helper to construct an IRProgram with a single module for testing.
     fn make_test_ir(
@@ -712,6 +760,7 @@ mod tests {
             version: "1.0".into(),
             modules,
             source_map: HashMap::new(),
+            stdlib_imports: Vec::new(),
         }
     }
 
@@ -726,6 +775,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -733,13 +783,14 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["MissingStore".into()],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
 
-        let diags = rules::UndefinedRef.check_ir(&ir);
+        let diags = rules::UndefinedRef.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing store");
         assert!(
             diags[0].message.contains("MissingStore"),
@@ -768,6 +819,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -775,13 +827,14 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["CounterStore".into()],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = rules::UndefinedRef.check_ir(&ir);
+        let diags = rules::UndefinedRef.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 0, "no diagnostics expected when store exists");
     }
 
@@ -796,6 +849,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -819,16 +873,18 @@ mod tests {
                         }],
                         execution_mode: "client-only".into(),
                     },
+                    is_async: false,
                 }],
                 store_refs: vec![],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
 
-        let diags = rules::MissingReturn.check_ir(&ir);
+        let diags = rules::MissingReturn.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for missing return");
         assert!(
             diags[0].message.contains("getCount"),
@@ -846,6 +902,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -865,17 +922,23 @@ mod tests {
                         statements: vec![],
                         execution_mode: "client-only".into(),
                     },
+                    is_async: false,
                 }],
                 store_refs: vec![],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
 
-        let diags = rules::MissingReturn.check_ir(&ir);
-        assert_eq!(diags.len(), 0, "void functions should not trigger missing-return");
+        let diags = rules::MissingReturn.check_ir(&ir, &HashMap::new());
+        assert_eq!(
+            diags.len(),
+            0,
+            "void functions should not trigger missing-return"
+        );
     }
 
     #[test]
@@ -887,6 +950,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -910,16 +974,18 @@ mod tests {
                         }],
                         execution_mode: "client-only".into(),
                     },
+                    is_async: false,
                 }],
                 store_refs: vec![],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
 
-        let diags = rules::MissingReturn.check_ir(&ir);
+        let diags = rules::MissingReturn.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 0, "functions with return should not trigger");
     }
 
@@ -940,7 +1006,7 @@ mod tests {
         );
         let ir = make_test_ir(HashMap::new(), stores);
 
-        let diags = rules::DeadCode.check_ir(&ir);
+        let diags = rules::DeadCode.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 1, "expected 1 diagnostic for unused store");
         assert!(
             diags[0].message.contains("UnusedStore"),
@@ -969,6 +1035,7 @@ mod tests {
                 name: "App".into(),
                 generic_params: vec![],
                 props: HashMap::new(),
+                prop_defaults: HashMap::new(),
                 states: vec![],
                 computeds: vec![],
                 effects: vec![],
@@ -976,13 +1043,14 @@ mod tests {
                 fns: vec![],
                 store_refs: vec!["UsedStore".into()],
                 refs: vec![],
+                event_names: vec![],
                 view: None,
                 styles: vec![],
             },
         );
         let ir = make_test_ir(components, stores);
 
-        let diags = rules::DeadCode.check_ir(&ir);
+        let diags = rules::DeadCode.check_ir(&ir, &HashMap::new());
         assert_eq!(diags.len(), 0, "used stores should not trigger dead-code");
     }
 
@@ -991,17 +1059,18 @@ mod tests {
     #[test]
     fn test_unused_import_detects_unused_named_import() {
         let mut modules = HashMap::new();
-        modules.insert("test.omni".to_string(), Module {
-            name: "test".into(),
-            functions: vec![],
-            structs: vec![],
-            tagged_unions: vec![],
-            type_aliases: vec![],
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
-            imports: vec![ImportStmt::Named(
-                NamedImport {
+        modules.insert(
+            "test.omni".to_string(),
+            Module {
+                name: "test".into(),
+                functions: vec![],
+                structs: vec![],
+                tagged_unions: vec![],
+                type_aliases: vec![],
+                components: vec![],
+                stores: vec![],
+                themes: vec![],
+                imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["unusedSymbol".into()],
                     path: "./utils.omni".into(),
                     span: Span {
@@ -1010,10 +1079,10 @@ mod tests {
                         line: 1,
                         col: 1,
                     },
-                },
-            )],
-            exports: vec![],
-        });
+                })],
+                exports: vec![],
+            },
+        );
         let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");
@@ -1028,55 +1097,56 @@ mod tests {
     #[test]
     fn test_unused_import_skips_used_import() {
         let mut modules = HashMap::new();
-        modules.insert("test.omni".to_string(), Module {
-            name: "test".into(),
-            functions: vec![FunctionDef {
-                visibility: Visibility::Private,
-                name: "greet".into(),
-                params: vec![],
-                return_type: None,
-                is_async: false,
-                body: Block {
-                    stmts: vec![Stmt::ExprStmt {
-                        expr: Expr::VarRef(
-                            "usedSymbol".into(),
-                            Span {
+        modules.insert(
+            "test.omni".to_string(),
+            Module {
+                name: "test".into(),
+                functions: vec![FunctionDef {
+                    visibility: Visibility::Private,
+                    name: "greet".into(),
+                    params: vec![],
+                    return_type: None,
+                    is_async: false,
+                    body: Block {
+                        stmts: vec![Stmt::ExprStmt {
+                            expr: Expr::VarRef(
+                                "usedSymbol".into(),
+                                Span {
+                                    start: 0,
+                                    end: 10,
+                                    line: 2,
+                                    col: 1,
+                                },
+                            ),
+                            span: Span {
                                 start: 0,
                                 end: 10,
                                 line: 2,
                                 col: 1,
                             },
-                        ),
+                        }],
+                        trailing_expr: None,
                         span: Span {
                             start: 0,
                             end: 10,
                             line: 2,
                             col: 1,
                         },
-                    }],
-                    trailing_expr: None,
+                    },
                     span: Span {
                         start: 0,
                         end: 10,
                         line: 2,
                         col: 1,
                     },
-                },
-                span: Span {
-                    start: 0,
-                    end: 10,
-                    line: 2,
-                    col: 1,
-                },
-            }],
-            structs: vec![],
-            tagged_unions: vec![],
-            type_aliases: vec![],
-            components: vec![],
-            stores: vec![],
-            themes: vec![],
-            imports: vec![ImportStmt::Named(
-                NamedImport {
+                }],
+                structs: vec![],
+                tagged_unions: vec![],
+                type_aliases: vec![],
+                components: vec![],
+                stores: vec![],
+                themes: vec![],
+                imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["usedSymbol".into()],
                     path: "./utils.omni".into(),
                     span: Span {
@@ -1085,10 +1155,10 @@ mod tests {
                         line: 1,
                         col: 1,
                     },
-                },
-            )],
-            exports: vec![],
-        });
+                })],
+                exports: vec![],
+            },
+        );
         let program = Program { modules };
 
         let diags = rules::UnusedImport.check_ast(&program, "test.omni");

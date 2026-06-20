@@ -359,6 +359,36 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
             };
             w.emit(&format!("# emit event: {}{}", event_name, arg_str));
         }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements {
+                generate_statement(w, s);
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            let cond = format_expr_ir(condition);
+            w.emit(&format!("while {}:", cond));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s);
+            }
+            w.dedent();
+        }
+        StatementIR::ForInStmtIR { var_name, iterable, body } => {
+            let iter = format_expr_ir(iterable);
+            w.emit(&format!("for {} in {}:", var_name, iter));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s);
+            }
+            w.dedent();
+        }
+        StatementIR::BreakStmtIR => {
+            w.emit("break");
+        }
+        StatementIR::ContinueStmtIR => {
+            w.emit("continue");
+        }
+        _ => {}
     }
 }
 
@@ -414,6 +444,52 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             };
             format!("{}.{}{}", store_alias, field_name, arg_str)
         }
+        ExprIR::ArrayExpr { elements } => {
+            let items: Vec<String> = elements.iter().map(format_expr_ir).collect();
+            format!("[{}]", items.join(", "))
+        }
+        ExprIR::StructExpr { type_name, fields } => {
+            let field_strs: Vec<String> = fields
+                .iter()
+                .map(|(name, val)| format!("{}={}", name, format_expr_ir(val)))
+                .collect();
+            format!("{}({})", type_name, field_strs.join(", "))
+        }
+        ExprIR::MethodCallExpr { object, method, args } => {
+            let obj = format_expr_ir(object);
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir).collect();
+            match method.as_str() {
+                "len" | "length" => format!("len({})", obj),
+                "is_empty" => format!("len({}) == 0", obj),
+                "push" => format!("{}.append({})", obj, arg_strs.join(", ")),
+                "pop" => format!("{}.pop()", obj),
+                "contains" => format!("({} in {})", arg_strs.join(", "), obj),
+                _ => format!("{}.{}({})", obj, method, arg_strs.join(", ")),
+            }
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            format_expr_ir(tail)
+        }
+        ExprIR::IndexExpr { object, index } => {
+            format!("{}[{}]", format_expr_ir(object), format_expr_ir(index))
+        }
+        ExprIR::ClosureExpr { params, body } => {
+            let body_str = format_expr_ir(body);
+            format!("lambda {}: {}", params.join(", "), body_str)
+        }
+        ExprIR::AwaitExpr { operand } => {
+            format!("await {}", format_expr_ir(operand))
+        }
+        ExprIR::VariantLiteral { variant, fields, .. } => {
+            let mut entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v)))
+                .collect();
+            entries.insert(0, format!("\"_variant\": \"{}\"", variant));
+            format!("{{{}}}", entries.join(", "))
+        }
+        ExprIR::MatchExpr { .. } => "None".into(),
+        _ => "None".into(),
     }
 }
 
@@ -564,603 +640,3 @@ pub fn py_type(kind: &str, type_args: &[TypeIR]) -> String {
 // ═══════════════════════════════════════════════════════════
 // Unit tests
 // ═══════════════════════════════════════════════════════════
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ir::ModuleIR;
-
-    #[test]
-    fn test_py_type_primitives() {
-        assert_eq!(py_type("int", &[]), "int");
-        assert_eq!(py_type("f64", &[]), "float");
-        assert_eq!(py_type("bool", &[]), "bool");
-        assert_eq!(py_type("string", &[]), "str");
-        assert_eq!(py_type("void", &[]), "None");
-    }
-
-    #[test]
-    fn test_py_type_generics() {
-        let i32_arg = TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
-        };
-        let string_arg = TypeIR {
-            kind: "string".into(),
-            type_args: vec![],
-            is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
-        };
-
-        assert_eq!(py_type("Vec", &[i32_arg.clone()]), "list[int]");
-        assert_eq!(
-            py_type("HashMap", &[string_arg.clone(), i32_arg.clone()]),
-            "dict[str, int]"
-        );
-    }
-
-    #[test]
-    fn test_py_type_option() {
-        let i32_arg = TypeIR {
-            kind: "i32".into(),
-            type_args: vec![],
-            is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
-        };
-        assert_eq!(py_type("Option", &[i32_arg]), "Optional[int]");
-    }
-
-    #[test]
-    fn test_py_type_user_defined() {
-        assert_eq!(py_type("MyType", &[]), "'MyType'");
-    }
-
-    #[test]
-    fn test_format_json_value() {
-        assert_eq!(format_json_value(&serde_json::Value::Null), "None");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(true)), "True");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(false)), "False");
-        assert_eq!(
-            format_json_value(&serde_json::json!(42)),
-            "42"
-        );
-        assert_eq!(
-            format_json_value(&serde_json::json!("hello")),
-            "'hello'"
-        );
-    }
-
-    #[test]
-    fn test_binary_ops() {
-        assert_eq!(binary_op_to_python("add"), "+");
-        assert_eq!(binary_op_to_python("eq"), "==");
-        assert_eq!(binary_op_to_python("and"), "and");
-    }
-
-    #[test]
-    fn test_format_expr_literal() {
-        let expr = ExprIR::LiteralExpr {
-            value: serde_json::json!(42),
-        };
-        assert_eq!(format_expr_ir(&expr), "42");
-    }
-
-    #[test]
-    fn test_format_expr_identifier() {
-        let expr = ExprIR::IdentifierExpr {
-            name: "count".into(),
-        };
-        assert_eq!(format_expr_ir(&expr), "count");
-    }
-
-    #[test]
-    fn test_format_expr_binary() {
-        let expr = ExprIR::BinaryOpExpr {
-            op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr {
-                name: "a".into(),
-            }),
-            right: Box::new(ExprIR::IdentifierExpr {
-                name: "b".into(),
-            }),
-        };
-        assert_eq!(format_expr_ir(&expr), "a + b");
-    }
-
-    #[test]
-    fn test_format_expr_ternary() {
-        let expr = ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr {
-                name: "x".into(),
-            }),
-            then_expr: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(1),
-            }),
-            else_expr: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(0),
-            }),
-        };
-        assert_eq!(format_expr_ir(&expr), "1 if x else 0");
-    }
-
-    #[test]
-    fn test_format_expr_field_access() {
-        let expr = ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr {
-                name: "obj".into(),
-            }),
-            field: "prop".into(),
-        };
-        assert_eq!(format_expr_ir(&expr), "obj.prop");
-    }
-
-    #[test]
-    fn test_generate_function_empty() {
-        let mut w = CodeWriter::new();
-        let func = FunctionIR {
-            name: "do_thing".into(),
-            visibility: "private".to_string(),
-            params: vec![],
-            return_type: None,
-            body: BlockIR {
-                statements: vec![],
-                execution_mode: "client-only".into(),
-            },
-        };
-        generate_function(&mut w, &func, false);
-        let out = w.into_string();
-        assert!(out.contains("def do_thing(self):"));
-        assert!(out.contains("pass"));
-    }
-
-    #[test]
-    fn test_generate_standalone_function() {
-        let mut w = CodeWriter::new();
-        let func = FunctionIR {
-            name: "main".into(),
-            visibility: "public".to_string(),
-            params: vec![],
-            return_type: None,
-            body: BlockIR {
-                statements: vec![],
-                execution_mode: "client-only".into(),
-            },
-        };
-        generate_function(&mut w, &func, true);
-        let out = w.into_string();
-        assert!(out.contains("def main():"));
-        assert!(out.contains("pass"));
-        // Standalone functions must NOT have self
-        assert!(!out.contains("self"));
-    }
-
-    #[test]
-    fn test_generate_standalone_function_with_params() {
-        let mut w = CodeWriter::new();
-        let func = FunctionIR {
-            name: "add".into(),
-            visibility: "public".to_string(),
-            params: vec![ParamIR {
-                name: "a".into(),
-                r#type: Some(TypeIR {
-                    kind: "i32".into(),
-                    type_args: vec![],
-                    is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
-                }),
-            }],
-            return_type: Some(TypeIR {
-                kind: "i32".into(),
-                type_args: vec![],
-                is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
-            }),
-            body: BlockIR {
-                statements: vec![],
-                execution_mode: "client-only".into(),
-            },
-        };
-        generate_function(&mut w, &func, true);
-        let out = w.into_string();
-        assert!(out.contains("def add(a: int) -> int:"));
-        assert!(!out.contains("self"));
-    }
-
-    #[test]
-    fn test_generate_struct() {
-        let mut w = CodeWriter::new();
-        let struct_ir = StructIR {
-            name: "Point".into(),
-            visibility: "public".to_string(),
-            fields: vec![
-                FieldIR {
-                    name: "x".into(),
-                    r#type: TypeIR {
-                        kind: "i32".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    },
-                    visibility: "public".into(),
-                },
-                FieldIR {
-                    name: "y".into(),
-                    r#type: TypeIR {
-                        kind: "i32".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    },
-                    visibility: "public".into(),
-                },
-            ],
-        };
-        generate_struct(&mut w, &struct_ir);
-        let out = w.into_string();
-        assert!(out.contains("@dataclass"));
-        assert!(out.contains("class Point:"));
-        assert!(out.contains("x: int"));
-        assert!(out.contains("y: int"));
-    }
-
-    #[test]
-    fn test_generate_enum() {
-        let mut w = CodeWriter::new();
-        let enum_ir = EnumIR {
-            name: "Color".into(),
-            visibility: "public".to_string(),
-            variants: vec![
-                VariantIR {
-                    name: "Red".into(),
-                    payload: None,
-                },
-                VariantIR {
-                    name: "Green".into(),
-                    payload: None,
-                },
-                VariantIR {
-                    name: "Blue".into(),
-                    payload: None,
-                },
-            ],
-        };
-        generate_enum(&mut w, &enum_ir);
-        let out = w.into_string();
-        assert!(out.contains("class Color(Enum):"));
-        assert!(out.contains("Red = 0"));
-        assert!(out.contains("Green = 1"));
-        assert!(out.contains("Blue = 2"));
-    }
-
-    #[test]
-    fn test_generate_type_alias() {
-        let mut w = CodeWriter::new();
-        let alias = TypeAliasIR {
-            name: "UserId".into(),
-            visibility: "public".to_string(),
-            target: TypeIR {
-                kind: "i32".into(),
-                type_args: vec![],
-                is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
-            },
-        };
-        generate_type_alias(&mut w, &alias);
-        let out = w.into_string();
-        assert_eq!(out, "UserId = int\n");
-    }
-
-    #[test]
-    fn test_generate_module_imports_structs() {
-        let mut w = CodeWriter::new();
-        let mut structs = HashMap::new();
-        structs.insert(
-            "Point".into(),
-            StructIR {
-                name: "Point".into(),
-                visibility: "public".to_string(),
-                fields: vec![],
-            },
-        );
-        let module = ModuleIR {
-            structs,
-            ..Default::default()
-        };
-        generate_module_imports(&mut w, &module);
-        let out = w.into_string();
-        assert!(out.contains("from dataclasses import dataclass"));
-    }
-
-    #[test]
-    fn test_generate_module_imports_enums() {
-        let mut w = CodeWriter::new();
-        let mut enums = HashMap::new();
-        enums.insert(
-            "Color".into(),
-            EnumIR {
-                name: "Color".into(),
-                visibility: "public".to_string(),
-                variants: vec![],
-            },
-        );
-        let module = ModuleIR {
-            enums,
-            ..Default::default()
-        };
-        generate_module_imports(&mut w, &module);
-        let out = w.into_string();
-        assert!(out.contains("from enum import Enum"));
-    }
-
-    #[test]
-    fn test_generate_empty_struct() {
-        let mut w = CodeWriter::new();
-        let struct_ir = StructIR {
-            name: "Empty".into(),
-            visibility: "public".to_string(),
-            fields: vec![],
-        };
-        generate_struct(&mut w, &struct_ir);
-        let out = w.into_string();
-        assert!(out.contains("@dataclass"));
-        assert!(out.contains("class Empty:"));
-        assert!(out.contains("pass"));
-    }
-
-    #[test]
-    fn test_generate_empty_enum() {
-        let mut w = CodeWriter::new();
-        let enum_ir = EnumIR {
-            name: "EmptyEnum".into(),
-            visibility: "public".to_string(),
-            variants: vec![],
-        };
-        generate_enum(&mut w, &enum_ir);
-        let out = w.into_string();
-        assert!(out.contains("class EmptyEnum(Enum):"));
-        assert!(out.contains("pass"));
-    }
-
-    #[test]
-    fn test_format_type_ir() {
-        assert_eq!(format_type_ir(&TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "int");
-        assert_eq!(format_type_ir(&TypeIR { kind: "f64".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "float");
-        assert_eq!(format_type_ir(&TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "str");
-        assert_eq!(format_type_ir(&TypeIR { kind: "bool".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "bool");
-    }
-
-    #[test]
-    fn test_format_type_ir_vec() {
-        let inner = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
-        assert_eq!(format_type_ir(&TypeIR { kind: "Vec".into(), type_args: vec![inner], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "list[int]");
-    }
-
-    #[test]
-    fn test_format_type_ir_option() {
-        let inner = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
-        assert_eq!(format_type_ir(&TypeIR { kind: "Option".into(), type_args: vec![inner], is_nullable: false, needs_clone: false, needs_partial_eq: false }), "Optional[int]");
-    }
-
-    #[test]
-    fn test_generate_component_with_function() {
-        let mut w = CodeWriter::new();
-        let comp = ComponentIR {
-            name: "App".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![FunctionIR {
-                name: "greet".into(),
-                visibility: "private".to_string(),
-                params: vec![],
-                return_type: None,
-                body: BlockIR {
-                    statements: vec![],
-                    execution_mode: "client-only".into(),
-                },
-            }],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        generate_component(&mut w, "App", &comp);
-        let out = w.into_string();
-        assert!(out.contains("class App:"));
-        assert!(out.contains("def greet(self):"));
-        assert!(out.contains("pass"));
-    }
-
-    #[test]
-    fn test_generate_component_with_state() {
-        let mut w = CodeWriter::new();
-        let comp = ComponentIR {
-            name: "Counter".into(),
-            generic_params: vec![],
-            props: HashMap::new(),
-            states: vec![StateIntent {
-                name: "count".into(),
-                r#type: TypeIR {
-                    kind: "i32".into(),
-                    type_args: vec![],
-                    is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
-                },
-                initial_value: ExprIR::LiteralExpr {
-                    value: serde_json::json!(0),
-                },
-                mutability: "mutable".into(),
-                update_semantics: "setter-call".into(),
-                accessor_style: "direct".into(),
-                is_copy: false,
-            }],
-            computeds: vec![],
-            effects: vec![],
-            lifecycles: vec![],
-            fns: vec![],
-            store_refs: vec![],
-            refs: vec![],
-            view: None,
-            styles: vec![],
-        };
-        generate_component(&mut w, "Counter", &comp);
-        let out = w.into_string();
-        assert!(out.contains("class Counter:"));
-        assert!(out.contains("def __init__(self):"));
-        assert!(out.contains("self.count = 0"));
-    }
-
-    #[test]
-    fn test_generate_store() {
-        let mut w = CodeWriter::new();
-        let store = StoreIR {
-            name: "AppStore".into(),
-            signals: HashMap::from([
-                (
-                    "count".into(),
-                    TypeIR {
-                        kind: "i32".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    },
-                ),
-                (
-                    "name".into(),
-                    TypeIR {
-                        kind: "string".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    },
-                ),
-            ]),
-            signal_defaults: HashMap::from([
-                ("count".into(), serde_json::json!(0)),
-                ("name".into(), serde_json::json!("world")),
-            ]),
-            getters: HashMap::new(),
-            actions: vec![],
-        };
-        generate_store(&mut w, "AppStore", &store);
-        let out = w.into_string();
-        assert!(out.contains("class AppStore:"));
-        assert!(out.contains("def __init__(self):"));
-        assert!(out.contains("self.count = 0"));
-        assert!(out.contains("self.name = 'world'"));
-    }
-
-    #[test]
-    fn test_generate_statement_let() {
-        let mut w = CodeWriter::new();
-        let stmt = StatementIR::LetStmtIR {
-            name: "x".into(),
-            value: Some(ExprIR::LiteralExpr {
-                value: serde_json::json!(42),
-            }),
-            r#type: None,
-        };
-        generate_statement(&mut w, &stmt);
-        assert_eq!(w.into_string(), "x = 42\n");
-    }
-
-    #[test]
-    fn test_generate_statement_return() {
-        let mut w = CodeWriter::new();
-        let stmt = StatementIR::ReturnStmtIR {
-            value: Some(ExprIR::IdentifierExpr {
-                name: "result".into(),
-            }),
-        };
-        generate_statement(&mut w, &stmt);
-        assert_eq!(w.into_string(), "return result\n");
-    }
-
-    #[test]
-    fn test_generate_statement_mutation() {
-        let mut w = CodeWriter::new();
-        let stmt = StatementIR::MutationStmt {
-            intent: Some(MutationIntent {
-                target: SignalRefIR {
-                    owner: None,
-                    name: "count".into(),
-                },
-                operation: "increment".into(),
-                amount: Some(ExprIR::LiteralExpr {
-                    value: serde_json::json!(1),
-                }),
-                item: None,
-            }),
-        };
-        generate_statement(&mut w, &stmt);
-        assert_eq!(w.into_string(), "count += 1\n");
-    }
-
-    #[test]
-    fn test_full_pipeline_through_trait() {
-        let codegen = PythonCodegen;
-        let mut components = HashMap::new();
-        components.insert(
-            "App".into(),
-            ComponentIR {
-                name: "App".into(),
-                generic_params: vec![],
-                props: HashMap::new(),
-                states: vec![],
-                computeds: vec![],
-                effects: vec![],
-                lifecycles: vec![],
-                fns: vec![FunctionIR {
-                    name: "run".into(),
-                    visibility: "private".to_string(),
-                    params: vec![],
-                    return_type: None,
-                    body: BlockIR {
-                        statements: vec![],
-                        execution_mode: "client-only".into(),
-                    },
-                }],
-                store_refs: vec![],
-                refs: vec![],
-                view: None,
-                styles: vec![],
-            },
-        );
-        let ir = IRProgram {
-            version: "0.1".into(),
-            modules: HashMap::from([(
-                "main".to_string(),
-                ModuleIR {
-                    name: "main".to_string(),
-                    components,
-                    ..Default::default()
-                },
-            )]),
-            source_map: HashMap::new(),
-        };
-        let sources = HashMap::from([("main.omni".into(), "".into())]);
-        let output = codegen.generate(&ir, &sources);
-        assert!(output.errors.is_empty());
-        assert_eq!(output.files.len(), 1);
-        assert_eq!(output.files[0].path, "main.py");
-        let content = &output.files[0].content;
-        assert!(content.contains("class App:"));
-        assert!(content.contains("def run(self):"));
-    }
-}

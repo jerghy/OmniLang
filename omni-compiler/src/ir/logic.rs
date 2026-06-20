@@ -1,16 +1,18 @@
 //! IR nodes for logic constructs: functions, structs, enums, type aliases, imports, exports.
 
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use super::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionIR {
     pub name: String,
-    pub visibility: String,  // "public" | "private"
+    pub visibility: String, // "public" | "private"
     pub params: Vec<ParamIR>,
     pub return_type: Option<TypeIR>,
     pub body: BlockIR,
+    #[serde(default)]
+    pub is_async: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +54,7 @@ pub struct ImportIR {
     pub path: String,
     pub names: Vec<String>,
     pub alias: Option<String>,
-    pub kind: String,  // "named" | "namespace" | "type_only" | "lib"
+    pub kind: String, // "named" | "namespace" | "type_only" | "lib"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

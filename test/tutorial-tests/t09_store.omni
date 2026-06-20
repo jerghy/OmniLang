@@ -1,0 +1,13 @@
+import omniview;
+store CartStore {
+    signal items: Array<String> = [];
+    getter count: i32 = 0;
+}
+component App {
+    @store CartStore;
+    view {
+        <div>
+            <span>Items: {CartStore.count}</span>
+        </div>
+    }
+}

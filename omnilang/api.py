@@ -121,6 +121,10 @@ def compile_omni_multi(
     """
     from omnilang.rust_bridge import RustBridge
 
+    # Auto-derive path mapping for cross-file import resolution
+    if path_mapping is None:
+        path_mapping = _derive_path_mapping(sources)
+
     primary = next(iter(sources.keys()), "<input>")
 
     try:
@@ -156,19 +160,55 @@ def _compile_ir_internal(sources: dict[str, str]) -> dict:
 def _derive_path_mapping(sources: dict[str, str]) -> dict[str, str]:
     """Derive import path mapping from source file paths.
 
-    Maps relative import paths (e.g. './Button.omni', 'components/Header.omni')
-    to the actual file paths in the sources dict.
+    Maps relative import paths to the actual file paths in the sources dict.
+    Handles: './Component.omni', './Component', '../stores/Store',
+    '../lib', basenames, and stems.
+
+    For each importing file, computes the relative path from its directory
+    to every other source file, so cross-file imports resolve correctly.
     """
     import os
     mapping: dict[str, str] = {}
+
     for filepath in sources:
+        # Direct path → self
         mapping[filepath] = filepath
+
+        # Basename (e.g. "TodoItem.omni")
         basename = os.path.basename(filepath)
         if basename not in mapping:
             mapping[basename] = filepath
+
+        # Stem (e.g. "TodoItem")
         stem = os.path.splitext(basename)[0]
         if stem not in mapping:
             mapping[stem] = filepath
+
+    # For every pair of files, compute relative-path keys
+    for import_path in sources:
+        importer_dir = os.path.dirname(import_path)
+        for target_path in sources:
+            if import_path == target_path:
+                continue
+            try:
+                rel = os.path.relpath(target_path, importer_dir)
+            except ValueError:
+                continue
+
+            rel_normalized = rel.replace("\\", "/")
+
+            # Map "./Component.omni" → full path
+            mapping["./" + rel_normalized] = target_path
+
+            # Map "../lib" (without ./ prefix, for non-sibling imports)
+            mapping[rel_normalized] = target_path
+
+            # Map "./Component" (without .omni extension) → full path
+            if rel.endswith(".omni"):
+                rel_no_ext = rel_normalized[:-5]
+                mapping["./" + rel_no_ext] = target_path
+                mapping[rel_no_ext] = target_path
+
     return mapping
 
 

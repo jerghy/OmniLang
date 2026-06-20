@@ -6,8 +6,8 @@
 
 use std::collections::HashMap;
 
-use crate::ir::*;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::ir::*;
 
 pub struct DartCodegen;
 
@@ -16,7 +16,7 @@ impl Codegen for DartCodegen {
         let mut files = Vec::new();
 
         for (module_key, module) in &ir.modules {
-            let module_name = module_key.strip_suffix(".omni").unwrap_or(module_key);
+            let module_name = super::sanitize_module_name(module_key);
             let source_path = format!("{}.omni", module_name);
 
             let mut w = CodeWriter::new();
@@ -24,7 +24,7 @@ impl Codegen for DartCodegen {
             w.emit("");
 
             // Generate type aliases
-            for (_name, alias) in &module.type_aliases {
+            for alias in module.type_aliases.values() {
                 generate_type_alias(&mut w, alias);
             }
             if !module.type_aliases.is_empty() {
@@ -32,19 +32,19 @@ impl Codegen for DartCodegen {
             }
 
             // Generate structs as classes
-            for (_name, struct_ir) in &module.structs {
+            for struct_ir in module.structs.values() {
                 generate_struct(&mut w, struct_ir);
                 w.emit("");
             }
 
             // Generate enums
-            for (_name, enum_ir) in &module.enums {
+            for enum_ir in module.enums.values() {
                 generate_enum(&mut w, enum_ir);
                 w.emit("");
             }
 
             // Generate standalone functions
-            for (_name, func) in &module.functions {
+            for func in module.functions.values() {
                 generate_standalone_function(&mut w, func);
                 w.emit("");
             }
@@ -80,7 +80,11 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     w.emit(&format!("class {} {{", name));
     w.indent();
 
-    if comp.states.is_empty() && comp.props.is_empty() && comp.fns.is_empty() && comp.computeds.is_empty() {
+    if comp.states.is_empty()
+        && comp.props.is_empty()
+        && comp.fns.is_empty()
+        && comp.computeds.is_empty()
+    {
         // Empty class — just emit default constructor
         w.emit(&format!("{}();", name));
         w.dedent();
@@ -172,7 +176,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
         w.emit("");
         w.emit(&format!("{}() {{", name));
         w.indent();
-        for (signal_name, _signal_type) in &store.signals {
+        for signal_name in store.signals.keys() {
             let default = store
                 .signal_defaults
                 .get(signal_name)
@@ -203,27 +207,41 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
 // ═══════════════════════════════════════════════════════════
 
 fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
-    // Build parameter list — no `self` equivalent in Dart methods
+    // Build parameter list — Dart uses `Type name` for positional params
     let mut param_strs = Vec::new();
     for p in &func.params {
-        let mut s = p.name.clone();
+        let mut s = String::new();
         if let Some(ref ty) = p.r#type {
             let ann = dart_type(&ty.kind, &ty.type_args);
-            s.push_str(&format!(": {}", ann));
+            s.push_str(&format!("{} ", ann));
         }
+        s.push_str(&p.name);
         param_strs.push(s);
     }
 
     // Determine return type (skip void — implicit in Dart)
-    let return_prefix = func
-        .return_type
-        .as_ref()
-        .filter(|rt| rt.kind != "void" && rt.kind != "()")
-        .map(|rt| format!("{} ", dart_type(&rt.kind, &rt.type_args)))
-        .unwrap_or_default();
+    // Wrap in Future<T> for async functions
+    let return_prefix = if func.is_async {
+        match func.return_type {
+            Some(ref rt) if rt.kind != "void" && rt.kind != "()" => {
+                format!("Future<{}> ", dart_type(&rt.kind, &rt.type_args))
+            }
+            _ => "Future<void> ".to_string(),
+        }
+    } else {
+        func.return_type
+            .as_ref()
+            .filter(|rt| rt.kind != "void" && rt.kind != "()")
+            .map(|rt| format!("{} ", dart_type(&rt.kind, &rt.type_args)))
+            .unwrap_or_default()
+    };
 
+    let async_kw = if func.is_async { "async " } else { "" };
     let all_params = param_strs.join(", ");
-    w.emit(&format!("{}{}({}) {{", return_prefix, func.name, all_params));
+    w.emit(&format!(
+        "{}{}({}) {}{{",
+        return_prefix, func.name, all_params, async_kw
+    ));
     w.indent();
 
     if func.body.statements.is_empty() {
@@ -244,7 +262,11 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
 
 fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     match stmt {
-        StatementIR::LetStmtIR { name, value, r#type } => {
+        StatementIR::LetStmtIR {
+            name,
+            value,
+            r#type,
+        } => {
             let rhs = value
                 .as_ref()
                 .map(format_expr_ir)
@@ -287,27 +309,40 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("return {};", rhs));
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(mut_intent) = intent {
-                let target = &mut_intent.target.name;
-                let amount = mut_intent
-                    .amount
-                    .as_ref()
-                    .map(format_expr_ir)
-                    .unwrap_or_else(|| "0".into());
-                match mut_intent.operation.as_str() {
-                    "direct_assign" => {
-                        w.emit(&format!("this.{} = {};", target, amount));
-                    }
-                    "increment" => {
-                        w.emit(&format!("this.{} += {};", target, amount));
-                    }
-                    "decrement" => {
-                        w.emit(&format!("this.{} -= {};", target, amount));
-                    }
-                    other => {
-                        w.emit(&format!("// TODO: mutation operation '{}' on '{}'", other, target));
-                    }
+        StatementIR::MutationStmt { intent: None } => {}
+        StatementIR::MutationStmt {
+            intent: Some(mut_intent),
+        } => {
+            let target = &mut_intent.target.name;
+            let amount = mut_intent
+                .amount
+                .as_ref()
+                .map(format_expr_ir)
+                .unwrap_or_else(|| "0".into());
+            match mut_intent.operation.as_str() {
+                "direct_assign" => {
+                    w.emit(&format!("this.{} = {};", target, amount));
+                }
+                "increment" => {
+                    w.emit(&format!("this.{} += {};", target, amount));
+                }
+                "decrement" => {
+                    w.emit(&format!("this.{} -= {};", target, amount));
+                }
+                "multiply" => {
+                    w.emit(&format!("this.{} *= {};", target, amount));
+                }
+                "divide" => {
+                    w.emit(&format!("this.{} /= {};", target, amount));
+                }
+                "modulo" => {
+                    w.emit(&format!("this.{} %= {};", target, amount));
+                }
+                other => {
+                    w.emit(&format!(
+                        "// TODO: mutation operation '{}' on '{}'",
+                        other, target
+                    ));
                 }
             }
         }
@@ -327,6 +362,37 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
             };
             w.emit(&format!("// emit event: {}{}", event_name, arg_str));
         }
+        StatementIR::WhileStmtIR { condition, body } => {
+            let cond = format_expr_ir(condition);
+            w.emit(&format!("while ({}) {{", cond));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s);
+            }
+            w.dedent();
+            w.emit("}");
+        }
+        StatementIR::ForInStmtIR {
+            var_name,
+            iterable,
+            body,
+        } => {
+            let iter = format_expr_ir(iterable);
+            w.emit(&format!("for (var {} in {}) {{", var_name, iter));
+            w.indent();
+            for s in &body.statements {
+                generate_statement(w, s);
+            }
+            w.dedent();
+            w.emit("}");
+        }
+        StatementIR::BreakStmtIR => {
+            w.emit("break;");
+        }
+        StatementIR::ContinueStmtIR => {
+            w.emit("continue;");
+        }
+        _ => {}
     }
 }
 
@@ -382,6 +448,45 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             };
             format!("{}.{}{}", store_alias, field_name, arg_str)
         }
+        ExprIR::ArrayExpr { elements } => {
+            let items: Vec<String> = elements.iter().map(format_expr_ir).collect();
+            format!("[{}]", items.join(", "))
+        }
+        ExprIR::StructExpr { fields, .. } => {
+            let entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        }
+        ExprIR::VariantLiteral {
+            union_type,
+            variant,
+            fields,
+        } => {
+            let entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_expr_ir(v)))
+                .collect();
+            format!("{}.{}({})", union_type, variant, entries.join(", "))
+        }
+        ExprIR::MethodCallExpr {
+            object,
+            method,
+            args,
+            ..
+        } => {
+            let obj = format_expr_ir(object);
+            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a)).collect();
+            format!("{}.{}({})", obj, method, arg_strs.join(", "))
+        }
+        ExprIR::BlockExpr { tail, .. } => format_expr_ir(tail),
+        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::AwaitExpr { operand } => {
+            format!("await {}", format_expr_ir(operand))
+        }
+                ExprIR::MatchExpr { .. } => "null".into(),
+        ExprIR::ClosureExpr { .. } => "null".to_string(),
     }
 }
 
@@ -406,7 +511,8 @@ fn format_json_value(value: &serde_json::Value) -> String {
             }
         }
         serde_json::Value::String(s) => {
-            let escaped = s.replace('\\', "\\\\")
+            let escaped = s
+                .replace('\\', "\\\\")
                 .replace('\'', "\\'")
                 .replace('\n', "\\n")
                 .replace('\r', "\\r")
@@ -478,7 +584,7 @@ pub fn dart_type(kind: &str, type_args: &[TypeIR]) -> String {
         }
         other => {
             // If it looks like a user-defined type (uppercase), use as-is
-            if other.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if other.chars().next().is_some_and(|c| c.is_uppercase()) {
                 other.into()
             } else {
                 "dynamic".into()
@@ -530,7 +636,7 @@ fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR) {
     w.indent();
     if !enum_ir.variants.is_empty() {
         let names: Vec<String> = enum_ir.variants.iter().map(|v| v.name.clone()).collect();
-        w.emit(&format!("{}", names.join(", ")));
+        w.emit(&names.join(", ").to_string());
     }
     w.dedent();
     w.emit("}");
@@ -542,14 +648,15 @@ fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR) {
 }
 
 fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR) {
-    // Build parameter list — no `this` equivalent for standalone
+    // Build parameter list — Dart uses `Type name` for positional params
     let mut param_strs = Vec::new();
     for p in &func.params {
-        let mut s = p.name.clone();
+        let mut s = String::new();
         if let Some(ref ty) = p.r#type {
             let ann = format_type_ir_dart(ty);
-            s.push_str(&format!(": {}", ann));
+            s.push_str(&format!("{} ", ann));
         }
+        s.push_str(&p.name);
         param_strs.push(s);
     }
 
@@ -562,7 +669,10 @@ fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR) {
         .unwrap_or_default();
 
     let all_params = param_strs.join(", ");
-    w.emit(&format!("{}{}({}) {{", return_prefix, func.name, all_params));
+    w.emit(&format!(
+        "{}{}({}) {{",
+        return_prefix, func.name, all_params
+    ));
     w.indent();
 
     if !func.body.statements.is_empty() {
@@ -613,7 +723,10 @@ mod tests {
             needs_partial_eq: false,
         };
 
-        assert_eq!(dart_type("Vec", &[i32_arg.clone()]), "List<int>");
+        assert_eq!(
+            dart_type("Vec", std::slice::from_ref(&i32_arg)),
+            "List<int>"
+        );
         assert_eq!(
             dart_type("HashMap", &[string_arg.clone(), i32_arg.clone()]),
             "Map<String, int>"
@@ -646,10 +759,7 @@ mod tests {
         assert_eq!(format_json_value(&serde_json::Value::Bool(true)), "true");
         assert_eq!(format_json_value(&serde_json::Value::Bool(false)), "false");
         assert_eq!(format_json_value(&serde_json::json!(42)), "42");
-        assert_eq!(
-            format_json_value(&serde_json::json!("hello")),
-            "'hello'"
-        );
+        assert_eq!(format_json_value(&serde_json::json!("hello")), "'hello'");
         assert_eq!(
             format_json_value(&serde_json::json!("he'llo")),
             "'he\\'llo'"
@@ -688,12 +798,8 @@ mod tests {
     fn test_format_expr_ir_binary() {
         let expr = ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr {
-                name: "a".into(),
-            }),
-            right: Box::new(ExprIR::IdentifierExpr {
-                name: "b".into(),
-            }),
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() }),
         };
         assert_eq!(format_expr_ir(&expr), "a + b");
     }
@@ -701,9 +807,7 @@ mod tests {
     #[test]
     fn test_format_expr_ir_ternary() {
         let expr = ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr {
-                name: "x".into(),
-            }),
+            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -717,9 +821,7 @@ mod tests {
     #[test]
     fn test_format_expr_ir_field_access() {
         let expr = ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr {
-                name: "obj".into(),
-            }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
             field: "prop".into(),
         };
         assert_eq!(format_expr_ir(&expr), "obj.prop");
@@ -740,9 +842,7 @@ mod tests {
     fn test_format_expr_ir_unary_neg() {
         let expr = ExprIR::UnaryOpExpr {
             op: "neg".into(),
-            operand: Box::new(ExprIR::IdentifierExpr {
-                name: "x".into(),
-            }),
+            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
         };
         assert_eq!(format_expr_ir(&expr), "-x");
     }
@@ -771,6 +871,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -795,6 +896,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -819,6 +921,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -832,18 +935,16 @@ mod tests {
         let func = FunctionIR {
             name: "greet".into(),
             visibility: "public".into(),
-            params: vec![
-                ParamIR {
-                    name: "name".into(),
-                    r#type: Some(TypeIR {
-                        kind: "string".into(),
-                        type_args: vec![],
-                        is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
-                    }),
-                },
-            ],
+            params: vec![ParamIR {
+                name: "name".into(),
+                r#type: Some(TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }),
+            }],
             return_type: Some(TypeIR {
                 kind: "String".into(),
                 type_args: vec![],
@@ -855,6 +956,7 @@ mod tests {
                 statements: vec![],
                 execution_mode: "client-only".into(),
             },
+            is_async: false,
         };
         generate_function(&mut w, &func);
         let out = w.into_string();
@@ -871,6 +973,7 @@ mod tests {
             name: "App".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -878,6 +981,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -895,6 +999,7 @@ mod tests {
             name: "App".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![],
             computeds: vec![],
             effects: vec![],
@@ -908,9 +1013,11 @@ mod tests {
                     statements: vec![],
                     execution_mode: "client-only".into(),
                 },
+                is_async: false,
             }],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -927,6 +1034,7 @@ mod tests {
             name: "Counter".into(),
             generic_params: vec![],
             props: HashMap::new(),
+            prop_defaults: HashMap::new(),
             states: vec![StateIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -950,6 +1058,7 @@ mod tests {
             fns: vec![],
             store_refs: vec![],
             refs: vec![],
+            event_names: vec![],
             view: None,
             styles: vec![],
         };
@@ -1160,6 +1269,7 @@ mod tests {
                             name: "App".into(),
                             generic_params: vec![],
                             props: HashMap::new(),
+                            prop_defaults: HashMap::new(),
                             states: vec![],
                             computeds: vec![],
                             effects: vec![],
@@ -1173,9 +1283,11 @@ mod tests {
                                     statements: vec![],
                                     execution_mode: "client-only".into(),
                                 },
+                                is_async: false,
                             }],
                             store_refs: vec![],
                             refs: vec![],
+                            event_names: vec![],
                             view: None,
                             styles: vec![],
                         },
@@ -1185,7 +1297,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        };
+        stdlib_imports: Vec::new(),
+    };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1210,21 +1323,20 @@ mod tests {
                         "AppStore".into(),
                         StoreIR {
                             name: "AppStore".into(),
-                            signals: HashMap::from([
-                                (
-                                    "count".into(),
-                                    TypeIR {
-                                        kind: "i32".into(),
-                                        type_args: vec![],
-                                        is_nullable: false,
-                                        needs_clone: false,
-                                        needs_partial_eq: false,
-                                    },
-                                ),
-                            ]),
-                            signal_defaults: HashMap::from([
-                                ("count".into(), serde_json::json!(0)),
-                            ]),
+                            signals: HashMap::from([(
+                                "count".into(),
+                                TypeIR {
+                                    kind: "i32".into(),
+                                    type_args: vec![],
+                                    is_nullable: false,
+                                    needs_clone: false,
+                                    needs_partial_eq: false,
+                                },
+                            )]),
+                            signal_defaults: HashMap::from([(
+                                "count".into(),
+                                serde_json::json!(0),
+                            )]),
                             getters: HashMap::new(),
                             actions: vec![],
                         },
@@ -1233,7 +1345,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        };
+        stdlib_imports: Vec::new(),
+    };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1253,12 +1366,24 @@ mod tests {
             fields: vec![
                 FieldIR {
                     name: "x".into(),
-                    r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+                    r#type: TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
+                    },
                     visibility: "public".into(),
                 },
                 FieldIR {
                     name: "y".into(),
-                    r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+                    r#type: TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
+                    },
                     visibility: "public".into(),
                 },
             ],
@@ -1293,9 +1418,18 @@ mod tests {
             name: "Color".into(),
             visibility: "public".to_string(),
             variants: vec![
-                VariantIR { name: "Red".into(), payload: None },
-                VariantIR { name: "Green".into(), payload: None },
-                VariantIR { name: "Blue".into(), payload: None },
+                VariantIR {
+                    name: "Red".into(),
+                    payload: None,
+                },
+                VariantIR {
+                    name: "Green".into(),
+                    payload: None,
+                },
+                VariantIR {
+                    name: "Blue".into(),
+                    payload: None,
+                },
             ],
         };
         generate_enum(&mut w, &enum_ir);
@@ -1324,7 +1458,13 @@ mod tests {
         let alias = TypeAliasIR {
             name: "UserId".into(),
             visibility: "public".to_string(),
-            target: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
+            target: TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            },
         };
         generate_type_alias(&mut w, &alias);
         assert_eq!(w.into_string(), "typedef UserId = int;\n");
@@ -1338,7 +1478,11 @@ mod tests {
             visibility: "public".to_string(),
             params: vec![],
             return_type: None,
-            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: false,
         };
         generate_standalone_function(&mut w, &func);
         let out = w.into_string();
@@ -1353,25 +1497,156 @@ mod tests {
             visibility: "public".to_string(),
             params: vec![ParamIR {
                 name: "a".into(),
-                r#type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+                r#type: Some(TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                }),
             }],
-            return_type: Some(TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
-            body: BlockIR { statements: vec![], execution_mode: "client-only".into() },
+            return_type: Some(TypeIR {
+                kind: "i32".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }),
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: false,
         };
         generate_standalone_function(&mut w, &func);
         let out = w.into_string();
-        assert!(out.contains("int add(a: int) {"));
+        assert!(out.contains("int add(int a) {"));
     }
 
     #[test]
     fn test_dart_format_type_ir_dart() {
-        let ty = TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let ty = TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_dart(&ty), "int");
 
-        let str_ty = TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let str_ty = TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_dart(&str_ty), "String");
 
-        let vec_ty = TypeIR { kind: "Vec".into(), type_args: vec![ty], is_nullable: false, needs_clone: false, needs_partial_eq: false };
+        let vec_ty = TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![ty],
+            is_nullable: false,
+            needs_clone: false,
+            needs_partial_eq: false,
+        };
         assert_eq!(format_type_ir_dart(&vec_ty), "List<int>");
+    }
+
+    #[test]
+    fn test_generate_async_function_dart() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "fetchData".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: Some(TypeIR {
+                kind: "String".into(),
+                type_args: vec![],
+                is_nullable: false,
+                needs_clone: false,
+                needs_partial_eq: false,
+            }),
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: true,
+        };
+        generate_function(&mut w, &func);
+        let out = w.into_string();
+        assert!(
+            out.contains("Future<String> fetchData() async {"),
+            "Dart async function should wrap return in Future. Output:\n{}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_generate_async_function_dart_void() {
+        let mut w = CodeWriter::new();
+        let func = FunctionIR {
+            name: "doAsync".into(),
+            visibility: "private".to_string(),
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![],
+                execution_mode: "client-only".into(),
+            },
+            is_async: true,
+        };
+        generate_function(&mut w, &func);
+        let out = w.into_string();
+        assert!(
+            out.contains("Future<void> doAsync() async {"),
+            "Dart async void function should have Future<void>. Output:\n{}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_format_await_expr_dart() {
+        let expr = ExprIR::AwaitExpr {
+            operand: Box::new(ExprIR::CallExpr {
+                name: "fetchData".into(),
+                args: vec![],
+            }),
+        };
+        let out = format_expr_ir(&expr);
+        assert!(
+            out.starts_with("await "),
+            "Dart await should be prefix 'await'. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("fetchData()"),
+            "Dart await should contain the awaited call. Output: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_format_variant_literal_dart() {
+        let expr = ExprIR::VariantLiteral {
+            union_type: "HttpResult".into(),
+            variant: "ok".into(),
+            fields: vec![
+                ("value".into(), ExprIR::LiteralExpr {
+                    value: serde_json::json!(42),
+                }),
+            ],
+        };
+        let out = format_expr_ir(&expr);
+        assert!(
+            out.contains("HttpResult.ok"),
+            "Dart variant should use dot syntax. Output: {}",
+            out
+        );
+        assert!(
+            out.contains("value: 42"),
+            "Dart variant should contain fields. Output: {}",
+            out
+        );
     }
 }

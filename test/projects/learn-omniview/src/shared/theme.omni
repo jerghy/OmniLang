@@ -1,0 +1,62 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  theme.omni —— 主题设计令牌（Phase 6）                          ║
+// ║  演示：theme 关键字定义颜色、间距、排版                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// theme 关键字定义全局设计令牌，按分类组织
+theme AppTheme {
+    colors {
+        // 品牌色
+        primary: "#6366f1",
+        primaryLight: "#a5b4fc",
+        primaryDark: "#4338ca",
+
+        // 语义色
+        success: "#10b981",
+        warning: "#f59e0b",
+        danger: "#ef4444",
+
+        // 中性色（浅色模式）
+        bgLight: "#ffffff",
+        bgMuted: "#f9fafb",
+        bgSubtle: "#f3f4f6",
+        textLight: "#111827",
+        textMuted: "#6b7280",
+        borderLight: "#d4d4d8",
+
+        // 深色模式
+        bgDark: "#111827",
+        bgDarkMuted: "#1f2937",
+        bgDarkSubtle: "#374151",
+        textDark: "#f9fafb",
+        textDarkMuted: "#9ca3af",
+        borderDark: "#4b5563",
+    }
+
+    spacing {
+        xs: "4px",
+        sm: "8px",
+        md: "16px",
+        lg: "24px",
+        xl: "32px",
+        xxl: "48px",
+    }
+
+    typography {
+        heading: "24px",
+        subheading: "18px",
+        body: "14px",
+        caption: "12px",
+        fontFamily: "system-ui, sans-serif",
+    }
+
+    // 非颜色设计令牌——圆角、阴影等
+    radii {
+        sm: "4px",
+        md: "8px",
+        lg: "12px",
+        full: "9999px",
+    }
+}

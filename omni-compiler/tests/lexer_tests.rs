@@ -43,8 +43,8 @@ fn test_integers() {
 
 #[test]
 fn test_floats() {
-    let tokens = tokenize("3.14 1.5e10 2.0E-3");
-    assert!(matches!(tokens[0].kind, TokenKind::FloatLiteral(f) if (f - 3.14).abs() < 0.001));
+    let tokens = tokenize("2.71 1.5e10 2.0E-3");
+    assert!(matches!(tokens[0].kind, TokenKind::FloatLiteral(f) if (f - 2.71).abs() < 0.001));
     assert!(matches!(tokens[1].kind, TokenKind::FloatLiteral(_)));
     assert!(matches!(tokens[2].kind, TokenKind::FloatLiteral(_)));
 }

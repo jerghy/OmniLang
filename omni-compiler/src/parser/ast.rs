@@ -106,10 +106,29 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Block expression: { stmts; trailing_expr }
+    Block {
+        body: Block,
+        span: Span,
+    },
+
     /// Closure / lambda expression: |params| body
     ClosureExpr {
         params: Vec<String>,
         body: Box<Expr>,
+        span: Span,
+    },
+
+    /// await expression: await <expr>
+    AwaitExpr {
+        operand: Box<Expr>,
+        span: Span,
+    },
+
+    /// match expression: match expr { Pattern => body, ... }
+    MatchExpr {
+        matched: Box<Expr>,
+        arms: Vec<MatchArm>,
         span: Span,
     },
 
@@ -156,6 +175,7 @@ pub enum BinaryOpKind {
 pub enum UnaryOpKind {
     Not,
     Neg,
+    Await,
 }
 
 #[derive(Debug, Clone)]
@@ -233,6 +253,35 @@ pub struct Block {
     pub stmts: Vec<Stmt>,
     pub trailing_expr: Option<Box<Expr>>,
     pub span: Span,
+}
+
+// ── Match Expression ──────────────────────────────────
+
+/// A single arm in a match expression: Pattern => body
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub pattern: MatchPattern,
+    pub body: Block,
+}
+
+/// A pattern in a match arm: Variant { bindings } or Wildcard
+#[derive(Debug, Clone)]
+pub struct MatchPattern {
+    pub kind: MatchPatternKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum MatchPatternKind {
+    /// Variant pattern: Ok { value, response }
+    Variant {
+        name: String,
+        bindings: Vec<String>,
+    },
+    /// Wildcard pattern: _
+    Wildcard,
+    /// Literal pattern: 42, "hello", true (basic support)
+    Literal(Literal),
 }
 
 // ── Top-Level Declarations ────────────────────────────
@@ -364,6 +413,7 @@ pub struct ActionDef {
     pub return_type: Option<TypeAnnotation>,
     pub body: Block,
     pub is_async: bool,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -463,6 +513,7 @@ pub struct StoreDef {
     pub signals: Vec<SignalDecl>,
     pub getters: Vec<GetterDecl>,
     pub actions: Vec<ActionDef>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -486,16 +537,11 @@ pub struct ThemeCategory {
 // ── Visibility ────────────────────────────────────────
 
 /// Visibility modifier for declarations.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum Visibility {
     Public,
+    #[default]
     Private,
-}
-
-impl Default for Visibility {
-    fn default() -> Self {
-        Visibility::Private
-    }
 }
 
 // ── Import / Export Types ─────────────────────────────

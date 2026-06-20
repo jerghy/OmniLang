@@ -1,0 +1,81 @@
+import omniview;
+
+component StatsDashboard {
+    ref container: HtmlElement;
+    const MAX_ITEMS = 10;
+    const $iconUrl = "/assets/icon.png";
+    const $apiBase = "https://api.example.com";
+
+    signal counter: i32 = 0;
+    signal removed: bool = false;
+
+    fn addFive() { counter += 5; }
+    fn subThree() { counter -= 3; }
+    fn double() { counter *= 2; }
+    fn halve() { counter /= 2; }
+    fn modThree() {
+        let mut x = counter;
+        x %= 3;
+        counter = x;
+    }
+
+    fn getModStatus() -> String {
+        if counter % 2 == 0 { return "even"; }
+        return "odd";
+    }
+
+    fn getFirst() -> i32 {
+        let arr: Array<i32> = [10, 20, 30, 40, 50];
+        return arr[0];
+    }
+
+    fn removeContainer() { removed = true; }
+
+    @unmount {
+        println("StatsDashboard unmounting, counter: " + counter.to_string());
+    }
+
+    view {
+        <div class: dashboard ref: container>
+            <h3 class: title>StatsDashboard Demo</h3>
+
+            <div class: const-area>
+                <p class: small>MAX_ITEMS: {MAX_ITEMS}</p>
+                <p class: small>prefixed consts declared</p>
+            </div>
+
+            <div class: counter-area>
+                <p class: counter-text>Counter: {counter} ({getModStatus()})</p>
+                <div class: btn-row>
+                    <button class: btn @onPress={addFive}>+5</button>
+                    <button class: btn @onPress={subThree}>-3</button>
+                    <button class: btn @onPress={double}>x2</button>
+                    <button class: btn @onPress={halve}>/2</button>
+                    <button class: btn @onPress={modThree}>mod3</button>
+                </div>
+            </div>
+
+            <div class: array-area>
+                <p class: small>First value: {getFirst()}</p>
+            </div>
+
+            @if !removed {
+                <button class: btn-danger @onPress={removeContainer}>
+                    Trigger unmount
+                </button>
+            }
+        </div>
+    }
+    style {
+        .dashboard { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; margin-bottom: 12px; color: #1f2937; }
+        .const-area { background: #f9fafb; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+        .small { font-size: 12px; color: #6b7280; margin: 2px 0; }
+        .counter-area { margin-bottom: 12px; }
+        .counter-text { font-size: 24px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
+        .btn-row { display: flex; gap: 6px; }
+        .btn { padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; background: white; font-size: 14px; cursor: pointer; color: #374151; }
+        .array-area { margin-bottom: 12px; }
+        .btn-danger { padding: 8px 16px; background: #fddddd; color: #dc2626; border: 1px solid #fdcaca; border-radius: 6px; font-size: 14px; cursor: pointer; }
+    }
+}
