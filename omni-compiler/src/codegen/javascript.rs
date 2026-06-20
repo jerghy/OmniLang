@@ -546,7 +546,11 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
                 tail_str
             )
         }
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_ir(object, false);
+            let idx = format_expr_ir(index, false);
+            format!("({obj})[{idx}]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir(operand, _ts_mode))
         }

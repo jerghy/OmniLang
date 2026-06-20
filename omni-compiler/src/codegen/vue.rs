@@ -781,7 +781,11 @@ fn format_expr_vue(expr: &ExprIR) -> String {
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr { tail, .. } => format_expr_vue(tail),
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_vue(object);
+            let idx = format_expr_vue(index);
+            format!("({obj})[{idx}]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_vue(operand))
         }

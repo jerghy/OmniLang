@@ -481,7 +481,11 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr { tail, .. } => format_expr_ir(tail),
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_ir(object);
+            let idx = format_expr_ir(index);
+            format!("({obj})[{idx}]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir(operand))
         }

@@ -733,7 +733,11 @@ fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr { tail, .. } => format_expr_ir_flutter(tail),
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_ir_flutter(object);
+            let idx = format_expr_ir_flutter(index);
+            format!("({obj})[{idx}]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir_flutter(operand))
         }

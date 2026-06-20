@@ -662,7 +662,11 @@ fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr { tail, .. } => format_expr_ir_dioxus(tail),
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_ir_dioxus(object);
+            let idx = format_expr_ir_dioxus(index);
+            format!("({obj})[{idx} as usize]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("{}.await", format_expr_ir_dioxus(operand))
         }

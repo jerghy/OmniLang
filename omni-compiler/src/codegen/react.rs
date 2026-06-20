@@ -740,7 +740,11 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             // are not yet supported in React TSX codegen
             format_expr_ir_tsx(tail)
         }
-        ExprIR::IndexExpr { .. } => "null".to_string(),
+        ExprIR::IndexExpr { object, index } => {
+            let obj = format_expr_ir_tsx(object);
+            let idx = format_expr_ir_tsx(index);
+            format!("({obj})[{idx}]")
+        }
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir_tsx(operand))
         }
