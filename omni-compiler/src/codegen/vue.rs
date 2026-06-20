@@ -780,7 +780,10 @@ fn format_expr_vue(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_vue(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { tail, .. } => format_expr_vue(tail),
+        ExprIR::BlockExpr { statements: _, tail } => {
+            // Only tail expression emitted; preceding statements preserved in IR for future codegen
+            format_expr_vue(tail)
+        }
         ExprIR::IndexExpr { object, index } => {
             let obj = format_expr_vue(object);
             let idx = format_expr_vue(index);

@@ -735,9 +735,8 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_tsx(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { tail, .. } => {
-            // Emit tail expression — side-effecting statements in blocks
-            // are not yet supported in React TSX codegen
+        ExprIR::BlockExpr { statements: _, tail } => {
+            // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_ir_tsx(tail)
         }
         ExprIR::IndexExpr { object, index } => {

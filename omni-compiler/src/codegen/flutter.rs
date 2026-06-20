@@ -732,7 +732,10 @@ fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_flutter(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { tail, .. } => format_expr_ir_flutter(tail),
+        ExprIR::BlockExpr { statements: _, tail } => {
+            // Only tail expression emitted; preceding statements preserved in IR for future codegen
+            format_expr_ir_flutter(tail)
+        }
         ExprIR::IndexExpr { object, index } => {
             let obj = format_expr_ir_flutter(object);
             let idx = format_expr_ir_flutter(index);

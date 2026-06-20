@@ -467,7 +467,8 @@ fn format_expr_ir(expr: &ExprIR) -> String {
                 _ => format!("{}.{}({})", obj, method, arg_strs.join(", ")),
             }
         }
-        ExprIR::BlockExpr { statements, tail } => {
+        ExprIR::BlockExpr { statements: _, tail } => {
+            // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_ir(tail)
         }
         ExprIR::IndexExpr { object, index } => {
