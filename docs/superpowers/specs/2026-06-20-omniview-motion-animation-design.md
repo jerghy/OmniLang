@@ -571,7 +571,7 @@ The scroll position within the trigger range maps 0→1 to animation progress.
 
 Phase 1 supports percentages and keywords only (no px values).
 
-### 9.8 `@drag` (Gesture-Driven Animation)
+### 9.7 `@drag` (Gesture-Driven Animation)
 
 ```omni
 <Card @drag-horizontal={swipeCard}
@@ -1050,6 +1050,10 @@ easing          := "linear" | "easeIn" | "easeOut" | "easeInOut"
                  | "steps" "(" "count:" NUMBER "," "direction:" IDENT ")"
                  // Phase 2: sineIn/sineOut/sineInOut, circIn/circOut/circInOut, expoIn/expoOut/expoInOut
 
+cubic_params    := "x1:" NUMBER "," "y1:" NUMBER "," "x2:" NUMBER "," "y2:" NUMBER
+spring_params   := "tension:" NUMBER ("," "friction:" NUMBER)? ("," "velocity:" NUMBER)?
+elastic_params  := ("amplitude:" NUMBER)? ("," "period:" NUMBER)?
+
 parent_child    := "when:" ("beforeChildren" | "afterChildren" | "withChildren")
                  | "delayChildren:" duration
                  | "staggerChildren:" duration
@@ -1105,7 +1109,7 @@ callback_spec   := ("onStart:" | "onUpdate:" | "onComplete:" | "onRepeat:" | "on
 - `@scroll` scrub animation
 - `@drag-horizontal` / `@drag-vertical` + momentum
 - `@driven-by` signal binding
-- `@states` multi-state mapping
+- `states:` multi-state mapping
 - Path animation
 - Timeline labels
 - `repeatDelay` / `repeatRefresh`
