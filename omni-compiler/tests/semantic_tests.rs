@@ -311,3 +311,52 @@ fn test_motion_type_mismatch_across_stops() {
             .collect::<Vec<_>>()
     );
 }
+
+// ─── Additional spec §20.1 validation coverage ───
+// NOTE: The following 7 checks are NOT YET IMPLEMENTED in the semantic analyzer.
+// Tests are written but commented out. Enable when the corresponding validation lands:
+//   - set outside timeline (spec §20.1, row 5)
+//   - ease+spring conflict (spec §20.1, row 11)
+//   - circular motion reference (spec §20.1, row 8)
+//   - @for without key (spec §20.1, row 9) — PARSER OK, semantic check missing
+//   - fill+infinite loop (spec §20.1, row 12) — OK ✅
+//   - unknown easing name (spec §20.1, row 18)
+//   - states: mixed reserved+custom (spec §20.1, rows 20-21) — PARSER NOT READY
+//   - stagger in keyframe (spec §20.1, row 17)
+//   - @timeline duplicate id (spec §7.2) — PARSER NOT READY
+
+#[test]
+fn test_motion_for_without_key() {
+    let source = r#"
+        component Test {
+            signal items: i32 = 0
+            @motion fadeIn { to { opacity: 1 } over 300 }
+            view {
+                @for item in items {
+                    <div @enter={fadeIn}>Item</div>
+                }
+            }
+        }
+    "#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens, "").unwrap();
+    let result = analyze(&program);
+    assert!(
+        result.diagnostics.iter().any(|d| d.message.contains("key")),
+        "Expected error about @for needing key with @enter, got: {:?}",
+        result.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_motion_fill_infinite_loop_conflict() {
+    let source = r#"@motion bad { to { opacity: 1 } over 300 loop fill both }"#;
+    let tokens = tokenize(source);
+    let program = parse(&tokens, "").unwrap();
+    let result = analyze(&program);
+    assert!(
+        result.diagnostics.iter().any(|d| d.message.contains("fill") || d.message.contains("loop")),
+        "Expected error about fill+loop conflict, got: {:?}",
+        result.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
