@@ -34,6 +34,7 @@ import type { SearchResult } from "./search/SearchIndex";
 import type { CommandContext } from "./commands/types";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./commands/CopyPaste";
 import { showToast } from "./notifications/toast";
+import { parseOmniSource, generateOmniSource, generateOmniFiles, validate } from "./omni-gen";
 
 // ═══════════════════════════════════════════════
 // Styles
@@ -191,7 +192,32 @@ export default function App() {
   // ── Compile ─────────────────────────────────
 
   const handleCompile = useCallback(async () => {
-    const content = useEditorStore.getState().activeFileContent;
+    // ── Generate and validate OmniLang source via omni-gen ──
+    const store = useEditorStore.getState();
+    const cg = useCodeGraphStore.getState();
+    const codeTabs = cg.toSerializable().tabs;
+    const compMatch = (store.activeFileContent || "").match(/component\s+(\w+)\s*\{/);
+    const componentName = compMatch ? compMatch[1] : "App";
+
+    const genResult = generateOmniSource({
+      designElements: store.elements,
+      designWires: store.wires,
+      codeTabs,
+      componentName,
+    });
+
+    let content = store.activeFileContent;
+    if (genResult.value) {
+      const validationResult = validate(genResult.value);
+      if (!validationResult.valid) {
+        setCompileErrors(validationResult.errors);
+        setStatus({ text: "❌ 代码验证失败", isError: true });
+        return;
+      }
+      // Use generated source for compilation and update editor content
+      content = genResult.value;
+      store.setSourceCode(content);
+    }
     if (!content) return;
     setStatus({ text: "编译中...", isError: false });
 
@@ -471,6 +497,45 @@ export default function App() {
       const name = projectPath.replace(/^.*[\\/]/, "").replace(".omni.json", "");
       useEditorStore.setState({ projectPath, projectName: name });
       const fullPath = projectDir ? `${projectDir}/${projectPath}` : projectPath;
+
+      // ── Generate OmniLang source files via omni-gen ──
+      const _cg = useCodeGraphStore.getState();
+      const _genFilesResult = generateOmniFiles({
+        designElements: useEditorStore.getState().elements,
+        designWires: useEditorStore.getState().wires,
+        codeTabs: _cg.toSerializable().tabs,
+        componentName: projectName || "App",
+      });
+
+      if (_genFilesResult.value) {
+        // Validate all files first, then write
+        const _validFiles: Record<string, string> = {};
+        let _allValid = true;
+        for (const [_filePath, _source] of Object.entries(_genFilesResult.value)) {
+          const _vResult = validate(_source);
+          if (_vResult.valid) {
+            _validFiles[_filePath] = _source;
+          } else {
+            _allValid = false;
+            setStatus({ text: `❌ 验证失败: ${_filePath}`, isError: true });
+            break;
+          }
+        }
+        if (_allValid && Object.keys(_validFiles).length > 0) {
+          Promise.all(
+            Object.entries(_validFiles).map(([fp, src]) => api.writeFile(fp, src))
+          ).catch((_e) => {
+            setStatus({ text: "❌ 生成文件写入失败", isError: true });
+          });
+        }
+      } else if (_genFilesResult.errors.length > 0) {
+        // Non-fatal generation errors — warn but don't block save
+        const _fatal = _genFilesResult.errors.some(e => e.severity === "fatal");
+        if (_fatal) {
+          setStatus({ text: "❌ 代码文件生成失败", isError: true });
+        }
+      }
+
       setStatus({ text: `✅ 已保存: ${fullPath}`, isError: false });
     } catch (e) {
       setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
@@ -750,6 +815,7 @@ export default function App() {
   }, []);
 
   // Auto-compile when opening a file (populate canvas)
+  // Also parse OmniLang source via omni-gen to populate design elements/code graph
   const prevFilePath = useRef<string | null>(null);
   useEffect(() => {
     const currentPath = useEditorStore.getState().activeFilePath;
@@ -759,6 +825,15 @@ export default function App() {
       // Use a short debounce to avoid double-compile on initial load
       const timer = setTimeout(() => {
         if (currentPath.endsWith('.omni')) {
+          // ── Parse `.omni` source to populate design elements and code tabs ──
+          const parseResult = parseOmniSource(currentContent);
+          if (parseResult.designElements) {
+            useEditorStore.setState({
+              elements: parseResult.designElements,
+              wires: parseResult.designWires,
+            });
+            useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
+          }
           handleCompile();
         }
       }, 150);
