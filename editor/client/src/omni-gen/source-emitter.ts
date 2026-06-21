@@ -97,6 +97,10 @@ export class SourceEmitter {
 
     // Functions with chains
     for (const fn of comp.fns) {
+      // Event handler boundary marker (for round-trip tab reconstruction)
+      if (input.codeTabType === "event") {
+        w.emit(`// @code-tab type=event label=${fn.name}`);
+      }
       const chain = chains.get(fn.name);
       if (chain) w.emit(formatChainBlock(chain));
       const params = fn.params.map(p => `${p.name}: ${p.type}`).join(", ");

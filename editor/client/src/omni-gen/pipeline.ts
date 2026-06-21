@@ -105,13 +105,14 @@ export function generateOmniSource(options: {
     extractStores(options.designElements, options.designWires),
   );
   allErrors.push(...b1.errors);
-  const { stores, standaloneSignals } = b1.value ?? {
+  const { stores, standaloneSignals, standaloneComputeds } = b1.value ?? {
     stores: [] as StoreDef[],
     standaloneSignals: [] as Array<{
       name: string;
       type: string;
       default?: unknown;
     }>,
+    standaloneComputeds: [] as Array<{ name: string; type: string; body: string }>,
   };
 
   const b2 = runPhase("B", "expression-lowering", () =>
@@ -143,11 +144,18 @@ export function generateOmniSource(options: {
   const mainTab =
     options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
 
-  const b3 = runPhase("B", "chain-emitter", () =>
-    emitChains(mainTab, lowered.functions),
-  );
-  allErrors.push(...b3.errors);
-  const chains = b3.value ?? new Map<string, ChainBlock>();
+  // Merge chains from all tabs (main + event tabs)
+  const allChains = new Map<string, ChainBlock>();
+  for (const tab of options.codeTabs) {
+    if (tab.graph.elements.length === 0) continue;
+    const tabChains = runPhase("B", "chain-emitter", () =>
+      emitChains(tab, lowered.functions),
+    );
+    allErrors.push(...tabChains.errors);
+    if (tabChains.value) {
+      for (const [k, v] of tabChains.value) allChains.set(k, v);
+    }
+  }
 
   // ── Phase C: Apply styles, build annotations, emit source ──
 
@@ -166,6 +174,12 @@ export function generateOmniSource(options: {
   > = {};
   for (const s of standaloneSignals) {
     componentSignals[s.name] = { type: s.type, default: s.default };
+  }
+
+  // Build component-level computeds from standaloneComputeds
+  const componentComputeds: Record<string, { type: string; body: string }> = {};
+  for (const c of standaloneComputeds) {
+    componentComputeds[c.name] = { type: c.type, body: c.body };
   }
 
   // Build annotation data and strategy
@@ -187,7 +201,7 @@ export function generateOmniSource(options: {
     component: {
       name: options.componentName,
       signals: componentSignals,
-      computeds: {},
+      computeds: componentComputeds,
       storeRefs: [...bindings.storeRefs.keys()],
       fns: lowered.functions,
       view: roots[0] ?? null,
@@ -198,7 +212,7 @@ export function generateOmniSource(options: {
   // Emit the source document
   const c3 = runPhase("C", "source-emitter", () => {
     const emitter = new SourceEmitter(annotationStrategy);
-    return emitter.emitDocument(emitInput, chains);
+    return emitter.emitDocument(emitInput, allChains);
   });
   allErrors.push(...c3.errors);
 

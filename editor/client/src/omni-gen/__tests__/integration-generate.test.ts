@@ -516,7 +516,8 @@ describe("SourceEmitter", () => {
 // ── Pipeline roundtrip tests ──
 
 describe("Pipeline roundtrip", () => {
-  const COUNTER_FIXTURE = `import omniview;
+  const COUNTER_FIXTURE = `// @code-tab type=logic
+import omniview;
 
 component Counter {
   view {
@@ -571,7 +572,8 @@ component Counter {
   });
 
   it("generateOmniFiles includes store files when stores exist", () => {
-    const FIXTURE_WITH_STORE = `import omniview;
+    const FIXTURE_WITH_STORE = `// @code-tab type=logic
+import omniview;
 
 component Counter {
   @store CounterStore;

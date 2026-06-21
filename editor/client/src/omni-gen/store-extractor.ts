@@ -9,6 +9,7 @@ import type { StoreDef } from "./types";
 export interface StoreExtractResult {
   stores: StoreDef[];
   standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneComputeds: Array<{ name: string; type: string; body: string }>;
 }
 
 /**
@@ -83,6 +84,7 @@ export function extractStores(elements: ElementData[], wires: WireData[]): Store
 
   // ── Phase 2: Assign signals/computeds/actions to stores ──
   const standaloneSignals: StoreExtractResult["standaloneSignals"] = [];
+  const standaloneComputeds: StoreExtractResult["standaloneComputeds"] = [];
 
   for (const el of codeblocks) {
     const tag = el.tag;
@@ -107,7 +109,7 @@ export function extractStores(elements: ElementData[], wires: WireData[]): Store
         const store = storeDefs.get(parentStoreName)!;
         store.getters[name] = getterDef;
       } else {
-        standaloneSignals.push({ name, type: returnType });
+        standaloneComputeds.push({ name, type: returnType, body });
       }
     } else if (tag === "action") {
       if (parentStoreName) {
@@ -123,5 +125,6 @@ export function extractStores(elements: ElementData[], wires: WireData[]): Store
   return {
     stores: [...storeDefs.values()],
     standaloneSignals,
+    standaloneComputeds,
   };
 }

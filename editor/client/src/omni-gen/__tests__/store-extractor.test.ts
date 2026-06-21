@@ -106,6 +106,18 @@ describe("extractStores", () => {
     expect(r.standaloneSignals).toHaveLength(0);
   });
 
+  it("handles standalone computed (no parent store)", () => {
+    const els: ElementData[] = [
+      { id: "comp1", nodeType: "codeblock", tag: "computed", props: { name: "doubled" }, children: [], parentId: null, source: "count * 2", ports: [{ name: "value", direction: "out", type: "i32" }] },
+    ];
+    const r = extractStores(els, []);
+    expect(r.standaloneComputeds).toHaveLength(1);
+    expect(r.standaloneComputeds[0].name).toBe("doubled");
+    expect(r.standaloneComputeds[0].type).toBe("i32");
+    expect(r.standaloneComputeds[0].body).toBe("count * 2");
+    expect(r.standaloneSignals).toHaveLength(0);
+  });
+
   it("returns empty result for no codeblocks", () => {
     const r = extractStores([], []);
     expect(r.stores).toHaveLength(0);
