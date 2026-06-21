@@ -78,8 +78,11 @@ def _strip_old_chain_blocks(lines: list[str]) -> list[str]:
                 if re.match(r"^//\s*@(chain|node|wire)\b", s):
                     found_annotation = True
                 j += 1
-            if found_annotation and j < len(lines):
-                i = j + 1
+            if found_annotation:
+                if j < len(lines):
+                    i = j + 1  # skip block including closing separator
+                else:
+                    i = j  # skip to end (block runs to EOF without closing separator)
                 continue
         result.append(lines[i])
         i += 1
