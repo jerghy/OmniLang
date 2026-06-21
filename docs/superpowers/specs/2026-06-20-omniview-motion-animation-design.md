@@ -363,6 +363,64 @@ Motions can be composed by referencing named motions or inline tweens.
 3. `start` position overrides default
 4. A motion reference used in composition cannot reference itself (circular reference → compile error)
 
+### 7.2 `@timeline` — Cross-Element Orchestration
+
+`@timeline` orchestrates animations across **multiple elements** within the same component tree. Each line references a child element by its `id` attribute and the motion to apply. The syntax follows the same `then`/`with`/`start` position system as `@motion` timeline mode.
+
+```omni
+@timeline pageLoad {
+  header    fadeIn             over: 300ms ease: easeOut
+  then cards   listEnter      start: "-=0.1s"
+  then footer  fadeIn
+}
+```
+
+**How it works:**
+- Each line: `<id> <motion>` — matches a child element with that `id` attribute
+- The compiler looks up `id="header"`, `id="cards"`, `id="footer"` in the component's view tree
+- At runtime: all matched elements play their assigned motion in the specified order
+- `then`/`with`/`start:` work identically to `@motion` timeline mode
+
+**Cross-platform mapping of `id`:**
+
+| Platform | `id="header"` compiles to | Runtime lookup |
+|----------|--------------------------|----------------|
+| Web | `id="header"` HTML attribute | `document.getElementById("header")` |
+| Flutter | `Key("header")` on widget constructor | `GlobalKey` / widget tree search |
+
+**Compile-time validation:**
+- Every `id` referenced in `@timeline` must exist as an `id` attribute on a child element → compile error if missing
+- The referenced element must have the corresponding motion trigger (e.g., `@enter={fadeIn}`) → compile error if missing
+- An `id` can only appear once in a `@timeline` → compile error on duplicate
+- Circular dependency between `@timeline` blocks → compile error
+
+**Usage on element:**
+
+```omni
+<div @timeline={pageLoad}>
+  <Header id="header"  @enter={fadeIn} />
+  <CardList id="cards" @enter={listEnter} />
+  <Footer id="footer"  @enter={fadeIn} />
+</div>
+```
+
+The `@timeline` attribute on the parent element tells the runtime to play the timeline when the parent mounts (equivalent to `@enter` for the orchestrated group). The `@timeline` triggers the child animations in the specified order — the children's individual `@enter` triggers are suppressed and instead controlled by the timeline.
+
+**Differences from `@motion` timeline:**
+- `@motion` timeline operates on a single element's properties over time
+- `@timeline` orchestrates multiple elements, each running its own pre-defined `@motion`
+- `@timeline` items reference elements by `id`, not properties
+
+**@timeline with other triggers:**
+
+```omni
+// Scroll-driven timeline
+<div @scroll={pageLoad} @scroll-scrub={0.5} @scroll-start="top 80%" @scroll-end="bottom 20%">
+  <Section1 id="s1" @enter={fadeIn} />
+  <Section2 id="s2" @enter={slideUp} />
+</div>
+```
+
 ---
 
 ## 8. Stagger
@@ -495,6 +553,7 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 | `states: { ... }` | Multi-state animation map (colon prop) | — |
 | `on: {signal}` | Signal driving `states:` active state (colon prop) | — |
 | `@if-mode: "wait"` | Component-level default for @if transition mode | — |
+| `@timeline={motion}` | Parent-level cross-element orchestration (matches children by `id`) | — |
 
 ### 9.3 Hover Reverse Modes
 
@@ -941,6 +1000,10 @@ When `respectReducedMotion: false`, the animation always plays with its defined 
 | `@drag-constraints` mixing `parent` with explicit edge values |
 | `@drag-constraints` with `ref:NAME` where NAME is not a sibling ref |
 | `@drag-elastic` value outside 0.0..1.0 |
+| `@timeline` referencing an `id` that doesn't exist in the view tree |
+| `@timeline` referencing an element without the required motion trigger |
+| `@timeline` with duplicate `id` references |
+| Circular `@timeline` dependency |
 
 ### 20.2 Warnings (do not block compilation)
 
@@ -1090,6 +1153,10 @@ colon_props     := "states:" "{" state_entry ("," state_entry)* "}"
                  | "on:" "{" expr "}"
 state_entry     := IDENT ":" property_block ("over:" duration)? ("ease:" easing)?
 
+// @timeline — cross-element orchestration
+timeline_def    := "@timeline" IDENT "{" timeline_body "}"
+timeline_ref    := IDENT IDENT timing_spec? ("start:" position)?   // <id> <motion_ref> over:... start:...
+
 // @if with mode
 if_directive    := "@if" expr ("mode=" STRING)? "{" view_nodes "}"
                  ("@else" "@if" expr "{" view_nodes "}")*
@@ -1113,6 +1180,7 @@ callback_spec   := ("onStart:" | "onUpdate:" | "onComplete:" | "onRepeat:" | "on
 - Callbacks (`onStart`, `onUpdate`, `onComplete`, `onRepeat`, `onInterrupt`)
 - `prefers-reduced-motion` support
 - Basic `@hero` (same page)
+- `@timeline` cross-element orchestration
 - Animation control API (`play`, `pause`, `seek`, etc.)
 - Compile-time validation (all errors)
 - Web codegen (WAAPI + JS runtime)
