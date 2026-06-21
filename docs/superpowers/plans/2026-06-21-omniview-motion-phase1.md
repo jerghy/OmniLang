@@ -2163,21 +2163,414 @@ After all 11 tasks, verify:
 - [ ] All 9 warnings fire when expected
 - [ ] Spec §20 validation table fully covered
 
-## Phase 2 & 3 Overview
+---
 
-### Phase 2: Advanced (next cycle)
-- `@in-view` + `@scroll` triggers
-- `@drag-horizontal/vertical` + momentum + constraints
-- `@driven-by` signal binding
-- Path animation
-- Timeline labels
-- `repeatDelay` / `repeatRefresh`
-- FLIP layout animation for `@for` reordering
+## Phase 2: Advanced Features
 
-### Phase 3: Polish (final cycle)
-- Cross-component / cross-page `@hero`
-- Animation DevTools integration
-- Performance warnings (frame budget monitoring)
-- `will-change` auto-management consolidated
-- `--omni-motion-speed` CSS variable
-- Lottie/Rive animation import
+### Task 12: @in-view + @scroll Triggers
+
+**Files:**
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/react.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Implement scroll-driven and viewport-triggered animations.
+
+- [ ] **Step 1: Write @in-view tests**
+
+```rust
+#[test]
+fn test_in_view_once() {
+    let source = r#"
+        @motion fadeIn { to { opacity: 1 } over: 300ms }
+        component Demo { view { <div @in-view={fadeIn} @in-view-once={true}>Hello</div> } }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("IntersectionObserver"));
+    assert!(output.contains("once"));
+}
+```
+
+- [ ] **Step 2: Implement @in-view — Web**
+
+OmniView: Generate `IntersectionObserver` wrapping `__omni_createAnimation()` on first intersection.
+
+React: `useRef` + `useEffect` + `IntersectionObserver`, play animation on mount-triggered callback.
+
+- [ ] **Step 3: Implement @in-view — Flutter**
+
+Use `VisibilityDetector` widget (from `visibility_detector` package) or `RenderObject` visibility check in `initState`.
+
+- [ ] **Step 4: Write @scroll tests**
+
+```rust
+#[test]
+fn test_scroll_scrub() {
+    let source = r#"
+        @motion parallax { to { y: -50% } over: 1s }
+        component Demo { view { <div @scroll={parallax} @scroll-scrub={0.5} @scroll-start="top 80%" @scroll-end="bottom 20%" /> } }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("scroll"));
+    assert!(output.contains("scrub"));
+    assert!(output.contains("progress"));
+}
+```
+
+- [ ] **Step 5: Implement @scroll — Web**
+
+JavaScript scroll listener mapping `(scrollPos - startScroll) / (endScroll - startScroll)` → animation progress via `animation.progress = clamp(value, 0, 1)`. Scrub: apply smoothing with exponential moving average over `scrub` seconds.
+
+- [ ] **Step 6: Implement @scroll — Flutter**
+
+`ScrollController.addListener` → compute progress → drive AnimationController via `_controller.value = progress`.
+
+- [ ] **Step 7: Run tests and commit**
+
+```bash
+cd omni-compiler && cargo test test_in_view test_scroll -- --nocapture 2>&1 | tail -10
+git add omni-compiler/src/codegen/ omni-compiler/tests/codegen_tests.rs
+git commit -m "feat: add @in-view and @scroll triggers for Web and Flutter"
+```
+
+---
+
+### Task 13: @drag + Constraints + Momentum
+
+**Files:**
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Gesture-driven drag animations with constraints and inertia.
+
+- [ ] **Step 1: Write @drag tests**
+
+```rust
+#[test]
+fn test_drag_horizontal_with_constraints() {
+    let source = r#"
+        @motion swipeCard { to { x: 300px } over: 300ms ease: spring(tension:200, friction:15) }
+        component Demo { view { <Card @drag-horizontal={swipeCard} @drag-constraints="left:0 right:300" @drag-elastic={0.2} @drag-threshold={30%} /> } }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("pointerdown"));
+    assert!(output.contains("constraint"));
+    assert!(output.contains("elastic"));
+}
+```
+
+- [ ] **Step 2: Implement @drag — Web**
+
+`pointerdown` → track delta → constrain to `[min, max]` → apply elastic if past bounds → on `pointerup`, if past threshold play `@drag-momentum` or spring back. Convert gesture velocity to `$velocity`.
+
+- [ ] **Step 3: Implement @drag — Flutter**
+
+`GestureDetector.onHorizontalDragUpdate/onVerticalDragUpdate` → clamp delta + elastic. `onDragEnd` → compute velocity → `_controller.animateWith(SpringSimulation(...))`.
+
+- [ ] **Step 4: Run tests and commit**
+
+```bash
+cd omni-compiler && cargo test test_drag -- --nocapture 2>&1 | tail -10
+git add omni-compiler/src/codegen/ omni-compiler/tests/codegen_tests.rs
+git commit -m "feat: add @drag gesture animations with constraints and momentum"
+```
+
+---
+
+### Task 14: @driven-by + Path Animation
+
+**Files:**
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Signal-driven animation progress and path-based motion.
+
+- [ ] **Step 1: Write @driven-by test**
+
+```rust
+#[test]
+fn test_driven_by_signal() {
+    let source = r#"
+        component Demo {
+            signal progress: float = 0
+            @motion fadeIn { to { opacity: 1 } over: 300ms }
+            view { <div @animate={fadeIn} @driven-by={progress}>Hello</div> }
+        }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("clamp"));
+    assert!(output.contains("driven"));
+}
+```
+
+- [ ] **Step 2: Implement @driven-by**
+
+Web: `__omni_effect(() => { player.progress = clamp(signal.value, 0, 1); })` — non-playing, value-bound animation.
+
+Flutter: `animationController.value = clamp(signal, 0.0, 1.0)` in a listener.
+
+- [ ] **Step 3: Write path animation test**
+
+```rust
+#[test]
+fn test_path_animation() {
+    let source = r#"
+        @motion followPath { to { offset: 1 } over: 2s path: "M 0,0 C 50,-50 100,50 200,0" }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("offset-path"));
+    assert!(output.contains("M 0,0"));
+}
+```
+
+- [ ] **Step 4: Implement path animation**
+
+Web: CSS `offset-path` + WAAPI animate `offset-distance`. Flutter: `Path` + `PathMetric.getTangentForOffset` + `AnimationController` driving position.
+
+- [ ] **Step 5: Run tests and commit**
+
+```bash
+cd omni-compiler && cargo test test_driven test_path -- --nocapture 2>&1 | tail -10
+git commit -m "feat: add @driven-by signal binding and path animation"
+```
+
+---
+
+### Task 15: Timeline Labels + repeatDelay/repeatRefresh
+
+**Files:**
+- Modify: `omni-compiler/src/parser/ast.rs` (if not in Phase 1)
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Named positions in timelines for seeking, and repeat modifiers.
+
+- [ ] **Step 1: Write timeline label test**
+
+```rust
+#[test]
+fn test_timeline_labels() {
+    let source = r#"
+        @motion reveal {
+            from { opacity: 0 } over: 300ms
+            label "faded"
+            then to { y: 0 } over: 200ms
+            label "done"
+        }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("\"faded\""));
+    assert!(output.contains("\"done\""));
+    assert!(output.contains("seek"));
+}
+```
+
+- [ ] **Step 2: Implement label parsing + seeking**
+
+Store label→time mapping in runtime. `animation.seek("labelName")` looks up the label's time from the motion's computed timeline map.
+
+- [ ] **Step 3: Write repeatDelay/repeatRefresh test**
+
+```rust
+#[test]
+fn test_repeat_delay_refresh() {
+    let source = r#"
+        @motion spark {
+            from { opacity: 1; x: 0 } to { opacity: 0; x: 50px } over: 400ms
+            loop: 3 repeatDelay: 200ms repeatRefresh: true
+        }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("repeatDelay"));
+    assert!(output.contains("repeatRefresh"));
+}
+```
+
+- [ ] **Step 4: Implement repeat modifiers**
+
+`repeatDelay`: pause between loop iterations. `repeatRefresh`: re-evaluate `from` values via `getComputedStyle()` at each iteration start.
+
+- [ ] **Step 5: Run tests and commit**
+
+```bash
+cargo test test_timeline_label test_repeat -- --nocapture 2>&1 | tail -10
+git commit -m "feat: add timeline labels, repeatDelay, repeatRefresh"
+```
+
+---
+
+### Task 16: FLIP Layout Animation for @for Reordering
+
+**Files:**
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Smooth position transitions when @for items change order.
+
+- [ ] **Step 1: Write FLIP test**
+
+```rust
+#[test]
+fn test_flip_list_reorder() {
+    let source = r#"
+        component List {
+            view {
+                @for item in items key={item.id} {
+                    <div @enter={fadeIn}>item.name</div>
+                }
+            }
+        }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("getBoundingClientRect"));
+    assert!(output.contains("FLIP"));
+}
+```
+
+- [ ] **Step 2: Implement FLIP — Web**
+
+Before @for re-render: `getBoundingClientRect()` for all items. After re-render: compute delta for surviving items, apply inverse transform, animate to zero via WAAPI.
+
+- [ ] **Step 3: Implement FLIP — Flutter**
+
+Use `AnimatedList` with `GlobalKey` per item. Compute position deltas in `didUpdateWidget` and animate.
+
+- [ ] **Step 4: Run tests and commit**
+
+```bash
+cargo test test_flip -- --nocapture 2>&1 | tail -10
+git commit -m "feat: add FLIP layout animation for @for list reordering"
+```
+
+---
+
+## Phase 3: Polish
+
+### Task 17: Cross-Component @hero
+
+**Files:**
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+- Modify: `omni-compiler/src/codegen/flutter.rs`
+
+**Purpose:** Hero transitions between separate pages/components.
+
+- [ ] **Step 1: Write cross-component @hero test**
+
+```rust
+#[test]
+fn test_hero_cross_component() {
+    let source = r#"
+        component PageA { view { <img src="thumb.jpg" @hero="product-image" /> } }
+        component PageB { view { <img src="full.jpg" @hero="product-image" /> } }
+    "#;
+    let output = compile_to_js(source);
+    assert!(output.contains("data-hero"));
+    assert!(output.contains("FLIP"));
+}
+```
+
+- [ ] **Step 2: Implement — Web**
+
+Global `__omni_hero_before(tag)` / `__omni_hero_after(tag)` runtime functions. Before route change: record hero element positions. After route change: compute FLIP delta and animate.
+
+- [ ] **Step 3: Implement — Flutter**
+
+Direct compilation to `Hero(tag: "product-image", child: ...)` widget. Flutter's Hero handles the transition natively.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git commit -m "feat: add cross-component @hero shared element transitions"
+```
+
+---
+
+### Task 18: Animation DevTools + Performance
+
+**Files:**
+- Create: `build/omni-devtools.js`
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+
+**Purpose:** Debug overlay showing running animations, plus performance monitoring.
+
+- [ ] **Step 1: Build DevTools panel**
+
+Inject `window.__OMNI_DEVTOOLS` global with methods:
+- `listAnimations()` — returns all running AnimationPlayer instances with name, progress, duration
+- `pauseAll()` / `resumeAll()` — global pause/resume
+- `setSpeed(0.5)` — global `timeScale`
+- `highlight(element)` — flash border on animated elements
+
+- [ ] **Step 2: Add frame budget monitoring**
+
+Track `requestAnimationFrame` timing. Warn when >50 concurrent animations exceed 16ms/frame budget. Degrade gracefully by reducing non-viewport animations to lower frame rates.
+
+- [ ] **Step 3: Add `--omni-motion-speed` CSS variable**
+
+```css
+:root { --omni-motion-speed: 1; }
+```
+All durations multiplied by this variable. `0` disables all animations. Read by runtime on animation creation.
+
+- [ ] **Step 4: Consolidate `will-change` management**
+
+Auto-add/remove `will-change: transform, opacity` based on active animation lifecycle. Remove 500ms after animation completes to free GPU memory.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "feat: add animation DevTools, performance monitoring, timeScale"
+```
+
+---
+
+### Task 19: Lottie/Rive Import
+
+**Files:**
+- Create: `omni-compiler/src/parser/lottie.rs`
+- Modify: `omni-compiler/src/codegen/omniview.rs`
+
+**Purpose:** Import Lottie/Rive animation files and play them via @motion.
+
+- [ ] **Step 1: Add import syntax**
+
+```omni
+@motion loadingAnim from "./loading.lottie" {
+  loop: infinite
+}
+```
+
+Parser: `from "./path.lottie"` after motion name → parse file extension, validate it's `.lottie` or `.json` (Lottie) or `.riv` (Rive).
+
+- [ ] **Step 2: Implement — Web**
+
+Emit `<lottie-player>` web component or Lottie JS runtime, bound to motion triggers.
+
+- [ ] **Step 3: Implement — Flutter**
+
+Emit `Lottie.asset("loading.json")` widget using `lottie` Flutter package.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git commit -m "feat: add Lottie/Rive animation file import support"
+```
+
+---
+
+## Phase 2 & 3 Completion Checklist
+
+- [ ] `cargo test` — all tests pass (target: ~550 tests)
+- [ ] `cargo build --release` — production build succeeds
+- [ ] `@in-view` + `@scroll` work on Web and Flutter
+- [ ] `@drag` gestures with constraints and elastic rebound
+- [ ] `@driven-by` drives animation progress from signal
+- [ ] Path animation follows SVG path on both platforms
+- [ ] Timeline labels enable seek-by-name
+- [ ] `repeatDelay` pauses between loops, `repeatRefresh` re-evaluates from values
+- [ ] FLIP transitions smooth @for reordering
+- [ ] Cross-component @hero works end-to-end
+- [ ] DevTools panel shows running animations with pause/resume/speed controls
+- [ ] `--omni-motion-speed` CSS variable globally scales durations
+- [ ] `will-change` auto-managed per animation lifecycle
+- [ ] Lottie/Rive files importable as @motion
