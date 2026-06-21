@@ -1391,15 +1391,73 @@ git commit -m "feat: add Web animation runtime with WAAPI integration and spring
 
 ---
 
-### Task 9: Web Codegen — OmniView
+### Task 9: Web Codegen — React + OmniView Native
 
 **Files:**
+- Modify: `omni-compiler/src/codegen/react.rs`
 - Modify: `omni-compiler/src/codegen/omniview.rs`
 - Modify: `omni-compiler/src/codegen/mod.rs`
 
-**Purpose:** Generate HTML/CSS/JS for motion animations targeting the Web.
+**Purpose:** Generate React components with animation hooks AND vanilla HTML/CSS/JS for motion animations. React is the priority web target; OmniView native (WAAPI + embedded runtime) is the fallback/standalone target.
 
-- [ ] **Step 1: Write codegen test**
+- [ ] **Step 1: Write React codegen test**
+
+In `omni-compiler/tests/codegen_tests.rs`:
+
+```rust
+#[test]
+fn test_react_codegen_motion_fade_in() {
+    let source = r#"
+        @motion fadeIn {
+            to { opacity: 1; y: 0 } over: 300ms ease: easeOut
+        }
+        component Demo {
+            view {
+                <div @enter={fadeIn}>Hello</div>
+            }
+        }
+    "#;
+    let output = compile_to_react(source);
+    assert!(output.contains("useEffect"));       // enter animation on mount
+    assert!(output.contains("opacity"));
+    assert!(output.contains("duration"));
+}
+
+#[test]
+fn test_react_codegen_motion_hover() {
+    let source = r#"
+        @motion scaleUp { to { scale: 1.05 } over: 150ms ease: easeOut }
+        component Btn {
+            view { <button @hover={scaleUp}>Click</button> }
+        }
+    "#;
+    let output = compile_to_react(source);
+    assert!(output.contains("onMouseEnter"));
+    assert!(output.contains("onMouseLeave"));
+    assert!(output.contains("useState"));        // track hover state
+}
+
+#[test]
+fn test_react_codegen_motion_stagger() {
+    let source = r#"
+        @motion itemIn { to { opacity: 1 } over: 300ms }
+        component List {
+            view {
+                <ul @enter={stagger(itemIn, each:60ms, from:center)}>
+                    @for item in items key={item.id} {
+                        <li @enter={itemIn} />
+                    }
+                </ul>
+            }
+        }
+    "#;
+    let output = compile_to_react(source);
+    assert!(output.contains("staggerDelay"));
+    assert!(output.contains("transition"));
+}
+```
+
+- [ ] **Step 2: Write OmniView native codegen test**
 
 In `omni-compiler/tests/codegen_tests.rs`:
 
@@ -1456,16 +1514,60 @@ fn test_codegen_motion_spring() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 3: Run tests to verify they fail**
 
 ```bash
-cd omni-compiler && cargo test test_codegen_motion -- --nocapture 2>&1 | tail -10
+cd omni-compiler && cargo test test_react_codegen test_codegen_motion -- --nocapture 2>&1 | tail -10
 ```
 Expected: tests fail (codegen not yet implemented).
 
-- [ ] **Step 3: Implement motion codegen for OmniView target**
+- [ ] **Step 4: Implement React motion codegen**
 
-In `omniview.rs`, add:
+In `react.rs`, add motion animation generation. React target uses a lightweight approach: emit `useState` + `useEffect` hooks with WAAPI calls, no external animation library dependency.
+
+```rust
+fn emit_react_motion_trigger(&self, el: &ElementIR) -> String {
+    for trigger in &el.motion_triggers {
+        match trigger.kind {
+            TriggerKind::Enter => {
+                // useEffect + WAAPI on mount
+                format!(r#"
+                const {}Ref = useRef(null);
+                useEffect(() => {{
+                    const el = {}Ref.current;
+                    if (!el) return;
+                    const anim = el.animate([{}], [{}], {{
+                        duration: {},
+                        easing: '{}',
+                        fill: 'forwards'
+                    }});
+                    return () => anim.cancel();
+                }}, []);
+                "#, /* ... */)
+            },
+            TriggerKind::Hover => {
+                // useState for hover + onMouseEnter/onMouseLeave
+                format!(r#"
+                const [{}Hovered, set{}Hovered] = useState(false);
+                // onMouseEnter={{() => setHovered(true)}}
+                // onMouseLeave={{() => setHovered(false)}}
+                "#, /* ... */)
+            },
+            // ... other triggers
+        }
+    }
+}
+
+fn emit_react_stagger(&self, stagger: &StaggerCall, items: &[ElementIR]) -> String {
+    // Generate per-item delay based on stagger config
+    // Each child gets style={{ transitionDelay: `${index * each}ms` }}
+    format!("style={{ transitionDelay: `${{index * {each}}}ms` }}", each = stagger.timing.each_ms)
+}
+```
+
+- [ ] **Step 5: Implement OmniView native motion codegen**
+
+In `omniview.rs`, add (lower priority, used for standalone HTML output):
 
 ```rust
 /// Generate JS for a motion definition
@@ -1526,7 +1628,7 @@ fn emit_element_trigger_js(&mut self, el: &ElementIR) -> String {
 }
 ```
 
-- [ ] **Step 4: Implement @if double-branch codegen**
+- [ ] **Step 6: Implement @if double-branch codegen**
 
 Generate JS that:
 - Renders both branches with display:none wrappers
@@ -1534,14 +1636,14 @@ Generate JS that:
 - For wait mode: awaits @leave completion before showing new branch
 - Removes old branch from DOM after @leave completes
 
-- [ ] **Step 5: Implement @for key + animation codegen**
+- [ ] **Step 7: Implement @for key + animation codegen**
 
 - Add key-based identity tracking to list rendering
 - Generate `data-for-key` attributes
 - Implement `_leavingItems` map in runtime
 - Stagger indices based on item positions
 
-- [ ] **Step 6: Implement @hero (same page)**
+- [ ] **Step 8: Implement @hero (same page)**
 
 Generate FLIP animation for same-page hero transitions:
 
@@ -1570,7 +1672,7 @@ function __omni_hero_after(before, tag) {
 
 Flutter: compile @hero tag directly to Flutter's `Hero(tag: "...", child: ...)` widget.
 
-- [ ] **Step 7: Embed runtime JS in output**
+- [ ] **Step 9: Embed runtime JS in output**
 
 ```rust
 fn emit_animation_runtime(&self) -> String {
@@ -1579,18 +1681,18 @@ fn emit_animation_runtime(&self) -> String {
 }
 ```
 
-- [ ] **Step 8: Run codegen tests**
+- [ ] **Step 10: Run codegen tests**
 
 ```bash
-cd omni-compiler && cargo test test_codegen_motion -- --nocapture 2>&1 | tail -10
+cd omni-compiler && cargo test test_react_codegen test_codegen_motion -- --nocapture 2>&1 | tail -10
 ```
-Expected: tests pass.
+Expected: all React + OmniView codegen tests pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add omni-compiler/src/codegen/ omni-compiler/tests/codegen_tests.rs
-git commit -m "feat: add Web codegen for motion animations (WAAPI + JS runtime)"
+git add omni-compiler/src/codegen/react.rs omni-compiler/src/codegen/omniview.rs omni-compiler/tests/codegen_tests.rs
+git commit -m "feat: add React + OmniView codegen for motion animations"
 ```
 
 ---
