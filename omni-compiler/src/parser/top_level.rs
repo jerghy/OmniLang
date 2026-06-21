@@ -1170,8 +1170,14 @@ impl<'a> Parser<'a> {
                     self.advance();
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     path_rotate = Some(match self.peek_kind() {
-                        TokenKind::True => { self.advance(); true }
-                        TokenKind::False => { self.advance(); false }
+                        TokenKind::True => {
+                            self.advance();
+                            true
+                        }
+                        TokenKind::False => {
+                            self.advance();
+                            false
+                        }
                         _ => return Err(self.error("expected bool for pathRotate")),
                     });
                 }
@@ -1473,8 +1479,14 @@ impl<'a> Parser<'a> {
                 Some(ref s) if s == "pathRotate" => {
                     self.advance();
                     *path_rotate = Some(match self.peek_kind() {
-                        TokenKind::True => { self.advance(); true }
-                        TokenKind::False => { self.advance(); false }
+                        TokenKind::True => {
+                            self.advance();
+                            true
+                        }
+                        TokenKind::False => {
+                            self.advance();
+                            false
+                        }
                         _ => return Err(self.error("expected bool for pathRotate")),
                     });
                 }

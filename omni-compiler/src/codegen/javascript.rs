@@ -1264,9 +1264,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, false);
         let out = w.into_string();
@@ -1293,9 +1293,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, true);
         let out = w.into_string();
@@ -1332,9 +1332,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, false);
         let out = w.into_string();
@@ -1377,9 +1377,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp, false);
         let out = w.into_string();
@@ -1423,9 +1423,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp, true);
         let out = w.into_string();
@@ -1613,8 +1613,8 @@ mod tests {
                             view: None,
                             styles: vec![],
                             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
+                            if_mode_default: None,
+                            hero_defs: vec![],
                             timelines: vec![],
                         },
                     )]),
@@ -1678,8 +1678,8 @@ mod tests {
                             view: None,
                             styles: vec![],
                             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
+                            if_mode_default: None,
+                            hero_defs: vec![],
                             timelines: vec![],
                         },
                     )]),

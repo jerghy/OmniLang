@@ -1456,7 +1456,9 @@ fn lower_view_node(
                         in_view_threshold = Some(lower_expr(expr, variant_map));
                     }
                     // Parent-child orchestration
-                    ElementProp::When(_) | ElementProp::DelayChildren(_) | ElementProp::StaggerChildren(_) => {
+                    ElementProp::When(_)
+                    | ElementProp::DelayChildren(_)
+                    | ElementProp::StaggerChildren(_) => {
                         // Lowered at trigger level; no direct IR field on ElementIR
                     }
                     // Scroll sub-attributes
@@ -1747,7 +1749,10 @@ fn lower_view_node(
                     r#type: None,
                 },
                 body: lower_body(&for_dir.body),
-                key_expr: for_dir.key_expr.as_ref().map(|e| lower_expr(e, variant_map)),
+                key_expr: for_dir
+                    .key_expr
+                    .as_ref()
+                    .map(|e| lower_expr(e, variant_map)),
                 empty_body: for_dir
                     .empty_body
                     .as_ref()

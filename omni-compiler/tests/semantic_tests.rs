@@ -204,10 +204,7 @@ fn test_motion_valid_passes_validation() {
     assert!(
         motion_errors.is_empty(),
         "Valid motion should not produce E0006 errors. Got: {:?}",
-        motion_errors
-            .iter()
-            .map(|d| &d.message)
-            .collect::<Vec<_>>()
+        motion_errors.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
 

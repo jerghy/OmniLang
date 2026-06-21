@@ -474,10 +474,8 @@ function __omni_bindText(nid) {
         // Motion definitions — emit JS functions that create AnimationPlayer instances.
         // Each @motion block generates a const __omni_motion_{name} function.
         if !comp.motions.is_empty() {
-            self.js.push_str(&format!(
-                "\n/// ── Motion Definitions: {} ──\n\n",
-                name
-            ));
+            self.js
+                .push_str(&format!("\n/// ── Motion Definitions: {} ──\n\n", name));
             for motion in &comp.motions {
                 self.emit_motion_js(motion);
             }
@@ -485,10 +483,8 @@ function __omni_bindText(nid) {
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
         if !comp.timelines.is_empty() {
-            self.js.push_str(&format!(
-                "\n/// ── Timeline Definitions: {} ──\n\n",
-                name
-            ));
+            self.js
+                .push_str(&format!("\n/// ── Timeline Definitions: {} ──\n\n", name));
             for timeline in &comp.timelines {
                 self.emit_timeline_js(timeline);
             }
@@ -1151,7 +1147,8 @@ function __omni_bindText(nid) {
         } else {
             // No @else — hide all branches when no condition matches
             if is_wait_mode {
-                self.js.push_str("  else { _hideAll(null); _current_{nid} = null; }\n");
+                self.js
+                    .push_str("  else { _hideAll(null); _current_{nid} = null; }\n");
             } else {
                 self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
             }
@@ -1229,13 +1226,16 @@ function __omni_bindText(nid) {
             let key_js = self.expr_to_js(list.key_expr.as_ref().unwrap());
             self.js.push_str("  // Key-based identity tracking\n");
             self.js.push_str(&format!("  const keyFn = (item) => {{ try {{ return String({key_js}); }} catch(e) {{ return null; }} }};\n", key_js = key_js));
-            self.js.push_str("  ctr._forKeys = ctr._forKeys || new Map();\n");
-            self.js.push_str("  const oldKeys = new Set(ctr._forKeys.keys());\n");
+            self.js
+                .push_str("  ctr._forKeys = ctr._forKeys || new Map();\n");
+            self.js
+                .push_str("  const oldKeys = new Set(ctr._forKeys.keys());\n");
             self.js.push_str("  const newKeys = new Set();\n");
         } else {
             self.js.push_str("  // Clear existing rendered items\n");
-            self.js
-                .push_str("  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n");
+            self.js.push_str(
+                "  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n",
+            );
         }
 
         // Handle empty state
@@ -1263,12 +1263,16 @@ function __omni_bindText(nid) {
 
         if has_key {
             self.js.push_str("    const _key = keyFn(item);\n");
-            self.js.push_str("    if (_key != null) newKeys.add(_key);\n");
-            self.js.push_str("    // Reuse existing element if key matches\n");
-            self.js.push_str("    let clone = _key != null ? ctr._forKeys.get(_key) : null;\n");
+            self.js
+                .push_str("    if (_key != null) newKeys.add(_key);\n");
+            self.js
+                .push_str("    // Reuse existing element if key matches\n");
+            self.js
+                .push_str("    let clone = _key != null ? ctr._forKeys.get(_key) : null;\n");
             self.js.push_str("    const isNew = !clone;\n");
             self.js.push_str("    if (isNew) {\n");
-            self.js.push_str("      clone = tpl.content.firstElementChild.cloneNode(true);\n");
+            self.js
+                .push_str("      clone = tpl.content.firstElementChild.cloneNode(true);\n");
             self.js.push_str("      if (_key != null) { ctr._forKeys.set(_key, clone); clone.setAttribute('data-for-key', _key); }\n");
             self.js.push_str("    }\n");
         } else {
@@ -1323,7 +1327,8 @@ function __omni_bindText(nid) {
         self.js.push_str("      });\n");
         self.js.push_str("    });\n");
         if has_key {
-            self.js.push_str("    if (isNew) { ctr.appendChild(clone); }\n");
+            self.js
+                .push_str("    if (isNew) { ctr.appendChild(clone); }\n");
         } else {
             self.js.push_str("    ctr.appendChild(clone);\n");
         }
@@ -1331,21 +1336,27 @@ function __omni_bindText(nid) {
 
         // Key-based cleanup: remove items whose keys disappeared
         if has_key {
-            self.js.push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
+            self.js
+                .push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
             self.js.push_str("  oldKeys.forEach(key => {\n");
             self.js.push_str("    if (!newKeys.has(key)) {\n");
-            self.js.push_str("      const el = ctr._forKeys.get(key);\n");
+            self.js
+                .push_str("      const el = ctr._forKeys.get(key);\n");
             self.js.push_str("      if (el) {\n");
-            self.js.push_str("        const leavingNid = el.getAttribute('data-nid');\n");
+            self.js
+                .push_str("        const leavingNid = el.getAttribute('data-nid');\n");
             self.js.push_str("        if (leavingNid) {\n");
-            self.js.push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
+            self.js
+                .push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
             self.js.push_str("          if (player) {\n");
             self.js.push_str("            player.play().then(() => { el.remove(); ctr._forKeys.delete(key); });\n");
             self.js.push_str("          } else {\n");
-            self.js.push_str("            el.remove(); ctr._forKeys.delete(key);\n");
+            self.js
+                .push_str("            el.remove(); ctr._forKeys.delete(key);\n");
             self.js.push_str("          }\n");
             self.js.push_str("        } else {\n");
-            self.js.push_str("          el.remove(); ctr._forKeys.delete(key);\n");
+            self.js
+                .push_str("          el.remove(); ctr._forKeys.delete(key);\n");
             self.js.push_str("        }\n");
             self.js.push_str("      }\n");
             self.js.push_str("    }\n");
@@ -2053,8 +2064,14 @@ function __omni_bindText(nid) {
         let mut parts: Vec<String> = Vec::new();
 
         // Extract from (position 0.0) and to (position 1.0) stops
-        let from_stop = kf.stops.iter().find(|s| (s.position - 0.0).abs() < f64::EPSILON);
-        let to_stop = kf.stops.iter().find(|s| (s.position - 1.0).abs() < f64::EPSILON);
+        let from_stop = kf
+            .stops
+            .iter()
+            .find(|s| (s.position - 0.0).abs() < f64::EPSILON);
+        let to_stop = kf
+            .stops
+            .iter()
+            .find(|s| (s.position - 1.0).abs() < f64::EPSILON);
 
         if let Some(from) = from_stop {
             let props: Vec<String> = from
@@ -2148,17 +2165,10 @@ function __omni_bindText(nid) {
                     };
                     // Callback body is an expression that becomes a function body
                     let body_js = self.expr_to_js(expr);
-                    format!(
-                        "\"{}\": function() {{ {} }}",
-                        name,
-                        body_js
-                    )
+                    format!("\"{}\": function() {{ {} }}", name, body_js)
                 })
                 .collect();
-            parts.push(format!(
-                "\"callbacks\": {{{}}}",
-                callbacks.join(", ")
-            ));
+            parts.push(format!("\"callbacks\": {{{}}}", callbacks.join(", ")));
         }
         let playback_parts = self.playback_to_config(&cb.playback);
         parts.extend(playback_parts);
@@ -2317,7 +2327,9 @@ function __omni_bindText(nid) {
     ///   - Custom names (loading, success, error): driven by `on: {signal}` via __omni_effect
     fn emit_states_js(&mut self, nid: &str, states_ir: &StatesIR) {
         let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
-        let is_reserved = state_names.iter().all(|n| matches!(*n, "idle" | "hover" | "pressed"));
+        let is_reserved = state_names
+            .iter()
+            .all(|n| matches!(*n, "idle" | "hover" | "pressed"));
 
         if is_reserved {
             // Emit mouse event bindings for idle/hover/pressed state transitions
@@ -2377,16 +2389,22 @@ function __omni_bindText(nid) {
         }
 
         // Emit the state targets lookup table
-        self.js.push_str(&format!(
-            "var __omni_states_{nid} = {{\n",
-            nid = nid
-        ));
+        self.js
+            .push_str(&format!("var __omni_states_{nid} = {{\n", nid = nid));
         for (state_name, tween) in &states_ir.states {
-            let over_ms = tween.over.as_ref().map_or("150".to_string(), |o| self.expr_to_js(o));
-            let ease_str = tween.ease.as_ref().map_or("\"ease-out\"".to_string(), |e| self.easing_to_js(e));
-            let props: Vec<String> = tween.properties.iter().map(|(k, v)| {
-                format!("\"{}\": \"{}\"", k, self.expr_to_js(v))
-            }).collect();
+            let over_ms = tween
+                .over
+                .as_ref()
+                .map_or("150".to_string(), |o| self.expr_to_js(o));
+            let ease_str = tween
+                .ease
+                .as_ref()
+                .map_or("\"ease-out\"".to_string(), |e| self.easing_to_js(e));
+            let props: Vec<String> = tween
+                .properties
+                .iter()
+                .map(|(k, v)| format!("\"{}\": \"{}\"", k, self.expr_to_js(v)))
+                .collect();
             self.js.push_str(&format!(
                 "  \"{name}\": {{ to: {{ {props} }}, over: {over}, ease: {ease} }},\n",
                 name = state_name,
@@ -2400,11 +2418,7 @@ function __omni_bindText(nid) {
 
     /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
     /// Runs in the deferred/mount JS context where DOM elements exist.
-    fn emit_motion_triggers_for_element(
-        &mut self,
-        nid: &str,
-        el: &ElementIR,
-    ) {
+    fn emit_motion_triggers_for_element(&mut self, nid: &str, el: &ElementIR) {
         for trigger in &el.motion_triggers {
             let trigger_str = match trigger.kind {
                 TriggerKind::Enter => "enter",
@@ -2526,7 +2540,11 @@ function __omni_bindText(nid) {
                         let repeat_val = match &el.in_view_repeat {
                             Some(expr) => {
                                 let js = self.expr_to_js(expr);
-                                if js == "true" { true } else { false }
+                                if js == "true" {
+                                    true
+                                } else {
+                                    false
+                                }
                             }
                             None => false,
                         };
@@ -2612,6 +2630,125 @@ function __omni_bindText(nid) {
                             scroll_start = scroll_start_str,
                             scroll_end = scroll_end_str,
                             scrub = scrub_val,
+                        ));
+                    }
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
+                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                        let axis_label = if is_horizontal { "x" } else { "y" };
+                        let pointer_axis = if is_horizontal { "clientX" } else { "clientY" };
+                        let edge_min = if is_horizontal { "left" } else { "top" };
+                        let edge_max = if is_horizontal { "right" } else { "bottom" };
+                        let rect_size = if is_horizontal { "width" } else { "height" };
+                        let constraints_str = el.drag_constraints.as_deref().unwrap_or("");
+                        let elastic_val = match &el.drag_elastic {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        let threshold_val = match &el.drag_threshold {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        let velocity_max_val = match &el.drag_velocity_max {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "2000".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @drag-{axis} trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 player.pause();\n\
+                             \x20 let startPos = 0, currentDelta = 0;\n\
+                             \x20 let isDragging = false;\n\
+                             \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
+                             \x20 let velocity = 0;\n\
+                             \x20 const constraints = \"{constraints}\";\n\
+                             \x20 const elastic = {elastic};\n\
+                             \x20 const threshold = {threshold};\n\
+                             \x20 const velocityMax = {velocity_max};\n\
+                             \x20 function parseConstraint(cfg) {{\n\
+                             \x20\x20 if (!cfg) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20 if (cfg === 'parent') {{\n\
+                             \x20\x20\x20 const parent = el.parentElement;\n\
+                             \x20\x20\x20 if (!parent) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20\x20 const elRect = el.getBoundingClientRect();\n\
+                             \x20\x20\x20 const parentRect = parent.getBoundingClientRect();\n\
+                             \x20\x20\x20 return {{ min: 0, max: parentRect.{size} - elRect.{size} }};\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 if (cfg.startsWith('ref:')) {{\n\
+                             \x20\x20\x20 const refId = cfg.slice(4);\n\
+                             \x20\x20\x20 const refEl = __omni_el(refId);\n\
+                             \x20\x20\x20 if (!refEl) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20\x20 const elRect = el.getBoundingClientRect();\n\
+                             \x20\x20\x20 const refRect = refEl.getBoundingClientRect();\n\
+                             \x20\x20\x20 return {{ min: 0, max: refRect.{size} - elRect.{size} }};\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 const parts = cfg.split(' ');\n\
+                             \x20\x20 let min = -Infinity, max = Infinity;\n\
+                             \x20\x20 parts.forEach(p => {{\n\
+                             \x20\x20\x20 const [key, val] = p.split(':');\n\
+                             \x20\x20\x20 if (key === '{edge_min}') min = parseFloat(val) || 0;\n\
+                             \x20\x20\x20 if (key === '{edge_max}') max = parseFloat(val) || Infinity;\n\
+                             \x20\x20 }});\n\
+                             \x20\x20 return {{ min, max }};\n\
+                             \x20 }}\n\
+                             \x20 const constraint = parseConstraint(constraints);\n\
+                             \x20 const maxExtent = Math.abs(constraint.max - constraint.min) || 1;\n\
+                             \x20 el.addEventListener('pointerdown', (e) => {{\n\
+                             \x20\x20 isDragging = true;\n\
+                             \x20\x20 startPos = e.{ptr_axis};\n\
+                             \x20\x20 currentDelta = 0;\n\
+                             \x20\x20 el.setPointerCapture(e.pointerId);\n\
+                             \x20 }});\n\
+                             \x20 el.addEventListener('pointermove', (e) => {{\n\
+                             \x20\x20 if (!isDragging) return;\n\
+                             \x20\x20 const now = performance.now();\n\
+                             \x20\x20 const raw = e.{ptr_axis} - startPos;\n\
+                             \x20\x20 if (lastMoveTime > 0) {{\n\
+                             \x20\x20\x20 const dt = now - lastMoveTime;\n\
+                             \x20\x20\x20 const dp = Math.abs(raw - lastMovePos);\n\
+                             \x20\x20\x20 if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 lastMoveTime = now;\n\
+                             \x20\x20 lastMovePos = raw;\n\
+                             \x20\x20 let constrained = raw;\n\
+                             \x20\x20 if (raw < constraint.min) {{\n\
+                             \x20\x20\x20 const overshoot = constraint.min - raw;\n\
+                             \x20\x20\x20 constrained = constraint.min - overshoot * (1 - elastic);\n\
+                             \x20\x20 }} else if (raw > constraint.max) {{\n\
+                             \x20\x20\x20 const overshoot = raw - constraint.max;\n\
+                             \x20\x20\x20 constrained = constraint.max + overshoot * (1 - elastic);\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 currentDelta = raw;\n\
+                             \x20\x20 const progress = Math.abs(constrained) / maxExtent;\n\
+                             \x20\x20 player.seek(Math.min(1, progress));\n\
+                             \x20 }});\n\
+                             \x20 el.addEventListener('pointerup', (e) => {{\n\
+                             \x20\x20 isDragging = false;\n\
+                             \x20\x20 el.releasePointerCapture(e.pointerId);\n\
+                             \x20\x20 const progress = Math.abs(currentDelta) / maxExtent;\n\
+                             \x20\x20 if (progress >= threshold && maxExtent > 0) {{\n\
+                             \x20\x20\x20 player.play();\n\
+                             \x20\x20 }} else {{\n\
+                             \x20\x20\x20 player.reverse();\n\
+                             \x20\x20 }}\n\
+                             \x20 }});\n\
+                             }})();\n",
+                            nid = nid,
+                            axis = axis_label,
+                            trigger = trigger_str,
+                            motion = motion_name,
+                            constraints = constraints_str,
+                            elastic = elastic_val,
+                            threshold = threshold_val,
+                            ptr_axis = pointer_axis,
+                            edge_min = edge_min,
+                            edge_max = edge_max,
+                            size = rect_size,
+                            velocity_max = velocity_max_val,
                         ));
                     }
                     _ => {
@@ -2757,6 +2894,125 @@ function __omni_bindText(nid) {
                             scrub = scrub_val,
                         ));
                     }
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
+                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                        let pointer_axis = if is_horizontal { "clientX" } else { "clientY" };
+                        let edge_min = if is_horizontal { "left" } else { "top" };
+                        let edge_max = if is_horizontal { "right" } else { "bottom" };
+                        let rect_size = if is_horizontal { "width" } else { "height" };
+                        let axis_label = if is_horizontal { "x" } else { "y" };
+                        let constraints_str = el.drag_constraints.as_deref().unwrap_or("");
+                        let elastic_val = match &el.drag_elastic {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        let threshold_val = match &el.drag_threshold {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        let velocity_max_val = match &el.drag_velocity_max {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "2000".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @drag-{axis} (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\", {cfg} }};\n\
+                             \x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 player.pause();\n\
+                             \x20 let startPos = 0, currentDelta = 0;\n\
+                             \x20 let isDragging = false;\n\
+                             \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
+                             \x20 let velocity = 0;\n\
+                             \x20 const constraints = \"{constraints}\";\n\
+                             \x20 const elastic = {elastic};\n\
+                             \x20 const threshold = {threshold};\n\
+                             \x20 const velocityMax = {velocity_max};\n\
+                             \x20 function parseConstraint(cfg) {{\n\
+                             \x20\x20 if (!cfg) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20 if (cfg === 'parent') {{\n\
+                             \x20\x20\x20 const parent = el.parentElement;\n\
+                             \x20\x20\x20 if (!parent) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20\x20 const elRect = el.getBoundingClientRect();\n\
+                             \x20\x20\x20 const parentRect = parent.getBoundingClientRect();\n\
+                             \x20\x20\x20 return {{ min: 0, max: parentRect.{size} - elRect.{size} }};\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 if (cfg.startsWith('ref:')) {{\n\
+                             \x20\x20\x20 const refId = cfg.slice(4);\n\
+                             \x20\x20\x20 const refEl = __omni_el(refId);\n\
+                             \x20\x20\x20 if (!refEl) return {{ min: -Infinity, max: Infinity }};\n\
+                             \x20\x20\x20 const elRect = el.getBoundingClientRect();\n\
+                             \x20\x20\x20 const refRect = refEl.getBoundingClientRect();\n\
+                             \x20\x20\x20 return {{ min: 0, max: refRect.{size} - elRect.{size} }};\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 const parts = cfg.split(' ');\n\
+                             \x20\x20 let min = -Infinity, max = Infinity;\n\
+                             \x20\x20 parts.forEach(p => {{\n\
+                             \x20\x20\x20 const [key, val] = p.split(':');\n\
+                             \x20\x20\x20 if (key === '{edge_min}') min = parseFloat(val) || 0;\n\
+                             \x20\x20\x20 if (key === '{edge_max}') max = parseFloat(val) || Infinity;\n\
+                             \x20\x20 }});\n\
+                             \x20\x20 return {{ min, max }};\n\
+                             \x20 }}\n\
+                             \x20 const constraint = parseConstraint(constraints);\n\
+                             \x20 const maxExtent = Math.abs(constraint.max - constraint.min) || 1;\n\
+                             \x20 el.addEventListener('pointerdown', (e) => {{\n\
+                             \x20\x20 isDragging = true;\n\
+                             \x20\x20 startPos = e.{ptr_axis};\n\
+                             \x20\x20 currentDelta = 0;\n\
+                             \x20\x20 el.setPointerCapture(e.pointerId);\n\
+                             \x20 }});\n\
+                             \x20 el.addEventListener('pointermove', (e) => {{\n\
+                             \x20\x20 if (!isDragging) return;\n\
+                             \x20\x20 const now = performance.now();\n\
+                             \x20\x20 const raw = e.{ptr_axis} - startPos;\n\
+                             \x20\x20 if (lastMoveTime > 0) {{\n\
+                             \x20\x20\x20 const dt = now - lastMoveTime;\n\
+                             \x20\x20\x20 const dp = Math.abs(raw - lastMovePos);\n\
+                             \x20\x20\x20 if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 lastMoveTime = now;\n\
+                             \x20\x20 lastMovePos = raw;\n\
+                             \x20\x20 let constrained = raw;\n\
+                             \x20\x20 if (raw < constraint.min) {{\n\
+                             \x20\x20\x20 const overshoot = constraint.min - raw;\n\
+                             \x20\x20\x20 constrained = constraint.min - overshoot * (1 - elastic);\n\
+                             \x20\x20 }} else if (raw > constraint.max) {{\n\
+                             \x20\x20\x20 const overshoot = raw - constraint.max;\n\
+                             \x20\x20\x20 constrained = constraint.max + overshoot * (1 - elastic);\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 currentDelta = raw;\n\
+                             \x20\x20 const progress = Math.abs(constrained) / maxExtent;\n\
+                             \x20\x20 player.seek(Math.min(1, progress));\n\
+                             \x20 }});\n\
+                             \x20 el.addEventListener('pointerup', (e) => {{\n\
+                             \x20\x20 isDragging = false;\n\
+                             \x20\x20 el.releasePointerCapture(e.pointerId);\n\
+                             \x20\x20 const progress = Math.abs(currentDelta) / maxExtent;\n\
+                             \x20\x20 if (progress >= threshold && maxExtent > 0) {{\n\
+                             \x20\x20\x20 player.play();\n\
+                             \x20\x20 }} else {{\n\
+                             \x20\x20\x20 player.reverse();\n\
+                             \x20\x20 }}\n\
+                             \x20 }});\n\
+                             }})();\n",
+                            nid = nid,
+                            cfg = config_override,
+                            axis = axis_label,
+                            trigger = trigger_str,
+                            constraints = constraints_str,
+                            elastic = elastic_val,
+                            threshold = threshold_val,
+                            ptr_axis = pointer_axis,
+                            edge_min = edge_min,
+                            edge_max = edge_max,
+                            size = rect_size,
+                            velocity_max = velocity_max_val,
+                        ));
+                    }
                     _ => {
                         self.js.push_str(&format!(
                             "// @{trigger} (inline)\n\
@@ -2783,10 +3039,8 @@ function __omni_bindText(nid) {
         // Timeline items use element IDs to reference elements across the component tree.
         // Each item schedules an animation with setTimeout at the computed delay offset.
         // This is emitted as part of the deferred JS to ensure DOM is ready.
-        self.mount_js.push_str(&format!(
-            "/// ── @timeline {} ──\n",
-            timeline.name
-        ));
+        self.mount_js
+            .push_str(&format!("/// ── @timeline {} ──\n", timeline.name));
 
         let mut cursor_delay = 0.0;
 
@@ -2851,12 +3105,10 @@ function __omni_bindText(nid) {
                     };
 
                     // Reference element by ID attribute
-                    let element_ref = start
-                        .as_deref()
-                        .unwrap_or_else(|| {
-                            // Use generic element query — will be refined in practice
-                            "[data-nid]"
-                        });
+                    let element_ref = start.as_deref().unwrap_or_else(|| {
+                        // Use generic element query — will be refined in practice
+                        "[data-nid]"
+                    });
 
                     self.mount_js.push_str(&format!(
                         "setTimeout(function() {{\n\

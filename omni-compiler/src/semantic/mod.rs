@@ -1139,7 +1139,9 @@ impl SemanticAnalyzer {
     /// Validate all motion definitions and timeline triggers in a module.
     fn validate_motions_in_module(&mut self, module: &Module) {
         // Collect all module-level motion/timeline names for reference resolution
-        let module_motion_names: HashSet<&str> = module.motions.iter()
+        let module_motion_names: HashSet<&str> = module
+            .motions
+            .iter()
             .map(|m| m.name.as_str())
             .chain(module.timelines.iter().map(|t| t.name.as_str()))
             .collect();
@@ -1150,7 +1152,9 @@ impl SemanticAnalyzer {
         }
 
         // Validate module-level timeline definitions
-        let timeline_pairs: Vec<(&str, Vec<&str>)> = module.timelines.iter()
+        let timeline_pairs: Vec<(&str, Vec<&str>)> = module
+            .timelines
+            .iter()
             .map(|tl| (tl.name.as_str(), collect_timeline_refs(tl)))
             .collect();
         for timeline in &module.timelines {
@@ -1160,7 +1164,8 @@ impl SemanticAnalyzer {
 
         // Validate component-level motions and timelines
         for comp in &module.components {
-            let comp_motion_names: HashSet<&str> = module_motion_names.iter()
+            let comp_motion_names: HashSet<&str> = module_motion_names
+                .iter()
                 .copied()
                 .chain(comp.motions.iter().map(|m| m.name.as_str()))
                 .chain(comp.timelines.iter().map(|t| t.name.as_str()))
@@ -1170,7 +1175,9 @@ impl SemanticAnalyzer {
                 self.validate_motion_def(motion, &comp_motion_names);
             }
 
-            let comp_timeline_pairs: Vec<(&str, Vec<&str>)> = comp.timelines.iter()
+            let comp_timeline_pairs: Vec<(&str, Vec<&str>)> = comp
+                .timelines
+                .iter()
                 .map(|tl| (tl.name.as_str(), collect_timeline_refs(tl)))
                 .collect();
             for timeline in &comp.timelines {
@@ -1182,7 +1189,11 @@ impl SemanticAnalyzer {
             if let Some(ref view) = comp.view {
                 // Collect element ids for @timeline validation
                 let element_ids = collect_element_ids(&view.children);
-                self.validate_view_motion_triggers(&view.children, &comp_motion_names, &element_ids);
+                self.validate_view_motion_triggers(
+                    &view.children,
+                    &comp_motion_names,
+                    &element_ids,
+                );
             }
         }
     }
@@ -1192,8 +1203,14 @@ impl SemanticAnalyzer {
         match &motion.body {
             MotionBody::Keyframe(kf) => {
                 // Check: from must be paired with to
-                let has_from = kf.stops.iter().any(|s| matches!(s.position, StopPosition::From));
-                let has_to = kf.stops.iter().any(|s| matches!(s.position, StopPosition::To));
+                let has_from = kf
+                    .stops
+                    .iter()
+                    .any(|s| matches!(s.position, StopPosition::From));
+                let has_to = kf
+                    .stops
+                    .iter()
+                    .any(|s| matches!(s.position, StopPosition::To));
                 if has_from && !has_to {
                     self.diagnostics.push(Diagnostic::error(
                         "E0006",
@@ -1286,7 +1303,10 @@ impl SemanticAnalyzer {
                             if !all_motion_names.contains(ref_name.as_str()) {
                                 self.diagnostics.push(Diagnostic::error(
                                     "E0006",
-                                    &format!("@motion '{}': references undefined motion '{}'", motion.name, ref_name),
+                                    &format!(
+                                        "@motion '{}': references undefined motion '{}'",
+                                        motion.name, ref_name
+                                    ),
                                     &motion.span,
                                 ));
                             }
@@ -1294,7 +1314,10 @@ impl SemanticAnalyzer {
                             if ref_name == &motion.name {
                                 self.diagnostics.push(Diagnostic::error(
                                     "E0006",
-                                    &format!("@motion '{}': circular reference to itself", motion.name),
+                                    &format!(
+                                        "@motion '{}': circular reference to itself",
+                                        motion.name
+                                    ),
                                     &motion.span,
                                 ));
                             }
@@ -1304,7 +1327,10 @@ impl SemanticAnalyzer {
                                 if !all_motion_names.contains(ref_name.as_str()) {
                                     self.diagnostics.push(Diagnostic::error(
                                         "E0006",
-                                        &format!("@motion '{}': references undefined motion '{}'", motion.name, ref_name),
+                                        &format!(
+                                            "@motion '{}': references undefined motion '{}'",
+                                            motion.name, ref_name
+                                        ),
                                         &motion.span,
                                     ));
                                 }
@@ -1328,8 +1354,10 @@ impl SemanticAnalyzer {
                 // Check: $velocity only valid in gesture contexts
                 for spec in &cb.callbacks {
                     let expr = match spec {
-                        CallbackSpec::OnStart(e) | CallbackSpec::OnUpdate(e)
-                        | CallbackSpec::OnComplete(e) | CallbackSpec::OnRepeat(e)
+                        CallbackSpec::OnStart(e)
+                        | CallbackSpec::OnUpdate(e)
+                        | CallbackSpec::OnComplete(e)
+                        | CallbackSpec::OnRepeat(e)
                         | CallbackSpec::OnInterrupt(e) => e,
                     };
                     if contains_velocity_ref(expr) {
@@ -1367,10 +1395,16 @@ impl SemanticAnalyzer {
                 PlaybackProp::Direction(dv) => {
                     // Warning: direction: alternate + loop: 1
                     if let Some(lv) = playback.iter().find_map(|p| {
-                        if let PlaybackProp::Loop(lv) = p { Some(lv) } else { None }
+                        if let PlaybackProp::Loop(lv) = p {
+                            Some(lv)
+                        } else {
+                            None
+                        }
                     }) {
-                        if matches!(dv, DirectionValue::Alternate | DirectionValue::AlternateReverse)
-                            && matches!(lv, LoopValue::Count(1))
+                        if matches!(
+                            dv,
+                            DirectionValue::Alternate | DirectionValue::AlternateReverse
+                        ) && matches!(lv, LoopValue::Count(1))
                         {
                             self.diagnostics.push(Diagnostic::warning(
                                 "W0001",
@@ -1412,7 +1446,10 @@ impl SemanticAnalyzer {
         if has_fill_both && has_loop_infinite {
             self.diagnostics.push(Diagnostic::warning(
                 "W0001",
-                &format!("@motion '{}': fill 'both' has no meaning with loop 'infinite'", motion.name),
+                &format!(
+                    "@motion '{}': fill 'both' has no meaning with loop 'infinite'",
+                    motion.name
+                ),
                 &motion.span,
             ));
         }
@@ -1471,13 +1508,18 @@ impl SemanticAnalyzer {
                         if !all_motion_names.contains(name.as_str()) {
                             self.diagnostics.push(Diagnostic::error(
                                 "E0006",
-                                &format!("Undefined motion '{}' referenced in element trigger", name),
+                                &format!(
+                                    "Undefined motion '{}' referenced in element trigger",
+                                    name
+                                ),
                                 span,
                             ));
                         }
                     }
                 }
-                ElementProp::When(_) | ElementProp::DelayChildren(_) | ElementProp::StaggerChildren(_) => {
+                ElementProp::When(_)
+                | ElementProp::DelayChildren(_)
+                | ElementProp::StaggerChildren(_) => {
                     // These are only valid on @enter/@leave triggers
                     // Check: if there's no @enter or @leave trigger, warn
                     let has_enter_leave = el.props.iter().any(|p| {
@@ -1507,7 +1549,10 @@ impl SemanticAnalyzer {
         if motion_count > 10 {
             self.diagnostics.push(Diagnostic::warning(
                 "W0001",
-                &format!("Element has {} motion triggers — performance risk (>10 recommended max)", motion_count),
+                &format!(
+                    "Element has {} motion triggers — performance risk (>10 recommended max)",
+                    motion_count
+                ),
                 &el.span,
             ));
         }
@@ -1528,11 +1573,14 @@ impl SemanticAnalyzer {
 
     /// Validate states: block (§20.1).
     fn validate_states_block(&mut self, el: &Element, states: &[(String, StateDef)]) {
-        let has_reserved = states.iter().any(|(name, _)| {
-            matches!(name.as_str(), "idle" | "hover" | "pressed")
-        });
+        let has_reserved = states
+            .iter()
+            .any(|(name, _)| matches!(name.as_str(), "idle" | "hover" | "pressed"));
         let has_custom = !has_reserved;
-        let has_on_signal = el.props.iter().any(|p| matches!(p, ElementProp::AnimateSignal(_)));
+        let has_on_signal = el
+            .props
+            .iter()
+            .any(|p| matches!(p, ElementProp::AnimateSignal(_)));
 
         if has_reserved && has_custom && has_on_signal {
             self.diagnostics.push(Diagnostic::error(
@@ -1602,7 +1650,10 @@ impl SemanticAnalyzer {
                     if *prev_tag != tag && *prev_tag != "unknown" && tag != "unknown" {
                         self.diagnostics.push(Diagnostic::error(
                             "E0006",
-                            &format!("@motion '{}': type mismatch for property '{}' ({} vs {})", motion.name, prop, prev_tag, tag),
+                            &format!(
+                                "@motion '{}': type mismatch for property '{}' ({} vs {})",
+                                motion.name, prop, prev_tag, tag
+                            ),
                             &motion.span,
                         ));
                     }
@@ -1625,9 +1676,14 @@ impl SemanticAnalyzer {
                         for other_stop in &kf.stops {
                             for (other_prop, other_expr) in &other_stop.properties {
                                 if other_prop == prop {
-                                    if let Expr::Literal(Literal::String(other_val), _) = other_expr {
-                                        let other_shape = other_val.trim_start().split('(').next().unwrap_or("");
-                                        if shape != other_shape && !shape.is_empty() && !other_shape.is_empty() {
+                                    if let Expr::Literal(Literal::String(other_val), _) = other_expr
+                                    {
+                                        let other_shape =
+                                            other_val.trim_start().split('(').next().unwrap_or("");
+                                        if shape != other_shape
+                                            && !shape.is_empty()
+                                            && !other_shape.is_empty()
+                                        {
                                             self.diagnostics.push(Diagnostic::error(
                                                 "E0006",
                                                 &format!("@motion '{}': clipPath shape mismatch — '{}()' and '{}()' are different shape functions", motion.name, shape, other_shape),
@@ -1678,8 +1734,10 @@ impl SemanticAnalyzer {
                 if prop == "d" {
                     if let Expr::Literal(Literal::String(val), _) = expr {
                         if let Some(first) = first_path {
-                            let cmds1: Vec<char> = first.chars().filter(|c| c.is_alphabetic()).collect();
-                            let cmds2: Vec<char> = val.chars().filter(|c| c.is_alphabetic()).collect();
+                            let cmds1: Vec<char> =
+                                first.chars().filter(|c| c.is_alphabetic()).collect();
+                            let cmds2: Vec<char> =
+                                val.chars().filter(|c| c.is_alphabetic()).collect();
                             if cmds1 != cmds2 {
                                 self.diagnostics.push(Diagnostic::warning(
                                     "W0001",
@@ -1707,12 +1765,14 @@ impl SemanticAnalyzer {
     fn check_over_duration_warnings(&mut self, motion: &MotionDef) {
         let over_exprs: Vec<&Expr> = match &motion.body {
             MotionBody::Keyframe(kf) => vec![&kf.over],
-            MotionBody::Timeline(tl) => tl.items.iter().filter_map(|item| {
-                match &item.kind {
+            MotionBody::Timeline(tl) => tl
+                .items
+                .iter()
+                .filter_map(|item| match &item.kind {
                     TimelineItemKind::Direction(dir) => Some(&dir.over),
                     _ => None,
-                }
-            }).collect(),
+                })
+                .collect(),
             MotionBody::CallbackOnly(cb) => vec![&cb.over],
         };
 
@@ -1729,7 +1789,10 @@ impl SemanticAnalyzer {
                     if ms > 3_600_000.0 {
                         self.diagnostics.push(Diagnostic::warning(
                             "W0001",
-                            &format!("@motion '{}': over > 3600s ({}) — suspiciously long duration", motion.name, val),
+                            &format!(
+                                "@motion '{}': over > 3600s ({}) — suspiciously long duration",
+                                motion.name, val
+                            ),
                             &motion.span,
                         ));
                     }
@@ -1741,13 +1804,16 @@ impl SemanticAnalyzer {
     fn check_opacity_range_warnings(&mut self, motion: &MotionDef) {
         let props: Vec<&(String, Expr)> = match &motion.body {
             MotionBody::Keyframe(kf) => kf.stops.iter().flat_map(|s| &s.properties).collect(),
-            MotionBody::Timeline(tl) => tl.items.iter().filter_map(|item| {
-                match &item.kind {
+            MotionBody::Timeline(tl) => tl
+                .items
+                .iter()
+                .filter_map(|item| match &item.kind {
                     TimelineItemKind::Direction(dir) => Some(&dir.properties),
                     TimelineItemKind::SetBlock(props) => Some(props),
                     _ => None,
-                }
-            }).flat_map(|p| p.iter()).collect(),
+                })
+                .flat_map(|p| p.iter())
+                .collect(),
             _ => vec![],
         };
 
@@ -1758,14 +1824,20 @@ impl SemanticAnalyzer {
                         Literal::Float(f) if *f < 0.0 || *f > 1.0 => {
                             self.diagnostics.push(Diagnostic::warning(
                                 "W0001",
-                                &format!("@motion '{}': opacity value {} is outside [0, 1] range", motion.name, f),
+                                &format!(
+                                    "@motion '{}': opacity value {} is outside [0, 1] range",
+                                    motion.name, f
+                                ),
                                 &motion.span,
                             ));
                         }
                         Literal::Int(i) if *i < 0 || *i > 1 => {
                             self.diagnostics.push(Diagnostic::warning(
                                 "W0001",
-                                &format!("@motion '{}': opacity value {} is outside [0, 1] range", motion.name, i),
+                                &format!(
+                                    "@motion '{}': opacity value {} is outside [0, 1] range",
+                                    motion.name, i
+                                ),
                                 &motion.span,
                             ));
                         }
@@ -1786,7 +1858,10 @@ impl SemanticAnalyzer {
                     if !all_motion_names.contains(ref_name.as_str()) {
                         self.diagnostics.push(Diagnostic::error(
                             "E0006",
-                            &format!("@timeline '{}': references undefined motion '{}'", timeline.name, ref_name),
+                            &format!(
+                                "@timeline '{}': references undefined motion '{}'",
+                                timeline.name, ref_name
+                            ),
                             &timeline.span,
                         ));
                     }
@@ -1807,7 +1882,10 @@ impl SemanticAnalyzer {
                         if !all_motion_names.contains(ref_name.as_str()) {
                             self.diagnostics.push(Diagnostic::error(
                                 "E0006",
-                                &format!("@timeline '{}': references undefined motion '{}'", timeline.name, ref_name),
+                                &format!(
+                                    "@timeline '{}': references undefined motion '{}'",
+                                    timeline.name, ref_name
+                                ),
                                 &timeline.span,
                             ));
                         }
@@ -1820,7 +1898,8 @@ impl SemanticAnalyzer {
 
     /// Detect circular motion references in timeline definitions.
     fn detect_timeline_cycles(&mut self, refs: &[(&str, Vec<&str>)]) {
-        let graph: HashMap<&str, &[&str]> = refs.iter()
+        let graph: HashMap<&str, &[&str]> = refs
+            .iter()
             .map(|(name, deps)| (*name, deps.as_slice()))
             .collect();
 
@@ -1846,8 +1925,16 @@ impl SemanticAnalyzer {
                             reported.insert(start_name);
                             self.diagnostics.push(Diagnostic::error(
                                 "E0006",
-                                &format!("Timeline '{}' contains a circular motion reference", start_name),
-                                &Span { start: 0, end: 0, line: 0, col: 0 },
+                                &format!(
+                                    "Timeline '{}' contains a circular motion reference",
+                                    start_name
+                                ),
+                                &Span {
+                                    start: 0,
+                                    end: 0,
+                                    line: 0,
+                                    col: 0,
+                                },
                             ));
                             stack.clear();
                             break;
@@ -1887,7 +1974,11 @@ impl SemanticAnalyzer {
                         self.validate_view_motion_triggers(body, all_motion_names, element_ids);
                     }
                     if let Some(ref else_body) = if_dir.else_body {
-                        self.validate_view_motion_triggers(else_body, all_motion_names, element_ids);
+                        self.validate_view_motion_triggers(
+                            else_body,
+                            all_motion_names,
+                            element_ids,
+                        );
                     }
                 }
                 ViewNode::ForDirective(for_dir) => {
@@ -1901,9 +1992,17 @@ impl SemanticAnalyzer {
                             &for_dir.span,
                         ));
                     }
-                    self.validate_view_motion_triggers(&for_dir.body, all_motion_names, element_ids);
+                    self.validate_view_motion_triggers(
+                        &for_dir.body,
+                        all_motion_names,
+                        element_ids,
+                    );
                     if let Some(ref empty_body) = for_dir.empty_body {
-                        self.validate_view_motion_triggers(empty_body, all_motion_names, element_ids);
+                        self.validate_view_motion_triggers(
+                            empty_body,
+                            all_motion_names,
+                            element_ids,
+                        );
                     }
                 }
                 ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective(_) => {}
@@ -1956,20 +2055,40 @@ fn collect_element_ids(nodes: &[ViewNode]) -> HashSet<String> {
 fn is_valid_easing_name(name: &str) -> bool {
     matches!(
         name,
-        "linear" | "easeIn" | "easeOut" | "easeInOut"
-            | "power1In" | "power1Out" | "power1InOut"
-            | "power2In" | "power2Out" | "power2InOut"
-            | "power3In" | "power3Out" | "power3InOut"
-            | "power4In" | "power4Out" | "power4InOut"
-            | "backIn" | "backOut" | "backInOut"
-            | "bounceIn" | "bounceOut" | "bounceInOut"
-            | "elasticIn" | "elasticOut" | "elasticInOut"
+        "linear"
+            | "easeIn"
+            | "easeOut"
+            | "easeInOut"
+            | "power1In"
+            | "power1Out"
+            | "power1InOut"
+            | "power2In"
+            | "power2Out"
+            | "power2InOut"
+            | "power3In"
+            | "power3Out"
+            | "power3InOut"
+            | "power4In"
+            | "power4Out"
+            | "power4InOut"
+            | "backIn"
+            | "backOut"
+            | "backInOut"
+            | "bounceIn"
+            | "bounceOut"
+            | "bounceInOut"
+            | "elasticIn"
+            | "elasticOut"
+            | "elasticInOut"
     )
 }
 
 /// Check if a value name is a non-interpolatable CSS keyword.
 fn is_keyword_value(name: &str) -> bool {
-    matches!(name, "auto" | "none" | "normal" | "inherit" | "initial" | "unset" | "revert")
+    matches!(
+        name,
+        "auto" | "none" | "normal" | "inherit" | "initial" | "unset" | "revert"
+    )
 }
 
 /// Check if a view node tree contains any @enter or @leave animation triggers.
@@ -1989,18 +2108,28 @@ fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
                 }
             }
             ViewNode::IfDirective(if_dir) => {
-                if has_enter_leave_animation(&if_dir.body) { return true; }
+                if has_enter_leave_animation(&if_dir.body) {
+                    return true;
+                }
                 for (_, body) in &if_dir.else_ifs {
-                    if has_enter_leave_animation(body) { return true; }
+                    if has_enter_leave_animation(body) {
+                        return true;
+                    }
                 }
                 if let Some(ref else_body) = if_dir.else_body {
-                    if has_enter_leave_animation(else_body) { return true; }
+                    if has_enter_leave_animation(else_body) {
+                        return true;
+                    }
                 }
             }
             ViewNode::ForDirective(for_dir) => {
-                if has_enter_leave_animation(&for_dir.body) { return true; }
+                if has_enter_leave_animation(&for_dir.body) {
+                    return true;
+                }
                 if let Some(ref empty_body) = for_dir.empty_body {
-                    if has_enter_leave_animation(empty_body) { return true; }
+                    if has_enter_leave_animation(empty_body) {
+                        return true;
+                    }
                 }
             }
             _ => {}
@@ -2030,26 +2159,45 @@ fn contains_velocity_ref(expr: &Expr) -> bool {
             contains_velocity_ref(object) || contains_velocity_ref(index)
         }
         Expr::ArrayLiteral { elements, .. } => elements.iter().any(|e| contains_velocity_ref(e)),
-        Expr::MapLiteral { entries, .. } => {
-            entries.iter().any(|(k, v)| contains_velocity_ref(k) || contains_velocity_ref(v))
+        Expr::MapLiteral { entries, .. } => entries
+            .iter()
+            .any(|(k, v)| contains_velocity_ref(k) || contains_velocity_ref(v)),
+        Expr::IfExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
         }
-        Expr::IfExpr { condition, then_expr, else_expr, .. }
-        | Expr::TernaryExpr { condition, then_expr, else_expr, .. } => {
+        | Expr::TernaryExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             contains_velocity_ref(condition)
                 || contains_velocity_ref(then_expr)
                 || contains_velocity_ref(else_expr)
         }
         Expr::TemplateString { parts, .. } => parts.iter().any(|p| {
-            if let TemplatePart::Expr(e) = p { contains_velocity_ref(e) } else { false }
+            if let TemplatePart::Expr(e) = p {
+                contains_velocity_ref(e)
+            } else {
+                false
+            }
         }),
         Expr::ClosureExpr { body, .. } => contains_velocity_ref(body),
         Expr::AwaitExpr { operand, .. } => contains_velocity_ref(operand),
         Expr::MatchExpr { matched, arms, .. } => {
             contains_velocity_ref(matched)
-                || arms.iter().any(|arm| arm.body.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || arms
+                    .iter()
+                    .any(|arm| arm.body.stmts.iter().any(|s| contains_velocity_stmt(s)))
         }
-        Expr::Block { .. } | Expr::Literal(..) | Expr::NotYetImplemented { .. }
-        | Expr::StoreFieldAccess { .. } | Expr::StructLiteral { .. } => false,
+        Expr::Block { .. }
+        | Expr::Literal(..)
+        | Expr::NotYetImplemented { .. }
+        | Expr::StoreFieldAccess { .. }
+        | Expr::StructLiteral { .. } => false,
     }
 }
 
@@ -2059,13 +2207,25 @@ fn contains_velocity_stmt(stmt: &Stmt) -> bool {
         Stmt::Return { value, .. } => value.as_ref().map_or(false, |e| contains_velocity_ref(e)),
         Stmt::VarDecl { init, .. } => init.as_ref().map_or(false, |e| contains_velocity_ref(e)),
         Stmt::Assign { value, .. } => contains_velocity_ref(value),
-        Stmt::If { condition, then_body, else_ifs, else_body, .. } => {
+        Stmt::If {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
             contains_velocity_ref(condition)
                 || then_body.stmts.iter().any(|s| contains_velocity_stmt(s))
-                || else_ifs.iter().any(|(c, b)| contains_velocity_ref(c) || b.stmts.iter().any(|s| contains_velocity_stmt(s)))
-                || else_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || else_ifs.iter().any(|(c, b)| {
+                    contains_velocity_ref(c) || b.stmts.iter().any(|s| contains_velocity_stmt(s))
+                })
+                || else_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             contains_velocity_ref(condition) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
         }
         Stmt::ForIn { iterable, body, .. } => {
@@ -2074,10 +2234,19 @@ fn contains_velocity_stmt(stmt: &Stmt) -> bool {
         Stmt::Print { arg, .. } => contains_velocity_ref(arg),
         Stmt::EventEmit { args, .. } => args.iter().any(|a| contains_velocity_ref(a)),
         Stmt::Throw { expr, .. } => contains_velocity_ref(expr),
-        Stmt::TryCatch { try_body, catch_body, finally_body, .. } => {
+        Stmt::TryCatch {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
             try_body.stmts.iter().any(|s| contains_velocity_stmt(s))
-                || catch_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
-                || finally_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || catch_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || finally_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
         }
         Stmt::Break(_) | Stmt::Continue(_) => false,
     }
@@ -2130,31 +2299,46 @@ fn type_to_string(ty: &TypeAnnotation) -> String {
 fn is_non_interpolatable(prop: &str) -> bool {
     matches!(
         prop,
-        "display" | "position" | "overflow"
-            | "flex-direction" | "flexDirection"
-            | "grid-template" | "gridTemplate"
-            | "visibility" | "content" | "cursor"
-            | "pointer-events" | "pointerEvents"
-            | "user-select" | "userSelect"
-            | "font-family" | "fontFamily"
-            | "text-decoration" | "textDecoration"
-            | "white-space" | "whiteSpace"
+        "display"
+            | "position"
+            | "overflow"
+            | "flex-direction"
+            | "flexDirection"
+            | "grid-template"
+            | "gridTemplate"
+            | "visibility"
+            | "content"
+            | "cursor"
+            | "pointer-events"
+            | "pointerEvents"
+            | "user-select"
+            | "userSelect"
+            | "font-family"
+            | "fontFamily"
+            | "text-decoration"
+            | "textDecoration"
+            | "white-space"
+            | "whiteSpace"
     )
 }
 
 /// Collect all motion/timeline names referenced by a timeline definition.
 fn collect_timeline_refs(timeline: &TimelineDef) -> Vec<&str> {
-    timeline.items.iter().filter_map(|item| match &item.kind {
-        TimelineItemKind::MotionRef(name) => Some(name.as_str()),
-        TimelineItemKind::Stagger(stagger) => {
-            if let Expr::VarRef(name, _) = stagger.motion.as_ref() {
-                Some(name.as_str())
-            } else {
-                None
+    timeline
+        .items
+        .iter()
+        .filter_map(|item| match &item.kind {
+            TimelineItemKind::MotionRef(name) => Some(name.as_str()),
+            TimelineItemKind::Stagger(stagger) => {
+                if let Expr::VarRef(name, _) = stagger.motion.as_ref() {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
             }
-        }
-        _ => None,
-    }).collect()
+            _ => None,
+        })
+        .collect()
 }
 
 /// Extension trait to get span from TypeAnnotation.

@@ -1075,9 +1075,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -1113,9 +1113,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -1159,9 +1159,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp);
         let out = w.into_string();
@@ -1430,8 +1430,8 @@ mod tests {
                             view: None,
                             styles: vec![],
                             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
+                            if_mode_default: None,
+                            hero_defs: vec![],
                             timelines: vec![],
                         },
                     )]),

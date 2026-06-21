@@ -186,7 +186,12 @@ impl FlutterCodegen {
                     // @enter trigger: play animation on mount
                     if has_enter {
                         if is_spring {
-                            if let Some(EasingIR::Spring { tension, friction, velocity }) = &kf.ease {
+                            if let Some(EasingIR::Spring {
+                                tension,
+                                friction,
+                                velocity,
+                            }) = &kf.ease
+                            {
                                 let vel = velocity.unwrap_or(0.0);
                                 w.emit(&format!(
                                     "final _springDesc = SpringDescription(mass: 1.0, stiffness: {}, damping: {});",
@@ -286,6 +291,10 @@ impl FlutterCodegen {
             if has_trigger_kind_scroll(view) {
                 w.emit("");
                 emit_scroll_widget_class(&mut w);
+            }
+            if has_trigger_kind_drag(view) {
+                w.emit("");
+                emit_drag_widget_class(&mut w);
             }
         }
 
@@ -488,7 +497,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     // Wrap with motion animation widgets if the element has triggers
     let has_inview = el.in_view_once.is_some() || el.in_view_repeat.is_some();
     let has_scroll = el.scroll_start.is_some() || el.scroll_end.is_some();
-    if !el.motion_triggers.is_empty() || el.driven_by.is_some() || el.states.is_some() || has_inview || has_scroll {
+    if !el.motion_triggers.is_empty()
+        || el.driven_by.is_some()
+        || el.states.is_some()
+        || has_inview
+        || has_scroll
+    {
         let mut result = inner;
 
         // Handle @driven-by: wrap with signal-driven animation progress
@@ -517,8 +531,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
-            let once = if el.in_view_once.is_some() { "true" } else { "false" };
-            let motion_ref = el.motion_triggers.iter()
+            let once = if el.in_view_once.is_some() {
+                "true"
+            } else {
+                "false"
+            };
+            let motion_ref = el
+                .motion_triggers
+                .iter()
                 .find(|t| matches!(t.kind, TriggerKind::InView))
                 .and_then(|t| t.motion_ref.as_ref());
 
@@ -539,7 +559,9 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
-            let motion_ref = el.motion_triggers.iter()
+            let motion_ref = el
+                .motion_triggers
+                .iter()
                 .find(|t| matches!(t.kind, TriggerKind::Scroll))
                 .and_then(|t| t.motion_ref.as_ref());
 
@@ -549,6 +571,45 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
                     "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {}.value = p; }},\n  child: {},\n)",
                     scroll_start, scroll_end, scrub, ctrl_name, result
                 );
+            }
+        }
+
+        // Handle @drag-horizontal / @drag-vertical trigger: wrap with _OmniDragWidget
+        let has_drag = el.motion_triggers.iter().any(|t| {
+            matches!(
+                t.kind,
+                TriggerKind::DragHorizontal | TriggerKind::DragVertical
+            )
+        });
+        if has_drag {
+            for trigger in &el.motion_triggers {
+                match trigger.kind {
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
+                        if let Some(motion_name) = trigger.motion_ref.as_ref() {
+                            let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                            let axis_type = if is_horizontal {
+                                "Axis.horizontal"
+                            } else {
+                                "Axis.vertical"
+                            };
+                            let ctrl_name = format!("_{}Controller", motion_name);
+                            let constraints_str = el.drag_constraints.as_deref().unwrap_or("");
+                            let elastic_val = match &el.drag_elastic {
+                                Some(expr) => format_expr_ir_flutter(expr),
+                                None => "0.0".to_string(),
+                            };
+                            let threshold_val = match &el.drag_threshold {
+                                Some(expr) => format_expr_ir_flutter(expr),
+                                None => "0.0".to_string(),
+                            };
+                            result = format!(
+                                "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ }},\n  onDragProgress: (p) {{ {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse(); }} }},\n  child: {},\n)",
+                                axis_type, constraints_str, elastic_val, threshold_val, ctrl_name, ctrl_name, ctrl_name, result
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -1315,7 +1376,10 @@ fn build_animated_builder_body(motion: &MotionIntent, anim_name: &str) -> String
         }
 
         // Translate
-        if properties.iter().any(|p| p == "translateX" || p == "translateY") {
+        if properties
+            .iter()
+            .any(|p| p == "translateX" || p == "translateY")
+        {
             let x = if properties.iter().any(|p| p == "translateX") {
                 format!("{}.value", anim_name)
             } else {
@@ -1441,12 +1505,17 @@ fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &ElementIR) -> 
         if has_pressed {
             // Get the hover/pressed animation controllers
             if let Some(ref idle_def) = states_ir.states.get("idle") {
-                let over_ms = idle_def.over.as_ref()
+                let over_ms = idle_def
+                    .over
+                    .as_ref()
                     .and_then(|e| {
                         if let ExprIR::LiteralExpr { value } = e {
                             value.as_str().and_then(|s| parse_dart_duration_ms(s))
-                        } else { None }
-                    }).unwrap_or(150.0);
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(150.0);
                 result = format!(
                     "GestureDetector(\n  onTapDown: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onTapUp: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  onTapCancel: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
                     over_ms as u64, over_ms as u64, over_ms as u64, result
@@ -1455,12 +1524,17 @@ fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &ElementIR) -> 
         }
         if has_hover {
             if let Some(ref hover_def) = states_ir.states.get("hover") {
-                let over_ms = hover_def.over.as_ref()
+                let over_ms = hover_def
+                    .over
+                    .as_ref()
                     .and_then(|e| {
                         if let ExprIR::LiteralExpr { value } = e {
                             value.as_str().and_then(|s| parse_dart_duration_ms(s))
-                        } else { None }
-                    }).unwrap_or(150.0);
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(150.0);
                 result = format!(
                     "MouseRegion(\n  onEnter: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onExit: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
                     over_ms as u64, over_ms as u64, result
@@ -1543,7 +1617,11 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
 fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)) {
+            if el
+                .motion_triggers
+                .iter()
+                .any(|t| matches!(t.kind, TriggerKind::InView))
+            {
                 return true;
             }
             el.children.iter().any(|c| has_trigger_kind_in_view(c))
@@ -1556,7 +1634,9 @@ fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
                     }
                 }
             }
-            cond.fallback.as_ref().map_or(false, |fb| has_trigger_kind_in_view(fb))
+            cond.fallback
+                .as_ref()
+                .map_or(false, |fb| has_trigger_kind_in_view(fb))
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -1564,7 +1644,9 @@ fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
                     return true;
                 }
             }
-            list.empty_body.as_ref().map_or(false, |e| has_trigger_kind_in_view(e))
+            list.empty_body
+                .as_ref()
+                .map_or(false, |e| has_trigger_kind_in_view(e))
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
@@ -1574,7 +1656,11 @@ fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
 fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)) {
+            if el
+                .motion_triggers
+                .iter()
+                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+            {
                 return true;
             }
             el.children.iter().any(|c| has_trigger_kind_scroll(c))
@@ -1587,7 +1673,9 @@ fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
                     }
                 }
             }
-            cond.fallback.as_ref().map_or(false, |fb| has_trigger_kind_scroll(fb))
+            cond.fallback
+                .as_ref()
+                .map_or(false, |fb| has_trigger_kind_scroll(fb))
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -1595,7 +1683,9 @@ fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
                     return true;
                 }
             }
-            list.empty_body.as_ref().map_or(false, |e| has_trigger_kind_scroll(e))
+            list.empty_body
+                .as_ref()
+                .map_or(false, |e| has_trigger_kind_scroll(e))
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
@@ -1835,6 +1925,172 @@ fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("");
     w.emit("@override");
     w.emit("Widget build(BuildContext context) => widget.child;");
+    w.dedent();
+    w.emit("}");
+}
+
+/// Check if the view tree contains any element with a @drag-horizontal or @drag-vertical trigger.
+fn has_trigger_kind_drag(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if el.motion_triggers.iter().any(|t| {
+                matches!(
+                    t.kind,
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                )
+            }) {
+                return true;
+            }
+            el.children.iter().any(|c| has_trigger_kind_drag(c))
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    if has_trigger_kind_drag(body) {
+                        return true;
+                    }
+                }
+            }
+            cond.fallback
+                .as_ref()
+                .map_or(false, |fb| has_trigger_kind_drag(fb))
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                if has_trigger_kind_drag(body) {
+                    return true;
+                }
+            }
+            list.empty_body
+                .as_ref()
+                .map_or(false, |e| has_trigger_kind_drag(e))
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+    }
+}
+
+/// Emit the _OmniDragWidget class for @drag-horizontal / @drag-vertical support.
+fn emit_drag_widget_class(w: &mut CodeWriter) {
+    w.emit("// ── Drag gesture wrapper widget (@drag-horizontal / @drag-vertical support) ──");
+    w.emit("");
+    w.emit("class _OmniDragWidget extends StatefulWidget {");
+    w.indent();
+    w.emit("final Widget child;");
+    w.emit("final Axis axis;");
+    w.emit("final String constraints;");
+    w.emit("final double elastic;");
+    w.emit("final double threshold;");
+    w.emit("final VoidCallback onDragStart;");
+    w.emit("final ValueChanged<double> onDragProgress;");
+    w.emit("final ValueChanged<bool> onDragEnd;");
+    w.emit("");
+    w.emit("const _OmniDragWidget({");
+    w.indent();
+    w.emit("required this.child,");
+    w.emit("required this.axis,");
+    w.emit("this.constraints = '',");
+    w.emit("this.elastic = 0.0,");
+    w.emit("this.threshold = 0.0,");
+    w.emit("required this.onDragStart,");
+    w.emit("required this.onDragProgress,");
+    w.emit("required this.onDragEnd,");
+    w.dedent();
+    w.emit("});");
+    w.emit("");
+    w.emit("@override");
+    w.emit("State<_OmniDragWidget> createState() => _OmniDragWidgetState();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("class _OmniDragWidgetState extends State<_OmniDragWidget> {");
+    w.indent();
+    w.emit("double _startPos = 0;");
+    w.emit("double _currentDelta = 0;");
+    w.emit("double _dragExtent = 300.0; // default max drag distance");
+    w.emit("");
+    w.emit("double _computeProgress(double delta) {");
+    w.indent();
+    w.emit("// Parse constraints string: \"left:0 right:300\" or \"top:0 bottom:500\"");
+    w.emit("double minVal = double.negativeInfinity;");
+    w.emit("double maxVal = double.infinity;");
+    w.emit("if (widget.constraints.isNotEmpty) {");
+    w.indent();
+    w.emit("final parts = widget.constraints.split(' ');");
+    w.emit("for (final part in parts) {");
+    w.indent();
+    w.emit("final kv = part.split(':');");
+    w.emit("if (kv.length != 2) continue;");
+    w.emit("final key = kv[0];");
+    w.emit("final val = double.tryParse(kv[1]) ?? 0;");
+    w.emit("if (key == 'left' || key == 'top') minVal = val;");
+    w.emit("if (key == 'right' || key == 'bottom') maxVal = val;");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("final maxExtent = (maxVal - minVal).abs().clamp(1.0, double.infinity);");
+    w.emit("double constrained = delta;");
+    w.emit("if (delta < minVal) {");
+    w.indent();
+    w.emit("final overshoot = minVal - delta;");
+    w.emit("constrained = minVal - overshoot * (1.0 - widget.elastic);");
+    w.dedent();
+    w.emit("} else if (delta > maxVal) {");
+    w.indent();
+    w.emit("final overshoot = delta - maxVal;");
+    w.emit("constrained = maxVal + overshoot * (1.0 - widget.elastic);");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("return (constrained / maxExtent).clamp(0.0, 1.0);");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _onDragStart(DragStartDetails details) {");
+    w.indent();
+    w.emit("_startPos = widget.axis == Axis.horizontal");
+    w.emit("    ? details.localPosition.dx");
+    w.emit("    : details.localPosition.dy;");
+    w.emit("_currentDelta = 0;");
+    w.emit("widget.onDragStart();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _onDragUpdate(DragUpdateDetails details) {");
+    w.indent();
+    w.emit("_currentDelta += widget.axis == Axis.horizontal");
+    w.emit("    ? details.delta.dx");
+    w.emit("    : details.delta.dy;");
+    w.emit("final progress = _computeProgress(_currentDelta);");
+    w.emit("widget.onDragProgress(progress);");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _onDragEnd(DragEndDetails details) {");
+    w.indent();
+    w.emit("final progress = _computeProgress(_currentDelta);");
+    w.emit("final completed = progress >= widget.threshold;");
+    w.emit("widget.onDragEnd(completed);");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("Widget build(BuildContext context) {");
+    w.indent();
+    w.emit("return GestureDetector(");
+    w.indent();
+    w.emit("onHorizontalDragStart: widget.axis == Axis.horizontal ? _onDragStart : null,");
+    w.emit("onHorizontalDragUpdate: widget.axis == Axis.horizontal ? _onDragUpdate : null,");
+    w.emit("onHorizontalDragEnd: widget.axis == Axis.horizontal ? _onDragEnd : null,");
+    w.emit("onVerticalDragStart: widget.axis == Axis.vertical ? _onDragStart : null,");
+    w.emit("onVerticalDragUpdate: widget.axis == Axis.vertical ? _onDragUpdate : null,");
+    w.emit("onVerticalDragEnd: widget.axis == Axis.vertical ? _onDragEnd : null,");
+    w.emit("child: widget.child,");
+    w.dedent();
+    w.emit(");");
+    w.dedent();
+    w.emit("}");
     w.dedent();
     w.emit("}");
 }
@@ -2839,9 +3095,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -2952,9 +3208,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-                if_mode_default: None,
-                hero_defs: vec![],
-                timelines: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
