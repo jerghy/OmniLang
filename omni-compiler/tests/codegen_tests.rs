@@ -1,10 +1,13 @@
 //! OmniView codegen tests.
 
+use omni_compiler::codegen::flutter::FlutterCodegen;
 use omni_compiler::codegen::omniview;
+use omni_compiler::codegen::Codegen;
 use omni_compiler::ir;
 use omni_compiler::lexer;
 use omni_compiler::parser;
 use omni_compiler::semantic;
+use std::collections::HashMap;
 
 /// Helper: compile .omni source to IR, then generate OmniView output.
 fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
@@ -468,5 +471,78 @@ component Demo {
     assert!(
         output.js.contains("new AnimationPlayer"),
         "JS should create AnimationPlayer"
+    );
+}
+
+// ══════════════════════════════════════════════════════
+// Flutter codegen — Motion Animations
+// ══════════════════════════════════════════════════════
+
+/// Helper: compile .omni source to IR, then generate Flutter Dart output.
+fn compile_to_dart(source: &str) -> String {
+    let tokens = lexer::tokenize(source);
+    let program = parser::parse(&tokens, source).expect("parse failed");
+    let semantics = semantic::analyze(&program);
+    let ir_program = ir::lower(&program, &semantics);
+    let codegen = FlutterCodegen;
+    let output = codegen.generate(&ir_program, &HashMap::new());
+    // Concatenate all generated Dart file contents
+    output
+        .files
+        .iter()
+        .map(|f| f.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn test_flutter_codegen_motion_fade() {
+    let source = r#"
+        component Demo {
+            @motion fadeIn { to { opacity: 1 } over 300 ease easeOut }
+            view { <div @enter={fadeIn}>Hello</div> }
+        }
+    "#;
+    let output = compile_to_dart(source);
+    assert!(
+        output.contains("AnimationController"),
+        "Dart output should contain AnimationController. Got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("Tween"),
+        "Dart output should contain Tween. Got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("Duration(milliseconds: 300)"),
+        "Dart output should contain Duration(milliseconds: 300). Got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("Curves.easeOut"),
+        "Dart output should contain Curves.easeOut. Got:\n{}",
+        output
+    );
+}
+
+#[test]
+fn test_flutter_codegen_spring() {
+    let source = r#"
+        component Demo {
+            @motion bounce { to { scale: 1 } over 500 ease spring(tension:200, friction:15) }
+            view { <div @enter={bounce}>Hello</div> }
+        }
+    "#;
+    let output = compile_to_dart(source);
+    assert!(
+        output.contains("SpringSimulation") || output.contains("spring"),
+        "Dart output should contain SpringSimulation or spring for spring easing. Got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("physics.dart"),
+        "Dart output should import physics.dart for spring easing. Got:\n{}",
+        output
     );
 }
