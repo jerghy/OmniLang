@@ -423,3 +423,50 @@ fn test_stdlib_storage_generates_localstorage() {
         output.js
     );
 }
+
+#[test]
+fn test_codegen_motion_runtime_embedded() {
+    // Verify the motion animation runtime is embedded in the compiled output.
+    let src = "component App { view { <div>Hello</div> } }";
+    let output = compile_omniview(src);
+    assert!(
+        output.js.contains("AnimationPlayer"),
+        "Motion runtime should embed AnimationPlayer class. JS snippet:\n{}",
+        &output.js[..output.js.len().min(500)]
+    );
+    assert!(
+        output.js.contains("__omni_createAnimation"),
+        "Motion runtime should expose __omni_createAnimation"
+    );
+}
+
+#[test]
+fn test_codegen_motion_in_component() {
+    // Test that @motion definitions inside a component produce JS motion functions
+    // and that @enter triggers produce animation setup code.
+    let src = r#"
+component Demo {
+    @motion fadeIn {
+        from { opacity: 0 }
+        to { opacity: 1 }
+        over 300
+        ease easeOut
+    }
+    view {
+        <div @enter={fadeIn}>Hello</div>
+    }
+}
+"#;
+    let output = compile_omniview(src);
+    // The motion function should be emitted
+    assert!(
+        output.js.contains("__omni_motion_fadeIn"),
+        "JS should contain __omni_motion_fadeIn function. JS:\n{}",
+        output.js
+    );
+    // The AnimationPlayer class should be present (from the runtime)
+    assert!(
+        output.js.contains("new AnimationPlayer"),
+        "JS should create AnimationPlayer"
+    );
+}

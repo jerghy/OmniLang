@@ -54,6 +54,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
 
     gen.emit_js_header();
     gen.emit_signal_runtime();
+    gen.emit_animation_runtime();
 
     // Emit all stores as global JS variables (signals, getters, actions)
     for (store_name, store) in ir.all_stores() {
@@ -259,6 +260,14 @@ function __omni_bindText(nid) {
         );
     }
 
+    /// Embed the OmniView animation runtime JS.
+    fn emit_animation_runtime(&mut self) {
+        self.js.push_str("/// ─── OmniView Motion Runtime ───\n");
+        self.js
+            .push_str(include_str!("../../../build/omni-motion-runtime.js"));
+        self.js.push('\n');
+    }
+
     // ══════════════════════════════════════════════════════
     // Store Emission
     // ══════════════════════════════════════════════════════
@@ -462,6 +471,29 @@ function __omni_bindText(nid) {
             self.emit_function_named(f, &prefixed_name);
         }
 
+        // Motion definitions — emit JS functions that create AnimationPlayer instances.
+        // Each @motion block generates a const __omni_motion_{name} function.
+        if !comp.motions.is_empty() {
+            self.js.push_str(&format!(
+                "\n/// ── Motion Definitions: {} ──\n\n",
+                name
+            ));
+            for motion in &comp.motions {
+                self.emit_motion_js(motion);
+            }
+        }
+
+        // Timeline definitions — emit JS that orchestrates animations by element ID.
+        if !comp.timelines.is_empty() {
+            self.js.push_str(&format!(
+                "\n/// ── Timeline Definitions: {} ──\n\n",
+                name
+            ));
+            for timeline in &comp.timelines {
+                self.emit_timeline_js(timeline);
+            }
+        }
+
         // View → HTML + reactive bindings (only root component emits its view;
         // child component views are inlined during root's view generation)
         if is_root {
@@ -589,7 +621,11 @@ function __omni_bindText(nid) {
 
     fn emit_function_named(&mut self, f: &FunctionIR, name: &str) {
         // Sanitize parameter names to avoid JS reserved words (e.g. `default` → `default_`)
-        let params: Vec<String> = f.params.iter().map(|p| super::sanitize_js_ident(&p.name)).collect();
+        let params: Vec<String> = f
+            .params
+            .iter()
+            .map(|p| super::sanitize_js_ident(&p.name))
+            .collect();
         // Register renamed params so body references also use the sanitized name
         for (i, p) in f.params.iter().enumerate() {
             let sanitized = &params[i];
@@ -634,7 +670,8 @@ function __omni_bindText(nid) {
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
                     .unwrap_or_else(|| "undefined".into());
-                self.js.push_str(&format!("  let {} = {};\n", safe_name, val));
+                self.js
+                    .push_str(&format!("  let {} = {};\n", safe_name, val));
             }
             StatementIR::ReturnStmtIR { value } => {
                 let val = value
@@ -656,7 +693,8 @@ function __omni_bindText(nid) {
                 }
                 for (elif_cond, elif_body) in else_ifs {
                     let elif_js = self.expr_to_js(elif_cond);
-                    self.js.push_str(&format!("  }} else if ({}) {{\n", elif_js));
+                    self.js
+                        .push_str(&format!("  }} else if ({}) {{\n", elif_js));
                     for s in &elif_body.statements {
                         self.emit_statement(s);
                     }
@@ -952,7 +990,9 @@ function __omni_bindText(nid) {
                     let js_expr = self.expr_to_js(expr);
                     format!(
                         "{}<span data-nid=\"{}\" data-bind-text=\"{}\"></span>\n",
-                        pad, nid, escape_html(&js_expr)
+                        pad,
+                        nid,
+                        escape_html(&js_expr)
                     )
                 } else {
                     // Emit placeholder span + deferred _effect() binding
@@ -1169,9 +1209,8 @@ function __omni_bindText(nid) {
         self.js.push_str(
             "          // eval() runs in the enclosing IIFE scope — all signals are accessible\n",
         );
-        self.js.push_str(
-            "          el.textContent = String(eval(expr));\n",
-        );
+        self.js
+            .push_str("          el.textContent = String(eval(expr));\n");
         self.js
             .push_str("        } catch(e) { el.textContent = ''; }\n");
         self.js.push_str("      }\n");
@@ -1208,22 +1247,30 @@ function __omni_bindText(nid) {
         // Attach delegated event listeners on the container for @for item events.
         // Elements inside the template have data-event-* attributes (e.g.
         // data-event-click="fn:handlerName") that we read via event bubbling.
-        self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
-        self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
+        self.js
+            .push_str("  if (!ctr.dataset.forEventsAttached) {\n");
+        self.js
+            .push_str("    ctr.dataset.forEventsAttached = 'true';\n");
         self.js.push_str("    const _forHandle = (e) => {\n");
-        self.js.push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
+        self.js
+            .push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
         self.js.push_str("      if (!t) return;\n");
-        self.js.push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
+        self.js
+            .push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
         self.js.push_str("      if (!attr) return;\n");
-        self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
+        self.js
+            .push_str("      if (e.type === 'submit') e.preventDefault();\n");
         self.js.push_str("      if (attr.startsWith('fn:')) {\n");
         self.js
             .push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
-        self.js.push_str("        if (typeof fn === 'function') fn(e.detail);\n");
-        self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
+        self.js
+            .push_str("        if (typeof fn === 'function') fn(e.detail);\n");
+        self.js
+            .push_str("      } else if (attr.startsWith('store:')) {\n");
         self.js
             .push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
-        self.js.push_str("        if (typeof fn === 'function') fn();\n");
+        self.js
+            .push_str("        if (typeof fn === 'function') fn();\n");
         self.js.push_str("      }\n");
         self.js.push_str("    };\n");
         self.js
@@ -1234,8 +1281,10 @@ function __omni_bindText(nid) {
             .push_str("    ctr.addEventListener('input', _forHandle);\n");
         self.js
             .push_str("    ctr.addEventListener('change', _forHandle);\n");
-        self.js.push_str("    ctr.addEventListener('focus', _forHandle);\n");
-        self.js.push_str("    ctr.addEventListener('blur', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('focus', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('blur', _forHandle);\n");
         self.js
             .push_str("    ctr.addEventListener('keydown', _forHandle);\n");
         self.js.push_str("  }\n");
@@ -1356,7 +1405,11 @@ function __omni_bindText(nid) {
                     // Emit event bindings for the component element
                     for (event_name, handler) in &el.events {
                         let js_event = map_event(event_name);
-                        let pd = if js_event == "submit" { " e.preventDefault();" } else { "" };
+                        let pd = if js_event == "submit" {
+                            " e.preventDefault();"
+                        } else {
+                            ""
+                        };
                         match handler.kind.as_str() {
                             "fn_ref" => {
                                 if let Some(ref fn_name) = handler.r#ref {
@@ -1422,20 +1475,29 @@ function __omni_bindText(nid) {
                 | "required" | "readonly" | "href" | "src" | "alt" | "title" | "name" | "rows"
                 | "cols" | "max" | "min" | "step" | "autocomplete" | "autofocus" | "multiple"
                 | "pattern" | "selected" | "for" | "action" | "method" | "enctype" | "accept"
-                | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset" | "sizes"
-                | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
-                | "loop" | "muted" | "poster" | "preload" | "tabindex" | "role"
-                | "content" | "charset" | "http-equiv" | "property" | "itemprop"
-                | "crossorigin" | "integrity" | "referrerpolicy" | "loading" | "decoding"
-                | "async" | "defer" | "nonce" | "download" | "draggable" | "spellcheck"
-                | "contenteditable" | "translate" | "autocapitalize" | "capture" => {
+                | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset"
+                | "sizes" | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
+                | "loop" | "muted" | "poster" | "preload" | "tabindex" | "role" | "content"
+                | "charset" | "http-equiv" | "property" | "itemprop" | "crossorigin"
+                | "integrity" | "referrerpolicy" | "loading" | "decoding" | "async" | "defer"
+                | "nonce" | "download" | "draggable" | "spellcheck" | "contenteditable"
+                | "translate" | "autocapitalize" | "capture" => {
                     let val_str = self.expr_to_static_str(value);
                     // Known boolean attributes with value "true" — emit bare attribute name
                     let is_boolean_attr = matches!(
                         name.as_str(),
-                        "disabled" | "checked" | "required" | "readonly" | "selected"
-                        | "autofocus" | "multiple" | "controls" | "loop" | "muted"
-                        | "async" | "defer"
+                        "disabled"
+                            | "checked"
+                            | "required"
+                            | "readonly"
+                            | "selected"
+                            | "autofocus"
+                            | "multiple"
+                            | "controls"
+                            | "loop"
+                            | "muted"
+                            | "async"
+                            | "defer"
                     );
                     // Dynamic attributes (identifier references): emit reactive binding
                     if val_str.starts_with('{') && val_str.ends_with('}') {
@@ -1465,7 +1527,9 @@ function __omni_bindText(nid) {
                     // Emit as data attribute for unknown props,
                     // but preserve aria-* and data-* attributes as-is.
                     let val_str = self.expr_to_static_str(value);
-                    if val_str.is_empty() { continue; }
+                    if val_str.is_empty() {
+                        continue;
+                    }
                     if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
                         attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
@@ -1605,13 +1669,10 @@ function __omni_bindText(nid) {
                         }
                     }
                     "inline_fn" => {
-                        let wrapper_name =
-                            format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                        let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = handler.params.join(", ");
-                        self.js.push_str(&format!(
-                            "function {}({}) {{\n",
-                            wrapper_name, params_str
-                        ));
+                        self.js
+                            .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
                         if let Some(ref body) = handler.body {
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
@@ -1622,39 +1683,29 @@ function __omni_bindText(nid) {
                     }
                     _ => continue,
                 };
-                attrs.push_str(&format!(
-                    " data-event-{}=\"{}\"",
-                    js_event, val
-                ));
+                attrs.push_str(&format!(" data-event-{}=\"{}\"", js_event, val));
                 // Register handler in the global lookup so the delegated
                 // listener can find it (functions are IIFE-local, not on
                 // window).
                 let handler_name = match handler.kind.as_str() {
-                    "fn_ref" => {
-                        handler.r#ref.as_ref().map(|n| {
-                            format!("{}_{}", self.current_component, n)
-                        })
-                    }
-                    "store_action" => {
-                        handler.r#ref.as_ref().map(|p| p.replace('.', "_"))
-                    }
-                    "inline_fn" => {
-                        Some(format!(
-                            "__on{}_{}",
-                            event_name,
-                            nid.replace('-', "_")
-                        ))
-                    }
+                    "fn_ref" => handler
+                        .r#ref
+                        .as_ref()
+                        .map(|n| format!("{}_{}", self.current_component, n)),
+                    "store_action" => handler.r#ref.as_ref().map(|p| p.replace('.', "_")),
+                    "inline_fn" => Some(format!("__on{}_{}", event_name, nid.replace('-', "_"))),
                     _ => None,
                 };
                 if let Some(ref hname) = handler_name {
-                    self.js.push_str(&format!(
-                        "__omni_forHandlers[\"{}\"] = {};\n",
-                        hname, hname
-                    ));
+                    self.js
+                        .push_str(&format!("__omni_forHandlers[\"{}\"] = {};\n", hname, hname));
                 }
             } else {
-                let pd = if js_event == "submit" { " e.preventDefault();" } else { "" };
+                let pd = if js_event == "submit" {
+                    " e.preventDefault();"
+                } else {
+                    ""
+                };
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
@@ -1675,13 +1726,10 @@ function __omni_bindText(nid) {
                         }
                     }
                     "inline_fn" => {
-                        let wrapper_name =
-                            format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                        let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = handler.params.join(", ");
-                        self.js.push_str(&format!(
-                            "function {}({}) {{\n",
-                            wrapper_name, params_str
-                        ));
+                        self.js
+                            .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
                         if let Some(ref body) = handler.body {
                             for stmt in &body.statements {
                                 self.emit_statement(stmt);
@@ -1711,8 +1759,7 @@ function __omni_bindText(nid) {
                 // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
                 self.guard_counter += 1;
                 let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
-                self.js
-                    .push_str(&format!("let {} = false;\n", guard_name));
+                self.js.push_str(&format!("let {} = false;\n", guard_name));
                 let (event_name, dom_prop) = if prop_name == "checked" {
                     ("change", "checked")
                 } else {
@@ -1802,6 +1849,11 @@ function __omni_bindText(nid) {
             }
         }
 
+        // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
+        if !el.motion_triggers.is_empty() {
+            self.emit_motion_triggers_for_element(&nid, &el.motion_triggers);
+        }
+
         // Record source map entry
         self.source_map.push(SourceMapEntry {
             node_id: nid.clone(),
@@ -1820,6 +1872,651 @@ function __omni_bindText(nid) {
         });
 
         out
+    }
+
+    // ══════════════════════════════════════════════════════
+    // Motion / Animation Codegen
+    // ══════════════════════════════════════════════════════
+
+    /// Emit a JS function that creates an AnimationPlayer for a named @motion block.
+    fn emit_motion_js(&mut self, motion: &MotionIntent) {
+        let config = self.motion_body_to_config(&motion.body);
+        self.js.push_str(&format!(
+            "const __omni_motion_{name} = function(el, overrides) {{\n\
+             \x20  return new AnimationPlayer(el, Object.assign({{{config}}}, overrides || {{}}));\n\
+             }};\n",
+            name = motion.name,
+            config = config
+        ));
+    }
+
+    /// Convert a MotionBodyIR to a JS config object string for AnimationPlayer.
+    fn motion_body_to_config(&self, body: &MotionBodyIR) -> String {
+        match body {
+            MotionBodyIR::Keyframe(kf) => self.keyframe_to_config(kf),
+            MotionBodyIR::Timeline(tl) => self.timeline_body_to_config(tl),
+            MotionBodyIR::CallbackOnly(cb) => self.callback_to_config(cb),
+        }
+    }
+
+    /// Convert a KeyframeIR to a JS config object fragment.
+    fn keyframe_to_config(&self, kf: &KeyframeIR) -> String {
+        let mut parts: Vec<String> = Vec::new();
+
+        // Extract from (position 0.0) and to (position 1.0) stops
+        let from_stop = kf.stops.iter().find(|s| (s.position - 0.0).abs() < f64::EPSILON);
+        let to_stop = kf.stops.iter().find(|s| (s.position - 1.0).abs() < f64::EPSILON);
+
+        if let Some(from) = from_stop {
+            let props: Vec<String> = from
+                .properties
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
+                .collect();
+            if !props.is_empty() {
+                parts.push(format!("\"from\": {{{}}}", props.join(", ")));
+            }
+        }
+
+        if let Some(to) = to_stop {
+            let props: Vec<String> = to
+                .properties
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
+                .collect();
+            if !props.is_empty() {
+                parts.push(format!("\"to\": {{{}}}", props.join(", ")));
+            }
+        }
+
+        // `over` duration (in milliseconds)
+        match &kf.over {
+            ExprIR::LiteralExpr { value } => {
+                if let Some(n) = value.as_f64() {
+                    parts.push(format!("\"over\": {}", n));
+                }
+            }
+            _ => {
+                let js = self.expr_to_js(&kf.over);
+                parts.push(format!("\"over\": {}", js));
+            }
+        }
+
+        // Easing
+        if let Some(ref ease) = kf.ease {
+            parts.push(format!("\"easing\": {}", self.easing_to_js(ease)));
+        }
+
+        // Playback config properties
+        let playback_parts = self.playback_to_config(&kf.playback);
+        parts.extend(playback_parts);
+
+        parts.join(", ")
+    }
+
+    /// Convert a TimelineIR body to a JS config fragment.
+    fn timeline_body_to_config(&self, tl: &TimelineIR) -> String {
+        // For inline timeline in a motion definition, we serialize as a
+        // keyframe-like structure. The timeline orchestration is handled
+        // at the element trigger level via emit_timeline_js.
+        let mut parts: Vec<String> = Vec::new();
+        parts.push("\"type\": \"timeline\"".into());
+        if !tl.items.is_empty() {
+            parts.push(format!("\"itemCount\": {}", tl.items.len()));
+        }
+        let playback_parts = self.playback_to_config(&tl.playback);
+        parts.extend(playback_parts);
+        parts.join(", ")
+    }
+
+    /// Convert a CallbackBodyIR to a JS config fragment.
+    fn callback_to_config(&self, cb: &CallbackBodyIR) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        // `over` duration
+        match &cb.over {
+            ExprIR::LiteralExpr { value } => {
+                if let Some(n) = value.as_f64() {
+                    parts.push(format!("\"over\": {}", n));
+                }
+            }
+            _ => {
+                let js = self.expr_to_js(&cb.over);
+                parts.push(format!("\"over\": {}", js));
+            }
+        }
+        // Callback functions
+        if !cb.callbacks.is_empty() {
+            let callbacks: Vec<String> = cb
+                .callbacks
+                .iter()
+                .map(|(kind, expr)| {
+                    let name = match kind {
+                        CallbackKindIR::OnStart => "onStart",
+                        CallbackKindIR::OnUpdate => "onUpdate",
+                        CallbackKindIR::OnComplete => "onComplete",
+                        CallbackKindIR::OnRepeat => "onRepeat",
+                        CallbackKindIR::OnInterrupt => "onInterrupt",
+                    };
+                    // Callback body is an expression that becomes a function body
+                    let body_js = self.expr_to_js(expr);
+                    format!(
+                        "\"{}\": function() {{ {} }}",
+                        name,
+                        body_js
+                    )
+                })
+                .collect();
+            parts.push(format!(
+                "\"callbacks\": {{{}}}",
+                callbacks.join(", ")
+            ));
+        }
+        let playback_parts = self.playback_to_config(&cb.playback);
+        parts.extend(playback_parts);
+        parts.join(", ")
+    }
+
+    /// Convert an EasingIR to a JS string or expression.
+    fn easing_to_js(&self, easing: &EasingIR) -> String {
+        match easing {
+            EasingIR::Named(name) => format!("\"{}\"", name),
+            EasingIR::CubicBezier { x1, y1, x2, y2 } => {
+                format!("\"cubic-bezier({},{},{},{})\"", x1, y1, x2, y2)
+            }
+            EasingIR::Spring {
+                tension,
+                friction,
+                velocity,
+            } => {
+                format!(
+                    "new SpringSolver({}, {}, 1, {})",
+                    tension,
+                    friction,
+                    velocity.unwrap_or(0.0)
+                )
+            }
+            EasingIR::Back {
+                intensity: _,
+                direction,
+            } => {
+                let dir = direction.as_deref().unwrap_or("out");
+                let name = match dir {
+                    "in" => "backIn",
+                    "out" => "backOut",
+                    "inOut" => "backInOut",
+                    _ => "backOut",
+                };
+                format!("\"{}\"", name)
+            }
+            EasingIR::Elastic {
+                amplitude: _,
+                period: _,
+                direction,
+            } => {
+                let dir = direction.as_deref().unwrap_or("out");
+                let name = match dir {
+                    "in" => "elasticIn",
+                    "out" => "elasticOut",
+                    "inOut" => "elasticInOut",
+                    _ => "elasticOut",
+                };
+                format!("\"{}\"", name)
+            }
+            EasingIR::Steps { count, direction } => {
+                format!("\"steps({},{})\"", count, direction)
+            }
+        }
+    }
+
+    /// Convert PlaybackIR to a list of JS config property strings.
+    fn playback_to_config(&self, playback: &PlaybackIR) -> Vec<String> {
+        let mut parts = Vec::new();
+        if let Some(ref loop_count) = playback.loop_count {
+            match loop_count {
+                LoopValue::Infinite => parts.push("\"iterations\": Infinity".into()),
+                LoopValue::Count(n) => parts.push(format!("\"iterations\": {}", n)),
+            }
+        }
+        if let Some(ref direction) = playback.direction {
+            let dir_str = match direction {
+                DirectionValue::Normal => "normal",
+                DirectionValue::Reverse => "reverse",
+                DirectionValue::Alternate => "alternate",
+                DirectionValue::AlternateReverse => "alternate-reverse",
+            };
+            parts.push(format!("\"direction\": \"{}\"", dir_str));
+        }
+        if let Some(ref fill) = playback.fill {
+            let fill_str = match fill {
+                FillValue::None => "none",
+                FillValue::Forwards => "forwards",
+                FillValue::Backwards => "backwards",
+                FillValue::Both => "both",
+            };
+            parts.push(format!("\"fill\": \"{}\"", fill_str));
+        }
+        if let Some(ref delay) = playback.delay {
+            match delay {
+                ExprIR::LiteralExpr { value } => {
+                    if let Some(n) = value.as_f64() {
+                        parts.push(format!("\"delay\": {}", n));
+                    }
+                }
+                _ => {
+                    let js = self.expr_to_js(delay);
+                    parts.push(format!("\"delay\": {}", js));
+                }
+            }
+        }
+        if playback.paused {
+            parts.push("\"paused\": true".into());
+        }
+        if playback.respect_reduced_motion {
+            parts.push("\"respectReducedMotion\": true".into());
+        }
+        parts
+    }
+
+    /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
+    /// Runs in the deferred/mount JS context where DOM elements exist.
+    fn emit_motion_triggers_for_element(
+        &mut self,
+        nid: &str,
+        triggers: &[TriggerIntent],
+    ) {
+        for trigger in triggers {
+            let trigger_str = match trigger.kind {
+                TriggerKind::Enter => "enter",
+                TriggerKind::Leave => "leave",
+                TriggerKind::Hover => "hover",
+                TriggerKind::Unhover => "unhover",
+                TriggerKind::Press => "press",
+                TriggerKind::Focus => "focus",
+                TriggerKind::Animate => "animate",
+                TriggerKind::InView => "inView",
+                TriggerKind::Scroll => "scroll",
+                TriggerKind::DragHorizontal => "dragHorizontal",
+                TriggerKind::DragVertical => "dragVertical",
+                TriggerKind::Timeline => "timeline",
+            };
+
+            // If there's an inline motion definition, emit it as a player config
+            // If there's a motion_ref, reference the named motion function
+            let config_override = if let Some(ref inline) = trigger.inline_motion {
+                self.motion_body_to_config(inline)
+            } else {
+                String::new()
+            };
+
+            if let Some(ref motion_name) = trigger.motion_ref {
+                match trigger.kind {
+                    TriggerKind::Enter => {
+                        // @enter: create animation and play immediately (in mount JS)
+                        self.mount_js.push_str(&format!(
+                            "// @enter trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 player.play();\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                    TriggerKind::Hover => {
+                        // @hover: play on mouseenter, reverse on mouseleave
+                        self.js.push_str(&format!(
+                            "// @hover trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                    TriggerKind::Press => {
+                        // @press: play on mousedown, reverse on mouseup
+                        self.js.push_str(&format!(
+                            "// @press trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                    TriggerKind::Focus => {
+                        // @focus: play on focus, reverse on blur
+                        self.js.push_str(&format!(
+                            "// @focus trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 el.addEventListener(\"focus\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"blur\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                    TriggerKind::Leave => {
+                        // @leave: register cleanup on unmount
+                        self.mount_js.push_str(&format!(
+                            "// @leave trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 __omni_createAnimation(\"{nid}\", config);\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str
+                        ));
+                    }
+                    _ => {
+                        // Other triggers: create animation, don't auto-play
+                        self.js.push_str(&format!(
+                            "// @{trigger} trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                }
+            } else if !config_override.is_empty() {
+                // Inline motion definition — full config embedded
+                match trigger.kind {
+                    TriggerKind::Enter => {
+                        self.mount_js.push_str(&format!(
+                            "// @enter (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
+                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 player.play();\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            config = config_override
+                        ));
+                    }
+                    TriggerKind::Hover => {
+                        self.js.push_str(&format!(
+                            "// @hover (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
+                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.play(); }});\n\
+                             \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_getAnimation(\"{nid}\", \"{trigger}\")?.reverse(); }});\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            config = config_override
+                        ));
+                    }
+                    _ => {
+                        self.js.push_str(&format!(
+                            "// @{trigger} (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
+                             \x20\x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            config = config_override
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Emit a timeline definition JS (orchestrates animations by element ID).
+    fn emit_timeline_js(&mut self, timeline: &TimelineIntent) {
+        // Timeline items use element IDs to reference elements across the component tree.
+        // Each item schedules an animation with setTimeout at the computed delay offset.
+        // This is emitted as part of the deferred JS to ensure DOM is ready.
+        self.mount_js.push_str(&format!(
+            "/// ── @timeline {} ──\n",
+            timeline.name
+        ));
+
+        let mut cursor_delay = 0.0;
+
+        for (i, item) in timeline.items.iter().enumerate() {
+            let item_label = format!("tl_{}_item_{}", timeline.name, i);
+
+            match &item.kind {
+                TimelineItemKindIR::Direction {
+                    dir,
+                    properties,
+                    over,
+                    ease,
+                    delay,
+                    color_space: _,
+                    start,
+                } => {
+                    // Build direction properties (from/to/fromTo)
+                    let (from_props, to_props) = match dir {
+                        DirectionIR::To => {
+                            let to: Vec<String> = properties
+                                .iter()
+                                .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
+                                .collect();
+                            (String::new(), to.join(", "))
+                        }
+                        DirectionIR::FromTo => {
+                            // Expect an even number of entries: alternating from/to
+                            let mut from: Vec<String> = Vec::new();
+                            let mut to: Vec<String> = Vec::new();
+                            let mut is_to = false;
+                            for (k, v) in properties.iter() {
+                                if is_to {
+                                    to.push(format!("\"{}\": {}", k, self.expr_to_js(v)));
+                                } else {
+                                    from.push(format!("\"{}\": {}", k, self.expr_to_js(v)));
+                                }
+                                is_to = !is_to;
+                            }
+                            (from.join(", "), to.join(", "))
+                        }
+                    };
+
+                    // Override cursor_delay if this item has explicit delay
+                    let item_delay = delay
+                        .as_ref()
+                        .and_then(|d| {
+                            if let ExprIR::LiteralExpr { value } = d {
+                                value.as_f64()
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or(cursor_delay);
+
+                    // Over duration
+                    let over_ms = if let ExprIR::LiteralExpr { value } = over {
+                        value.as_f64().unwrap_or(300.0)
+                    } else {
+                        300.0
+                    };
+
+                    // Reference element by ID attribute
+                    let element_ref = start
+                        .as_deref()
+                        .unwrap_or_else(|| {
+                            // Use generic element query — will be refined in practice
+                            "[data-nid]"
+                        });
+
+                    self.mount_js.push_str(&format!(
+                        "setTimeout(function() {{\n\
+                         \x20 const el = document.querySelector(\"{sel}\");\n\
+                         \x20 if (el) {{\n\
+                         \x20\x20 const config = {{\n\
+                         \x20\x20\x20 {from}\n\
+                         \x20\x20\x20 {to}\n\
+                         \x20\x20\x20 \"over\": {over},\n\
+                         \x20\x20\x20 \"easing\": {easing}\n\
+                         \x20\x20 }};\n\
+                         \x20\x20 const player = new AnimationPlayer(el, config);\n\
+                         \x20\x20 __omni_animations.set(\"{label}\", player);\n\
+                         \x20\x20 player.play();\n\
+                         \x20 }}\n\
+                         }}, {delay});\n",
+                        sel = element_ref,
+                        from = if from_props.is_empty() {
+                            String::new()
+                        } else {
+                            format!("\"from\": {{{}}},\n", from_props)
+                        },
+                        to = if to_props.is_empty() {
+                            String::new()
+                        } else {
+                            format!("\"to\": {{{}}},\n", to_props)
+                        },
+                        over = over_ms,
+                        easing = ease
+                            .as_ref()
+                            .map(|e| self.easing_to_js(e))
+                            .unwrap_or_else(|| "\"easeOut\"".into()),
+                        delay = item_delay,
+                        label = item_label
+                    ));
+
+                    // Advance cursor by over + delay for next chained item
+                    cursor_delay = item_delay + over_ms;
+                }
+                TimelineItemKindIR::Set(props) => {
+                    // Set: immediate property change, no animation
+                    let props_str: Vec<String> = props
+                        .iter()
+                        .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
+                        .collect();
+                    self.mount_js.push_str(&format!(
+                        "setTimeout(function() {{\n\
+                         \x20 document.querySelector(\"[data-nid]\").style.cssText = Object.entries({{{props}}}).map(([k,v]) => k + ':' + v).join(';');\n\
+                         }}, {delay});\n",
+                        props = props_str.join(", "),
+                        delay = cursor_delay
+                    ));
+                }
+                TimelineItemKindIR::MotionRef(motion_name) => {
+                    // Reference a named @motion on a set of elements
+                    self.mount_js.push_str(&format!(
+                        "setTimeout(function() {{\n\
+                         \x20 document.querySelectorAll(\"[data-nid]\").forEach(function(el) {{\n\
+                         \x20\x20 const player = __omni_motion_{motion}(el, {{}});\n\
+                         \x20\x20 __omni_animations.set(el.getAttribute('data-nid') + '_{motion}', player);\n\
+                         \x20\x20 player.play();\n\
+                         \x20 }});\n\
+                         }}, {delay});\n",
+                        motion = motion_name,
+                        delay = cursor_delay
+                    ));
+                }
+                TimelineItemKindIR::Stagger(motion_expr, timing, _direction) => {
+                    let motion_name = match &**motion_expr {
+                        // &** dereferences &Box<MotionExprIR> → &MotionExprIR
+                        MotionExprIR::Ref(name) => name.clone(),
+                        MotionExprIR::Inline(_) => String::new(),
+                    };
+                    let stagger_delay = if let ExprIR::LiteralExpr { value } = &timing.each {
+                        value.as_f64().unwrap_or(50.0)
+                    } else {
+                        50.0
+                    };
+                    if !motion_name.is_empty() {
+                        self.mount_js.push_str(&format!(
+                            "setTimeout(function() {{\n\
+                             \x20 document.querySelectorAll(\"[data-nid]\").forEach(function(el, idx) {{\n\
+                             \x20\x20 setTimeout(function() {{\n\
+                             \x20\x20\x20 const player = __omni_motion_{motion}(el, {{}});\n\
+                             \x20\x20\x20 __omni_animations.set(el.getAttribute('data-nid') + '_{motion}', player);\n\
+                             \x20\x20\x20 player.play();\n\
+                             \x20\x20 }}, idx * {stagger});\n\
+                             \x20 }});\n\
+                             }}, {delay});\n",
+                            motion = motion_name,
+                            stagger = stagger_delay,
+                            delay = cursor_delay
+                        ));
+                    }
+                }
+                TimelineItemKindIR::Label(_name, _expr) => {
+                    // Label: sets a cursor position marker
+                    if let Some(ref expr) = _expr {
+                        if let ExprIR::LiteralExpr { value } = expr {
+                            if let Some(n) = value.as_f64() {
+                                cursor_delay = n;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update cursor based on connector type
+            match &item.connector {
+                ConnectorIR::None => {
+                    // Reset cursor — items are independent
+                    cursor_delay = 0.0;
+                }
+                ConnectorIR::Then => {
+                    // Sequential: cursor accumulates
+                    // Already accumulated above
+                }
+                ConnectorIR::With => {
+                    // Parallel: don't accumulate over; cursor stays at current
+                    // (already handled — item_delay is computed independently)
+                }
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════
@@ -2003,10 +2700,14 @@ function __omni_bindText(nid) {
                         // IIFE: push to array and return the array (not the length)
                         format!(
                             "((_a) => {{ _a.push({}); return _a.slice(); }})({} || [])",
-                            vals.join(", "), obj
+                            vals.join(", "),
+                            obj
                         )
                     }
-                    "pop" => format!("((_a) => {{ _a.pop(); return _a.slice(); }})({} || [])", obj),
+                    "pop" => format!(
+                        "((_a) => {{ _a.pop(); return _a.slice(); }})({} || [])",
+                        obj
+                    ),
                     _ => format!(
                         "{}.{}({})",
                         obj,
@@ -2029,7 +2730,9 @@ function __omni_bindText(nid) {
                     .collect();
                 format!("{{{}}}", entries.join(", "))
             }
-            ExprIR::VariantLiteral { variant, fields, .. } => {
+            ExprIR::VariantLiteral {
+                variant, fields, ..
+            } => {
                 let mut entries: Vec<String> = fields
                     .iter()
                     .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
@@ -2114,11 +2817,10 @@ function __omni_bindText(nid) {
         if let Some(last) = block.statements.last() {
             match last {
                 StatementIR::ExprStmtIR { expr } => self.expr_to_js(expr),
-                StatementIR::ReturnStmtIR { value } => {
-                    value.as_ref()
-                        .map(|e| self.expr_to_js(e))
-                        .unwrap_or_else(|| "undefined".into())
-                }
+                StatementIR::ReturnStmtIR { value } => value
+                    .as_ref()
+                    .map(|e| self.expr_to_js(e))
+                    .unwrap_or_else(|| "undefined".into()),
                 _ => "undefined".into(),
             }
         } else {

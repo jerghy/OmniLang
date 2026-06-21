@@ -51,7 +51,7 @@ impl ReactCodegen {
         w.emit("");
 
         // Imports
-        w.emit("import React, { useState, useEffect, useMemo } from 'react';");
+        w.emit("import React, { useState, useEffect, useMemo, useRef } from 'react';");
         w.emit(&format!("import styles from './{}.module.css';", name));
         w.emit("");
 
@@ -170,6 +170,12 @@ impl ReactCodegen {
             w.emit(&format!("}}, [{}]);", deps.join(", ")));
         }
 
+        // Motion animation effects — emit hooks for @enter/@hover/@press/@focus triggers
+        if let Some(ref view) = comp.view {
+            let mut ref_counter = 0u32;
+            emit_motion_effects_tsx(&mut w, view, &mut ref_counter, name);
+        }
+
         w.emit("");
 
         // Render return (JSX view tree)
@@ -272,6 +278,53 @@ impl ReactCodegen {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Motion / Animation Helpers (React)
+// ═══════════════════════════════════════════════════════════
+
+/// Emit React hooks for @enter motion triggers found in the view tree.
+/// Scans recursively for @enter triggers and emits a single `useEffect`
+/// that animates all @enter elements using `data-motion-enter` attribute.
+fn emit_motion_effects_tsx(w: &mut CodeWriter, node: &ViewTree, _ref_counter: &mut u32, _comp_name: &str) {
+    // First pass: check if any @enter triggers exist in the tree
+    if !has_enter_trigger(node) {
+        return;
+    }
+
+    // Emit a single useEffect that animates all elements with data-motion-enter
+    w.emit("useEffect(() => {");
+    w.indent();
+    w.emit("const els = document.querySelectorAll('[data-motion-enter]');");
+    w.emit("els.forEach(el => {");
+    w.indent();
+    w.emit("el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out', fill: 'both' });");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("}, []);");
+}
+
+/// Recursively check if a view tree contains any @enter motion triggers.
+fn has_enter_trigger(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if el.motion_triggers.iter().any(|t| matches!(t.kind, TriggerKind::Enter)) {
+                return true;
+            }
+            el.children.iter().any(|c| has_enter_trigger(c))
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches.iter().any(|b| b.body.as_ref().map_or(false, |body| has_enter_trigger(body)))
+                || cond.fallback.as_ref().map_or(false, |fb| has_enter_trigger(fb))
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().map_or(false, |body| has_enter_trigger(body))
+                || list.empty_body.as_ref().map_or(false, |empty| has_enter_trigger(empty))
+        }
+        _ => false,
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
 
@@ -301,6 +354,28 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
             for (bind_name, signal_ref) in &el.bindings {
                 let jsx_attr = to_jsx_attr(bind_name);
                 attrs.push(format!("{}={{{}}}", jsx_attr, signal_ref.name));
+            }
+
+            // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
+            for trigger in &el.motion_triggers {
+                match trigger.kind {
+                    TriggerKind::Enter => {
+                        attrs.push("data-motion-enter=\"true\"".into());
+                    }
+                    TriggerKind::Hover => {
+                        attrs.push("onMouseEnter={(e) => { e.currentTarget.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' }); }}".into());
+                        attrs.push("onMouseLeave={(e) => { e.currentTarget.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out' }); }}".into());
+                    }
+                    TriggerKind::Press => {
+                        attrs.push("onMouseDown={(e) => { e.currentTarget.animate([{ scale: 1 }, { scale: 0.95 }], { duration: 150, easing: 'ease-out', fill: 'both' }); }}".into());
+                        attrs.push("onMouseUp={(e) => { e.currentTarget.animate([{ scale: 0.95 }, { scale: 1 }], { duration: 150, easing: 'ease-out', fill: 'both' }); }}".into());
+                    }
+                    TriggerKind::Focus => {
+                        attrs.push("onFocus={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 0 rgba(59,130,246,0)' }, { boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
+                        attrs.push("onBlur={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }, { boxShadow: '0 0 0 0 rgba(59,130,246,0)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
+                    }
+                    _ => {}
+                }
             }
 
             // Events
@@ -668,9 +743,10 @@ fn format_block_as_tsx_expr(block: &BlockIR) -> String {
     if let Some(last) = block.statements.last() {
         match last {
             StatementIR::ExprStmtIR { expr } => format_expr_ir_tsx(expr),
-            StatementIR::ReturnStmtIR { value } => {
-                value.as_ref().map(|e| format_expr_ir_tsx(e)).unwrap_or_else(|| "undefined".into())
-            }
+            StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(|e| format_expr_ir_tsx(e))
+                .unwrap_or_else(|| "undefined".into()),
             _ => "undefined".into(),
         }
     } else {
@@ -744,7 +820,9 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
                 .collect();
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::VariantLiteral { variant, fields, .. } => {
+        ExprIR::VariantLiteral {
+            variant, fields, ..
+        } => {
             let mut entries: Vec<String> = fields
                 .iter()
                 .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir_tsx(v)))
@@ -762,7 +840,10 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_tsx(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { statements: _, tail } => {
+        ExprIR::BlockExpr {
+            statements: _,
+            tail,
+        } => {
             // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_ir_tsx(tail)
         }
@@ -774,23 +855,26 @@ fn format_expr_ir_tsx(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir_tsx(operand))
         }
-                ExprIR::MatchExpr { matched, arms } => {
+        ExprIR::MatchExpr { matched, arms } => {
             let m = format_expr_ir_tsx(matched);
-            let cases: Vec<String> = arms.iter().map(|arm| {
-                let body = format_block_as_tsx_expr(&arm.body);
-                match &arm.pattern.kind {
-                    MatchPatternKindIR::Variant { name, .. } => {
-                        format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body)
+            let cases: Vec<String> = arms
+                .iter()
+                .map(|arm| {
+                    let body = format_block_as_tsx_expr(&arm.body);
+                    match &arm.pattern.kind {
+                        MatchPatternKindIR::Variant { name, .. } => {
+                            format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body)
+                        }
+                        MatchPatternKindIR::Wildcard => {
+                            format!("return {};", body)
+                        }
+                        MatchPatternKindIR::Literal { value } => {
+                            let v = format_json_value_tsx(value);
+                            format!("if (_v._variant === {}) {{ return {}; }}", v, body)
+                        }
                     }
-                    MatchPatternKindIR::Wildcard => {
-                        format!("return {};", body)
-                    }
-                    MatchPatternKindIR::Literal { value } => {
-                        let v = format_json_value_tsx(value);
-                        format!("if (_v._variant === {}) {{ return {}; }}", v, body)
-                    }
-                }
-            }).collect();
+                })
+                .collect();
             format!("(() => {{ const _v = {}; {} }})()", m, cases.join(" "))
         }
         ExprIR::ClosureExpr { params, body } => {
@@ -1208,6 +1292,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         let css = codegen.gen_component_css("App", &comp);
         assert!(css.contains(".container"));
@@ -1250,6 +1336,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![style],
+            motions: vec![],
+            timelines: vec![],
         };
         let css = codegen.gen_component_css("App", &comp);
         assert!(css.contains(".header"));
@@ -1297,6 +1385,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1310,7 +1400,7 @@ mod tests {
         let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
         assert!(tsx.contains("export function App() {"));
         assert!(tsx.contains("import styles from './App.module.css';"));
-        assert!(tsx.contains("import React, { useState, useEffect, useMemo } from 'react';"));
+        assert!(tsx.contains("import React, { useState, useEffect, useMemo, useRef } from 'react';"));
     }
 
     #[test]
@@ -1351,6 +1441,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1408,6 +1500,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1458,6 +1552,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1501,6 +1597,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1634,8 +1732,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1676,6 +1774,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1689,8 +1789,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1745,8 +1845,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1793,6 +1893,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1806,8 +1908,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
