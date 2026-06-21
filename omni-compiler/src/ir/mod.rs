@@ -120,16 +120,11 @@ pub struct MatchPatternIR {
 #[serde(tag = "type")]
 pub enum MatchPatternKindIR {
     #[serde(rename = "variant")]
-    Variant {
-        name: String,
-        bindings: Vec<String>,
-    },
+    Variant { name: String, bindings: Vec<String> },
     #[serde(rename = "wildcard")]
     Wildcard,
     #[serde(rename = "literal")]
-    Literal {
-        value: serde_json::Value,
-    },
+    Literal { value: serde_json::Value },
 }
 
 // ═══════════════════════════════════════════════════════
@@ -558,10 +553,17 @@ pub enum TimelineItemKindIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DirectionIR { To, FromTo }
+pub enum DirectionIR {
+    To,
+    FromTo,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConnectorIR { None, Then, With }
+pub enum ConnectorIR {
+    None,
+    Then,
+    With,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallbackBodyIR {
@@ -571,9 +573,15 @@ pub struct CallbackBodyIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CallbackKindIR { OnStart, OnUpdate, OnComplete, OnRepeat, OnInterrupt }
+pub enum CallbackKindIR {
+    OnStart,
+    OnUpdate,
+    OnComplete,
+    OnRepeat,
+    OnInterrupt,
+}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlaybackIR {
     pub loop_count: Option<LoopValue>,
     pub direction: Option<DirectionValue>,
@@ -594,11 +602,30 @@ pub struct PlaybackIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EasingIR {
     Named(String),
-    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
-    Spring { tension: f64, friction: f64, velocity: Option<f64> },
-    Back { intensity: f64, direction: Option<String> },
-    Elastic { amplitude: f64, period: f64, direction: Option<String> },
-    Steps { count: u32, direction: String },
+    CubicBezier {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    },
+    Spring {
+        tension: f64,
+        friction: f64,
+        velocity: Option<f64>,
+    },
+    Back {
+        intensity: f64,
+        direction: Option<String>,
+    },
+    Elastic {
+        amplitude: f64,
+        period: f64,
+        direction: Option<String>,
+    },
+    Steps {
+        count: u32,
+        direction: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -610,9 +637,17 @@ pub struct TriggerIntent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TriggerKind {
-    Enter, Leave, Hover, Unhover, Press, Focus,
-    Animate, InView, Scroll,
-    DragHorizontal, DragVertical,
+    Enter,
+    Leave,
+    Hover,
+    Unhover,
+    Press,
+    Focus,
+    Animate,
+    InView,
+    Scroll,
+    DragHorizontal,
+    DragVertical,
     Timeline,
 }
 
@@ -911,7 +946,11 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
     let prop_defaults: HashMap<String, ExprIR> = comp
         .props
         .iter()
-        .filter_map(|p| p.default.as_ref().map(|d| (p.name.clone(), lower_expr(d, variant_map))))
+        .filter_map(|p| {
+            p.default
+                .as_ref()
+                .map(|d| (p.name.clone(), lower_expr(d, variant_map)))
+        })
         .collect();
 
     // Collect input-binding signal names for <input> element auto-binding.
@@ -1002,6 +1041,18 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         })
         .collect();
 
+    let motions: Vec<MotionIntent> = comp
+        .motions
+        .iter()
+        .map(|m| lower_motion_def(m, variant_map))
+        .collect();
+
+    let timelines: Vec<TimelineIntent> = comp
+        .timelines
+        .iter()
+        .map(|t| lower_timeline_def(t, variant_map))
+        .collect();
+
     ComponentIR {
         name: comp.name.clone(),
         generic_params: vec![],
@@ -1017,8 +1068,8 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
         view,
         styles,
-        motions: vec![],
-        timelines: vec![],
+        motions,
+        timelines,
     }
 }
 
@@ -1104,7 +1155,11 @@ fn expr_to_json_value(expr: &Expr) -> serde_json::Value {
     }
 }
 
-fn lower_view_block(view: &ViewBlock, string_signals: &[String], variant_map: &HashMap<String, String>) -> ViewTree {
+fn lower_view_block(
+    view: &ViewBlock,
+    string_signals: &[String],
+    variant_map: &HashMap<String, String>,
+) -> ViewTree {
     if let Some(first) = view.children.first() {
         let sig_idx = Cell::new(0usize);
         lower_view_node(first, string_signals, Some(&sig_idx), variant_map)
@@ -1127,6 +1182,15 @@ fn lower_view_node(
             let mut inline_style: Option<serde_json::Value> = None;
             let mut has_value_binding = false;
             let mut class_map_bindings_from_prop: HashMap<String, ExprIR> = HashMap::new();
+            let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
+            let mut states_map: Option<HashMap<String, StateTweenIR>> = None;
+            let mut animate_signal: Option<ExprIR> = None;
+            let mut paused_override: Option<bool> = None;
+            let mut hover_reverse: Option<String> = None;
+            let mut driven_by: Option<ExprIR> = None;
+            let mut in_view_once: Option<ExprIR> = None;
+            let mut in_view_repeat: Option<ExprIR> = None;
+            let mut in_view_threshold: Option<ExprIR> = None;
 
             for prop in &el.props {
                 match prop {
@@ -1193,7 +1257,8 @@ fn lower_view_node(
                                     }
                                     // Collect dynamic bindings (non-literal values) for reactive JS toggling
                                     if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
-                                        class_map_bindings.insert(key.clone(), lower_expr(val_expr, variant_map));
+                                        class_map_bindings
+                                            .insert(key.clone(), lower_expr(val_expr, variant_map));
                                     }
                                 }
                                 static_classes.join(" ")
@@ -1239,16 +1304,85 @@ fn lower_view_node(
                             },
                         );
                     }
-                    // Motion/animation props — handled in later phases
-                    ElementProp::MotionTrigger(_)
-                    | ElementProp::StatesMap(_)
-                    | ElementProp::AnimateSignal(_)
-                    | ElementProp::PausedOverride(_)
-                    | ElementProp::HoverReverse(_)
-                    | ElementProp::DrivenBy(_)
-                    | ElementProp::InViewOnce(_)
-                    | ElementProp::InViewRepeat(_)
-                    | ElementProp::InViewThreshold(_) => {}
+                    // Motion animation triggers: on:hover={fadeIn}, etc.
+                    ElementProp::MotionTrigger(mt) => {
+                        let motion_ref = match &mt.motion_expr {
+                            Expr::VarRef(name, _) => Some(name.clone()),
+                            _ => None,
+                        };
+                        motion_triggers.push(TriggerIntent {
+                            kind: match &mt.trigger {
+                                crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
+                                crate::parser::ast::TriggerKind::Leave => TriggerKind::Leave,
+                                crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
+                                crate::parser::ast::TriggerKind::Unhover => TriggerKind::Unhover,
+                                crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
+                                crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
+                                crate::parser::ast::TriggerKind::Animate => TriggerKind::Animate,
+                                crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
+                                crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
+                                crate::parser::ast::TriggerKind::DragHorizontal => {
+                                    TriggerKind::DragHorizontal
+                                }
+                                crate::parser::ast::TriggerKind::DragVertical => {
+                                    TriggerKind::DragVertical
+                                }
+                                crate::parser::ast::TriggerKind::Timeline => TriggerKind::Timeline,
+                            },
+                            motion_ref,
+                            inline_motion: None,
+                        });
+                    }
+                    // States map: states: { visible: { ... }, hidden: { ... } }
+                    ElementProp::StatesMap(states) => {
+                        let mut states_hm: HashMap<String, StateTweenIR> = HashMap::new();
+                        for (name, state_def) in states {
+                            let properties: HashMap<String, ExprIR> = state_def
+                                .properties
+                                .iter()
+                                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                                .collect();
+                            let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map));
+                            let ease = state_def.ease.as_ref().map(|e| lower_easing(e));
+                            states_hm.insert(
+                                name.clone(),
+                                StateTweenIR {
+                                    properties,
+                                    over,
+                                    ease,
+                                },
+                            );
+                        }
+                        states_map = Some(states_hm);
+                    }
+                    // Animate signal: @state={signal}
+                    ElementProp::AnimateSignal(expr) => {
+                        animate_signal = Some(lower_expr(expr, variant_map));
+                    }
+                    // Paused override: @paused={true}
+                    ElementProp::PausedOverride(b) => {
+                        paused_override = Some(*b);
+                    }
+                    // Hover reverse animation name
+                    ElementProp::HoverReverse(s) => {
+                        hover_reverse = Some(s.clone());
+                    }
+                    // Driven-by expression for external progress control
+                    ElementProp::DrivenBy(expr) => {
+                        driven_by = Some(lower_expr(expr, variant_map));
+                    }
+                    // InView trigger: once
+                    ElementProp::InViewOnce(expr) => {
+                        in_view_once = Some(lower_expr(expr, variant_map));
+                    }
+                    // InView trigger: repeat
+                    ElementProp::InViewRepeat(expr) => {
+                        in_view_repeat = Some(lower_expr(expr, variant_map));
+                    }
+                    // InView trigger: threshold
+                    ElementProp::InViewThreshold(expr) => {
+                        in_view_threshold = Some(lower_expr(expr, variant_map));
+                    }
                 }
             }
 
@@ -1288,14 +1422,17 @@ fn lower_view_node(
                 class_map_bindings: class_map_bindings_from_prop,
                 source_line: el.span.line,
                 source_col: el.span.col,
-                motion_triggers: vec![],
-                states: None,
-                paused_override: None,
-                driven_by: None,
-                hover_reverse: None,
-                in_view_once: None,
-                in_view_repeat: None,
-                in_view_threshold: None,
+                motion_triggers,
+                states: states_map.map(|s| StatesIR {
+                    states: s,
+                    signal: animate_signal,
+                }),
+                paused_override,
+                driven_by,
+                hover_reverse,
+                in_view_once,
+                in_view_repeat,
+                in_view_threshold,
             })
         }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
@@ -1396,7 +1533,11 @@ fn lower_view_node(
                 })
             });
 
-            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback, transition_mode: None }))
+            ViewTree::Conditional(Box::new(ConditionalIntent {
+                branches,
+                fallback,
+                transition_mode: if_dir.transition_mode.clone(),
+            }))
         }
         ViewNode::ForDirective(for_dir) => {
             let lower_body = |nodes: &[ViewNode]| -> Option<ViewTree> {
@@ -1489,7 +1630,10 @@ fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> StatementIR
             else_ifs: else_ifs
                 .iter()
                 .map(|(cond, body)| {
-                    (lower_expr(cond, variant_map), lower_block(body, variant_map))
+                    (
+                        lower_expr(cond, variant_map),
+                        lower_block(body, variant_map),
+                    )
                 })
                 .collect(),
             else_body: else_body.as_ref().map(|b| lower_block(b, variant_map)),
@@ -1558,7 +1702,10 @@ fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> StatementIR
 
 /// Try to lower an expression statement as a mutation intent.
 /// Handles: MethodCall, FuncCall(FieldAccess), and Assignment to signals.
-fn try_lower_mutation(expr: &Expr, variant_map: &HashMap<String, String>) -> Option<MutationIntent> {
+fn try_lower_mutation(
+    expr: &Expr,
+    variant_map: &HashMap<String, String>,
+) -> Option<MutationIntent> {
     // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
     if let Expr::MethodCall {
         object,
@@ -1706,7 +1853,11 @@ fn mutation_for_method(
 }
 
 pub(crate) fn lower_block(block: &Block, variant_map: &HashMap<String, String>) -> BlockIR {
-    let mut statements: Vec<StatementIR> = block.stmts.iter().map(|s| lower_stmt(s, variant_map)).collect();
+    let mut statements: Vec<StatementIR> = block
+        .stmts
+        .iter()
+        .map(|s| lower_stmt(s, variant_map))
+        .collect();
 
     // Include trailing expression as an expression statement
     if let Some(ref expr) = block.trailing_expr {
@@ -1853,7 +2004,10 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             call_args: vec![],
         },
         Expr::ArrayLiteral { elements, .. } => ExprIR::ArrayExpr {
-            elements: elements.iter().map(|e| lower_expr(e, variant_map)).collect(),
+            elements: elements
+                .iter()
+                .map(|e| lower_expr(e, variant_map))
+                .collect(),
         },
         Expr::MapLiteral { entries, .. } => {
             let map: serde_json::Map<String, serde_json::Value> = entries
@@ -1973,14 +2127,12 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 .iter()
                 .map(|arm| {
                     let pattern = match &arm.pattern.kind {
-                        MatchPatternKind::Variant { name, bindings } => {
-                            MatchPatternIR {
-                                kind: MatchPatternKindIR::Variant {
-                                    name: name.clone(),
-                                    bindings: bindings.clone(),
-                                },
-                            }
-                        }
+                        MatchPatternKind::Variant { name, bindings } => MatchPatternIR {
+                            kind: MatchPatternKindIR::Variant {
+                                name: name.clone(),
+                                bindings: bindings.clone(),
+                            },
+                        },
                         MatchPatternKind::Wildcard => MatchPatternIR {
                             kind: MatchPatternKindIR::Wildcard,
                         },
@@ -2107,5 +2259,351 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
             needs_clone: false,
             needs_partial_eq: false,
         },
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Motion Lowering: AST -> IR
+// ═══════════════════════════════════════════════════════
+
+/// Lower a motion definition (MotionDef) to a MotionIntent.
+fn lower_motion_def(
+    def: &crate::parser::ast::MotionDef,
+    variant_map: &HashMap<String, String>,
+) -> MotionIntent {
+    let body = match &def.body {
+        crate::parser::ast::MotionBody::Keyframe(kf) => {
+            MotionBodyIR::Keyframe(lower_keyframe_body(kf, variant_map))
+        }
+        crate::parser::ast::MotionBody::Timeline(tl) => {
+            MotionBodyIR::Timeline(lower_timeline_body(tl, variant_map))
+        }
+        crate::parser::ast::MotionBody::CallbackOnly(cb) => {
+            MotionBodyIR::CallbackOnly(lower_callback_body(cb, variant_map))
+        }
+    };
+    MotionIntent {
+        name: def.name.clone(),
+        body,
+    }
+}
+
+/// Lower a timeline definition (TimelineDef) to a TimelineIntent.
+fn lower_timeline_def(
+    tl: &crate::parser::ast::TimelineDef,
+    variant_map: &HashMap<String, String>,
+) -> TimelineIntent {
+    let items = lower_timeline_items(&tl.items, variant_map);
+    TimelineIntent {
+        name: tl.name.clone(),
+        items,
+    }
+}
+
+/// Lower a keyframe body (KeyframeBody) to a KeyframeIR.
+fn lower_keyframe_body(
+    kf: &crate::parser::ast::KeyframeBody,
+    variant_map: &HashMap<String, String>,
+) -> KeyframeIR {
+    let stops: Vec<KeyframeStopIR> = kf
+        .stops
+        .iter()
+        .map(|s| {
+            let position = match s.position {
+                crate::parser::ast::StopPosition::From => 0.0,
+                crate::parser::ast::StopPosition::To => 1.0,
+                crate::parser::ast::StopPosition::Percent(p) => p / 100.0,
+            };
+            let properties: HashMap<String, ExprIR> = s
+                .properties
+                .iter()
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .collect();
+            let ease = s.ease.as_ref().map(|e| lower_easing(e));
+            KeyframeStopIR {
+                position,
+                properties,
+                ease,
+            }
+        })
+        .collect();
+    let over = lower_expr(&kf.over, variant_map);
+    let ease = kf.ease.as_ref().map(|e| lower_easing(e));
+    let playback = lower_playback_props(&kf.playback, variant_map);
+    KeyframeIR {
+        stops,
+        over,
+        ease,
+        color_space: kf.color_space.clone(),
+        playback,
+    }
+}
+
+/// Lower a timeline body (TimelineBody) to a TimelineIR.
+fn lower_timeline_body(
+    tl: &crate::parser::ast::TimelineBody,
+    variant_map: &HashMap<String, String>,
+) -> TimelineIR {
+    let items = lower_timeline_items(&tl.items, variant_map);
+    let playback = lower_playback_props(&tl.playback, variant_map);
+    TimelineIR { items, playback }
+}
+
+/// Lower timeline items (Vec<TimelineItem>) to Vec<TimelineItemIR>.
+fn lower_timeline_items(
+    items: &[crate::parser::ast::TimelineItem],
+    variant_map: &HashMap<String, String>,
+) -> Vec<TimelineItemIR> {
+    items
+        .iter()
+        .map(|item| {
+            let connector = lower_connector(&item.connector);
+            let kind = lower_timeline_item_kind(&item.kind, variant_map);
+            TimelineItemIR { kind, connector }
+        })
+        .collect()
+}
+
+/// Lower a single timeline item kind.
+fn lower_timeline_item_kind(
+    kind: &crate::parser::ast::TimelineItemKind,
+    variant_map: &HashMap<String, String>,
+) -> TimelineItemKindIR {
+    match kind {
+        crate::parser::ast::TimelineItemKind::Direction(di) => TimelineItemKindIR::Direction {
+            dir: match di.direction {
+                crate::parser::ast::Direction::To => DirectionIR::To,
+                crate::parser::ast::Direction::FromTo => DirectionIR::FromTo,
+            },
+            properties: di
+                .properties
+                .iter()
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .collect(),
+            over: lower_expr(&di.over, variant_map),
+            ease: di.ease.as_ref().map(|e| lower_easing(e)),
+            delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
+            color_space: di.color_space.clone(),
+            start: di.start.as_ref().map(format_position_value),
+        },
+        crate::parser::ast::TimelineItemKind::SetBlock(props) => TimelineItemKindIR::Set(
+            props
+                .iter()
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .collect(),
+        ),
+        crate::parser::ast::TimelineItemKind::MotionRef(name) => {
+            TimelineItemKindIR::MotionRef(name.clone())
+        }
+        crate::parser::ast::TimelineItemKind::Stagger(sc) => TimelineItemKindIR::Stagger(
+            Box::new(lower_motion_expr(&sc.motion, variant_map)),
+            StaggerTimingIR {
+                each: match &sc.timing {
+                    crate::parser::ast::StaggerTiming::Each(e) => lower_expr(e, variant_map),
+                    crate::parser::ast::StaggerTiming::Amount(a) => lower_expr(a, variant_map),
+                },
+                from: Some(lower_stagger_direction(&sc.from)),
+            },
+            lower_stagger_direction(&sc.from),
+        ),
+        crate::parser::ast::TimelineItemKind::Label(name, cb) => TimelineItemKindIR::Label(
+            name.clone(),
+            cb.as_ref().map(|e| lower_expr(e, variant_map)),
+        ),
+    }
+}
+
+/// Lower a callback body (CallbackBody) to a CallbackBodyIR.
+fn lower_callback_body(
+    cb: &crate::parser::ast::CallbackBody,
+    variant_map: &HashMap<String, String>,
+) -> CallbackBodyIR {
+    let callbacks: Vec<(CallbackKindIR, ExprIR)> = cb
+        .callbacks
+        .iter()
+        .map(|cs| match cs {
+            crate::parser::ast::CallbackSpec::OnStart(e) => {
+                (CallbackKindIR::OnStart, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnUpdate(e) => {
+                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnComplete(e) => {
+                (CallbackKindIR::OnComplete, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnRepeat(e) => {
+                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
+                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map))
+            }
+        })
+        .collect();
+    let over = lower_expr(&cb.over, variant_map);
+    let playback = lower_playback_props(&cb.playback, variant_map);
+    CallbackBodyIR {
+        callbacks,
+        over,
+        playback,
+    }
+}
+
+/// Lower an easing expression to an EasingIR.
+fn lower_easing(e: &crate::parser::ast::EasingExpr) -> EasingIR {
+    match e {
+        crate::parser::ast::EasingExpr::Named(n) => EasingIR::Named(n.clone()),
+        crate::parser::ast::EasingExpr::CubicBezier { x1, y1, x2, y2 } => EasingIR::CubicBezier {
+            x1: *x1,
+            y1: *y1,
+            x2: *x2,
+            y2: *y2,
+        },
+        crate::parser::ast::EasingExpr::Spring {
+            tension,
+            friction,
+            velocity,
+        } => EasingIR::Spring {
+            tension: *tension,
+            friction: *friction,
+            velocity: *velocity,
+        },
+        crate::parser::ast::EasingExpr::Back {
+            intensity,
+            direction,
+        } => EasingIR::Back {
+            intensity: *intensity,
+            direction: direction.clone(),
+        },
+        crate::parser::ast::EasingExpr::Elastic {
+            amplitude,
+            period,
+            direction,
+        } => EasingIR::Elastic {
+            amplitude: *amplitude,
+            period: *period,
+            direction: direction.clone(),
+        },
+        crate::parser::ast::EasingExpr::Steps { count, direction } => EasingIR::Steps {
+            count: *count,
+            direction: direction.clone(),
+        },
+    }
+}
+
+/// Lower playback property vector to a PlaybackIR.
+fn lower_playback_props(
+    props: &[crate::parser::ast::PlaybackProp],
+    variant_map: &HashMap<String, String>,
+) -> PlaybackIR {
+    let mut pb = PlaybackIR::default();
+    for prop in props {
+        match prop {
+            crate::parser::ast::PlaybackProp::Loop(lv) => {
+                pb.loop_count = Some(match lv {
+                    crate::parser::ast::LoopValue::Count(n) => LoopValue::Count(*n),
+                    crate::parser::ast::LoopValue::Infinite => LoopValue::Infinite,
+                });
+            }
+            crate::parser::ast::PlaybackProp::Direction(dv) => {
+                pb.direction = Some(match dv {
+                    crate::parser::ast::DirectionValue::Normal => DirectionValue::Normal,
+                    crate::parser::ast::DirectionValue::Reverse => DirectionValue::Reverse,
+                    crate::parser::ast::DirectionValue::Alternate => DirectionValue::Alternate,
+                    crate::parser::ast::DirectionValue::AlternateReverse => {
+                        DirectionValue::AlternateReverse
+                    }
+                });
+            }
+            crate::parser::ast::PlaybackProp::Fill(fv) => {
+                pb.fill = Some(match fv {
+                    crate::parser::ast::FillValue::None => FillValue::None,
+                    crate::parser::ast::FillValue::Forwards => FillValue::Forwards,
+                    crate::parser::ast::FillValue::Backwards => FillValue::Backwards,
+                    crate::parser::ast::FillValue::Both => FillValue::Both,
+                });
+            }
+            crate::parser::ast::PlaybackProp::Delay(e) => {
+                pb.delay = Some(lower_expr(e, variant_map));
+            }
+            crate::parser::ast::PlaybackProp::Paused(b) => {
+                pb.paused = *b;
+            }
+            crate::parser::ast::PlaybackProp::RepeatDelay(e) => {
+                pb.repeat_delay = Some(lower_expr(e, variant_map));
+            }
+            crate::parser::ast::PlaybackProp::RepeatRefresh(b) => {
+                pb.repeat_refresh = *b;
+            }
+            crate::parser::ast::PlaybackProp::TimeScale(e) => {
+                pb.time_scale = Some(lower_expr(e, variant_map));
+            }
+            crate::parser::ast::PlaybackProp::Interrupt(iv) => {
+                pb.interrupt = Some(match iv {
+                    crate::parser::ast::InterruptValue::Stop => InterruptValue::Cancel,
+                    crate::parser::ast::InterruptValue::Complete => InterruptValue::Finish,
+                    crate::parser::ast::InterruptValue::Queue => InterruptValue::Compose,
+                    crate::parser::ast::InterruptValue::Replace => InterruptValue::Cancel,
+                });
+            }
+            crate::parser::ast::PlaybackProp::RespectReducedMotion(b) => {
+                pb.respect_reduced_motion = *b;
+            }
+            crate::parser::ast::PlaybackProp::When(wv) => {
+                pb.when = Some(match wv {
+                    crate::parser::ast::WhenValue::BeforeChildren => WhenValue::Idle,
+                    crate::parser::ast::WhenValue::AfterChildren => WhenValue::Active,
+                    crate::parser::ast::WhenValue::WithChildren => WhenValue::IdleOrActive,
+                });
+            }
+            crate::parser::ast::PlaybackProp::DelayChildren(e) => {
+                pb.delay_children = Some(lower_expr(e, variant_map));
+            }
+            crate::parser::ast::PlaybackProp::StaggerChildren(e) => {
+                pb.stagger_children = Some(lower_expr(e, variant_map));
+            }
+            crate::parser::ast::PlaybackProp::StaggerFrom(sd) => {
+                pb.stagger_from = Some(lower_stagger_direction(sd));
+            }
+        }
+    }
+    pb
+}
+
+/// Lower a motion expression (Expr reference) to a MotionExprIR.
+fn lower_motion_expr(expr: &Expr, _variant_map: &HashMap<String, String>) -> MotionExprIR {
+    match expr {
+        Expr::VarRef(name, _) => MotionExprIR::Ref(name.clone()),
+        _ => MotionExprIR::Ref(format!("{:?}", expr)),
+    }
+}
+
+/// Lower a Connector to ConnectorIR.
+fn lower_connector(c: &crate::parser::ast::Connector) -> ConnectorIR {
+    match c {
+        crate::parser::ast::Connector::None => ConnectorIR::None,
+        crate::parser::ast::Connector::Then => ConnectorIR::Then,
+        crate::parser::ast::Connector::With => ConnectorIR::With,
+    }
+}
+
+/// Lower a StaggerDirection (AST) to StaggerDirection (IR).
+fn lower_stagger_direction(sd: &crate::parser::ast::StaggerDirection) -> StaggerDirection {
+    match sd {
+        crate::parser::ast::StaggerDirection::Start => StaggerDirection::First,
+        crate::parser::ast::StaggerDirection::Center => StaggerDirection::Center,
+        crate::parser::ast::StaggerDirection::End => StaggerDirection::Last,
+        crate::parser::ast::StaggerDirection::Edges => StaggerDirection::Edges,
+    }
+}
+
+/// Format a PositionValue to a string representation.
+fn format_position_value(pv: &crate::parser::ast::PositionValue) -> String {
+    match pv {
+        crate::parser::ast::PositionValue::After => "after".into(),
+        crate::parser::ast::PositionValue::WithPrev => "with-prev".into(),
+        crate::parser::ast::PositionValue::Overlap(v) => format!("overlap({})", v),
+        crate::parser::ast::PositionValue::AfterPrev(v) => format!("after-prev({})", v),
+        crate::parser::ast::PositionValue::WithOffset(v) => format!("with-offset({})", v),
+        crate::parser::ast::PositionValue::Absolute(v) => format!("absolute({})", v),
     }
 }
