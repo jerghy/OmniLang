@@ -321,7 +321,24 @@ function parseWireLine(line: string): WireData {
 
 #### 3.2.5 关键决策
 
-**元素 id 策略**: 使用 `{compName}.{path}`，例如 `App.button.inc`。Generate 方向用相同策略生成 `id="App.button.inc"`，保证 round-trip 稳定。
+#### 3.2.5 id 策略与 round-trip 一致性
+
+**关键问题**: 编辑器的 `element.id` 是随机生成的（`el-<timestamp>-<random>`），不能持久化到 .omni 并稳定 round-trip。
+
+**方案**: omni-gen 统一使用 **`{compName}.{path}`** 作为稳定 ID，编辑器的随机 ID 仅用于编辑会话期间。
+
+```
+Parse 时:
+  .omni 中 id="App.button.inc" → element.id = "App.button.inc"
+
+Generate 时:
+  ViewTreeBuilder 遍历树时计算 path → SourceEmitter 用 path 生成 id="App.button.inc"
+  (不使用 editor 内部的随机 element.id)
+
+ViewTreeBuilder 计算 path 的方式:
+  根节点: compName (例如 "App")
+  子节点: parentPath + "." + tag + 同辈序号 (例如 "App.button.0" 或 "App.div.1.button.0")
+```
 
 **自闭合检测**: `/^<tag ... />$/` 正则匹配行末 `/>`。
 
@@ -337,7 +354,16 @@ function parseWireLine(line: string): WireData {
 
 ### 4.1 ViewTreeBuilder
 
-递归构建 view tree，顺带收集 PascalCase 标签供 ImportCollector。~50 行。
+递归构建 view tree。**同时计算 path**（`{compName}.{path}`），确保 SourceEmitter 的 `id="..."` 和 OmniParser 解析结果一致。
+
+```typescript
+function buildViewTree(elements: ElementData[], compName: string): ViewNode[] {
+  // 每个 ViewNode 的 path = parentPath + "." + tag + 同辈序号
+  // 例如: "App" → "App.div.0" → "App.div.0.button.1"
+}
+```
+
+顺带收集 PascalCase 标签供 ImportCollector。~60 行。
 
 ### 4.2 WireAnalyzer
 
@@ -405,6 +431,11 @@ class SourceEmitter {
 
 **注解内嵌**: `emitViewNode` 在每个 `<tag` 前调用 `annotationStrategy.beforeViewNode()` 输出 `// @edit`。不再有后期字符串注入。
 
+**id 属性**: 使用 `node.path`（ViewTreeBuilder 计算）而非编辑器的随机 `element.id`：
+```
+<button id="App.button.inc" class: btn @onPress={inc}>
+```
+
 **Store 关键字**: `action` 不是 `fn`；`getter name: type = expr;`。
 
 **已知限制（Phase 3）**: `@if` / `@for` 指令、动态 `class: {}` 语法。
@@ -464,8 +495,11 @@ interface StageResult<T> {
 ```typescript
 // ── Parse 方向 ──
 function parseOmniSource(source: string): {
-  state: EditorState | null;
-  errors: Diagnostic[];
+  designElements: ElementData[] | null;   // null = 解析失败
+  designWires: WireData[];
+  codeTabs: CodeTab[];
+  imports: string[];
+  errors: Diagnostic[];                   // Parser 自身的错误 + Validator 错误
 };
 
 // ── Generate 方向（单文件）──
@@ -544,6 +578,13 @@ interface EmitInput {
   customComponents?: Array<{ name: string; source: string }>;
 }
 
+interface StoreDef {
+  name: string;
+  signals: Record<string, { type: string; default?: unknown }>;
+  getters: Record<string, { returnType: string; body: string }>;
+  actions: Array<{ name: string; params: Array<{name:string; type:string}>; body: string }>;
+}
+
 interface ComponentPart {
   name: string;
   signals: Record<string, { type: string; default?: unknown }>;
@@ -555,6 +596,11 @@ interface ComponentPart {
 }
 
 // ── Annotation ──
+interface EditAnnotation {
+  line: string;         // "// @edit" | "// @edit folded" | "// @edit render=canvas"
+  indent: number;       // view tree 深度
+}
+
 interface AnnotationData {
   codeTabDirective: string;
   editAnnotations: Map<string, EditAnnotation>;
@@ -576,6 +622,19 @@ interface ResolvedStyle {
   cssRules: Record<string, string>;
   usedClassNames: string[];
 }
+
+// ── ViewNode（递归树节点）──
+interface ViewNode {
+  id: string;
+  path: string;         // "{compName}.{path}" — 稳定 ID，用于 id="..." 属性
+  tag: string;
+  props: Record<string, unknown>;
+  children: ViewNode[];
+  kind: "element" | "text" | "interpolation" | "if" | "for" | "slot";
+  resolvedStyle?: ResolvedStyle;
+  isFolded?: boolean;
+  renderMode?: "dom" | "canvas";
+}
 ```
 
 ---
@@ -589,7 +648,7 @@ interface ResolvedStyle {
 | omni-parser.ts | 200 | 行级状态机 |
 | **Generate 方向** | | |
 | types.ts | 150 | StageResult + PipelineError + EmitInput |
-| view-tree-builder.ts | 50 | |
+| view-tree-builder.ts | 60 | +10 (path 计算) |
 | wire-analyzer.ts | 50 | |
 | import-collector.ts | 60 | 新增 |
 | store-extractor.ts | 150 | |
@@ -601,7 +660,7 @@ interface ResolvedStyle {
 | token-emitter.ts | 30 | |
 | custom-component-emitter.ts | 60 | |
 | pipeline.ts | 130 | 三阶段 + parse 入口 |
-| **总计** | **~1970** | |
+| **总计** | **~1980** | |
 
 ---
 
@@ -612,13 +671,23 @@ interface ResolvedStyle {
 ```typescript
 async function openFile(filePath: string) {
   const source = await api.readFile(filePath);
-  const { state, errors } = parseOmniSource(source);
+  const { designElements, designWires, codeTabs, errors } = parseOmniSource(source);
 
-  if (!state) {
-    setCompileErrors(errors);    // 有错误, 不加载
+  if (!designElements) {
+    setCompileErrors(errors);       // Validator 或 Parser 报错
     return;
   }
-  setEditorState(state);         // 加载画布
+
+  // 加载到编辑器 stores
+  useEditorStore.setState({
+    elements: designElements,
+    wires: designWires,
+    activeFilePath: filePath,
+    activeFileContent: source,
+  });
+  useCodeGraphStore.getState().loadFromData(codeTabs, codeTabs[0]?.id || "main");
+  store.markClean();
+
   if (errors.length > 0) showWarnings(errors);
 }
 ```
@@ -673,7 +742,7 @@ async function handleCompile() {
 | Parser 缩进推断 parent 关系不准确 | 优先使用 `id` 的路径结构 `{comp}.{path}` 反推层级；缩进仅作辅助 |
 | @chain 正则与格式化变体不匹配 | Generate 方向产出严格格式；外部编辑时宽松匹配 + 交叉校验 @node name |
 | compileToIR 性能 | WASM 编译 1-10ms；缓存上次成功 IR |
-| round-trip id 漂移 | Generate 和 Parse 共享同一套 `{comp}.{path}` id 生成函数 |
+| round-trip id 一致性 | Generate 和 Parse 共用 `{comp}.{path}` 策略；ViewTreeBuilder 计算 path，OmniParser 从 `id="..."` 读取 path |
 
 ---
 
