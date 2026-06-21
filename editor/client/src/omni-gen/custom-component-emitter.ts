@@ -27,6 +27,15 @@ export function emitCustomComponents(
   for (const cc of customComponents) {
     try {
       const { roots } = buildViewTree(cc.elements, cc.name);
+      if (roots.length > 1) {
+        errors.push({
+          phase: "C",
+          module: "CustomComponentEmitter",
+          severity: "warning",
+          code: "W_MULTI_ROOT",
+          message: `Component "${cc.name}" has ${roots.length} root elements; only the first is emitted`,
+        });
+      }
       applyStylesToRoots(roots);
 
       const componentStyle: Record<string, Record<string, string>> = {};

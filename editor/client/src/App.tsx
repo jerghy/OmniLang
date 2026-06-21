@@ -522,11 +522,14 @@ export default function App() {
           }
         }
         if (_allValid && Object.keys(_validFiles).length > 0) {
-          Promise.all(
-            Object.entries(_validFiles).map(([fp, src]) => api.writeFile(fp, src))
-          ).catch((_e) => {
+          try {
+            await Promise.all(
+              Object.entries(_validFiles).map(([fp, src]) => api.writeFile(fp, src))
+            );
+          } catch (_e) {
             setStatus({ text: "❌ 生成文件写入失败", isError: true });
-          });
+            return;
+          }
         }
       } else if (_genFilesResult.errors.length > 0) {
         // Non-fatal generation errors — warn but don't block save
