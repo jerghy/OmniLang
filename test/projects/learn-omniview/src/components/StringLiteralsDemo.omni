@@ -1,0 +1,66 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  StringLiteralsDemo.omni —— 字符串字面量演示                  ║
+// ║  演示：反引号字符串 (backtick)、单引号字符串 (single-quote)    ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+component StringLiteralsDemo {
+    signal backtickResult: String = `Hello "OmniView" world`;
+    signal singleQuoteResult: String = 'Single-quoted text with "double" inside';
+    signal mixed: String = `Backtick with 'single' and "double" quotes`;
+
+    // template string interpolation with ${expr}
+    signal userName: String = "OmniView";
+    signal version: f64 = 1.0;
+    signal interpolated: String = `Hello ${userName}, current version is ${version}`;
+
+    fn buildGreeting(name: String, age: i32) -> String {
+        return `User ${name} is ${age} years old`;
+    }
+
+    fn updateTemplate() {
+        userName = "User" + version.to_string();
+        interpolated = `Hello ${userName}, v${version}`;
+    }
+
+    view {
+        <div class: container>
+            <h3 class: title>字符串字面量演示</h3>
+            <p class: subtitle>反引号字符串 · 单引号字符串</p>
+
+            <div class: card>
+                <h4 class: label>反引号字符串</h4>
+                <p class: value>signal = `{"Hello \\"OmniView\\" world"}`</p>
+                <p class: result>结果: {backtickResult}</p>
+            </div>
+
+            <div class: card>
+                <h4 class: label>单引号字符串</h4>
+                <p class: result>结果: {singleQuoteResult}</p>
+            </div>
+
+            <div class: card>
+                <h4 class: label>混合字符串</h4>
+                <p class: result>结果: {mixed}</p>
+            </div>
+
+            <div class: card>
+                <h4 class: label>模板字符串插值 {"`${expr}`"}</h4>
+                <p class: value>buildGreeting("Alice", 30) -> "{buildGreeting("Alice", 30)}"</p>
+                <p class: value>dynamic: {interpolated}</p>
+                <button class: btn-sm @onPress={updateTemplate}>Update</button>
+            </div>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
+        .label { font-size: 14px; font-weight: bold; color: #374151; margin: 0 0 6px 0; }
+        .value { font-size: 12px; color: #6b7280; margin: 0 0 4px 0; font-family: monospace; }
+        .result { font-size: 14px; color: #4b5563; margin: 0; }
+        .btn-sm { padding: 6px 12px; border: 1px solid #d4d4d8; border-radius: 6px; background: #6366f1; color: white; font-size: 13px; cursor: pointer; margin-top: 8px; }
+    }
+}

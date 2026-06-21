@@ -10,7 +10,7 @@ fn single_module(program: omni_compiler::parser::ast::Program) -> Module {
 #[test]
 fn test_parse_empty_program() {
     let tokens = tokenize("");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok());
     let program = result.unwrap();
     let module = single_module(program);
@@ -21,7 +21,7 @@ fn test_parse_empty_program() {
 #[test]
 fn test_parse_import() {
     let tokens = tokenize(r#"import { React } from "./react.omni";"#);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok());
     let program = result.unwrap();
     let module = single_module(program);
@@ -44,7 +44,7 @@ struct Point {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -61,7 +61,7 @@ fn add(a: i32, b: i32) -> i32 {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -78,7 +78,7 @@ async fn fetchData() -> String {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -95,7 +95,7 @@ fn fetchData() -> String async {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -112,7 +112,7 @@ async fn log(msg: String) {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -129,7 +129,7 @@ async fn demo() -> String {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -146,7 +146,7 @@ async fn demo() -> Data {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -159,7 +159,7 @@ fn demo() -> String {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -173,7 +173,7 @@ component App {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -196,7 +196,7 @@ component Counter {
 }
 "#;
     let tokens = tokenize(source);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     match &result {
         Ok(program) => {
             let module = &program.modules["input.omni"];
@@ -217,7 +217,7 @@ component Counter {
 #[test]
 fn test_parse_namespace_import() {
     let tokens = tokenize(r#"import "./lib/math.omni" as math;"#);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -233,7 +233,7 @@ fn test_parse_namespace_import() {
 #[test]
 fn test_parse_type_import() {
     let tokens = tokenize(r#"import type { User, Order } from "./types.omni";"#);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -249,7 +249,7 @@ fn test_parse_type_import() {
 #[test]
 fn test_parse_lib_import() {
     let tokens = tokenize("import omniview;");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -262,7 +262,7 @@ fn test_parse_lib_import() {
 #[test]
 fn test_parse_export_from() {
     let tokens = tokenize(r#"export { Button, Card } from "./ui.omni";"#);
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -274,7 +274,7 @@ fn test_parse_export_from() {
 #[test]
 fn test_parse_pub_function() {
     let tokens = tokenize("pub fn add(a: i32, b: i32) -> i32 { a + b }");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -286,7 +286,7 @@ fn test_parse_pub_function() {
 #[test]
 fn test_parse_private_function() {
     let tokens = tokenize("fn helper(x: i32) -> i32 { x * 2 }");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -296,7 +296,7 @@ fn test_parse_private_function() {
 #[test]
 fn test_parse_pub_struct() {
     let tokens = tokenize("pub struct Point { x: i32, y: i32, }");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -307,7 +307,7 @@ fn test_parse_pub_struct() {
 #[test]
 fn test_parse_pub_type_alias() {
     let tokens = tokenize("pub type ID = i32;");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -319,7 +319,7 @@ fn test_parse_pub_type_alias() {
 #[test]
 fn test_parse_private_type_alias() {
     let tokens = tokenize("type Secret = string;");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -335,7 +335,7 @@ fn test_parse_private_type_alias() {
 #[test]
 fn test_parse_struct_literal() {
     let tokens = tokenize("fn f() -> Point { Point { x: 1, y: 2 } }");
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -345,7 +345,7 @@ fn test_parse_tagged_union_variant() {
         "fn f() -> HttpResult { Ok { value: 42 } }\n\
          type HttpResult = Ok { value: i32 } | Err { error: String }",
     );
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
     let program = result.unwrap();
     let module = single_module(program);
@@ -360,7 +360,7 @@ fn test_parse_struct_literal_nested() {
     let tokens = tokenize(
         "fn f() -> Rect { Rect { top_left: Point { x: 0, y: 0 }, bottom_right: Point { x: 10, y: 10 } } }",
     );
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -373,7 +373,7 @@ fn test_parse_match_expression() {
     let tokens = tokenize(
         "fn f(r: HttpResult) -> i32 { match r { Ok { value } => { return value; }, Err => { return 0; } } }",
     );
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }
 
@@ -382,6 +382,6 @@ fn test_parse_match_with_wildcard() {
     let tokens = tokenize(
         "fn f(r: HttpResult) -> i32 { match r { Ok { value } => { return value; }, _ => { return -1; } } }",
     );
-    let result = parse(&tokens);
+    let result = parse(&tokens, "");
     assert!(result.is_ok(), "Parse error: {:?}", result.err());
 }

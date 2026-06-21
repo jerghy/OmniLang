@@ -1,0 +1,170 @@
+<h2>🔴 关键遗漏 —— 从编译器/运行时角度发现</h2>
+<p class="subtitle">这些不是"可以再加的功能"，而是影响整个动画系统架构的基础问题</p>
+
+<div class="section">
+<h3>问题 1：@if + @enter/@leave 的交互 —— 最大的未解问题</h3>
+<p style="color:var(--color-accent);font-weight:600;">当前 @if 是瞬间切换 display:none。但动画需要"先播退场动画，再移除 DOM"。</p>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 现状：@if 直接切换
+@if isOpen {
+  &lt;Modal @enter={fadeIn} @leave={fadeOut} /&gt;  // ← leave 动画没机会播！
+}
+
+// 需要：三步流程
+// 1. isOpen 变 false → 触发 fadeOut
+// 2. fadeOut 播完（等 300ms）
+// 3. 从 DOM 移除 Modal
+</pre>
+<p>这需要根本性改变 <code>__omni_effect</code> 处理条件渲染的方式——要把"隐藏"延迟到动画结束后。Flutter 侧则要改 setState 逻辑。</p>
+</div>
+
+<div class="section">
+<h3>问题 2：@for 列表没有 key 机制 → 无法做列表动画</h3>
+<p style="color:var(--color-accent);font-weight:600;">@for 每次都销毁全部子节点重建。不知道哪个 item 是"新的"、哪个"移除了"、哪个"还在"。</p>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 没有 key 的话：
+@for item in items {         // 每次重新渲染全量销毁+重建
+  &lt;Item @enter={slideIn} /&gt;  // ← 每个 item 都播 slideIn，不是只播新的
+}
+
+// 需要 key 机制：
+@for item in items key={item.id} {
+  &lt;Item @enter={slideIn} @leave={slideOut} /&gt;
+  // 编译器知道：id=3 是新的 → 播 slideIn
+  //              id=1 被移除 → 播 slideOut
+  //              id=2 还在   → 不播动画
+}
+</pre>
+<p>IR 中已有 <code>key_expr: Option&lt;ExprIR&gt;</code> 字段但始终为 None。需要 parser 支持 key 语法 + runtime 支持 identity tracking。</p>
+</div>
+
+<div class="section">
+<h3>问题 3：prefers-reduced-motion —— 无障碍必须品</h3>
+<p style="color:var(--color-accent);font-weight:600;">没有这个，动画系统不能用于生产环境。WCAG 要求 + 前庭障碍用户。</p>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 编译时生成全局开关
+// Web: 检测 prefers-reduced-motion 媒体查询
+// Flutter: 检测 MediaQuery.of(context).disableAnimations
+
+// 语法层面：所有动画自动遵守，也可手动覆盖
+@motion fadeIn {
+  to { opacity: 1 } over: 300ms
+  respectReducedMotion: true    // 默认 true，减少时为 over: 0ms
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 4：动态值 —— 信号能否驱动动画参数？</h3>
+<p style="color:var(--color-accent);font-weight:600;">over、ease、at 这些参数能是信号吗？</p>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 能不能这样写？
+&lt;div @enter={to { y: {targetY} } over: {speed}ms ease: {easingFunc}}&gt;
+
+// 如果 speed 是一个 signal，动画过程中值变了怎么办？
+// 重新开始？更新剩余时间？忽略？
+</pre>
+<p>这里需要明确语义：动画启动时快照所有参数，还是动画过程中追踪参数变化？</p>
+</div>
+
+<div class="section">
+<h3>问题 5：whileInView / "滚动到视野内时播放"</h3>
+<p style="color:var(--color-accent);font-weight:600;">和 scroll-scrub 不同——这是"进入视口时自动播放一次"。</p>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// scroll 是 scrubbing（进度绑定滚动位置）
+&lt;div @scroll={fadeIn} scrub={true}&gt;
+
+// whileInView 是触发式（进入视野时播放），需要一个新触发词
+&lt;div @in-view={fadeIn} @in-view-once={true}&gt;  // 只播一次
+&lt;div @in-view={fadeIn} @in-view-repeat={true}&gt; // 每次进入都播
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 6：3D 变换（Web + Flutter 都原生支持）</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 我们目前只有 2D
+rotate     // 2D 旋转
+x / y      // 2D 位移
+
+// 缺了 3D：
+rotateX / rotateY / rotateZ
+translateZ
+perspective
+scaleZ
+
+// 卡片翻转效果
+@motion flipCard {
+  to { rotateY: 180deg } over: 600ms
+  perspective: 1000px          // 3D 透视距离
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 7：时间缩放 —— 调试和特殊效果</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 全局慢动作（调试用）
+--omni-motion-speed: 0.1      // 所有动画慢 10 倍
+
+// 单个动画加速
+@motion fastPulse {
+  to { scale: 1.1 } over: 300ms
+  timeScale: 2.0               // 2 倍速
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 8：SVG 动画属性缺失</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// SVG 独有属性 —— 线条绘制、图标动画
+strokeDashoffset     // 线条从 0 画到完整
+fill                 // 填充色
+stroke               // 描边色
+strokeWidth          // 描边宽度
+r                    // 圆半径
+d                    // path 数据（形状变换）
+
+// 常见场景：勾选标记动画
+@motion drawCheck {
+  from { strokeDashoffset: 100%; opacity: 0 }
+  to   { strokeDashoffset: 0;    opacity: 1 }
+  over: 500ms ease: easeOut
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>9. 还需要确认的设计边界</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <tr style="border-bottom:2px solid var(--color-border);">
+    <th style="text-align:left;padding:8px;">问题</th>
+    <th style="text-align:left;padding:8px;">需要决定</th>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>相对值 +=/-=</strong></td>
+    <td style="padding:8px;"><code>to { scale: +=0.05 }</code> 支持吗？hover 动画几乎必须</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>嵌套动画协调</strong></td>
+    <td style="padding:8px;">父 stagger + 子 @enter，谁先谁后？</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>中断策略</strong></td>
+    <td style="padding:8px;">@enter 播到一半触发 @leave，停住/跳终/排队？</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>will-change 管理</strong></td>
+    <td style="padding:8px;">编译器自动加？还是手写？</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>动画复用</strong></td>
+    <td style="padding:8px;">@motion 可以继承/扩展另一个 @motion 吗？</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;"><strong>跨组件动画</strong></td>
+    <td style="padding:8px;">@hero 跨两个独立组件时，编译器怎么追踪？</td>
+  </tr>
+</table>
+</div>

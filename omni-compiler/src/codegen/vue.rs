@@ -585,6 +585,7 @@ fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
         StatementIR::IfStmtIR {
             condition,
             then_body,
+            else_ifs,
             else_body,
         } => {
             let cond = format_expr_vue(condition);
@@ -594,6 +595,15 @@ fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
                 generate_statement_vue(w, s);
             }
             w.dedent();
+            for (elif_cond, elif_body) in else_ifs {
+                let elif_js = format_expr_vue(elif_cond);
+                w.emit(&format!("}} else if ({}) {{", elif_js));
+                w.indent();
+                for s in &elif_body.statements {
+                    generate_statement_vue(w, s);
+                }
+                w.dedent();
+            }
             if let Some(else_blk) = else_body {
                 if !else_blk.statements.is_empty() {
                     w.emit("} else {");
@@ -703,9 +713,10 @@ fn format_block_as_vue_expr(block: &BlockIR) -> String {
     if let Some(last) = block.statements.last() {
         match last {
             StatementIR::ExprStmtIR { expr } => format_expr_vue(expr),
-            StatementIR::ReturnStmtIR { value } => {
-                value.as_ref().map(|e| format_expr_vue(e)).unwrap_or_else(|| "undefined".into())
-            }
+            StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(|e| format_expr_vue(e))
+                .unwrap_or_else(|| "undefined".into()),
             _ => "undefined".into(),
         }
     } else {
@@ -722,6 +733,9 @@ fn format_expr_vue(expr: &ExprIR) -> String {
         ExprIR::LiteralExpr { value } => format_json_value_vue(value),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
+            format!("{}.{}", format_expr_vue(object), field)
+        }
+        ExprIR::OptionalChainExpr { object, field } => {
             format!("{}.{}", format_expr_vue(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
@@ -776,7 +790,9 @@ fn format_expr_vue(expr: &ExprIR) -> String {
                 .collect();
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::VariantLiteral { variant, fields, .. } => {
+        ExprIR::VariantLiteral {
+            variant, fields, ..
+        } => {
             let mut entries: Vec<String> = fields
                 .iter()
                 .map(|(k, v)| format!("\"{}\": {}", k, format_expr_vue(v)))
@@ -794,7 +810,10 @@ fn format_expr_vue(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_vue(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { statements: _, tail } => {
+        ExprIR::BlockExpr {
+            statements: _,
+            tail,
+        } => {
             // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_vue(tail)
         }
@@ -806,23 +825,26 @@ fn format_expr_vue(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_vue(operand))
         }
-                ExprIR::MatchExpr { matched, arms } => {
+        ExprIR::MatchExpr { matched, arms } => {
             let m = format_expr_vue(matched);
-            let cases: Vec<String> = arms.iter().map(|arm| {
-                let body = format_block_as_vue_expr(&arm.body);
-                match &arm.pattern.kind {
-                    MatchPatternKindIR::Variant { name, .. } => {
-                        format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body)
+            let cases: Vec<String> = arms
+                .iter()
+                .map(|arm| {
+                    let body = format_block_as_vue_expr(&arm.body);
+                    match &arm.pattern.kind {
+                        MatchPatternKindIR::Variant { name, .. } => {
+                            format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body)
+                        }
+                        MatchPatternKindIR::Wildcard => {
+                            format!("return {};", body)
+                        }
+                        MatchPatternKindIR::Literal { value } => {
+                            let v = format_json_value_vue(value);
+                            format!("if (_v._variant === {}) {{ return {}; }}", v, body)
+                        }
                     }
-                    MatchPatternKindIR::Wildcard => {
-                        format!("return {};", body)
-                    }
-                    MatchPatternKindIR::Literal { value } => {
-                        let v = format_json_value_vue(value);
-                        format!("if (_v._variant === {}) {{ return {}; }}", v, body)
-                    }
-                }
-            }).collect();
+                })
+                .collect();
             format!("(() => {{ const _v = {}; {} }})()", m, cases.join(" "))
         }
         ExprIR::ClosureExpr { params, body } => {
@@ -1180,6 +1202,7 @@ mod tests {
                 }],
                 execution_mode: "client-only".into(),
             },
+            else_ifs: vec![],
             else_body: None,
         };
         generate_statement_vue(&mut w, &stmt);
@@ -1229,6 +1252,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1289,6 +1316,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1349,6 +1380,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1397,6 +1432,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1440,6 +1479,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1575,8 +1618,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1617,6 +1660,10 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1630,8 +1677,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1676,8 +1723,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1722,6 +1769,10 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            if_mode_default: None,
+            hero_defs: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1735,8 +1786,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());

@@ -1,0 +1,13 @@
+import omniview;
+
+component App {
+    signal count: i32 = 0;
+
+    fn increment() { count = count + 1; }
+
+    view {
+        <h1>Fragment Test</h1>
+        <p testId="counter">Count: {count}</p>
+        <button testId="inc-btn" @onPress={increment}>+</button>
+    }
+}

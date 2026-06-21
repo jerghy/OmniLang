@@ -84,25 +84,75 @@ impl<'a> Parser<'a> {
                 }
             }
             // Component call syntax: Card(prop: value, ...) { children }
+            // Only PascalCase names start component calls; camelCase is raw text
             _ if self.is_component_call_start() => self.parse_component_call(),
-            _ => {
-                let t = self.advance();
-                Err(ParseError {
-                    message: format!("Unexpected token in view: {:?}", t.kind),
-                    span: t.span,
-                })
-            }
+            // Raw text content in elements
+            _ => self.parse_raw_text_node(),
         };
         self.leave_recursion();
         result
     }
 
+    /// Parse raw text content inside an element.
+    /// Collects consecutive non-special tokens until a view boundary is hit,
+    /// reconstructing text from token source spans.
+    fn parse_raw_text_node(&mut self) -> Result<ViewNode, ParseError> {
+        let start_span = self.peek().span.clone();
+        let mut end_span = start_span.clone();
+
+        while self.pos < self.tokens.len() {
+            let kind = self.peek_kind();
+            // Stop at view boundaries
+            match kind {
+                TokenKind::Lt
+                | TokenKind::LBrace
+                | TokenKind::RBrace
+                | TokenKind::AtIf
+                | TokenKind::AtFor
+                | TokenKind::AtSlot
+                | TokenKind::Eof
+                | TokenKind::StringLiteral(_) => break,
+                _ => {
+                    // Check if this could start a component call
+                    if self.is_component_call_start() {
+                        break;
+                    }
+                }
+            }
+            let t = self.advance();
+            end_span = t.span;
+        }
+
+        // Reconstruct text from source using byte spans (preserves whitespace).
+        // Guard against tests passing empty source — spans then index past end.
+        let text = if start_span.start < self.source.len()
+            && end_span.end <= self.source.len()
+            && start_span.start <= end_span.end
+        {
+            self.source[start_span.start..end_span.end].to_string()
+        } else {
+            String::new()
+        };
+        if text.is_empty() {
+            // No text collected — this can happen at EOF. Skip the node.
+            return Ok(ViewNode::Text(String::new()));
+        }
+        Ok(ViewNode::Text(text))
+    }
+
     /// Check if current position starts a component call: Name(...
+    /// Only PascalCase names start component calls; lowercase/camelCase is text.
     fn is_component_call_start(&self) -> bool {
         let kind = self.peek_kind();
-        let is_ident_like =
-            matches!(kind, TokenKind::Ident(_)) || keyword_as_ident_name(&kind).is_some();
-        if !is_ident_like {
+        // Extract the identifier name, checking for PascalCase
+        let name: Option<String> = match &kind {
+            TokenKind::Ident(s) => Some(s.clone()),
+            _ => keyword_as_ident_name(&kind).map(|s| s.to_string()),
+        };
+        let Some(name) = name else { return false };
+        // Only PascalCase starts a component call (e.g., Card, Button, Flex)
+        // camelCase like math_abs or getBtnBg is raw text
+        if !name.starts_with(|c: char| c.is_uppercase()) {
             return false;
         }
         // Check next token is '(' (props) or '{' (children only)
@@ -243,6 +293,162 @@ impl<'a> Parser<'a> {
                     let prop = self.parse_event_prop()?;
                     props.push(prop);
                 }
+                // ── Motion trigger attributes @enter={...}, @hover={...} ──
+                TokenKind::AtEnter => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Enter)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtLeave => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Leave)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtHover => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Hover)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtUnhover => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Unhover)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtPress => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Press)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtFocus => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Focus)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtAnimate => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Animate)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtInView => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::InView)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtScroll => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Scroll)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDragHorizontal => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragHorizontal)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDragVertical => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDrivenBy => {
+                    // @driven-by={signal} — external progress control
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let signal = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::DrivenBy(signal));
+                }
+                TokenKind::AtTimeline => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Timeline)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtPaused => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = match self.parse_expr()? {
+                        Expr::Literal(Literal::Bool(b), _) => b,
+                        _ => true, // non-literal (e.g., signal ref): default to true
+                    };
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::PausedOverride(val));
+                }
+                TokenKind::AtHoverReverse => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let mode = self.expect_ident("expected hover reverse mode")?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::HoverReverse(mode));
+                }
+                TokenKind::AtInViewOnce
+                | TokenKind::AtInViewRepeat
+                | TokenKind::AtInViewThreshold => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    match kind {
+                        TokenKind::AtInViewOnce => props.push(ElementProp::InViewOnce(val)),
+                        TokenKind::AtInViewRepeat => props.push(ElementProp::InViewRepeat(val)),
+                        TokenKind::AtInViewThreshold => {
+                            props.push(ElementProp::InViewThreshold(val))
+                        }
+                        _ => {}
+                    }
+                }
+                // Scroll sub-attributes
+                TokenKind::AtScrollStart | TokenKind::AtScrollEnd => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    match kind {
+                        TokenKind::AtScrollStart => props.push(ElementProp::ScrollStart(val)),
+                        TokenKind::AtScrollEnd => props.push(ElementProp::ScrollEnd(val)),
+                        _ => {}
+                    }
+                }
+                TokenKind::AtScrollScrub => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::ScrollScrub(val));
+                }
+                // Drag sub-attributes
+                TokenKind::DragConstraints => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    props.push(ElementProp::DragConstraints(val));
+                }
+                TokenKind::DragElastic
+                | TokenKind::DragScrub
+                | TokenKind::DragMomentum
+                | TokenKind::DragThreshold
+                | TokenKind::DragVelocityMax => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    match kind {
+                        TokenKind::DragElastic => props.push(ElementProp::DragElastic(val)),
+                        TokenKind::DragScrub => props.push(ElementProp::DragScrub(val)),
+                        TokenKind::DragMomentum => props.push(ElementProp::DragMomentum(val)),
+                        TokenKind::DragThreshold => props.push(ElementProp::DragThreshold(val)),
+                        TokenKind::DragVelocityMax => props.push(ElementProp::DragVelocityMax(val)),
+                        _ => {}
+                    }
+                }
+                // Hero attributes
+                TokenKind::AtHero => {
+                    // @hero="tag-name"
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    props.push(ElementProp::HeroTag(val));
+                }
+                TokenKind::AtHeroTransition => {
+                    // @hero-transition={motionName}
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::HeroTransition(val));
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -340,6 +546,34 @@ impl<'a> Parser<'a> {
         )
     }
 
+    /// Check if the next token is a known boolean HTML attribute keyword.
+    /// Used to prevent these from being treated as class names in
+    /// `class: btn primary disabled` scenarios.
+    fn peek_is_boolean_attr_keyword(&self) -> bool {
+        let name: Option<String> = match self.peek_kind() {
+            TokenKind::Ident(s) => Some(s.clone()),
+            ref kind => keyword_as_ident_name(kind),
+        };
+        matches!(
+            name.as_deref(),
+            Some("controls")
+                | Some("disabled")
+                | Some("readonly")
+                | Some("required")
+                | Some("checked")
+                | Some("selected")
+                | Some("autofocus")
+                | Some("multiple")
+                | Some("loop")
+                | Some("muted")
+                | Some("async")
+                | Some("defer")
+                | Some("hidden")
+                | Some("autocomplete")
+                | Some("autoplay")
+        )
+    }
+
     /// Parse a static prop: name="value" or name={expr}
     /// Also handles hyphenated names like margin-left, background-color
     fn parse_element_prop(&mut self) -> Result<ElementProp, ParseError> {
@@ -395,6 +629,55 @@ impl<'a> Parser<'a> {
                     self.advance(); // consume ':'
                     let ref_name = self.expect_ident("expected ref name")?;
                     return Ok(ElementProp::Ref(ref_name));
+                }
+                // states: { state1: { ... }, state2: { ... }, ... }
+                if name == "states" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
+                    let mut states = Vec::new();
+                    while self.peek_kind() != TokenKind::RBrace
+                        && self.peek_kind() != TokenKind::Eof
+                    {
+                        let state_name = self.expect_ident("expected state name")?;
+                        self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
+                        let props = self.parse_property_block()?;
+                        let over = if self.peek_ident_value().map_or(false, |s| s == "over") {
+                            self.advance();
+                            self.expect_token(TokenKind::Colon, "expected ':'")?;
+                            Some(self.parse_expr()?)
+                        } else {
+                            None
+                        };
+                        let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
+                            self.advance();
+                            self.expect_token(TokenKind::Colon, "expected ':'")?;
+                            Some(self.parse_easing()?)
+                        } else {
+                            None
+                        };
+                        states.push((
+                            state_name.clone(),
+                            StateDef {
+                                name: state_name,
+                                properties: props,
+                                over,
+                                ease,
+                            },
+                        ));
+                        if self.peek_kind() == TokenKind::Comma {
+                            self.advance();
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::StatesMap(states));
+                }
+                // on: { signal }
+                if name == "on" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'on:'")?;
+                    let signal = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::AnimateSignal(signal));
                 }
                 // style: entries or class: name
                 self.advance();
@@ -477,6 +760,8 @@ impl<'a> Parser<'a> {
                             }
                         };
                         // Collect additional space-separated class names: class: btn btn-plus
+                        // BUT stop if the next identifier is a known boolean HTML attribute
+                        // (e.g. <audio class: media controls> — "controls" is an attribute)
                         let mut classes = vec![first];
                         loop {
                             // Peek — is the next token another class name?
@@ -490,6 +775,11 @@ impl<'a> Parser<'a> {
                             // Check: is this actually the start of the next attribute?
                             // An ident followed by '=' or ':' is an attribute, not a class name
                             if self.peek_is_attr_start() {
+                                break;
+                            }
+                            // Check: is this a known boolean attribute keyword?
+                            // (e.g., controls, disabled, readonly, loop, muted, etc.)
+                            if self.peek_is_boolean_attr_keyword() {
                                 break;
                             }
                             let next_t = self.advance();
@@ -650,50 +940,28 @@ impl<'a> Parser<'a> {
                     let body = self.parse_block()?;
                     EventHandler::InlineFn { params, body }
                 } else {
-                    // fn reference: fnName, fnName(args), or store.action
-                    let t = self.advance();
-                    match &t.kind {
-                        TokenKind::Ident(name) => {
-                            if self.peek_kind() == TokenKind::Dot {
-                                self.advance();
-                                let action = self.expect_ident("expected action name")?;
-                                EventHandler::StoreAction {
-                                    store: name.clone(),
-                                    action,
-                                }
-                            } else if self.peek_kind() == TokenKind::LParen {
-                                // fnName(args) — call expression as handler
-                                // Wrap as inline fn: () => { fnName(args); }
-                                self.advance(); // '('
-                                let args = self.parse_call_args()?;
-                                let body = Block {
-                                    stmts: vec![Stmt::ExprStmt {
-                                        expr: Expr::FuncCall {
-                                            func: Box::new(Expr::VarRef(
-                                                name.clone(),
-                                                t.span.clone(),
-                                            )),
-                                            args,
-                                            span: t.span.clone(),
-                                        },
-                                        span: t.span.clone(),
-                                    }],
-                                    trailing_expr: None,
-                                    span: t.span.clone(),
-                                };
-                                EventHandler::InlineFn {
-                                    params: vec![],
-                                    body,
-                                }
-                            } else {
-                                EventHandler::FnRef(name.clone())
-                            }
-                        }
+                    // Handler expression: fnName, fnName(args), store.action,
+                    // assignment (dragStatus = "dragging"), or any expression.
+                    // Parse as expression; wrap non-simple cases in inline fn.
+                    let expr = self.parse_expr()?;
+                    match &expr {
+                        Expr::VarRef(name, _) => EventHandler::FnRef(name.clone()),
                         _ => {
-                            return Err(ParseError {
-                                message: format!("Expected event handler, got {:?}", t.kind),
-                                span: t.span,
-                            })
+                            // Wrap any other expression (fn call, assignment, etc.)
+                            // in an inline fn body: () => { expr; }
+                            let expr_span = crate::parser::expr::span_of(&expr).clone();
+                            let body = Block {
+                                stmts: vec![Stmt::ExprStmt {
+                                    expr,
+                                    span: expr_span.clone(),
+                                }],
+                                trailing_expr: None,
+                                span: expr_span,
+                            };
+                            EventHandler::InlineFn {
+                                params: vec![],
+                                body,
+                            }
                         }
                     }
                 };
@@ -715,6 +983,14 @@ impl<'a> Parser<'a> {
     fn parse_if_directive(&mut self) -> Result<ViewNode, ParseError> {
         self.advance(); // '@if'
         let condition = self.parse_expr()?;
+        // Parse optional mode= "wait|sync" after condition, before {
+        let transition_mode = if self.peek_ident_value().map_or(false, |s| s == "mode") {
+            self.advance(); // consume 'mode'
+            self.expect_token(TokenKind::Eq, "expected '='")?;
+            Some(self.expect_string("expected string literal")?)
+        } else {
+            None
+        };
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
@@ -761,11 +1037,14 @@ impl<'a> Parser<'a> {
             }
         }
 
+        let if_span = self.peek_span();
         Ok(ViewNode::IfDirective(IfDirective {
             condition,
             body,
             else_ifs,
             else_body,
+            transition_mode,
+            span: if_span,
         }))
     }
 
@@ -774,6 +1053,19 @@ impl<'a> Parser<'a> {
         let item_name = self.expect_ident("expected item variable name")?;
         self.expect_token(TokenKind::In, "expected 'in'")?;
         let iterable = self.parse_expr()?;
+
+        // Optional key={expr} for identity tracking
+        let key_expr = if self.peek_ident_value().as_deref() == Some("key") {
+            self.advance(); // 'key'
+            self.expect_token(TokenKind::Eq, "expected '='")?;
+            self.expect_token(TokenKind::LBrace, "expected '{'")?;
+            let expr = self.parse_expr()?;
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            Some(expr)
+        } else {
+            None
+        };
+
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
@@ -794,11 +1086,14 @@ impl<'a> Parser<'a> {
             empty_body = Some(b);
         }
 
+        let for_span = self.peek_span();
         Ok(ViewNode::ForDirective(ForDirective {
             item_name,
             iterable,
             body,
             empty_body,
+            key_expr,
+            span: for_span,
         }))
     }
 
@@ -822,6 +1117,20 @@ impl<'a> Parser<'a> {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 class_name = format!("{}-{}", class_name, next);
+            }
+            // Handle pseudo-classes: .className:hover, .className:focus, etc.
+            while self.peek_kind() == TokenKind::Colon {
+                self.advance(); // consume ':'
+                let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+                class_name = format!("{}:{}", class_name, pseudo);
+            }
+            // Skip unsupported compound selector parts (e.g., "input:checked + span")
+            // until we find the opening brace
+            while self.peek_kind() != TokenKind::LBrace
+                && self.peek_kind() != TokenKind::RBrace
+                && self.peek_kind() != TokenKind::Eof
+            {
+                self.advance();
             }
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
@@ -883,6 +1192,10 @@ impl<'a> Parser<'a> {
                                 let next = self.expect_ident("expected identifier after '-'")?;
                                 ident = format!("{}-{}", ident, next);
                             }
+                            // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
+                            if self.peek_kind() == TokenKind::LParen {
+                                ident = consume_css_function_args(self, &ident);
+                            }
                             // Check for dimension: 16px, 1.5rem
                             if let Some(unit) = try_parse_dimension(&ident) {
                                 StyleValue::Dimension(unit.0, unit.1)
@@ -932,6 +1245,9 @@ impl<'a> Parser<'a> {
                                     let next =
                                         self.expect_ident("expected identifier after '-'")?;
                                     ident = format!("{}-{}", ident, next);
+                                }
+                                if self.peek_kind() == TokenKind::LParen {
+                                    ident = consume_css_function_args(self, &ident);
                                 }
                                 if let Some(unit) = try_parse_dimension(&ident) {
                                     StyleValuePart::Dimension(unit.0, unit.1)
@@ -1067,6 +1383,10 @@ impl<'a> Parser<'a> {
                             let next = self.expect_ident("expected identifier after '-'")?;
                             ident = format!("{}-{}", ident, next);
                         }
+                        // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
+                        if self.peek_kind() == TokenKind::LParen {
+                            ident = consume_css_function_args(self, &ident);
+                        }
                         // Check for dimension: 16px, 1.5rem
                         if let Some(unit) = try_parse_dimension(&ident) {
                             StyleValue::Dimension(unit.0, unit.1)
@@ -1097,6 +1417,38 @@ impl<'a> Parser<'a> {
             properties,
         })
     }
+
+    // ── Motion Trigger Parsing ──────────────────────────────
+
+    /// Parse a motion trigger: consumes `={motionExpr}` after the trigger keyword.
+    fn parse_motion_trigger(&mut self, kind: TriggerKind) -> Result<MotionTrigger, ParseError> {
+        self.advance(); // consume the @enter/@hover/etc. token
+        self.expect_token(TokenKind::Eq, "expected '=' after motion trigger")?;
+        self.expect_token(TokenKind::LBrace, "expected '{'")?;
+        let motion_expr = self.parse_motion_expr()?;
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(MotionTrigger {
+            trigger: kind,
+            motion_expr,
+        })
+    }
+
+    /// Parse a property block: { key: expr, ... }
+    fn parse_property_block(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+        self.expect_token(TokenKind::LBrace, "expected '{' for property block")?;
+        let mut properties = Vec::new();
+        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            let key = self.expect_ident("expected property name")?;
+            self.expect_token(TokenKind::Colon, "expected ':' after property name")?;
+            let value = self.parse_expr()?;
+            properties.push((key, value));
+            if self.peek_kind() == TokenKind::Comma {
+                self.advance();
+            }
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}' at end of property block")?;
+        Ok(properties)
+    }
 }
 
 /// Check if a token kind is a keyword that can be used as an HTML attribute name.
@@ -1119,6 +1471,36 @@ fn is_event_like(name: &str) -> bool {
     }
     // Check third char is uppercase: onPress, onClick, onChange, etc.
     name.chars().nth(2).is_some_and(|c| c.is_uppercase())
+}
+
+/// Consume CSS function arguments inside parentheses.
+/// Given `rotate` and next token `(`, consumes `(15deg)` and returns `rotate(15deg)`.
+fn consume_css_function_args(parser: &mut Parser, func_name: &str) -> String {
+    parser.advance(); // consume '('
+    let mut depth: i32 = 1;
+    let mut args = String::new();
+    while depth > 0 && parser.peek_kind() != TokenKind::Eof {
+        match parser.peek_kind() {
+            TokenKind::LParen => {
+                depth += 1;
+                args.push('(');
+                parser.advance();
+            }
+            TokenKind::RParen => {
+                depth -= 1;
+                if depth > 0 {
+                    args.push(')');
+                }
+                parser.advance();
+            }
+            TokenKind::Semicolon | TokenKind::RBrace => break,
+            _ => {
+                let t = parser.advance();
+                args.push_str(&token_text(&t.kind));
+            }
+        }
+    }
+    format!("{}({})", func_name, args)
 }
 
 /// If the next token is an Ident that forms a valid CSS dimension with `val`,
@@ -1161,18 +1543,12 @@ fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> StyleValuePart {
 /// Try to parse a string like "16px" into (16.0, "px").
 fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
     let units = [
-        "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm",
-        // CSS Grid
-        "fr",
-        // Time
-        "ms", "s",
-        // Angle
-        "deg", "rad", "grad", "turn",
-        // Viewport-relative (additional)
-        "vmin", "vmax", "svh", "svw", "lvh", "lvw", "dvh", "dvw",
-        // Container queries
-        "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax",
-        // Typography
+        "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm", // CSS Grid
+        "fr", // Time
+        "ms", "s", // Angle
+        "deg", "rad", "grad", "turn", // Viewport-relative (additional)
+        "vmin", "vmax", "svh", "svw", "lvh", "lvw", "dvh", "dvw", // Container queries
+        "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax", // Typography
         "ch", "ex", "ic", "lh", "rlh",
     ];
     for unit in &units {
@@ -1210,7 +1586,8 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Hash
             | TokenKind::StringLiteral(_)
             | TokenKind::Percent
-            // Compound-assignment and comparison operators
+            // Assignment and comparison operators
+            | TokenKind::Eq
             | TokenKind::PlusEq | TokenKind::MinusEq
             | TokenKind::StarEq | TokenKind::SlashEq | TokenKind::PercentEq
             | TokenKind::EqEq | TokenKind::NotEq
@@ -1231,7 +1608,16 @@ fn token_text(kind: &TokenKind) -> String {
     match kind {
         TokenKind::Ident(s) => s.clone(),
         TokenKind::IntLiteral(n) => n.to_string(),
-        TokenKind::FloatLiteral(f) => f.to_string(),
+        TokenKind::FloatLiteral(f) => {
+            // f64::to_string drops ".0" from integer-valued floats (e.g. 1.0 → "1").
+            // This breaks version-like strings (1.0.0) rendered as text in views.
+            let s = f.to_string();
+            if !s.contains('.') {
+                format!("{}.0", s)
+            } else {
+                s
+            }
+        }
         TokenKind::Colon => ":".into(),
         TokenKind::Comma => ",".into(),
         TokenKind::Dot => ".".into(),
@@ -1248,6 +1634,7 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
         TokenKind::Percent => "%".into(),
+        TokenKind::Eq => "=".into(),
         TokenKind::PlusEq => "+=".into(),
         TokenKind::MinusEq => "-=".into(),
         TokenKind::StarEq => "*=".into(),

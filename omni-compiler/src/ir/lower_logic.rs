@@ -116,7 +116,7 @@ mod tests {
     fn test_lower_fn_main_to_ir() {
         let source = "fn main() { return 42; }";
         let tokens = tokenize(source);
-        let program = parser::parse(&tokens).unwrap();
+        let program = parser::parse(&tokens, source).unwrap();
         let semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: HashMap::new(),
@@ -134,7 +134,7 @@ mod tests {
     fn test_lower_struct_to_ir() {
         let source = "struct Point { x: i32, y: i32 }";
         let tokens = tokenize(source);
-        let program = parser::parse(&tokens).unwrap();
+        let program = parser::parse(&tokens, source).unwrap();
         let semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: HashMap::new(),

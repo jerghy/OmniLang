@@ -105,79 +105,253 @@ static REGISTRY: &[StdlibFn] = &[
     },
     // ── std/math ──────────────────────────────────────
     StdlibFn {
-        module: "math", name: "math_abs",
+        module: "math",
+        name: "math_abs",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_abs, is_async: false,
+        codegen: codegen_math_abs,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_min",
+        module: "math",
+        name: "math_min",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_min, is_async: false,
+        codegen: codegen_math_min,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_max",
+        module: "math",
+        name: "math_max",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_max, is_async: false,
+        codegen: codegen_math_max,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_ceil",
+        module: "math",
+        name: "math_ceil",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_ceil, is_async: false,
+        codegen: codegen_math_ceil,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_floor",
+        module: "math",
+        name: "math_floor",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_floor, is_async: false,
+        codegen: codegen_math_floor,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_round",
+        module: "math",
+        name: "math_round",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_round, is_async: false,
+        codegen: codegen_math_round,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_random",
+        module: "math",
+        name: "math_random",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_random, is_async: false,
+        codegen: codegen_math_random,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_sqrt",
+        module: "math",
+        name: "math_sqrt",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_sqrt, is_async: false,
+        codegen: codegen_math_sqrt,
+        is_async: false,
     },
     StdlibFn {
-        module: "math", name: "math_pow",
+        module: "math",
+        name: "math_pow",
         available_targets: &ALL_TARGETS,
-        codegen: codegen_math_pow, is_async: false,
+        codegen: codegen_math_pow,
+        is_async: false,
     },
     // ── std/string ────────────────────────────────────
-    StdlibFn { module: "string", name: "string_length", available_targets: &ALL_TARGETS, codegen: codegen_string_length, is_async: false },
-    StdlibFn { module: "string", name: "string_concat", available_targets: &ALL_TARGETS, codegen: codegen_string_concat, is_async: false },
-    StdlibFn { module: "string", name: "string_split", available_targets: &ALL_TARGETS, codegen: codegen_string_split, is_async: false },
-    StdlibFn { module: "string", name: "string_join", available_targets: &ALL_TARGETS, codegen: codegen_string_join, is_async: false },
-    StdlibFn { module: "string", name: "string_replace", available_targets: &ALL_TARGETS, codegen: codegen_string_replace, is_async: false },
-    StdlibFn { module: "string", name: "string_substring", available_targets: &ALL_TARGETS, codegen: codegen_string_substring, is_async: false },
-    StdlibFn { module: "string", name: "string_contains", available_targets: &ALL_TARGETS, codegen: codegen_string_contains, is_async: false },
-    StdlibFn { module: "string", name: "string_to_upper", available_targets: &ALL_TARGETS, codegen: codegen_string_to_upper, is_async: false },
-    StdlibFn { module: "string", name: "string_to_lower", available_targets: &ALL_TARGETS, codegen: codegen_string_to_lower, is_async: false },
-    StdlibFn { module: "string", name: "string_trim", available_targets: &ALL_TARGETS, codegen: codegen_string_trim, is_async: false },
-    StdlibFn { module: "string", name: "string_starts_with", available_targets: &ALL_TARGETS, codegen: codegen_string_starts_with, is_async: false },
-    StdlibFn { module: "string", name: "string_ends_with", available_targets: &ALL_TARGETS, codegen: codegen_string_ends_with, is_async: false },
+    StdlibFn {
+        module: "string",
+        name: "string_length",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_length,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_concat",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_concat,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_split",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_split,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_join",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_join,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_replace",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_replace,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_substring",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_substring,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_contains",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_contains,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_to_upper",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_to_upper,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_to_lower",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_to_lower,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_trim",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_trim,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_starts_with",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_starts_with,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "string",
+        name: "string_ends_with",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_string_ends_with,
+        is_async: false,
+    },
     // ── std/array ─────────────────────────────────────
-    StdlibFn { module: "array", name: "array_length", available_targets: &ALL_TARGETS, codegen: codegen_array_length, is_async: false },
-    StdlibFn { module: "array", name: "array_get", available_targets: &ALL_TARGETS, codegen: codegen_array_get, is_async: false },
-    StdlibFn { module: "array", name: "array_push", available_targets: &ALL_TARGETS, codegen: codegen_array_push, is_async: false },
-    StdlibFn { module: "array", name: "array_pop", available_targets: &ALL_TARGETS, codegen: codegen_array_pop, is_async: false },
-    StdlibFn { module: "array", name: "array_remove", available_targets: &ALL_TARGETS, codegen: codegen_array_remove, is_async: false },
-    StdlibFn { module: "array", name: "array_map", available_targets: &ALL_TARGETS, codegen: codegen_array_map, is_async: false },
-    StdlibFn { module: "array", name: "array_filter", available_targets: &ALL_TARGETS, codegen: codegen_array_filter, is_async: false },
-    StdlibFn { module: "array", name: "array_find", available_targets: &ALL_TARGETS, codegen: codegen_array_find, is_async: false },
-    StdlibFn { module: "array", name: "array_sort", available_targets: &ALL_TARGETS, codegen: codegen_array_sort, is_async: false },
-    StdlibFn { module: "array", name: "array_contains", available_targets: &ALL_TARGETS, codegen: codegen_array_contains, is_async: false },
-    StdlibFn { module: "array", name: "array_is_empty", available_targets: &ALL_TARGETS, codegen: codegen_array_is_empty, is_async: false },
+    StdlibFn {
+        module: "array",
+        name: "array_length",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_length,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_get",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_get,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_push",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_push,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_pop",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_pop,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_remove",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_remove,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_map",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_map,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_filter",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_filter,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_find",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_find,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_sort",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_sort,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_contains",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_contains,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "array",
+        name: "array_is_empty",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_array_is_empty,
+        is_async: false,
+    },
     // ── std/console ───────────────────────────────────
-    StdlibFn { module: "console", name: "console_log", available_targets: &ALL_TARGETS, codegen: codegen_console_log, is_async: false },
-    StdlibFn { module: "console", name: "console_warn", available_targets: &ALL_TARGETS, codegen: codegen_console_warn, is_async: false },
-    StdlibFn { module: "console", name: "console_error", available_targets: &ALL_TARGETS, codegen: codegen_console_error, is_async: false },
+    StdlibFn {
+        module: "console",
+        name: "console_log",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_console_log,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "console",
+        name: "console_warn",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_console_warn,
+        is_async: false,
+    },
+    StdlibFn {
+        module: "console",
+        name: "console_error",
+        available_targets: &ALL_TARGETS,
+        codegen: codegen_console_error,
+        is_async: false,
+    },
 ];
 
 const ALL_TARGETS: [Target; 9] = [
@@ -207,9 +381,14 @@ const STORAGE_TARGETS: [Target; 5] = [
 fn codegen_http_send(args: &[String], target: Target) -> String {
     let req = &args[0]; // HttpRequest struct variable
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            // fetch() returns a Response; extract text body so callers get String
             format!(
-                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }})",
+                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }}).then(r => r.text())",
                 req = req
             )
         }
@@ -237,8 +416,13 @@ fn codegen_http_send(args: &[String], target: Target) -> String {
 fn codegen_http_get(args: &[String], target: Target) -> String {
     let url = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("fetch({url})", url = url)
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            // fetch() returns a Response; extract text body so callers get String
+            format!("fetch({url}).then(r => r.text())", url = url)
         }
         Target::Python => format!("requests.get({url})", url = url),
         Target::Rust | Target::Dioxus => {
@@ -254,9 +438,14 @@ fn codegen_http_post(args: &[String], target: Target) -> String {
     let url = &args[0];
     let body = args.get(1).map(|s| s.as_str()).unwrap_or("null");
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            // fetch() returns a Response; extract text body so callers get String
             format!(
-                "fetch({url}, {{ method: 'POST', body: {body} }})",
+                "fetch({url}, {{ method: 'POST', body: {body} }}).then(r => r.text())",
                 url = url,
                 body = body
             )
@@ -288,7 +477,11 @@ fn codegen_http_post(args: &[String], target: Target) -> String {
 fn codegen_json_parse(args: &[String], target: Target) -> String {
     let text = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("JSON.parse({text})", text = text)
         }
         Target::Python => format!("json.loads({text})", text = text),
@@ -304,7 +497,11 @@ fn codegen_json_parse(args: &[String], target: Target) -> String {
 fn codegen_json_stringify(args: &[String], target: Target) -> String {
     let val = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("JSON.stringify({val})", val = val)
         }
         Target::Python => format!("json.dumps({val})", val = val),
@@ -324,11 +521,18 @@ fn codegen_json_stringify(args: &[String], target: Target) -> String {
 fn codegen_storage_get(args: &[String], target: Target) -> String {
     let key = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("localStorage.getItem({key})", key = key)
         }
         Target::Flutter => {
-            format!("(await SharedPreferences.getInstance()).getString({key})", key = key)
+            format!(
+                "(await SharedPreferences.getInstance()).getString({key})",
+                key = key
+            )
         }
         _ => unreachable!("storage_get not available on {:?}", target),
     }
@@ -338,7 +542,11 @@ fn codegen_storage_set(args: &[String], target: Target) -> String {
     let key = &args[0];
     let val = args.get(1).map(|s| s.as_str()).unwrap_or("\"\"");
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("localStorage.setItem({key}, {val})", key = key, val = val)
         }
         Target::Flutter => {
@@ -359,7 +567,11 @@ fn codegen_storage_set(args: &[String], target: Target) -> String {
 fn codegen_math_abs(args: &[String], target: Target) -> String {
     let n = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.abs({n})")
         }
         Target::Python => format!("abs({n})"),
@@ -369,9 +581,14 @@ fn codegen_math_abs(args: &[String], target: Target) -> String {
 }
 
 fn codegen_math_min(args: &[String], target: Target) -> String {
-    let a = &args[0]; let b = &args[1];
+    let a = &args[0];
+    let b = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.min({a}, {b})")
         }
         Target::Python => format!("min({a}, {b})"),
@@ -381,9 +598,14 @@ fn codegen_math_min(args: &[String], target: Target) -> String {
 }
 
 fn codegen_math_max(args: &[String], target: Target) -> String {
-    let a = &args[0]; let b = &args[1];
+    let a = &args[0];
+    let b = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.max({a}, {b})")
         }
         Target::Python => format!("max({a}, {b})"),
@@ -395,7 +617,11 @@ fn codegen_math_max(args: &[String], target: Target) -> String {
 fn codegen_math_ceil(args: &[String], target: Target) -> String {
     let n = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.ceil({n})")
         }
         Target::Python => format!("math.ceil({n})"),
@@ -407,7 +633,11 @@ fn codegen_math_ceil(args: &[String], target: Target) -> String {
 fn codegen_math_floor(args: &[String], target: Target) -> String {
     let n = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.floor({n})")
         }
         Target::Python => format!("math.floor({n})"),
@@ -419,7 +649,11 @@ fn codegen_math_floor(args: &[String], target: Target) -> String {
 fn codegen_math_round(args: &[String], target: Target) -> String {
     let n = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.round({n})")
         }
         Target::Python => format!("round({n})"),
@@ -430,9 +664,11 @@ fn codegen_math_round(args: &[String], target: Target) -> String {
 
 fn codegen_math_random(_args: &[String], target: Target) -> String {
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            "Math.random()".to_string()
-        }
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => "Math.random()".to_string(),
         Target::Python => "random.random()".to_string(),
         Target::Rust | Target::Dioxus => "rand::random::<f64>()".to_string(),
         Target::Dart | Target::Flutter => "Random().nextDouble()".to_string(),
@@ -442,7 +678,11 @@ fn codegen_math_random(_args: &[String], target: Target) -> String {
 fn codegen_math_sqrt(args: &[String], target: Target) -> String {
     let n = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.sqrt({n})")
         }
         Target::Python => format!("math.sqrt({n})"),
@@ -452,9 +692,14 @@ fn codegen_math_sqrt(args: &[String], target: Target) -> String {
 }
 
 fn codegen_math_pow(args: &[String], target: Target) -> String {
-    let base = &args[0]; let exp = &args[1];
+    let base = &args[0];
+    let exp = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("Math.pow({base}, {exp})")
         }
         Target::Python => format!("math.pow({base}, {exp})"),
@@ -470,7 +715,11 @@ fn codegen_math_pow(args: &[String], target: Target) -> String {
 fn codegen_string_length(args: &[String], target: Target) -> String {
     let s = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).length")
         }
         Target::Python => format!("len({s})"),
@@ -480,9 +729,14 @@ fn codegen_string_length(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_concat(args: &[String], target: Target) -> String {
-    let a = &args[0]; let b = &args[1];
+    let a = &args[0];
+    let b = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({a}) + ({b})")
         }
         Target::Python => format!("({a}) + ({b})"),
@@ -492,9 +746,14 @@ fn codegen_string_concat(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_split(args: &[String], target: Target) -> String {
-    let s = &args[0]; let sep = &args[1];
+    let s = &args[0];
+    let sep = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).split({sep})")
         }
         Target::Python => format!("({s}).split({sep})"),
@@ -504,9 +763,14 @@ fn codegen_string_split(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_join(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let sep = &args[1];
+    let arr = &args[0];
+    let sep = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).join({sep})")
         }
         Target::Python => format!("({sep}).join({arr})"),
@@ -516,9 +780,15 @@ fn codegen_string_join(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_replace(args: &[String], target: Target) -> String {
-    let s = &args[0]; let from = &args[1]; let to = &args[2];
+    let s = &args[0];
+    let from = &args[1];
+    let to = &args[2];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).replaceAll({from}, {to})")
         }
         Target::Python => format!("({s}).replace({from}, {to})"),
@@ -528,10 +798,15 @@ fn codegen_string_replace(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_substring(args: &[String], target: Target) -> String {
-    let s = &args[0]; let start = &args[1];
+    let s = &args[0];
+    let start = &args[1];
     let end = args.get(2).map(|e| e.as_str()).unwrap_or("undefined");
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             if args.len() >= 3 {
                 format!("({s}).substring({start}, {end})")
             } else {
@@ -563,9 +838,14 @@ fn codegen_string_substring(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_contains(args: &[String], target: Target) -> String {
-    let s = &args[0]; let sub = &args[1];
+    let s = &args[0];
+    let sub = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).includes({sub})")
         }
         Target::Python => format!("({sub}) in ({s})"),
@@ -577,7 +857,11 @@ fn codegen_string_contains(args: &[String], target: Target) -> String {
 fn codegen_string_to_upper(args: &[String], target: Target) -> String {
     let s = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).toUpperCase()")
         }
         Target::Python => format!("({s}).upper()"),
@@ -589,7 +873,11 @@ fn codegen_string_to_upper(args: &[String], target: Target) -> String {
 fn codegen_string_to_lower(args: &[String], target: Target) -> String {
     let s = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).toLowerCase()")
         }
         Target::Python => format!("({s}).lower()"),
@@ -601,7 +889,11 @@ fn codegen_string_to_lower(args: &[String], target: Target) -> String {
 fn codegen_string_trim(args: &[String], target: Target) -> String {
     let s = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).trim()")
         }
         Target::Python => format!("({s}).strip()"),
@@ -611,9 +903,14 @@ fn codegen_string_trim(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_starts_with(args: &[String], target: Target) -> String {
-    let s = &args[0]; let prefix = &args[1];
+    let s = &args[0];
+    let prefix = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).startsWith({prefix})")
         }
         Target::Python => format!("({s}).startswith({prefix})"),
@@ -623,9 +920,14 @@ fn codegen_string_starts_with(args: &[String], target: Target) -> String {
 }
 
 fn codegen_string_ends_with(args: &[String], target: Target) -> String {
-    let s = &args[0]; let suffix = &args[1];
+    let s = &args[0];
+    let suffix = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({s}).endsWith({suffix})")
         }
         Target::Python => format!("({s}).endswith({suffix})"),
@@ -641,7 +943,11 @@ fn codegen_string_ends_with(args: &[String], target: Target) -> String {
 fn codegen_array_length(args: &[String], target: Target) -> String {
     let arr = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).length")
         }
         Target::Python => format!("len({arr})"),
@@ -651,22 +957,34 @@ fn codegen_array_length(args: &[String], target: Target) -> String {
 }
 
 fn codegen_array_get(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let idx = &args[1];
+    let arr = &args[0];
+    let idx = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr})[{idx}]")
         }
         Target::Python => format!("({arr})[{idx}] if 0 <= ({idx}) < len({arr}) else None"),
         Target::Rust | Target::Dioxus => format!("({arr}).get({idx} as usize).cloned()"),
-        Target::Dart | Target::Flutter => format!("({idx}) >= 0 && ({idx}) < ({arr}).length ? ({arr})[{idx} as int] : null"),
+        Target::Dart | Target::Flutter => {
+            format!("({idx}) >= 0 && ({idx}) < ({arr}).length ? ({arr})[{idx} as int] : null")
+        }
     }
 }
 
 fn codegen_array_push(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let item = &args[1];
+    let arr = &args[0];
+    let item = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("({arr}).push({item}), {arr}")
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            format!("(({arr}).push({item}), ({arr}).slice())")
         }
         Target::Python => format!("({arr}).append({item}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).push({item}); {arr} }}"),
@@ -677,20 +995,31 @@ fn codegen_array_push(args: &[String], target: Target) -> String {
 fn codegen_array_pop(args: &[String], target: Target) -> String {
     let arr = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).pop()")
         }
         Target::Python => format!("({arr}).pop() if {arr} else None"),
         Target::Rust | Target::Dioxus => format!("({arr}).pop()"),
-        Target::Dart | Target::Flutter => format!("({arr}).isNotEmpty ? ({arr}).removeLast() : null"),
+        Target::Dart | Target::Flutter => {
+            format!("({arr}).isNotEmpty ? ({arr}).removeLast() : null")
+        }
     }
 }
 
 fn codegen_array_remove(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let idx = &args[1];
+    let arr = &args[0];
+    let idx = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("({arr}).splice({idx}, 1), {arr}")
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
+            format!("(({arr}).splice({idx}, 1), ({arr}).slice())")
         }
         Target::Python => format!("({arr}).pop({idx}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).remove({idx} as usize); {arr} }}"),
@@ -699,38 +1028,59 @@ fn codegen_array_remove(args: &[String], target: Target) -> String {
 }
 
 fn codegen_array_map(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let fn_name = &args[1];
+    let arr = &args[0];
+    let fn_name = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).map({fn_name})")
         }
         Target::Python => format!("[{fn_name}(x) for x in {arr}]"),
-        Target::Rust | Target::Dioxus => format!("({arr}).iter().map({fn_name}).collect::<Vec<_>>()"),
+        Target::Rust | Target::Dioxus => {
+            format!("({arr}).iter().map({fn_name}).collect::<Vec<_>>()")
+        }
         Target::Dart | Target::Flutter => format!("({arr}).map({fn_name}).toList()"),
     }
 }
 
 fn codegen_array_filter(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let fn_name = &args[1];
+    let arr = &args[0];
+    let fn_name = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).filter({fn_name})")
         }
         Target::Python => format!("[x for x in {arr} if {fn_name}(x)]"),
-        Target::Rust | Target::Dioxus => format!("({arr}).iter().filter(|x| {fn_name}(x)).cloned().collect::<Vec<_>>()"),
+        Target::Rust | Target::Dioxus => {
+            format!("({arr}).iter().filter(|x| {fn_name}(x)).cloned().collect::<Vec<_>>()")
+        }
         Target::Dart | Target::Flutter => format!("({arr}).where({fn_name}).toList()"),
     }
 }
 
 fn codegen_array_find(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let fn_name = &args[1];
+    let arr = &args[0];
+    let fn_name = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).find({fn_name})")
         }
         Target::Python => format!("next((x for x in {arr} if {fn_name}(x)), None)"),
         Target::Rust | Target::Dioxus => format!("({arr}).iter().find(|x| {fn_name}(x)).cloned()"),
-        Target::Dart | Target::Flutter => format!("({arr}).firstWhere({fn_name}, orElse: () => null)"),
+        Target::Dart | Target::Flutter => {
+            format!("({arr}).firstWhere({fn_name}, orElse: () => null)")
+        }
     }
 }
 
@@ -738,7 +1088,11 @@ fn codegen_array_sort(args: &[String], target: Target) -> String {
     let arr = &args[0];
     let closure = args.get(1);
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             if let Some(c) = closure {
                 format!("([...{arr}]).sort({c})")
             } else {
@@ -770,9 +1124,14 @@ fn codegen_array_sort(args: &[String], target: Target) -> String {
 }
 
 fn codegen_array_contains(args: &[String], target: Target) -> String {
-    let arr = &args[0]; let item = &args[1];
+    let arr = &args[0];
+    let item = &args[1];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).includes({item})")
         }
         Target::Python => format!("({item}) in ({arr})"),
@@ -784,7 +1143,11 @@ fn codegen_array_contains(args: &[String], target: Target) -> String {
 fn codegen_array_is_empty(args: &[String], target: Target) -> String {
     let arr = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("({arr}).length === 0")
         }
         Target::Python => format!("len({arr}) == 0"),
@@ -800,7 +1163,11 @@ fn codegen_array_is_empty(args: &[String], target: Target) -> String {
 fn codegen_console_log(args: &[String], target: Target) -> String {
     let msg = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("console.log({msg})")
         }
         Target::Python => format!("print({msg})"),
@@ -812,7 +1179,11 @@ fn codegen_console_log(args: &[String], target: Target) -> String {
 fn codegen_console_warn(args: &[String], target: Target) -> String {
     let msg = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("console.warn({msg})")
         }
         Target::Python => format!("import warnings; warnings.warn({msg})"),
@@ -824,7 +1195,11 @@ fn codegen_console_warn(args: &[String], target: Target) -> String {
 fn codegen_console_error(args: &[String], target: Target) -> String {
     let msg = &args[0];
     match target {
-        Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+        Target::JavaScript
+        | Target::TypeScript
+        | Target::React
+        | Target::Vue
+        | Target::OmniView => {
             format!("console.error({msg})")
         }
         Target::Python => format!("import sys; print({msg}, file=sys.stderr)"),
@@ -893,25 +1268,41 @@ mod tests {
     #[test]
     fn test_codegen_http_get_js() {
         let result = codegen_http_get(&["\"url\"".into()], Target::JavaScript);
-        assert!(result.contains("fetch"), "JS http_get should use fetch. Got: {}", result);
+        assert!(
+            result.contains("fetch"),
+            "JS http_get should use fetch. Got: {}",
+            result
+        );
     }
 
     #[test]
     fn test_codegen_http_get_python() {
         let result = codegen_http_get(&["\"url\"".into()], Target::Python);
-        assert!(result.contains("requests.get"), "Python http_get should use requests. Got: {}", result);
+        assert!(
+            result.contains("requests.get"),
+            "Python http_get should use requests. Got: {}",
+            result
+        );
     }
 
     #[test]
     fn test_codegen_http_get_rust() {
         let result = codegen_http_get(&["\"url\"".into()], Target::Rust);
-        assert!(result.contains("reqwest::blocking::get"), "Rust http_get should use reqwest. Got: {}", result);
+        assert!(
+            result.contains("reqwest::blocking::get"),
+            "Rust http_get should use reqwest. Got: {}",
+            result
+        );
     }
 
     #[test]
     fn test_codegen_http_get_dart() {
         let result = codegen_http_get(&["\"url\"".into()], Target::Dart);
-        assert!(result.contains("http.get"), "Dart http_get should use http.get. Got: {}", result);
+        assert!(
+            result.contains("http.get"),
+            "Dart http_get should use http.get. Got: {}",
+            result
+        );
     }
 
     #[test]
@@ -1038,7 +1429,8 @@ mod tests {
         for target in &ALL_TARGETS {
             assert!(
                 module_available("math", *target),
-                "math should be available on {:?}", target
+                "math should be available on {:?}",
+                target
             );
         }
     }
@@ -1054,38 +1446,60 @@ mod tests {
 
     #[test]
     fn test_codegen_string_length_js() {
-        assert_eq!(codegen_string_length(&["s".into()], Target::JavaScript), "(s).length");
+        assert_eq!(
+            codegen_string_length(&["s".into()], Target::JavaScript),
+            "(s).length"
+        );
     }
 
     #[test]
     fn test_codegen_string_length_python() {
-        assert_eq!(codegen_string_length(&["s".into()], Target::Python), "len(s)");
+        assert_eq!(
+            codegen_string_length(&["s".into()], Target::Python),
+            "len(s)"
+        );
     }
 
     #[test]
     fn test_codegen_string_concat_js() {
-        assert_eq!(codegen_string_concat(&["a".into(), "b".into()], Target::JavaScript), "(a) + (b)");
+        assert_eq!(
+            codegen_string_concat(&["a".into(), "b".into()], Target::JavaScript),
+            "(a) + (b)"
+        );
     }
 
     #[test]
     fn test_codegen_string_contains_js() {
-        assert_eq!(codegen_string_contains(&["s".into(), "\"x\"".into()], Target::JavaScript), "(s).includes(\"x\")");
+        assert_eq!(
+            codegen_string_contains(&["s".into(), "\"x\"".into()], Target::JavaScript),
+            "(s).includes(\"x\")"
+        );
     }
 
     #[test]
     fn test_codegen_string_trim_js() {
-        assert_eq!(codegen_string_trim(&["s".into()], Target::JavaScript), "(s).trim()");
+        assert_eq!(
+            codegen_string_trim(&["s".into()], Target::JavaScript),
+            "(s).trim()"
+        );
     }
 
     #[test]
     fn test_codegen_string_split_python() {
-        assert_eq!(codegen_string_split(&["s".into(), "\",\"".into()], Target::Python), "(s).split(\",\")");
+        assert_eq!(
+            codegen_string_split(&["s".into(), "\",\"".into()], Target::Python),
+            "(s).split(\",\")"
+        );
     }
 
     #[test]
     fn test_string_available_on_all_targets() {
         for target in &ALL_TARGETS {
-            assert!(module_available("string", *target), "string should be available on {:?}", target);
+            assert!(
+                module_available("string", *target),
+                "string should be available on {:?}",
+                target
+            );
         }
     }
 
@@ -1093,7 +1507,10 @@ mod tests {
 
     #[test]
     fn test_codegen_array_length_js() {
-        assert_eq!(codegen_array_length(&["arr".into()], Target::JavaScript), "(arr).length");
+        assert_eq!(
+            codegen_array_length(&["arr".into()], Target::JavaScript),
+            "(arr).length"
+        );
     }
 
     #[test]
@@ -1111,12 +1528,18 @@ mod tests {
 
     #[test]
     fn test_codegen_console_log_js() {
-        assert_eq!(codegen_console_log(&["\"hi\"".into()], Target::JavaScript), "console.log(\"hi\")");
+        assert_eq!(
+            codegen_console_log(&["\"hi\"".into()], Target::JavaScript),
+            "console.log(\"hi\")"
+        );
     }
 
     #[test]
     fn test_codegen_console_log_python() {
-        assert_eq!(codegen_console_log(&["\"hi\"".into()], Target::Python), "print(\"hi\")");
+        assert_eq!(
+            codegen_console_log(&["\"hi\"".into()], Target::Python),
+            "print(\"hi\")"
+        );
     }
 
     #[test]

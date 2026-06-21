@@ -1,0 +1,157 @@
+<h2>统一冒号语法 & 完整设计总览</h2>
+<p class="subtitle">所有属性 key: value，数字带单位，和 CSS 风格一致</p>
+
+<div class="section">
+<h3>Motion 块完整语法</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+@motion cardEnter {
+  // ── 帧 ──
+  from { opacity: 0; y: 30px }
+  to   { opacity: 1; y: 0 }
+
+  // ── 时序 ──
+  over: 400ms
+  ease: easeOut
+  delay: 0ms
+
+  // ── 播放 ──
+  loop: infinite       // number | infinite
+  direction: alternate // normal | reverse | alternate | alternateReverse
+
+  // ── 填充 ──
+  fill: both           // none | forwards | backwards | both
+}
+
+@motion bounce {
+  0%   { y: 0 }
+  40%  { y: -30px }
+  60%  { y: -15px }
+  100% { y: 0 }
+  over: 600ms
+  ease: easeOut
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>缓动：所有参数也带冒号</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 预设
+ease: linear
+ease: easeIn | easeOut | easeInOut
+
+// 贝塞尔
+ease: cubic(x1: 0.16, y1: 1, x2: 0.3, y2: 1)
+
+// 弹簧
+ease: spring(tension: 200, friction: 15)
+ease: spring(tension: 200, friction: 15, velocity: 2)
+
+// 其他
+ease: back(intensity: 1.7)
+ease: elastic(amplitude: 1, period: 0.5)
+ease: bounce
+ease: steps(count: 5, direction: end)
+</pre>
+</div>
+
+<div class="section">
+<h3>组合 & 挂载</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// ── 顺序 / 并行 / 重叠 ──
+@motion entrance {
+  from { opacity: 0; y: 30px } over: 400ms ease: easeOut
+  then from { opacity: 0; x: -20px } over: 300ms
+  then stagger(
+    from { opacity: 0; y: 10px } over: 300ms ease: back(intensity: 1.7),
+    each: 60ms,
+    from: center
+  ) at: -0.1s
+}
+
+// ── 元素挂载 ──
+&lt;div @enter={entrance} @leave={fadeOut}&gt;
+&lt;button @hover={scale(1.05)} @press={scale(0.95)}&gt;
+&lt;ul @enter={stagger(fadeIn, each: 60ms, from: center)}&gt;
+
+// ── 内联 ──
+&lt;div @enter={to { opacity: 1; y: 0 } over: 300ms ease: easeOut}&gt;
+
+// ── 信号绑定 ──
+&lt;div @bind-style={cardMotion} @bind-signal={isOpen}&gt;
+
+// ── 滚动 ──
+&lt;section @scroll={fadeIn} @scroll-trigger={top enters 80%}&gt;
+
+// ── 手势 ──
+&lt;Card @drag-horizontal={swipeCard} @drag-threshold={30%}&gt;
+
+// ── 多状态 ──
+&lt;Panel @states={{
+  idle:    to { scale: 1;   opacity: 1 }   over: 150ms,
+  hover:   to { scale: 1.05; opacity: 1 }   over: 150ms,
+  pressed: to { scale: 0.95; opacity: 0.8 } over: 100ms
+}}&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>完整设计决策汇总</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <tr style="border-bottom:2px solid var(--color-border);">
+    <th style="text-align:left;padding:8px;">层</th>
+    <th style="text-align:left;padding:8px;">决策</th>
+    <th style="text-align:left;padding:8px;">语法</th>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">定义</td>
+    <td style="padding:6px 8px;">命名块</td>
+    <td style="padding:6px 8px;"><code>@motion NAME { ... }</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">帧</td>
+    <td style="padding:6px 8px;">from/to + 百分比混用，无包裹关键字</td>
+    <td style="padding:6px 8px;"><code>from { ... } to { ... }</code> / <code>40% { ... }</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">方向</td>
+    <td style="padding:6px 8px;">3 种原语</td>
+    <td style="padding:6px 8px;"><code>to {}</code> / <code>from {}</code> / <code>from {} to {}</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">属性</td>
+    <td style="padding:6px 8px;">统一 key: value + 冒号</td>
+    <td style="padding:6px 8px;"><code>over: 300ms</code> <code>ease: easeOut</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">数值</td>
+    <td style="padding:6px 8px;">显式单位</td>
+    <td style="padding:6px 8px;"><code>300ms</code> <code>1.5s</code> <code>20px</code> <code>30%</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">缓动</td>
+    <td style="padding:6px 8px;">预设 + 贝塞尔 + 物理弹簧</td>
+    <td style="padding:6px 8px;"><code>ease: spring(tension: 200, friction: 15)</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">组合</td>
+    <td style="padding:6px 8px;">关键字链式</td>
+    <td style="padding:6px 8px;"><code>then</code> / <code>with</code> / <code>at: -0.1s</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">交错</td>
+    <td style="padding:6px 8px;">函数修饰符</td>
+    <td style="padding:6px 8px;"><code>stagger(motion, each: 60ms, from: center)</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">挂载</td>
+    <td style="padding:6px 8px;">表达式属性（和 @onClick 一致）</td>
+    <td style="padding:6px 8px;"><code>@enter={expr}</code> <code>@leave={expr}</code> <code>@hover={expr}</code></td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">触发词</td>
+    <td style="padding:6px 8px;">6 类</td>
+    <td style="padding:6px 8px;">enter / leave / hover / press / focus / drag / scroll / animate / bind / states</td>
+  </tr>
+</table>
+</div>

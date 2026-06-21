@@ -1,0 +1,132 @@
+<h2>Spec 深度审查：15 个剩余问题</h2>
+<p class="subtitle">从编译器角度逐行审查 790 行 spec 文档</p>
+
+<div class="section">
+<h3>问题 1：关键帧模式 vs 单条时间线的二义性</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// 这个到底是关键帧模式还是时间线模式？
+@motion fade {
+  from { opacity: 0 } to { opacity: 1 } over: 300ms ease: easeOut
+}
+// 没有任何 timeline 特性（start/then/with/set/stagger/label/callback）
+// → 默认判定为关键帧模式
+// → 功能等价（单段关键帧 = 单条时间线），所以没问题
+// 但有 timeline 特性时强制为时间线模式
+</pre>
+<p>→ <strong>需要明确判定规则</strong>：含 then/with/start/set/IDENT/label/stagger/callback → 时间线；否则 → 关键帧</p>
+</div>
+
+<div class="section">
+<h3>问题 2：with 分组的 then 语义不清</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+A over: 1s
+with B over: 0.5s
+then C over: 0.3s   // C 什么时候开始？
+
+// 选项 A：after B.end (0.5s) — A 可能还在播
+// 选项 B：after max(A.end, B.end) (1s) — with 形成一个 group
+</pre>
+<p>→ <strong>建议选项 B</strong>：with 形成一个 group，then 在 group 结束后（最长 item 结束点）才开始。更符合直觉。</p>
+</div>
+
+<div class="section">
+<h3>问题 3：@motion 作用域未定义</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// @motion 能定义在哪里？
+// ✅ 顶层（文件级）
+// ✅ component 内（组件级）
+// ❌ store 内
+// ❌ 另一个 @motion 内（不支持嵌套）
+//
+// 名称解析：当前作用域 → 父作用域 → 文件级 → import
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 4：纯回调 motion（无视觉 tween）</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// 有些动画只需要回调——驱动逻辑而不改变视觉属性
+@motion countUp {
+  onUpdate: { displayValue = floor($progress * 100) }
+  over: 1000ms
+}
+// 当前语法不允许：motion_body 必须有 to/from/timeline_item
+// → 需要加 callback_body 模式，允许只有 over + 回调
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 5：stagger 在时间线中，后续 item 何时开始？</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+fadeIn over: 300ms
+then stagger(fadeOut, each: 50ms)    // 3 个 item: 总时长 300 + 2*50 = 400ms
+then to { scale: 1 } over: 100ms     // 在 stagger 的最后一个 item 结束后开始
+</pre>
+<p>→ <strong>明确</strong>：stagger 作为整体的"结束时间" = 最后一个 item 的结束时间 = (N-1)*each + motion.duration</p>
+</div>
+
+<div class="section">
+<h3>问题 6：@states 只接受固定的三个名字</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+@states {
+  idle:    ...    // ✅ 允许
+  hover:   ...    // ✅ 允许
+  pressed: ...    // ✅ 允许
+  focused: ...    // ❌ 编译错误（不在允许列表中）
+  dragging: ...   // ❌ 编译错误
+}
+// 只接受 idle / hover / pressed
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 7：boxShadow / clipPath / d 参数的格式校验</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// boxShadow: 两端必须同格式
+// ✅ "0 0 0 rgba(0,0,0,0)" → "0 4px 12px rgba(0,0,0,0.15)"
+// ❌ "0 0 0 red" → "0 4px 12px rgba(0,0,0,0.15)"（左侧无 rgba）
+
+// clipPath: 两端必须同 shape 函数
+// ✅ "circle(0%)" → "circle(100%)"
+// ❌ "circle(0%)" → "polygon(0 0, 100% 0, 100% 100%)"
+
+// d: 两端 path 段数必须一致（编译时）或形状近似（运行时兜底）
+// ⚠️ 无法完全静态校验 → 默认编译通过，运行时如果失败则跳过该属性
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 8：@scroll-start / @scroll-end 格式未定义</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// 格式："{elementEdge} {viewportPosition}"
+// elementEdge:   top | center | bottom
+// viewportPosition: N% | top | center | bottom
+// 例："top 80%" = 元素顶部到视口 80% 位置
+//     "center center" = 元素中心到视口中心
+//     "bottom top" = 元素底部到视口顶部
+
+// GSAP 还支持 px 值，我们 Phase 1 只支持 % + 关键字
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 9：stagger from: center 偶数 N 的行为</h3>
+<pre style="font-size:11px;line-height:1.6;background:var(--color-surface);padding:0.8rem;border-radius:6px;">
+// N=4: 哪俩在 t=0 同时开始？
+// → 中间两个：index=1 和 index=2（0-indexed: floor((N-1)/2) 和 ceil((N-1)/2)）
+// N=5: 中间一个：index=2 在 t=0
+</pre>
+</div>
+
+<div class="section">
+<h3>问题 10-15：参数值范围约束</h3>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th>#</th><th>参数</th><th>合法范围</th><th>越界</th></tr>
+  <tr><td>10</td><td><code>over</code></td><td>0ms ~ 3600s</td><td>&lt; 0 → ❌ 错误；&gt; 3600s → ⚠️ 警告</td></tr>
+  <tr><td>11</td><td><code>delay</code></td><td>0ms ~ 3600s</td><td>&lt; 0 → ❌ 错误</td></tr>
+  <tr><td>12</td><td><code>loop</code></td><td>1 ~ 10000 或 infinite</td><td>0 → ❌ 错误</td></tr>
+  <tr><td>13</td><td><code>timeScale</code></td><td>0.0 ~ 100.0</td><td>0 → ⚠️ 警告（暂停）；&lt; 0 → ❌ 错误</td></tr>
+  <tr><td>14</td><td><code>opacity</code></td><td>0.0 ~ 1.0</td><td>越界 → ⚠️ 警告</td></tr>
+  <tr><td>15</td><td><code>$velocity</code></td><td>仅在 gesture 上下文有效</td><td>非 gesture 回调中引用 → ❌ 错误</td></tr>
+</table>
+</div>

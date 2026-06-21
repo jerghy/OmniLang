@@ -292,7 +292,7 @@ impl AnalysisContext {
 
         for sf in &request.files {
             let tokens = lexer::tokenize(&sf.content);
-            match parser::parse(&tokens) {
+            match parser::parse(&tokens, &sf.content) {
                 Ok(program) => {
                     let symbols = collect_file_symbols(&sf.path, &sf.content, &program);
                     cross_symbols.insert(sf.path.clone(), symbols);

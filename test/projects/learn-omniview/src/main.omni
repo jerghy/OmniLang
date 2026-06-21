@@ -1,10 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║    OmniView 教学项目 —— 多文件项目结构                          ║
+// ║    OmniView 教学项目 —— 多文件项目结构（56 源文件全覆盖）       ║
 // ║                                                              ║
 // ║  运行：omnic run                                               ║
 // ║  编译：omnic build --target omniview                           ║
 // ║                                                              ║
-// ║  项目结构（34 个源文件）：                                     ║
+// ║  项目结构：                                                   ║
 // ║    src/main.omni              ← 入口 + App 根组件             ║
 // ║    src/lib.omni               ← 工具函数                      ║
 // ║    src/lib/types.omni         ← pub struct + pub type         ║
@@ -12,31 +12,14 @@
 // ║    src/lib/stats.omni         ← 统计引擎（pub fn）            ║
 // ║    src/lib/validation.omni    ← 输入验证（tagged union）       ║
 // ║    src/lib/transform.omni     ← 数据转换（break/continue）    ║
+// ║    src/lib/api.omni           ← API 类型 + HTTP 工具          ║
 // ║    src/stores/TodoStore.omni  ← Store (multi-param + async)  ║
 // ║    src/stores/ThemeStore.omni ← 主题状态管理                   ║
 // ║    src/stores/NotificationStore.omni ← 通知队列               ║
 // ║    src/shared/theme.omni      ← theme 设计令牌                ║
 // ║    src/shared/constants.omni  ← 全局常量                       ║
-// ║    src/components/Header.omni       ← 静态标题               ║
-// ║    src/components/StatsPanel.omni   ← prop 接收 + if 表达式   ║
-// ║    src/components/StatsDashboard.omni ← ref + const + @unmount║
-// ║    src/components/Counter.omni      ← signal + computed       ║
-// ║    src/components/FeatureList.omni  ← @if + @for             ║
-// ║    src/components/FeatureCard.omni  ← struct + @else if       ║
-// ║    src/components/TodoList.omni     ← @for/@empty + 组合      ║
-// ║    src/components/TodoItem.omni     ← prop + event + signal   ║
-// ║    src/components/AddTodo.omni      ← bind:value + 生命周期    ║
-// ║    src/components/FilterBar.omni    ← @onChange + @onClick    ║
-// ║    src/components/ValidationInput.omni ← let + while + action ║
-// ║    src/components/Timer.omni        ← async + optional event  ║
-// ║    src/components/Modal.omni        ← @slot + @onKeyDown      ║
-// ║    src/components/FormPage.omni     ← 全事件 + boolean attrs  ║
-// ║    src/components/DataTable.omni    ← Map literal + closure   ║
-// ║    src/components/TabPanel.omni     ← custom tags + class map ║
-// ║    src/components/ThemeSwitcher.omni ← theme 切换              ║
-// ║    src/pages/Dashboard.omni         ← 仪表盘页面（组件聚合）   ║
-// ║    src/pages/TodoPage.omni          ← 待办页面（功能重构）     ║
-// ║    src/pages/SettingsPage.omni      ← 设置页面                ║
+// ║    src/components/* (38 个组件 + 辅助文件)                    ║
+// ║    src/pages/* (6 个页面)                                    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -62,6 +45,9 @@ import { DataFetching } from "./pages/DataFetching";
 import { DataSubmit } from "./pages/DataSubmit";
 import { UserSettings } from "./pages/UserSettings";
 
+// Task 11: 运动动画 E2E 测试
+import { MotionDemo } from "./pages/MotionDemo";
+
 // ── 全局 Store ─────────────────────────────────────────────────
 import { TodoStore } from "./stores/TodoStore";
 import { ThemeStore } from "./stores/ThemeStore";
@@ -73,27 +59,47 @@ import type { StatisticsData } from "./lib/types";
 // Phase 7: 通过 reexports 导入（重新导出链：types → reexports → main）
 import { Percentage } from "./lib/reexports";
 
-// Phase 7: 命名空间导入（OmniLang 语法：import "path" as alias;）
+// Phase 7: 命名空间导入
 import "./lib/types" as Types;
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 9: 新增演示组件 — 全覆盖 56 源文件
+// ═══════════════════════════════════════════════════════════════
+
+// ── 视图组件 ────────────────────────────────────────────────────
+import { CssUnitsDemo } from "./components/CssUnitsDemo";
+import { EventShorthand } from "./components/EventShorthand";
+import { EventsDemo } from "./components/EventsDemo";
+import { FormControlsDemo } from "./components/FormControlsDemo";
+import { InlineStoreDemo } from "./components/InlineStoreDemo";
+import { NullishDemo } from "./components/NullishDemo";
+import { StringLiteralsDemo } from "./components/StringLiteralsDemo";
+import { TypeSystemDemo } from "./components/TypeSystemDemo";
+import { ViewAttributesDemo } from "./components/ViewAttributesDemo";
+
+// ── 纯逻辑 lib ─────────────────────────────────────────────────
+import "./lib/stats" as StatsLib;
+import "./lib/transform" as TransformLib;
+import "./lib/validation" as ValidationLib;
+import "./components/array_ext" as ArrayExtLib;
+import "./components/async_demo" as AsyncDemoLib;
+import "./components/datetime_demo" as DateTimeDemoLib;
+import "./components/encode_demo" as EncodeDemoLib;
+import "./components/error_handling" as ErrorHandlingLib;
+import "./components/math_ext" as MathExtLib;
+import "./components/numerics" as NumericsLib;
+import "./components/regex_demo" as RegexDemoLib;
+import "./components/string_ext" as StringExtLib;
+import "./components/strings" as StringsLib;
+import "./components/type_system" as TypeSystemLib;
+
+// ── 共享模块 ────────────────────────────────────────────────────
+import "./shared/theme" as ThemeTokens;
+import { Constants } from "./shared/constants";
 
 // ═══════════════════════════════════════════════════════════════
 // App —— 根组件，页面级路由入口
 // ═══════════════════════════════════════════════════════════════
-//
-// 数据流：
-//   @store TodoStore（全局单例）
-//        ↓ 各页面通过 @store 直接访问
-//   页面级组件：
-//     Dashboard  → StatsPanel + StatsDashboard + Counter + FeatureCard
-//     TodoPage   → TodoList + FilterBar（内嵌 AddTodo + TodoItem）
-//     SettingsPage → ThemeSwitcher + About
-//   FeatureList  → 独立功能列表（直接放在根组件中）
-//
-// 通信方式演示（4 种）：
-//   父→子 : prop（各组件通过 prop 接收数据）
-//   子→父 : event（内联回调直接调 Store action）
-//   跨组件: @store TodoStore / ThemeStore
-//   表单  : bind:value（见 AddTodo 组件）
 
 component App {
     @store TodoStore;
@@ -163,8 +169,61 @@ component App {
                 </div>
             </section>
 
+            <!-- ═══ Task 11: 运动动画 E2E 测试 ═══ -->
+            <section class: demo-section>
+                <h2 class: demo-section-title>Motion Animation</h2>
+
+                <div class: demo-full>
+                    <MotionDemo />
+                </div>
+            </section>
+
+            <!-- ═══ Phase 9: 新增演示组件（事件 / CSS / 表单 / 类型系统） ═══ -->
+            <section class: demo-section>
+                <h2 class: demo-section-title>Phase 9: 新增演示组件</h2>
+
+                <div class: demo-row>
+                    <div class: demo-col>
+                        <EventShorthand />
+                    </div>
+                    <div class: demo-col>
+                        <FormControlsDemo />
+                    </div>
+                </div>
+
+                <div class: demo-full>
+                    <EventsDemo />
+                </div>
+
+                <div class: demo-row>
+                    <div class: demo-col>
+                        <InlineStoreDemo />
+                    </div>
+                    <div class: demo-col>
+                        <NullishDemo />
+                    </div>
+                </div>
+
+                <div class: demo-full>
+                    <CssUnitsDemo />
+                </div>
+
+                <div class: demo-full>
+                    <StringLiteralsDemo />
+                </div>
+
+                <div class: demo-row>
+                    <div class: demo-col>
+                        <TypeSystemDemo />
+                    </div>
+                    <div class: demo-col>
+                        <ViewAttributesDemo />
+                    </div>
+                </div>
+            </section>
+
             <footer class: footer>
-                <p class: footer-text>OmniView 教学项目 · 34 源文件 · omnic run</p>
+                <p class: footer-text>OmniView 教学项目 · 56 源文件 · omnic run</p>
             </footer>
         </div>
     }

@@ -4,7 +4,7 @@
 import omniview;
 import { console_log, console_warn, console_error } from "std/console";
 import { http_get } from "std/http";
-import { json_parse } from "std/json";
+import { json_parse, json_stringify } from "std/json";
 import { fetch_demo, error_message } from "../lib/api";
 
 component DataFetching {
@@ -25,7 +25,7 @@ component DataFetching {
             return;
         }
         let parsed = json_parse(raw);
-        resultText = parsed;
+        resultText = json_stringify(parsed);
         status = "success";
         console_log("Fetch completed");
     }

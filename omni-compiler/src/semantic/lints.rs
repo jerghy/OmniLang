@@ -217,38 +217,40 @@ pub mod rules {
                 for func in &comp.fns {
                     if let Some(ref ret_type) = func.return_type {
                         Self::check_function_returns(
-                            &func.body, &ret_type.kind, comp_name, &func.name, &mut diags,
+                            &func.body,
+                            &ret_type.kind,
+                            comp_name,
+                            &func.name,
+                            &mut diags,
                         );
                     }
                 }
             }
             diags
         }
-
     }
 
     impl TypeMismatch {
         fn types_compatible(type_ann: &str, value: &ExprIR) -> bool {
             let type_ann = type_ann.to_lowercase();
             match value {
-                ExprIR::LiteralExpr { value } => {
-                    match value {
-                        serde_json::Value::Number(_) => {
-                            type_ann.contains("i32") || type_ann.contains("i64")
-                                || type_ann.contains("f64") || type_ann.contains("f32")
-                                || type_ann.contains("int") || type_ann.contains("float")
-                                || type_ann.contains("num")
-                        }
-                        serde_json::Value::String(_) => {
-                            type_ann.contains("str") || type_ann.contains("String")
-                        }
-                        serde_json::Value::Bool(_) => {
-                            type_ann.contains("bool") || type_ann == "bool"
-                        }
-                        serde_json::Value::Null => true,
-                        _ => true,
+                ExprIR::LiteralExpr { value } => match value {
+                    serde_json::Value::Number(_) => {
+                        type_ann.contains("i32")
+                            || type_ann.contains("i64")
+                            || type_ann.contains("f64")
+                            || type_ann.contains("f32")
+                            || type_ann.contains("int")
+                            || type_ann.contains("float")
+                            || type_ann.contains("num")
                     }
-                }
+                    serde_json::Value::String(_) => {
+                        type_ann.contains("str") || type_ann.contains("String")
+                    }
+                    serde_json::Value::Bool(_) => type_ann.contains("bool") || type_ann == "bool",
+                    serde_json::Value::Null => true,
+                    _ => true,
+                },
                 _ => true, // Conservative: non-literal = compatible
             }
         }
@@ -261,7 +263,8 @@ pub mod rules {
             diags: &mut Vec<LintDiagnostic>,
         ) {
             let ret_type_lower = ret_type.to_lowercase();
-            let is_void = ret_type_lower == "void" || ret_type_lower == "()" || ret_type_lower == "unit";
+            let is_void =
+                ret_type_lower == "void" || ret_type_lower == "()" || ret_type_lower == "unit";
 
             for stmt in &body.statements {
                 match stmt {
@@ -281,8 +284,14 @@ pub mod rules {
                         }
                     }
                     // Recurse into nested blocks
-                    StatementIR::IfStmtIR { then_body, else_body, .. } => {
-                        Self::check_function_returns(then_body, ret_type, comp_name, func_name, diags);
+                    StatementIR::IfStmtIR {
+                        then_body,
+                        else_body,
+                        ..
+                    } => {
+                        Self::check_function_returns(
+                            then_body, ret_type, comp_name, func_name, diags,
+                        );
                         if let Some(ref eb) = else_body {
                             Self::check_function_returns(eb, ret_type, comp_name, func_name, diags);
                         }
@@ -580,7 +589,27 @@ pub mod rules {
                 | StatementIR::EventEmitStmtIR { .. }
                 | StatementIR::ExprStmtIR { .. }
                 | StatementIR::BreakStmtIR
-                | StatementIR::ContinueStmtIR => {}
+                | StatementIR::ContinueStmtIR
+                | StatementIR::ThrowStmtIR { .. } => {}
+                StatementIR::TryCatchStmtIR {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    if statements_contain_return(&try_body.statements, _in_loop) {
+                        if let Some(ref cb) = catch_body {
+                            if statements_contain_return(&cb.statements, _in_loop) {
+                                return true;
+                            }
+                        }
+                    }
+                    if let Some(ref fb) = finally_body {
+                        if statements_contain_return(&fb.statements, _in_loop) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         false
@@ -654,6 +683,23 @@ pub mod rules {
                         collect_used_names_in_expr(arg, used);
                     }
                 }
+                crate::parser::ast::Stmt::Throw { expr, .. } => {
+                    collect_used_names_in_expr(expr, used);
+                }
+                crate::parser::ast::Stmt::TryCatch {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    collect_used_names_in_block(try_body, used);
+                    if let Some(ref b) = catch_body {
+                        collect_used_names_in_block(b, used);
+                    }
+                    if let Some(ref b) = finally_body {
+                        collect_used_names_in_block(b, used);
+                    }
+                }
             }
         }
         if let Some(ref expr) = block.trailing_expr {
@@ -686,7 +732,7 @@ pub mod rules {
                     collect_used_names_in_expr(a, used);
                 }
             }
-            Expr::FieldAccess { object, .. } => {
+            Expr::FieldAccess { object, .. } | Expr::OptionalChain { object, .. } => {
                 collect_used_names_in_expr(object, used);
             }
             Expr::IndexGet { object, index, .. } => {
@@ -889,6 +935,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
@@ -933,6 +983,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, stores);
@@ -983,6 +1037,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
@@ -1032,6 +1090,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
@@ -1084,6 +1146,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
@@ -1149,6 +1215,10 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, stores);
@@ -1173,6 +1243,8 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                motions: vec![],
+                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["unusedSymbol".into()],
                     path: "./utils.omni".into(),
@@ -1249,6 +1321,8 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                motions: vec![],
+                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["usedSymbol".into()],
                     path: "./utils.omni".into(),
@@ -1323,13 +1397,20 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_test_ir(components, HashMap::new());
 
         let rule = rules::TypeMismatch;
         let diags = rule.check_ir(&ir, &HashMap::new());
-        assert!(!diags.is_empty(), "Should detect void function returning a value");
+        assert!(
+            !diags.is_empty(),
+            "Should detect void function returning a value"
+        );
         assert!(
             diags[0].message.contains("void"),
             "Message should mention void: {}",

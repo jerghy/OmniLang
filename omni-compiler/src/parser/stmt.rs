@@ -56,6 +56,8 @@ impl<'a> Parser<'a> {
             TokenKind::Break => self.parse_break_stmt(),
             TokenKind::Continue => self.parse_continue_stmt(),
             TokenKind::Print | TokenKind::Println => self.parse_print_stmt(),
+            TokenKind::Throw => self.parse_throw_stmt(),
+            TokenKind::Try => self.parse_try_catch_stmt(),
             TokenKind::LBrace => {
                 let block = self.parse_block()?;
                 let span = block.span.clone();
@@ -306,6 +308,71 @@ impl<'a> Parser<'a> {
                 span,
             })
         }
+    }
+
+    // ── throw / try-catch ────────────────────────────
+
+    fn parse_throw_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // 'throw'
+        let expr = self.parse_expr()?;
+        if self.peek_kind() == TokenKind::Semicolon {
+            self.advance();
+        }
+        let end = self.peek_span();
+        Ok(Stmt::Throw {
+            expr,
+            span: Span {
+                start: start.start,
+                end: end.end,
+                line: start.line,
+                col: start.col,
+            },
+        })
+    }
+
+    fn parse_try_catch_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start = self.peek_span();
+        self.advance(); // 'try'
+        let try_body = self.parse_block()?;
+
+        let mut catch_var = None;
+        let mut catch_body = None;
+
+        if self.peek_kind() == TokenKind::Catch {
+            self.advance(); // 'catch'
+                            // Optional catch variable: catch err { ... } or catch { ... }
+            if self.peek_kind() != TokenKind::LBrace {
+                catch_var = Some(self.expect_ident("expected catch variable")?);
+            }
+            catch_body = Some(self.parse_block()?);
+        }
+
+        let mut finally_body = None;
+        if self.peek_kind() == TokenKind::Finally {
+            self.advance(); // 'finally'
+            finally_body = Some(self.parse_block()?);
+        }
+
+        if catch_body.is_none() && finally_body.is_none() {
+            return Err(ParseError {
+                message: "expected 'catch' or 'finally' after 'try'".into(),
+                span: self.peek_span(),
+            });
+        }
+
+        Ok(Stmt::TryCatch {
+            try_body,
+            catch_var,
+            catch_body,
+            finally_body,
+            span: Span {
+                start: start.start,
+                end: self.peek_span().end,
+                line: start.line,
+                col: start.col,
+            },
+        })
     }
 
     // ── Helpers ────────────────────────────────────────

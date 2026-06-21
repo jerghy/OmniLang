@@ -5,6 +5,7 @@ Commands:
     omnic analyse [files...] [--format json]                  Static analysis
     omnic run <file.omni> [--target TARGET]                   Compile and run
     omnic create <name> --type logic|view                     Scaffold a project
+    omnic migrate [--file FILE] [--dir DIR]                   Convert .omni.json to annotated .omni files
     omnic serve --dir DIR [--port PORT]                       Visual editor server
     omnic watch <file.omni> [--target TARGET] [--output DIR]  Watch and auto-rebuild
 
@@ -426,6 +427,30 @@ dir = "build"
 
 
 # ════════════════════════════════════════════════════════════
+# Migrate (annotation migration)
+# ════════════════════════════════════════════════════════════
+
+def cmd_migrate(args):
+    """Convert .omni.json to annotated .omni files.
+
+    Usage:
+      omnic migrate                         # default: project.omni.json in current dir
+      omnic migrate --file custom.omni.json # specific file
+      omnic migrate --dir ./my-project      # project directory
+    """
+    from pathlib import Path
+    from editor.server.annotation.migrate import migrate_omni_json
+
+    project_dir = Path(args.dir or ".")
+    json_file = Path(args.file or "project.omni.json")
+
+    if not json_file.is_absolute():
+        json_file = project_dir / json_file
+
+    migrate_omni_json(json_file, project_dir)
+
+
+# ════════════════════════════════════════════════════════════
 # Serve (visual editor)
 # ════════════════════════════════════════════════════════════
 
@@ -569,6 +594,11 @@ def _main():
     cp.add_argument("--type", "-t", choices=["logic", "view"], required=True,
                     help="Project type (required): logic or view")
 
+    # ── migrate ──
+    mp = subparsers.add_parser("migrate", help="Convert .omni.json to annotated .omni files")
+    mp.add_argument("--file", default="project.omni.json", help=".omni.json file path (default: project.omni.json)")
+    mp.add_argument("--dir", default=".", help="Project directory (default: current dir)")
+
     # ── serve ──
     sp = subparsers.add_parser("serve", help="Start the visual editor server")
     sp.add_argument("--dir", required=True, help="Project directory to serve")
@@ -593,6 +623,8 @@ def _main():
         cmd_run(args)
     elif args.command == "create":
         cmd_create(args)
+    elif args.command == "migrate":
+        cmd_migrate(args)
     elif args.command == "serve":
         cmd_serve(args)
     elif args.command == "watch":

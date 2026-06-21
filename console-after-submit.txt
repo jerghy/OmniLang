@@ -1,0 +1,16 @@
+Total messages: 4 (Errors: 2, Warnings: 0)
+Returning 13 messages for level "info"
+
+[ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[LOG] AddTodo mounted @ http://localhost:8789/:10015
+[LOG] Total items: 0 @ http://localhost:8789/:10026
+[ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[LOG] Total items: 1 @ http://localhost:8789/:10026
+[LOG] Total items: 2 @ http://localhost:8789/:10026
+[LOG] Total items: 3 @ http://localhost:8789/:10026
+[LOG] Total items: 4 @ http://localhost:8789/:10026
+[LOG] Total items: 0 @ http://localhost:8789/:10026
+[ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[LOG] AddTodo mounted @ http://localhost:8789/?:10015
+[LOG] Total items: 0 @ http://localhost:8789/?:10026
+[ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0

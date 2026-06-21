@@ -71,6 +71,11 @@ pub enum Expr {
         field: String,
         span: Span,
     },
+    OptionalChain {
+        object: Box<Expr>,
+        field: String,
+        span: Span,
+    },
     ArrayLiteral {
         elements: Vec<Expr>,
         span: Span,
@@ -163,6 +168,7 @@ pub enum BinaryOpKind {
     GtEq,
     And,
     Or,
+    NullishCoalesce,
     Assign,
     AddAssign,
     SubAssign,
@@ -239,6 +245,17 @@ pub enum Stmt {
         args: Vec<Expr>,
         span: Span,
     },
+    Throw {
+        expr: Expr,
+        span: Span,
+    },
+    TryCatch {
+        try_body: Block,
+        catch_var: Option<String>,
+        catch_body: Option<Block>,
+        finally_body: Option<Block>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -274,10 +291,7 @@ pub struct MatchPattern {
 #[derive(Debug, Clone)]
 pub enum MatchPatternKind {
     /// Variant pattern: Ok { value, response }
-    Variant {
-        name: String,
-        bindings: Vec<String>,
-    },
+    Variant { name: String, bindings: Vec<String> },
     /// Wildcard pattern: _
     Wildcard,
     /// Literal pattern: 42, "hello", true (basic support)
@@ -350,9 +364,14 @@ pub struct ComponentDef {
     pub events: Vec<EventDecl>,
     pub refs: Vec<RefDecl>,
     pub store_refs: Vec<String>,
+    pub if_mode_default: Option<String>,
+    pub hero_defs: Vec<HeroDef>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,
+    pub getters: Vec<GetterDecl>,
+    pub motions: Vec<MotionDef>,
+    pub timelines: Vec<TimelineDef>,
     pub view: Option<ViewBlock>,
     pub styles: Vec<StyleRule>,
     pub span: Span,
@@ -442,13 +461,67 @@ pub struct Element {
 
 #[derive(Debug, Clone)]
 pub enum ElementProp {
-    Static { name: String, value: Expr },
-    Bind { name: String, signal_path: String },
-    Event { name: String, handler: EventHandler },
-    Class { value: ClassValue },
-    Style { entries: Vec<(String, Expr)> },
+    Static {
+        name: String,
+        value: Expr,
+    },
+    Bind {
+        name: String,
+        signal_path: String,
+    },
+    Event {
+        name: String,
+        handler: EventHandler,
+    },
+    Class {
+        value: ClassValue,
+    },
+    Style {
+        entries: Vec<(String, Expr)>,
+    },
     TestId(String),
     Ref(String),
+    MotionTrigger(MotionTrigger),
+    StatesMap(Vec<(String, StateDef)>),
+    AnimateSignal(Expr),
+    PausedOverride(bool),
+    HoverReverse(String),
+    /// @driven-by={signal} — external progress control
+    DrivenBy(Expr),
+    /// @in-view-once={bool}
+    InViewOnce(Expr),
+    /// @in-view-repeat={bool}
+    InViewRepeat(Expr),
+    /// @in-view-threshold={number}
+    InViewThreshold(Expr),
+    /// when: — play order on @enter/@leave
+    When(String),
+    /// delayChildren: — extra delay before children
+    DelayChildren(Expr),
+    /// staggerChildren: — auto-stagger shorthand
+    StaggerChildren(Expr),
+    /// @scroll-start="top 80%"
+    ScrollStart(String),
+    /// @scroll-end="bottom 20%"
+    ScrollEnd(String),
+    /// @scroll-scrub={0.5}
+    ScrollScrub(Expr),
+    /// @drag-constraints="left:0 right:300"
+    DragConstraints(String),
+    /// @drag-elastic={0.2}
+    DragElastic(Expr),
+    /// @drag-scrub={true}
+    DragScrub(Expr),
+    /// @drag-momentum={friction:0.95}
+    DragMomentum(Expr),
+    /// @drag-threshold={30%}
+    DragThreshold(Expr),
+    /// @drag-velocity-max={2000px}
+    DragVelocityMax(Expr),
+    /// @hero="tag-name"
+    HeroTag(String),
+    /// @hero-transition={motionName}
+    HeroTransition(Expr),
 }
 
 #[derive(Debug, Clone)]
@@ -471,6 +544,8 @@ pub struct IfDirective {
     pub body: Vec<ViewNode>,
     pub else_ifs: Vec<(Expr, Vec<ViewNode>)>,
     pub else_body: Option<Vec<ViewNode>>,
+    pub transition_mode: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -479,6 +554,8 @@ pub struct ForDirective {
     pub iterable: Expr,
     pub body: Vec<ViewNode>,
     pub empty_body: Option<Vec<ViewNode>>,
+    pub key_expr: Option<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -503,6 +580,284 @@ pub enum StyleValuePart {
     Ident(String),
     Number(f64),
     HexColor(String),
+}
+
+// ── Motion / Animation AST ────────────────────────────
+
+/// Top-level or component-scoped motion definition
+#[derive(Debug, Clone)]
+pub struct MotionDef {
+    pub name: String,
+    pub body: MotionBody,
+    pub span: Span,
+}
+
+/// Cross-element timeline orchestration
+#[derive(Debug, Clone)]
+pub struct TimelineDef {
+    pub name: String,
+    pub items: Vec<TimelineItem>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum MotionBody {
+    Keyframe(KeyframeBody),
+    Timeline(TimelineBody),
+    CallbackOnly(CallbackBody),
+}
+
+/// Keyframe mode: percentage stops with shared over/ease
+#[derive(Debug, Clone)]
+pub struct KeyframeBody {
+    pub stops: Vec<KeyframeStop>,
+    pub over: Expr,
+    pub ease: Option<EasingExpr>,
+    pub color_space: Option<String>,
+    pub playback: Vec<PlaybackProp>,
+    /// Path for motion path animation: path: "M10 10 ..."
+    pub path: Option<String>,
+    /// Whether to rotate element along the path
+    pub path_rotate: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+pub struct KeyframeStop {
+    pub position: StopPosition,
+    pub properties: Vec<(String, Expr)>,
+    pub ease: Option<EasingExpr>,
+}
+
+#[derive(Debug, Clone)]
+pub enum StopPosition {
+    From,
+    To,
+    Percent(f64),
+}
+
+/// Timeline mode: sequential/parallel items with independent timing
+#[derive(Debug, Clone)]
+pub struct TimelineBody {
+    pub items: Vec<TimelineItem>,
+    pub playback: Vec<PlaybackProp>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimelineItem {
+    pub kind: TimelineItemKind,
+    pub connector: Connector,
+}
+
+#[derive(Debug, Clone)]
+pub enum TimelineItemKind {
+    Direction(DirectionItem),
+    SetBlock(Vec<(String, Expr)>),
+    MotionRef(String),
+    Stagger(StaggerCall),
+    Label(String, Option<Expr>),
+}
+
+#[derive(Debug, Clone)]
+pub struct DirectionItem {
+    pub direction: Direction,
+    pub properties: Vec<(String, Expr)>,
+    pub over: Expr,
+    pub ease: Option<EasingExpr>,
+    pub delay: Option<Expr>,
+    pub color_space: Option<String>,
+    pub start: Option<PositionValue>,
+    /// Path for motion path animation: path: "M10 10 ..."
+    pub path: Option<String>,
+    /// Whether to rotate element along the path
+    pub path_rotate: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Direction {
+    To,
+    FromTo,
+}
+
+#[derive(Debug, Clone)]
+pub enum Connector {
+    None,
+    Then,
+    With,
+}
+
+#[derive(Debug, Clone)]
+pub enum PositionValue {
+    After,
+    WithPrev,
+    Overlap(String),
+    AfterPrev(String),
+    WithOffset(String),
+    Absolute(String),
+}
+
+/// Callback-only mode
+#[derive(Debug, Clone)]
+pub struct CallbackBody {
+    pub callbacks: Vec<CallbackSpec>,
+    pub over: Expr,
+    pub playback: Vec<PlaybackProp>,
+}
+
+#[derive(Debug, Clone)]
+pub enum CallbackSpec {
+    OnStart(Expr),
+    OnUpdate(Expr),
+    OnComplete(Expr),
+    OnRepeat(Expr),
+    OnInterrupt(Expr),
+}
+
+#[derive(Debug, Clone)]
+pub enum PlaybackProp {
+    Loop(LoopValue),
+    Direction(DirectionValue),
+    Fill(FillValue),
+    Delay(Expr),
+    Paused(bool),
+    RepeatDelay(Expr),
+    RepeatRefresh(bool),
+    TimeScale(Expr),
+    Interrupt(InterruptValue),
+    RespectReducedMotion(bool),
+    When(WhenValue),
+    DelayChildren(Expr),
+    StaggerChildren(Expr),
+    StaggerFrom(StaggerDirection),
+}
+
+#[derive(Debug, Clone)]
+pub enum LoopValue {
+    Count(u32),
+    Infinite,
+}
+
+#[derive(Debug, Clone)]
+pub enum DirectionValue {
+    Normal,
+    Reverse,
+    Alternate,
+    AlternateReverse,
+}
+
+#[derive(Debug, Clone)]
+pub enum FillValue {
+    None,
+    Forwards,
+    Backwards,
+    Both,
+}
+
+#[derive(Debug, Clone)]
+pub enum InterruptValue {
+    Stop,
+    Complete,
+    Queue,
+    Replace,
+}
+
+#[derive(Debug, Clone)]
+pub enum WhenValue {
+    BeforeChildren,
+    AfterChildren,
+    WithChildren,
+}
+
+/// Easing expression
+#[derive(Debug, Clone)]
+pub enum EasingExpr {
+    Named(String),
+    CubicBezier {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    },
+    Spring {
+        tension: f64,
+        friction: f64,
+        velocity: Option<f64>,
+    },
+    Back {
+        intensity: f64,
+        direction: Option<String>,
+    },
+    Elastic {
+        amplitude: f64,
+        period: f64,
+        direction: Option<String>,
+    },
+    Steps {
+        count: u32,
+        direction: String,
+    },
+}
+
+/// Stagger call
+#[derive(Debug, Clone)]
+pub struct StaggerCall {
+    pub motion: Box<Expr>,
+    pub timing: StaggerTiming,
+    pub from: StaggerDirection,
+}
+
+#[derive(Debug, Clone)]
+pub enum StaggerTiming {
+    Each(Expr),
+    Amount(Expr),
+}
+
+#[derive(Debug, Clone)]
+pub enum StaggerDirection {
+    Start,
+    Center,
+    End,
+    Edges,
+}
+
+/// Animation trigger specification (used in @prop attributes)
+#[derive(Debug, Clone)]
+pub struct MotionTrigger {
+    pub trigger: TriggerKind,
+    pub motion_expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub enum TriggerKind {
+    Enter,
+    Leave,
+    Hover,
+    Unhover,
+    Press,
+    Focus,
+    Animate,
+    InView,
+    Scroll,
+    DragHorizontal,
+    DragVertical,
+    Timeline,
+}
+
+/// State definition for state-based animation
+#[derive(Debug, Clone)]
+pub struct StateDef {
+    pub name: String,
+    pub properties: Vec<(String, Expr)>,
+    pub over: Option<Expr>,
+    pub ease: Option<EasingExpr>,
+}
+
+/// Hero definition for cross-component shared element transitions
+#[derive(Debug, Clone)]
+pub struct HeroDef {
+    pub name: String,
+    pub over: Expr,
+    pub ease: Option<EasingExpr>,
+    pub span: Span,
 }
 
 // ── Store & Theme ─────────────────────────────────────
@@ -602,6 +957,8 @@ pub struct Module {
     pub themes: Vec<ThemeDef>,
     pub imports: Vec<ImportStmt>,
     pub exports: Vec<ExportFrom>,
+    pub motions: Vec<MotionDef>,
+    pub timelines: Vec<TimelineDef>,
 }
 
 #[derive(Debug, Clone, Default)]

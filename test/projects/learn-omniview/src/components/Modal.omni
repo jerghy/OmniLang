@@ -33,7 +33,7 @@ component Modal {
             @if isOpen {
                 <!-- Overlay with keyboard and mouse event handling -->
                 <div
-                    class: { overlay: true, visible: isOpen, hidden: false }
+                    class: { overlay: true, visible: isOpen, hidden: !isOpen }
                     @onPress={handleOverlayClick}
                 >
                     <div

@@ -1,0 +1,178 @@
+<h2>超越 GSAP：语言级动画语法</h2>
+<p class="subtitle">GSAP 的灵活性 + 语言原生表达能力 = 用代码写动画，不是用配置写动画</p>
+
+<div class="section">
+<h3>1. 核心：to / from / fromTo 三个方向</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// to —— 告诉它"去到哪里"，自动从当前值插值
+motion fadeIn  = to   { opacity: 1; y: 0 }   over 300ms ease easeOut
+
+// from —— 告诉它"从哪里来"，自动回到当前值
+motion reveal  = from { opacity: 0; y: 20 }  over 400ms ease easeOut
+
+// from → to —— 显式两端
+motion morph   = from { scale: 0.8; opacity: 0 }
+                 to   { scale: 1;   opacity: 1 }
+                 over 500ms ease spring(200, 15)
+</pre>
+<p style="font-size:13px;color:var(--color-text-secondary);">GSAP 有 <code>gsap.to()</code> / <code>gsap.from()</code> / <code>gsap.fromTo()</code> —— 我们把它直接变成语言的语义，<code>to</code> 最常用所以最简洁。</p>
+</div>
+
+<div class="section">
+<h3>2. 时间线：&gt;&gt; 链式编排（不是 method chain，是数据流）</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+motion entrance =
+  to { opacity: 1; y: 0 }   over 300ms ease easeOut
+  >> to { scale: 1.05 }     over 150ms                  // 上一段结束后执行
+  >> to { scale: 1 }        over 200ms ease spring(300, 20)
+
+// 并行用 ||
+motion combo =
+  to { opacity: 1 } over 300ms
+  || to { x: 100 }  over 500ms
+
+// 重叠控制（GSAP 的 "-=0.1"）
+motion overlap =
+  to { opacity: 1 } over 300ms
+  >> to { scale: 1.1 } over 200ms @ -0.1              // 提前 0.1s 开始
+
+// 内联时间线
+<div enter={
+  to { opacity: 1 } over 200ms
+  >> to { y: 0 } over 300ms ease easeOut
+}>
+</pre>
+</div>
+
+<div class="section">
+<h3>3. Stagger：修饰符，不是独立类型</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// stagger 可以包裹任何 motion
+motion listIn = stagger(
+  to { opacity: 1; y: 0 } over 300ms ease easeOut,
+  each: 60ms
+)
+
+motion complexList = stagger(
+  from { opacity: 0; scale: 0.8 } to { opacity: 1; scale: 1 } over 400ms,
+  each: 80ms,
+  from: center          // 从中间向两边扩散
+)
+
+// 直接用在元素上
+&lt;ul enter=stagger(to {opacity:1; y:0} over 300ms, each: 50ms, from: end)&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>4. 触发挂载：属性即意图</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+&lt;!-- 生命周期 --&gt;
+&lt;div enter=fadeIn leave=fadeOut&gt;
+
+&lt;!-- 交互 --&gt;
+&lt;button hover=scale(1.05) press=scale(0.95)&gt;
+
+&lt;!-- 信号绑定：信号值变化自动带动画过渡 --&gt;
+&lt;div bind:style=cardMotion signal=activeCard&gt;
+
+&lt;!-- 滚动驱动 --&gt;
+&lt;section scroll=fadeIn on="top 80%"&gt;
+
+&lt;!-- 手势 --&gt;
+&lt;Card drag:horizontal=swipeCard threshold=30%&gt;
+
+&lt;!-- 组合触发 --&gt;
+&lt;div enter=fadeIn hover=glow leave=fadeOut&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>5. 快捷语法：常见场景一行搞定</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 无需先定义 motion，直接在元素上写！
+&lt;div enter="to {opacity:1} over 0.3s"&gt;                    // 最简单
+&lt;div enter="from {opacity:0; y:20} over 0.4s ease easeOut"&gt;
+&lt;ul  enter="stagger(from {y:20; opacity:0} over 0.3s, each:60ms)"&gt;
+
+// 循环
+&lt;Spinner animate="to {rotate:360deg} over 1s loop infinite"&gt;
+
+// 状态映射（类似 Vue Transition）
+&lt;div states={
+  idle:    { scale: 1; opacity: 1 },
+  hover:   { scale: 1.05 },
+  pressed: { scale: 0.95 }
+} over 150ms&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>6. 物理 / 弹簧 / 缓动 —— 统一在 easing 位置</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 标准缓动（编译到 CSS easing / Flutter Curve）
+ease easeOut          // 预设名
+ease cubic(0.16, 1, 0.3, 1) // 自定义贝塞尔
+
+// 物理弹簧（编译到 WAAPI 无此能力 → 用 JS 模拟；Flutter → SpringSimulation）
+ease spring(200, 15)  // tension, friction
+ease spring(200, 15, velocity: 2)  // 初始速度
+
+// 弹性
+ease elastic(1, 0.5)  // amplitude, period
+
+// 回弹
+ease bounce
+</pre>
+</div>
+
+<div class="section">
+<h3>7. 完整示例对比</h3>
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">GSAP（JS）</div>
+    <div class="mockup-body">
+<pre style="font-size:10px;line-height:1.5;">
+const tl = gsap.timeline()
+tl.from('.card', {
+  opacity: 0,
+  y: 30,
+  duration: 0.4,
+  ease: 'power2.out'
+})
+tl.from('.title', {
+  opacity: 0,
+  x: -20,
+  duration: 0.3
+}, '-=0.2')
+tl.from('.items li', {
+  opacity: 0,
+  y: 10,
+  duration: 0.3,
+  stagger: 0.06,
+  ease: 'back.out(1.7)'
+}, '-=0.1')
+</pre>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">OmniView Motion（原生语法）</div>
+    <div class="mockup-body">
+<pre style="font-size:10px;line-height:1.5;">
+motion cardEnter =
+  from { opacity: 0; y: 30 } over 400ms ease easeOut
+  >> from { opacity: 0; x: -20 } over 300ms @ -0.2
+  >> stagger(
+        from { opacity: 0; y: 10 } over 300ms ease back(1.7),
+        each: 60ms
+      ) @ -0.1
+
+&lt;div class="card" enter=cardEnter&gt;
+  &lt;h1 class="title"&gt;...&lt;/h1&gt;
+  &lt;ul class="items"&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ul&gt;
+&lt;/div&gt;
+</pre>
+    </div>
+  </div>
+</div>
+</div>

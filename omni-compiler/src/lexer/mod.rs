@@ -160,6 +160,9 @@ impl Lexer {
                 if self.peek() == Some('.') {
                     self.advance();
                     Token::new(TokenKind::QuestionDot, start, self.pos, line, col)
+                } else if self.peek() == Some('?') {
+                    self.advance();
+                    Token::new(TokenKind::QuestionQuestion, start, self.pos, line, col)
                 } else {
                     Token::new(TokenKind::QuestionMark, start, self.pos, line, col)
                 }
@@ -354,9 +357,17 @@ impl Lexer {
                         s.push('\\');
                     }
                 }
-                Some('<') | Some('>') => {
-                    // HTML boundary in view text
-                    break;
+                Some('<') => {
+                    let next = self.peek_n(1);
+                    if next.is_some_and(|c| c.is_alphabetic() || c == '/') {
+                        break;
+                    }
+                    s.push('<');
+                    self.advance();
+                }
+                Some('>') => {
+                    s.push('>');
+                    self.advance();
                 }
                 Some(c) => {
                     s.push(c);
@@ -380,10 +391,20 @@ impl Lexer {
                     self.advance();
                     break;
                 }
-                Some('<') | Some('>') => {
-                    // HTML boundary in view text content — treat as end of string
-                    // The unmatched " will be handled as text by the parser
-                    break;
+                Some('<') => {
+                    // Only break if < looks like an HTML tag start (<letter or </)
+                    // Allows < in strings like regex patterns "<[^>]+>"
+                    let next = self.peek_n(1);
+                    if next.is_some_and(|c| c.is_alphabetic() || c == '/') {
+                        break;
+                    }
+                    s.push('<');
+                    self.advance();
+                }
+                Some('>') => {
+                    // > inside a string is normal content (comparison, regex, etc.)
+                    s.push('>');
+                    self.advance();
                 }
                 Some('\\') => {
                     self.advance();
@@ -543,14 +564,30 @@ impl Lexer {
                 num.push(self.advance().unwrap());
             }
         }
+        // Peek-ahead for scientific notation: e/E must be followed by at
+        // least one digit (optionally after a sign). Otherwise the 'e' is
+        // the start of a unit/identifier (e.g. "10ex" CSS unit, "10em").
         if self.peek() == Some('e') || self.peek() == Some('E') {
-            is_float = true;
-            num.push(self.advance().unwrap());
-            if self.peek() == Some('+') || self.peek() == Some('-') {
-                num.push(self.advance().unwrap());
+            let e_pos = self.pos;
+            let mut look = e_pos + 1;
+            let mut has_exponent = false;
+            if self.peek_n(1) == Some('+') || self.peek_n(1) == Some('-') {
+                look += 1;
             }
-            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-                num.push(self.advance().unwrap());
+            if let Some(c) = self.source.get(look) {
+                if c.is_ascii_digit() {
+                    has_exponent = true;
+                }
+            }
+            if has_exponent {
+                is_float = true;
+                num.push(self.advance().unwrap()); // consume e/E
+                if self.peek() == Some('+') || self.peek() == Some('-') {
+                    num.push(self.advance().unwrap());
+                }
+                while self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                    num.push(self.advance().unwrap());
+                }
             }
         }
 
@@ -603,6 +640,10 @@ impl Lexer {
             "as" => TokenKind::As,
             "async" => TokenKind::Async,
             "await" => TokenKind::Await,
+            "throw" => TokenKind::Throw,
+            "try" => TokenKind::Try,
+            "catch" => TokenKind::Catch,
+            "finally" => TokenKind::Finally,
             "match" => TokenKind::Match,
             "struct" => TokenKind::Struct,
             "class" => TokenKind::Class,
@@ -635,6 +676,14 @@ impl Lexer {
             "getter" => TokenKind::Getter,
             "theme" => TokenKind::Theme,
             "bind" => TokenKind::Bind,
+            // Motion keywords (context-sensitive, recognized in @motion blocks)
+            "if_mode" => TokenKind::IfMode,
+            "drag_constraints" => TokenKind::DragConstraints,
+            "drag_elastic" => TokenKind::DragElastic,
+            "drag_scrub" => TokenKind::DragScrub,
+            "drag_momentum" => TokenKind::DragMomentum,
+            "drag_threshold" => TokenKind::DragThreshold,
+            "drag_velocity_max" => TokenKind::DragVelocityMax,
             _ => TokenKind::Ident(ident),
         };
         Token::new(kind, start, self.pos, line, col)
@@ -646,7 +695,10 @@ impl Lexer {
         let col = self.col;
         self.advance(); // @
         let mut kw = String::from("@");
-        while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             kw.push(self.advance().unwrap());
         }
         let kind = match kw.as_str() {
@@ -662,6 +714,41 @@ impl Lexer {
             "@mount" => TokenKind::AtMount,
             "@unmount" => TokenKind::AtUnmount,
             "@effect" => TokenKind::AtEffect,
+            // Motion @-keywords
+            "@motion" => TokenKind::AtMotion,
+            "@timeline" => TokenKind::AtTimeline,
+            "@enter" => TokenKind::AtEnter,
+            "@leave" => TokenKind::AtLeave,
+            "@hover" => TokenKind::AtHover,
+            "@unhover" => TokenKind::AtUnhover,
+            "@press" => TokenKind::AtPress,
+            "@focus" => TokenKind::AtFocus,
+            "@animate" => TokenKind::AtAnimate,
+            "@in-view" => TokenKind::AtInView,
+            "@scroll" => TokenKind::AtScroll,
+            "@drag-horizontal" => TokenKind::AtDragHorizontal,
+            "@drag-vertical" => TokenKind::AtDragVertical,
+            "@driven-by" => TokenKind::AtDrivenBy,
+            "@paused" => TokenKind::AtPaused,
+            "@hover-reverse" => TokenKind::AtHoverReverse,
+            "@in-view-once" => TokenKind::AtInViewOnce,
+            "@in-view-repeat" => TokenKind::AtInViewRepeat,
+            "@in-view-threshold" => TokenKind::AtInViewThreshold,
+            "@scroll-start" => TokenKind::AtScrollStart,
+            "@scroll-end" => TokenKind::AtScrollEnd,
+            "@scroll-scrub" => TokenKind::AtScrollScrub,
+            // Drag sub-attributes
+            "@drag-constraints" => TokenKind::DragConstraints,
+            "@drag-elastic" => TokenKind::DragElastic,
+            "@drag-scrub" => TokenKind::DragScrub,
+            "@drag-momentum" => TokenKind::DragMomentum,
+            "@drag-threshold" => TokenKind::DragThreshold,
+            "@drag-velocity-max" => TokenKind::DragVelocityMax,
+            // @hero support
+            "@hero" => TokenKind::AtHero,
+            "@hero-transition" => TokenKind::AtHeroTransition,
+            // @if-mode component prop
+            "@if-mode" => TokenKind::IfMode,
             // Unknown @-prefixed words are event bindings like @onPress, @onChange
             _ => TokenKind::Ident(kw),
         };

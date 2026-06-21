@@ -1,0 +1,126 @@
+<h2>Motion 块完整结构 & 触发挂载</h2>
+<p class="subtitle">一个 motion 定义了"怎么动"，触发方式定义了"什么时候动"</p>
+
+<div class="mockup" style="margin-bottom:1.5rem;">
+  <div class="mockup-header">Motion 块结构</div>
+  <div class="mockup-body">
+<pre style="font-size:12px;line-height:1.6;background:var(--color-surface);padding:1rem;border-radius:8px;">
+motion fadeIn {
+  // ── 帧定义 ──
+  from { opacity: 0; y: 20px; scale: 0.95 }
+  to   { opacity: 1; y: 0;   scale: 1 }
+
+  // ── 时序 ──
+  duration: 300ms
+  delay: 0ms
+  easing: easeOut              // 预设曲线
+  // 或 easing: cubicBezier(0.16, 1, 0.3, 1)
+
+  // ── 物理弹簧（替代 easing） ──
+  // spring: tension(200) friction(15)
+
+  // ── 播放 ──
+  direction: normal            // normal | reverse | alternate | alternateReverse
+  iterations: 1                // number | infinite
+  fill: both                   // none | forwards | backwards | both
+}
+
+motion bounce {
+  0%   { y: 0 }
+  40%  { y: -30px }
+  60%  { y: -15px }
+  80%  { y: -4px }
+  100% { y: 0 }
+  duration: 600ms
+  easing: easeOut
+}
+</pre>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>@motion: 统一前缀</h3>
+      <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:0.5rem;border-radius:6px;">
+&lt;div
+  @motion:enter="fadeIn"
+  @motion:leave="fadeOut"
+  @motion:hover="scaleUp"
+  @motion:press="squish"
+  @motion:drag="swipeCard"
+  @motion:stagger="slideIn 60ms"&gt;
+</pre>
+      <p>与现有 @onPress、@if 一致。命名空间清晰。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>@: 简短前缀（特殊触发词）</h3>
+      <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:0.5rem;border-radius:6px;">
+&lt;div
+  @enter="fadeIn"
+  @leave="fadeOut"
+  @hover="scaleUp"
+  @press="squish"
+  @drag="swipeCard"
+  @stagger="slideIn 60ms"&gt;
+</pre>
+      <p>更简洁。但与 @if/@for 指令混在同一命名空间。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>单一 motion 属性 + 子项</h3>
+      <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:0.5rem;border-radius:6px;">
+&lt;div motion="{
+  enter: fadeIn,
+  leave: fadeOut,
+  hover: scaleUp
+}"&gt;
+</pre>
+      <p>所有动画集中一处。但复杂场景括号地狱。</p>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:1.5rem;">
+  <div class="mockup-header">触发类型分类</div>
+  <div class="mockup-body">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <th style="text-align:left;padding:8px;">类别</th>
+        <th style="text-align:left;padding:8px;">触发词</th>
+        <th style="text-align:left;padding:8px;">说明</th>
+      </tr>
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <td style="padding:8px;">生命周期</td>
+        <td style="padding:8px;"><code>enter</code> <code>leave</code></td>
+        <td style="padding:8px;">元素挂载/卸载时</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <td style="padding:8px;">交互</td>
+        <td style="padding:8px;"><code>hover</code> <code>press</code> <code>focus</code></td>
+        <td style="padding:8px;">用户交互状态</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <td style="padding:8px;">手势</td>
+        <td style="padding:8px;"><code>drag</code> <code>scroll</code></td>
+        <td style="padding:8px;">跟手/滚轮驱动</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <td style="padding:8px;">信号绑定</td>
+        <td style="padding:8px;"><code>bind</code></td>
+        <td style="padding:8px;">信号值变化时自动过渡</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--color-border);">
+        <td style="padding:8px;">编排</td>
+        <td style="padding:8px;"><code>stagger</code></td>
+        <td style="padding:8px;">子元素依次播放</td>
+      </tr>
+    </table>
+  </div>
+</div>

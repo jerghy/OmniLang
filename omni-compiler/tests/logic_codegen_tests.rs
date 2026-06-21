@@ -55,6 +55,10 @@ fn simple_component_ir(comp_name: &str) -> IRProgram {
         event_names: vec![],
         view: None,
         styles: vec![],
+        motions: vec![],
+        if_mode_default: None,
+        hero_defs: vec![],
+        timelines: vec![],
     };
     components.insert(comp_name.into(), comp);
     make_ir(components, HashMap::new())
@@ -89,6 +93,10 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
         event_names: vec![],
         view: None,
         styles: vec![],
+        motions: vec![],
+        if_mode_default: None,
+        hero_defs: vec![],
+        timelines: vec![],
     };
     components.insert(comp_name.into(), comp);
     make_ir(components, HashMap::new())
@@ -204,7 +212,7 @@ fn test_compile_multiple_files() {
         version: "0.1".into(),
         modules,
         source_map: HashMap::new(),
-    stdlib_imports: Vec::new(),
+        stdlib_imports: Vec::new(),
     };
     let sources = HashMap::from([
         ("main.omni".into(), "".into()),

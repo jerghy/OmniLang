@@ -150,12 +150,21 @@ impl SemanticAnalyzer {
                 });
             }
 
-            // Functions and actions
+            // Functions, actions, getters
             for f in &comp.fns {
                 self.collect_fn_symbols(f);
             }
             for a in &comp.actions {
                 self.collect_action_symbols(a);
+            }
+            for g in &comp.getters {
+                self.declare_or_warn(Symbol {
+                    name: g.name.clone(),
+                    kind: SymbolKind::Getter,
+                    type_ann: Some(type_to_string(&g.type_ann)),
+                    mutable: false,
+                    declared_at: g.type_ann.span().start,
+                });
             }
 
             // Lifecycle hooks
@@ -699,7 +708,32 @@ impl SemanticAnalyzer {
                 ElementProp::Event { handler, .. } => {
                     self.resolve_event_handler_refs(handler);
                 }
-                ElementProp::Bind { .. } | ElementProp::TestId(_) | ElementProp::Ref(_) => {}
+                ElementProp::Bind { .. }
+                | ElementProp::TestId(_)
+                | ElementProp::Ref(_)
+                | ElementProp::MotionTrigger(_)
+                | ElementProp::StatesMap(_)
+                | ElementProp::AnimateSignal(_)
+                | ElementProp::PausedOverride(_)
+                | ElementProp::HoverReverse(_)
+                | ElementProp::DrivenBy(_)
+                | ElementProp::InViewOnce(_)
+                | ElementProp::InViewRepeat(_)
+                | ElementProp::InViewThreshold(_)
+                | ElementProp::When(_)
+                | ElementProp::DelayChildren(_)
+                | ElementProp::StaggerChildren(_)
+                | ElementProp::ScrollStart(_)
+                | ElementProp::ScrollEnd(_)
+                | ElementProp::ScrollScrub(_)
+                | ElementProp::DragConstraints(_)
+                | ElementProp::DragElastic(_)
+                | ElementProp::DragScrub(_)
+                | ElementProp::DragMomentum(_)
+                | ElementProp::DragThreshold(_)
+                | ElementProp::DragVelocityMax(_)
+                | ElementProp::HeroTag(_)
+                | ElementProp::HeroTransition(_) => {}
             }
         }
         for child in &element.children {
@@ -793,6 +827,7 @@ impl SemanticAnalyzer {
         for store in &module.stores {
             self.validate_store(store);
         }
+        self.validate_motions_in_module(module);
     }
 
     /// break/continue must be inside while/for loops; await must be in async fn
@@ -838,7 +873,9 @@ impl SemanticAnalyzer {
                         ));
                     }
                 }
-                Stmt::While { condition, body, .. } => {
+                Stmt::While {
+                    condition, body, ..
+                } => {
                     self.validate_expr_await(condition, is_async);
                     *loop_depth += 1;
                     self.validate_block(body, is_async, loop_depth);
@@ -890,6 +927,23 @@ impl SemanticAnalyzer {
                 Stmt::EventEmit { args, .. } => {
                     for arg in args {
                         self.validate_expr_await(arg, is_async);
+                    }
+                }
+                Stmt::Throw { expr, .. } => {
+                    self.validate_expr_await(expr, is_async);
+                }
+                Stmt::TryCatch {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    self.validate_block(try_body, is_async, loop_depth);
+                    if let Some(ref b) = catch_body {
+                        self.validate_block(b, is_async, loop_depth);
+                    }
+                    if let Some(ref b) = finally_body {
+                        self.validate_block(b, is_async, loop_depth);
                     }
                 }
             }
@@ -994,7 +1048,9 @@ impl SemanticAnalyzer {
                 // Check nested awaits (only the outer one is caught by the top rule)
                 self.validate_expr_await(operand, is_async);
             }
-            Expr::ClosureExpr { params: _, body, .. } => {
+            Expr::ClosureExpr {
+                params: _, body, ..
+            } => {
                 // Closures inherit the async context from their enclosing scope
                 self.validate_expr_await(body, is_async);
             }
@@ -1005,11 +1061,7 @@ impl SemanticAnalyzer {
 
     /// bind: must target a signal, not a store action or fn
     fn validate_bind_targets(&mut self, comp: &ComponentDef) {
-        let signal_names: HashSet<&str> = comp
-            .signals
-            .iter()
-            .map(|s| s.name.as_str())
-            .collect();
+        let signal_names: HashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
 
         fn walk_elements(
             nodes: &[ViewNode],
@@ -1027,9 +1079,7 @@ impl SemanticAnalyzer {
                             {
                                 // signal_path is e.g. "name" or "store.field"
                                 let root = signal_path.split('.').next().unwrap_or(signal_path);
-                                if !signal_names.contains(root)
-                                    && !signal_path.contains('.')
-                                {
+                                if !signal_names.contains(root) && !signal_path.contains('.') {
                                     // Only flag if it doesn't look like a store reference
                                     diagnostics.push(Diagnostic::warning(
                                         "E0005",
@@ -1037,7 +1087,12 @@ impl SemanticAnalyzer {
                                             "bind target '{}' is not a signal in this component",
                                             signal_path
                                         ),
-                                        &Span { start: 0, end: 0, line: 0, col: 0 },
+                                        &Span {
+                                            start: 0,
+                                            end: 0,
+                                            line: 0,
+                                            col: 0,
+                                        },
                                     ));
                                 }
                             }
@@ -1078,6 +1133,1135 @@ impl SemanticAnalyzer {
             self.validate_expr_await(&getter.body, false);
         }
     }
+
+    // ── Motion Validation ─────────────────────────────────────
+
+    /// Validate all motion definitions and timeline triggers in a module.
+    fn validate_motions_in_module(&mut self, module: &Module) {
+        // Collect all module-level motion/timeline names for reference resolution
+        let module_motion_names: HashSet<&str> = module
+            .motions
+            .iter()
+            .map(|m| m.name.as_str())
+            .chain(module.timelines.iter().map(|t| t.name.as_str()))
+            .collect();
+
+        // Validate module-level motion definitions
+        for motion in &module.motions {
+            self.validate_motion_def(motion, &module_motion_names);
+        }
+
+        // Validate module-level timeline definitions
+        let timeline_pairs: Vec<(&str, Vec<&str>)> = module
+            .timelines
+            .iter()
+            .map(|tl| (tl.name.as_str(), collect_timeline_refs(tl)))
+            .collect();
+        for timeline in &module.timelines {
+            self.validate_timeline_def(timeline, &module_motion_names);
+        }
+        self.detect_timeline_cycles(&timeline_pairs);
+
+        // Validate component-level motions and timelines
+        for comp in &module.components {
+            let comp_motion_names: HashSet<&str> = module_motion_names
+                .iter()
+                .copied()
+                .chain(comp.motions.iter().map(|m| m.name.as_str()))
+                .chain(comp.timelines.iter().map(|t| t.name.as_str()))
+                .collect();
+
+            for motion in &comp.motions {
+                self.validate_motion_def(motion, &comp_motion_names);
+            }
+
+            let comp_timeline_pairs: Vec<(&str, Vec<&str>)> = comp
+                .timelines
+                .iter()
+                .map(|tl| (tl.name.as_str(), collect_timeline_refs(tl)))
+                .collect();
+            for timeline in &comp.timelines {
+                self.validate_timeline_def(timeline, &comp_motion_names);
+            }
+            self.detect_timeline_cycles(&comp_timeline_pairs);
+
+            // Validate motion triggers in view
+            if let Some(ref view) = comp.view {
+                // Collect element ids for @timeline validation
+                let element_ids = collect_element_ids(&view.children);
+                self.validate_view_motion_triggers(
+                    &view.children,
+                    &comp_motion_names,
+                    &element_ids,
+                );
+            }
+        }
+    }
+
+    /// Validate a single motion definition (expanded with all spec §20.1 checks).
+    fn validate_motion_def(&mut self, motion: &MotionDef, all_motion_names: &HashSet<&str>) {
+        match &motion.body {
+            MotionBody::Keyframe(kf) => {
+                // Check: from must be paired with to
+                let has_from = kf
+                    .stops
+                    .iter()
+                    .any(|s| matches!(s.position, StopPosition::From));
+                let has_to = kf
+                    .stops
+                    .iter()
+                    .any(|s| matches!(s.position, StopPosition::To));
+                if has_from && !has_to {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'from' must be paired with 'to'", motion.name),
+                        &motion.span,
+                    ));
+                }
+
+                // Check: non-interpolatable properties
+                for stop in &kf.stops {
+                    for (prop, expr) in &stop.properties {
+                        if is_non_interpolatable(prop) {
+                            self.diagnostics.push(Diagnostic::error(
+                                "E0006",
+                                &format!("@motion '{}': '{}' is not interpolatable and cannot be animated", motion.name, prop),
+                                &motion.span,
+                            ));
+                        }
+                        // Check: keyword values in animation (e.g. width: auto→300px)
+                        if let Expr::VarRef(name, _) = expr {
+                            if is_keyword_value(name) {
+                                self.diagnostics.push(Diagnostic::error(
+                                    "E0006",
+                                    &format!("@motion '{}': keyword value '{}' cannot be used in animation for property '{}'", motion.name, name, prop),
+                                    &motion.span,
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                // Check: type mismatch across stops
+                self.validate_keyframe_type_mismatch(motion, kf);
+
+                // Check: valid easing name
+                if let Some(ref e) = kf.ease {
+                    self.validate_easing_name(e, &motion.span);
+                }
+                for stop in &kf.stops {
+                    if let Some(ref e) = stop.ease {
+                        self.validate_easing_name(e, &motion.span);
+                    }
+                }
+
+                // Check: clipPath with different shape functions
+                self.validate_clip_path_shapes(motion, kf);
+
+                // Check: boxShadow with different value structures
+                self.validate_box_shadow_structure(motion, kf);
+
+                // Warning: d attribute path structure mismatch
+                self.warn_path_structure_mismatch(motion, kf);
+
+                // Validate playback property conflicts
+                self.validate_playback_conflicts(motion, &kf.playback);
+            }
+            MotionBody::Timeline(tl) => {
+                // Check: set is allowed in timeline; stagger is allowed in timeline
+                // Check: valid easing names in timeline items
+                for item in &tl.items {
+                    if let TimelineItemKind::Direction(dir) = &item.kind {
+                        if let Some(ref e) = dir.ease {
+                            self.validate_easing_name(e, &motion.span);
+                        }
+                    }
+                }
+                for item in &tl.items {
+                    match &item.kind {
+                        TimelineItemKind::Direction(dir) => {
+                            for (prop, expr) in &dir.properties {
+                                if is_non_interpolatable(prop) {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        "E0006",
+                                        &format!("@motion '{}': '{}' is not interpolatable and cannot be animated", motion.name, prop),
+                                        &motion.span,
+                                    ));
+                                }
+                                if let Expr::VarRef(name, _) = expr {
+                                    if is_keyword_value(name) {
+                                        self.diagnostics.push(Diagnostic::error(
+                                            "E0006",
+                                            &format!("@motion '{}': keyword value '{}' cannot be used in animation for property '{}'", motion.name, name, prop),
+                                            &motion.span,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        TimelineItemKind::MotionRef(ref_name) => {
+                            if !all_motion_names.contains(ref_name.as_str()) {
+                                self.diagnostics.push(Diagnostic::error(
+                                    "E0006",
+                                    &format!(
+                                        "@motion '{}': references undefined motion '{}'",
+                                        motion.name, ref_name
+                                    ),
+                                    &motion.span,
+                                ));
+                            }
+                            // Check circular self-reference
+                            if ref_name == &motion.name {
+                                self.diagnostics.push(Diagnostic::error(
+                                    "E0006",
+                                    &format!(
+                                        "@motion '{}': circular reference to itself",
+                                        motion.name
+                                    ),
+                                    &motion.span,
+                                ));
+                            }
+                        }
+                        TimelineItemKind::Stagger(stagger) => {
+                            if let Expr::VarRef(ref_name, _) = stagger.motion.as_ref() {
+                                if !all_motion_names.contains(ref_name.as_str()) {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        "E0006",
+                                        &format!(
+                                            "@motion '{}': references undefined motion '{}'",
+                                            motion.name, ref_name
+                                        ),
+                                        &motion.span,
+                                    ));
+                                }
+                                if ref_name == &motion.name {
+                                    self.diagnostics.push(Diagnostic::error(
+                                        "E0006",
+                                        &format!("@motion '{}': circular reference to itself via stagger", motion.name),
+                                        &motion.span,
+                                    ));
+                                }
+                            }
+                        }
+                        TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) => {}
+                    }
+                }
+
+                // Validate playback property conflicts
+                self.validate_playback_conflicts(motion, &tl.playback);
+            }
+            MotionBody::CallbackOnly(cb) => {
+                // Check: $velocity only valid in gesture contexts
+                for spec in &cb.callbacks {
+                    let expr = match spec {
+                        CallbackSpec::OnStart(e)
+                        | CallbackSpec::OnUpdate(e)
+                        | CallbackSpec::OnComplete(e)
+                        | CallbackSpec::OnRepeat(e)
+                        | CallbackSpec::OnInterrupt(e) => e,
+                    };
+                    if contains_velocity_ref(expr) {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            &format!("@motion '{}': '$velocity' is only valid in @drag-horizontal/@drag-vertical callbacks, not in standalone motion definitions", motion.name),
+                            &motion.span,
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Emit warnings for all motion types
+        self.emit_motion_warnings(motion);
+    }
+
+    /// Validate playback property conflicts (§20.1).
+    fn validate_playback_conflicts(&mut self, motion: &MotionDef, playback: &[PlaybackProp]) {
+        let mut has_loop_infinite = false;
+        let mut has_fill_both = false;
+
+        // Note: driven-by is checked at element level, not motion level.
+        // But we check loop + fill conflicts here.
+
+        for prop in playback {
+            match prop {
+                PlaybackProp::Loop(lv) => {
+                    has_loop_infinite = matches!(lv, LoopValue::Infinite);
+                }
+                PlaybackProp::Fill(fv) => {
+                    has_fill_both = matches!(fv, FillValue::Both);
+                }
+                PlaybackProp::Direction(dv) => {
+                    // Warning: direction: alternate + loop: 1
+                    if let Some(lv) = playback.iter().find_map(|p| {
+                        if let PlaybackProp::Loop(lv) = p {
+                            Some(lv)
+                        } else {
+                            None
+                        }
+                    }) {
+                        if matches!(
+                            dv,
+                            DirectionValue::Alternate | DirectionValue::AlternateReverse
+                        ) && matches!(lv, LoopValue::Count(1))
+                        {
+                            self.diagnostics.push(Diagnostic::warning(
+                                "W0001",
+                                &format!("@motion '{}': direction 'alternate' with loop: 1 — animation plays forward then reverse; is this intended?", motion.name),
+                                &motion.span,
+                            ));
+                        }
+                    }
+                }
+                PlaybackProp::Paused(_) => {
+                    // No conflict, just a state flag
+                }
+                PlaybackProp::When(_) => {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'when' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
+                }
+                PlaybackProp::DelayChildren(_) => {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'delayChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
+                }
+                PlaybackProp::StaggerChildren(_) => {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'staggerChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        // Check fill: both + loop: infinite
+        if has_fill_both && has_loop_infinite {
+            self.diagnostics.push(Diagnostic::warning(
+                "W0001",
+                &format!(
+                    "@motion '{}': fill 'both' has no meaning with loop 'infinite'",
+                    motion.name
+                ),
+                &motion.span,
+            ));
+        }
+    }
+
+    /// Validate that an easing expression uses a recognized name.
+    fn validate_easing_name(&mut self, e: &EasingExpr, span: &Span) {
+        if let EasingExpr::Named(name) = e {
+            if !is_valid_easing_name(name) {
+                self.diagnostics.push(Diagnostic::error(
+                    "E0006",
+                    &format!("Unknown easing name '{}'", name),
+                    span,
+                ));
+            }
+        }
+        if let EasingExpr::Back { direction, .. } = e {
+            if let Some(ref dir_name) = direction {
+                if !is_valid_easing_name(dir_name) {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("Unknown easing name '{}'", dir_name),
+                        span,
+                    ));
+                }
+            }
+        }
+        if let EasingExpr::Elastic { direction, .. } = e {
+            if let Some(ref dir_name) = direction {
+                if !is_valid_easing_name(dir_name) {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("Unknown easing name '{}'", dir_name),
+                        span,
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Validate element-level animation conflicts.
+    fn validate_element_motion_props(&mut self, el: &Element, all_motion_names: &HashSet<&str>) {
+        let mut has_driven_by = false;
+        let mut motion_count: u32 = 0;
+
+        for prop in &el.props {
+            match prop {
+                ElementProp::DrivenBy(_) => {
+                    has_driven_by = true;
+                }
+                ElementProp::MotionTrigger(trigger) => {
+                    motion_count += 1;
+                    // Check driven-by + loop conflict: can't fully check here
+                    // since loop is in the motion def; validate when resolving
+                    if let Expr::VarRef(name, span) = &trigger.motion_expr {
+                        if !all_motion_names.contains(name.as_str()) {
+                            self.diagnostics.push(Diagnostic::error(
+                                "E0006",
+                                &format!(
+                                    "Undefined motion '{}' referenced in element trigger",
+                                    name
+                                ),
+                                span,
+                            ));
+                        }
+                    }
+                }
+                ElementProp::When(_)
+                | ElementProp::DelayChildren(_)
+                | ElementProp::StaggerChildren(_) => {
+                    // These are only valid on @enter/@leave triggers
+                    // Check: if there's no @enter or @leave trigger, warn
+                    let has_enter_leave = el.props.iter().any(|p| {
+                        if let ElementProp::MotionTrigger(mt) = p {
+                            matches!(mt.trigger, TriggerKind::Enter | TriggerKind::Leave)
+                        } else {
+                            false
+                        }
+                    });
+                    if !has_enter_leave {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            "when:/delayChildren:/staggerChildren: are only valid on @enter/@leave triggers",
+                            &el.span,
+                        ));
+                    }
+                }
+                ElementProp::StatesMap(states) => {
+                    // Validate states: block
+                    self.validate_states_block(el, states);
+                }
+                _ => {}
+            }
+        }
+
+        // Warning: >10 animations on a single element (performance risk)
+        if motion_count > 10 {
+            self.diagnostics.push(Diagnostic::warning(
+                "W0001",
+                &format!(
+                    "Element has {} motion triggers — performance risk (>10 recommended max)",
+                    motion_count
+                ),
+                &el.span,
+            ));
+        }
+
+        // Warning: driven-by + loop conflict (if element has both)
+        if has_driven_by {
+            for prop in &el.props {
+                if let ElementProp::MotionTrigger(trigger) = prop {
+                    if let Expr::VarRef(_name, _) = &trigger.motion_expr {
+                        // If the referenced motion has loop, that's a conflict
+                        // This requires cross-referencing with motion defs
+                        // For now, mark as warning
+                    }
+                }
+            }
+        }
+    }
+
+    /// Validate states: block (§20.1).
+    fn validate_states_block(&mut self, el: &Element, states: &[(String, StateDef)]) {
+        let has_reserved = states
+            .iter()
+            .any(|(name, _)| matches!(name.as_str(), "idle" | "hover" | "pressed"));
+        let has_custom = !has_reserved;
+        let has_on_signal = el
+            .props
+            .iter()
+            .any(|p| matches!(p, ElementProp::AnimateSignal(_)));
+
+        if has_reserved && has_custom && has_on_signal {
+            self.diagnostics.push(Diagnostic::error(
+                "E0006",
+                "states: cannot mix reserved names (idle/hover/pressed) with custom names and on: signal binding",
+                &el.span,
+            ));
+        }
+
+        // Custom states require on: signal
+        if !has_reserved && !has_on_signal {
+            self.diagnostics.push(Diagnostic::error(
+                "E0006",
+                "states: with custom state names requires on: signal binding to drive state selection",
+                &el.span,
+            ));
+        }
+
+        // Reserved names with on: present is an error
+        if has_reserved && has_on_signal {
+            self.diagnostics.push(Diagnostic::error(
+                "E0006",
+                "states: reserved names (idle/hover/pressed) auto-bind to mouse events; on: is only valid with custom state names",
+                &el.span,
+            ));
+        }
+
+        // Check for duplicate state names
+        let mut seen: HashSet<&str> = HashSet::new();
+        for (name, _) in states {
+            if !seen.insert(name.as_str()) {
+                self.diagnostics.push(Diagnostic::error(
+                    "E0006",
+                    &format!("Duplicate state name '{}' in states: block", name),
+                    &el.span,
+                ));
+            }
+        }
+    }
+
+    /// Validate @if mode string (§20.1).
+    fn validate_if_mode(&mut self, mode: &str, span: &Span) {
+        if mode != "sync" && mode != "wait" {
+            self.diagnostics.push(Diagnostic::error(
+                "E0006",
+                &format!("@if mode '{}' is invalid; expected 'sync' or 'wait'", mode),
+                span,
+            ));
+        }
+    }
+
+    /// Check for type mismatches across keyframe stops for the same property.
+    fn validate_keyframe_type_mismatch(&mut self, motion: &MotionDef, kf: &KeyframeBody) {
+        let mut prop_types: HashMap<&str, &str> = HashMap::new();
+        for stop in &kf.stops {
+            for (prop, expr) in &stop.properties {
+                let tag = match expr {
+                    Expr::Literal(lit, _) => match lit {
+                        Literal::Int(_) | Literal::Float(_) => "number",
+                        Literal::String(_) => "string",
+                        Literal::Bool(_) => "bool",
+                        Literal::Null => "null",
+                    },
+                    _ => "unknown",
+                };
+                if let Some(prev_tag) = prop_types.get(prop.as_str()) {
+                    if *prev_tag != tag && *prev_tag != "unknown" && tag != "unknown" {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            &format!(
+                                "@motion '{}': type mismatch for property '{}' ({} vs {})",
+                                motion.name, prop, prev_tag, tag
+                            ),
+                            &motion.span,
+                        ));
+                    }
+                } else {
+                    prop_types.insert(prop.as_str(), tag);
+                }
+            }
+        }
+    }
+
+    /// Validate clipPath shape consistency across keyframe stops.
+    fn validate_clip_path_shapes(&mut self, motion: &MotionDef, kf: &KeyframeBody) {
+        for stop in &kf.stops {
+            for (prop, expr) in &stop.properties {
+                if prop == "clipPath" || prop == "clip-path" {
+                    if let Expr::Literal(Literal::String(val), _) = expr {
+                        // Extract shape function name (e.g., "circle", "inset", "polygon")
+                        let shape = val.trim_start().split('(').next().unwrap_or("");
+                        // Record and compare across stops
+                        for other_stop in &kf.stops {
+                            for (other_prop, other_expr) in &other_stop.properties {
+                                if other_prop == prop {
+                                    if let Expr::Literal(Literal::String(other_val), _) = other_expr
+                                    {
+                                        let other_shape =
+                                            other_val.trim_start().split('(').next().unwrap_or("");
+                                        if shape != other_shape
+                                            && !shape.is_empty()
+                                            && !other_shape.is_empty()
+                                        {
+                                            self.diagnostics.push(Diagnostic::error(
+                                                "E0006",
+                                                &format!("@motion '{}': clipPath shape mismatch — '{}()' and '{}()' are different shape functions", motion.name, shape, other_shape),
+                                                &motion.span,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Validate boxShadow value structure consistency.
+    fn validate_box_shadow_structure(&mut self, motion: &MotionDef, kf: &KeyframeBody) {
+        let mut first_box_shadow: Option<&str> = None;
+        for stop in &kf.stops {
+            for (prop, expr) in &stop.properties {
+                if prop == "boxShadow" || prop == "box-shadow" {
+                    if let Expr::Literal(Literal::String(val), _) = expr {
+                        if let Some(first) = first_box_shadow {
+                            let has_rgba1 = first.contains("rgba");
+                            let has_rgba2 = val.contains("rgba");
+                            if has_rgba1 != has_rgba2 {
+                                self.diagnostics.push(Diagnostic::error(
+                                    "E0006",
+                                    &format!("@motion '{}': boxShadow value structure mismatch — one uses rgba() and the other does not", motion.name),
+                                    &motion.span,
+                                ));
+                            }
+                        } else {
+                            first_box_shadow = Some(val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Warning: SVG path 'd' attribute structure mismatch.
+    fn warn_path_structure_mismatch(&mut self, motion: &MotionDef, kf: &KeyframeBody) {
+        let mut first_path: Option<&str> = None;
+        for stop in &kf.stops {
+            for (prop, expr) in &stop.properties {
+                if prop == "d" {
+                    if let Expr::Literal(Literal::String(val), _) = expr {
+                        if let Some(first) = first_path {
+                            let cmds1: Vec<char> =
+                                first.chars().filter(|c| c.is_alphabetic()).collect();
+                            let cmds2: Vec<char> =
+                                val.chars().filter(|c| c.is_alphabetic()).collect();
+                            if cmds1 != cmds2 {
+                                self.diagnostics.push(Diagnostic::warning(
+                                    "W0001",
+                                    &format!("@motion '{}': SVG path 'd' attribute command structure differs between keyframe stops — interpolation may not work as expected", motion.name),
+                                    &motion.span,
+                                ));
+                            }
+                        } else {
+                            first_path = Some(val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Motion Warnings (§20.2) ─────────────────────────
+
+    /// Emit warnings for motion-specific issues.
+    fn emit_motion_warnings(&mut self, motion: &MotionDef) {
+        self.check_over_duration_warnings(motion);
+        self.check_opacity_range_warnings(motion);
+    }
+
+    fn check_over_duration_warnings(&mut self, motion: &MotionDef) {
+        let over_exprs: Vec<&Expr> = match &motion.body {
+            MotionBody::Keyframe(kf) => vec![&kf.over],
+            MotionBody::Timeline(tl) => tl
+                .items
+                .iter()
+                .filter_map(|item| match &item.kind {
+                    TimelineItemKind::Direction(dir) => Some(&dir.over),
+                    _ => None,
+                })
+                .collect(),
+            MotionBody::CallbackOnly(cb) => vec![&cb.over],
+        };
+
+        for expr in &over_exprs {
+            if let Expr::Literal(Literal::String(val), _) = expr {
+                if val == "0ms" || val == "0s" {
+                    self.diagnostics.push(Diagnostic::warning(
+                        "W0001",
+                        &format!("@motion '{}': over: 0ms — consider using 'set' instead for instant assignment", motion.name),
+                        &motion.span,
+                    ));
+                }
+                if let Some(ms) = parse_duration_ms(val) {
+                    if ms > 3_600_000.0 {
+                        self.diagnostics.push(Diagnostic::warning(
+                            "W0001",
+                            &format!(
+                                "@motion '{}': over > 3600s ({}) — suspiciously long duration",
+                                motion.name, val
+                            ),
+                            &motion.span,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_opacity_range_warnings(&mut self, motion: &MotionDef) {
+        let props: Vec<&(String, Expr)> = match &motion.body {
+            MotionBody::Keyframe(kf) => kf.stops.iter().flat_map(|s| &s.properties).collect(),
+            MotionBody::Timeline(tl) => tl
+                .items
+                .iter()
+                .filter_map(|item| match &item.kind {
+                    TimelineItemKind::Direction(dir) => Some(&dir.properties),
+                    TimelineItemKind::SetBlock(props) => Some(props),
+                    _ => None,
+                })
+                .flat_map(|p| p.iter())
+                .collect(),
+            _ => vec![],
+        };
+
+        for (prop, expr) in &props {
+            if prop == "opacity" {
+                if let Expr::Literal(lit, _) = expr {
+                    match lit {
+                        Literal::Float(f) if *f < 0.0 || *f > 1.0 => {
+                            self.diagnostics.push(Diagnostic::warning(
+                                "W0001",
+                                &format!(
+                                    "@motion '{}': opacity value {} is outside [0, 1] range",
+                                    motion.name, f
+                                ),
+                                &motion.span,
+                            ));
+                        }
+                        Literal::Int(i) if *i < 0 || *i > 1 => {
+                            self.diagnostics.push(Diagnostic::warning(
+                                "W0001",
+                                &format!(
+                                    "@motion '{}': opacity value {} is outside [0, 1] range",
+                                    motion.name, i
+                                ),
+                                &motion.span,
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    // ── View Tree Motion Validation ─────────────────────
+
+    /// Validate a single timeline definition (undefined refs, non-interpolatable props).
+    fn validate_timeline_def(&mut self, timeline: &TimelineDef, all_motion_names: &HashSet<&str>) {
+        for item in &timeline.items {
+            match &item.kind {
+                TimelineItemKind::MotionRef(ref_name) => {
+                    if !all_motion_names.contains(ref_name.as_str()) {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            &format!(
+                                "@timeline '{}': references undefined motion '{}'",
+                                timeline.name, ref_name
+                            ),
+                            &timeline.span,
+                        ));
+                    }
+                }
+                TimelineItemKind::Direction(dir) => {
+                    for (prop, _) in &dir.properties {
+                        if is_non_interpolatable(prop) {
+                            self.diagnostics.push(Diagnostic::error(
+                                "E0006",
+                                &format!("@timeline '{}': '{}' is not interpolatable and cannot be animated", timeline.name, prop),
+                                &timeline.span,
+                            ));
+                        }
+                    }
+                }
+                TimelineItemKind::Stagger(stagger) => {
+                    if let Expr::VarRef(ref_name, _) = stagger.motion.as_ref() {
+                        if !all_motion_names.contains(ref_name.as_str()) {
+                            self.diagnostics.push(Diagnostic::error(
+                                "E0006",
+                                &format!(
+                                    "@timeline '{}': references undefined motion '{}'",
+                                    timeline.name, ref_name
+                                ),
+                                &timeline.span,
+                            ));
+                        }
+                    }
+                }
+                TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) => {}
+            }
+        }
+    }
+
+    /// Detect circular motion references in timeline definitions.
+    fn detect_timeline_cycles(&mut self, refs: &[(&str, Vec<&str>)]) {
+        let graph: HashMap<&str, &[&str]> = refs
+            .iter()
+            .map(|(name, deps)| (*name, deps.as_slice()))
+            .collect();
+
+        let mut reported: HashSet<&str> = HashSet::new();
+
+        for &(start_name, _) in refs {
+            if reported.contains(start_name) {
+                continue;
+            }
+            // DFS from start, following only timeline nodes
+            let mut visited: HashSet<&str> = HashSet::new();
+            let mut stack: Vec<&str> = vec![start_name];
+            visited.insert(start_name);
+
+            while let Some(current) = stack.pop() {
+                if let Some(neighbors) = graph.get(current) {
+                    for &next in *neighbors {
+                        if !graph.contains_key(next) {
+                            // Only follow timeline nodes for cycle detection
+                            continue;
+                        }
+                        if next == start_name {
+                            reported.insert(start_name);
+                            self.diagnostics.push(Diagnostic::error(
+                                "E0006",
+                                &format!(
+                                    "Timeline '{}' contains a circular motion reference",
+                                    start_name
+                                ),
+                                &Span {
+                                    start: 0,
+                                    end: 0,
+                                    line: 0,
+                                    col: 0,
+                                },
+                            ));
+                            stack.clear();
+                            break;
+                        }
+                        if !visited.contains(next) {
+                            visited.insert(next);
+                            stack.push(next);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Validate motion triggers in view tree (expanded with @for key checking, element ID collection).
+    fn validate_view_motion_triggers(
+        &mut self,
+        nodes: &[ViewNode],
+        all_motion_names: &HashSet<&str>,
+        element_ids: &HashSet<String>,
+    ) {
+        for node in nodes {
+            match node {
+                ViewNode::Element(el) => {
+                    self.validate_element_motion_props(el, all_motion_names);
+
+                    // Validate @if mode on conditional branches within element
+                    self.validate_view_motion_triggers(&el.children, all_motion_names, element_ids);
+                }
+                ViewNode::IfDirective(if_dir) => {
+                    // Validate @if mode string if present
+                    if let Some(ref mode) = if_dir.transition_mode {
+                        self.validate_if_mode(mode, &if_dir.span);
+                    }
+                    self.validate_view_motion_triggers(&if_dir.body, all_motion_names, element_ids);
+                    for (_, body) in &if_dir.else_ifs {
+                        self.validate_view_motion_triggers(body, all_motion_names, element_ids);
+                    }
+                    if let Some(ref else_body) = if_dir.else_body {
+                        self.validate_view_motion_triggers(
+                            else_body,
+                            all_motion_names,
+                            element_ids,
+                        );
+                    }
+                }
+                ViewNode::ForDirective(for_dir) => {
+                    // Check: @for with enter/leave/stagger triggers but no key={}
+                    let has_anim = has_enter_leave_animation(&for_dir.body);
+                    let has_key = for_dir.key_expr.is_some();
+                    if has_anim && !has_key {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            "@for with @enter/@leave/stagger animation requires key={} for identity tracking",
+                            &for_dir.span,
+                        ));
+                    }
+                    self.validate_view_motion_triggers(
+                        &for_dir.body,
+                        all_motion_names,
+                        element_ids,
+                    );
+                    if let Some(ref empty_body) = for_dir.empty_body {
+                        self.validate_view_motion_triggers(
+                            empty_body,
+                            all_motion_names,
+                            element_ids,
+                        );
+                    }
+                }
+                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective(_) => {}
+            }
+        }
+    }
+}
+
+// ── Motion Validation Helpers (standalone) ──────────────
+
+/// Collect all element `id` attributes from a view tree (for @timeline validation).
+fn collect_element_ids(nodes: &[ViewNode]) -> HashSet<String> {
+    let mut ids = HashSet::new();
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                for prop in &el.props {
+                    if let ElementProp::Static { name, value } = prop {
+                        if name == "id" {
+                            if let Expr::Literal(Literal::String(id_val), _) = value {
+                                ids.insert(id_val.clone());
+                            }
+                        }
+                    }
+                }
+                ids.extend(collect_element_ids(&el.children));
+            }
+            ViewNode::IfDirective(if_dir) => {
+                ids.extend(collect_element_ids(&if_dir.body));
+                for (_, body) in &if_dir.else_ifs {
+                    ids.extend(collect_element_ids(body));
+                }
+                if let Some(ref else_body) = if_dir.else_body {
+                    ids.extend(collect_element_ids(else_body));
+                }
+            }
+            ViewNode::ForDirective(for_dir) => {
+                ids.extend(collect_element_ids(&for_dir.body));
+                if let Some(ref empty_body) = for_dir.empty_body {
+                    ids.extend(collect_element_ids(empty_body));
+                }
+            }
+            _ => {}
+        }
+    }
+    ids
+}
+
+/// Check if a string is a valid easing function name.
+fn is_valid_easing_name(name: &str) -> bool {
+    matches!(
+        name,
+        "linear"
+            | "easeIn"
+            | "easeOut"
+            | "easeInOut"
+            | "power1In"
+            | "power1Out"
+            | "power1InOut"
+            | "power2In"
+            | "power2Out"
+            | "power2InOut"
+            | "power3In"
+            | "power3Out"
+            | "power3InOut"
+            | "power4In"
+            | "power4Out"
+            | "power4InOut"
+            | "backIn"
+            | "backOut"
+            | "backInOut"
+            | "bounceIn"
+            | "bounceOut"
+            | "bounceInOut"
+            | "elasticIn"
+            | "elasticOut"
+            | "elasticInOut"
+    )
+}
+
+/// Check if a value name is a non-interpolatable CSS keyword.
+fn is_keyword_value(name: &str) -> bool {
+    matches!(
+        name,
+        "auto" | "none" | "normal" | "inherit" | "initial" | "unset" | "revert"
+    )
+}
+
+/// Check if a view node tree contains any @enter or @leave animation triggers.
+fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                for prop in &el.props {
+                    if let ElementProp::MotionTrigger(mt) = prop {
+                        if matches!(mt.trigger, TriggerKind::Enter | TriggerKind::Leave) {
+                            return true;
+                        }
+                    }
+                }
+                if has_enter_leave_animation(&el.children) {
+                    return true;
+                }
+            }
+            ViewNode::IfDirective(if_dir) => {
+                if has_enter_leave_animation(&if_dir.body) {
+                    return true;
+                }
+                for (_, body) in &if_dir.else_ifs {
+                    if has_enter_leave_animation(body) {
+                        return true;
+                    }
+                }
+                if let Some(ref else_body) = if_dir.else_body {
+                    if has_enter_leave_animation(else_body) {
+                        return true;
+                    }
+                }
+            }
+            ViewNode::ForDirective(for_dir) => {
+                if has_enter_leave_animation(&for_dir.body) {
+                    return true;
+                }
+                if let Some(ref empty_body) = for_dir.empty_body {
+                    if has_enter_leave_animation(empty_body) {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Recursively check if an expression references $velocity.
+fn contains_velocity_ref(expr: &Expr) -> bool {
+    match expr {
+        Expr::VarRef(name, _) => name == "$velocity",
+        Expr::BinaryOp { left, right, .. } => {
+            contains_velocity_ref(left) || contains_velocity_ref(right)
+        }
+        Expr::UnaryOp { operand, .. } => contains_velocity_ref(operand),
+        Expr::FuncCall { func, args, .. } => {
+            contains_velocity_ref(func) || args.iter().any(|a| contains_velocity_ref(a))
+        }
+        Expr::MethodCall { object, args, .. } => {
+            contains_velocity_ref(object) || args.iter().any(|a| contains_velocity_ref(a))
+        }
+        Expr::FieldAccess { object, .. } | Expr::OptionalChain { object, .. } => {
+            contains_velocity_ref(object)
+        }
+        Expr::IndexGet { object, index, .. } => {
+            contains_velocity_ref(object) || contains_velocity_ref(index)
+        }
+        Expr::ArrayLiteral { elements, .. } => elements.iter().any(|e| contains_velocity_ref(e)),
+        Expr::MapLiteral { entries, .. } => entries
+            .iter()
+            .any(|(k, v)| contains_velocity_ref(k) || contains_velocity_ref(v)),
+        Expr::IfExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        }
+        | Expr::TernaryExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            contains_velocity_ref(condition)
+                || contains_velocity_ref(then_expr)
+                || contains_velocity_ref(else_expr)
+        }
+        Expr::TemplateString { parts, .. } => parts.iter().any(|p| {
+            if let TemplatePart::Expr(e) = p {
+                contains_velocity_ref(e)
+            } else {
+                false
+            }
+        }),
+        Expr::ClosureExpr { body, .. } => contains_velocity_ref(body),
+        Expr::AwaitExpr { operand, .. } => contains_velocity_ref(operand),
+        Expr::MatchExpr { matched, arms, .. } => {
+            contains_velocity_ref(matched)
+                || arms
+                    .iter()
+                    .any(|arm| arm.body.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Expr::Block { .. }
+        | Expr::Literal(..)
+        | Expr::NotYetImplemented { .. }
+        | Expr::StoreFieldAccess { .. }
+        | Expr::StructLiteral { .. } => false,
+    }
+}
+
+fn contains_velocity_stmt(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::ExprStmt { expr, .. } => contains_velocity_ref(expr),
+        Stmt::Return { value, .. } => value.as_ref().map_or(false, |e| contains_velocity_ref(e)),
+        Stmt::VarDecl { init, .. } => init.as_ref().map_or(false, |e| contains_velocity_ref(e)),
+        Stmt::Assign { value, .. } => contains_velocity_ref(value),
+        Stmt::If {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            contains_velocity_ref(condition)
+                || then_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+                || else_ifs.iter().any(|(c, b)| {
+                    contains_velocity_ref(c) || b.stmts.iter().any(|s| contains_velocity_stmt(s))
+                })
+                || else_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            contains_velocity_ref(condition) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            contains_velocity_ref(iterable) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+        }
+        Stmt::Print { arg, .. } => contains_velocity_ref(arg),
+        Stmt::EventEmit { args, .. } => args.iter().any(|a| contains_velocity_ref(a)),
+        Stmt::Throw { expr, .. } => contains_velocity_ref(expr),
+        Stmt::TryCatch {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+                || catch_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || finally_body
+                    .as_ref()
+                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => false,
+    }
+}
+
+/// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
+fn parse_duration_ms(val: &str) -> Option<f64> {
+    let val = val.trim();
+    if let Some(ms_part) = val.strip_suffix("ms") {
+        ms_part.parse::<f64>().ok()
+    } else if let Some(s_part) = val.strip_suffix('s') {
+        s_part.parse::<f64>().ok().map(|s| s * 1000.0)
+    } else {
+        None
+    }
 }
 
 // ── Helpers ────────────────────────────────────────────
@@ -1109,6 +2293,52 @@ fn type_to_string(ty: &TypeAnnotation) -> String {
             format!("fn({}) -> {}", p.join(", "), type_to_string(return_type))
         }
     }
+}
+
+/// Check if a CSS property name is non-interpolatable (cannot be animated).
+fn is_non_interpolatable(prop: &str) -> bool {
+    matches!(
+        prop,
+        "display"
+            | "position"
+            | "overflow"
+            | "flex-direction"
+            | "flexDirection"
+            | "grid-template"
+            | "gridTemplate"
+            | "visibility"
+            | "content"
+            | "cursor"
+            | "pointer-events"
+            | "pointerEvents"
+            | "user-select"
+            | "userSelect"
+            | "font-family"
+            | "fontFamily"
+            | "text-decoration"
+            | "textDecoration"
+            | "white-space"
+            | "whiteSpace"
+    )
+}
+
+/// Collect all motion/timeline names referenced by a timeline definition.
+fn collect_timeline_refs(timeline: &TimelineDef) -> Vec<&str> {
+    timeline
+        .items
+        .iter()
+        .filter_map(|item| match &item.kind {
+            TimelineItemKind::MotionRef(name) => Some(name.as_str()),
+            TimelineItemKind::Stagger(stagger) => {
+                if let Expr::VarRef(name, _) = stagger.motion.as_ref() {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Extension trait to get span from TypeAnnotation.
