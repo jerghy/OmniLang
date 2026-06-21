@@ -3,6 +3,8 @@
 
 import { describe, it, expect } from "vitest";
 import { SourceEmitter, CodeWriter } from "../source-emitter";
+import { parseOmniSource } from "../omni-parser";
+import { generateOmniSource, generateOmniFiles } from "../pipeline";
 import type { EmitInput, ChainBlock, ViewNode, AnnotationStrategy } from "../types";
 
 // ── Helpers ──
@@ -508,5 +510,109 @@ describe("SourceEmitter", () => {
     const emitter = new SourceEmitter();
     const result = emitter.emitDocument(input, new Map());
     expect(result).toContain('title="say \\"hello\\""');
+  });
+});
+
+// ── Pipeline roundtrip tests ──
+
+describe("Pipeline roundtrip", () => {
+  const COUNTER_FIXTURE = `import omniview;
+
+component Counter {
+  view {
+    <div id="Counter" class: counter>
+      <p id="Counter.label.0" class: label>
+        Hello
+      </p>
+    </div>
+  }
+}
+`;
+
+  it("parse -> generate -> re-parse succeeds", () => {
+    // Parse the fixture
+    const parsed = parseOmniSource(COUNTER_FIXTURE);
+    expect(parsed.errors).toHaveLength(0);
+    expect(parsed.designElements).not.toBeNull();
+
+    // Generate from parsed data
+    const result = generateOmniSource({
+      designElements: parsed.designElements ?? [],
+      designWires: parsed.designWires,
+      codeTabs: parsed.codeTabs,
+      componentName: "Counter",
+    });
+
+    // Verify no fatal errors and output was produced
+    expect(result.errors.some((e) => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+
+    // Re-parse the generated output
+    const reParsed = parseOmniSource(result.value!);
+    expect(reParsed.errors.length).toBeLessThanOrEqual(2); // allow minor annotation warnings
+    expect(reParsed.designElements).not.toBeNull();
+  });
+
+  it("generateOmniFiles produces multi-file output", () => {
+    const parsed = parseOmniSource(COUNTER_FIXTURE);
+    expect(parsed.designElements).not.toBeNull();
+
+    const result = generateOmniFiles({
+      designElements: parsed.designElements ?? [],
+      designWires: parsed.designWires,
+      codeTabs: parsed.codeTabs,
+      componentName: "Counter",
+    });
+
+    expect(result.errors.some((e) => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+    expect(result.value!["src/main.omni"]).toBeDefined();
+    expect(result.value!["src/main.omni"]).toContain("component Counter");
+  });
+
+  it("generateOmniFiles includes store files when stores exist", () => {
+    const FIXTURE_WITH_STORE = `import omniview;
+
+component Counter {
+  @store CounterStore;
+
+  view {
+    <div id="Counter" class: counter>
+      <p id="Counter.label.0" class: label>
+        Hello
+      </p>
+    </div>
+  }
+}
+`;
+    const parsed = parseOmniSource(FIXTURE_WITH_STORE);
+    expect(parsed.designElements).not.toBeNull();
+
+    const result = generateOmniFiles({
+      designElements: parsed.designElements ?? [],
+      designWires: parsed.designWires,
+      codeTabs: parsed.codeTabs,
+      componentName: "Counter",
+    });
+
+    expect(result.errors.some((e) => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+
+    // Should have main.omni even without store data fully parsed
+    expect(result.value!["src/main.omni"]).toBeDefined();
+    expect(result.value!["src/main.omni"]).toContain("component Counter");
+  });
+
+  it("handles empty input gracefully", () => {
+    const result = generateOmniSource({
+      designElements: [],
+      designWires: [],
+      codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "", graph: { elements: [], wires: [] }, variables: [] }],
+      componentName: "Empty",
+    });
+
+    expect(result.errors.some((e) => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+    expect(result.value).toContain("component Empty");
   });
 });

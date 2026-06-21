@@ -1,17 +1,56 @@
 // editor/client/src/omni-gen/pipeline.ts
 // Orchestrates the 3-phase omni-gen pipeline:
 //   Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
-//   Phase B: STUB (StoreExtractor + ExpressionLowering + ChainEmitter)
-//   Phase C: StyleResolver + SourceEmitter
+//   Phase B: StoreExtractor + ExpressionLowering + ChainEmitter
+//   Phase C: StyleResolver + AnnotationData + SourceEmitter
 
 import { buildViewTree } from "./view-tree-builder";
 import { analyzeWires } from "./wire-analyzer";
 import { collectImports } from "./import-collector";
 import { resolveStyle } from "./style-resolver";
-import { SourceEmitter } from "./source-emitter";
+import { extractStores } from "./store-extractor";
+import { lowerCode } from "./expression-lowering";
+import { emitChains } from "./chain-emitter";
+import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
+import { SourceEmitter, CodeWriter } from "./source-emitter";
 import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
-import type { StageResult, EmitInput } from "./types";
+import type {
+  StageResult,
+  PipelineError,
+  EmitInput,
+  ViewNode,
+  StoreDef,
+  ChainBlock,
+} from "./types";
+
+// ── runPhase helper ─────────────────────────────────────────────────
+
+/**
+ * Wrap a phase module call in try/catch.
+ * Returns StageResult<T> with the value on success or a fatal PipelineError on throw.
+ */
+function runPhase<T>(
+  phase: "A" | "B" | "C",
+  module: string,
+  fn: () => T,
+): StageResult<T> {
+  try {
+    const value = fn();
+    return { value, errors: [] };
+  } catch (e) {
+    const error: PipelineError = {
+      phase,
+      module,
+      severity: "fatal",
+      code: "E_PHASE",
+      message: e instanceof Error ? e.message : String(e),
+    };
+    return { value: null, errors: [error] };
+  }
+}
+
+// ── generateOmniSource ──────────────────────────────────────────────
 
 export function generateOmniSource(options: {
   designElements: ElementData[];
@@ -19,74 +58,253 @@ export function generateOmniSource(options: {
   codeTabs: CodeTab[];
   componentName: string;
 }): StageResult<string> {
-  const errors: StageResult<string>["errors"] = [];
+  const allErrors: PipelineError[] = [];
 
   // ── Phase A: Build view tree, analyze wires, collect imports ──
 
-  const { roots, pascalCaseTags } = buildViewTree(
-    options.designElements,
-    options.componentName,
+  const a1 = runPhase("A", "view-tree-builder", () =>
+    buildViewTree(options.designElements, options.componentName),
   );
-  const bindings = analyzeWires(options.designElements, options.designWires);
-  const imports = collectImports(
-    pascalCaseTags,
-    [...bindings.storeRefs.keys()],
-    options.codeTabs,
+  allErrors.push(...a1.errors);
+  const { roots, pascalCaseTags } = a1.value ?? {
+    roots: [] as ViewNode[],
+    pascalCaseTags: [] as string[],
+  };
+
+  const a2 = runPhase("A", "wire-analyzer", () =>
+    analyzeWires(options.designElements, options.designWires),
   );
+  allErrors.push(...a2.errors);
+  const bindings = a2.value ?? {
+    signalBindings: new Map<
+      string,
+      Array<{ elementId: string; propName: string }>
+    >(),
+    storeRefs: new Map<string, string[]>(),
+    computedDeps: new Map<string, string[]>(),
+    unwiredProps: [] as Array<{
+      elementId: string;
+      tag: string;
+      propName: string;
+    }>,
+  };
 
-  // ── Phase B (stub) ──
-  // Will be filled by StoreExtractor + ExpressionLowering + ChainEmitter (Tasks 12-14)
+  const a3 = runPhase("A", "import-collector", () =>
+    collectImports(
+      pascalCaseTags,
+      [...bindings.storeRefs.keys()],
+      options.codeTabs,
+    ),
+  );
+  allErrors.push(...a3.errors);
+  const imports = a3.value ?? [];
 
-  const mainTab = options.codeTabs.find(t => t.id === "main") || options.codeTabs[0];
+  // ── Phase B: StoreExtractor + ExpressionLowering + ChainEmitter ──
 
-  // ── Phase C: Apply styles, collect style rules, emit source ──
+  const b1 = runPhase("B", "store-extractor", () =>
+    extractStores(options.designElements, options.designWires),
+  );
+  allErrors.push(...b1.errors);
+  const { stores, standaloneSignals } = b1.value ?? {
+    stores: [] as StoreDef[],
+    standaloneSignals: [] as Array<{
+      name: string;
+      type: string;
+      default?: unknown;
+    }>,
+  };
 
-  applyStyles(roots);
+  const b2 = runPhase("B", "expression-lowering", () =>
+    lowerCode(options.designElements, options.designWires),
+  );
+  allErrors.push(...b2.errors);
+  const lowered = b2.value ?? {
+    expressions: new Map<string, string>(),
+    functions: [] as Array<{
+      name: string;
+      params: Array<{ name: string; type: string }>;
+      returnType: string;
+      body: string;
+    }>,
+    actions: [] as Array<{
+      storeName: string;
+      name: string;
+      params: Array<{ name: string; type: string }>;
+      body: string;
+    }>,
+    getters: [] as Array<{
+      name: string;
+      returnType: string;
+      body: string;
+      deps: string[];
+    }>,
+  };
+
+  const mainTab =
+    options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
+
+  const b3 = runPhase("B", "chain-emitter", () =>
+    emitChains(mainTab, lowered.functions),
+  );
+  allErrors.push(...b3.errors);
+  const chains = b3.value ?? new Map<string, ChainBlock>();
+
+  // ── Phase C: Apply styles, build annotations, emit source ──
+
+  const c1 = runPhase("C", "style-resolver", () => {
+    applyStyles(roots);
+  });
+  allErrors.push(...c1.errors);
 
   const componentStyle: Record<string, Record<string, string>> = {};
   collectStyles(roots, componentStyle);
 
+  // Build component-level signals from standaloneSignals (signals not in a store)
+  const componentSignals: Record<
+    string,
+    { type: string; default?: unknown }
+  > = {};
+  for (const s of standaloneSignals) {
+    componentSignals[s.name] = { type: s.type, default: s.default };
+  }
+
+  // Build annotation data and strategy
+  const c2 = runPhase("C", "annotation-data", () => {
+    const annData = buildAnnotationData(
+      roots,
+      (mainTab.type as "logic" | "event") ?? "logic",
+    );
+    return createAnnotationStrategy(annData);
+  });
+  allErrors.push(...c2.errors);
+  const annotationStrategy = c2.value;
+
+  // Assemble the full EmitInput
   const emitInput: EmitInput = {
-    codeTabType: mainTab.type as "logic" | "event",
+    codeTabType: (mainTab.type as "logic" | "event") ?? "logic",
     imports,
-    stores: [],
+    stores,
     component: {
       name: options.componentName,
-      signals: {},
+      signals: componentSignals,
       computeds: {},
       storeRefs: [...bindings.storeRefs.keys()],
-      fns: [],
-      view: roots[0] || null,
+      fns: lowered.functions,
+      view: roots[0] ?? null,
       style: componentStyle,
     },
   };
 
-  const emitter = new SourceEmitter();
-  const source = emitter.emitDocument(emitInput, new Map());
+  // Emit the source document
+  const c3 = runPhase("C", "source-emitter", () => {
+    const emitter = new SourceEmitter(annotationStrategy);
+    return emitter.emitDocument(emitInput, chains);
+  });
+  allErrors.push(...c3.errors);
 
-  return { value: source, errors };
+  // If any fatal error occurred, return null value
+  const hasFatal = allErrors.some((e) => e.severity === "fatal");
+
+  return {
+    value: hasFatal || c3.value === null ? null : c3.value,
+    errors: allErrors,
+  };
 }
 
-// ── Helpers ──
+// ── generateOmniFiles: multi-file output ────────────────────────────
 
-function applyStyles(roots: import("./types").ViewNode[]): void {
+/**
+ * Generate multi-file OmniLang output.
+ *
+ * Runs the full pipeline then maps the result to:
+ *   - src/main.omni            — component body (stores + component + view + style)
+ *   - src/stores/<Name>.omni   — each store as a standalone file
+ *   - src/components/<Name>.omni  — each custom component (future)
+ */
+export function generateOmniFiles(options: {
+  designElements: ElementData[];
+  designWires: WireData[];
+  codeTabs: CodeTab[];
+  componentName: string;
+}): StageResult<Record<string, string>> {
+  // Run the full pipeline for the main source
+  const mainResult = generateOmniSource(options);
+  const allErrors = [...mainResult.errors];
+
+  if (mainResult.value === null) {
+    return { value: null, errors: allErrors };
+  }
+
+  const files: Record<string, string> = {
+    "src/main.omni": mainResult.value,
+  };
+
+  // Re-extract stores (fast — just iterates elements)
+  const storeResult = runPhase("B", "store-extractor", () =>
+    extractStores(options.designElements, options.designWires),
+  );
+  allErrors.push(...storeResult.errors);
+
+  if (storeResult.value) {
+    for (const store of storeResult.value.stores) {
+      const storeSource = emitStoreBlock(store);
+      files[`src/stores/${store.name}.omni`] = storeSource;
+    }
+  }
+
+  return { value: files, errors: allErrors };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Emit a single store block as standalone OmniLang source.
+ */
+function emitStoreBlock(store: StoreDef): string {
+  const w = new CodeWriter();
+  w.emit(`store ${store.name} {`);
+  w.indent();
+  for (const [name, sig] of Object.entries(store.signals)) {
+    const def =
+      sig.default !== undefined
+        ? ` = ${JSON.stringify(sig.default)}`
+        : "";
+    w.emit(`signal ${name}: ${sig.type}${def};`);
+  }
+  for (const [name, g] of Object.entries(store.getters)) {
+    w.emit(`getter ${name}: ${g.returnType} = ${g.body};`);
+  }
+  for (const a of store.actions) {
+    const params = a.params.map((p) => `${p.name}: ${p.type}`).join(", ");
+    w.emit(`action ${a.name}(${params}) {`);
+    w.indent();
+    for (const line of a.body.split("\n")) w.emit(line);
+    w.dedent();
+    w.emit(`}`);
+  }
+  w.dedent();
+  w.emit(`}`);
+  return w.toString();
+}
+
+function applyStyles(roots: ViewNode[]): void {
   for (const r of roots) {
     walkApply(r);
   }
-  function walkApply(n: import("./types").ViewNode): void {
+  function walkApply(n: ViewNode): void {
     n.resolvedStyle = resolveStyle(n);
     for (const c of n.children) walkApply(c);
   }
 }
 
 function collectStyles(
-  roots: import("./types").ViewNode[],
+  roots: ViewNode[],
   out: Record<string, Record<string, string>>,
 ): void {
   for (const r of roots) {
     walkCollect(r);
   }
-  function walkCollect(n: import("./types").ViewNode): void {
+  function walkCollect(n: ViewNode): void {
     if (n.resolvedStyle && Object.keys(n.resolvedStyle.cssRules).length > 0) {
       out[n.resolvedStyle.cssClassName] = n.resolvedStyle.cssRules;
     }
