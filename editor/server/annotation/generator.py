@@ -91,6 +91,14 @@ def _strip_old_chain_blocks(lines: list[str]) -> list[str]:
 
 def _insert_edit_markers(lines: list[str], ann: AnnotationFile) -> list[str]:
     """Insert @edit annotations before each <element in view block."""
+    # Pre-scan: validate marker count matches element count BEFORE generating
+    element_count = sum(1 for line in lines if re.search(r"^\s*<(\w+)", line.strip()))
+    if element_count != len(ann.view_markers):
+        raise ValueError(
+            f"view_markers count ({len(ann.view_markers)}) != view elements ({element_count}); "
+            f"annotation data out of sync with source"
+        )
+
     result: list[str] = []
     in_view = False
     view_indent = 0
@@ -130,8 +138,7 @@ def _insert_edit_markers(lines: list[str], ann: AnnotationFile) -> list[str]:
 
     if marker_index != len(ann.view_markers):
         raise ValueError(
-            f"view_markers count ({len(ann.view_markers)}) != view elements ({marker_index} matched); "
-            f"annotation data out of sync with source"
+            f"UNEXPECTED: view_markers mismatch after generation (should have been caught by pre-scan)"
         )
 
     return result
@@ -158,6 +165,13 @@ def _insert_chain_blocks(lines: list[str], ann: AnnotationFile) -> list[str]:
                 chain_index += 1
 
         result.append(line)
+
+    if chain_index < len(ann.chains):
+        orphaned = [c.name for c in ann.chains[chain_index:]]
+        raise ValueError(
+            f"Chains could not be matched to functions: {', '.join(orphaned)}. "
+            f"Ensure all chain names match their target function names."
+        )
 
     return result
 

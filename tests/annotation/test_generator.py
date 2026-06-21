@@ -130,6 +130,26 @@ pub fn validate(value: String): String {
         assert "pos=50,50" in result
 
 
+    def test_generate_with_orphaned_chain_raises(self):
+        """Generation should raise if a chain cannot be matched to a function."""
+        chain = Chain(
+            name="nonexistentFn",
+            start_line=0,
+            end_line=0,
+            nodes=[NodeEntry(id="n1", tag="add", pos_x=50, pos_y=50)],
+        )
+        ann = AnnotationFile(
+            filepath="test.omni",
+            code_tab_type=CodeTabType.LOGIC,
+            chains=[chain],
+        )
+        source = """// @code-tab type=logic
+fn actualFn() { }
+"""
+        with pytest.raises(ValueError, match="nonexistentFn"):
+            generate_annotations(ann, source)
+
+
 class TestRoundTrip:
     def test_roundtrip_preserves_data(self):
         """Parse -> generate -> parse again should produce identical AnnotationFile."""
