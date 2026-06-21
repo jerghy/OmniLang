@@ -208,7 +208,7 @@ fn test_compile_multiple_files() {
         version: "0.1".into(),
         modules,
         source_map: HashMap::new(),
-    stdlib_imports: Vec::new(),
+        stdlib_imports: Vec::new(),
     };
     let sources = HashMap::from([
         ("main.omni".into(), "".into()),
