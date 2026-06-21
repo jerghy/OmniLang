@@ -43,6 +43,15 @@
 
 Motion keywords (`to`, `from`, `set`, `then`, `with`, `over`, `ease`, `loop`, etc.) are **context-sensitive identifiers**, not lexer tokens. The parser checks identifier string values when inside a `@motion` block or animation expression context. Only `@`-prefixed tokens need lexer-level recognition.
 
+**⚠️ IMPORTANT — Hyphen support**: The current lexer's `read_at_keyword()` (line 674 of `lexer/mod.rs`) only reads `alphanumeric + '_'` characters. Hyphenated `@`-keywords like `@drag-horizontal` will NOT parse. You MUST modify the character class to include `'-'`:
+
+```rust
+// In read_at_keyword(), change:
+while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_') {
+// To:
+while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+```
+
 In `TokenKind` enum, add:
 
 ```rust
@@ -83,9 +92,10 @@ DragVelocityMax, // @drag-velocity-max (Phase 2)
 
 - [ ] **Step 2: Add @-keyword mappings**
 
-Add all `@`-prefixed tokens to the existing `@`-keyword matcher in the lexer. Motion body keywords (`to`, `from`, `over`, `ease`, `loop`, etc.) are NOT lexer tokens — they are parsed as identifiers and recognized contextually by the parser inside `@motion` blocks.
+Add `@`-prefixed tokens to the existing `@`-keyword matcher in `read_at_keyword()`. Non-`@` keywords go in the regular `read_ident_or_keyword` match table.
 
 ```rust
+// In read_at_keyword() (after adding '-' to char class):
 "@motion" => TokenKind::AtMotion,
 "@timeline" => TokenKind::AtTimeline,
 "@enter" => TokenKind::AtEnter,
@@ -100,13 +110,23 @@ Add all `@`-prefixed tokens to the existing `@`-keyword matcher in the lexer. Mo
 "@drag-horizontal" => TokenKind::AtDragHorizontal,
 "@drag-vertical" => TokenKind::AtDragVertical,
 "@driven-by" => TokenKind::AtDrivenBy,
-"@if-mode" => TokenKind::IfMode,
-"@drag-constraints" => TokenKind::DragConstraints,
-"@drag-elastic" => TokenKind::DragElastic,
-"@drag-scrub" => TokenKind::DragScrub,
-"@drag-momentum" => TokenKind::DragMomentum,
-"@drag-threshold" => TokenKind::DragThreshold,
-"@drag-velocity-max" => TokenKind::DragVelocityMax,
+"@paused" => TokenKind::AtPaused,
+"@hover-reverse" => TokenKind::AtHoverReverse,
+"@in-view-once" => TokenKind::AtInViewOnce,
+"@in-view-repeat" => TokenKind::AtInViewRepeat,
+"@in-view-threshold" => TokenKind::AtInViewThreshold,
+"@scroll-start" => TokenKind::AtScrollStart,
+"@scroll-end" => TokenKind::AtScrollEnd,
+"@scroll-scrub" => TokenKind::AtScrollScrub,
+
+// In read_ident_or_keyword() (snake_case strings):
+"if_mode" => TokenKind::IfMode,
+"drag_constraints" => TokenKind::DragConstraints,
+"drag_elastic" => TokenKind::DragElastic,
+"drag_scrub" => TokenKind::DragScrub,
+"drag_momentum" => TokenKind::DragMomentum,
+"drag_threshold" => TokenKind::DragThreshold,
+"drag_velocity_max" => TokenKind::DragVelocityMax,
 ```
 
 - [ ] **Step 3: Run existing tests to verify no regressions**
@@ -389,6 +409,29 @@ git commit -m "feat: add motion animation AST node types"
 
 **Purpose:** Parse `@motion NAME { ... }` blocks at both top-level and component scope.
 
+- [ ] **Step 0: Add missing parser helper methods**
+
+Motion parsing needs these helpers. Add to `parser/mod.rs` or `stmt.rs`:
+
+```rust
+impl<'a> Parser<'a> {
+    /// Peek at the string value of the next identifier without consuming it.
+    /// Handles both TokenKind::Ident(name) and keyword tokens via keyword_as_ident_name().
+    pub fn peek_ident_value(&self) -> Option<String> {
+        let tok = self.peek();
+        match &tok.kind {
+            TokenKind::Ident(name) => Some(name.clone()),
+            other => {
+                let kw = self.keyword_as_ident_name(other.clone());
+                Some(kw)
+            }
+        }
+    }
+}
+```
+
+Other helpers are inline — no separate `parse_number()`, `parse_keyed_number()`, or `expect_ident_eq()` exist. Use `expect_ident() + string comparison` and `parse_expr()` directly.
+
 - [ ] **Step 1: Add easing function parser**
 
 In `omni-compiler/src/parser/expr.rs`, add:
@@ -486,25 +529,21 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_motion_body(&mut self) -> ParseResult<MotionBody> {
-        // Motion keywords are context-sensitive identifiers — not separate tokens.
-        // Peek at the first identifier and match its string value.
-        let first = self.peek_ident_value()?;
+        // First token determines mode.
+        // NOTE: `from` is TokenKind::From keyword, NOT Ident("from").
+        // Use peek_ident_value() which handles keywords via keyword_as_ident_name().
+        let first = self.peek_ident_value().ok_or(self.error("expected motion body"))?;
         match first.as_str() {
             "from" | "to" => {
-                // Check ahead for timeline features (then/with/start)
-                // If none found, parse as keyframe mode
+                // Keyframe mode. Parser checks: if body later contains "then"/"with"/"start:",
+                // that's a compile error (mixed modes).
                 self.parse_keyframe_body()
             },
-            "set" => self.parse_timeline_body(),
-            "stagger" => self.parse_timeline_body(),
-            "label" => self.parse_timeline_body(),
+            "set" | "stagger" | "label" => self.parse_timeline_body(),
             "onStart" | "onUpdate" | "onComplete" | "onRepeat" | "onInterrupt" => {
                 self.parse_callback_body()
             },
-            _ => {
-                // Any other identifier → motion reference (timeline mode)
-                self.parse_timeline_body()
-            },
+            _ => self.parse_timeline_body(), // IDENT → motion reference
         }
     }
     // ... keyframe/timeline/callback body parsers
@@ -545,9 +584,42 @@ impl<'a> Parser<'a> {
 }
 ```
 
-- [ ] **Step 4: Register @motion and @timeline parsing in mod.rs**
+- [ ] **Step 4: Add stagger() custom parser (named params bypass Pratt)**
 
-In `parser/mod.rs`, hook `parse_motion_def` and `parse_timeline_def` into the top-level statement parser and component body parser.
+`stagger(itemIn, each:60ms, from:center)` uses colon-delimited named params. The Pratt parser treats `:` as an invalid infix operator. Add to `expr.rs`:
+
+```rust
+fn parse_stagger_call(&mut self) -> ParseResult<StaggerCall> {
+    self.expect_ident_eq("stagger")?; // already consumed by caller
+    self.expect_token(TokenKind::LParen, "expected '('")?;
+    let motion = self.parse_motion_expr()?;   // first positional: motion ref or inline
+    self.expect_token(TokenKind::Comma, "expected ','")?;
+    // Named params: each:60ms or amount:600ms
+    let timing = match self.expect_ident()?.as_str() {
+        "each" => { self.expect_token(TokenKind::Colon, "expected ':'")?; StaggerTiming::Each(self.parse_expr()?) }
+        "amount" => { self.expect_token(TokenKind::Colon, "expected ':'")?; StaggerTiming::Amount(self.parse_expr()?) }
+        n => return Err(self.error(format!("expected 'each' or 'amount', got '{}'", n))),
+    };
+    let from = if self.peek_kind() == TokenKind::Comma {
+        self.advance();
+        self.expect_ident_eq("from")?;
+        self.expect_token(TokenKind::Colon, "expected ':'")?;
+        match self.expect_ident()?.as_str() {
+            "start" => StaggerDirection::Start, "center" => StaggerDirection::Center,
+            "end" => StaggerDirection::End, "edges" => StaggerDirection::Edges,
+            _ => return Err(self.error("expected start|center|end|edges")),
+        }
+    } else { StaggerDirection::Start };
+    self.expect_token(TokenKind::RParen, "expected ')'")?;
+    Ok(StaggerCall { motion: Box::new(motion), timing, from })
+}
+```
+
+Hook: in `parse_ident_expr()` (expr.rs), before the LParen function-call check, add `if name == "stagger" && peek == LParen → return parse_stagger_call()`.
+
+- [ ] **Step 5: Register @motion and @timeline in top_level.rs (NOT mod.rs)**
+
+In `parser/top_level.rs`, hook `parse_motion_def` and `parse_timeline_def` into `parse_module()` (for top-level) and `parse_component_def()` (for component-scoped).
 
 - [ ] **Step 4: Run tests**
 
@@ -868,11 +940,15 @@ pub paused_override: Option<bool>,
 // In ConditionalIntent, add:
 pub transition_mode: String,  // "sync" | "wait"
 
-// In ListRenderingIntent, add:
-pub key_expr: Option<ExprIR>,  // populate from parser
+// In ListRenderingIntent, key_expr ALREADY EXISTS (line 307 of ir/mod.rs).
+// Task: POPULATE it from the @for key={} parser attribute (currently always None).
+// No IR field addition needed — only parser + lowering work.
 
 // In ComponentIR, add:
 pub motions: Vec<MotionIntent>,
+
+// In ComponentDef (AST), add:
+pub motions: Vec<MotionDef>,
 ```
 
 - [ ] **Step 3: Run tests**
@@ -896,67 +972,87 @@ git commit -m "feat: add motion animation IR types"
 - Modify: `omni-compiler/src/ir/lower_logic.rs` (or create `omni-compiler/src/ir/lower_motion.rs`)
 - Modify: `omni-compiler/src/ir/mod.rs`
 
-**Purpose:** Convert parsed AST animation nodes into IR types that codegen and semantic can consume.
+**Purpose:** Convert parsed AST animation nodes into IR types. Follow the EXISTING free-function lowering pattern — NO `Lowerer` struct, NO `LowerResult`. All lowering is infallible (returns the IR type directly, no `Result`). Use `variant_map: &HashMap<String, String>` as the context parameter.
 
-- [ ] **Step 1: Lower @motion definitions**
+- [ ] **Step 1: Lower @motion definitions — free functions**
 
 ```rust
-impl Lowerer {
-    fn lower_motion_def(&mut self, def: &MotionDef) -> LowerResult<MotionIntent> {
-        let body = match &def.body {
-            MotionBody::Keyframe(kf) => MotionBodyIR::Keyframe(self.lower_keyframe(kf)?),
-            MotionBody::Timeline(tl) => MotionBodyIR::Timeline(self.lower_timeline(tl)?),
-            MotionBody::CallbackOnly(cb) => MotionBodyIR::CallbackOnly(self.lower_callback_body(cb)?),
+// In ir/mod.rs, add after existing lower_* functions:
+
+fn lower_motion_def(def: &MotionDef, variant_map: &HashMap<String, String>) -> MotionIntent {
+    let body = match &def.body {
+        MotionBody::Keyframe(kf) => MotionBodyIR::Keyframe(lower_keyframe_body(kf, variant_map)),
+        MotionBody::Timeline(tl) => MotionBodyIR::Timeline(lower_timeline_body(tl, variant_map)),
+        MotionBody::CallbackOnly(cb) => MotionBodyIR::CallbackOnly(lower_callback_body(cb, variant_map)),
+    };
+    MotionIntent { name: def.name.clone(), body }
+}
+
+fn lower_keyframe_body(kf: &KeyframeBody, variant_map: &HashMap<String, String>) -> KeyframeIR {
+    let stops: Vec<KeyframeStopIR> = kf.stops.iter().map(|s| {
+        let position = match s.position {
+            StopPosition::From => 0.0,
+            StopPosition::To => 1.0,
+            StopPosition::Percent(p) => p / 100.0,
         };
-        Ok(MotionIntent { name: def.name.clone(), body })
-    }
-
-    fn lower_keyframe(&mut self, kf: &KeyframeBody) -> LowerResult<KeyframeIR> {
-        let stops = kf.stops.iter().map(|s| {
-            let position = match s.position {
-                StopPosition::From => 0.0,
-                StopPosition::To => 1.0,
-                StopPosition::Percent(p) => p / 100.0,
-            };
-            let properties: HashMap<String, ExprIR> = s.properties.iter()
-                .map(|(k, v)| (k.clone(), self.lower_expr(v))).collect();
-            let ease = s.ease.as_ref().map(|e| self.lower_easing(e));
-            Ok(KeyframeStopIR { position, properties, ease })
-        }).collect::<LowerResult<Vec<_>>>()?;
-        let over = self.lower_expr(&kf.over);
-        let ease = kf.ease.as_ref().map(|e| self.lower_easing(e));
-        let playback = self.lower_playback_props(&kf.playback);
-        Ok(KeyframeIR { stops, over, ease, color_space: kf.color_space.clone(), playback })
-    }
-
-    fn lower_timeline_item(&mut self, item: &TimelineItem) -> LowerResult<TimelineItemIR> { /* ... */ }
-    fn lower_easing(&mut self, e: &EasingExpr) -> EasingIR { /* direct mapping */ }
-    fn lower_playback_props(&mut self, props: &[PlaybackProp]) -> PlaybackIR { /* ... */ }
+        let properties: HashMap<String, ExprIR> = s.properties.iter()
+            .map(|(k, v)| (k.clone(), lower_expr(v, variant_map))).collect();
+        let ease = s.ease.as_ref().map(|e| lower_easing(e));
+        KeyframeStopIR { position, properties, ease }
+    }).collect();
+    let over = lower_expr(&kf.over, variant_map);
+    let ease = kf.ease.as_ref().map(|e| lower_easing(e));
+    let playback = lower_playback_props(&kf.playback, variant_map);
+    KeyframeIR { stops, over, ease, color_space: kf.color_space.clone(), playback }
 }
+
+fn lower_easing(e: &EasingExpr) -> EasingIR {
+    match e {
+        EasingExpr::Named(n) => EasingIR::Named(n.clone()),
+        EasingExpr::CubicBezier { x1, y1, x2, y2 } => EasingIR::CubicBezier { x1: *x1, y1: *y1, x2: *x2, y2: *y2 },
+        EasingExpr::Spring { tension, friction, velocity } => EasingIR::Spring { tension: *tension, friction: *friction, velocity: *velocity },
+        EasingExpr::Back { intensity, direction } => EasingIR::Back { intensity: *intensity, direction: direction.clone() },
+        EasingExpr::Elastic { amplitude, period, direction } => EasingIR::Elastic { amplitude: *amplitude, period: *period, direction: direction.clone() },
+        EasingExpr::Steps { count, direction } => EasingIR::Steps { count: *count, direction: direction.clone() },
+    }
+}
+// ... lower_timeline_body, lower_callback_body, lower_playback_props similarly
 ```
 
-- [ ] **Step 2: Lower element triggers**
+- [ ] **Step 2: Lower element triggers — extend lower_view_node**
+
+In the existing `lower_view_node()` function (ir/mod.rs, around line 861), extend the `ViewNode::Element` arm to handle new `ElementProp` variants:
 
 ```rust
-fn lower_element_triggers(&mut self, el: &Element) -> LowerResult<Vec<TriggerIntent>> {
-    let mut triggers = Vec::new();
-    for prop in &el.props {
-        if let ElementProp::MotionTrigger(mt) = prop {
-            let kind = self.lower_trigger_kind(&mt.trigger);
-            let (motion_ref, inline_motion) = match &mt.motion_expr {
-                Expr::Ident(name) => (Some(name.clone()), None),
-                other => (None, Some(self.lower_inline_motion(other)?)),
-            };
-            triggers.push(TriggerIntent { kind, motion_ref, inline_motion });
-        }
+// Inside the ElementProp match in lower_view_node:
+ElementProp::MotionTrigger(mt) => {
+    let kind = match mt.trigger {
+        TriggerKind::Enter => TriggerKind::Enter,
+        // ... other mappings
+    };
+    let (motion_ref, inline_motion) = match &mt.motion_expr {
+        Expr::Ident(name) => (Some(name.clone()), None),
+        other => (None, Some(lower_inline_motion(other, variant_map))),
+    };
+    el.motion_triggers.push(TriggerIntent { kind, motion_ref, inline_motion });
+}
+ElementProp::StatesMap(states) => {
+    el.states = Some(lower_states_map(states, variant_map));
+}
+ElementProp::AnimateSignal(expr) => {
+    if let Some(ref mut s) = el.states {
+        s.signal = Some(lower_expr(expr, variant_map));
     }
-    Ok(triggers)
 }
 ```
 
-- [ ] **Step 3: Lower states:, on:, @if mode, @for key**
+- [ ] **Step 3: Lower @if mode, @for key, timeline, paused override**
 
-Lower `ElementProp::StatesMap` → `StatesIR`, `ElementProp::AnimateSignal` → `StatesIR.signal`, `IfDirective.transition_mode` → `ConditionalIntent.transition_mode`, `ForDirective.key` → `ListRenderingIntent.key_expr`.
+Extend `lower_view_node` branches and `lower_component` to handle:
+- `IfDirective.transition_mode` → `ConditionalIntent.transition_mode`
+- `ForDirective.key_expr` → POPULATE `ListRenderingIntent.key_expr` (field already exists, line 307)
+- `TimelineDef` → lowered as part of component motions
+- `ElementProp::PausedOverride` → `el.paused_override`
 
 - [ ] **Step 4: Run tests**
 
@@ -1433,9 +1529,9 @@ function __omni_getAnimation(nid, trigger) {
 const __omni_reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 ```
 
-- [ ] **Step 5: Install as build artifact**
+- [ ] **Step 5: Embed runtime into codegen output**
 
-Ensure the runtime is copied to `build/index.js` and embedded inline in the OmniView codegen output.
+The existing signal runtime (~200 lines) is an inline Rust string literal in `emit_signal_runtime()` (omniview.rs:168-255). The motion runtime follows the same pattern: append `emit_animation_runtime()` to `OmniViewGenerator`, emitting the contents of `omni-motion-runtime.js` as a string literal. Alternatively, use `include_str!("../../build/omni-motion-runtime.js")` — a NEW pattern for this codebase but acceptable for an external JS file.
 
 - [ ] **Step 6: Commit**
 
@@ -1454,6 +1550,30 @@ git commit -m "feat: add Web animation runtime with WAAPI integration and spring
 - Modify: `omni-compiler/src/codegen/mod.rs`
 
 **Purpose:** Generate React components with animation hooks AND vanilla HTML/CSS/JS for motion animations. React is the priority web target; OmniView native (WAAPI + embedded runtime) is the fallback/standalone target.
+
+- [ ] **Step 0: Create test helper functions**
+
+The plan assumes `compile_to_react()`, `compile_to_js()`, `compile_to_dart()` exist — they don't. Create them first in `codegen_tests.rs`:
+
+```rust
+fn compile_to_react(source: &str) -> String {
+    let tokens = lexer::tokenize(source);
+    let program = parser::parse(&tokens, source).expect("parse");
+    let semantics = semantic::analyze(&program);
+    let ir_program = ir::lower(&program, &semantics);
+    let output = ReactCodegen::generate(&ir_program, &HashMap::new());
+    output.files.iter().find(|f| f.path.ends_with(".tsx")).map(|f| f.content.clone()).unwrap_or_default()
+}
+fn compile_to_js(source: &str) -> String { compile_omniview(source).js }
+fn compile_to_dart(source: &str) -> String {
+    let tokens = lexer::tokenize(source);
+    let program = parser::parse(&tokens, source).expect("parse");
+    let semantics = semantic::analyze(&program);
+    let ir_program = ir::lower(&program, &semantics);
+    let output = FlutterCodegen::generate(&ir_program, &HashMap::new());
+    output.files.iter().find(|f| f.path.ends_with(".dart") && !f.path.contains("_store")).map(|f| f.content.clone()).unwrap_or_default()
+}
+```
 
 - [ ] **Step 1: Write React codegen test**
 
@@ -1578,7 +1698,13 @@ Expected: tests fail (codegen not yet implemented).
 
 - [ ] **Step 4: Implement React motion codegen**
 
-In `react.rs`, add motion animation generation. React target uses a lightweight approach: emit `useState` + `useEffect` hooks with WAAPI calls, no external animation library dependency.
+**Prerequisite:** Add `useRef` to the existing React import list (react.rs line 54):
+```rust
+// Change: import React, { useState, useEffect, useMemo } from 'react';
+// To:     import React, { useState, useEffect, useMemo, useRef } from 'react';
+```
+
+In `react.rs`, add motion animation generation. React target uses a lightweight approach: emit `useState` + `useEffect` + `useRef` hooks with WAAPI calls, no external animation library dependency.
 
 ```rust
 fn emit_react_motion_trigger(&self, el: &ElementIR) -> String {
@@ -1696,8 +1822,8 @@ fn emit_timeline_js(&self, timeline: &TimelineIntent) -> String {
         let start_delay = self.compute_start_delay(item);
         out.push_str(&format!(
             "setTimeout(() => {{ 
-                const el = document.getElementById('{id}');
-                if (el) __omni_createAnimation('{id}', {{trigger:'timeline', ...{config}}});
+                const el = __omni_el('{nid}');  // use __omni_el() convention, not getElementById
+                if (el) __omni_createAnimation('{nid}', {{trigger:'timeline', ...{config}}});
             }}, {delay});\n",
             id = item.element_id,
             config = self.emit_motion_config_js(&item.motion_config),
@@ -1793,8 +1919,12 @@ git commit -m "feat: add React + OmniView codegen for motion animations"
 ```rust
 #[test]
 fn test_flutter_codegen_motion_fade() {
+    // Flutter codegen requires a component — bare @motion won't produce output
     let source = r#"
-        @motion fadeIn { to { opacity: 1 } over: 300ms ease: easeOut }
+        component Demo {
+            @motion fadeIn { to { opacity: 1 } over: 300ms ease: easeOut }
+            view { <div @enter={fadeIn}>Hello</div> }
+        }
     "#;
     let output = compile_to_dart(source);
     assert!(output.contains("AnimationController"));
@@ -1805,12 +1935,16 @@ fn test_flutter_codegen_motion_fade() {
 #[test]
 fn test_flutter_codegen_spring() {
     let source = r#"
-        @motion bounce { to { scale: 1 } over: 500ms ease: spring(tension:200, friction:15) }
+        component Demo {
+            @motion bounce { to { scale: 1 } over: 500ms ease: spring(tension:200, friction:15) }
+            view { <div @enter={bounce}>Hello</div> }
+        }
     "#;
     let output = compile_to_dart(source);
     assert!(output.contains("SpringSimulation"));
     assert!(output.contains("stiffness: 200"));
     assert!(output.contains("damping: 15"));
+    assert!(output.contains("package:flutter/physics.dart"));  // spring needs physics import
 }
 ```
 
@@ -1867,6 +2001,8 @@ fn emit_flutter_element_trigger(&self, trigger: &TriggerIntent) -> String {
 }
 
 fn emit_flutter_spring_dart(&self, spring: &SpringConfig) -> String {
+    // NOTE: When spring easing is used, add to file header:
+    // import 'package:flutter/physics.dart';
     format!(
         "SpringSimulation(SpringDescription(mass: 1, stiffness: {}, damping: {}), 0, 1, {})",
         spring.tension, spring.friction,
