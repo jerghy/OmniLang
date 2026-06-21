@@ -1217,6 +1217,16 @@ impl SemanticAnalyzer {
                 // Check: type mismatch across stops
                 self.validate_keyframe_type_mismatch(motion, kf);
 
+                // Check: valid easing name
+                if let Some(ref e) = kf.ease {
+                    self.validate_easing_name(e, &motion.span);
+                }
+                for stop in &kf.stops {
+                    if let Some(ref e) = stop.ease {
+                        self.validate_easing_name(e, &motion.span);
+                    }
+                }
+
                 // Check: clipPath with different shape functions
                 self.validate_clip_path_shapes(motion, kf);
 
@@ -1230,9 +1240,15 @@ impl SemanticAnalyzer {
                 self.validate_playback_conflicts(motion, &kf.playback);
             }
             MotionBody::Timeline(tl) => {
-                // Check: stagger() inside timeline — allowed (not keyframe mode)
-                // Check: set is allowed in timeline
-
+                // Check: set is allowed in timeline; stagger is allowed in timeline
+                // Check: valid easing names in timeline items
+                for item in &tl.items {
+                    if let TimelineItemKind::Direction(dir) = &item.kind {
+                        if let Some(ref e) = dir.ease {
+                            self.validate_easing_name(e, &motion.span);
+                        }
+                    }
+                }
                 for item in &tl.items {
                     match &item.kind {
                         TimelineItemKind::Direction(dir) => {
@@ -1297,7 +1313,24 @@ impl SemanticAnalyzer {
                 // Validate playback property conflicts
                 self.validate_playback_conflicts(motion, &tl.playback);
             }
-            MotionBody::CallbackOnly(_) => {}
+            MotionBody::CallbackOnly(cb) => {
+                // Check: $velocity only valid in gesture contexts
+                for spec in &cb.callbacks {
+                    let expr = match spec {
+                        CallbackSpec::OnStart(e) | CallbackSpec::OnUpdate(e)
+                        | CallbackSpec::OnComplete(e) | CallbackSpec::OnRepeat(e)
+                        | CallbackSpec::OnInterrupt(e) => e,
+                    };
+                    if contains_velocity_ref(expr) {
+                        self.diagnostics.push(Diagnostic::error(
+                            "E0006",
+                            &format!("@motion '{}': '$velocity' is only valid in @drag-horizontal/@drag-vertical callbacks, not in standalone motion definitions", motion.name),
+                            &motion.span,
+                        ));
+                        break;
+                    }
+                }
+            }
         }
 
         // Emit warnings for all motion types
@@ -1340,10 +1373,25 @@ impl SemanticAnalyzer {
                     // No conflict, just a state flag
                 }
                 PlaybackProp::When(_) => {
-                    // Validated at trigger attachment, not motion definition
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'when' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
                 }
-                PlaybackProp::DelayChildren(_) | PlaybackProp::StaggerChildren(_) => {
-                    // Validated at trigger attachment — only valid on @enter/@leave
+                PlaybackProp::DelayChildren(_) => {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'delayChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
+                }
+                PlaybackProp::StaggerChildren(_) => {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("@motion '{}': 'staggerChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
+                        &motion.span,
+                    ));
                 }
                 _ => {}
             }
@@ -1356,6 +1404,41 @@ impl SemanticAnalyzer {
                 &format!("@motion '{}': fill 'both' has no meaning with loop 'infinite'", motion.name),
                 &motion.span,
             ));
+        }
+    }
+
+    /// Validate that an easing expression uses a recognized name.
+    fn validate_easing_name(&mut self, e: &EasingExpr, span: &Span) {
+        if let EasingExpr::Named(name) = e {
+            if !is_valid_easing_name(name) {
+                self.diagnostics.push(Diagnostic::error(
+                    "E0006",
+                    &format!("Unknown easing name '{}'", name),
+                    span,
+                ));
+            }
+        }
+        if let EasingExpr::Back { direction, .. } = e {
+            if let Some(ref dir_name) = direction {
+                if !is_valid_easing_name(dir_name) {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("Unknown easing name '{}'", dir_name),
+                        span,
+                    ));
+                }
+            }
+        }
+        if let EasingExpr::Elastic { direction, .. } = e {
+            if let Some(ref dir_name) = direction {
+                if !is_valid_easing_name(dir_name) {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E0006",
+                        &format!("Unknown easing name '{}'", dir_name),
+                        span,
+                    ));
+                }
+            }
         }
     }
 
@@ -1858,6 +1941,21 @@ fn collect_element_ids(nodes: &[ViewNode]) -> HashSet<String> {
     ids
 }
 
+/// Check if a string is a valid easing function name.
+fn is_valid_easing_name(name: &str) -> bool {
+    matches!(
+        name,
+        "linear" | "easeIn" | "easeOut" | "easeInOut"
+            | "power1In" | "power1Out" | "power1InOut"
+            | "power2In" | "power2Out" | "power2InOut"
+            | "power3In" | "power3Out" | "power3InOut"
+            | "power4In" | "power4Out" | "power4InOut"
+            | "backIn" | "backOut" | "backInOut"
+            | "bounceIn" | "bounceOut" | "bounceInOut"
+            | "elasticIn" | "elasticOut" | "elasticInOut"
+    )
+}
+
 /// Check if a value name is a non-interpolatable CSS keyword.
 fn is_keyword_value(name: &str) -> bool {
     matches!(name, "auto" | "none" | "normal" | "inherit" | "initial" | "unset" | "revert")
@@ -1898,6 +1996,80 @@ fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
         }
     }
     false
+}
+
+/// Recursively check if an expression references $velocity.
+fn contains_velocity_ref(expr: &Expr) -> bool {
+    match expr {
+        Expr::VarRef(name, _) => name == "$velocity",
+        Expr::BinaryOp { left, right, .. } => {
+            contains_velocity_ref(left) || contains_velocity_ref(right)
+        }
+        Expr::UnaryOp { operand, .. } => contains_velocity_ref(operand),
+        Expr::FuncCall { func, args, .. } => {
+            contains_velocity_ref(func) || args.iter().any(|a| contains_velocity_ref(a))
+        }
+        Expr::MethodCall { object, args, .. } => {
+            contains_velocity_ref(object) || args.iter().any(|a| contains_velocity_ref(a))
+        }
+        Expr::FieldAccess { object, .. } | Expr::OptionalChain { object, .. } => {
+            contains_velocity_ref(object)
+        }
+        Expr::IndexGet { object, index, .. } => {
+            contains_velocity_ref(object) || contains_velocity_ref(index)
+        }
+        Expr::ArrayLiteral { elements, .. } => elements.iter().any(|e| contains_velocity_ref(e)),
+        Expr::MapLiteral { entries, .. } => {
+            entries.iter().any(|(k, v)| contains_velocity_ref(k) || contains_velocity_ref(v))
+        }
+        Expr::IfExpr { condition, then_expr, else_expr, .. }
+        | Expr::TernaryExpr { condition, then_expr, else_expr, .. } => {
+            contains_velocity_ref(condition)
+                || contains_velocity_ref(then_expr)
+                || contains_velocity_ref(else_expr)
+        }
+        Expr::TemplateString { parts, .. } => parts.iter().any(|p| {
+            if let TemplatePart::Expr(e) = p { contains_velocity_ref(e) } else { false }
+        }),
+        Expr::ClosureExpr { body, .. } => contains_velocity_ref(body),
+        Expr::AwaitExpr { operand, .. } => contains_velocity_ref(operand),
+        Expr::MatchExpr { matched, arms, .. } => {
+            contains_velocity_ref(matched)
+                || arms.iter().any(|arm| arm.body.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Expr::Block { .. } | Expr::Literal(..) | Expr::NotYetImplemented { .. }
+        | Expr::StoreFieldAccess { .. } | Expr::StructLiteral { .. } => false,
+    }
+}
+
+fn contains_velocity_stmt(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::ExprStmt { expr, .. } => contains_velocity_ref(expr),
+        Stmt::Return { value, .. } => value.as_ref().map_or(false, |e| contains_velocity_ref(e)),
+        Stmt::VarDecl { init, .. } => init.as_ref().map_or(false, |e| contains_velocity_ref(e)),
+        Stmt::Assign { value, .. } => contains_velocity_ref(value),
+        Stmt::If { condition, then_body, else_ifs, else_body, .. } => {
+            contains_velocity_ref(condition)
+                || then_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+                || else_ifs.iter().any(|(c, b)| contains_velocity_ref(c) || b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || else_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Stmt::While { condition, body, .. } => {
+            contains_velocity_ref(condition) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            contains_velocity_ref(iterable) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+        }
+        Stmt::Print { arg, .. } => contains_velocity_ref(arg),
+        Stmt::EventEmit { args, .. } => args.iter().any(|a| contains_velocity_ref(a)),
+        Stmt::Throw { expr, .. } => contains_velocity_ref(expr),
+        Stmt::TryCatch { try_body, catch_body, finally_body, .. } => {
+            try_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+                || catch_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                || finally_body.as_ref().map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => false,
+    }
 }
 
 /// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
