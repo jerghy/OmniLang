@@ -367,7 +367,9 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     props.push(ElementProp::HoverReverse(mode));
                 }
-                TokenKind::AtInViewOnce | TokenKind::AtInViewRepeat | TokenKind::AtInViewThreshold => {
+                TokenKind::AtInViewOnce
+                | TokenKind::AtInViewRepeat
+                | TokenKind::AtInViewThreshold => {
                     let kind = self.advance().kind.clone();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
                     self.expect_token(TokenKind::LBrace, "expected '{'")?;
@@ -376,7 +378,9 @@ impl<'a> Parser<'a> {
                     match kind {
                         TokenKind::AtInViewOnce => props.push(ElementProp::InViewOnce(val)),
                         TokenKind::AtInViewRepeat => props.push(ElementProp::InViewRepeat(val)),
-                        TokenKind::AtInViewThreshold => props.push(ElementProp::InViewThreshold(val)),
+                        TokenKind::AtInViewThreshold => {
+                            props.push(ElementProp::InViewThreshold(val))
+                        }
                         _ => {}
                     }
                 }
@@ -566,7 +570,9 @@ impl<'a> Parser<'a> {
                     self.advance(); // consume ':'
                     self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
                     let mut states = Vec::new();
-                    while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                    while self.peek_kind() != TokenKind::RBrace
+                        && self.peek_kind() != TokenKind::Eof
+                    {
                         let state_name = self.expect_ident("expected state name")?;
                         self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
                         let props = self.parse_property_block()?;
@@ -874,9 +880,7 @@ impl<'a> Parser<'a> {
                     // Parse as expression; wrap non-simple cases in inline fn.
                     let expr = self.parse_expr()?;
                     match &expr {
-                        Expr::VarRef(name, _) => {
-                            EventHandler::FnRef(name.clone())
-                        }
+                        Expr::VarRef(name, _) => EventHandler::FnRef(name.clone()),
                         _ => {
                             // Wrap any other expression (fn call, assignment, etc.)
                             // in an inline fn body: () => { expr; }
@@ -1448,18 +1452,12 @@ fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> StyleValuePart {
 /// Try to parse a string like "16px" into (16.0, "px").
 fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
     let units = [
-        "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm",
-        // CSS Grid
-        "fr",
-        // Time
-        "ms", "s",
-        // Angle
-        "deg", "rad", "grad", "turn",
-        // Viewport-relative (additional)
-        "vmin", "vmax", "svh", "svw", "lvh", "lvw", "dvh", "dvw",
-        // Container queries
-        "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax",
-        // Typography
+        "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm", // CSS Grid
+        "fr", // Time
+        "ms", "s", // Angle
+        "deg", "rad", "grad", "turn", // Viewport-relative (additional)
+        "vmin", "vmax", "svh", "svw", "lvh", "lvw", "dvh", "dvw", // Container queries
+        "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax", // Typography
         "ch", "ex", "ic", "lh", "rlh",
     ];
     for unit in &units {

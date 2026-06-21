@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use super::{CodeWriter, Codegen, CompileOutput, CompiledFile, Target, try_format_stdlib_call};
+use super::{try_format_stdlib_call, CodeWriter, Codegen, CompileOutput, CompiledFile, Target};
 use crate::ir::*;
 
 pub struct JavaScriptCodegen {
@@ -488,7 +488,11 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
         ExprIR::CallExpr { name, args } => {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a, _ts_mode)).collect();
             // Check stdlib intrinsics
-            let target = if _ts_mode { Target::TypeScript } else { Target::JavaScript };
+            let target = if _ts_mode {
+                Target::TypeScript
+            } else {
+                Target::JavaScript
+            };
             if let Some(native) = try_format_stdlib_call(name, &arg_strs, target) {
                 return native;
             }
@@ -528,7 +532,9 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
                 .collect();
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::VariantLiteral { variant, fields, .. } => {
+        ExprIR::VariantLiteral {
+            variant, fields, ..
+        } => {
             let mut entries: Vec<String> = fields
                 .iter()
                 .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v, _ts_mode)))
@@ -575,7 +581,10 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
                     let body_expr = format_block_as_js_expr(&arm.body, _ts_mode);
                     match &arm.pattern.kind {
                         MatchPatternKindIR::Variant { name, .. } => {
-                            format!("  if (_v._variant === \"{}\") {{ return {}; }}", name, body_expr)
+                            format!(
+                                "  if (_v._variant === \"{}\") {{ return {}; }}",
+                                name, body_expr
+                            )
                         }
                         MatchPatternKindIR::Wildcard => {
                             format!("  return {};", body_expr)
@@ -606,9 +615,10 @@ fn format_block_as_js_expr(block: &BlockIR, ts_mode: bool) -> String {
     if let Some(last) = block.statements.last() {
         match last {
             StatementIR::ExprStmtIR { expr } => format_expr_ir(expr, ts_mode),
-            StatementIR::ReturnStmtIR { value } => {
-                value.as_ref().map(|e| format_expr_ir(e, ts_mode)).unwrap_or_else(|| "undefined".into())
-            }
+            StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(|e| format_expr_ir(e, ts_mode))
+                .unwrap_or_else(|| "undefined".into()),
             _ => "undefined".into(),
         }
     } else {
@@ -1253,6 +1263,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, false);
         let out = w.into_string();
@@ -1278,6 +1290,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, true);
         let out = w.into_string();
@@ -1313,6 +1327,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp, false);
         let out = w.into_string();
@@ -1354,6 +1370,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp, false);
         let out = w.into_string();
@@ -1396,6 +1414,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp, true);
         let out = w.into_string();
@@ -1582,6 +1602,8 @@ mod tests {
                             event_names: vec![],
                             view: None,
                             styles: vec![],
+                            motions: vec![],
+                            timelines: vec![],
                         },
                     )]),
                     stores: HashMap::new(),
@@ -1589,8 +1611,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1643,6 +1665,8 @@ mod tests {
                             event_names: vec![],
                             view: None,
                             styles: vec![],
+                            motions: vec![],
+                            timelines: vec![],
                         },
                     )]),
                     stores: HashMap::new(),
@@ -1650,8 +1674,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1958,11 +1982,12 @@ mod tests {
         let expr = ExprIR::VariantLiteral {
             union_type: "HttpResult".into(),
             variant: "Ok".into(),
-            fields: vec![
-                ("value".into(), ExprIR::LiteralExpr {
+            fields: vec![(
+                "value".into(),
+                ExprIR::LiteralExpr {
                     value: serde_json::json!(42),
-                }),
-            ],
+                },
+            )],
         };
         let out = format_expr_ir(&expr, false);
         assert!(
@@ -2023,9 +2048,7 @@ mod tests {
     #[test]
     fn test_match_expr_with_wildcard() {
         let expr = ExprIR::MatchExpr {
-            matched: Box::new(ExprIR::IdentifierExpr {
-                name: "r".into(),
-            }),
+            matched: Box::new(ExprIR::IdentifierExpr { name: "r".into() }),
             arms: vec![
                 MatchArmIR {
                     pattern: MatchPatternIR {
@@ -2064,15 +2087,17 @@ mod tests {
         );
         // Wildcard arm should not be guarded by an if-check
         let ok_count = out.matches("\"Ok\"").count();
-        assert_eq!(ok_count, 1, "Ok should appear exactly once. Output: {}", out);
+        assert_eq!(
+            ok_count, 1,
+            "Ok should appear exactly once. Output: {}",
+            out
+        );
     }
 
     #[test]
     fn test_match_expr_multiple_variants() {
         let expr = ExprIR::MatchExpr {
-            matched: Box::new(ExprIR::IdentifierExpr {
-                name: "r".into(),
-            }),
+            matched: Box::new(ExprIR::IdentifierExpr { name: "r".into() }),
             arms: vec![
                 MatchArmIR {
                     pattern: MatchPatternIR {
@@ -2109,16 +2134,8 @@ mod tests {
             ],
         };
         let out = format_expr_ir(&expr, false);
-        assert!(
-            out.contains("\"Ok\""),
-            "Should check Ok. Output: {}",
-            out
-        );
-        assert!(
-            out.contains("\"Err\""),
-            "Should check Err. Output: {}",
-            out
-        );
+        assert!(out.contains("\"Ok\""), "Should check Ok. Output: {}", out);
+        assert!(out.contains("\"Err\""), "Should check Err. Output: {}", out);
         assert!(
             out.contains("\"success\""),
             "Should return success. Output: {}",

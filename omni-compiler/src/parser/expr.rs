@@ -545,18 +545,16 @@ impl<'a> Parser<'a> {
                     other => keyword_as_ident_name(other),
                 };
                 match field_name {
-                    Some(field) => {
-                        Ok(Expr::OptionalChain {
-                            object: Box::new(left),
-                            field,
-                            span: Span {
-                                start: span.start,
-                                end: next.span.end,
-                                line: span.line,
-                                col: span.col,
-                            },
-                        })
-                    }
+                    Some(field) => Ok(Expr::OptionalChain {
+                        object: Box::new(left),
+                        field,
+                        span: Span {
+                            start: span.start,
+                            end: next.span.end,
+                            line: span.line,
+                            col: span.col,
+                        },
+                    }),
                     _ => Err(ParseError {
                         message: "Expected field name after '?.'".into(),
                         span: next.span.clone(),
@@ -784,21 +782,11 @@ impl<'a> Parser<'a> {
         let easing = match name.as_str() {
             "linear" => EasingExpr::Named("linear".into()),
             "easeIn" | "easeOut" | "easeInOut" => EasingExpr::Named(name.clone()),
-            "power1In"
-            | "power1Out"
-            | "power1InOut"
-            | "power2In"
-            | "power2Out"
-            | "power2InOut"
-            | "power3In"
-            | "power3Out"
-            | "power3InOut"
-            | "power4In"
-            | "power4Out"
-            | "power4InOut"
-            | "bounceIn"
-            | "bounceOut"
-            | "bounceInOut" => EasingExpr::Named(name.clone()),
+            "power1In" | "power1Out" | "power1InOut" | "power2In" | "power2Out" | "power2InOut"
+            | "power3In" | "power3Out" | "power3InOut" | "power4In" | "power4Out"
+            | "power4InOut" | "bounceIn" | "bounceOut" | "bounceInOut" => {
+                EasingExpr::Named(name.clone())
+            }
             "backIn" | "backOut" | "backInOut" => {
                 let intensity = if self.peek_kind() == TokenKind::LParen {
                     self.advance(); // '('
@@ -910,18 +898,16 @@ impl<'a> Parser<'a> {
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
                 StaggerTiming::Amount(self.parse_expr()?)
             }
-            n => {
-                return Err(self.error(format!(
-                    "expected 'each' or 'amount', got '{}'",
-                    n
-                )))
-            }
+            n => return Err(self.error(format!("expected 'each' or 'amount', got '{}'", n))),
         };
         let from = if self.peek_kind() == TokenKind::Comma {
             self.advance();
             self.expect_ident_eq("from")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
-            match self.expect_ident("expected start|center|end|edges")?.as_str() {
+            match self
+                .expect_ident("expected start|center|end|edges")?
+                .as_str()
+            {
                 "start" => StaggerDirection::Start,
                 "center" => StaggerDirection::Center,
                 "end" => StaggerDirection::End,
@@ -952,10 +938,11 @@ impl<'a> Parser<'a> {
                 })
             }
             Some(ref s) if s == "stagger" => {
-                self.parse_stagger_call().map(|_sc| Expr::NotYetImplemented {
-                    feature: "stagger".into(),
-                    span: self.peek_span(),
-                })
+                self.parse_stagger_call()
+                    .map(|_sc| Expr::NotYetImplemented {
+                        feature: "stagger".into(),
+                        span: self.peek_span(),
+                    })
             }
             _ => {
                 // Named motion reference or complex expression

@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 
-use crate::ir::*;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::ir::*;
 
 pub struct PythonCodegen;
 
@@ -278,7 +278,11 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standalone: bool)
 
 fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     match stmt {
-        StatementIR::LetStmtIR { name, value, r#type } => {
+        StatementIR::LetStmtIR {
+            name,
+            value,
+            r#type,
+        } => {
             let rhs = value
                 .as_ref()
                 .map(format_expr_ir)
@@ -348,7 +352,10 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                         w.emit(&format!("{} -= {}", target, amount));
                     }
                     other => {
-                        w.emit(&format!("# TODO: mutation operation '{}' on {}", other, target));
+                        w.emit(&format!(
+                            "# TODO: mutation operation '{}' on {}",
+                            other, target
+                        ));
                     }
                 }
             }
@@ -383,7 +390,11 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
             }
             w.dedent();
         }
-        StatementIR::ForInStmtIR { var_name, iterable, body } => {
+        StatementIR::ForInStmtIR {
+            var_name,
+            iterable,
+            body,
+        } => {
             let iter = format_expr_ir(iterable);
             w.emit(&format!("for {} in {}:", var_name, iter));
             w.indent();
@@ -406,9 +417,10 @@ fn format_block_as_python_expr(block: &BlockIR) -> String {
     if let Some(last) = block.statements.last() {
         match last {
             StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
-            StatementIR::ReturnStmtIR { value } => {
-                value.as_ref().map(|e| format_expr_ir(e)).unwrap_or_else(|| "None".into())
-            }
+            StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(|e| format_expr_ir(e))
+                .unwrap_or_else(|| "None".into()),
             _ => "None".into(),
         }
     } else {
@@ -479,7 +491,11 @@ fn format_expr_ir(expr: &ExprIR) -> String {
                 .collect();
             format!("{}({})", type_name, field_strs.join(", "))
         }
-        ExprIR::MethodCallExpr { object, method, args } => {
+        ExprIR::MethodCallExpr {
+            object,
+            method,
+            args,
+        } => {
             let obj = format_expr_ir(object);
             let arg_strs: Vec<String> = args.iter().map(format_expr_ir).collect();
             match method.as_str() {
@@ -491,7 +507,10 @@ fn format_expr_ir(expr: &ExprIR) -> String {
                 _ => format!("{}.{}({})", obj, method, arg_strs.join(", ")),
             }
         }
-        ExprIR::BlockExpr { statements: _, tail } => {
+        ExprIR::BlockExpr {
+            statements: _,
+            tail,
+        } => {
             // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_ir(tail)
         }
@@ -505,7 +524,9 @@ fn format_expr_ir(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("await {}", format_expr_ir(operand))
         }
-        ExprIR::VariantLiteral { variant, fields, .. } => {
+        ExprIR::VariantLiteral {
+            variant, fields, ..
+        } => {
             let mut entries: Vec<String> = fields
                 .iter()
                 .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir(v)))
@@ -529,7 +550,11 @@ fn format_expr_ir(expr: &ExprIR) -> String {
                     _ => {}
                 }
             }
-            if parts.is_empty() { "None".into() } else { parts.join(" else ") }
+            if parts.is_empty() {
+                "None".into()
+            } else {
+                parts.join(" else ")
+            }
         }
         _ => "None".into(),
     }
@@ -676,7 +701,7 @@ pub fn py_type(kind: &str, type_args: &[TypeIR]) -> String {
         other => {
             // If it looks like a user-defined type, use as-is
             if other.chars().next().map_or(false, |c| c.is_uppercase()) {
-                format!("'{}'", other)  // forward reference
+                format!("'{}'", other) // forward reference
             } else {
                 "Any".into()
             }

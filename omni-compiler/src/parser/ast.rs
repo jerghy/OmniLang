@@ -291,10 +291,7 @@ pub struct MatchPattern {
 #[derive(Debug, Clone)]
 pub enum MatchPatternKind {
     /// Variant pattern: Ok { value, response }
-    Variant {
-        name: String,
-        bindings: Vec<String>,
-    },
+    Variant { name: String, bindings: Vec<String> },
     /// Wildcard pattern: _
     Wildcard,
     /// Literal pattern: 42, "hello", true (basic support)
@@ -462,11 +459,24 @@ pub struct Element {
 
 #[derive(Debug, Clone)]
 pub enum ElementProp {
-    Static { name: String, value: Expr },
-    Bind { name: String, signal_path: String },
-    Event { name: String, handler: EventHandler },
-    Class { value: ClassValue },
-    Style { entries: Vec<(String, Expr)> },
+    Static {
+        name: String,
+        value: Expr,
+    },
+    Bind {
+        name: String,
+        signal_path: String,
+    },
+    Event {
+        name: String,
+        handler: EventHandler,
+    },
+    Class {
+        value: ClassValue,
+    },
+    Style {
+        entries: Vec<(String, Expr)>,
+    },
     TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
@@ -680,29 +690,70 @@ pub enum PlaybackProp {
 }
 
 #[derive(Debug, Clone)]
-pub enum LoopValue { Count(u32), Infinite }
+pub enum LoopValue {
+    Count(u32),
+    Infinite,
+}
 
 #[derive(Debug, Clone)]
-pub enum DirectionValue { Normal, Reverse, Alternate, AlternateReverse }
+pub enum DirectionValue {
+    Normal,
+    Reverse,
+    Alternate,
+    AlternateReverse,
+}
 
 #[derive(Debug, Clone)]
-pub enum FillValue { None, Forwards, Backwards, Both }
+pub enum FillValue {
+    None,
+    Forwards,
+    Backwards,
+    Both,
+}
 
 #[derive(Debug, Clone)]
-pub enum InterruptValue { Stop, Complete, Queue, Replace }
+pub enum InterruptValue {
+    Stop,
+    Complete,
+    Queue,
+    Replace,
+}
 
 #[derive(Debug, Clone)]
-pub enum WhenValue { BeforeChildren, AfterChildren, WithChildren }
+pub enum WhenValue {
+    BeforeChildren,
+    AfterChildren,
+    WithChildren,
+}
 
 /// Easing expression
 #[derive(Debug, Clone)]
 pub enum EasingExpr {
     Named(String),
-    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
-    Spring { tension: f64, friction: f64, velocity: Option<f64> },
-    Back { intensity: f64, direction: Option<String> },
-    Elastic { amplitude: f64, period: f64, direction: Option<String> },
-    Steps { count: u32, direction: String },
+    CubicBezier {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    },
+    Spring {
+        tension: f64,
+        friction: f64,
+        velocity: Option<f64>,
+    },
+    Back {
+        intensity: f64,
+        direction: Option<String>,
+    },
+    Elastic {
+        amplitude: f64,
+        period: f64,
+        direction: Option<String>,
+    },
+    Steps {
+        count: u32,
+        direction: String,
+    },
 }
 
 /// Stagger call

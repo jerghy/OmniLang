@@ -209,18 +209,57 @@ pub fn sanitize_module_name(name: &str) -> String {
 pub fn sanitize_js_ident(name: &str) -> String {
     // JavaScript reserved words (ES5+ strict mode) that cannot be used as identifiers
     const JS_RESERVED: &[&str] = &[
-        "break", "case", "catch", "continue", "debugger", "default", "delete",
-        "do", "else", "finally", "for", "function", "if", "in", "instanceof",
-        "new", "return", "switch", "this", "throw", "try", "typeof", "var",
-        "void", "while", "with",
+        "break",
+        "case",
+        "catch",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "in",
+        "instanceof",
+        "new",
+        "return",
+        "switch",
+        "this",
+        "throw",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with",
         // ES6+
-        "class", "const", "enum", "export", "extends", "import", "super",
-        "implements", "interface", "let", "package", "private", "protected",
-        "public", "static", "yield",
+        "class",
+        "const",
+        "enum",
+        "export",
+        "extends",
+        "import",
+        "super",
+        "implements",
+        "interface",
+        "let",
+        "package",
+        "private",
+        "protected",
+        "public",
+        "static",
+        "yield",
         // ES2017+
-        "async", "await",
+        "async",
+        "await",
         // Always reserved as literals / special bindings
-        "arguments", "null", "true", "false",
+        "arguments",
+        "null",
+        "true",
+        "false",
     ];
 
     if JS_RESERVED.contains(&name) {
@@ -274,7 +313,9 @@ pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Op
     }
     // Also try direct lookup (for non-prefixed names)
     // Stdlib functions are imported as simple names, and lowered as-is
-    for module in &["http", "json", "storage", "math", "string", "array", "console"] {
+    for module in &[
+        "http", "json", "storage", "math", "string", "array", "console",
+    ] {
         if let Some(entry) = crate::stdlib::lookup(module, name) {
             if entry.available_targets.contains(&target) {
                 return Some((entry.codegen)(args, target));
@@ -293,8 +334,10 @@ pub fn validate_stdlib_imports(
     for module in &ir.stdlib_imports {
         if !crate::stdlib::module_available(module, target) {
             let available = crate::stdlib::available_targets_for(module);
-            let available_str: Vec<String> =
-                available.iter().map(|t| format!("{:?}", t).to_lowercase()).collect();
+            let available_str: Vec<String> = available
+                .iter()
+                .map(|t| format!("{:?}", t).to_lowercase())
+                .collect();
             errors.push(format!(
                 "stdlib module 'std/{}' is not available on target '{:?}'. Available targets: {}",
                 module,
@@ -364,65 +407,44 @@ mod tests {
 
     #[test]
     fn test_try_format_stdlib_call_http_get_js() {
-        let result = try_format_stdlib_call(
-            "http_get",
-            &["\"url\"".into()],
-            Target::JavaScript,
-        );
+        let result = try_format_stdlib_call("http_get", &["\"url\"".into()], Target::JavaScript);
         assert!(result.is_some(), "http_get should be recognized");
-        assert!(result.unwrap().contains("fetch"), "JS http_get should use fetch");
+        assert!(
+            result.unwrap().contains("fetch"),
+            "JS http_get should use fetch"
+        );
     }
 
     #[test]
     fn test_try_format_stdlib_call_json_parse_js() {
-        let result = try_format_stdlib_call(
-            "json_parse",
-            &["text".into()],
-            Target::JavaScript,
-        );
+        let result = try_format_stdlib_call("json_parse", &["text".into()], Target::JavaScript);
         assert!(result.is_some(), "json_parse should be recognized");
         assert_eq!(result.unwrap(), "JSON.parse(text)");
     }
 
     #[test]
     fn test_try_format_stdlib_call_json_stringify_python() {
-        let result = try_format_stdlib_call(
-            "json_stringify",
-            &["obj".into()],
-            Target::Python,
-        );
+        let result = try_format_stdlib_call("json_stringify", &["obj".into()], Target::Python);
         assert!(result.is_some(), "json_stringify should be recognized");
         assert_eq!(result.unwrap(), "json.dumps(obj)");
     }
 
     #[test]
     fn test_try_format_stdlib_call_not_found() {
-        let result = try_format_stdlib_call(
-            "nonexistent_fn",
-            &[],
-            Target::JavaScript,
-        );
+        let result = try_format_stdlib_call("nonexistent_fn", &[], Target::JavaScript);
         assert!(result.is_none(), "Unknown fn should return None");
     }
 
     #[test]
     fn test_try_format_stdlib_call_math_abs_js() {
-        let result = try_format_stdlib_call(
-            "math_abs",
-            &["x".into()],
-            Target::JavaScript,
-        );
+        let result = try_format_stdlib_call("math_abs", &["x".into()], Target::JavaScript);
         assert!(result.is_some(), "math_abs should be recognized");
         assert_eq!(result.unwrap(), "Math.abs(x)");
     }
 
     #[test]
     fn test_try_format_stdlib_call_console_log_js() {
-        let result = try_format_stdlib_call(
-            "console_log",
-            &["\"hi\"".into()],
-            Target::JavaScript,
-        );
+        let result = try_format_stdlib_call("console_log", &["\"hi\"".into()], Target::JavaScript);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), "console.log(\"hi\")");
     }
@@ -455,7 +477,11 @@ mod tests {
             stdlib_imports: vec!["http".into(), "json".into()],
         };
         let result = validate_stdlib_imports(&ir, Target::JavaScript);
-        assert!(result.is_ok(), "http+json on JS should be valid. Got: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "http+json on JS should be valid. Got: {:?}",
+            result.err()
+        );
     }
 
     #[test]

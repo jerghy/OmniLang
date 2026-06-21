@@ -243,7 +243,9 @@ impl<'a> Parser<'a> {
                             TokenKind::StringLiteral(s) => {
                                 Expr::Literal(Literal::String(s.clone()), t.span.clone())
                             }
-                            TokenKind::IntLiteral(n) => Expr::Literal(Literal::Int(*n), t.span.clone()),
+                            TokenKind::IntLiteral(n) => {
+                                Expr::Literal(Literal::Int(*n), t.span.clone())
+                            }
                             TokenKind::FloatLiteral(f) => {
                                 Expr::Literal(Literal::Float(*f), t.span.clone())
                             }
@@ -1322,7 +1324,13 @@ impl<'a> Parser<'a> {
         let mut color_space = None;
         let mut start = None;
 
-        self.parse_timeline_item_timing(&mut over, &mut ease, &mut delay, &mut color_space, &mut start)?;
+        self.parse_timeline_item_timing(
+            &mut over,
+            &mut ease,
+            &mut delay,
+            &mut color_space,
+            &mut start,
+        )?;
 
         Ok(DirectionItem {
             direction,
@@ -1575,8 +1583,7 @@ impl<'a> Parser<'a> {
                     let value = if matches!(
                         self.peek_kind(),
                         TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_)
-                    )
-                    {
+                    ) {
                         let t = self.advance();
                         match &t.kind {
                             TokenKind::IntLiteral(n) => LoopValue::Count(*n as u32),

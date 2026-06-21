@@ -341,7 +341,7 @@ impl<'a> Parser<'a> {
 
         if self.peek_kind() == TokenKind::Catch {
             self.advance(); // 'catch'
-            // Optional catch variable: catch err { ... } or catch { ... }
+                            // Optional catch variable: catch err { ... } or catch { ... }
             if self.peek_kind() != TokenKind::LBrace {
                 catch_var = Some(self.expect_ident("expected catch variable")?);
             }

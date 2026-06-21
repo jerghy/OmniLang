@@ -45,7 +45,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-
     /// Increment recursion depth, returning an error if the limit is exceeded.
     fn enter_recursion(&mut self) -> Result<(), ParseError> {
         self.depth += 1;

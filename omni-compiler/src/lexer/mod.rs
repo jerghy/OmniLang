@@ -695,7 +695,10 @@ impl Lexer {
         let col = self.col;
         self.advance(); // @
         let mut kw = String::from("@");
-        while self.peek().is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             kw.push(self.advance().unwrap());
         }
         let kind = match kw.as_str() {

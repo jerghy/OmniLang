@@ -425,9 +425,10 @@ fn format_block_as_rust_expr(block: &BlockIR) -> String {
     if let Some(last) = block.statements.last() {
         match last {
             StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
-            StatementIR::ReturnStmtIR { value } => {
-                value.as_ref().map(|e| format_expr_ir(e)).unwrap_or_else(|| "None".into())
-            }
+            StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(|e| format_expr_ir(e))
+                .unwrap_or_else(|| "None".into()),
             _ => "None".into(),
         }
     } else {
@@ -522,7 +523,10 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir(a)).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
-        ExprIR::BlockExpr { statements: _, tail } => {
+        ExprIR::BlockExpr {
+            statements: _,
+            tail,
+        } => {
             // Only tail expression emitted; preceding statements preserved in IR for future codegen
             format_expr_ir(tail)
         }
@@ -534,20 +538,23 @@ fn format_expr_ir(expr: &ExprIR) -> String {
         ExprIR::AwaitExpr { operand } => {
             format!("{}.await", format_expr_ir(operand))
         }
-                ExprIR::MatchExpr { matched, arms } => {
+        ExprIR::MatchExpr { matched, arms } => {
             let m = format_expr_ir(matched);
-            let cases: Vec<String> = arms.iter().map(|arm| {
-                let body = format_block_as_rust_expr(&arm.body);
-                match &arm.pattern.kind {
-                    MatchPatternKindIR::Variant { name, .. } => {
-                        format!("    UnionType::{} {{ .. }} => {},", name, body)
+            let cases: Vec<String> = arms
+                .iter()
+                .map(|arm| {
+                    let body = format_block_as_rust_expr(&arm.body);
+                    match &arm.pattern.kind {
+                        MatchPatternKindIR::Variant { name, .. } => {
+                            format!("    UnionType::{} {{ .. }} => {},", name, body)
+                        }
+                        MatchPatternKindIR::Wildcard => {
+                            format!("    _ => {},", body)
+                        }
+                        _ => String::new(),
                     }
-                    MatchPatternKindIR::Wildcard => {
-                        format!("    _ => {},", body)
-                    }
-                    _ => String::new(),
-                }
-            }).collect();
+                })
+                .collect();
             format!("match &{} {{\n{}\n}}", m, cases.join("\n"))
         }
         ExprIR::ClosureExpr { params, body } => {
@@ -1067,6 +1074,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -1101,6 +1110,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -1143,6 +1154,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         generate_component(&mut w, "Counter", &comp);
         let out = w.into_string();
@@ -1410,6 +1423,8 @@ mod tests {
                             event_names: vec![],
                             view: None,
                             styles: vec![],
+                            motions: vec![],
+                            timelines: vec![],
                         },
                     )]),
                     stores: HashMap::new(),
@@ -1417,8 +1432,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1466,8 +1481,8 @@ mod tests {
                 },
             )]),
             source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
+            stdlib_imports: Vec::new(),
+        };
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
@@ -1767,11 +1782,12 @@ mod tests {
         let expr = ExprIR::VariantLiteral {
             union_type: "HttpResult".into(),
             variant: "Ok".into(),
-            fields: vec![
-                ("value".into(), ExprIR::LiteralExpr {
+            fields: vec![(
+                "value".into(),
+                ExprIR::LiteralExpr {
                     value: serde_json::json!(42),
-                }),
-            ],
+                },
+            )],
         };
         let out = format_expr_ir(&expr);
         assert!(
