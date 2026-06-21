@@ -8,6 +8,20 @@
 
 **Tech Stack:** TypeScript, React (Zustand stores), Rust WASM compiler (via existing `rustCompiler`), Vitest.
 
+## Meta-Rules
+
+当执行到某个任务时：
+
+1. **先读 spec**: 每个模块的算法在 `docs/superpowers/specs/2026-06-21-omni-gen-code-generation-design.md` 对应章节。
+2. **先写测试 (RED)**: 任务中的测试用例复制到测试文件，跑一遍确认 FAIL。
+3. **实现最小代码 (GREEN)**: 让测试通过的最少代码。不提前加错误处理、不优化。
+4. **验证**: `npx vitest run <test-file>` 必须全绿。
+5. **追加边界测试**: 每完成一个模块，想一个合理但测试未覆盖的输入，写测试→FAIL→改实现→PASS。
+6. **Commit**: 每个任务独立 commit。
+7. **不引入未定义依赖**: 确认调用的函数/类型已在前面任务中定义。
+
+**类型查找**: 共享类型→`types.ts`(T1)；ElementData→`../store/editor`；CodeTab→`../codegraph/types`；COMPONENT_PROTOCOL→`../data/componentProtocol`；rustCompiler→`../api/rustCompiler`。
+
 ## Global Constraints
 
 - All modules are pure functions with value passing, zero side effects
@@ -1569,3 +1583,153 @@ describe("generateOmniSource", () => {
 ### Task 19: App.tsx integration
 
 *(Wire parseOmniSource into openFile; wire generateOmniSource + validate into saveProject and handleCompile)*
+
+
+### Task 12: StoreExtractor — two-phase store extraction
+
+**Spec ref:** `docs/superpowers/specs/2026-06-21-omni-gen-code-generation-design.md` §3.4
+
+**Files:** Create `editor/client/src/omni-gen/store-extractor.ts`, `__tests__/store-extractor.test.ts`
+
+**Interfaces:** Consumes `ElementData[]` (codeblock), `WireData[]`. Produces `extractStores(elements, wires): { stores: StoreDef[]; standaloneSignals: Array<...> }`
+
+**Algorithm from spec:** Phase 1 scan tag==="store"→StoreDef; signal/computed/action grouped by props.parentStore or parentId chain. Phase 2 fill: signal type from props.typeAnnotation, computed returnType from output port, body stubs.
+
+- [ ] **Step 1: Write test**
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { extractStores } from "../store-extractor";
+import type { ElementData } from "../../store/editor";
+
+describe("extractStores", () => {
+  it("groups signals by parentStore", () => {
+    const els: ElementData[] = [
+      { id:"s1",nodeType:"codeblock",tag:"store",props:{name:"TodoStore"},children:[],parentId:null },
+      { id:"sig1",nodeType:"codeblock",tag:"signal",props:{name:"todos",parentStore:"TodoStore",typeAnnotation:"Array"},children:[],parentId:"s1" },
+    ];
+    const r = extractStores(els, []);
+    expect(r.stores[0].name).toBe("TodoStore");
+    expect(r.stores[0].signals["todos"].type).toBe("Array");
+  });
+  it("standalone signals have no parentStore", () => {
+    const els: ElementData[] = [
+      { id:"sig1",nodeType:"codeblock",tag:"signal",props:{name:"counter",typeAnnotation:"i32"},children:[],parentId:null },
+    ];
+    const r = extractStores(els, []);
+    expect(r.standaloneSignals[0].name).toBe("counter");
+  });
+  it("defaults type to unknown", () => {
+    const els: ElementData[] = [
+      { id:"s1",nodeType:"codeblock",tag:"store",props:{name:"S"},children:["sig1"],parentId:null },
+      { id:"sig1",nodeType:"codeblock",tag:"signal",props:{name:"x",parentStore:"S"},children:[],parentId:"s1" },
+    ];
+    const r = extractStores(els, []);
+    expect(r.stores[0].signals["x"].type).toBe("unknown");
+  });
+});
+```
+
+- [ ] **Step 2: Run FAIL** `npx vitest run src/omni-gen/__tests__/store-extractor.test.ts`
+
+- [ ] **Step 3: Implement** — Scan codeblocks for tag store→skeleton. For each signal/computed, check props.parentStore; if missing walk parentId chain. Fill StoreDef.signals/getters. Unmatched → standaloneSignals. Default type "unknown".
+
+- [ ] **Step 4: Run PASS**
+
+- [ ] **Step 5: Add boundary test** — computed getter with ports returns returnType from output port
+
+- [ ] **Step 6: Commit**
+```
+git add ... && git commit -m "feat(omni-gen): add StoreExtractor with two-phase grouping"
+```
+
+---
+
+### Task 13: ExpressionLowering — recursive descent
+
+**Spec ref:** §3.5
+
+**Files:** Create `expression-lowering.ts`, `__tests__/expression-lowering.test.ts`
+
+**Interfaces:** `lowerCode(elements: ElementData[], wires: WireData[]): LoweredCode`
+
+**Node→omni map:** literal→`42`/`"hello"`; signal/getVariable→name; add/sub/mul/div→binary ops; compare→`a op b`; and/or/not→logic; concat→string+; setVariable→`name = expr;`; return→`return expr;`; customFn→fn body; fn(source)→use source.
+
+**Core algorithm:** Build reverse wire adjacency. From consumer ports (setVariable.value, return.value), walk backward building expression strings recursively. Cache `Map<nodeId, expr>`. Terminal nodes: literal/signal/getVariable. For customFn: BFS from fnId collecting setVariable/return statements.
+
+- [ ] **Step 1: Write test** — literal(42)+literal(1)→add→setVariable produces `expr="42+1"`. customFn+add+setVariable produces `body="counter = counter + 1;"`. fn with source uses source directly.
+
+- [ ] **Step 2: Run FAIL**
+
+- [ ] **Step 3: Implement** — `buildExpr(nodeId, port, visited)` recursive; switch on el.tag per mapping table; `inp()` helper for port resolution; `buildStatements(fnId)` BFS collector.
+
+- [ ] **Step 4: Run PASS**
+
+- [ ] **Step 5: Add cycle detection test** — wire loop produces `/* cycle */`
+
+- [ ] **Step 6: Commit**
+
+---
+
+### Task 14: ChainEmitter — @chain/@node/@wire
+
+**Spec ref:** §3.7
+
+**Files:** Create `chain-emitter.ts`, `__tests__/chain-emitter.test.ts`
+
+**Interfaces:** `emitChains(tab: CodeTab, functions: LoweredCode["functions"]): Map<string, ChainBlock>`
+
+**Implementation:**
+1. For each customFn in functions, find matching element in tab.graph.elements by config.fnName
+2. BFS from fnNode collecting reachable nodes + wires
+3. `formatNode(el)`: lookup NODE_ATTRS[tag] for required/optional attributes; resolve each from el.config/el.props; append `pos=x,y`
+4. `formatWire(w, elMap)`: `from.port -> to.port`; fn nodes skip port name
+5. S5 validation: check getVariable/setVariable names exist in scope
+
+Test: One customFn + one literal + one wire → assert chain block contains @chain header, @node with pos, @wire with correct from→to.
+
+---
+
+### Task 15: annotation-data.ts
+
+**Files:** Create `annotation-data.ts`, `__tests__/annotation-data.test.ts`
+
+**Interfaces:** `buildAnnotationData(viewNodes, tabType) → AnnotationData`; `createAnnotationStrategy(data) → AnnotationStrategy`
+
+Walk ViewNode tree recursively. For each node: build `EditAnnotation{line:"// @edit [folded] [render=canvas]", indent}`. `beforeFile()` returns `// @code-tab type=${tabType}`. `beforeViewNode(node)` looks up `node.path` in editAnnotations map.
+
+---
+
+### Task 16: SourceEmitter annotation test
+
+Verify Task 10's SourceEmitter + Task 15's AnnotationStrategy → output contains `// @code-tab` at top and `// @edit` before each `<tag`.
+
+---
+
+### Task 17: Pipeline final — three-phase StageResult
+
+Refactor pipeline.ts:
+1. `runPhase<T>(phase, fn)` — wrap in try/catch, collect PipelineError[], check fatal→return null
+2. Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
+3. Phase B: StoreExtractor + ExpressionLowering + StyleResolver + ChainEmitter
+4. Phase C: buildAnnotationData → createAnnotationStrategy → SourceEmitter.emitDocument
+5. Add `generateOmniFiles()` for multi-file output (main.omni + logic tabs + custom components)
+
+Roundtrip test: parse Counter.omni fixture → generate → validate passes.
+
+---
+
+### Task 18: TokenEmitter + CustomComponentEmitter
+
+**token-emitter.ts:** `emitTokens(tokens): string` → `"theme myTheme { colors { primary: "#4F46E5"; } }"`
+
+**custom-component-emitter.ts:** C2 simplified — reuse ViewTreeBuilder + StyleResolver + SourceEmitter for embedded custom components.
+
+---
+
+### Task 19: App.tsx integration
+
+Wire in `editor/client/src/App.tsx`:
+- **openFile**: `parseOmniSource(source)` → `useEditorStore.setState({elements,wires})` + `useCodeGraphStore.loadFromData(codeTabs)`
+- **saveProject**: `generateOmniFiles(...)` → for each file `validate(source)` → write if pass, rollback if fail
+- **handleCompile**: `generateOmniSource(...)` → `validate(source)` → pass→`api.compile(source, target)`, fail→show errors
