@@ -185,11 +185,102 @@ interface BindingResult {
 
 **复杂度**: O(N + W)，~350 行
 
-### 3.5 StyleResolver — 样式解析器
+### 3.5 StyleResolver — 样式/属性分离 + 标签映射
 
-**方案**: 统一内联 Style
+**必须基于真实 .omni 语法设计。**
 
-**同前版设计，无变化。** ~30 行。
+#### 3.5.1 设计系统 → HTML 标签映射
+
+编辑器 COMPONENT_PROTOCOL 使用设计系统名称（`Button`, `Container`, `Heading`），但 .omni 源码使用 HTML 元素。需要映射表：
+
+```typescript
+const TAG_HTML_MAP: Record<string, {
+  tag: string;                          // HTML 标签名
+  propsToContent?: string;              // 哪个 prop 转为文本内容
+  propsToAttrs?: Record<string, string>; // prop → HTML 属性名映射
+  tagByProp?: string;                   // 由 prop 值决定实际标签名
+}> = {
+  Container: { tag: "div" },
+  Flex:      { tag: "div" },
+  Grid:      { tag: "div" },
+  Card:      { tag: "div" },
+  Text:      { tag: "p", propsToContent: "label" },
+  Heading:   { tag: "h1", propsToContent: "label", tagByProp: "level" },
+  Button:    { tag: "button", propsToContent: "label" },
+  Input:     { tag: "input" },
+  TextArea:  { tag: "textarea" },
+  Select:    { tag: "select" },
+  Checkbox:  { tag: "input" },
+  List:      { tag: "ul" },
+  ListItem:  { tag: "li" },
+  Image:     { tag: "img" },
+  Spinner:   { tag: "div" },
+  Progress:  { tag: "progress" },
+  Alert:     { tag: "div" },
+  Link:      { tag: "a", propsToContent: "label" },
+  Form:      { tag: "form" },
+};
+```
+
+**Heading 的 tagByProp**: `level="1"` → `<h1>`, `level="2"` → `<h2>`，依此类推。
+
+**自定义组件**（来自 componentRegistry）：直接使用 PascalCase 名称，不经过映射表。
+
+#### 3.5.2 Style 属性分离 + CSS 类名生成
+
+实际 .omni 语法使用 `class: className` + `style { .className { css-prop: css-value } }` 模式，**不使用内联 `style={{}}`**。
+
+```typescript
+// 输入
+interface ResolvedStyle {
+  htmlTag: string;                          // 映射后的 HTML 标签名
+  cssClassName: string;                     // 分配给此元素的 CSS class 名
+  contentText?: string;                     // 标签间的文本内容（若有 propsToContent）
+  htmlAttrs: Record<string, string>;        // HTML 属性（如 src, href, type, placeholder）
+  eventBindings: Record<string, string>;    // 事件绑定：{ onPress: "handleClick" }
+  bindings: Record<string, string>;         // bind:prop → signalName（来自 wire 分析）
+  cssRules: Record<string, string>;         // CSS 属性：{ "background": "white", "border-radius": "8px" }
+  usedClassNames: string[];                 // 此元素引用的 CSS class 名列表
+}
+```
+
+**核心逻辑**:
+```
+1. 查 TAG_HTML_MAP[element.tag] 获取 HTML 映射
+   若不在表中 → 自定义组件，直接用 element.tag 作为 htmlTag
+2. 从 element.props 中分离：
+   - propsToContent 指定的 prop → contentText
+   - COMPONENT_PROTOCOL[tag].styleProperties → cssRules（需 snake_case→kebab-case 转换）
+   - COMPONENT_PROTOCOL[tag].events 中已绑定的 → eventBindings
+   - bind: 前缀的（来自 WireAnalyzer.signalBindings） → bindings
+   - 其余 COMPONENT_PROTOCOL props → htmlAttrs
+3. 生成 CSS class 名：基于 element.id sanitize，如 "el-abc123" → css class "el-abc123"
+4. 收集 styleProperties 的值 → cssRules（snake_case→kebab-case 映射）
+```
+
+#### 3.5.3 snake_case → kebab-case CSS 属性映射
+
+```typescript
+const STYLE_PROP_CSS_MAP: Record<string, string> = {
+  background_color: "background",
+  border_radius: "border-radius",
+  font_size: "font-size",
+  font_weight: "font-weight",
+  text_align: "text-align",
+  // 直接映射（同名或简单转换）
+  padding: "padding",
+  margin: "margin",
+  gap: "gap",
+  width: "width",
+  height: "height",
+  color: "color",
+  shadow: "box-shadow",
+};
+```
+
+**CSS 值格式**: 直接使用原始值（`"16px"`, `"white"`, `"1px solid #e5e7eb"`），不加额外引号包裹。
+
+**代码量**: ~80 行
 
 ### 3.6 ComponentAssembler — 组件组装器
 
@@ -197,38 +288,240 @@ interface BindingResult {
 
 ### 3.7 SourceEmitter — 源码生成器
 
-**方案**: Visitor + Builder（递归下降 + CodeWriter）
+**方案**: Visitor + Builder（递归下降 + CodeWriter），按真实 .omni 语法生成。
 
-**同前版核心设计**，新增以下约束：
-
-#### 3.7.1 View 元素 `id` 属性生成
-
-每个 view 元素必须生成 `id="xxx"` 属性（规则 I1：同文件内唯一）：
+#### 3.7.1 CodeWriter
 
 ```typescript
-// 使用 element.id 作为 id 属性值
-// 若 element.id 包含特殊字符，sanitize 为合法标识符
-function emitViewNode(node: ViewNode): void {
-  const sanitizedId = sanitizeOmniId(node.id);
-  // <Container id="el-abc123" padding="16px">
-  writer.emit(`<${node.tag} id="${sanitizedId}"${propsStr}>`);
-  ...
+class CodeWriter {
+  private lines: string[] = [];
+  private _indent = 0;
+  private readonly indentStep = "    ";  // 4 空格（.omni 规范）
+
+  emit(line: string): void;      // 在当前缩进追加
+  indent(): void;                // +1
+  dedent(): void;                // -1
+  blank(): void;                 // 空行
+  toString(): string;            // join("\n") + "\n"
 }
 ```
 
-**ID sanitize 规则**: 非 `[a-zA-Z0-9_-]` 字符替换为 `-`，以数字开头加前缀 `el-`。
+#### 3.7.2 输出结构
 
-#### 3.7.2 fn 节点的 wire 连接
-
-`fn` 节点的 wire 不写端口名（规格要求）：
 ```
-@wire w5  n4.false -> n6       // n6 为 fn 节点，不写端口名
-@wire w6  n6 -> n7.value       // fn 输出到 return，也不写端口名
+// @code-tab type=logic          ← AnnotationInjector 注入
+import omniview;
+import { ... } from "...";
+
+store TodoStore {
+    signal todos: Array = [];
+    getter activeCount: i32 = ...;
+    action addTodo(text: String) {
+        todos.push({ text, done: false });
+    }
+}
+
+component App {
+    @store TodoStore;
+    signal counter: i32 = 0;
+    computed doubled: i32 = counter * 2;
+
+    fn handleClick() -> void {
+        counter = counter + 1;
+    }
+
+    view {
+        // @edit                     ← AnnotationInjector 注入
+        <div id="el-root" class: app>
+            // @edit
+            <h3 id="el-title" class: title>计数器演示</h3>
+            // @edit
+            <button id="el-btn" class: btn @onPress={handleClick}>-</button>
+        </div>
+    }
+    style {
+        .app { max-width: 700px; margin: 0 auto; background: #f9fafb; }
+        .title { font-size: 18px; color: #1f2937; }
+        .btn { width: 40px; height: 40px; border: 2px solid #e5e7eb; border-radius: 8px; }
+    }
+}
 ```
 
-SourceEmitter 需要标记 fn 节点，供 ChainEmitter 正确格式化 wire。
+#### 3.7.3 View 元素生成规则
 
-**代码量**: ~320 行
+**打开标签**:
+```
+<{htmlTag} id="{element.id}" class: {className}[ @onEvent={handler}]*[ attr="value"]*>
+```
+
+**关闭标签**: `</{htmlTag}>`（始终成对，不自闭合）
+
+**内容**: 
+- 有 `contentText` → 文本内容或插值 `{expression}`
+- 有 children → 递归 emit 子 ViewNode
+- 都无 → 空内容 `<div class: cls></div>`
+
+**自闭合**: .omni 不使用 `<tag />` 自闭合语法。用 `<tag></tag>`。
+
+**Props 格式化**（针对 HTML attrs）:
+```
+字符串  → attr="value"    (双引号，转义内部引号)
+数字    → attr={42}
+布尔    → attr={true} 或简写 attr（disabled 等HTML布尔属性）
+表达式  → attr={expression}
+绑定    → bind:attr={signalName}
+```
+
+**事件**: 统一 `@onEvent={handlerFn}` 格式（带 `@` 前缀）
+
+**CSS class**: 统一 `class: className` 格式（冒号分隔）。多个 class 用对象语法 `class: { cls1: true, cls2: condition }`
+
+**插值**: 内容文本中的 `{expression}` 直接输出（不转义大括号）
+
+#### 3.7.4 Style 块生成
+
+```
+style {
+    .{className} { {css-prop}: {css-value}; {css-prop}: {css-value}; ... }
+}
+```
+
+- 每行一个 class 规则
+- CSS 属性使用 kebab-case 名称（由 StyleResolver 转换）
+- CSS 值不加引号（`16px`, `#FFF`, `1px solid #e5e7eb`）
+
+#### 3.7.5 emitComponent 方法
+
+```typescript
+function emitComponent(comp: ComponentDefinition, chains: Map<string, ChainBlock>): void {
+  writer.emit(`component ${comp.name} {`);
+  writer.indent();
+
+  // @store 引用
+  for (const sr of comp.storeRefs) writer.emit(`@store ${sr};`);
+
+  // signals
+  for (const [name, sig] of Object.entries(comp.signals)) {
+    const def = sig.default !== undefined ? ` = ${formatValue(sig.default, sig.type)}` : "";
+    writer.emit(`signal ${name}: ${sig.type}${def};`);
+  }
+
+  // computeds (带 body)
+  for (const [name, comp] of Object.entries(comp.computeds)) {
+    const body = comp.body || "undefined";
+    writer.emit(`computed ${name}: ${comp.type} = ${body};`);
+  }
+
+  // functions (带 @chain 块)
+  for (const fn of comp.fns) {
+    const chain = chains.get(fn.name);
+    if (chain) writer.emit(chain);  // ChainEmitter 产出的 @chain 块
+    const params = fn.params.map(p => `${p.name}: ${p.type}`).join(", ");
+    writer.emit(`fn ${fn.name}(${params}) -> ${fn.returnType} {`);
+    writer.indent();
+    for (const line of fn.body.split("\n")) writer.emit(line);
+    writer.dedent();
+    writer.emit("}");
+    writer.blank();
+  }
+
+  // view
+  if (comp.view) {
+    writer.emit("view {");
+    writer.indent();
+    emitViewNode(comp.view);
+    writer.dedent();
+    writer.emit("}");
+  }
+
+  // style block
+  if (Object.keys(comp.style).length > 0) {
+    writer.emit("style {");
+    writer.indent();
+    for (const [cls, rules] of Object.entries(comp.style)) {
+      const ruleStr = Object.entries(rules).map(([k,v]) => `${k}: ${v};`).join(" ");
+      writer.emit(`.${cls} { ${ruleStr} }`);
+    }
+    writer.dedent();
+    writer.emit("}");
+  }
+
+  writer.dedent();
+  writer.emit("}");
+}
+```
+
+#### 3.7.6 emitViewNode 方法
+
+```typescript
+function emitViewNode(node: ViewNode): void {
+  const style = node.resolvedStyle!;  // 来自 StyleResolver
+  const parts: string[] = [];
+
+  // HTML tag
+  parts.push(`<${style.htmlTag}`);
+
+  // id
+  parts.push(` id="${sanitizeId(node.id)}"`);
+
+  // CSS class
+  parts.push(` class: ${style.cssClassName}`);
+
+  // HTML attrs
+  for (const [attr, val] of Object.entries(style.htmlAttrs)) {
+    parts.push(` ${attr}="${escapeAttr(val)}"`);
+  }
+
+  // bindings
+  for (const [prop, signalName] of Object.entries(style.bindings)) {
+    parts.push(` bind:${prop}={${signalName}}`);
+  }
+
+  // event bindings
+  for (const [evt, handler] of Object.entries(style.eventBindings)) {
+    parts.push(` @${evt}={${handler}}`);
+  }
+
+  const openTag = parts.join("");
+
+  // 内容
+  const hasContent = style.contentText || node.children.length > 0;
+  if (!hasContent) {
+    writer.emit(`${openTag}></${style.htmlTag}>`);
+    return;
+  }
+
+  writer.emit(`${openTag}>`);
+  writer.indent();
+
+  // 文本内容 / 插值
+  if (style.contentText) {
+    writer.emit(style.contentText);  // 如 "Click me" 或 "{count}"
+  }
+
+  // 子元素
+  for (const child of node.children) {
+    emitViewNode(child);
+  }
+
+  writer.dedent();
+  writer.emit(`</${style.htmlTag}>`);
+}
+```
+
+#### 3.7.7 与 ChainEmitter 的协作
+
+SourceEmitter 在生成函数前，检查 `chains: Map<fnName, ChainBlock>`。若存在，先 emit chain 注释块（保证 @chain 紧贴函数，满足规则 P4）。
+
+```typescript
+// SourceEmitter 构造函数
+constructor(
+  private styleMode: "class" = "class",
+  private chains: Map<string, ChainBlock> = new Map(),
+) {}
+```
+
+**代码量**: ~350 行（增加 tag 映射、语法格式化复杂性）
 
 ### 3.8 TokenEmitter — 设计令牌生成器
 
@@ -511,14 +804,14 @@ function generateOmniFiles(options: {
 2. WireAnalyzer: designElements + designWires → bindingResult
 3. StoreExtractor: codeBlocks + codeWires → stores + standaloneSignals
 4. ExpressionLowering: codeBlocks + codeWires → functions + actions + getters
-5. StyleResolver: 各 view element → resolvedStyles
-6. ComponentAssembler: 以上结果 → ComponentDefinition
-7. SourceEmitter: ComponentDefinition → .omni 源码（不含注释）
-8. TokenEmitter: DesignTokens → theme 块
-9. CustomComponentEmitter: 自定义组件 → component 块
-10. ChainEmitter: activeCodeTab.graph → @chain 块（插入函数前）
+5. StyleResolver: 各 view element → ResolvedStyle (htmlTag, cssClassName, cssRules, eventBindings...)
+6. ChainEmitter: activeCodeTab.graph + loweredFunctions → Map<fnName, ChainBlock>
+7. ComponentAssembler: 以上结果 → ComponentDefinition (含 ResolvedStyle + chain 引用)
+8. SourceEmitter: ComponentDefinition + chains → .omni 源码（ChainEmitter 内联在函数前）
+9. TokenEmitter: DesignTokens → theme 块
+10. CustomComponentEmitter: 自定义组件 → component 块
 11. AnnotationInjector.injectCodeTab: → 文件头 @code-tab 声明
-12. AnnotationInjector.injectEditAnnotations: → view 元素 @edit 注解
+12. AnnotationInjector.injectEditAnnotations: → view 元素 @edit 注解（解析源码行，在每个 <tag 前插入）
 13. 返回完整 .omni 源码
 ```
 
@@ -569,11 +862,12 @@ interface ComponentDefinition {
 }
 
 interface ViewNode {
-  id: string;           // 原始 element.id，用于 id="xxx" 和 @edit 映射
-  tag: string;
+  id: string;           // 原始 element.id
+  tag: string;          // 设计系统标签（Button, Container...）
   props: Record<string, unknown>;
   children: ViewNode[];
   kind: "element" | "text" | "interpolation" | "if" | "for" | "slot";
+  resolvedStyle?: ResolvedStyle;  // StyleResolver 填充
   isFolded?: boolean;
   renderMode?: "dom" | "canvas";
   // @if
@@ -618,10 +912,14 @@ interface BindingResult {
 
 // StyleResolver 产出
 interface ResolvedStyle {
-  componentProps: Record<string, PropValue>;
-  inlineStyles: Record<string, string>;
-  classNames: string[];
-  bindings: Record<string, string>;
+  htmlTag: string;                          // 映射后的 HTML 标签名
+  cssClassName: string;                     // CSS class 名（基于 element.id sanitize）
+  contentText?: string;                     // 标签间文本（来自 propsToContent）
+  htmlAttrs: Record<string, string>;        // HTML 属性（src, href, type, placeholder...）
+  eventBindings: Record<string, string>;    // @onPress → handlerFn
+  bindings: Record<string, string>;         // bind:prop → signalName
+  cssRules: Record<string, string>;         // CSS 属性（kebab-case，如 "border-radius": "8px"）
+  usedClassNames: string[];                 // 此元素引用的 CSS class 名
 }
 
 // ExpressionLowering 产出
@@ -661,20 +959,20 @@ interface ChainBlock {
 
 | 模块 | 估算行数 | 变化 |
 |------|---------|------|
-| types.ts | 150 | +30 |
+| types.ts | 160 | +40 (ResolvedStyle 重定义) |
 | view-tree-builder.ts | 40 | — |
 | wire-analyzer.ts | 50 | — |
 | store-extractor.ts | 150 | — |
 | expression-lowering.ts | 350 | — |
-| style-resolver.ts | 30 | — |
+| style-resolver.ts | 80 | +50 (TAG_HTML_MAP + CSS 映射 + class 生成) |
 | component-assembler.ts | 80 | — |
-| source-emitter.ts | 320 | +20 (id 生成) |
+| source-emitter.ts | 350 | +30 (class:语法/@事件/HTML标签/内容文本/style块) |
 | token-emitter.ts | 30 | — |
-| custom-component-emitter.ts | 60 | +10 |
-| chain-emitter.ts | 200 | **新增** |
-| annotation-injector.ts | 150 | +140 (从最小标记升级) |
-| pipeline.ts (index.ts) | 120 | +40 (多文件支持) |
-| **总计** | **~1730** | |
+| custom-component-emitter.ts | 60 | — |
+| chain-emitter.ts | 200 | 新增 |
+| annotation-injector.ts | 150 | +140 |
+| pipeline.ts (index.ts) | 120 | +40 |
+| **总计** | **~1820** |
 
 ---
 
@@ -690,13 +988,24 @@ interface ChainBlock {
   ├── import omniview;                 ← 常规代码
   ├── store TodoStore { ... }          ← 常规代码
   ├── component App {
-  │     // @edit                       ← 编辑器元素标记
-  │     <Container id="el-root">
-  │       // @edit folded              ← 编辑器折叠状态
-  │       <Button id="el-btn" onPress={handleClick}>
-  │     </Container>
+  │     @store TodoStore;
+  │     signal counter: i32 = 0;
   │
-  │     // ════════════════════        ← 编辑器链标记
+  │     fn handleClick() -> void { ... }
+  │
+  │     view {
+  │         // @edit                 ← 编辑器元素标记
+  │         <div id="el-root" class: app>
+  │             // @edit folded      ← 编辑器折叠状态
+  │             <button id="el-btn" class: btn @onPress={handleClick}>Click</button>
+  │         </div>
+  │     }
+  │     style {
+  │         .app { max-width: 700px; margin: 0 auto; }
+  │         .btn { width: 40px; border-radius: 8px; }
+  │     }
+  │
+  │     // ════════════════════      ← 编辑器链标记
   │     // @chain handleClick
   │     //   @node n1  ...
   │     //   @wire w1  ...
@@ -775,6 +1084,45 @@ const handleCompile = useCallback(async () => {
 每个模块纯函数，输入画布状态 → 断言输出。
 
 ```typescript
+// source-emitter.test.ts — 验证 View 元素输出
+test("Button → <button> with class: and @onPress", () => {
+  const comp: ComponentDefinition = {
+    name: "Counter",
+    signals: { count: { type: "i32", default: 0 } },
+    computeds: {},
+    storeRefs: [],
+    events: [],
+    fns: [{ name: "inc", params: [], returnType: "void", body: "count = count + 1;" }],
+    view: {
+      id: "el-btn",
+      tag: "Button",
+      props: { label: "+" },
+      children: [],
+      kind: "element",
+      resolvedStyle: {
+        htmlTag: "button",
+        cssClassName: "btn",
+        contentText: "+",
+        htmlAttrs: {},
+        eventBindings: { onPress: "inc" },
+        bindings: {},
+        cssRules: { "width": "40px", "border-radius": "8px" },
+        usedClassNames: ["btn"],
+      },
+    },
+    style: { btn: { width: "40px", "border-radius": "8px" } },
+    lifecycles: {},
+  };
+
+  const emitter = new SourceEmitter();
+  const output = emitter.emitComponent(comp, new Map());
+
+  expect(output).toContain('<button id="el-btn" class: btn @onPress={inc}>');
+  expect(output).toContain('+');
+  expect(output).toContain('</button>');
+  expect(output).toContain('.btn { width: 40px; border-radius: 8px; }');
+});
+
 // chain-emitter.test.ts
 test("customFn → @chain block with @node and @wire", () => {
   const tab: CodeTab = {
