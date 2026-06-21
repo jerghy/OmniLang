@@ -967,12 +967,14 @@ impl<'a> Parser<'a> {
             }
         }
 
+        let if_span = self.peek_span();
         Ok(ViewNode::IfDirective(IfDirective {
             condition,
             body,
             else_ifs,
             else_body,
             transition_mode: None,
+            span: if_span,
         }))
     }
 
@@ -981,6 +983,19 @@ impl<'a> Parser<'a> {
         let item_name = self.expect_ident("expected item variable name")?;
         self.expect_token(TokenKind::In, "expected 'in'")?;
         let iterable = self.parse_expr()?;
+
+        // Optional key={expr} for identity tracking
+        let key_expr = if self.peek_ident_value().as_deref() == Some("key") {
+            self.advance(); // 'key'
+            self.expect_token(TokenKind::Eq, "expected '='")?;
+            self.expect_token(TokenKind::LBrace, "expected '{'")?;
+            let expr = self.parse_expr()?;
+            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+            Some(expr)
+        } else {
+            None
+        };
+
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
@@ -1001,11 +1016,14 @@ impl<'a> Parser<'a> {
             empty_body = Some(b);
         }
 
+        let for_span = self.peek_span();
         Ok(ViewNode::ForDirective(ForDirective {
             item_name,
             iterable,
             body,
             empty_body,
+            key_expr,
+            span: for_span,
         }))
     }
 

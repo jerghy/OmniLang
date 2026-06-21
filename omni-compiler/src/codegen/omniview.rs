@@ -1221,10 +1221,22 @@ function __omni_bindText(nid) {
         ));
         self.js.push_str("  if (!tpl || !ctr) return;\n");
 
-        // Re-render loop: clear container, clone template for each item
-        self.js.push_str("  // Clear existing rendered items\n");
-        self.js
-            .push_str("  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n");
+        // Re-render loop
+        // If key_expr is present, use key-based identity tracking for enter/leave animations.
+        // Otherwise, clear and re-render all items.
+        let has_key = list.key_expr.is_some();
+        if has_key {
+            let key_js = self.expr_to_js(list.key_expr.as_ref().unwrap());
+            self.js.push_str("  // Key-based identity tracking\n");
+            self.js.push_str(&format!("  const keyFn = (item) => {{ try {{ return String({key_js}); }} catch(e) {{ return null; }} }};\n", key_js = key_js));
+            self.js.push_str("  ctr._forKeys = ctr._forKeys || new Map();\n");
+            self.js.push_str("  const oldKeys = new Set(ctr._forKeys.keys());\n");
+            self.js.push_str("  const newKeys = new Set();\n");
+        } else {
+            self.js.push_str("  // Clear existing rendered items\n");
+            self.js
+                .push_str("  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n");
+        }
 
         // Handle empty state
         if list.empty_body.is_some() {
@@ -1248,8 +1260,21 @@ function __omni_bindText(nid) {
         // Iterate and clone
         self.js
             .push_str(&format!("  data.forEach(({}, _idx) => {{\n", item_var));
-        self.js
-            .push_str("    const clone = tpl.content.firstElementChild.cloneNode(true);\n");
+
+        if has_key {
+            self.js.push_str("    const _key = keyFn(item);\n");
+            self.js.push_str("    if (_key != null) newKeys.add(_key);\n");
+            self.js.push_str("    // Reuse existing element if key matches\n");
+            self.js.push_str("    let clone = _key != null ? ctr._forKeys.get(_key) : null;\n");
+            self.js.push_str("    const isNew = !clone;\n");
+            self.js.push_str("    if (isNew) {\n");
+            self.js.push_str("      clone = tpl.content.firstElementChild.cloneNode(true);\n");
+            self.js.push_str("      if (_key != null) { ctr._forKeys.set(_key, clone); clone.setAttribute('data-for-key', _key); }\n");
+            self.js.push_str("    }\n");
+        } else {
+            self.js
+                .push_str("    const clone = tpl.content.firstElementChild.cloneNode(true);\n");
+        }
         self.js
             .push_str("    clone.setAttribute('data-for-item', _idx);\n");
         self.js.push_str("    // Bind text interpolation markers\n");
@@ -1297,8 +1322,35 @@ function __omni_bindText(nid) {
         self.js.push_str("        }\n");
         self.js.push_str("      });\n");
         self.js.push_str("    });\n");
-        self.js.push_str("    ctr.appendChild(clone);\n");
+        if has_key {
+            self.js.push_str("    if (isNew) { ctr.appendChild(clone); }\n");
+        } else {
+            self.js.push_str("    ctr.appendChild(clone);\n");
+        }
         self.js.push_str("  });\n");
+
+        // Key-based cleanup: remove items whose keys disappeared
+        if has_key {
+            self.js.push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
+            self.js.push_str("  oldKeys.forEach(key => {\n");
+            self.js.push_str("    if (!newKeys.has(key)) {\n");
+            self.js.push_str("      const el = ctr._forKeys.get(key);\n");
+            self.js.push_str("      if (el) {\n");
+            self.js.push_str("        const leavingNid = el.getAttribute('data-nid');\n");
+            self.js.push_str("        if (leavingNid) {\n");
+            self.js.push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
+            self.js.push_str("          if (player) {\n");
+            self.js.push_str("            player.play().then(() => { el.remove(); ctr._forKeys.delete(key); });\n");
+            self.js.push_str("          } else {\n");
+            self.js.push_str("            el.remove(); ctr._forKeys.delete(key);\n");
+            self.js.push_str("          }\n");
+            self.js.push_str("        } else {\n");
+            self.js.push_str("          el.remove(); ctr._forKeys.delete(key);\n");
+            self.js.push_str("        }\n");
+            self.js.push_str("      }\n");
+            self.js.push_str("    }\n");
+            self.js.push_str("  });\n");
+        }
         // Attach delegated event listeners on the container for @for item events.
         // Elements inside the template have data-event-* attributes (e.g.
         // data-event-click="fn:handlerName") that we read via event bubbling.
@@ -2210,6 +2262,51 @@ function __omni_bindText(nid) {
         }
         if playback.respect_reduced_motion {
             parts.push("\"respectReducedMotion\": true".into());
+        }
+        if let Some(ref when) = playback.when {
+            let when_str = match when {
+                WhenValue::Idle => "beforeChildren",
+                WhenValue::Active => "afterChildren",
+                WhenValue::IdleOrActive => "withChildren",
+            };
+            parts.push(format!("\"when\": \"{}\"", when_str));
+        }
+        if let Some(ref dc) = playback.delay_children {
+            let js = self.expr_to_js(dc);
+            parts.push(format!("\"delayChildren\": {}", js));
+        }
+        if let Some(ref sc) = playback.stagger_children {
+            let js = self.expr_to_js(sc);
+            parts.push(format!("\"staggerChildren\": {}", js));
+        }
+        if let Some(ref sf) = playback.stagger_from {
+            let from_str = match sf {
+                StaggerDirection::First => "start",
+                StaggerDirection::Last => "end",
+                StaggerDirection::Center => "center",
+                StaggerDirection::Edges => "edges",
+                StaggerDirection::Random => "edges",
+            };
+            parts.push(format!("\"staggerFrom\": \"{}\"", from_str));
+        }
+        if let Some(ref rd) = playback.repeat_delay {
+            let js = self.expr_to_js(rd);
+            parts.push(format!("\"repeatDelay\": {}", js));
+        }
+        if playback.repeat_refresh {
+            parts.push("\"repeatRefresh\": true".into());
+        }
+        if let Some(ref ts) = playback.time_scale {
+            let js = self.expr_to_js(ts);
+            parts.push(format!("\"timeScale\": {}", js));
+        }
+        if let Some(ref interrupt) = playback.interrupt {
+            let int_str = match interrupt {
+                InterruptValue::Compose => "compose",
+                InterruptValue::Cancel => "cancel",
+                InterruptValue::Finish => "finish",
+            };
+            parts.push(format!("\"interrupt\": \"{}\"", int_str));
         }
         parts
     }

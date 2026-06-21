@@ -492,6 +492,12 @@ pub enum ElementProp {
     InViewRepeat(Expr),
     /// @in-view-threshold={number}
     InViewThreshold(Expr),
+    /// when: — play order on @enter/@leave
+    When(String),
+    /// delayChildren: — extra delay before children
+    DelayChildren(Expr),
+    /// staggerChildren: — auto-stagger shorthand
+    StaggerChildren(Expr),
 }
 
 #[derive(Debug, Clone)]
@@ -515,6 +521,7 @@ pub struct IfDirective {
     pub else_ifs: Vec<(Expr, Vec<ViewNode>)>,
     pub else_body: Option<Vec<ViewNode>>,
     pub transition_mode: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -523,6 +530,8 @@ pub struct ForDirective {
     pub iterable: Expr,
     pub body: Vec<ViewNode>,
     pub empty_body: Option<Vec<ViewNode>>,
+    pub key_expr: Option<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
