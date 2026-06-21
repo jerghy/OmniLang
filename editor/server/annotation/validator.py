@@ -51,19 +51,19 @@ def _validate_position_rules(
 
     # P6: Within each chain, all @node must come before all @wire
     for chain in file.chains:
-        if not chain.nodes or not chain.wires:
-            continue
-        min_wire_line = min(w.line_number for w in chain.wires)
-        for node in chain.nodes:
-            if node.line_number > min_wire_line:
-                errors.append(AnnotationError(
-                    code=AnnotationErrorCode.NODE_AFTER_WIRE,
-                    message=f"@node {node.id} (line {node.line_number}) must come before @wire in chain '{chain.name}'",
-                    line=node.line_number,
-                ))
-                break
+        if chain.nodes and chain.wires:
+            min_wire_line = min(w.line_number for w in chain.wires)
+            for node in chain.nodes:
+                if node.line_number > min_wire_line:
+                    errors.append(AnnotationError(
+                        code=AnnotationErrorCode.NODE_AFTER_WIRE,
+                        message=f"@node {node.id} (line {node.line_number}) must come before @wire in chain '{chain.name}'",
+                        line=node.line_number,
+                    ))
+                    break
 
-        # P4: No declarations between @chain end and its function
+    # P4: No declarations between @chain end and its function
+    for chain in file.chains:
         fn_start_line: int | None = None
         for i in range(chain.end_line, len(lines)):
             stripped = lines[i].strip()
@@ -203,7 +203,7 @@ def _validate_completeness_rules(
                 prev_stripped = lines[prev_line].strip()
                 if not prev_stripped.startswith("// @edit"):
                     errors.append(AnnotationError(
-                        code=AnnotationErrorCode.EXTRA_EDIT,
+                        code=AnnotationErrorCode.MISSING_EDIT,
                         message=f"Element '<{elem_m.group(1)}>' at line {i + 1} missing // @edit annotation",
                         line=i + 1,
                     ))

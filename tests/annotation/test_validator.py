@@ -34,6 +34,19 @@ class TestPositionRules:
         errors = validate_annotations(file)
         assert any(e.code == AnnotationErrorCode.CODE_TAB_NOT_FIRST for e in errors)
 
+    def test_P4_declaration_between_chain_and_fn(self):
+        source = """// @code-tab type=logic
+// ══════
+// @chain test
+//   @node n1  add  pos=50,50
+// ══════
+signal foo: i32 = 0;
+fn test() { }
+"""
+        result = parse_annotations(source, "test.omni")
+        errors = validate_annotations(result)
+        assert any(e.code == AnnotationErrorCode.DECLARATION_BETWEEN_CHAIN_AND_FN for e in errors)
+
     def test_P6_nodes_must_come_before_wires(self):
         source = """// @code-tab type=logic
 // ══════
@@ -79,6 +92,21 @@ fn test() { }
         errors = validate_annotations(result)
         assert any(e.code == AnnotationErrorCode.DUPLICATE_NODE_ID for e in errors)
 
+    def test_I3_duplicate_wire_ids(self):
+        source = """// @code-tab type=logic
+// ══════
+// @chain test
+//   @node n1  getVariable  name=x  pos=50,50
+//   @node n2  return  pos=200,50
+//   @wire w1  n1.value -> n2.value
+//   @wire w1  n1.value -> n2.value
+// ══════
+fn test() { }
+"""
+        result = parse_annotations(source, "test.omni")
+        errors = validate_annotations(result)
+        assert any(e.code == AnnotationErrorCode.DUPLICATE_WIRE_ID for e in errors)
+
     def test_I4_chain_name_mismatch_fn(self):
         source = """// @code-tab type=logic
 // ══════
@@ -106,6 +134,23 @@ fn test() { }
         # signal requires 'type'
         assert any(e.code == AnnotationErrorCode.MISSING_REQUIRED_ATTR for e in errors)
 
+    def test_C3_incomplete_wire(self):
+        from editor.server.annotation.types import (
+            AnnotationFile, Chain, NodeEntry, WireEntry, CodeTabType, AnnotationErrorCode,
+        )
+        ann = AnnotationFile(
+            filepath="test.omni",
+            code_tab_type=CodeTabType.LOGIC,
+            raw_source="// @code-tab type=logic\n// ══════\n// @chain test\n//   @node n1  add  pos=50,50\n//   @wire w1  n1 ->\n// ══════\nfn test() { }\n",
+            chains=[Chain(
+                name="test", start_line=3, end_line=7,
+                nodes=[NodeEntry(id="n1", tag="add", pos_x=50, pos_y=50, line_number=4)],
+                wires=[WireEntry(id="w1", from_id="n1", to_id="", line_number=5)],
+            )],
+        )
+        errors = validate_annotations(ann)
+        assert any(e.code == AnnotationErrorCode.INCOMPLETE_WIRE for e in errors)
+
     def test_C4_missing_edit_for_element(self):
         source = """// @code-tab type=logic
 component Test {
@@ -119,7 +164,7 @@ component Test {
 """
         result = parse_annotations(source, "test.omni")
         errors = validate_annotations(result)
-        assert any(e.code == AnnotationErrorCode.EXTRA_EDIT for e in errors)
+        assert any(e.code == AnnotationErrorCode.MISSING_EDIT for e in errors)
 
 
 class TestConsistencyRules:
@@ -161,6 +206,45 @@ fn test() { }
         result = parse_annotations(source, "test.omni")
         errors = validate_annotations(result)
         assert any(e.code == AnnotationErrorCode.WIRE_PORT_INVALID for e in errors)
+
+    def test_S3_invalid_code_tab_type(self):
+        from editor.server.annotation.types import AnnotationFile, AnnotationErrorCode
+
+        class _FakeType:
+            value = "invalid_type"
+
+        ann = AnnotationFile(
+            filepath="test.omni",
+            raw_source="// @code-tab type=invalid\n",
+            code_tab_line=1,
+        )
+        ann.code_tab_type = _FakeType()  # type: ignore
+        errors = validate_annotations(ann)
+        assert any(e.code == AnnotationErrorCode.INVALID_CODE_TAB_TYPE for e in errors)
+
+
+class TestFormatRules:
+    def test_F3_unquoted_space_value(self):
+        from editor.server.annotation.types import (
+            AnnotationFile, Chain, NodeEntry, CodeTabType, AnnotationErrorCode,
+        )
+        node = NodeEntry(
+            id="n1", tag="signal",
+            attrs={"name": "hello world", "type": "i32"},
+            pos_x=50, pos_y=50, line_number=4,
+        )
+        chain = Chain(
+            name="test", start_line=3, end_line=7,
+            nodes=[node],
+        )
+        ann = AnnotationFile(
+            filepath="test.omni",
+            code_tab_type=CodeTabType.LOGIC,
+            raw_source="// @code-tab type=logic\n// ══════\n// @chain test\n//   @node n1  signal  name=hello world  type=i32  pos=50,50\n// ══════\nfn test() { }\n",
+        )
+        ann.chains = [chain]
+        errors = validate_annotations(ann)
+        assert any(e.code == AnnotationErrorCode.UNQUOTED_SPACE_VALUE for e in errors)
 
 
 class TestValidationPasses:
