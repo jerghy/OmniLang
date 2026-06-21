@@ -1288,6 +1288,14 @@ mod tests {
             construction_kind: "tag-mapping".into(),
             source_line: 0,
             source_col: 0,
+            motion_triggers: vec![],
+            states: None,
+            paused_override: None,
+            driven_by: None,
+            hover_reverse: None,
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
         };
         assert_eq!(format_view_tree(&ViewTree::Element(el)), "Container()");
     }
@@ -1308,6 +1316,14 @@ mod tests {
             construction_kind: "tag-mapping".into(),
             source_line: 0,
             source_col: 0,
+            motion_triggers: vec![],
+            states: None,
+            paused_override: None,
+            driven_by: None,
+            hover_reverse: None,
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el));
         assert_eq!(expr, "Container(child: Text('Hello'))");
@@ -1332,6 +1348,14 @@ mod tests {
             construction_kind: "tag-mapping".into(),
             source_line: 0,
             source_col: 0,
+            motion_triggers: vec![],
+            states: None,
+            paused_override: None,
+            driven_by: None,
+            hover_reverse: None,
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el));
         assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
@@ -1363,6 +1387,14 @@ mod tests {
             construction_kind: "tag-mapping".into(),
             source_line: 0,
             source_col: 0,
+            motion_triggers: vec![],
+            states: None,
+            paused_override: None,
+            driven_by: None,
+            hover_reverse: None,
+            in_view_once: None,
+            in_view_repeat: None,
+            in_view_threshold: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el));
         assert!(expr.contains("ElevatedButton("));
@@ -1464,6 +1496,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1547,6 +1581,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1608,6 +1644,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1657,6 +1695,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1706,6 +1746,8 @@ mod tests {
                 event_names: vec![],
                 view: None,
                 styles: vec![],
+                motions: vec![],
+                timelines: vec![],
             },
         );
         let ir = make_ir(components);
@@ -1869,6 +1911,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1978,6 +2022,8 @@ mod tests {
             event_names: vec![],
             view: None,
             styles: vec![],
+            motions: vec![],
+            timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),

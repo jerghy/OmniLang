@@ -298,6 +298,9 @@ pub struct ConditionalBranch {
 pub struct ConditionalIntent {
     pub branches: Vec<ConditionalBranch>,
     pub fallback: Option<ViewTree>,
+    /// Transition mode for conditional rendering: "sync" | "wait"
+    #[serde(default)]
+    pub transition_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -335,6 +338,30 @@ pub struct ElementIR {
     pub source_line: u32,
     #[serde(default)]
     pub source_col: u32,
+    /// Motion animation triggers: on: hover, on: click, etc.
+    #[serde(default)]
+    pub motion_triggers: Vec<TriggerIntent>,
+    /// States map: states: { visible: { ... }, hidden: { ... } }
+    #[serde(default)]
+    pub states: Option<StatesIR>,
+    /// Paused override for animations
+    #[serde(default)]
+    pub paused_override: Option<bool>,
+    /// Driven-by expression for animation
+    #[serde(default)]
+    pub driven_by: Option<ExprIR>,
+    /// Hover reverse animation name
+    #[serde(default)]
+    pub hover_reverse: Option<String>,
+    /// InView trigger: once expression
+    #[serde(default)]
+    pub in_view_once: Option<ExprIR>,
+    /// InView trigger: repeat expression
+    #[serde(default)]
+    pub in_view_repeat: Option<ExprIR>,
+    /// InView trigger: threshold expression
+    #[serde(default)]
+    pub in_view_threshold: Option<ExprIR>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -401,6 +428,12 @@ pub struct ComponentIR {
     pub event_names: Vec<String>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
+    /// Motion animation definitions (@motion blocks)
+    #[serde(default)]
+    pub motions: Vec<MotionIntent>,
+    /// Timeline animation definitions (@timeline blocks)
+    #[serde(default)]
+    pub timelines: Vec<TimelineIntent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -460,6 +493,210 @@ impl IRProgram {
             .map(|(k, v)| (k.as_str(), v))
             .collect()
     }
+}
+
+// ═══════════════════════════════════════════════════════
+// Motion / Animation IR
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MotionIntent {
+    pub name: String,
+    pub body: MotionBodyIR,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MotionBodyIR {
+    Keyframe(KeyframeIR),
+    Timeline(TimelineIR),
+    CallbackOnly(CallbackBodyIR),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyframeIR {
+    pub stops: Vec<KeyframeStopIR>,
+    pub over: ExprIR,
+    pub ease: Option<EasingIR>,
+    pub color_space: Option<String>,
+    pub playback: PlaybackIR,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyframeStopIR {
+    pub position: f64,
+    pub properties: HashMap<String, ExprIR>,
+    pub ease: Option<EasingIR>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineIR {
+    pub items: Vec<TimelineItemIR>,
+    pub playback: PlaybackIR,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineItemIR {
+    pub kind: TimelineItemKindIR,
+    pub connector: ConnectorIR,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TimelineItemKindIR {
+    Direction {
+        dir: DirectionIR,
+        properties: HashMap<String, ExprIR>,
+        over: ExprIR,
+        ease: Option<EasingIR>,
+        delay: Option<ExprIR>,
+        color_space: Option<String>,
+        start: Option<String>,
+    },
+    Set(Vec<(String, ExprIR)>),
+    MotionRef(String),
+    Stagger(Box<MotionExprIR>, StaggerTimingIR, StaggerDirection),
+    Label(String, Option<ExprIR>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DirectionIR { To, FromTo }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConnectorIR { None, Then, With }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallbackBodyIR {
+    pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
+    pub over: ExprIR,
+    pub playback: PlaybackIR,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CallbackKindIR { OnStart, OnUpdate, OnComplete, OnRepeat, OnInterrupt }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaybackIR {
+    pub loop_count: Option<LoopValue>,
+    pub direction: Option<DirectionValue>,
+    pub fill: Option<FillValue>,
+    pub delay: Option<ExprIR>,
+    pub paused: bool,
+    pub repeat_delay: Option<ExprIR>,
+    pub repeat_refresh: bool,
+    pub time_scale: Option<ExprIR>,
+    pub interrupt: Option<InterruptValue>,
+    pub respect_reduced_motion: bool,
+    pub when: Option<WhenValue>,
+    pub delay_children: Option<ExprIR>,
+    pub stagger_children: Option<ExprIR>,
+    pub stagger_from: Option<StaggerDirection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EasingIR {
+    Named(String),
+    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
+    Spring { tension: f64, friction: f64, velocity: Option<f64> },
+    Back { intensity: f64, direction: Option<String> },
+    Elastic { amplitude: f64, period: f64, direction: Option<String> },
+    Steps { count: u32, direction: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerIntent {
+    pub kind: TriggerKind,
+    pub motion_ref: Option<String>,
+    pub inline_motion: Option<MotionBodyIR>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TriggerKind {
+    Enter, Leave, Hover, Unhover, Press, Focus,
+    Animate, InView, Scroll,
+    DragHorizontal, DragVertical,
+    Timeline,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatesIR {
+    pub states: HashMap<String, StateTweenIR>,
+    pub signal: Option<ExprIR>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateTweenIR {
+    pub properties: HashMap<String, ExprIR>,
+    pub over: Option<ExprIR>,
+    pub ease: Option<EasingIR>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MotionExprIR {
+    Ref(String),
+    Inline(MotionBodyIR),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineIntent {
+    pub name: String,
+    pub items: Vec<TimelineItemIR>,
+}
+
+/// Value type for loop_count.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LoopValue {
+    Infinite,
+    Count(u32),
+}
+
+/// Value type for playback direction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DirectionValue {
+    Normal,
+    Reverse,
+    Alternate,
+    AlternateReverse,
+}
+
+/// Value type for fill mode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FillValue {
+    None,
+    Forwards,
+    Backwards,
+    Both,
+}
+
+/// Value type for interrupt behavior.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InterruptValue {
+    Compose,
+    Cancel,
+    Finish,
+}
+
+/// Value type for when condition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WhenValue {
+    Idle,
+    Active,
+    IdleOrActive,
+}
+
+/// Value type for stagger direction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StaggerDirection {
+    First,
+    Last,
+    Center,
+    Edges,
+    Random,
+}
+
+/// Timing parameters for stagger effects.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaggerTimingIR {
+    pub each: ExprIR,
+    pub from: Option<StaggerDirection>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -780,6 +1017,8 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
         view,
         styles,
+        motions: vec![],
+        timelines: vec![],
     }
 }
 
@@ -1049,6 +1288,14 @@ fn lower_view_node(
                 class_map_bindings: class_map_bindings_from_prop,
                 source_line: el.span.line,
                 source_col: el.span.col,
+                motion_triggers: vec![],
+                states: None,
+                paused_override: None,
+                driven_by: None,
+                hover_reverse: None,
+                in_view_once: None,
+                in_view_repeat: None,
+                in_view_threshold: None,
             })
         }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
@@ -1077,6 +1324,14 @@ fn lower_view_node(
                     construction_kind: "conditional".into(),
                     source_line: 0,
                     source_col: 0,
+                    motion_triggers: vec![],
+                    states: None,
+                    paused_override: None,
+                    driven_by: None,
+                    hover_reverse: None,
+                    in_view_once: None,
+                    in_view_repeat: None,
+                    in_view_threshold: None,
                 })),
             })
             .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
@@ -1099,6 +1354,14 @@ fn lower_view_node(
                         construction_kind: "conditional".into(),
                         source_line: 0,
                         source_col: 0,
+                        motion_triggers: vec![],
+                        states: None,
+                        paused_override: None,
+                        driven_by: None,
+                        hover_reverse: None,
+                        in_view_once: None,
+                        in_view_repeat: None,
+                        in_view_threshold: None,
                     })),
                 }
             }))
@@ -1122,10 +1385,18 @@ fn lower_view_node(
                     construction_kind: "conditional".into(),
                     source_line: 0,
                     source_col: 0,
+                    motion_triggers: vec![],
+                    states: None,
+                    paused_override: None,
+                    driven_by: None,
+                    hover_reverse: None,
+                    in_view_once: None,
+                    in_view_repeat: None,
+                    in_view_threshold: None,
                 })
             });
 
-            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback }))
+            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback, transition_mode: None }))
         }
         ViewNode::ForDirective(for_dir) => {
             let lower_body = |nodes: &[ViewNode]| -> Option<ViewTree> {
@@ -1149,6 +1420,14 @@ fn lower_view_node(
                         construction_kind: "list".into(),
                         source_line: 0,
                         source_col: 0,
+                        motion_triggers: vec![],
+                        states: None,
+                        paused_override: None,
+                        driven_by: None,
+                        hover_reverse: None,
+                        in_view_once: None,
+                        in_view_repeat: None,
+                        in_view_threshold: None,
                     }))
                 }
             };
