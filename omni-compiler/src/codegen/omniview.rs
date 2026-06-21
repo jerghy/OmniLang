@@ -1891,6 +1891,11 @@ function __omni_bindText(nid) {
             ));
         }
 
+        // states: — multi-state animation map (reserved or custom signal-driven)
+        if let Some(ref states_ir) = el.states {
+            self.emit_states_js(&nid, states_ir);
+        }
+
         // Record source map entry
         self.source_map.push(SourceMapEntry {
             node_id: nid.clone(),
@@ -2152,6 +2157,93 @@ function __omni_bindText(nid) {
             parts.push("\"respectReducedMotion\": true".into());
         }
         parts
+    }
+
+    /// Emit JS for states: { ... } multi-state animation on an element.
+    /// Two modes:
+    ///   - Reserved names (idle, hover, pressed): auto-bind mouse/touch events
+    ///   - Custom names (loading, success, error): driven by `on: {signal}` via __omni_effect
+    fn emit_states_js(&mut self, nid: &str, states_ir: &StatesIR) {
+        let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
+        let is_reserved = state_names.iter().all(|n| matches!(*n, "idle" | "hover" | "pressed"));
+
+        if is_reserved {
+            // Emit mouse event bindings for idle/hover/pressed state transitions
+            self.mount_js.push_str(&format!(
+                "// states: reserved (idle/hover/pressed)\n\
+                 (function() {{\n\
+                 \x20 const el = __omni_el(\"{nid}\");\n\
+                 \x20 if (!el) return;\n\
+                 \x20 let _state = \"idle\";\n\
+                 \x20 function _transition(state) {{\n\
+                 \x20\x20 if (state === _state) return;\n\
+                 \x20\x20 const targets = __omni_states_{nid}[state];\n\
+                 \x20\x20 if (!targets) return;\n\
+                 \x20\x20 const from = {{}};\n\
+                 \x20\x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
+                 \x20\x20 el.animate([from, targets.to], {{\n\
+                 \x20\x20\x20 duration: targets.over || 150,\n\
+                 \x20\x20\x20 easing: targets.ease || \"ease-out\",\n\
+                 \x20\x20\x20 fill: \"forwards\"\n\
+                 \x20\x20 }});\n\
+                 \x20\x20 _state = state;\n\
+                 \x20 }}\n\
+                 \x20 el.addEventListener(\"mouseenter\", () => _transition(\"hover\"));\n\
+                 \x20 el.addEventListener(\"mouseleave\", () => _transition(\"idle\"));\n\
+                 \x20 el.addEventListener(\"mousedown\", () => _transition(\"pressed\"));\n\
+                 \x20 el.addEventListener(\"mouseup\", () => _transition(\"hover\"));\n\
+                 }})();\n",
+                nid = nid
+            ));
+        } else if let Some(ref signal_expr) = states_ir.signal {
+            // Custom states driven by signal value
+            let signal_js = self.expr_to_js(signal_expr);
+            let signal_access = if self.signal_names.contains(&signal_js) {
+                format!("{}.value", signal_js)
+            } else {
+                signal_js.clone()
+            };
+            self.mount_js.push_str(&format!(
+                "// states: custom (signal-driven)\n\
+                 __omni_effect(() => {{\n\
+                 \x20 const el = __omni_el(\"{nid}\");\n\
+                 \x20 if (!el) return;\n\
+                 \x20 const stateVal = String({sig});\n\
+                 \x20 const targets = __omni_states_{nid}[stateVal];\n\
+                 \x20 if (!targets) return;\n\
+                 \x20 const from = {{}};\n\
+                 \x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
+                 \x20 el.animate([from, targets.to], {{\n\
+                 \x20\x20 duration: targets.over || 300,\n\
+                 \x20\x20 easing: targets.ease || \"ease-out\",\n\
+                 \x20\x20 fill: \"forwards\"\n\
+                 \x20 }});\n\
+                 }});\n",
+                nid = nid,
+                sig = signal_access
+            ));
+        }
+
+        // Emit the state targets lookup table
+        self.js.push_str(&format!(
+            "var __omni_states_{nid} = {{\n",
+            nid = nid
+        ));
+        for (state_name, tween) in &states_ir.states {
+            let over_ms = tween.over.as_ref().map_or("150".to_string(), |o| self.expr_to_js(o));
+            let ease_str = tween.ease.as_ref().map_or("\"ease-out\"".to_string(), |e| self.easing_to_js(e));
+            let props: Vec<String> = tween.properties.iter().map(|(k, v)| {
+                format!("\"{}\": \"{}\"", k, self.expr_to_js(v))
+            }).collect();
+            self.js.push_str(&format!(
+                "  \"{name}\": {{ to: {{ {props} }}, over: {over}, ease: {ease} }},\n",
+                name = state_name,
+                props = props.join(", "),
+                over = over_ms,
+                ease = ease_str
+            ));
+        }
+        self.js.push_str("};\n");
     }
 
     /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
