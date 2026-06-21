@@ -1958,7 +1958,7 @@ function __omni_bindText(nid) {
 
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         if !el.motion_triggers.is_empty() {
-            self.emit_motion_triggers_for_element(&nid, &el.motion_triggers);
+            self.emit_motion_triggers_for_element(&nid, &el);
         }
 
         // @driven-by — external progress control for animations on this element
@@ -2403,9 +2403,9 @@ function __omni_bindText(nid) {
     fn emit_motion_triggers_for_element(
         &mut self,
         nid: &str,
-        triggers: &[TriggerIntent],
+        el: &ElementIR,
     ) {
-        for trigger in triggers {
+        for trigger in &el.motion_triggers {
             let trigger_str = match trigger.kind {
                 TriggerKind::Enter => "enter",
                 TriggerKind::Leave => "leave",
@@ -2521,6 +2521,99 @@ function __omni_bindText(nid) {
                             trigger = trigger_str
                         ));
                     }
+                    TriggerKind::InView => {
+                        // @in-view: use IntersectionObserver to play animation when element enters viewport
+                        let repeat_val = match &el.in_view_repeat {
+                            Some(expr) => {
+                                let js = self.expr_to_js(expr);
+                                if js == "true" { true } else { false }
+                            }
+                            None => false,
+                        };
+                        // Default: play once (disconnect after fire). Only repeat if @in-view-repeat={true}
+                        let should_disconnect = if repeat_val { "false" } else { "true" };
+                        let threshold_val = match &el.in_view_threshold {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @in-view trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 const threshold = {threshold};\n\
+                             \x20 const observer = new IntersectionObserver((entries) => {{\n\
+                             \x20\x20 entries.forEach(entry => {{\n\
+                             \x20\x20\x20 if (entry.isIntersecting) {{\n\
+                             \x20\x20\x20\x20 player.play();\n\
+                             \x20\x20\x20\x20 if ({disconnect}) {{\n\
+                             \x20\x20\x20\x20\x20 observer.disconnect();\n\
+                             \x20\x20\x20\x20 }}\n\
+                             \x20\x20\x20 }}\n\
+                             \x20\x20 }});\n\
+                             \x20 }}, {{ threshold: threshold }});\n\
+                             \x20 observer.observe(el);\n\
+                             \x20 __omni_inview_observers = __omni_inview_observers || [];\n\
+                             \x20 __omni_inview_observers.push(observer);\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name,
+                            disconnect = should_disconnect,
+                            threshold = threshold_val,
+                        ));
+                    }
+                    TriggerKind::Scroll => {
+                        // @scroll: drive animation progress from scroll position
+                        let scroll_start_str = el.scroll_start.as_deref().unwrap_or("top 80%");
+                        let scroll_end_str = el.scroll_end.as_deref().unwrap_or("bottom 20%");
+                        let scrub_val = match &el.scroll_scrub {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @scroll trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 player.pause();\n\
+                             \x20 const startCfg = \"{scroll_start}\";\n\
+                             \x20 const endCfg = \"{scroll_end}\";\n\
+                             \x20 const scrubDelay = {scrub};\n\
+                             \x20 function computeProgress() {{\n\
+                             \x20\x20 const rect = el.getBoundingClientRect();\n\
+                             \x20\x20 const vh = window.innerHeight;\n\
+                             \x20\x20 const startPos = __omni_parseScrollTrigger(startCfg, el, vh);\n\
+                             \x20\x20 const endPos = __omni_parseScrollTrigger(endCfg, el, vh);\n\
+                             \x20\x20 const raw = (window.scrollY - startPos) / (endPos - startPos);\n\
+                             \x20\x20 return Math.max(0, Math.min(1, raw));\n\
+                             \x20 }}\n\
+                             \x20 let currentProgress = 0;\n\
+                             \x20 window.addEventListener('scroll', () => {{\n\
+                             \x20\x20 const target = computeProgress();\n\
+                             \x20\x20 if (scrubDelay > 0) {{\n\
+                             \x20\x20\x20 currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));\n\
+                             \x20\x20 }} else {{\n\
+                             \x20\x20\x20 currentProgress = target;\n\
+                             \x20\x20 }}\n\
+                             \x20\x20 player.seek(currentProgress);\n\
+                             \x20 }}, {{ passive: true }});\n\
+                             \x20 player.seek(computeProgress());\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name,
+                            scroll_start = scroll_start_str,
+                            scroll_end = scroll_end_str,
+                            scrub = scrub_val,
+                        ));
+                    }
                     _ => {
                         // Other triggers: create animation, don't auto-play
                         self.js.push_str(&format!(
@@ -2575,6 +2668,93 @@ function __omni_bindText(nid) {
                             nid = nid,
                             trigger = trigger_str,
                             config = config_override
+                        ));
+                    }
+                    TriggerKind::InView => {
+                        let once_val = match &el.in_view_once {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "true".to_string(),
+                        };
+                        let threshold_val = match &el.in_view_threshold {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @in-view (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
+                             \x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 const threshold = {threshold};\n\
+                             \x20 const observer = new IntersectionObserver((entries) => {{\n\
+                             \x20\x20 entries.forEach(entry => {{\n\
+                             \x20\x20\x20 if (entry.isIntersecting) {{\n\
+                             \x20\x20\x20\x20 player.play();\n\
+                             \x20\x20\x20\x20 if ({once}) {{\n\
+                             \x20\x20\x20\x20\x20 observer.disconnect();\n\
+                             \x20\x20\x20\x20 }}\n\
+                             \x20\x20\x20 }}\n\
+                             \x20\x20 }});\n\
+                             \x20 }}, {{ threshold: threshold }});\n\
+                             \x20 observer.observe(el);\n\
+                             \x20 __omni_inview_observers = __omni_inview_observers || [];\n\
+                             \x20 __omni_inview_observers.push(observer);\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            config = config_override,
+                            once = once_val,
+                            threshold = threshold_val,
+                        ));
+                    }
+                    TriggerKind::Scroll => {
+                        let scroll_start_str = el.scroll_start.as_deref().unwrap_or("top 80%");
+                        let scroll_end_str = el.scroll_end.as_deref().unwrap_or("bottom 20%");
+                        let scrub_val = match &el.scroll_scrub {
+                            Some(expr) => self.expr_to_js(expr),
+                            None => "0".to_string(),
+                        };
+                        self.js.push_str(&format!(
+                            "// @scroll (inline)\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (!el) return;\n\
+                             \x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
+                             \x20 const player = new AnimationPlayer(el, config);\n\
+                             \x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 player.pause();\n\
+                             \x20 const startCfg = \"{scroll_start}\";\n\
+                             \x20 const endCfg = \"{scroll_end}\";\n\
+                             \x20 const scrubDelay = {scrub};\n\
+                             \x20 function computeProgress() {{\n\
+                             \x20\x20 const rect = el.getBoundingClientRect();\n\
+                             \x20\x20 const vh = window.innerHeight;\n\
+                             \x20\x20 const startPos = __omni_parseScrollTrigger(startCfg, el, vh);\n\
+                             \x20\x20 const endPos = __omni_parseScrollTrigger(endCfg, el, vh);\n\
+                             \x20\x20 const raw = (window.scrollY - startPos) / (endPos - startPos);\n\
+                             \x20\x20 return Math.max(0, Math.min(1, raw));\n\
+                             \x20 }}\n\
+                             \x20 let currentProgress = 0;\n\
+                             \x20 window.addEventListener('scroll', () => {{\n\
+                             \x20\x20 const target = computeProgress();\n\
+                             \x20\x20 if (scrubDelay > 0) {{\n\
+                             \x20\x20\x20 currentProgress += (target - currentProgress) * Math.min(1, 16.67 / (scrubDelay * 1000));\n\
+                             \x20\x20\x20 player.seek(currentProgress);\n\
+                             \x20\x20 }} else {{\n\
+                             \x20\x20\x20 currentProgress = target;\n\
+                             \x20\x20\x20 player.seek(currentProgress);\n\
+                             \x20\x20 }}\n\
+                             \x20 }}, {{ passive: true }});\n\
+                             \x20 player.seek(computeProgress());\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            config = config_override,
+                            scroll_start = scroll_start_str,
+                            scroll_end = scroll_end_str,
+                            scrub = scrub_val,
                         ));
                     }
                     _ => {

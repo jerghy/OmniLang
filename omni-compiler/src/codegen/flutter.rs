@@ -277,6 +277,18 @@ impl FlutterCodegen {
         w.dedent();
         w.emit("}");
 
+        // ── Emit helper widget classes for InView and Scroll triggers if needed ──
+        if let Some(ref view) = comp.view {
+            if has_trigger_kind_in_view(view) {
+                w.emit("");
+                emit_inview_widget_class(&mut w);
+            }
+            if has_trigger_kind_scroll(view) {
+                w.emit("");
+                emit_scroll_widget_class(&mut w);
+            }
+        }
+
         w.into_string()
     }
 
@@ -474,7 +486,9 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     };
 
     // Wrap with motion animation widgets if the element has triggers
-    if !el.motion_triggers.is_empty() || el.driven_by.is_some() || el.states.is_some() {
+    let has_inview = el.in_view_once.is_some() || el.in_view_repeat.is_some();
+    let has_scroll = el.scroll_start.is_some() || el.scroll_end.is_some();
+    if !el.motion_triggers.is_empty() || el.driven_by.is_some() || el.states.is_some() || has_inview || has_scroll {
         let mut result = inner;
 
         // Handle @driven-by: wrap with signal-driven animation progress
@@ -495,6 +509,47 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
         // Standard motion triggers (enter, hover, press, etc.)
         if !el.motion_triggers.is_empty() {
             result = wrap_with_motion_widgets(result, &el.motion_triggers, motions);
+        }
+
+        // Handle @in-view trigger: wrap with _OmniInViewWidget
+        if has_inview {
+            let threshold = match &el.in_view_threshold {
+                Some(expr) => format_expr_ir_flutter(expr),
+                None => "0.0".to_string(),
+            };
+            let once = if el.in_view_once.is_some() { "true" } else { "false" };
+            let motion_ref = el.motion_triggers.iter()
+                .find(|t| matches!(t.kind, TriggerKind::InView))
+                .and_then(|t| t.motion_ref.as_ref());
+
+            if let Some(motion_name) = motion_ref {
+                let ctrl_name = format!("_{}Controller", motion_name);
+                result = format!(
+                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {}.forward(); }},\n  child: {},\n)",
+                    once, threshold, ctrl_name, result
+                );
+            }
+        }
+
+        // Handle @scroll trigger: wrap with _OmniScrollDrivenWidget
+        if has_scroll {
+            let scroll_start = el.scroll_start.as_deref().unwrap_or("top 80%");
+            let scroll_end = el.scroll_end.as_deref().unwrap_or("bottom 20%");
+            let scrub = match &el.scroll_scrub {
+                Some(expr) => format_expr_ir_flutter(expr),
+                None => "0.0".to_string(),
+            };
+            let motion_ref = el.motion_triggers.iter()
+                .find(|t| matches!(t.kind, TriggerKind::Scroll))
+                .and_then(|t| t.motion_ref.as_ref());
+
+            if let Some(motion_name) = motion_ref {
+                let ctrl_name = format!("_{}Controller", motion_name);
+                result = format!(
+                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {}.value = p; }},\n  child: {},\n)",
+                    scroll_start, scroll_end, scrub, ctrl_name, result
+                );
+            }
         }
 
         result
@@ -1478,6 +1533,310 @@ fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// InView / Scroll helper widget codegen
+// ═══════════════════════════════════════════════════════════════════
+
+/// Check if the view tree contains any element with an @in-view trigger.
+fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if el.motion_triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)) {
+                return true;
+            }
+            el.children.iter().any(|c| has_trigger_kind_in_view(c))
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    if has_trigger_kind_in_view(body) {
+                        return true;
+                    }
+                }
+            }
+            cond.fallback.as_ref().map_or(false, |fb| has_trigger_kind_in_view(fb))
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                if has_trigger_kind_in_view(body) {
+                    return true;
+                }
+            }
+            list.empty_body.as_ref().map_or(false, |e| has_trigger_kind_in_view(e))
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+    }
+}
+
+/// Check if the view tree contains any element with an @scroll trigger.
+fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if el.motion_triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)) {
+                return true;
+            }
+            el.children.iter().any(|c| has_trigger_kind_scroll(c))
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    if has_trigger_kind_scroll(body) {
+                        return true;
+                    }
+                }
+            }
+            cond.fallback.as_ref().map_or(false, |fb| has_trigger_kind_scroll(fb))
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                if has_trigger_kind_scroll(body) {
+                    return true;
+                }
+            }
+            list.empty_body.as_ref().map_or(false, |e| has_trigger_kind_scroll(e))
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
+    }
+}
+
+/// Emit the _OmniInViewWidget class for @in-view support.
+fn emit_inview_widget_class(w: &mut CodeWriter) {
+    w.emit("// ── InView wrapper widget (@in-view support) ──");
+    w.emit("");
+    w.emit("class _OmniInViewWidget extends StatefulWidget {");
+    w.indent();
+    w.emit("final Widget child;");
+    w.emit("final bool once;");
+    w.emit("final double threshold;");
+    w.emit("final VoidCallback onInView;");
+    w.emit("");
+    w.emit("const _OmniInViewWidget({");
+    w.indent();
+    w.emit("required this.child,");
+    w.emit("this.once = true,");
+    w.emit("this.threshold = 0.0,");
+    w.emit("required this.onInView,");
+    w.dedent();
+    w.emit("});");
+    w.emit("");
+    w.emit("@override");
+    w.emit("State<_OmniInViewWidget> createState() => _OmniInViewWidgetState();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("class _OmniInViewWidgetState extends State<_OmniInViewWidget> {");
+    w.indent();
+    w.emit("ScrollPosition? _scrollPosition;");
+    w.emit("bool _hasTriggered = false;");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void initState() {");
+    w.indent();
+    w.emit("super.initState();");
+    w.emit("WidgetsBinding.instance.addPostFrameCallback((_) => _checkVisibility());");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void didChangeDependencies() {");
+    w.indent();
+    w.emit("super.didChangeDependencies();");
+    w.emit("_attachScrollListener();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _attachScrollListener() {");
+    w.indent();
+    w.emit("final scrollable = Scrollable.maybeOf(context);");
+    w.emit("if (scrollable != null && _scrollPosition != scrollable.position) {");
+    w.indent();
+    w.emit("_scrollPosition?.removeListener(_checkVisibility);");
+    w.emit("_scrollPosition = scrollable.position;");
+    w.emit("_scrollPosition!.addListener(_checkVisibility);");
+    w.emit("_checkVisibility();");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void dispose() {");
+    w.indent();
+    w.emit("_scrollPosition?.removeListener(_checkVisibility);");
+    w.emit("super.dispose();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _checkVisibility() {");
+    w.indent();
+    w.emit("if (_hasTriggered && widget.once) return;");
+    w.emit("final renderBox = context.findRenderObject() as RenderBox?;");
+    w.emit("if (renderBox == null || !renderBox.hasSize) return;");
+    w.emit("");
+    w.emit("final position = renderBox.localToGlobal(Offset.zero);");
+    w.emit("final viewportHeight = MediaQuery.of(context).size.height;");
+    w.emit("final threshold = widget.threshold;");
+    w.emit("");
+    w.emit("final visible = position.dy < viewportHeight * (1.0 - threshold) &&");
+    w.emit("    position.dy + renderBox.size.height > viewportHeight * threshold;");
+    w.emit("");
+    w.emit("if (visible) {");
+    w.indent();
+    w.emit("_hasTriggered = true;");
+    w.emit("widget.onInView();");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("Widget build(BuildContext context) => widget.child;");
+    w.dedent();
+    w.emit("}");
+}
+
+/// Emit the _OmniScrollDrivenWidget class for @scroll support.
+fn emit_scroll_widget_class(w: &mut CodeWriter) {
+    w.emit("// ── Scroll-driven wrapper widget (@scroll support) ──");
+    w.emit("");
+    w.emit("class _OmniScrollDrivenWidget extends StatefulWidget {");
+    w.indent();
+    w.emit("final Widget child;");
+    w.emit("final String start;");
+    w.emit("final String end;");
+    w.emit("final double scrub;");
+    w.emit("final ValueChanged<double> onProgress;");
+    w.emit("");
+    w.emit("const _OmniScrollDrivenWidget({");
+    w.indent();
+    w.emit("required this.child,");
+    w.emit("this.start = 'top 80%',");
+    w.emit("this.end = 'bottom 20%',");
+    w.emit("this.scrub = 0.0,");
+    w.emit("required this.onProgress,");
+    w.dedent();
+    w.emit("});");
+    w.emit("");
+    w.emit("@override");
+    w.emit("State<_OmniScrollDrivenWidget> createState() => _OmniScrollDrivenWidgetState();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("class _OmniScrollDrivenWidgetState extends State<_OmniScrollDrivenWidget> {");
+    w.indent();
+    w.emit("ScrollPosition? _scrollPosition;");
+    w.emit("double _currentProgress = 0.0;");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void initState() {");
+    w.indent();
+    w.emit("super.initState();");
+    w.emit("WidgetsBinding.instance.addPostFrameCallback((_) => _updateProgress());");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void didChangeDependencies() {");
+    w.indent();
+    w.emit("super.didChangeDependencies();");
+    w.emit("_attachScrollListener();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _attachScrollListener() {");
+    w.indent();
+    w.emit("final scrollable = Scrollable.maybeOf(context);");
+    w.emit("if (scrollable != null && _scrollPosition != scrollable.position) {");
+    w.indent();
+    w.emit("_scrollPosition?.removeListener(_onScroll);");
+    w.emit("_scrollPosition = scrollable.position;");
+    w.emit("_scrollPosition!.addListener(_onScroll);");
+    w.emit("_updateProgress();");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("void dispose() {");
+    w.indent();
+    w.emit("_scrollPosition?.removeListener(_onScroll);");
+    w.emit("super.dispose();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _onScroll() {");
+    w.indent();
+    w.emit("_updateProgress();");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("void _updateProgress() {");
+    w.indent();
+    w.emit("final renderBox = context.findRenderObject() as RenderBox?;");
+    w.emit("if (renderBox == null || !renderBox.hasSize) return;");
+    w.emit("");
+    w.emit("final viewportHeight = MediaQuery.of(context).size.height;");
+    w.emit("final elementTop = renderBox.localToGlobal(Offset.zero).dy;");
+    w.emit("final elementHeight = renderBox.size.height;");
+    w.emit("");
+    w.emit("// Parse start config: \"top 80%\" -> edge=top, pct=0.8");
+    w.emit("final startParts = widget.start.split(' ');");
+    w.emit("final startEdge = startParts.isNotEmpty ? startParts[0] : 'top';");
+    w.emit("final startPct = (startParts.length == 2)");
+    w.emit("    ? (double.tryParse(startParts[1].replaceAll('%', '')) ?? 80.0) / 100.0");
+    w.emit("    : 0.8;");
+    w.emit("");
+    w.emit("// Parse end config: \"bottom 20%\" -> edge=bottom, pct=0.2");
+    w.emit("final endParts = widget.end.split(' ');");
+    w.emit("final endEdge = endParts.isNotEmpty ? endParts[0] : 'bottom';");
+    w.emit("final endPct = (endParts.length == 2)");
+    w.emit("    ? (double.tryParse(endParts[1].replaceAll('%', '')) ?? 20.0) / 100.0");
+    w.emit("    : 0.2;");
+    w.emit("");
+    w.emit("// Compute element edge position based on edge keyword");
+    w.emit("double getEdgePosition(String edge) {");
+    w.emit("  switch (edge) {");
+    w.emit("    case 'center': return elementTop + elementHeight / 2;");
+    w.emit("    case 'bottom': return elementTop + elementHeight;");
+    w.emit("    default: return elementTop; // 'top'");
+    w.emit("  }");
+    w.emit("}");
+    w.emit("");
+    w.emit("final startY = viewportHeight * startPct;");
+    w.emit("final endY = viewportHeight * endPct;");
+    w.emit("final elementStartEdge = getEdgePosition(startEdge);");
+    w.emit("final elementEndEdge = getEdgePosition(endEdge);");
+    w.emit("");
+    w.emit("final totalDistance = startY - (endY - elementHeight);");
+    w.emit("final elementProgress = startY - elementStartEdge;");
+    w.emit("");
+    w.emit("if (totalDistance <= 0) return;");
+    w.emit("");
+    w.emit("final raw = elementProgress / totalDistance;");
+    w.emit("final progress = raw.clamp(0.0, 1.0);");
+    w.emit("");
+    w.emit("if (widget.scrub > 0) {");
+    w.indent();
+    w.emit("_currentProgress += (progress - _currentProgress) * (1.0 / (widget.scrub * 60.0));");
+    w.emit("_currentProgress = _currentProgress.clamp(0.0, 1.0);");
+    w.dedent();
+    w.emit("} else {");
+    w.indent();
+    w.emit("_currentProgress = progress;");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("widget.onProgress(_currentProgress);");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("@override");
+    w.emit("Widget build(BuildContext context) => widget.child;");
+    w.dedent();
+    w.emit("}");
 }
 
 // ═══════════════════════════════════════════════════════════════
