@@ -56,6 +56,17 @@ A `@motion` block is **either** a keyframe animation **or** a timeline **or** a 
 
 If the body contains `then`, `with`, or `start:`, it is forced to timeline mode.
 
+**The `over:` position is the primary mode discriminator at parse time:**
+
+| `over:` Position | Mode | Example |
+|------------------|------|---------|
+| Immediately after `}` (same line as property block) | **Timeline item** | `to { opacity: 1 } over: 300ms` |
+| At block level (after ALL stops, before `}`) | **Keyframe** | `from {...} to {...} over: 300ms` |
+
+Parser rule: after parsing a property block `{...}`, if the next token is `over:`, this is a timeline item. If the next token is another stop (`to`/`from`/`N%`) or `then`/`with`/playback props, the parser accumulates all stops and expects block-level `over:` later.
+
+The same rule applies to `delay:` — item-level `delay:` means timeline mode.
+
 #### Keyframe Mode (shared `over`)
 
 Uses `from`/`to` and/or percentage stops. One shared `over` duration. Each stop may have an independent `ease`.
@@ -152,6 +163,8 @@ to { x: 100 } over: 1s
 with to { y: 100 } over: 0.5s
 then to { scale: 2 } over: 0.3s    // starts at 1s (max(1s, 0.5s)), not 0.5s
 ```
+
+**Implicit connector rule:** In timeline mode, items separated by a newline without an explicit `then`/`with` connector default to `then` (sequential, `start: ">"`). `then` is an optional readability keyword; omitting it produces identical behavior.
 
 Compile error if:
 - `start` used in keyframe or callback mode
@@ -356,7 +369,7 @@ Motions can be composed by referencing named motions or inline tweens.
 
 ### 8.1 Stagger Function
 
-`stagger(motion, timing, direction?)` — creates a staggered version of any motion.
+`stagger(motion, timing, direction?)` — creates a staggered version of any motion. Valid in two contexts: as a timeline item inside `@motion`, and as an inline expression on element triggers (`@enter={stagger(...)}`). Nested stagger is allowed: `stagger(stagger(fadeIn, each: 30ms), each: 100ms)` — the outer stagger wraps the inner stagger's timing.
 
 ```omni
 stagger(
@@ -541,8 +554,9 @@ When `status.value` changes to `"success"`, the runtime captures current compute
 
 **Compile-time validation:**
 - State names must be unique within the block
-- Reserved names (`idle`/`hover`/`pressed`) cannot be mixed with `on:` (they're interaction-only)
+- The block is **either** all reserved names (`idle`/`hover`/`pressed`) **or** all custom names + `on:` signal binding. Mixing reserved and custom names in the same `states:` block is a compile error, regardless of whether `on:` is present
 - Custom state names require `on:` — otherwise compile error
+- Reserved names with `on:` present → compile error (`on:` only valid with custom names)
 - `on:` value must be a signal expression
 - Signal value that doesn't match any state name → element stays at current values (no animation)
 - Optional `default` state catches unmatched signal values
@@ -819,7 +833,7 @@ label "visible" onEnter: { startTracking() }
 
 Magic variables available in callbacks:
 - `$progress` — current animation progress (0→1)
-- `$velocity` — current velocity (from gesture)
+- `$velocity` — velocity at the moment of gesture release, in **pixels per second** (px/s). Only valid in `@drag-horizontal`/`@drag-vertical` triggered motion callbacks. Typically used as `spring(..., velocity: $velocity)` to carry gesture momentum into the animation. Compile error if referenced in non-gesture contexts
 - `$iteration` — current loop count (for `onRepeat`)
 
 ---
