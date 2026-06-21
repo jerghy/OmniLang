@@ -15,6 +15,7 @@ type ParserState =
 interface ParseContext {
   state: ParserState;
   stateStack: ParserState[];
+  braceDepthStack: number[];
   elements: ElementData[];
   wires: WireData[];
   codeTabs: CodeTab[];
@@ -35,6 +36,7 @@ export function parseOmniSource(source: string): ParseResult {
   const ctx: ParseContext = {
     state: "ROOT",
     stateStack: [],
+    braceDepthStack: [],
     elements: [],
     wires: [],
     codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "📄", graph: { elements: [], wires: [] }, variables: [] }],
@@ -403,12 +405,14 @@ function flushChain(ctx: ParseContext): void {
 
 function pushState(ctx: ParseContext, state: ParserState): void {
   ctx.stateStack.push(ctx.state);
+  ctx.braceDepthStack.push(ctx.braceDepth);
   ctx.state = state;
   ctx.braceDepth = 1;
 }
 
 function popState(ctx: ParseContext): void {
   ctx.state = ctx.stateStack.pop() || "ROOT";
+  ctx.braceDepth = ctx.braceDepthStack.pop() || 0;
 }
 
 function codeblockEl(id: string, tag: string, props: Record<string, unknown>): ElementData {

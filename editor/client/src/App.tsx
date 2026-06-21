@@ -210,13 +210,15 @@ export default function App() {
     if (genResult.value) {
       const validationResult = validate(genResult.value);
       if (!validationResult.valid) {
+        // Fallback to original content when generated source fails validation
         setCompileErrors(validationResult.errors);
-        setStatus({ text: "❌ 代码验证失败", isError: true });
-        return;
+        setStatus({ text: "⚠️ 生成的代码验证失败，使用原始内容编译", isError: false });
+        content = store.activeFileContent;
+      } else {
+        // Use generated source for compilation and update editor content
+        content = genResult.value;
+        store.setSourceCode(content);
       }
-      // Use generated source for compilation and update editor content
-      content = genResult.value;
-      store.setSourceCode(content);
     }
     if (!content) return;
     setStatus({ text: "编译中...", isError: false });
@@ -828,6 +830,13 @@ export default function App() {
       // Use a short debounce to avoid double-compile on initial load
       const timer = setTimeout(() => {
         if (currentPath.endsWith('.omni')) {
+          // ── Validate before parse (spec: validate first, if not valid → report error, do not enter Parser) ──
+          const validation = validate(currentContent);
+          if (!validation.valid) {
+            setCompileErrors(validation.errors);
+            setStatus({ text: `❌ 验证失败: ${validation.errors.length} 个错误`, isError: true });
+            return;
+          }
           // ── Parse `.omni` source to populate design elements and code tabs ──
           const parseResult = parseOmniSource(currentContent);
           if (parseResult.designElements) {
