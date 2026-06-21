@@ -727,7 +727,8 @@ component Foo {
         assert "outer" in ids
         assert "inner" in ids
 
-    def test_element_without_edit_raises(self):
+    def test_element_without_edit_parses_ok(self):
+        """Parser extracts elements regardless of @edit presence — validator catches missing @edit."""
         source = """// @code-tab type=logic
 component Foo {
     view {
@@ -735,8 +736,9 @@ component Foo {
     }
 }
 """
-        with pytest.raises(ValueError, match="MISSING_EDIT"):
-            parse_annotations(source, "test.omni")
+        result = parse_annotations(source, "test.omni")
+        # Parser successfully parsed (no view_markers since no @edit lines)
+        assert len(result.view_markers) == 0
 ```
 
 - [ ] **Step 6: Run `@edit` tests**
@@ -744,8 +746,7 @@ component Foo {
 ```bash
 cd /d/space/OmniLang && python -m pytest tests/annotation/test_parser.py::TestParseEdit -v
 ```
-
-Note: the current parser does NOT yet validate that every `<` has an `@edit` — that's in the validator phase. Update the test expectation for `test_element_without_edit_raises` to expect success at this stage (validator will catch it later). Mark it as `pytest.mark.skip` or adjust.
+Expected: 5 tests PASS (C4 missing-edit rule checked by validator, not parser)
 
 - [ ] **Step 7: Commit**
 
@@ -1690,17 +1691,29 @@ def _strip_old_annotations(lines: list[str]) -> list[str]:
 
 
 def _strip_old_chain_blocks(lines: list[str]) -> list[str]:
-    """Remove existing @chain blocks (everything between separator lines that contains @chain)."""
-    in_chain_block = False
-    result = []
-    for line in lines:
-        stripped = line.strip()
+    """Remove existing @chain blocks. Only strips blocks delimited by paired ══ separators
+    that contain @chain/@node/@wire directives. Tolerates stray ══ comments elsewhere."""
+    result: list[str] = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
         if re.match(r"^//\s*═", stripped):
-            in_chain_block = not in_chain_block
-            continue
-        if in_chain_block:
-            continue
-        result.append(line)
+            # Look ahead: does this block contain @chain/@node/@wire?
+            j = i + 1
+            found_annotation = False
+            while j < len(lines):
+                s = lines[j].strip()
+                if re.match(r"^//\s*═", s):
+                    break  # closing separator
+                if re.match(r"^//\s*@(chain|node|wire)\b", s):
+                    found_annotation = True
+                j += 1
+            if found_annotation and j < len(lines):
+                # This is a chain block — skip from i to j+1 (including closing sep)
+                i = j + 1
+                continue
+        result.append(lines[i])
+        i += 1
     return result
 
 
@@ -1710,6 +1723,9 @@ def _insert_edit_markers(lines: list[str], ann: AnnotationFile) -> list[str]:
     in_view = False
     view_indent = 0
     marker_index = 0
+
+    # Count expected elements in view block for assertion
+    element_count = sum(1 for l in lines if re.match(r"^\s*<(\w+)", l.strip()))
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -1736,8 +1752,19 @@ def _insert_edit_markers(lines: list[str], ann: AnnotationFile) -> list[str]:
                     edit_parts.append("render=canvas")
                 edit_line = " " * elem_indent + " ".join(edit_parts)
                 result.append(edit_line)
+            else:
+                raise ValueError(
+                    f"view_markers count ({len(ann.view_markers)}) < view elements ({element_count}); "
+                    f"annotation data out of sync with source"
+                )
 
         result.append(line)
+
+    if marker_index != len(ann.view_markers):
+        raise ValueError(
+            f"view_markers count ({len(ann.view_markers)}) != view elements ({marker_index} matched); "
+            f"annotation data out of sync with source"
+        )
 
     return result
 
@@ -2075,6 +2102,7 @@ async def api_annotated_save(req: AnnotatedSaveRequest, request: Request):
     try:
         # Reconstruct AnnotationFile from dict
         ann = _dict_to_annotation_file(req.annotations, req.filePath)
+        ann.raw_source = req.source  # raw_source is not serialized, restore from request
         # Validate before saving
         errors = validate_annotations(ann)
         if errors:
