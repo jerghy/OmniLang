@@ -136,7 +136,7 @@ export function lowerCode(
       // ── Comparison ─────────────────────────────────────────────
 
       case "compare": {
-        const op = (el.props.op as string) || "==";
+        const op = (el.props.op as string) || (el.config ? (el.config as Record<string, unknown>).op as string : undefined) || "==";
         result = `${resolvePort(nodeId, "a", "left", visiting)} ${op} ${resolvePort(nodeId, "b", "right", visiting)}`;
         break;
       }

@@ -247,4 +247,143 @@ describe("emitChains", () => {
     const litLine = block.nodeLines.find((l) => l.includes("lit1"));
     expect(litLine).toContain('value="hello"');
   });
+
+  // ── Compare node with op in config (not props) ──────────────
+
+  it("resolves compare.op from config fallback", () => {
+    const els: ElementData[] = [
+      { id: "fn1", nodeType: "codeblock", tag: "customFn", props: { name: "cmp" }, children: [], parentId: null, config: { fnName: "cmp" }, position: { x: 0, y: 0 } },
+      { id: "cmp1", nodeType: "codeblock", tag: "compare", props: { a: 1, b: 2 }, children: [], parentId: null, config: { op: ">=" }, position: { x: 50, y: 50 } },
+    ];
+    const wires: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "body", toId: "cmp1", toPort: "body" },
+    ];
+    const tab: CodeTab = {
+      id: "main",
+      type: "logic",
+      label: "Main",
+      icon: "doc",
+      graph: { elements: els, wires },
+      variables: [],
+    };
+    const functions: LoweredCode["functions"] = [
+      { name: "cmp", params: [], returnType: "bool", body: "" },
+    ];
+    const result = emitChains(tab, functions);
+    expect(result.size).toBe(1);
+    const block = result.get("cmp")!;
+    const cmpLine = block.nodeLines.find((l) => l.includes("cmp1"));
+    expect(cmpLine).toBeTruthy();
+    expect(cmpLine).toContain("op=>=");
+  });
+
+  // ── store node ──────────────────────────────────────────────
+
+  it("formats store node with name attribute", () => {
+    const els: ElementData[] = [
+      { id: "fn1", nodeType: "codeblock", tag: "customFn", props: { name: "test" }, children: [], parentId: null, config: { fnName: "test" }, position: { x: 0, y: 0 } },
+      { id: "s1", nodeType: "codeblock", tag: "store", props: { name: "todos" }, children: [], parentId: null, position: { x: 50, y: 50 } },
+    ];
+    const wires: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "body", toId: "s1", toPort: "body" },
+    ];
+    const tab: CodeTab = {
+      id: "main",
+      type: "logic",
+      label: "Main",
+      icon: "doc",
+      graph: { elements: els, wires },
+      variables: [],
+    };
+    const functions: LoweredCode["functions"] = [
+      { name: "test", params: [], returnType: "void", body: "" },
+    ];
+    const result = emitChains(tab, functions);
+    const block = result.get("test")!;
+    const sLine = block.nodeLines.find((l) => l.includes("s1"));
+    expect(sLine).toContain("name=todos");
+  });
+
+  // ── computed node ───────────────────────────────────────────
+
+  it("formats computed node with name and optional returnType", () => {
+    const els: ElementData[] = [
+      { id: "fn1", nodeType: "codeblock", tag: "customFn", props: { name: "test" }, children: [], parentId: null, config: { fnName: "test" }, position: { x: 0, y: 0 } },
+      { id: "comp1", nodeType: "codeblock", tag: "computed", props: { name: "fullName", returnType: "string" }, children: [], parentId: null, position: { x: 50, y: 50 } },
+    ];
+    const wires: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "body", toId: "comp1", toPort: "body" },
+    ];
+    const tab: CodeTab = {
+      id: "main",
+      type: "logic",
+      label: "Main",
+      icon: "doc",
+      graph: { elements: els, wires },
+      variables: [],
+    };
+    const functions: LoweredCode["functions"] = [
+      { name: "test", params: [], returnType: "void", body: "" },
+    ];
+    const result = emitChains(tab, functions);
+    const block = result.get("test")!;
+    const cLine = block.nodeLines.find((l) => l.includes("comp1"));
+    expect(cLine).toContain("name=fullName");
+    expect(cLine).toContain("returnType=string");
+  });
+
+  // ── fn node ─────────────────────────────────────────────────
+
+  it("formats fn node with source attribute", () => {
+    const els: ElementData[] = [
+      { id: "fn1", nodeType: "codeblock", tag: "customFn", props: { name: "test" }, children: [], parentId: null, config: { fnName: "test" }, position: { x: 0, y: 0 } },
+      { id: "fn2", nodeType: "codeblock", tag: "fn", props: { source: "fetchData()" }, children: [], parentId: null, position: { x: 50, y: 50 } },
+    ];
+    const wires: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "body", toId: "fn2", toPort: "body" },
+    ];
+    const tab: CodeTab = {
+      id: "main",
+      type: "logic",
+      label: "Main",
+      icon: "doc",
+      graph: { elements: els, wires },
+      variables: [],
+    };
+    const functions: LoweredCode["functions"] = [
+      { name: "test", params: [], returnType: "void", body: "" },
+    ];
+    const result = emitChains(tab, functions);
+    const block = result.get("test")!;
+    const fnLine = block.nodeLines.find((l) => l.includes("fn2"));
+    expect(fnLine).toContain("source=fetchData()");
+  });
+
+  // ── updateUIProperty node ──────────────────────────────────
+
+  it("formats updateUIProperty node with targetId and property", () => {
+    const els: ElementData[] = [
+      { id: "fn1", nodeType: "codeblock", tag: "customFn", props: { name: "test" }, children: [], parentId: null, config: { fnName: "test" }, position: { x: 0, y: 0 } },
+      { id: "u1", nodeType: "codeblock", tag: "updateUIProperty", props: { targetId: "btn1", property: "text" }, children: [], parentId: null, position: { x: 50, y: 50 } },
+    ];
+    const wires: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "body", toId: "u1", toPort: "body" },
+    ];
+    const tab: CodeTab = {
+      id: "main",
+      type: "logic",
+      label: "Main",
+      icon: "doc",
+      graph: { elements: els, wires },
+      variables: [],
+    };
+    const functions: LoweredCode["functions"] = [
+      { name: "test", params: [], returnType: "void", body: "" },
+    ];
+    const result = emitChains(tab, functions);
+    const block = result.get("test")!;
+    const uLine = block.nodeLines.find((l) => l.includes("u1"));
+    expect(uLine).toContain("targetId=btn1");
+    expect(uLine).toContain("property=text");
+  });
 });

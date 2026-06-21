@@ -29,6 +29,10 @@ const NODE_ATTRS: Record<string, AttrDef> = {
   concat: { required: [], optional: [] },
   return: { required: [], optional: [] },
   customFn: { required: ["fnName"], optional: ["returnType"] },
+  store: { required: ["name"], optional: [] },
+  computed: { required: ["name"], optional: ["returnType"] },
+  fn: { required: ["source"], optional: [] },
+  updateUIProperty: { required: ["targetId", "property"], optional: [] },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -104,8 +108,10 @@ function resolveAttr(el: ElementData, attrName: string): unknown {
     return el.props.init ?? el.props.default;
   }
 
-  // Default: look up in props
-  return el.props[attrName];
+  // Default: look up in props, then fallback to config for any node type
+  if (attrName in el.props) return el.props[attrName];
+  if (el.config && attrName in el.config) return (el.config as Record<string, unknown>)[attrName];
+  return undefined;
 }
 
 /**
