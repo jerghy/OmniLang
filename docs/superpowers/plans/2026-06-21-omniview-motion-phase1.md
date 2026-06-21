@@ -2174,7 +2174,76 @@ After all 11 tasks, verify:
 - Modify: `omni-compiler/src/codegen/react.rs`
 - Modify: `omni-compiler/src/codegen/flutter.rs`
 
-**Purpose:** Implement scroll-driven and viewport-triggered animations.
+**Purpose:** Implement scroll-driven and viewport-triggered animations, @if mode= parser fix, component-level @if-mode, and @hero foundation.
+
+**⚠️ FOUNDATION WORK FIRST:** @scroll-* sub-attributes were deferred in Phase 1 and need parser → AST → IR → lowering BEFORE codegen.
+
+- [ ] **Step 0a: Add @scroll-* and @if mode= parsing**
+
+In `view.rs`, add parsing for scroll sub-attributes and fix the `@if mode=` parser:
+
+```rust
+// In parse_element() prop loop, after existing @-prop handling:
+TokenKind::AtScrollStart => {
+    self.advance();
+    self.expect_token(TokenKind::Eq, "expected '='")?;
+    let val = self.parse_string_literal()?;
+    props.push(ElementProp::ScrollStart(val));
+}
+TokenKind::AtScrollEnd => { /* same pattern → ElementProp::ScrollEnd */ }
+TokenKind::AtScrollScrub => {
+    self.advance();
+    self.expect_token(TokenKind::Eq, "expected '='")?;
+    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+    let val = self.parse_expr()?;
+    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+    props.push(ElementProp::ScrollScrub(val));
+}
+```
+
+**Fix `parse_if_directive()` in view.rs:** After parsing the condition expression, check for `mode=` before `{`:
+```rust
+let transition_mode = if self.peek_kind() == TokenKind::Ident(ref s) && s == "mode" {
+    self.advance();
+    self.expect_token(TokenKind::Eq, "expected '='")?;
+    Some(self.parse_string_literal()?)
+} else { None };
+// Pass transition_mode to IfDirective { transition_mode, ... }
+```
+This unblocks the EXISTING wait-mode codegen in omniview.rs and flutter.rs that's currently dead code (transition_mode is always None).
+
+- [ ] **Step 0b: Add component-level @if-mode parsing**
+
+In `parse_component_def()` (top_level.rs), parse `@if-mode:` as a colon-prop on components:
+```rust
+if self.peek_kind() == TokenKind::IfMode {
+    self.advance();
+    self.expect_token(TokenKind::Colon, "expected ':'")?;
+    let mode = self.parse_string_literal()?;
+    comp.if_mode_default = Some(mode);
+}
+```
+Add `if_mode_default: Option<String>` to `ComponentDef` and `ComponentIR`. Lowering propagates it. Codegen: when per-`@if` mode is absent, use component default.
+
+- [ ] **Step 0c: Add @hero foundation (tokens, AST, parser, IR)**
+
+@hero was spec'd as Phase 1 but never built. Add now:
+
+Token: `AtHero` (maps from `"@hero"` in `read_at_keyword()`).
+
+AST:
+```rust
+pub struct HeroDef { pub tag: String, pub over: Expr, pub ease: Option<EasingExpr> }
+// ElementProp variants:
+ElementProp::HeroTag(String),           // @hero="tag-name"
+ElementProp::HeroTransition(String),    // @hero-transition={motionName}
+```
+
+Parser: `@hero` block in top_level.rs (like `@motion` but simpler — just over + ease). `@hero` element attribute in view.rs as string value.
+
+IR: `HeroIntent { tag: String, over: ExprIR, ease: Option<EasingIR> }`. `ElementIR.hero_tag: Option<String>`.
+
+Lowering: direct mapping. Codegen (reuse Task 9 Step 9 `__omni_hero_*` runtime functions).
 
 - [ ] **Step 1: Write @in-view tests**
 
@@ -2243,6 +2312,45 @@ git commit -m "feat: add @in-view and @scroll triggers for Web and Flutter"
 
 **Purpose:** Gesture-driven drag animations with constraints and inertia.
 
+**⚠️ FOUNDATION WORK FIRST:** All six @drag-* sub-attributes were deferred in Phase 1 and need parser → AST → IR → lowering BEFORE codegen.
+
+- [ ] **Step 0a: Add @drag-* sub-attribute parsing**
+
+In `view.rs`, add parsing for all six drag sub-attributes:
+
+```rust
+// @drag-constraints="left:0 right:300" or "parent" or "ref:NAME"
+TokenKind::DragConstraints => {
+    self.advance(); self.expect_token(TokenKind::Eq, "expected '='")?;
+    let val = self.parse_string_literal()?;
+    props.push(ElementProp::DragConstraints(val));
+}
+// @drag-elastic={0.2} — expression, float 0.0-1.0
+TokenKind::DragElastic => {
+    self.advance(); self.expect_token(TokenKind::Eq, "expected '='")?;
+    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+    let val = self.parse_expr()?;
+    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+    props.push(ElementProp::DragElastic(val));
+}
+// @drag-scrub={true}, @drag-momentum={friction:0.95}, @drag-threshold={30%}, @drag-velocity-max={2000px}
+// ... same pattern
+```
+
+- [ ] **Step 0b: Add drag AST/IR/lowering**
+
+AST: Add to `ElementProp`: `DragConstraints(String)`, `DragElastic(Expr)`, `DragScrub(Expr)`, `DragMomentum(Expr)`, `DragThreshold(Expr)`, `DragVelocityMax(Expr)`.
+
+IR: Add to `ElementIR`: `drag_constraints: Option<String>`, `drag_elastic: Option<ExprIR>`, `drag_scrub: Option<ExprIR>`, `drag_momentum: Option<ExprIR>`, `drag_threshold: Option<ExprIR>`, `drag_velocity_max: Option<ExprIR>`.
+
+Lowering: Extend `lower_view_node()` ElementProp match with these new variants.
+
+Semantic: Wire up the four drag checks from Task 7 that currently have no AST/IR to validate:
+- `check_drag_constraints_axis()` — validate `left/right` only with @drag-horizontal, `top/bottom` only with @drag-vertical
+- `check_drag_constraints_no_mixed_parent()` — "parent" can't combine with explicit edges
+- `check_drag_constraints_ref_exists()` — `ref:NAME` must reference a sibling element
+- `check_drag_elastic_range()` — value must be 0.0..1.0
+
 - [ ] **Step 1: Write @drag tests**
 
 ```rust
@@ -2284,6 +2392,30 @@ git commit -m "feat: add @drag gesture animations with constraints and momentum"
 - Modify: `omni-compiler/src/codegen/flutter.rs`
 
 **Purpose:** Signal-driven animation progress and path-based motion.
+
+**⚠️ FOUNDATION WORK FIRST:** Path animation syntax (`path:`, `pathRotate:`) was never added to the @motion body parser. Add now.
+
+- [ ] **Step 0a: Add path/ pathRotate parsing to @motion blocks**
+
+In the `@motion` body parser (top_level.rs), after parsing keyframe stops or timeline items:
+```rust
+let path = if self.peek_is_ident("path") {
+    self.advance(); self.expect_token(TokenKind::Colon, "expected ':'")?;
+    Some(self.parse_string_literal()?)
+} else { None };
+let path_rotate = if self.peek_is_ident("pathRotate") {
+    self.advance(); self.expect_token(TokenKind::Colon, "expected ':'")?;
+    Some(self.parse_bool_literal()?)
+} else { None };
+```
+
+- [ ] **Step 0b: Add path AST/IR/lowering**
+
+AST: `KeyframeBody { path: Option<String>, path_rotate: Option<bool>, ... }`. Same for timeline `DirectionItem`.
+
+IR: `KeyframeIR { path: Option<String>, path_rotate: Option<bool>, ... }`.
+
+Lowering: Direct field copy.
 
 - [ ] **Step 1: Write @driven-by test**
 
@@ -2532,15 +2664,18 @@ git commit -m "feat: add animation DevTools, performance monitoring, timeScale"
 
 **Purpose:** Import Lottie/Rive animation files and play them via @motion.
 
-- [ ] **Step 1: Add import syntax**
+**⚠️ NOTE:** This feature is listed as "Deferred" in spec §25. Task 19 is conditional on spec approval. The `from "..."` syntax conflicts with `from { opacity: 0 }` in @motion blocks — resolved below.
 
+- [ ] **Step 1: Add import syntax (conditional on spec update)**
+
+Use `import()` syntax to avoid conflict with keyframe `from`:
 ```omni
-@motion loadingAnim from "./loading.lottie" {
+@motion loadingAnim = import("./loading.lottie") {
   loop: infinite
 }
 ```
 
-Parser: `from "./path.lottie"` after motion name → parse file extension, validate it's `.lottie` or `.json` (Lottie) or `.riv` (Rive).
+Parser: `import("...")` after `@motion NAME =` → parse file extension, validate it's `.lottie`, `.json` (Lottie), or `.riv` (Rive). Distinct from `from { props } to { props }` keyframe syntax.
 
 - [ ] **Step 2: Implement — Web**
 
