@@ -298,9 +298,6 @@ pub struct ConditionalBranch {
 pub struct ConditionalIntent {
     pub branches: Vec<ConditionalBranch>,
     pub fallback: Option<ViewTree>,
-    /// Transition mode for conditional rendering: "sync" | "wait" (None = "sync")
-    #[serde(default)]
-    pub transition_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -338,28 +335,6 @@ pub struct ElementIR {
     pub source_line: u32,
     #[serde(default)]
     pub source_col: u32,
-    /// Motion/trigger animation configurations
-    #[serde(default)]
-    pub motion_triggers: Vec<TriggerIntent>,
-    /// States-based animation configuration
-    #[serde(default)]
-    pub states: Option<StatesIR>,
-    /// Pause all animations on this element
-    #[serde(default)]
-    pub paused_override: Option<bool>,
-    /// Signal that drives this element's animation
-    #[serde(default)]
-    pub driven_by: Option<ExprIR>,
-    /// Named hover reverse animation
-    #[serde(default)]
-    pub hover_reverse: Option<String>,
-    /// InView animation triggers
-    #[serde(default)]
-    pub in_view_once: Option<ExprIR>,
-    #[serde(default)]
-    pub in_view_repeat: Option<ExprIR>,
-    #[serde(default)]
-    pub in_view_threshold: Option<ExprIR>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -426,12 +401,6 @@ pub struct ComponentIR {
     pub event_names: Vec<String>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
-    /// Named motion animations defined in this component
-    #[serde(default)]
-    pub motions: Vec<MotionIntent>,
-    /// Named timelines defined in this component
-    #[serde(default)]
-    pub timelines: Vec<TimelineIntent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -491,251 +460,6 @@ impl IRProgram {
             .map(|(k, v)| (k.as_str(), v))
             .collect()
     }
-}
-
-// ═══════════════════════════════════════════════════════
-// Motion Animation IR
-// ═══════════════════════════════════════════════════════
-
-/// Loop value for motion playback
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LoopValue {
-    Count(u32),
-    Infinity,
-}
-
-/// Direction value for motion playback
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DirectionValue {
-    Normal,
-    Reverse,
-    Alternate,
-    AlternateReverse,
-}
-
-/// Fill mode for motion playback (what state persists after animation ends)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FillValue {
-    None,
-    Forwards,
-    Backwards,
-    Both,
-}
-
-/// Interrupt behavior when a motion is interrupted by a new trigger
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InterruptValue {
-    Cancel,
-    Commit,
-    Preserve,
-}
-
-/// Condition under which a motion starts
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WhenValue {
-    Visible,
-    InView,
-    OnceInView,
-}
-
-/// Direction for stagger children iteration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum StaggerDirection {
-    First,
-    Last,
-    Center,
-    Edges,
-    Random,
-}
-
-/// Timing configuration for stagger children
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StaggerTimingIR {
-    pub each: ExprIR,
-    pub from: Option<StaggerDirection>,
-    pub grid: Option<(ExprIR, ExprIR)>,
-}
-
-/// Easing IR (mirrors AST EasingExpr)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EasingIR {
-    Named(String),
-    CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
-    Spring { tension: f64, friction: f64, velocity: Option<f64> },
-    Back { intensity: f64, direction: Option<String> },
-    Elastic { amplitude: f64, period: f64, direction: Option<String> },
-    Steps { count: u32, direction: String },
-}
-
-/// Direction for tween-style animations: To (forward only) or FromTo (there and back)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DirectionIR {
-    To,
-    FromTo,
-}
-
-/// Connector between timeline items: sequential, parallel, or immediate
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConnectorIR {
-    None,
-    Then,
-    With,
-}
-
-/// Callback kind for motion lifecycle events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CallbackKindIR {
-    OnStart,
-    OnUpdate,
-    OnComplete,
-    OnRepeat,
-    OnInterrupt,
-}
-
-/// Playback configuration shared across all motion types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlaybackIR {
-    pub loop_count: Option<LoopValue>,
-    pub direction: Option<DirectionValue>,
-    pub fill: Option<FillValue>,
-    pub delay: Option<ExprIR>,
-    pub paused: bool,
-    pub repeat_delay: Option<ExprIR>,
-    pub repeat_refresh: bool,
-    pub time_scale: Option<ExprIR>,
-    pub interrupt: Option<InterruptValue>,
-    pub respect_reduced_motion: bool,
-    pub when: Option<WhenValue>,
-    pub delay_children: Option<ExprIR>,
-    pub stagger_children: Option<ExprIR>,
-    pub stagger_from: Option<StaggerDirection>,
-}
-
-/// Motion body — one of three animation kinds
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MotionBodyIR {
-    Keyframe(KeyframeIR),
-    Timeline(TimelineIR),
-    CallbackOnly(CallbackBodyIR),
-}
-
-/// Keyframe animation definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyframeIR {
-    pub stops: Vec<KeyframeStopIR>,
-    pub over: ExprIR,
-    pub ease: Option<EasingIR>,
-    pub color_space: Option<String>,
-    pub playback: PlaybackIR,
-}
-
-/// A single keyframe stop at a given position (0.0 to 1.0)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyframeStopIR {
-    pub position: f64,  // 0.0 to 1.0
-    pub properties: HashMap<String, ExprIR>,
-    pub ease: Option<EasingIR>,
-}
-
-/// Timeline animation definition (series of sequential/parallel items)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineIR {
-    pub items: Vec<TimelineItemIR>,
-    pub playback: PlaybackIR,
-}
-
-/// A single item in a timeline
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineItemIR {
-    pub kind: TimelineItemKindIR,
-    pub connector: ConnectorIR,
-}
-
-/// Kinds of timeline items
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TimelineItemKindIR {
-    Direction {
-        dir: DirectionIR,
-        properties: HashMap<String, ExprIR>,
-        over: ExprIR,
-        ease: Option<EasingIR>,
-        delay: Option<ExprIR>,
-        color_space: Option<String>,
-        start: Option<String>,  // position string
-    },
-    Set(Vec<(String, ExprIR)>),
-    MotionRef(String),
-    Stagger(Box<MotionExprIR>, StaggerTimingIR, StaggerDirection),
-    Label(String, Option<ExprIR>),
-}
-
-/// Callback-only motion body (onStart, onUpdate, onComplete, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CallbackBodyIR {
-    pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
-    pub over: ExprIR,
-    pub playback: PlaybackIR,
-}
-
-/// Motion definition IR
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MotionIntent {
-    pub name: String,
-    pub body: MotionBodyIR,
-}
-
-/// Motion expression IR (for inline tweens and stagger references)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MotionExprIR {
-    Ref(String),
-    Inline(MotionBodyIR),
-}
-
-/// Element trigger animation IR
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TriggerIntent {
-    pub kind: TriggerKind,
-    pub motion_ref: Option<String>,      // named motion reference
-    pub inline_motion: Option<MotionBodyIR>,  // or inline motion
-}
-
-/// Trigger kinds for element animations
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TriggerKind {
-    Enter,
-    Leave,
-    Hover,
-    Unhover,
-    Press,
-    Focus,
-    Animate,
-    InView,
-    Scroll,
-    DragHorizontal,
-    DragVertical,
-    Timeline,
-}
-
-/// States-based animation IR (state-driven property tweening)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatesIR {
-    pub states: HashMap<String, StateTweenIR>,
-    pub signal: Option<ExprIR>,
-}
-
-/// A single state tween with target properties
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StateTweenIR {
-    pub properties: HashMap<String, ExprIR>,
-    pub over: Option<ExprIR>,
-    pub ease: Option<EasingIR>,
-}
-
-/// Named timeline definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineIntent {
-    pub name: String,
-    pub items: Vec<TimelineItemIR>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1056,8 +780,6 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         event_names: comp.events.iter().map(|e| e.name.clone()).collect(),
         view,
         styles,
-        motions: vec![],
-        timelines: vec![],
     }
 }
 
@@ -1327,14 +1049,6 @@ fn lower_view_node(
                 class_map_bindings: class_map_bindings_from_prop,
                 source_line: el.span.line,
                 source_col: el.span.col,
-                motion_triggers: vec![],
-                states: None,
-                paused_override: None,
-                driven_by: None,
-                hover_reverse: None,
-                in_view_once: None,
-                in_view_repeat: None,
-                in_view_threshold: None,
             })
         }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
@@ -1363,14 +1077,6 @@ fn lower_view_node(
                     construction_kind: "conditional".into(),
                     source_line: 0,
                     source_col: 0,
-                    motion_triggers: vec![],
-                    states: None,
-                    paused_override: None,
-                    driven_by: None,
-                    hover_reverse: None,
-                    in_view_once: None,
-                    in_view_repeat: None,
-                    in_view_threshold: None,
                 })),
             })
             .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
@@ -1393,14 +1099,6 @@ fn lower_view_node(
                         construction_kind: "conditional".into(),
                         source_line: 0,
                         source_col: 0,
-                        motion_triggers: vec![],
-                        states: None,
-                        paused_override: None,
-                        driven_by: None,
-                        hover_reverse: None,
-                        in_view_once: None,
-                        in_view_repeat: None,
-                        in_view_threshold: None,
                     })),
                 }
             }))
@@ -1424,18 +1122,10 @@ fn lower_view_node(
                     construction_kind: "conditional".into(),
                     source_line: 0,
                     source_col: 0,
-                    motion_triggers: vec![],
-                    states: None,
-                    paused_override: None,
-                    driven_by: None,
-                    hover_reverse: None,
-                    in_view_once: None,
-                    in_view_repeat: None,
-                    in_view_threshold: None,
                 })
             });
 
-            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback, transition_mode: None }))
+            ViewTree::Conditional(Box::new(ConditionalIntent { branches, fallback }))
         }
         ViewNode::ForDirective(for_dir) => {
             let lower_body = |nodes: &[ViewNode]| -> Option<ViewTree> {
@@ -1459,14 +1149,6 @@ fn lower_view_node(
                         construction_kind: "list".into(),
                         source_line: 0,
                         source_col: 0,
-                        motion_triggers: vec![],
-                        states: None,
-                        paused_override: None,
-                        driven_by: None,
-                        hover_reverse: None,
-                        in_view_once: None,
-                        in_view_repeat: None,
-                        in_view_threshold: None,
                     }))
                 }
             };
