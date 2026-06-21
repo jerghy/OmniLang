@@ -1,7 +1,6 @@
 // editor/client/src/omni-gen/__tests__/validator.test.ts
 import { describe, it, expect, vi } from "vitest";
 import { validate } from "../validator";
-import type { ValidationResult } from "../types";
 
 // Mock rustCompiler — we test the wrapper logic, not the WASM
 vi.mock("../../api/rustCompiler", () => ({
@@ -37,5 +36,9 @@ describe("validate", () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].code).toBe("E001");
+    expect(result.errors[0].severity).toBe("error");
+    expect(result.errors[0].message).toBe("unexpected token");
+    expect(result.errors[0].line).toBe(1);
+    expect(result.errors[0].col).toBe(10);
   });
 });
