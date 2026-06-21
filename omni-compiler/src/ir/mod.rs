@@ -31,6 +31,10 @@ pub enum ExprIR {
         object: Box<ExprIR>,
         field: String,
     },
+    OptionalChainExpr {
+        object: Box<ExprIR>,
+        field: String,
+    },
     BinaryOpExpr {
         op: String,
         left: Box<ExprIR>,
@@ -229,6 +233,15 @@ pub enum StatementIR {
     },
     BreakStmtIR,
     ContinueStmtIR,
+    ThrowStmtIR {
+        expr: ExprIR,
+    },
+    TryCatchStmtIR {
+        try_body: BlockIR,
+        catch_var: Option<String>,
+        catch_body: Option<BlockIR>,
+        finally_body: Option<BlockIR>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════
@@ -563,7 +576,7 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         })
         .collect();
 
-    let computeds: Vec<ComputedIntent> = comp
+    let mut computeds: Vec<ComputedIntent> = comp
         .computeds
         .iter()
         .map(|c| ComputedIntent {
@@ -573,6 +586,16 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
             deps: vec![],
         })
         .collect();
+
+    // Lower inline-store getters into computed properties
+    for g in &comp.getters {
+        computeds.push(ComputedIntent {
+            name: g.name.clone(),
+            r#type: lower_type(&g.type_ann),
+            body: lower_expr(&g.body, variant_map),
+            deps: vec![],
+        });
+    }
 
     let effects: Vec<EffectIntent> = comp
         .lifecycles
@@ -905,20 +928,20 @@ fn lower_view_node(
                             ClassValue::StyleRef(s) => s.clone(),
                             ClassValue::StringLiteral(s) => s.clone(),
                             ClassValue::ClassMap(entries) => {
-                                // Only include classes whose value is a literal true (static classes).
-                                // Dynamic class toggling (via signals/function calls) needs JS effects.
+                                // Include classes based on their literal value:
+                                //   Bool(true)  → static truth  → include the class
+                                //   Bool(false) → static falsy → skip the class
+                                //   dynamic     → unknown at compile time → skip (JS handles)
                                 let mut static_classes: Vec<String> = Vec::new();
                                 for (key, val_expr) in entries {
-                                    let is_static_true = match val_expr {
-                                        Expr::Literal(Literal::Bool(true), _) => true,
-                                        _ => false,
-                                    };
-                                    if is_static_true {
-                                        static_classes.push(key.clone());
-                                    } else {
-                                        // Dynamic class value: not yet supported as JS toggle.
-                                        // For now, include the class name statically — the
-                                        // inline style mechanism handles the dynamic coloring.
+                                    let mut skip = false;
+                                    if let Expr::Literal(Literal::Bool(false), _) = val_expr {
+                                        // Explicitly false: exclude the class entirely
+                                        skip = true;
+                                    }
+                                    // For true or dynamic values, include the class.
+                                    // Dynamic toggling will be handled by JS later.
+                                    if !skip {
                                         static_classes.push(key.clone());
                                     }
                                 }
@@ -1195,6 +1218,21 @@ fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> StatementIR
         }
         Stmt::Break(_) => StatementIR::BreakStmtIR,
         Stmt::Continue(_) => StatementIR::ContinueStmtIR,
+        Stmt::Throw { expr, .. } => StatementIR::ThrowStmtIR {
+            expr: lower_expr(expr, variant_map),
+        },
+        Stmt::TryCatch {
+            try_body,
+            catch_var,
+            catch_body,
+            finally_body,
+            ..
+        } => StatementIR::TryCatchStmtIR {
+            try_body: lower_block(try_body, variant_map),
+            catch_var: catch_var.clone(),
+            catch_body: catch_body.as_ref().map(|b| lower_block(b, variant_map)),
+            finally_body: finally_body.as_ref().map(|b| lower_block(b, variant_map)),
+        },
         _ => StatementIR::ExprStmtIR {
             expr: ExprIR::LiteralExpr {
                 value: serde_json::Value::Null,
@@ -1401,7 +1439,10 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
         Expr::BinaryOp {
             left, op, right, ..
         } => ExprIR::BinaryOpExpr {
-            op: format!("{:?}", op).to_lowercase(),
+            op: match op {
+                BinaryOpKind::NullishCoalesce => "??".into(),
+                _ => format!("{:?}", op).to_lowercase(),
+            },
             left: Box::new(lower_expr(left, variant_map)),
             right: Box::new(lower_expr(right, variant_map)),
         },
@@ -1453,6 +1494,10 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             }
         }
         Expr::FieldAccess { object, field, .. } => ExprIR::FieldAccessExpr {
+            object: Box::new(lower_expr(object, variant_map)),
+            field: field.clone(),
+        },
+        Expr::OptionalChain { object, field, .. } => ExprIR::OptionalChainExpr {
             object: Box::new(lower_expr(object, variant_map)),
             field: field.clone(),
         },
