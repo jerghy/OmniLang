@@ -1674,6 +1674,18 @@ function __omni_bindText(nid) {
             }
         }
 
+        // Hero shared element transition tag — emit as data attribute
+        if let Some(ref hero) = el.hero_tag {
+            attrs.push_str(&format!(" data-hero=\"{}\"", escape_html(hero)));
+        }
+        // Optional custom transition motion name
+        if let Some(ref transition) = el.hero_transition {
+            let trans_str = self.expr_to_static_str(transition);
+            if !trans_str.is_empty() {
+                attrs.push_str(&format!(" data-hero-transition=\"{}\"", escape_html(&trans_str)));
+            }
+        }
+
         // Inline style: { key: value, ... } — generate static style attr + dynamic JS effects
         if let Some(ref inline_style) = el.inline_style {
             if let Some(style_obj) = inline_style.as_object() {

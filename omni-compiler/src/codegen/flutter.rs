@@ -497,7 +497,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     // Wrap with motion animation widgets if the element has triggers
     let has_inview = el.in_view_once.is_some() || el.in_view_repeat.is_some();
     let has_scroll = el.scroll_start.is_some() || el.scroll_end.is_some();
-    if !el.motion_triggers.is_empty()
+    let mut result = if !el.motion_triggers.is_empty()
         || el.driven_by.is_some()
         || el.states.is_some()
         || has_inview
@@ -616,7 +616,26 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
         result
     } else {
         inner
+    };
+
+    // Wrap with Hero widget if hero_tag is set (shared element transition)
+    if let Some(ref hero_tag) = el.hero_tag {
+        let tag_dart = format!("'{}'", hero_tag);
+        if let Some(ref transition) = el.hero_transition {
+            let trans_dart = format_expr_ir_flutter(transition);
+            result = format!(
+                "Hero(\n  tag: {},\n  flightShuttleBuilder: ({}, child, animation, flightDirection, fromHeroContext, toHeroContext) {{\n    return child!;\n  }},\n  child: {},\n)",
+                tag_dart, trans_dart, result
+            );
+        } else {
+            result = format!(
+                "Hero(\n  tag: {},\n  child: {},\n)",
+                tag_dart, result
+            );
+        }
     }
+
+    result
 }
 
 /// Format a ConditionalIntent as a Dart ternary expression.
