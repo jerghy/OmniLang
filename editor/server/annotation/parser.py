@@ -23,7 +23,7 @@ _CODE_TAB_RE = re.compile(
     r"^//\s*@code-tab\s+type=(\w+)\s*$"
 )
 _EDIT_RE = re.compile(
-    r"^//\s*@edit(\s+folded)?(\s+render=(dom|canvas))?\s*$"
+    r"^//\s*@edit\s*(.*?)\s*$"
 )
 _CHAIN_RE = re.compile(
     r"^//\s*@chain\s+(\w+)\s*$"
@@ -35,7 +35,7 @@ _WIRE_RE = re.compile(
     r"^//\s*@wire\s+(\w+)\s+(\w+)(?:\.(\w+))?\s*->\s*(\w+)(?:\.(\w+))?\s*(collapsed)?\s*(?:group=(\w+))?\s*$"
 )
 _BLOCK_SEP_RE = re.compile(r"^//\s*═+\s*$")
-_ELEMENT_RE = re.compile(r"^(\s*)<(\w+)\b")
+_ELEMENT_RE = re.compile(r"^(\s*)<(?!\/)(\w+)\b")
 _FN_DECL_RE = re.compile(r"^\s*(pub\s+)?fn\s+(\w+)")
 _ACTION_DECL_RE = re.compile(r"^\s*action\s+(\w+)")
 _ID_ATTR_RE = re.compile(r'\bid="([^"]*)"')
@@ -109,13 +109,23 @@ def parse_annotations(source: str, filepath: str = "<input>") -> AnnotationFile:
         # Match @edit annotation
         edit_m = _EDIT_RE.match(stripped)
         if edit_m:
-            is_folded = edit_m.group(1) is not None and "folded" in edit_m.group(1)
-            render_str = edit_m.group(3)
+            raw_options = edit_m.group(1)
+            options = raw_options.split() if raw_options else []
+            is_folded = "folded" in options
             render_mode = ViewRenderMode.DOM
-            if render_str == "canvas":
-                render_mode = ViewRenderMode.CANVAS
-            elif render_str == "dom":
-                render_mode = ViewRenderMode.DOM
+            for opt in options:
+                if opt == "render=canvas":
+                    render_mode = ViewRenderMode.CANVAS
+                elif opt == "render=dom":
+                    render_mode = ViewRenderMode.DOM
+                elif opt == "folded":
+                    pass  # already handled above
+                else:
+                    errors.append(AnnotationError(
+                        code=AnnotationErrorCode.INVALID_EDIT_TOKEN,
+                        message=f"Invalid @edit token '{opt}' at line {i+1}",
+                        line=i + 1,
+                    ))
 
             # Next non-blank line must be an <element
             next_line_idx = i + 1
