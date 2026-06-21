@@ -84,25 +84,75 @@ impl<'a> Parser<'a> {
                 }
             }
             // Component call syntax: Card(prop: value, ...) { children }
+            // Only PascalCase names start component calls; camelCase is raw text
             _ if self.is_component_call_start() => self.parse_component_call(),
-            _ => {
-                let t = self.advance();
-                Err(ParseError {
-                    message: format!("Unexpected token in view: {:?}", t.kind),
-                    span: t.span,
-                })
-            }
+            // Raw text content in elements
+            _ => self.parse_raw_text_node(),
         };
         self.leave_recursion();
         result
     }
 
+    /// Parse raw text content inside an element.
+    /// Collects consecutive non-special tokens until a view boundary is hit,
+    /// reconstructing text from token source spans.
+    fn parse_raw_text_node(&mut self) -> Result<ViewNode, ParseError> {
+        let start_span = self.peek().span.clone();
+        let mut end_span = start_span.clone();
+
+        while self.pos < self.tokens.len() {
+            let kind = self.peek_kind();
+            // Stop at view boundaries
+            match kind {
+                TokenKind::Lt
+                | TokenKind::LBrace
+                | TokenKind::RBrace
+                | TokenKind::AtIf
+                | TokenKind::AtFor
+                | TokenKind::AtSlot
+                | TokenKind::Eof
+                | TokenKind::StringLiteral(_) => break,
+                _ => {
+                    // Check if this could start a component call
+                    if self.is_component_call_start() {
+                        break;
+                    }
+                }
+            }
+            let t = self.advance();
+            end_span = t.span;
+        }
+
+        // Reconstruct text from source using byte spans (preserves whitespace).
+        // Guard against tests passing empty source — spans then index past end.
+        let text = if start_span.start < self.source.len()
+            && end_span.end <= self.source.len()
+            && start_span.start <= end_span.end
+        {
+            self.source[start_span.start..end_span.end].to_string()
+        } else {
+            String::new()
+        };
+        if text.is_empty() {
+            // No text collected — this can happen at EOF. Skip the node.
+            return Ok(ViewNode::Text(String::new()));
+        }
+        Ok(ViewNode::Text(text))
+    }
+
     /// Check if current position starts a component call: Name(...
+    /// Only PascalCase names start component calls; lowercase/camelCase is text.
     fn is_component_call_start(&self) -> bool {
         let kind = self.peek_kind();
-        let is_ident_like =
-            matches!(kind, TokenKind::Ident(_)) || keyword_as_ident_name(&kind).is_some();
-        if !is_ident_like {
+        // Extract the identifier name, checking for PascalCase
+        let name: Option<String> = match &kind {
+            TokenKind::Ident(s) => Some(s.clone()),
+            _ => keyword_as_ident_name(&kind).map(|s| s.to_string()),
+        };
+        let Some(name) = name else { return false };
+        // Only PascalCase starts a component call (e.g., Card, Button, Flex)
+        // camelCase like math_abs or getBtnBg is raw text
+        if !name.starts_with(|c: char| c.is_uppercase()) {
             return false;
         }
         // Check next token is '(' (props) or '{' (children only)
@@ -340,6 +390,34 @@ impl<'a> Parser<'a> {
         )
     }
 
+    /// Check if the next token is a known boolean HTML attribute keyword.
+    /// Used to prevent these from being treated as class names in
+    /// `class: btn primary disabled` scenarios.
+    fn peek_is_boolean_attr_keyword(&self) -> bool {
+        let name: Option<String> = match self.peek_kind() {
+            TokenKind::Ident(s) => Some(s.clone()),
+            ref kind => keyword_as_ident_name(kind),
+        };
+        matches!(
+            name.as_deref(),
+            Some("controls")
+                | Some("disabled")
+                | Some("readonly")
+                | Some("required")
+                | Some("checked")
+                | Some("selected")
+                | Some("autofocus")
+                | Some("multiple")
+                | Some("loop")
+                | Some("muted")
+                | Some("async")
+                | Some("defer")
+                | Some("hidden")
+                | Some("autocomplete")
+                | Some("autoplay")
+        )
+    }
+
     /// Parse a static prop: name="value" or name={expr}
     /// Also handles hyphenated names like margin-left, background-color
     fn parse_element_prop(&mut self) -> Result<ElementProp, ParseError> {
@@ -477,6 +555,8 @@ impl<'a> Parser<'a> {
                             }
                         };
                         // Collect additional space-separated class names: class: btn btn-plus
+                        // BUT stop if the next identifier is a known boolean HTML attribute
+                        // (e.g. <audio class: media controls> — "controls" is an attribute)
                         let mut classes = vec![first];
                         loop {
                             // Peek — is the next token another class name?
@@ -490,6 +570,11 @@ impl<'a> Parser<'a> {
                             // Check: is this actually the start of the next attribute?
                             // An ident followed by '=' or ':' is an attribute, not a class name
                             if self.peek_is_attr_start() {
+                                break;
+                            }
+                            // Check: is this a known boolean attribute keyword?
+                            // (e.g., controls, disabled, readonly, loop, muted, etc.)
+                            if self.peek_is_boolean_attr_keyword() {
                                 break;
                             }
                             let next_t = self.advance();
@@ -650,50 +735,30 @@ impl<'a> Parser<'a> {
                     let body = self.parse_block()?;
                     EventHandler::InlineFn { params, body }
                 } else {
-                    // fn reference: fnName, fnName(args), or store.action
-                    let t = self.advance();
-                    match &t.kind {
-                        TokenKind::Ident(name) => {
-                            if self.peek_kind() == TokenKind::Dot {
-                                self.advance();
-                                let action = self.expect_ident("expected action name")?;
-                                EventHandler::StoreAction {
-                                    store: name.clone(),
-                                    action,
-                                }
-                            } else if self.peek_kind() == TokenKind::LParen {
-                                // fnName(args) — call expression as handler
-                                // Wrap as inline fn: () => { fnName(args); }
-                                self.advance(); // '('
-                                let args = self.parse_call_args()?;
-                                let body = Block {
-                                    stmts: vec![Stmt::ExprStmt {
-                                        expr: Expr::FuncCall {
-                                            func: Box::new(Expr::VarRef(
-                                                name.clone(),
-                                                t.span.clone(),
-                                            )),
-                                            args,
-                                            span: t.span.clone(),
-                                        },
-                                        span: t.span.clone(),
-                                    }],
-                                    trailing_expr: None,
-                                    span: t.span.clone(),
-                                };
-                                EventHandler::InlineFn {
-                                    params: vec![],
-                                    body,
-                                }
-                            } else {
-                                EventHandler::FnRef(name.clone())
-                            }
+                    // Handler expression: fnName, fnName(args), store.action,
+                    // assignment (dragStatus = "dragging"), or any expression.
+                    // Parse as expression; wrap non-simple cases in inline fn.
+                    let expr = self.parse_expr()?;
+                    match &expr {
+                        Expr::VarRef(name, _) => {
+                            EventHandler::FnRef(name.clone())
                         }
                         _ => {
-                            return Err(ParseError {
-                                message: format!("Expected event handler, got {:?}", t.kind),
-                                span: t.span,
-                            })
+                            // Wrap any other expression (fn call, assignment, etc.)
+                            // in an inline fn body: () => { expr; }
+                            let expr_span = crate::parser::expr::span_of(&expr).clone();
+                            let body = Block {
+                                stmts: vec![Stmt::ExprStmt {
+                                    expr,
+                                    span: expr_span.clone(),
+                                }],
+                                trailing_expr: None,
+                                span: expr_span,
+                            };
+                            EventHandler::InlineFn {
+                                params: vec![],
+                                body,
+                            }
                         }
                     }
                 };
@@ -766,6 +831,7 @@ impl<'a> Parser<'a> {
             body,
             else_ifs,
             else_body,
+            transition_mode: None,
         }))
     }
 
@@ -822,6 +888,20 @@ impl<'a> Parser<'a> {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 class_name = format!("{}-{}", class_name, next);
+            }
+            // Handle pseudo-classes: .className:hover, .className:focus, etc.
+            while self.peek_kind() == TokenKind::Colon {
+                self.advance(); // consume ':'
+                let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+                class_name = format!("{}:{}", class_name, pseudo);
+            }
+            // Skip unsupported compound selector parts (e.g., "input:checked + span")
+            // until we find the opening brace
+            while self.peek_kind() != TokenKind::LBrace
+                && self.peek_kind() != TokenKind::RBrace
+                && self.peek_kind() != TokenKind::Eof
+            {
+                self.advance();
             }
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
@@ -883,6 +963,10 @@ impl<'a> Parser<'a> {
                                 let next = self.expect_ident("expected identifier after '-'")?;
                                 ident = format!("{}-{}", ident, next);
                             }
+                            // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
+                            if self.peek_kind() == TokenKind::LParen {
+                                ident = consume_css_function_args(self, &ident);
+                            }
                             // Check for dimension: 16px, 1.5rem
                             if let Some(unit) = try_parse_dimension(&ident) {
                                 StyleValue::Dimension(unit.0, unit.1)
@@ -932,6 +1016,9 @@ impl<'a> Parser<'a> {
                                     let next =
                                         self.expect_ident("expected identifier after '-'")?;
                                     ident = format!("{}-{}", ident, next);
+                                }
+                                if self.peek_kind() == TokenKind::LParen {
+                                    ident = consume_css_function_args(self, &ident);
                                 }
                                 if let Some(unit) = try_parse_dimension(&ident) {
                                     StyleValuePart::Dimension(unit.0, unit.1)
@@ -1067,6 +1154,10 @@ impl<'a> Parser<'a> {
                             let next = self.expect_ident("expected identifier after '-'")?;
                             ident = format!("{}-{}", ident, next);
                         }
+                        // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
+                        if self.peek_kind() == TokenKind::LParen {
+                            ident = consume_css_function_args(self, &ident);
+                        }
                         // Check for dimension: 16px, 1.5rem
                         if let Some(unit) = try_parse_dimension(&ident) {
                             StyleValue::Dimension(unit.0, unit.1)
@@ -1119,6 +1210,36 @@ fn is_event_like(name: &str) -> bool {
     }
     // Check third char is uppercase: onPress, onClick, onChange, etc.
     name.chars().nth(2).is_some_and(|c| c.is_uppercase())
+}
+
+/// Consume CSS function arguments inside parentheses.
+/// Given `rotate` and next token `(`, consumes `(15deg)` and returns `rotate(15deg)`.
+fn consume_css_function_args(parser: &mut Parser, func_name: &str) -> String {
+    parser.advance(); // consume '('
+    let mut depth: i32 = 1;
+    let mut args = String::new();
+    while depth > 0 && parser.peek_kind() != TokenKind::Eof {
+        match parser.peek_kind() {
+            TokenKind::LParen => {
+                depth += 1;
+                args.push('(');
+                parser.advance();
+            }
+            TokenKind::RParen => {
+                depth -= 1;
+                if depth > 0 {
+                    args.push(')');
+                }
+                parser.advance();
+            }
+            TokenKind::Semicolon | TokenKind::RBrace => break,
+            _ => {
+                let t = parser.advance();
+                args.push_str(&token_text(&t.kind));
+            }
+        }
+    }
+    format!("{}({})", func_name, args)
 }
 
 /// If the next token is an Ident that forms a valid CSS dimension with `val`,
@@ -1210,7 +1331,8 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Hash
             | TokenKind::StringLiteral(_)
             | TokenKind::Percent
-            // Compound-assignment and comparison operators
+            // Assignment and comparison operators
+            | TokenKind::Eq
             | TokenKind::PlusEq | TokenKind::MinusEq
             | TokenKind::StarEq | TokenKind::SlashEq | TokenKind::PercentEq
             | TokenKind::EqEq | TokenKind::NotEq
@@ -1231,7 +1353,16 @@ fn token_text(kind: &TokenKind) -> String {
     match kind {
         TokenKind::Ident(s) => s.clone(),
         TokenKind::IntLiteral(n) => n.to_string(),
-        TokenKind::FloatLiteral(f) => f.to_string(),
+        TokenKind::FloatLiteral(f) => {
+            // f64::to_string drops ".0" from integer-valued floats (e.g. 1.0 → "1").
+            // This breaks version-like strings (1.0.0) rendered as text in views.
+            let s = f.to_string();
+            if !s.contains('.') {
+                format!("{}.0", s)
+            } else {
+                s
+            }
+        }
         TokenKind::Colon => ":".into(),
         TokenKind::Comma => ",".into(),
         TokenKind::Dot => ".".into(),
@@ -1248,6 +1379,7 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
         TokenKind::Percent => "%".into(),
+        TokenKind::Eq => "=".into(),
         TokenKind::PlusEq => "+=".into(),
         TokenKind::MinusEq => "-=".into(),
         TokenKind::StarEq => "*=".into(),

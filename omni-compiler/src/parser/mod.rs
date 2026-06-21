@@ -10,13 +10,14 @@ use std::collections::HashMap;
 
 use crate::error::ParseError;
 use crate::lexer::{Token, TokenKind};
+use crate::parser::stmt::keyword_as_ident_name;
 use ast::Program;
 #[allow(unused_imports)]
 use ast::Visibility;
 
 /// Parse a token stream into an AST Program.
-pub fn parse(tokens: &[Token]) -> Result<Program, ParseError> {
-    let mut parser = Parser::new(tokens);
+pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
+    let mut parser = Parser::new(tokens, source);
     let module = parser.parse_module()?;
     let mut modules = HashMap::new();
     modules.insert("input.omni".to_string(), module);
@@ -31,16 +32,19 @@ pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
     depth: usize,
+    source: &'a str,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
+    pub fn new(tokens: &'a [Token], source: &'a str) -> Self {
         Parser {
             tokens,
             pos: 0,
             depth: 0,
+            source,
         }
     }
+
 
     /// Increment recursion depth, returning an error if the limit is exceeded.
     fn enter_recursion(&mut self) -> Result<(), ParseError> {
@@ -86,6 +90,16 @@ impl<'a> Parser<'a> {
 
     // ── Helpers ────────────────────────────────────────
 
+    /// Peek at the string value of the next identifier without consuming it.
+    /// Handles both TokenKind::Ident(name) and keyword tokens via keyword_as_ident_name().
+    pub fn peek_ident_value(&self) -> Option<String> {
+        let tok = self.peek();
+        match &tok.kind {
+            TokenKind::Ident(name) => Some(name.clone()),
+            other => keyword_as_ident_name(other),
+        }
+    }
+
     /// Check if the next token is a left brace `{`.
     pub fn peek_is_brace(&self) -> bool {
         self.peek_kind() == TokenKind::LBrace
@@ -128,7 +142,7 @@ mod roundtrip_tests {
     fn roundtrip_function_def() {
         let source = "pub fn main() { return 42; }";
         let tokens = tokenize(source);
-        let program = parse(&tokens).unwrap();
+        let program = parse(&tokens, source).unwrap();
         assert_eq!(program.modules.len(), 1);
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.functions.len(), 1);
@@ -141,7 +155,7 @@ mod roundtrip_tests {
     fn roundtrip_struct_def() {
         let source = "struct Point { x: i32, y: i32 }";
         let tokens = tokenize(source);
-        let program = parse(&tokens).unwrap();
+        let program = parse(&tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.structs.len(), 1);
         assert_eq!(module.structs[0].name, "Point");
@@ -152,7 +166,7 @@ mod roundtrip_tests {
     fn roundtrip_enum_def() {
         let source = "type Color = Red | Green | Blue";
         let tokens = tokenize(source);
-        let program = parse(&tokens).unwrap();
+        let program = parse(&tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.tagged_unions.len(), 1);
     }
@@ -161,7 +175,7 @@ mod roundtrip_tests {
     fn roundtrip_type_alias() {
         let source = "type UserId = i32;";
         let tokens = tokenize(source);
-        let program = parse(&tokens).unwrap();
+        let program = parse(&tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.type_aliases.len(), 1);
         assert_eq!(module.type_aliases[0].name, "UserId");
@@ -171,7 +185,7 @@ mod roundtrip_tests {
     fn roundtrip_import_export() {
         let source = "import { add } from \"./utils/math.omni\";\nexport { main } from \"./utils/math.omni\";";
         let tokens = tokenize(source);
-        let program = parse(&tokens).unwrap();
+        let program = parse(&tokens, source).unwrap();
         let module = program.modules.get("input.omni").unwrap();
         assert_eq!(module.imports.len(), 1);
         assert_eq!(module.exports.len(), 1);

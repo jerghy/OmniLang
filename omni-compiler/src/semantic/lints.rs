@@ -580,7 +580,27 @@ pub mod rules {
                 | StatementIR::EventEmitStmtIR { .. }
                 | StatementIR::ExprStmtIR { .. }
                 | StatementIR::BreakStmtIR
-                | StatementIR::ContinueStmtIR => {}
+                | StatementIR::ContinueStmtIR
+                | StatementIR::ThrowStmtIR { .. } => {}
+                StatementIR::TryCatchStmtIR {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    if statements_contain_return(&try_body.statements, _in_loop) {
+                        if let Some(ref cb) = catch_body {
+                            if statements_contain_return(&cb.statements, _in_loop) {
+                                return true;
+                            }
+                        }
+                    }
+                    if let Some(ref fb) = finally_body {
+                        if statements_contain_return(&fb.statements, _in_loop) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         false
@@ -654,6 +674,23 @@ pub mod rules {
                         collect_used_names_in_expr(arg, used);
                     }
                 }
+                crate::parser::ast::Stmt::Throw { expr, .. } => {
+                    collect_used_names_in_expr(expr, used);
+                }
+                crate::parser::ast::Stmt::TryCatch {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    collect_used_names_in_block(try_body, used);
+                    if let Some(ref b) = catch_body {
+                        collect_used_names_in_block(b, used);
+                    }
+                    if let Some(ref b) = finally_body {
+                        collect_used_names_in_block(b, used);
+                    }
+                }
             }
         }
         if let Some(ref expr) = block.trailing_expr {
@@ -686,7 +723,8 @@ pub mod rules {
                     collect_used_names_in_expr(a, used);
                 }
             }
-            Expr::FieldAccess { object, .. } => {
+            Expr::FieldAccess { object, .. }
+            | Expr::OptionalChain { object, .. } => {
                 collect_used_names_in_expr(object, used);
             }
             Expr::IndexGet { object, index, .. } => {
@@ -1173,6 +1211,8 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                motions: vec![],
+                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["unusedSymbol".into()],
                     path: "./utils.omni".into(),
@@ -1249,6 +1289,8 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                motions: vec![],
+                timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
                     names: vec!["usedSymbol".into()],
                     path: "./utils.omni".into(),
