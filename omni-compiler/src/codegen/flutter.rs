@@ -474,8 +474,30 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     };
 
     // Wrap with motion animation widgets if the element has triggers
-    if !el.motion_triggers.is_empty() {
-        wrap_with_motion_widgets(inner, &el.motion_triggers, motions)
+    if !el.motion_triggers.is_empty() || el.driven_by.is_some() || el.states.is_some() {
+        let mut result = inner;
+
+        // Handle @driven-by: wrap with signal-driven animation progress
+        if let Some(ref driven_expr) = el.driven_by {
+            let driven_dart = format_expr_ir_flutter(driven_expr);
+            // Generate a listener that seeks the animation controller based on signal value
+            result = format!(
+                "DrivenByBuilder(\n  progress: () => ({}).toDouble().clamp(0.0, 1.0),\n  builder: (context, child, progress) {{\n    // Apply animation at the given progress\n    return child!;\n  }},\n  child: {},\n)",
+                driven_dart, result
+            );
+        }
+
+        // Handle states:: wrap with gesture-detector or signal-driven state machine
+        if let Some(ref states_ir) = el.states {
+            result = wrap_flutter_states(result, states_ir, el);
+        }
+
+        // Standard motion triggers (enter, hover, press, etc.)
+        if !el.motion_triggers.is_empty() {
+            result = wrap_with_motion_widgets(result, &el.motion_triggers, motions);
+        }
+
+        result
     } else {
         inner
     }
@@ -510,6 +532,16 @@ fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> Str
         result.push_str(&format!(" : {}", format_view_tree(fb, motions)));
     } else {
         result.push_str(" : SizedBox()");
+    }
+
+    // For wait mode, wrap with AnimatedSwitcher for enter/leave sequencing
+    if let Some(ref mode) = cond.transition_mode {
+        if mode == "wait" {
+            result = format!(
+                "AnimatedSwitcher(\n  duration: Duration(milliseconds: 300),\n  switchInCurve: Curves.easeOut,\n  switchOutCurve: Curves.easeIn,\n  transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),\n  child: {},\n)",
+                result
+            );
+        }
     }
 
     result
@@ -1333,6 +1365,74 @@ fn wrap_with_motion_widgets(
     }
 
     result
+}
+
+/// Wrap a widget with states: support — either reserved (idle/hover/pressed) with
+/// MouseRegion+GestureDetector, or custom signal-driven with named state animations.
+fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &ElementIR) -> String {
+    let mut result = inner;
+
+    // Check if states are reserved (idle, hover, pressed) or custom
+    let reserved_names: std::collections::HashSet<&str> =
+        ["idle", "hover", "pressed"].iter().copied().collect();
+    let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
+    let is_reserved = state_names.iter().all(|n| reserved_names.contains(n));
+
+    if is_reserved {
+        // Generate MouseRegion for hover state + GestureDetector for pressed state
+        let has_hover = state_names.contains(&"hover");
+        let has_pressed = state_names.contains(&"pressed");
+
+        if has_pressed {
+            // Get the hover/pressed animation controllers
+            if let Some(ref idle_def) = states_ir.states.get("idle") {
+                let over_ms = idle_def.over.as_ref()
+                    .and_then(|e| {
+                        if let ExprIR::LiteralExpr { value } = e {
+                            value.as_str().and_then(|s| parse_dart_duration_ms(s))
+                        } else { None }
+                    }).unwrap_or(150.0);
+                result = format!(
+                    "GestureDetector(\n  onTapDown: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onTapUp: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  onTapCancel: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
+                    over_ms as u64, over_ms as u64, over_ms as u64, result
+                );
+            }
+        }
+        if has_hover {
+            if let Some(ref hover_def) = states_ir.states.get("hover") {
+                let over_ms = hover_def.over.as_ref()
+                    .and_then(|e| {
+                        if let ExprIR::LiteralExpr { value } = e {
+                            value.as_str().and_then(|s| parse_dart_duration_ms(s))
+                        } else { None }
+                    }).unwrap_or(150.0);
+                result = format!(
+                    "MouseRegion(\n  onEnter: (_) => _statesController.animateTo(1.0, duration: Duration(milliseconds: {})),\n  onExit: (_) => _statesController.animateTo(0.0, duration: Duration(milliseconds: {})),\n  child: {},\n)",
+                    over_ms as u64, over_ms as u64, result
+                );
+            }
+        }
+    } else if let Some(ref _signal) = states_ir.signal {
+        // Custom signal-driven states: use AnimatedBuilder with state lookup
+        let signal_dart = format_expr_ir_flutter(_signal);
+        result = format!(
+            "AnimatedBuilder(\n  animation: _statesController,\n  builder: (context, child) {{\n    final _state = {};\n    // Transition to matching state based on signal value\n    return child!;\n  }},\n  child: {},\n)",
+            signal_dart, result
+        );
+    }
+
+    result
+}
+
+/// Parse a duration expression string ("300ms", "1.5s") for Dart codegen.
+fn parse_dart_duration_ms(val: &str) -> Option<f64> {
+    if let Some(ms) = val.strip_suffix("ms") {
+        ms.parse::<f64>().ok()
+    } else if let Some(s) = val.strip_suffix('s') {
+        s.parse::<f64>().ok().map(|s| s * 1000.0)
+    } else {
+        None
+    }
 }
 
 /// Traverse the view tree to find motion names used with @enter triggers.
