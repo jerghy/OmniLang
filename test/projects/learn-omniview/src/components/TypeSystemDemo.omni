@@ -1,0 +1,76 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  TypeSystemDemo.omni —— 类型系统演示组件                      ║
+// ║  演示：所有整数/浮点类型变体、isize/usize、Void               ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+import { demo_i8, demo_i16, demo_i64,
+         demo_u8, demo_u16, demo_u32, demo_u64,
+         demo_f32, demo_isize, demo_usize,
+         type_system_summary } from "./type_system";
+
+component TypeSystemDemo {
+    signal summary: String = "";
+
+    fn loadSummary() {
+        summary = type_system_summary();
+    }
+
+    @mount {
+        loadSummary();
+    }
+
+    view {
+        <div class: container>
+            <h3 class: title>类型系统全覆盖</h3>
+            <p class: subtitle>i8 · i16 · i64 · u8 · u16 · u32 · u64 · f32 · isize · usize · Void</p>
+
+            <div class: section>
+                <h4 class: section-title>有符号整数</h4>
+                <ul class: list>
+                    <li class: item><code class: code>i8</code> max = {demo_i8()}</li>
+                    <li class: item><code class: code>i16</code> max = {demo_i16()}</li>
+                    <li class: item><code class: code>i64</code> max = {demo_i64()}</li>
+                    <li class: item><code class: code>isize</code> = {demo_isize()}</li>
+                </ul>
+            </div>
+
+            <div class: section>
+                <h4 class: section-title>无符号整数</h4>
+                <ul class: list>
+                    <li class: item><code class: code>u8</code> max = {demo_u8()}</li>
+                    <li class: item><code class: code>u16</code> max = {demo_u16()}</li>
+                    <li class: item><code class: code>u32</code> max = {demo_u32()}</li>
+                    <li class: item><code class: code>u64</code> max = {demo_u64()}</li>
+                    <li class: item><code class: code>usize</code> = {demo_usize()}</li>
+                </ul>
+            </div>
+
+            <div class: section>
+                <h4 class: section-title>浮点类型</h4>
+                <ul class: list>
+                    <li class: item><code class: code>f32</code> = {demo_f32()}</li>
+                </ul>
+            </div>
+
+            <div class: summary-box>
+                <p class: summary-text>综合: {summary}</p>
+            </div>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+
+        .section { margin-bottom: 16px; }
+        .section-title { font-size: 15px; color: #374151; margin: 0 0 8px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+        .list { margin: 0; padding-left: 16px; }
+        .item { font-size: 14px; color: #4b5563; margin: 4px 0; }
+        .code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-size: 13px; color: #6366f1; }
+
+        .summary-box { margin-top: 12px; padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; }
+        .summary-text { font-size: 13px; color: #0369a1; margin: 0; }
+    }
+}

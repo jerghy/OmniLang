@@ -1,0 +1,43 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/encode_demo.omni —— std/encode 模块演示                 ║
+// ║  演示：base64_encode/decode, hex_encode/decode,              ║
+// ║        url_encode/decode                                     ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import { encode_base64_encode, encode_base64_decode,
+         encode_hex_encode, encode_hex_decode,
+         encode_url_encode, encode_url_decode } from "std/encode";
+
+pub fn base64_roundtrip(original: String) -> bool {
+    let encoded = encode_base64_encode(original);
+    let decoded = encode_base64_decode(encoded);
+    return decoded == original;
+}
+
+pub fn hex_demo() -> String {
+    return encode_hex_encode("Hello OmniLang");
+}
+
+pub fn hex_roundtrip(original: String) -> bool {
+    let encoded = encode_hex_encode(original);
+    let decoded = encode_hex_decode(encoded);
+    return decoded == original;
+}
+
+pub fn url_encode_demo(url: String) -> String {
+    return encode_url_encode(url);
+}
+
+pub fn url_decode_demo(encoded: String) -> String {
+    return encode_url_decode(encoded);
+}
+
+pub fn encode_summary() -> String {
+    let b64Ok = base64_roundtrip("test");
+    let hexOk = hex_roundtrip("OmniLang");
+    let urlEnc = url_encode_demo("hello world");
+    return "base64=" + b64Ok.to_string()
+        + " hex=" + hexOk.to_string()
+        + " url_enc=" + urlEnc;
+}

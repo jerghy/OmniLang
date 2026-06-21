@@ -59,7 +59,7 @@
             </div>
           </div>
           <div data-nid="el-StatsDashboard-030" data-component="StatsDashboard">
-            <div data-nid="el-div-031" class="dashboard" data-data-ref="container">
+            <div data-nid="el-div-031" class="dashboard" data-ref="container">
               <h3 data-nid="el-h3-032" class="title">
                 StatsDashboard Demo
               </h3>
@@ -98,15 +98,36 @@
                   </button>
                 </div>
               </div>
-              <div data-nid="el-div-047" class="array-area">
+              <div data-nid="el-div-047" class="math-area">
                 <p data-nid="el-p-048" class="small">
-                  First value:
+                  math_abs(counter) =
                   <span data-nid="el-interp-049"></span>
+                  | math_sqrt(counter) =
+                  <span data-nid="el-interp-050"></span>
                 </p>
               </div>
-              <div data-nid="el-if-050-b0" style="display:none">
-                <fragment data-nid="el-fragment-051">
-                  <button data-nid="el-button-052" class="btn-danger">
+              <div data-nid="el-div-051" class="dice-area">
+                <p data-nid="el-p-052" class="small">
+                  Random:
+                  <span data-nid="el-interp-053"></span>
+                  | Ceil*100 =
+                  <span data-nid="el-interp-054"></span>
+                  | Floor*100 =
+                  <span data-nid="el-interp-055"></span>
+                </p>
+                <button data-nid="el-button-056" class="btn">
+                  Roll Dice
+                </button>
+              </div>
+              <div data-nid="el-div-057" class="array-area">
+                <p data-nid="el-p-058" class="small">
+                  First value:
+                  <span data-nid="el-interp-059"></span>
+                </p>
+              </div>
+              <div data-nid="el-if-060-b0" style="display:none">
+                <fragment data-nid="el-fragment-061">
+                  <button data-nid="el-button-062" class="btn-danger">
                     Trigger unmount
                   </button>
                 </fragment>
@@ -114,97 +135,97 @@
             </div>
           </div>
         </section>
-        <section data-nid="el-section-053" class="section">
-          <h3 data-nid="el-h3-054" class="section-title">
+        <section data-nid="el-section-063" class="section">
+          <h3 data-nid="el-h3-064" class="section-title">
             Interactions
           </h3>
-          <div data-nid="el-div-055" class="demo-grid">
-            <div data-nid="el-div-056" class="demo-card">
-              <div data-nid="el-Counter-057" data-component="Counter">
-                <div data-nid="el-div-058" class="box">
-                  <h3 data-nid="el-h3-059" class="title">
+          <div data-nid="el-div-065" class="demo-grid">
+            <div data-nid="el-div-066" class="demo-card">
+              <div data-nid="el-Counter-067" data-component="Counter">
+                <div data-nid="el-div-068" class="box">
+                  <h3 data-nid="el-h3-069" class="title">
                     计数器演示
                   </h3>
-                  <p data-nid="el-p-060" class="big-number">
-                    <span data-nid="el-interp-061"></span>
+                  <p data-nid="el-p-070" class="big-number">
+                    <span data-nid="el-interp-071"></span>
                   </p>
-                  <p data-nid="el-p-062" class="info">
+                  <p data-nid="el-p-072" class="info">
                     翻倍：
-                    <span data-nid="el-interp-063"></span>
+                    <span data-nid="el-interp-073"></span>
                     |
-                    <span data-nid="el-interp-064"></span>
+                    <span data-nid="el-interp-074"></span>
                   </p>
-                  <div data-nid="el-div-065" class="row">
-                    <button data-nid="el-button-066" class="btn">
+                  <div data-nid="el-div-075" class="row">
+                    <button data-nid="el-button-076" class="btn">
                       -
                     </button>
-                    <span data-nid="el-span-067" class="step-text">
+                    <span data-nid="el-span-077" class="step-text">
                       步长
-                      <span data-nid="el-interp-068"></span>
+                      <span data-nid="el-interp-078"></span>
                     </span>
-                    <button data-nid="el-button-069" class="btn">
+                    <button data-nid="el-button-079" class="btn">
                       +
                     </button>
                   </div>
-                  <div data-nid="el-div-070" class="row">
-                    <button data-nid="el-button-071" class="btn-sm">
+                  <div data-nid="el-div-080" class="row">
+                    <button data-nid="el-button-081" class="btn-sm">
                       步长1
                     </button>
-                    <button data-nid="el-button-072" class="btn-sm">
+                    <button data-nid="el-button-082" class="btn-sm">
                       步长5
                     </button>
-                    <button data-nid="el-button-073" class="btn-sm">
+                    <button data-nid="el-button-083" class="btn-sm">
                       步长10
                     </button>
-                    <button data-nid="el-button-074" class="btn-reset">
+                    <button data-nid="el-button-084" class="btn-reset">
                       重置
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-            <div data-nid="el-div-075" class="demo-card">
-              <div data-nid="el-FeatureCard-076" data-component="FeatureCard">
-                <div data-nid="el-div-077" class="card">
-                  <h3 data-nid="el-h3-078" class="title">
+            <div data-nid="el-div-085" class="demo-card">
+              <div data-nid="el-FeatureCard-086" data-component="FeatureCard">
+                <div data-nid="el-div-087" class="card">
+                  <h3 data-nid="el-h3-088" class="title">
                     FeatureCard Demo
                   </h3>
-                  <input data-nid="el-input-079" placeholder="Click" class="input" />
-                  <div data-nid="el-if-080-b0" style="display:none">
-                    <fragment data-nid="el-fragment-081">
-                      <span data-nid="el-span-082" class="badge-focused">
+                  <input data-nid="el-input-089" placeholder="Click" class="input" />
+                  <div data-nid="el-if-090-b0" style="display:none">
+                    <fragment data-nid="el-fragment-091">
+                      <span data-nid="el-span-092" class="badge-focused">
                         Focused
                       </span>
                     </fragment>
                   </div>
-                  <div data-nid="el-if-080-b1" style="display:none">
-                    <fragment data-nid="el-fragment-083">
-                      <span data-nid="el-span-084" class="badge-blurred">
+                  <div data-nid="el-if-090-b1" style="display:none">
+                    <fragment data-nid="el-fragment-093">
+                      <span data-nid="el-span-094" class="badge-blurred">
                         Blurred
                       </span>
                     </fragment>
                   </div>
-                  <div data-nid="el-if-080-b2" style="display:none">
-                    <fragment data-nid="el-fragment-085">
-                      <span data-nid="el-span-086" class="badge-idle">
+                  <div data-nid="el-if-090-b2" style="display:none">
+                    <fragment data-nid="el-fragment-095">
+                      <span data-nid="el-span-096" class="badge-idle">
                         Idle
                       </span>
                     </fragment>
                   </div>
-                  <div data-nid="el-if-080-else" style="display:none">
-                    <fragment data-nid="el-fragment-087">
-                      <span data-nid="el-span-088" class="badge-unknown">
+                  <div data-nid="el-if-090-else" style="display:none">
+                    <fragment data-nid="el-fragment-097">
+                      <span data-nid="el-span-098" class="badge-unknown">
                         Unknown
                       </span>
                     </fragment>
                   </div>
-                  <p data-nid="el-p-089" class="text">
+                  <p data-nid="el-p-099" class="text">
                     X:
-                    <span data-nid="el-interp-090"></span>
+                    <span data-nid="el-interp-100"></span>
                     | Focus:
-                    <span data-nid="el-interp-091"></span>
+                    <span data-nid="el-interp-101"></span>
                   </p>
-                  <button data-nid="el-button-092" class="btn-reset">
+                  <button data-nid="el-button-102" class="btn-reset">
                     Reset
                   </button>
                 </div>
@@ -214,113 +235,119 @@
         </section>
       </div>
     </div>
-    <div data-nid="el-TodoPage-093" data-component="TodoPage">
-      <div data-nid="el-div-094" class="todo-page">
-        <header data-nid="el-header-095" class="page-header">
-          <h2 data-nid="el-h2-096" class="page-title">
+    <div data-nid="el-TodoPage-103" data-component="TodoPage">
+      <div data-nid="el-div-104" class="todo-page">
+        <header data-nid="el-header-105" class="page-header">
+          <h2 data-nid="el-h2-106" class="page-title">
             Todo List
           </h2>
-          <p data-nid="el-p-097" class="page-subtitle">
-            <span data-nid="el-interp-098"></span>
+          <p data-nid="el-p-107" class="page-subtitle">
+            <span data-nid="el-interp-108"></span>
             tasks · Filter:
-            <span data-nid="el-interp-099"></span>
+            <span data-nid="el-interp-109"></span>
           </p>
-          <span data-nid="el-span-100" class="load-badge">
+          <span data-nid="el-span-110" class="load-badge">
             Loaded ×
-            <span data-nid="el-interp-101"></span>
+            <span data-nid="el-interp-111"></span>
           </span>
         </header>
-        <section data-nid="el-section-102" class="section">
-          <div data-nid="el-FilterBar-103" data-component="FilterBar">
-            <div data-nid="el-div-104" class="filter-bar">
-              <div data-nid="el-div-105" class="search-row">
-                <input data-nid="el-input-106" placeholder="Filter todos..." class="search-input" />
-                <button data-nid="el-button-107" class="clear-btn">
+        <section data-nid="el-section-112" class="section">
+          <div data-nid="el-FilterBar-113" data-component="FilterBar">
+            <div data-nid="el-div-114" class="filter-bar">
+              <div data-nid="el-div-115" class="search-row">
+                <input data-nid="el-input-116" placeholder="Filter todos..." class="search-input" />
+                <button data-nid="el-button-117" class="clear-btn">
                   X
                 </button>
               </div>
-              <div data-nid="el-div-108" class="sort-row">
-                <p data-nid="el-p-109" class="filter-label">
-                  <span data-nid="el-interp-110"></span>
+              <div data-nid="el-div-118" class="sort-row">
+                <p data-nid="el-p-119" class="filter-label">
+                  <span data-nid="el-interp-120"></span>
                 </p>
-                <button data-nid="el-button-111" class="sort-btn">
+                <button data-nid="el-button-121" class="sort-btn">
                   Sort
-                  <span data-nid="el-interp-112"></span>
+                  <span data-nid="el-interp-122"></span>
                 </button>
-                <button data-nid="el-button-113" class="sync-btn">
+                <button data-nid="el-button-123" class="sync-btn">
                   Sync
                 </button>
               </div>
-              <div data-nid="el-div-114" class="store-info">
-                <p data-nid="el-p-115" class="info-text">
+              <div data-nid="el-div-124" class="store-info">
+                <p data-nid="el-p-125" class="info-text">
                   Store:
-                  <span data-nid="el-interp-116"></span>
+                  <span data-nid="el-interp-126"></span>
                   items | Filter:
-                  <span data-nid="el-interp-117"></span>
+                  <span data-nid="el-interp-127"></span>
                   | Changes:
-                  <span data-nid="el-interp-118"></span>
+                  <span data-nid="el-interp-128"></span>
                 </p>
-                <p data-nid="el-p-119" class="info-text">
+                <p data-nid="el-p-129" class="info-text">
                   Last:
-                  <span data-nid="el-interp-120"></span>
+                  <span data-nid="el-interp-130"></span>
+                </p>
+                <p data-nid="el-p-131" class="info-text">
+                  Filtered frameworks:
+                  <span data-nid="el-interp-132"></span>
+                  /
+                  <span data-nid="el-interp-133"></span>
                 </p>
               </div>
             </div>
           </div>
         </section>
-        <section data-nid="el-section-121" class="section">
-          <div data-nid="el-TodoList-122" data-component="TodoList">
-            <div data-nid="el-div-123">
-              <h2 data-nid="el-h2-124" class="title">
+        <section data-nid="el-section-134" class="section">
+          <div data-nid="el-TodoList-135" data-component="TodoList">
+            <div data-nid="el-div-136">
+              <h2 data-nid="el-h2-137" class="title">
                 待办列表
-                <span data-nid="el-span-125" class="badge">
-                  <span data-nid="el-interp-126"></span>
+                <span data-nid="el-span-138" class="badge">
+                  <span data-nid="el-interp-139"></span>
                 </span>
               </h2>
-              <div data-nid="el-AddTodo-127" data-component="AddTodo">
-                <div data-nid="el-div-128" class="container">
-                  <div data-nid="el-div-129" class="row">
-                    <input data-nid="el-input-130" class="input" />
-                    <button data-nid="el-button-131" class="btn-add">
+              <div data-nid="el-AddTodo-140" data-component="AddTodo">
+                <div data-nid="el-div-141" class="container">
+                  <div data-nid="el-div-142" class="row">
+                    <input data-nid="el-input-143" class="input" />
+                    <button data-nid="el-button-144" class="btn-add">
                       添加
                     </button>
-                    <button data-nid="el-button-132" class="btn-clear">
+                    <button data-nid="el-button-145" class="btn-clear">
                       清空
                     </button>
                   </div>
-                  <p data-nid="el-p-133" class="counter">
+                  <p data-nid="el-p-146" class="counter">
                     已输入
-                    <span data-nid="el-interp-134"></span>
+                    <span data-nid="el-interp-147"></span>
                     字符
                   </p>
                 </div>
               </div>
-              <div data-nid="el-div-135" class="items">
-                <template data-nid="el-for-136-tpl">
-                  <fragment data-nid="el-fragment-137">
-                    <div data-nid="el-TodoItem-138" data-component="TodoItem">
-                      <div data-nid="el-div-139" class="item">
-                        <button data-nid="el-button-140" class="check-btn">
-                          <span data-nid="el-interp-141" data-bind-text="TodoItem_checked.value ? "V" : "O""></span>
+              <div data-nid="el-div-148" class="items">
+                <template data-nid="el-for-149-tpl">
+                  <fragment data-nid="el-fragment-150">
+                    <div data-nid="el-TodoItem-151" data-component="TodoItem">
+                      <div data-nid="el-div-152" class="item">
+                        <button data-nid="el-button-153" class="check-btn" data-event-click="fn:TodoItem_toggle">
+                          <span data-nid="el-interp-154" data-bind-text="TodoItem_checked.value ? &quot;V&quot; : &quot;O&quot;"></span>
                         </button>
-                        <span data-nid="el-span-142" class="text">
-                          <span data-nid="el-interp-143" data-bind-text="item"></span>
+                        <span data-nid="el-span-155" class="text">
+                          <span data-nid="el-interp-156" data-bind-text="item"></span>
                         </span>
-                        <span data-nid="el-span-144" class="badge">
-                          <span data-nid="el-interp-145" data-bind-text="TodoItem_index.value + 1"></span>
+                        <span data-nid="el-span-157" class="badge">
+                          <span data-nid="el-interp-158" data-bind-text="TodoItem_index.value + 1"></span>
                         </span>
-                        <button data-nid="el-button-146" class="del-btn">
+                        <button data-nid="el-button-159" class="del-btn" data-event-click="fn:TodoItem_handleDelete">
                           X
                         </button>
                       </div>
                     </div>
                   </fragment>
 </template>
-                <div data-nid="el-for-136-ctr">
-                  <div data-nid="el-for-136-empty">
-                    <fragment data-nid="el-fragment-147">
-                      <div data-nid="el-div-148" class="empty-state">
-                        <p data-nid="el-p-149" class="empty-text">
+                <div data-nid="el-for-149-ctr">
+                  <div data-nid="el-for-149-empty">
+                    <fragment data-nid="el-fragment-160">
+                      <div data-nid="el-div-161" class="empty-state">
+                        <p data-nid="el-p-162" class="empty-text">
                           还没有待办事项，在上方添加吧
                         </p>
                       </div>
@@ -331,46 +358,46 @@
             </div>
           </div>
         </section>
-        <footer data-nid="el-footer-150" class="page-footer">
-          <button data-nid="el-button-151" class="action-btn clear-btn">
+        <footer data-nid="el-footer-163" class="page-footer">
+          <button data-nid="el-button-164" class="action-btn clear-btn">
             Clear All
           </button>
-          <button data-nid="el-button-152" class="action-btn sync-btn">
+          <button data-nid="el-button-165" class="action-btn sync-btn">
             Sync Reminders
           </button>
-          <span data-nid="el-span-153" class="footer-hint">
+          <span data-nid="el-span-166" class="footer-hint">
             Last:
-            <span data-nid="el-interp-154"></span>
+            <span data-nid="el-interp-167"></span>
           </span>
         </footer>
       </div>
     </div>
-    <div data-nid="el-FeatureList-155" data-component="FeatureList">
-      <div data-nid="el-div-156" class="panel">
-        <div data-nid="el-div-157" class="header">
-          <h3 data-nid="el-h3-158" class="title">
+    <div data-nid="el-FeatureList-168" data-component="FeatureList">
+      <div data-nid="el-div-169" class="panel">
+        <div data-nid="el-div-170" class="header">
+          <h3 data-nid="el-h3-171" class="title">
             Features (
-            <span data-nid="el-interp-159"></span>
+            <span data-nid="el-interp-172"></span>
             items)
           </h3>
-          <span data-nid="el-span-160" class="arrow">
-            <span data-nid="el-interp-161"></span>
+          <span data-nid="el-span-173" class="arrow">
+            <span data-nid="el-interp-174"></span>
           </span>
         </div>
-        <div data-nid="el-if-162-b0" style="display:none">
-          <fragment data-nid="el-fragment-163">
-            <div data-nid="el-div-164" class="list">
-              <template data-nid="el-for-165-tpl">
-                <fragment data-nid="el-fragment-166">
-                  <span data-nid="el-span-167" class="tag">
-                    <span data-nid="el-interp-168" data-bind-text="f"></span>
+        <div data-nid="el-if-175-b0" style="display:none">
+          <fragment data-nid="el-fragment-176">
+            <div data-nid="el-div-177" class="list">
+              <template data-nid="el-for-178-tpl">
+                <fragment data-nid="el-fragment-179">
+                  <span data-nid="el-span-180" class="tag">
+                    <span data-nid="el-interp-181" data-bind-text="f"></span>
                   </span>
                 </fragment>
 </template>
-              <div data-nid="el-for-165-ctr">
-                <div data-nid="el-for-165-empty">
-                  <fragment data-nid="el-fragment-169">
-                    <span data-nid="el-span-170">
+              <div data-nid="el-for-178-ctr">
+                <div data-nid="el-for-178-empty">
+                  <fragment data-nid="el-fragment-182">
+                    <span data-nid="el-span-183">
                       No features
                     </span>
                   </fragment>
@@ -381,200 +408,220 @@
         </div>
       </div>
     </div>
-    <div data-nid="el-SettingsPage-171" data-component="SettingsPage">
-      <div data-nid="el-div-172" class="settings-page">
-        <header data-nid="el-header-173" class="page-header">
-          <h2 data-nid="el-h2-174" class="page-title">
+    <div data-nid="el-SettingsPage-184" data-component="SettingsPage">
+      <div data-nid="el-div-185" class="settings-page">
+        <header data-nid="el-header-186" class="page-header">
+          <h2 data-nid="el-h2-187" class="page-title">
             Settings
           </h2>
-          <p data-nid="el-p-175" class="page-subtitle">
+          <p data-nid="el-p-188" class="page-subtitle">
             Customize your experience
           </p>
         </header>
-        <section data-nid="el-section-176" class="section">
-          <h3 data-nid="el-h3-177" class="section-title">
+        <section data-nid="el-section-189" class="section">
+          <h3 data-nid="el-h3-190" class="section-title">
             Appearance
           </h3>
-          <div data-nid="el-ThemeSwitcher-178" data-component="ThemeSwitcher">
-            <div data-nid="el-div-179" class="theme-switcher">
-              <div data-nid="el-div-180" class="indicator-row">
-                <div data-nid="el-div-181" class="mode-indicator">
-                  <span data-nid="el-span-182" class="mode-label">
-                    <span data-nid="el-interp-183"></span>
+          <div data-nid="el-ThemeSwitcher-191" data-component="ThemeSwitcher">
+            <div data-nid="el-div-192" class="theme-switcher">
+              <div data-nid="el-div-193" class="indicator-row">
+                <div data-nid="el-div-194" class="mode-indicator">
+                  <span data-nid="el-span-195" class="mode-label">
+                    <span data-nid="el-interp-196"></span>
                   </span>
                 </div>
-                <p data-nid="el-p-184" class="toggle-info">
+                <p data-nid="el-p-197" class="toggle-info">
                   Toggled
-                  <span data-nid="el-interp-185"></span>
+                  <span data-nid="el-interp-198"></span>
                   times
                 </p>
               </div>
-              <button data-nid="el-button-186" class="toggle-btn">
-                <span data-nid="el-interp-187"></span>
+              <button data-nid="el-button-199" class="toggle-btn">
+                <span data-nid="el-interp-200"></span>
               </button>
-              <div data-nid="el-div-188" class="palette">
-                <p data-nid="el-p-189" class="palette-label">
+              <div data-nid="el-div-201" class="palette">
+                <p data-nid="el-p-202" class="palette-label">
                   Current palette:
                 </p>
-                <div data-nid="el-div-190" class="swatches">
-                  <span data-nid="el-span-191" class="swatch">
+                <div data-nid="el-div-203" class="swatches">
+                  <span data-nid="el-span-204" class="swatch">
                     BG
                   </span>
-                  <span data-nid="el-span-192" class="swatch">
+                  <span data-nid="el-span-205" class="swatch">
                     TX
                   </span>
-                  <span data-nid="el-span-193" class="swatch" style="color: white">
+                  <span data-nid="el-span-206" class="swatch" style="color: white">
                     PR
                   </span>
-                  <span data-nid="el-span-194" class="swatch">
+                  <span data-nid="el-span-207" class="swatch">
                     BD
                   </span>
-                  <span data-nid="el-span-195" class="swatch">
+                  <span data-nid="el-span-208" class="swatch">
                     MU
                   </span>
                 </div>
               </div>
-              <div data-nid="el-div-196" class="quick-actions">
-                <button data-nid="el-button-197" class="quick-btn light-btn">
+              <div data-nid="el-div-209" class="quick-actions">
+                <button data-nid="el-button-210" class="quick-btn light-btn">
                   Light
                 </button>
-                <button data-nid="el-button-198" class="quick-btn dark-btn" style="background: #1f2937; color: #f9fafb">
+                <button data-nid="el-button-211" class="quick-btn dark-btn" style="background: #1f2937; color: #f9fafb">
                   Dark
                 </button>
               </div>
             </div>
           </div>
         </section>
-        <section data-nid="el-section-199" class="section">
-          <div data-nid="el-div-200" class="about-header">
-            <h3 data-nid="el-h3-201" class="section-title">
+        <section data-nid="el-section-212" class="section">
+          <h3 data-nid="el-h3-213" class="section-title">
+            Theme Colors
+          </h3>
+          <div data-nid="el-div-214" class="swatch-grid">
+            <template data-nid="el-for-215-tpl">
+              <fragment data-nid="el-fragment-216">
+                <div data-nid="el-div-217" class="swatch-item">
+                  <div data-nid="el-div-218" class="swatch-box">
+                  </div>
+                  <span data-nid="el-span-219" class="swatch-label">
+                    <span data-nid="el-interp-220" data-bind-text="color"></span>
+                  </span>
+                </div>
+              </fragment>
+</template>
+            <div data-nid="el-for-215-ctr">
+            </div>
+          </div>
+        </section>
+        <section data-nid="el-section-221" class="section">
+          <div data-nid="el-div-222" class="about-header">
+            <h3 data-nid="el-h3-223" class="section-title">
               About
             </h3>
-            <span data-nid="el-span-202" class="about-arrow">
-              <span data-nid="el-interp-203"></span>
+            <span data-nid="el-span-224" class="about-arrow">
+              <span data-nid="el-interp-225"></span>
             </span>
           </div>
-          <div data-nid="el-if-204-b0" style="display:none">
-            <fragment data-nid="el-fragment-205">
-              <div data-nid="el-div-206" class="about-content">
-                <p data-nid="el-p-207" class="about-text">
+          <div data-nid="el-if-226-b0" style="display:none">
+            <fragment data-nid="el-fragment-227">
+              <div data-nid="el-div-228" class="about-content">
+                <p data-nid="el-p-229" class="about-text">
                   OmniView Learn — a teaching project demonstrating the full feature set of the OmniView UI framework.
                 </p>
-                <div data-nid="el-div-208" class="about-meta">
-                  <span data-nid="el-span-209" class="meta-item">
-                    Version: 1.0
+                <div data-nid="el-div-230" class="about-meta">
+                  <span data-nid="el-span-231" class="meta-item">
+                    Version: 1.0.0
                   </span>
-                  <span data-nid="el-span-210" class="meta-item">
-                    Framework: OmniView v0.1
+                  <span data-nid="el-span-232" class="meta-item">
+                    Framework: OmniView v0.1.0
                   </span>
-                  <span data-nid="el-span-211" class="meta-item">
+                  <span data-nid="el-span-233" class="meta-item">
                     Theme:
-                    <span data-nid="el-interp-212"></span>
+                    <span data-nid="el-interp-234"></span>
                     Mode
                   </span>
                 </div>
-                <p data-nid="el-p-213" class="about-footer">
+                <p data-nid="el-p-235" class="about-footer">
                   Built with OmniLang — the language that compiles to every framework.
                 </p>
               </div>
             </fragment>
           </div>
         </section>
-        <footer data-nid="el-footer-214" class="page-footer">
-          <span data-nid="el-span-215" class="footer-text">
+        <footer data-nid="el-footer-236" class="page-footer">
+          <span data-nid="el-span-237" class="footer-text">
             Current:
-            <span data-nid="el-interp-216"></span>
+            <span data-nid="el-interp-238"></span>
             mode | Toggles:
-            <span data-nid="el-interp-217"></span>
+            <span data-nid="el-interp-239"></span>
           </span>
         </footer>
       </div>
     </div>
-    <section data-nid="el-section-218" class="demo-section">
-      <h2 data-nid="el-h2-219" class="demo-section-title">
+    <section data-nid="el-section-240" class="demo-section">
+      <h2 data-nid="el-h2-241" class="demo-section-title">
         独立演示组件
       </h2>
-      <div data-nid="el-div-220" class="demo-row">
-        <div data-nid="el-div-221" class="demo-col">
-          <div data-nid="el-ValidationInput-222" data-component="ValidationInput">
-            <div data-nid="el-div-223" class="container">
-              <h3 data-nid="el-h3-224" class="title">
+      <div data-nid="el-div-242" class="demo-row">
+        <div data-nid="el-div-243" class="demo-col">
+          <div data-nid="el-ValidationInput-244" data-component="ValidationInput">
+            <div data-nid="el-div-245" class="container">
+              <h3 data-nid="el-h3-246" class="title">
                 ValidationInput Demo
               </h3>
-              <p data-nid="el-p-225" class="hint">
-                <span data-nid="el-interp-226"></span>
+              <p data-nid="el-p-247" class="hint">
+                <span data-nid="el-interp-248"></span>
               </p>
-              <div data-nid="el-div-227" class="row">
-                <input data-nid="el-input-228" class="input" placeholder="Enter text to validate..." />
-                <button data-nid="el-button-229" class="btn-validate">
-                  <span data-nid="el-interp-230"></span>
+              <div data-nid="el-div-249" class="row">
+                <input data-nid="el-input-250" class="input" placeholder="Enter text to validate..." />
+                <button data-nid="el-button-251" class="btn-validate">
+                  <span data-nid="el-interp-252"></span>
                 </button>
-                <button data-nid="el-button-231" class="btn-clear">
+                <button data-nid="el-button-253" class="btn-clear">
                   Clear
                 </button>
               </div>
-              <div data-nid="el-div-232" class="result-area">
-                <p data-nid="el-p-233" class="result-text">
+              <div data-nid="el-div-254" class="result-area">
+                <p data-nid="el-p-255" class="result-text">
                   Status:
-                  <span data-nid="el-interp-234"></span>
+                  <span data-nid="el-interp-256"></span>
                 </p>
-                <p data-nid="el-p-235" class="result-value">
-                  <span data-nid="el-interp-236"></span>
+                <p data-nid="el-p-257" class="result-value">
+                  <span data-nid="el-interp-258"></span>
                 </p>
-                <p data-nid="el-p-237" class="stats">
+                <p data-nid="el-p-259" class="stats">
                   Chars:
-                  <span data-nid="el-interp-238"></span>
+                  <span data-nid="el-interp-260"></span>
                   | EvenPos:
-                  <span data-nid="el-interp-239"></span>
+                  <span data-nid="el-interp-261"></span>
                 </p>
               </div>
-              <div data-nid="el-div-240" class="phase4-area">
-                <h4 data-nid="el-h4-241" class="phase4-title">
+              <div data-nid="el-div-262" class="phase4-area">
+                <h4 data-nid="el-h4-263" class="phase4-title">
                   Phase 4: 表达式与控制流
                 </h4>
-                <p data-nid="el-p-242" class="phase4-hint">
+                <p data-nid="el-p-264" class="phase4-hint">
                   See lib/transform.omni and StatsDashboard.omni for Phase 4 features
                 </p>
               </div>
             </div>
           </div>
         </div>
-        <div data-nid="el-div-243" class="demo-col">
-          <div data-nid="el-Timer-244" data-component="Timer">
-            <div data-nid="el-div-245" class="timer">
-              <h3 data-nid="el-h3-246" class="title">
+        <div data-nid="el-div-265" class="demo-col">
+          <div data-nid="el-Timer-266" data-component="Timer">
+            <div data-nid="el-div-267" class="timer">
+              <h3 data-nid="el-h3-268" class="title">
                 Timer Demo
               </h3>
-              <p data-nid="el-p-247" class="count-text">
+              <p data-nid="el-p-269" class="count-text">
                 Count:
-                <span data-nid="el-interp-248"></span>
+                <span data-nid="el-interp-270"></span>
                 / 10
               </p>
-              <p data-nid="el-p-249" class="info">
+              <p data-nid="el-p-271" class="info">
                 Interval:
-                <span data-nid="el-interp-250"></span>
+                <span data-nid="el-interp-272"></span>
                 ms | Status:
-                <span data-nid="el-interp-251"></span>
+                <span data-nid="el-interp-273"></span>
               </p>
-              <div data-nid="el-div-252" class="btn-row">
-                <button data-nid="el-button-253" class="btn-start">
+              <div data-nid="el-div-274" class="btn-row">
+                <button data-nid="el-button-275" class="btn-start">
                   Start
                 </button>
-                <button data-nid="el-button-254" class="btn-stop">
+                <button data-nid="el-button-276" class="btn-stop">
                   Stop
                 </button>
-                <button data-nid="el-button-255" class="btn-tick">
+                <button data-nid="el-button-277" class="btn-tick">
                   Tick
                 </button>
-                <button data-nid="el-button-256" class="btn-reset">
+                <button data-nid="el-button-278" class="btn-reset">
                   Reset
                 </button>
               </div>
-              <div data-nid="el-div-257" class="btn-row">
-                <button data-nid="el-button-258" class="btn-sm">
+              <div data-nid="el-div-279" class="btn-row">
+                <button data-nid="el-button-280" class="btn-sm">
                   Faster
                 </button>
-                <button data-nid="el-button-259" class="btn-sm">
+                <button data-nid="el-button-281" class="btn-sm">
                   Slower
                 </button>
               </div>
@@ -582,47 +629,47 @@
           </div>
         </div>
       </div>
-      <div data-nid="el-div-260" class="demo-row">
-        <div data-nid="el-div-261" class="demo-col">
-          <div data-nid="el-Modal-262" data-component="Modal">
-            <div data-nid="el-div-263" class="container">
-              <button data-nid="el-button-264" class="trigger-btn">
+      <div data-nid="el-div-282" class="demo-row">
+        <div data-nid="el-div-283" class="demo-col">
+          <div data-nid="el-Modal-284" data-component="Modal">
+            <div data-nid="el-div-285" class="container">
+              <button data-nid="el-button-286" class="trigger-btn">
                 Open Modal
               </button>
-              <p data-nid="el-p-265" class="status-text">
+              <p data-nid="el-p-287" class="status-text">
                 Status:
-                <span data-nid="el-interp-266"></span>
+                <span data-nid="el-interp-288"></span>
                 | Hover:
-                <span data-nid="el-interp-267"></span>
+                <span data-nid="el-interp-289"></span>
               </p>
-              <div data-nid="el-if-268-b0" style="display:none">
-                <fragment data-nid="el-fragment-269">
-                  <div data-nid="el-div-270" class="overlay visible hidden">
-                    <div data-nid="el-div-271" class="modalcontent hover">
-                      <div data-nid="el-div-272" class="modal-header">
+              <div data-nid="el-if-290-b0" style="display:none">
+                <fragment data-nid="el-fragment-291">
+                  <div data-nid="el-div-292" class="overlay visible">
+                    <div data-nid="el-div-293" class="modalcontent hover">
+                      <div data-nid="el-div-294" class="modal-header">
                         <slot name="header"></slot>
-                        <h3 data-nid="el-h3-273" class="modal-title">
+                        <h3 data-nid="el-h3-295" class="modal-title">
                           Modal Title
                         </h3>
-                        <button data-nid="el-button-274" class="close-btn">
+                        <button data-nid="el-button-296" class="close-btn">
                           X
                         </button>
                       </div>
-                      <div data-nid="el-div-275" class="modal-body">
+                      <div data-nid="el-div-297" class="modal-body">
                         <slot name="body"></slot>
-                        <p data-nid="el-p-276" class="modal-text">
+                        <p data-nid="el-p-298" class="modal-text">
                           Modal content goes here.
                         </p>
-                        <p data-nid="el-p-277" class="hint-text">
+                        <p data-nid="el-p-299" class="hint-text">
                           Press Escape or click overlay to close
                         </p>
                       </div>
-                      <div data-nid="el-div-278" class="modal-footer">
+                      <div data-nid="el-div-300" class="modal-footer">
                         <slot name="footer"></slot>
-                        <button data-nid="el-button-279" class="cancel-btn">
+                        <button data-nid="el-button-301" class="cancel-btn">
                           Cancel
                         </button>
-                        <button data-nid="el-button-280" class="confirm-btn">
+                        <button data-nid="el-button-302" class="confirm-btn">
                           Confirm
                         </button>
                       </div>
@@ -633,69 +680,69 @@
             </div>
           </div>
         </div>
-        <div data-nid="el-div-281" class="demo-col">
-          <div data-nid="el-TabPanel-282" data-component="TabPanel">
-            <div data-nid="el-div-283" class="tab-panel">
-              <div data-nid="el-div-284" class="tab-bar">
-                <button data-nid="el-Button-285" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
+        <div data-nid="el-div-303" class="demo-col">
+          <div data-nid="el-TabPanel-304" data-component="TabPanel">
+            <div data-nid="el-div-305" class="tab-panel">
+              <div data-nid="el-div-306" class="tab-bar">
+                <button data-nid="el-Button-307" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
                   Home
                 </button>
-                <button data-nid="el-Button-286" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
+                <button data-nid="el-Button-308" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
                   About
                 </button>
-                <button data-nid="el-Button-287" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
+                <button data-nid="el-Button-309" class="active tab" style="border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px">
                   Settings
                 </button>
               </div>
-              <div data-nid="el-if-288-b0" style="display:none">
-                <fragment data-nid="el-fragment-289">
-                  <div data-nid="el-Card-290" class="card">
-                    <h3 data-nid="el-h3-291" class="card-title">
+              <div data-nid="el-if-310-b0" style="display:none">
+                <fragment data-nid="el-fragment-311">
+                  <div data-nid="el-Card-312" class="card">
+                    <h3 data-nid="el-h3-313" class="card-title">
                       Home Tab
                     </h3>
-                    <div data-nid="el-Flex-292" class="row">
-                      <span data-nid="el-Text-293">
+                    <div data-nid="el-Flex-314" class="row">
+                      <span data-nid="el-Text-315">
                         Custom tags: Card, Button, Flex, Text
                       </span>
                     </div>
-                    <p data-nid="el-p-294" class="text">
+                    <p data-nid="el-p-316" class="text">
                       class: map syntax demo on buttons above
                     </p>
                   </div>
                 </fragment>
               </div>
-              <div data-nid="el-if-288-b1" style="display:none">
-                <fragment data-nid="el-fragment-295">
-                  <div data-nid="el-Card-296" class="card">
-                    <h3 data-nid="el-h3-297" class="card-title">
+              <div data-nid="el-if-310-b1" style="display:none">
+                <fragment data-nid="el-fragment-317">
+                  <div data-nid="el-Card-318" class="card">
+                    <h3 data-nid="el-h3-319" class="card-title">
                       About Tab
                     </h3>
-                    <p data-nid="el-p-298" class="text">
+                    <p data-nid="el-p-320" class="text">
                       Custom tag mapping: Card to div, Button to button
                     </p>
-                    <p data-nid="el-p-299" class="text">
+                    <p data-nid="el-p-321" class="text">
                       Inline style: syntax on Button elements
                     </p>
                   </div>
                 </fragment>
               </div>
-              <div data-nid="el-if-288-b2" style="display:none">
-                <fragment data-nid="el-fragment-300">
-                  <div data-nid="el-Card-301" class="card">
-                    <h3 data-nid="el-h3-302" class="card-title">
+              <div data-nid="el-if-310-b2" style="display:none">
+                <fragment data-nid="el-fragment-322">
+                  <div data-nid="el-Card-323" class="card">
+                    <h3 data-nid="el-h3-324" class="card-title">
                       Settings Tab
                     </h3>
-                    <p data-nid="el-p-303" class="text">
+                    <p data-nid="el-p-325" class="text">
                       Active tab:
-                      <span data-nid="el-interp-304"></span>
+                      <span data-nid="el-interp-326"></span>
                     </p>
                   </div>
                 </fragment>
               </div>
-              <div data-nid="el-if-288-else" style="display:none">
-                <fragment data-nid="el-fragment-305">
-                  <div data-nid="el-Card-306" class="card">
-                    <p data-nid="el-p-307" class="text">
+              <div data-nid="el-if-310-else" style="display:none">
+                <fragment data-nid="el-fragment-327">
+                  <div data-nid="el-Card-328" class="card">
+                    <p data-nid="el-p-329" class="text">
                       Unknown tab
                     </p>
                   </div>
@@ -705,77 +752,77 @@
           </div>
         </div>
       </div>
-      <div data-nid="el-div-308" class="demo-full">
-        <div data-nid="el-DataTable-309" data-component="DataTable">
-          <div data-nid="el-div-310" class="datatable">
-            <div data-nid="el-div-311" class="header-row">
-              <img data-nid="el-img-312" src="/dot.png" alt="dot" />
-              <h2 data-nid="el-h2-313" class="title">
+      <div data-nid="el-div-330" class="demo-full">
+        <div data-nid="el-DataTable-331" data-component="DataTable">
+          <div data-nid="el-div-332" class="datatable">
+            <div data-nid="el-div-333" class="header-row">
+              <img data-nid="el-img-334" alt="dot" src="/dot.png" />
+              <h2 data-nid="el-h2-335" class="title">
                 DataTable Demo
               </h2>
-              <hr data-nid="el-hr-314" />
+              <hr data-nid="el-hr-336" />
             </div>
-            <div data-nid="el-div-315" class="controls">
-              <p data-nid="el-p-316" class="info-text">
+            <div data-nid="el-div-337" class="controls">
+              <p data-nid="el-p-338" class="info-text">
                 Scroll count:
-                <span data-nid="el-interp-317"></span>
-                <br data-nid="el-br-318" />
+                <span data-nid="el-interp-339"></span>
+                <br data-nid="el-br-340" />
                 Sort:
-                <span data-nid="el-interp-319"></span>
+                <span data-nid="el-interp-341"></span>
               </p>
-              <button data-nid="el-Button-320" class="sort-btn">
+              <button data-nid="el-Button-342" class="sort-btn">
                 Toggle Sort
               </button>
-              <button data-nid="el-Button-321" class="sort-btn">
+              <button data-nid="el-Button-343" class="sort-btn">
                 Scroll +1
               </button>
             </div>
-            <div data-nid="el-div-322" class="table-wrapper">
-              <table data-nid="el-Table-323" class="data-table">
-                <thead data-nid="el-thead-324">
-                  <tr data-nid="el-tr-325">
-                    <th data-nid="el-th-326" class="th">
+            <div data-nid="el-div-344" class="table-wrapper">
+              <table data-nid="el-Table-345" class="data-table">
+                <thead data-nid="el-thead-346">
+                  <tr data-nid="el-tr-347">
+                    <th data-nid="el-th-348" class="th">
                       ID
                     </th>
-                    <th data-nid="el-th-327" class="th">
+                    <th data-nid="el-th-349" class="th">
                       Name
                     </th>
-                    <th data-nid="el-th-328" class="th">
+                    <th data-nid="el-th-350" class="th">
                       Status
                     </th>
-                    <th data-nid="el-th-329" class="th">
+                    <th data-nid="el-th-351" class="th">
                       Score
                     </th>
                   </tr>
                 </thead>
-                <tbody data-nid="el-tbody-330">
-                  <template data-nid="el-for-331-tpl">
-                    <fragment data-nid="el-fragment-332">
-                      <tr data-nid="el-tr-333" class="tr">
-                        <td data-nid="el-td-334" class="td">
-                          <span data-nid="el-interp-335" data-bind-text="row.id"></span>
+                <tbody data-nid="el-tbody-352">
+                  <template data-nid="el-for-353-tpl">
+                    <fragment data-nid="el-fragment-354">
+                      <tr data-nid="el-tr-355" class="tr">
+                        <td data-nid="el-td-356" class="td">
+                          <span data-nid="el-interp-357" data-bind-text="row.id"></span>
                         </td>
-                        <td data-nid="el-td-336" class="td">
-                          <span data-nid="el-interp-337" data-bind-text="row.name"></span>
+                        <td data-nid="el-td-358" class="td">
+                          <span data-nid="el-interp-359" data-bind-text="row.name"></span>
                         </td>
-                        <td data-nid="el-td-338" class="td">
-                          <span data-nid="el-span-339" class="badge active inactive">
-                            <span data-nid="el-interp-340" data-bind-text="row.status"></span>
+                        <td data-nid="el-td-360" class="td">
+                          <span data-nid="el-span-361" class="badge active inactive">
+                            <span data-nid="el-interp-362" data-bind-text="row.status"></span>
                           </span>
                         </td>
-                        <td data-nid="el-td-341" class="td">
-                          <span data-nid="el-span-342" class="score-text">
-                            <span data-nid="el-interp-343" data-bind-text="row.score"></span>
+                        <td data-nid="el-td-363" class="td">
+                          <span data-nid="el-span-364" class="score-text">
+                            <span data-nid="el-interp-365" data-bind-text="row.score"></span>
                           </span>
                         </td>
                       </tr>
                     </fragment>
 </template>
-                  <div data-nid="el-for-331-ctr">
-                    <div data-nid="el-for-331-empty">
-                      <fragment data-nid="el-fragment-344">
-                        <tr data-nid="el-tr-345">
-                          <td data-nid="el-td-346" class="td-empty">
+                  <div data-nid="el-for-353-ctr">
+                    <div data-nid="el-for-353-empty">
+                      <fragment data-nid="el-fragment-366">
+                        <tr data-nid="el-tr-367">
+                          <td data-nid="el-td-368" class="td-empty">
                             No data
                           </td>
                         </tr>
@@ -785,163 +832,176 @@
                 </tbody>
               </table>
             </div>
-            <div data-nid="el-div-347" class="summary-section">
-              <h3 data-nid="el-h3-348" class="section-title">
+            <div data-nid="el-div-369" class="summary-section">
+              <h3 data-nid="el-h3-370" class="section-title">
                 Summary
               </h3>
-              <ul data-nid="el-List-349" class="summary-list">
-                <li data-nid="el-ListItem-350" class="summary-item">
-                  <img data-nid="el-img-351" alt="dot" src="/dot.png" />
+              <ul data-nid="el-List-371" class="summary-list">
+                <li data-nid="el-ListItem-372" class="summary-item">
+                  <img data-nid="el-img-373" src="/dot.png" alt="dot" />
                   Total items:
-                  <span data-nid="el-interp-352"></span>
+                  <span data-nid="el-interp-374"></span>
                 </li>
-                <li data-nid="el-ListItem-353" class="summary-item">
-                  <img data-nid="el-img-354" src="/dot.png" alt="dot" />
-                  Active items: many
+                <li data-nid="el-ListItem-375" class="summary-item">
+                  <img data-nid="el-img-376" alt="dot" src="/dot.png" />
+                  Active items:
+                  <span data-nid="el-interp-377"></span>
                 </li>
-                <li data-nid="el-ListItem-355" class="summary-item">
-                  <img data-nid="el-img-356" alt="dot" src="/dot.png" />
+                <li data-nid="el-ListItem-378" class="summary-item">
+                  <img data-nid="el-img-379" alt="dot" src="/dot.png" />
                   Scroll events:
-                  <span data-nid="el-interp-357"></span>
+                  <span data-nid="el-interp-380"></span>
                 </li>
               </ul>
             </div>
-            <div data-nid="el-div-358" class="features-section">
-              <h3 data-nid="el-h3-359" class="section-title">
+            <div data-nid="el-div-381" class="features-section">
+              <h3 data-nid="el-h3-382" class="section-title">
                 Map and Closure Demo
               </h3>
-              <ul data-nid="el-List-360" class="features-list">
-                <li data-nid="el-ListItem-361" class="features-item">
-                  <img data-nid="el-img-362" alt="dot" src="/dot.png" />
+              <ul data-nid="el-List-383" class="features-list">
+                <li data-nid="el-ListItem-384" class="features-item">
+                  <img data-nid="el-img-385" src="/dot.png" alt="dot" />
                   Grade for 95:
-                  <span data-nid="el-interp-363"></span>
+                  <span data-nid="el-interp-386"></span>
                 </li>
-                <li data-nid="el-ListItem-364" class="features-item">
-                  <img data-nid="el-img-365" src="/dot.png" alt="dot" />
+                <li data-nid="el-ListItem-387" class="features-item">
+                  <img data-nid="el-img-388" alt="dot" src="/dot.png" />
                   Grade for 72:
-                  <span data-nid="el-interp-366"></span>
+                  <span data-nid="el-interp-389"></span>
                 </li>
-                <li data-nid="el-ListItem-367" class="features-item">
-                  <img data-nid="el-img-368" src="/dot.png" alt="dot" />
+                <li data-nid="el-ListItem-390" class="features-item">
+                  <img data-nid="el-img-391" alt="dot" src="/dot.png" />
                   Grade for 59:
-                  <span data-nid="el-interp-369"></span>
+                  <span data-nid="el-interp-392"></span>
                 </li>
-                <li data-nid="el-ListItem-370" class="features-item">
-                  <img data-nid="el-img-371" src="/dot.png" alt="dot" />
+                <li data-nid="el-ListItem-393" class="features-item">
+                  <img data-nid="el-img-394" src="/dot.png" alt="dot" />
                   Adj total (s+5):
-                  <span data-nid="el-interp-372"></span>
+                  <span data-nid="el-interp-395"></span>
                 </li>
               </ul>
             </div>
-            <hr data-nid="el-hr-373" />
-            <div data-nid="el-div-374" class="footer-row">
-              <img data-nid="el-img-375" alt="dot" src="/dot.png" />
-              <p data-nid="el-p-376" class="footer-text">
+            <hr data-nid="el-hr-396" />
+            <div data-nid="el-div-397" class="footer-row">
+              <img data-nid="el-img-398" src="/dot.png" alt="dot" />
+              <p data-nid="el-p-399" class="footer-text">
                 DataTable Phase 4 Demo
               </p>
             </div>
           </div>
         </div>
       </div>
-      <div data-nid="el-div-377" class="demo-full">
-        <div data-nid="el-FormPage-378" data-component="FormPage">
-          <div data-nid="el-div-379" class="formpage">
-            <h2 data-nid="el-h2-380" class="title">
+      <div data-nid="el-div-400" class="demo-full">
+        <div data-nid="el-FormPage-401" data-component="FormPage">
+          <div data-nid="el-div-402" class="formpage">
+            <h2 data-nid="el-h2-403" class="title">
               FormPage Demo
             </h2>
-            <form data-nid="el-form-381" class="form">
-              <div data-nid="el-div-382" class="field">
-                <label data-nid="el-label-383" class="label" data-for="name">
+            <form data-nid="el-form-404" class="form">
+              <div data-nid="el-div-405" class="field">
+                <label data-nid="el-label-406" class="label" for="name">
                   Name
                 </label>
-                <input data-nid="el-input-384" id="name" class="input" placeholder="Your name" data-data-testid="name-field" data-data-type="text" data-aria-label="Full name input" required="true" />
-                <div data-nid="el-if-385-b0" style="display:none">
-                  <fragment data-nid="el-fragment-386">
-                    <span data-nid="el-span-387" class="error-text">
-                      <span data-nid="el-interp-388"></span>
+                <input data-nid="el-input-407" required class="input" placeholder="Your name" data-type="text" id="name" data-testid="name-field" aria-label="Full name input" />
+                <div data-nid="el-if-408-b0" style="display:none">
+                  <fragment data-nid="el-fragment-409">
+                    <span data-nid="el-span-410" class="error-text">
+                      <span data-nid="el-interp-411"></span>
                     </span>
                   </fragment>
                 </div>
               </div>
-              <div data-nid="el-div-389" class="field">
-                <label data-nid="el-label-390" class="label" data-for="email">
+              <div data-nid="el-div-412" class="field">
+                <label data-nid="el-label-413" class="label" for="email">
                   Email
                 </label>
-                <input data-nid="el-input-391" data-aria-label="Email address input" data-data-testid="email-field" placeholder="your@email.com" data-data-type="email" class="input" required="true" id="email" />
-                <div data-nid="el-if-392-b0" style="display:none">
-                  <fragment data-nid="el-fragment-393">
-                    <span data-nid="el-span-394" class="error-text">
-                      <span data-nid="el-interp-395"></span>
+                <input data-nid="el-input-414" aria-label="Email address input" placeholder="your@email.com" data-testid="email-field" required data-type="email" id="email" class="input" />
+                <div data-nid="el-if-415-b0" style="display:none">
+                  <fragment data-nid="el-fragment-416">
+                    <span data-nid="el-span-417" class="error-text">
+                      <span data-nid="el-interp-418"></span>
                     </span>
                   </fragment>
                 </div>
               </div>
-              <div data-nid="el-div-396" class="field">
-                <label data-nid="el-label-397" data-for="msg" class="label">
+              <div data-nid="el-div-419" class="field">
+                <label data-nid="el-label-420" for="msg" class="label">
                   Message
                 </label>
-                <textarea data-nid="el-textarea-398" placeholder="Your message (optional)" data-aria-label="Message input" id="msg" class="textarea" data-data-testid="msg-field">
+                <textarea data-nid="el-textarea-421" data-testid="msg-field" id="msg" placeholder="Your message (optional)" class="textarea" aria-label="Message input">
                 </textarea>
               </div>
-              <div data-nid="el-div-399" class="field">
-                <label data-nid="el-label-400" data-for="disabled-field" class="label">
+              <div data-nid="el-div-422" class="field">
+                <label data-nid="el-label-423" class="label" for="disabled-field">
                   Disabled field
                 </label>
-                <input data-nid="el-input-401" id="disabled-field" class="input" data-aria-label="Disabled input" data-data-testid="disabled-field" placeholder="This field is disabled" disabled="true" />
+                <input data-nid="el-input-424" id="disabled-field" disabled aria-label="Disabled input" data-testid="disabled-field" placeholder="This field is disabled" class="input" />
               </div>
-              <div data-nid="el-div-402" class="field">
-                <label data-nid="el-label-403" data-for="readonly-field" class="label">
+              <div data-nid="el-div-425" class="field">
+                <label data-nid="el-label-426" class="label" for="readonly-field">
                   Readonly field
                 </label>
-                <input data-nid="el-input-404" readonly="true" data-aria-label="Read-only input" id="readonly-field" class="input" data-data-testid="readonly-field" value="Read-only value" />
+                <input data-nid="el-input-427" class="input" data-testid="readonly-field" value="Read-only value" aria-label="Read-only input" readonly id="readonly-field" />
               </div>
-              <div data-nid="el-div-405" class="scroll-box">
-                <p data-nid="el-p-406" class="scroll-title">
+              <div data-nid="el-div-428" class="scroll-box">
+                <p data-nid="el-p-429" class="scroll-title">
                   Scrollable area (scroll count:
-                  <span data-nid="el-interp-407"></span>
+                  <span data-nid="el-interp-430"></span>
                   )
                 </p>
-                <p data-nid="el-p-408" class="scroll-line">
+                <p data-nid="el-p-431" class="scroll-line">
                   Line 1: Scroll to trigger @onScroll
                 </p>
-                <p data-nid="el-p-409" class="scroll-line">
+                <p data-nid="el-p-432" class="scroll-line">
                   Line 2: More content below
                 </p>
-                <p data-nid="el-p-410" class="scroll-line">
+                <p data-nid="el-p-433" class="scroll-line">
                   Line 3: Keep scrolling
                 </p>
-                <p data-nid="el-p-411" class="scroll-line">
+                <p data-nid="el-p-434" class="scroll-line">
                   Line 4: Almost there
                 </p>
-                <p data-nid="el-p-412" class="scroll-line">
+                <p data-nid="el-p-435" class="scroll-line">
                   Line 5: Bottom reached
                 </p>
               </div>
-              <div data-nid="el-div-413" class="status-area">
-                <p data-nid="el-p-414" class="status success error idle">
-                  <span data-nid="el-interp-415"></span>
+              <div data-nid="el-div-436" class="status-area">
+                <p data-nid="el-p-437" class="status success">
+                  <span data-nid="el-interp-438"></span>
                 </p>
               </div>
-              <div data-nid="el-div-416" class="actions">
-                <button data-nid="el-button-417" data-aria-label="Submit form" data-data-testid="submit-btn" disabled="false" class="submit-btn" type="submit">
+              <div data-nid="el-if-439-b0" style="display:none">
+                <fragment data-nid="el-fragment-440">
+                  <div data-nid="el-div-441" class="trimmed-area">
+                    <p data-nid="el-p-442" class="trimmed-label">
+                      Trimmed message:
+                    </p>
+                    <p data-nid="el-p-443" class="trimmed-value">
+                      {getTrimmedMessage()}
+                    </p>
+                  </div>
+                </fragment>
+              </div>
+              <div data-nid="el-div-444" class="actions">
+                <button data-nid="el-button-445" class="submit-btn" aria-label="Submit form" type="submit" data-testid="submit-btn">
                   Submit
                 </button>
-                <button data-nid="el-button-418" data-data-testid="reset-btn" data-aria-label="Reset form" type="button" class="reset-btn">
+                <button data-nid="el-button-446" class="reset-btn" type="button" data-testid="reset-btn" aria-label="Reset form">
                   Reset
                 </button>
               </div>
-              <div data-nid="el-div-419" class="conditional-area">
-                <button data-nid="el-button-420" data-data-testid="conditional-btn" class="conditional-btn" data-aria-label="Conditional submit button" disabled="false">
-                  <span data-nid="el-interp-421"></span>
+              <div data-nid="el-div-447" class="conditional-area">
+                <button data-nid="el-button-448" class="conditional-btn" aria-label="Conditional submit button" data-testid="conditional-btn">
+                  <span data-nid="el-interp-449"></span>
                 </button>
               </div>
             </form>
-            <div data-nid="el-if-422-b0" style="display:none">
-              <fragment data-nid="el-fragment-423">
-                <div data-nid="el-div-424" class="focus-indicator">
-                  <p data-nid="el-p-425" class="focus-text">
+            <div data-nid="el-if-450-b0" style="display:none">
+              <fragment data-nid="el-fragment-451">
+                <div data-nid="el-div-452" class="focus-indicator">
+                  <p data-nid="el-p-453" class="focus-text">
                     Focused field:
-                    <span data-nid="el-interp-426"></span>
+                    <span data-nid="el-interp-454"></span>
                   </p>
                 </div>
               </fragment>
@@ -949,64 +1009,64 @@
           </div>
         </div>
       </div>
-      <div data-nid="el-div-427" class="demo-full">
-        <div data-nid="el-NotificationsPanel-428" data-component="NotificationsPanel">
-          <div data-nid="el-div-429" class="panel">
-            <div data-nid="el-div-430" class="header">
-              <h3 data-nid="el-h3-431" class="title">
+      <div data-nid="el-div-455" class="demo-full">
+        <div data-nid="el-NotificationsPanel-456" data-component="NotificationsPanel">
+          <div data-nid="el-div-457" class="panel">
+            <div data-nid="el-div-458" class="header">
+              <h3 data-nid="el-h3-459" class="title">
                 Notifications
-                <div data-nid="el-if-432-b0" style="display:none">
-                  <fragment data-nid="el-fragment-433">
-                    <span data-nid="el-span-434" class="badge">
+                <div data-nid="el-if-460-b0" style="display:none">
+                  <fragment data-nid="el-fragment-461">
+                    <span data-nid="el-span-462" class="badge">
                       New
                     </span>
                   </fragment>
                 </div>
               </h3>
-              <div data-nid="el-div-435" class="header-actions">
-                <button data-nid="el-button-436" class="btn-sm">
+              <div data-nid="el-div-463" class="header-actions">
+                <button data-nid="el-button-464" class="btn-sm">
                   Add
                 </button>
-                <button data-nid="el-button-437" class="btn-sm">
+                <button data-nid="el-button-465" class="btn-sm">
                   Remove
                 </button>
-                <button data-nid="el-button-438" class="btn-clear">
+                <button data-nid="el-button-466" class="btn-clear">
                   Clear
                 </button>
               </div>
             </div>
-            <div data-nid="el-div-439" class="slot-header-area">
+            <div data-nid="el-div-467" class="slot-header-area">
               <slot name="header"></slot>
             </div>
-            <div data-nid="el-div-440" data-data-ref="scrollContainer" class="scroll-area">
-              <div data-nid="el-if-441-b0" style="display:none">
-                <fragment data-nid="el-fragment-442">
+            <div data-nid="el-div-468" data-ref="scrollContainer" class="scroll-area">
+              <div data-nid="el-if-469-b0" style="display:none">
+                <fragment data-nid="el-fragment-470">
                   <slot></slot>
-                  <p data-nid="el-p-443" class="empty-text">
+                  <p data-nid="el-p-471" class="empty-text">
                     No notifications
                   </p>
                 </fragment>
               </div>
-              <template data-nid="el-for-444-tpl">
-                <fragment data-nid="el-fragment-445">
-                  <div data-nid="el-div-446" class="notification-item">
-                    <span data-nid="el-span-447" class="dot">
+              <template data-nid="el-for-472-tpl">
+                <fragment data-nid="el-fragment-473">
+                  <div data-nid="el-div-474" class="notification-item" data-event-click="fn:__ononPress_el_div_474">
+                    <span data-nid="el-span-475" class="dot">
                     </span>
-                    <span data-nid="el-span-448" class="item-text">
-                      <span data-nid="el-interp-449" data-bind-text="item"></span>
+                    <span data-nid="el-span-476" class="item-text">
+                      <span data-nid="el-interp-477" data-bind-text="item"></span>
                     </span>
                   </div>
                 </fragment>
 </template>
-              <div data-nid="el-for-444-ctr">
+              <div data-nid="el-for-472-ctr">
               </div>
             </div>
-            <div data-nid="el-div-450" class="footer">
-              <p data-nid="el-p-451" class="count-text">
+            <div data-nid="el-div-478" class="footer">
+              <p data-nid="el-p-479" class="count-text">
                 Total:
-                <span data-nid="el-interp-452"></span>
+                <span data-nid="el-interp-480"></span>
               </p>
-              <div data-nid="el-div-453" class="slot-footer-area">
+              <div data-nid="el-div-481" class="slot-footer-area">
                 <slot name="footer"></slot>
               </div>
             </div>
@@ -1014,68 +1074,68 @@
         </div>
       </div>
     </section>
-    <section data-nid="el-section-454" class="demo-section">
-      <h2 data-nid="el-h2-455" class="demo-section-title">
+    <section data-nid="el-section-482" class="demo-section">
+      <h2 data-nid="el-h2-483" class="demo-section-title">
         Phase 8: 编译器新特性
       </h2>
-      <div data-nid="el-div-456" class="demo-full">
-        <div data-nid="el-DataFetching-457" data-component="DataFetching">
-          <div data-nid="el-div-458" class="data-fetching">
-            <h3 data-nid="el-h3-459" class="title">
+      <div data-nid="el-div-484" class="demo-full">
+        <div data-nid="el-DataFetching-485" data-component="DataFetching">
+          <div data-nid="el-div-486" class="data-fetching">
+            <h3 data-nid="el-h3-487" class="title">
               HTTP GET Demo
             </h3>
-            <p data-nid="el-p-460" class="desc">
+            <p data-nid="el-p-488" class="desc">
               async action + await http_get + json_parse + match
             </p>
-            <div data-nid="el-div-461" class="controls">
-              <input data-nid="el-input-462" class="url-input" />
-              <button data-nid="el-button-463" class="btn-load">
+            <div data-nid="el-div-489" class="controls">
+              <input data-nid="el-input-490" class="url-input" />
+              <button data-nid="el-button-491" class="btn-load">
                 Load
               </button>
-              <button data-nid="el-button-464" class="btn-api">
+              <button data-nid="el-button-492" class="btn-api">
                 API
               </button>
-              <button data-nid="el-button-465" class="btn-reset">
+              <button data-nid="el-button-493" class="btn-reset">
                 Reset
               </button>
             </div>
-            <div data-nid="el-if-466-b0" style="display:none">
-              <fragment data-nid="el-fragment-467">
-                <div data-nid="el-div-468" class="status-box loading-box">
-                  <p data-nid="el-p-469" class="loading-text">
+            <div data-nid="el-if-494-b0" style="display:none">
+              <fragment data-nid="el-fragment-495">
+                <div data-nid="el-div-496" class="status-box loading-box">
+                  <p data-nid="el-p-497" class="loading-text">
                     Loading data...
                   </p>
                 </div>
               </fragment>
             </div>
-            <div data-nid="el-if-466-b1" style="display:none">
-              <fragment data-nid="el-fragment-470">
-                <div data-nid="el-div-471" class="status-box success-box">
-                  <p data-nid="el-p-472" class="label">
+            <div data-nid="el-if-494-b1" style="display:none">
+              <fragment data-nid="el-fragment-498">
+                <div data-nid="el-div-499" class="status-box success-box">
+                  <p data-nid="el-p-500" class="label">
                     Response:
                   </p>
-                  <pre data-nid="el-pre-473" class="result">
-                    <span data-nid="el-interp-474"></span>
+                  <pre data-nid="el-pre-501" class="result">
+                    <span data-nid="el-interp-502"></span>
                   </pre>
                 </div>
               </fragment>
             </div>
-            <div data-nid="el-if-466-b2" style="display:none">
-              <fragment data-nid="el-fragment-475">
-                <div data-nid="el-div-476" class="status-box error-box">
-                  <p data-nid="el-p-477" class="label">
+            <div data-nid="el-if-494-b2" style="display:none">
+              <fragment data-nid="el-fragment-503">
+                <div data-nid="el-div-504" class="status-box error-box">
+                  <p data-nid="el-p-505" class="label">
                     Error:
                   </p>
-                  <p data-nid="el-p-478" class="error-text">
-                    <span data-nid="el-interp-479"></span>
+                  <p data-nid="el-p-506" class="error-text">
+                    <span data-nid="el-interp-507"></span>
                   </p>
                 </div>
               </fragment>
             </div>
-            <div data-nid="el-if-466-else" style="display:none">
-              <fragment data-nid="el-fragment-480">
-                <div data-nid="el-div-481" class="status-box idle-box">
-                  <p data-nid="el-p-482" class="idle-text">
+            <div data-nid="el-if-494-else" style="display:none">
+              <fragment data-nid="el-fragment-508">
+                <div data-nid="el-div-509" class="status-box idle-box">
+                  <p data-nid="el-p-510" class="idle-text">
                     Click Load for direct fetch, API to use api.omni
                   </p>
                 </div>
@@ -1084,63 +1144,63 @@
           </div>
         </div>
       </div>
-      <div data-nid="el-div-483" class="demo-full">
-        <div data-nid="el-DataSubmit-484" data-component="DataSubmit">
-          <div data-nid="el-div-485" class="data-submit">
-            <h3 data-nid="el-h3-486" class="title">
+      <div data-nid="el-div-511" class="demo-full">
+        <div data-nid="el-DataSubmit-512" data-component="DataSubmit">
+          <div data-nid="el-div-513" class="data-submit">
+            <h3 data-nid="el-h3-514" class="title">
               HTTP POST Demo
             </h3>
-            <p data-nid="el-p-487" class="desc">
+            <p data-nid="el-p-515" class="desc">
               json_stringify + http_post + await + match status
             </p>
-            <div data-nid="el-div-488" class="form">
-              <label data-nid="el-label-489" class="field-label">
+            <div data-nid="el-div-516" class="form">
+              <label data-nid="el-label-517" class="field-label">
                 Title
               </label>
-              <input data-nid="el-input-490" class="field-input" placeholder="Enter title..." />
-              <label data-nid="el-label-491" class="field-label">
+              <input data-nid="el-input-518" class="field-input" placeholder="Enter title..." />
+              <label data-nid="el-label-519" class="field-label">
                 Body
               </label>
-              <textarea data-nid="el-textarea-492" class="field-textarea" placeholder="Enter body..." rows="3">
+              <textarea data-nid="el-textarea-520" class="field-textarea" placeholder="Enter body..." rows="3">
               </textarea>
-              <div data-nid="el-div-493" class="btn-row">
-                <button data-nid="el-button-494" class="btn-submit">
+              <div data-nid="el-div-521" class="btn-row">
+                <button data-nid="el-button-522" class="btn-submit">
                   Submit
                 </button>
-                <button data-nid="el-button-495" class="btn-reset">
+                <button data-nid="el-button-523" class="btn-reset">
                   Reset
                 </button>
               </div>
             </div>
-            <div data-nid="el-if-496-b0" style="display:none">
-              <fragment data-nid="el-fragment-497">
-                <div data-nid="el-div-498" class="status-box loading-box">
-                  <p data-nid="el-p-499" class="loading-text">
+            <div data-nid="el-if-524-b0" style="display:none">
+              <fragment data-nid="el-fragment-525">
+                <div data-nid="el-div-526" class="status-box loading-box">
+                  <p data-nid="el-p-527" class="loading-text">
                     Submitting...
                   </p>
                 </div>
               </fragment>
             </div>
-            <div data-nid="el-if-496-b1" style="display:none">
-              <fragment data-nid="el-fragment-500">
-                <div data-nid="el-div-501" class="status-box success-box">
-                  <p data-nid="el-p-502" class="label">
+            <div data-nid="el-if-524-b1" style="display:none">
+              <fragment data-nid="el-fragment-528">
+                <div data-nid="el-div-529" class="status-box success-box">
+                  <p data-nid="el-p-530" class="label">
                     Server Response:
                   </p>
-                  <pre data-nid="el-pre-503" class="result">
-                    <span data-nid="el-interp-504"></span>
+                  <pre data-nid="el-pre-531" class="result">
+                    <span data-nid="el-interp-532"></span>
                   </pre>
                 </div>
               </fragment>
             </div>
-            <div data-nid="el-if-496-b2" style="display:none">
-              <fragment data-nid="el-fragment-505">
-                <div data-nid="el-div-506" class="status-box error-box">
-                  <p data-nid="el-p-507" class="label">
+            <div data-nid="el-if-524-b2" style="display:none">
+              <fragment data-nid="el-fragment-533">
+                <div data-nid="el-div-534" class="status-box error-box">
+                  <p data-nid="el-p-535" class="label">
                     Error:
                   </p>
-                  <p data-nid="el-p-508" class="error-text">
-                    <span data-nid="el-interp-509"></span>
+                  <p data-nid="el-p-536" class="error-text">
+                    <span data-nid="el-interp-537"></span>
                   </p>
                 </div>
               </fragment>
@@ -1148,41 +1208,860 @@
           </div>
         </div>
       </div>
-      <div data-nid="el-div-510" class="demo-full">
-        <div data-nid="el-UserSettings-511" data-component="UserSettings">
-          <div data-nid="el-div-512" class="user-settings">
-            <h3 data-nid="el-h3-513" class="title">
+      <div data-nid="el-div-538" class="demo-full">
+        <div data-nid="el-UserSettings-539" data-component="UserSettings">
+          <div data-nid="el-div-540" class="user-settings">
+            <h3 data-nid="el-h3-541" class="title">
               Storage Demo
             </h3>
-            <p data-nid="el-p-514" class="desc">
+            <p data-nid="el-p-542" class="desc">
               storage get/set + json parse/stringify + mount
             </p>
-            <div data-nid="el-div-515" class="form">
-              <label data-nid="el-label-516" class="field-label">
+            <div data-nid="el-div-543" class="form">
+              <label data-nid="el-label-544" class="field-label">
                 Username
               </label>
-              <input data-nid="el-input-517" placeholder="Your name..." class="field-input" />
-              <div data-nid="el-div-518" class="btn-row">
-                <button data-nid="el-button-519" class="btn-save">
+              <input data-nid="el-input-545" placeholder="Your name..." class="field-input" />
+              <div data-nid="el-div-546" class="btn-row">
+                <button data-nid="el-button-547" class="btn-save">
                   Save
                 </button>
-                <button data-nid="el-button-520" class="btn-clear">
+                <button data-nid="el-button-548" class="btn-clear">
                   Clear
                 </button>
               </div>
             </div>
-            <div data-nid="el-div-521" class="info-bar">
-              <p data-nid="el-p-522" class="info-text">
-                <span data-nid="el-interp-523"></span>
+            <div data-nid="el-div-549" class="info-bar">
+              <p data-nid="el-p-550" class="info-text">
+                <span data-nid="el-interp-551"></span>
               </p>
             </div>
           </div>
         </div>
       </div>
     </section>
-    <footer data-nid="el-footer-524" class="footer">
-      <p data-nid="el-p-525" class="footer-text">
-        OmniView 教学项目 · 34 源文件 · omnic run
+    <section data-nid="el-section-552" class="demo-section">
+      <h2 data-nid="el-h2-553" class="demo-section-title">
+        Phase 9: 新增演示组件
+      </h2>
+      <div data-nid="el-div-554" class="demo-row">
+        <div data-nid="el-div-555" class="demo-col">
+          <div data-nid="el-EventShorthand-556" data-component="EventShorthand">
+            <div data-nid="el-div-557" class="event-shorthand">
+              <h3 data-nid="el-h3-558" class="title">
+                Event Shorthand Demo
+              </h3>
+              <div data-nid="el-div-559" class="section">
+                <p data-nid="el-p-560" class="section-title">
+                  Form 1:
+                  <span data-nid="el-interp-561"></span>
+                  — auto-wraps inline
+                </p>
+                <button data-nid="el-button-562" class="btn">
+                  greet(&quot;World&quot;)
+                </button>
+                <button data-nid="el-button-563" class="btn-alt">
+                  farewell(&quot;World&quot;)
+                </button>
+              </div>
+              <div data-nid="el-div-564" class="section">
+                <p data-nid="el-p-565" class="section-title">
+                  Form 2:
+                  <span data-nid="el-interp-566"></span>
+                  — StoreAction ref
+                </p>
+                <button data-nid="el-button-567" class="btn-store">
+                  NotificationStore.add(...)
+                </button>
+                <button data-nid="el-button-568" class="btn-store">
+                  NotificationStore.clear
+                </button>
+              </div>
+              <div data-nid="el-div-569" class="section">
+                <p data-nid="el-p-570" class="section-title">
+                  @eventName syntax (same as onEventName):
+                </p>
+                <div data-nid="el-div-571" class="demo-row">
+                  <button data-nid="el-button-572" class="btn-on">
+                    onPress
+                  </button>
+                  <button data-nid="el-button-573" class="btn-at">
+                    @onPress
+                  </button>
+                </div>
+              </div>
+              <div data-nid="el-div-574" class="result-area">
+                <p data-nid="el-p-575" class="result-text">
+                  <span data-nid="el-interp-576"></span>
+                </p>
+                <p data-nid="el-p-577" class="result-count">
+                  Clicks:
+                  <span data-nid="el-interp-578"></span>
+                </p>
+                <p data-nid="el-p-579" class="store-info">
+                  Notifications:
+                  <span data-nid="el-interp-580"></span>
+                </p>
+              </div>
+              <button data-nid="el-button-581" class="btn-reset">
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+        <div data-nid="el-div-582" class="demo-col">
+          <div data-nid="el-FormControlsDemo-583" data-component="FormControlsDemo">
+            <div data-nid="el-div-584" class="form-controls">
+              <h3 data-nid="el-h3-585" class="title">
+                Form Controls Demo
+              </h3>
+              <p data-nid="el-p-586" class="subtitle">
+                a-tag · select · checkbox · range · number
+              </p>
+              <div data-nid="el-div-587" class="section">
+                <p data-nid="el-p-588" class="section-title">
+                  a-tag link with href / title / target:
+                </p>
+                <a data-nid="el-a-589" class="demo-link" href="#" title="Demo link — click to count">
+                  Click me (
+                  <span data-nid="el-interp-590"></span>
+                  )
+                </a>
+              </div>
+              <div data-nid="el-div-591" class="section">
+                <p data-nid="el-p-592" class="section-title">
+                  select with option:
+                </p>
+                <select data-nid="el-select-593" class="demo-select">
+                  <option data-nid="el-option-594" value="option1">
+                    Option 1 — First
+                  </option>
+                  <option data-nid="el-option-595" value="option2">
+                    Option 2 — Second
+                  </option>
+                  <option data-nid="el-option-596" value="option3">
+                    Option 3 — Third
+                  </option>
+                </select>
+                <p data-nid="el-p-597" class="select-value">
+                  Value:
+                  <span data-nid="el-interp-598"></span>
+                </p>
+              </div>
+              <div data-nid="el-div-599" class="section">
+                <p data-nid="el-p-600" class="section-title">
+                  Checkbox with checked attribute:
+                </p>
+                <label data-nid="el-label-601" class="check-label">
+                  <input data-nid="el-input-602" class="demo-checkbox" type="checkbox" />
+                  <span data-nid="el-span-603" class="check-text">
+                    I agree to the terms
+                  </span>
+                </label>
+                <p data-nid="el-p-604" class="check-status">
+                  Status:
+                  <span data-nid="el-interp-605"></span>
+                </p>
+              </div>
+              <div data-nid="el-div-606" class="section">
+                <p data-nid="el-p-607" class="section-title">
+                  Number input with min/max/step:
+                </p>
+                <input data-nid="el-input-608" min="0" class="demo-input" value step="1" max="120" title="Enter your age (0-120)" type="number" />
+                <p data-nid="el-p-609" class="select-value">
+                  Age:
+                  <span data-nid="el-interp-610"></span>
+                </p>
+              </div>
+              <div data-nid="el-div-611" class="section">
+                <p data-nid="el-p-612" class="section-title">
+                  Range slider with min/max/step:
+                </p>
+                <input data-nid="el-input-613" step="5" value min="0" type="range" max="100" class="demo-range" title="Select a value (0-100, step 5)" />
+                <p data-nid="el-p-614" class="select-value">
+                  Range:
+                  <span data-nid="el-interp-615"></span>
+                  / 100
+                </p>
+              </div>
+              <div data-nid="el-div-616" class="status-area">
+                <p data-nid="el-p-617" class="status-text">
+                  <span data-nid="el-interp-618"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-nid="el-div-619" class="demo-full">
+        <div data-nid="el-EventsDemo-620" data-component="EventsDemo">
+          <main data-nid="el-main-621" class="container">
+            <nav data-nid="el-nav-622" aria-label="Event Demo">
+              <h2 data-nid="el-h2-623" class="title">
+                事件处理器全覆盖
+              </h2>
+              <p data-nid="el-p-624" class="subtitle">
+                双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换
+              </p>
+            </nav>
+            <article data-nid="el-article-625" class="card">
+              <h3 data-nid="el-h3-626" class="card-title">
+                输入与键盘事件
+              </h3>
+              <input data-nid="el-input-627" class="input" placeholder="在此输入..." />
+            </article>
+            <article data-nid="el-article-628" class="card">
+              <h3 data-nid="el-h3-629" class="card-title">
+                双击与右键
+              </h3>
+              <div data-nid="el-div-630" class="interactive-box">
+                <p data-nid="el-p-631" class="hint">
+                  双击或右键点击此区域
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-632" class="card">
+              <h3 data-nid="el-h3-633" class="card-title">
+                拖拽事件
+              </h3>
+              <div data-nid="el-div-634" class="drag-box" draggable="true">
+                <p data-nid="el-p-635" class="hint">
+                  拖拽状态:
+                  <span data-nid="el-interp-636"></span>
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-637" class="card">
+              <h3 data-nid="el-h3-638" class="card-title">
+                触摸事件
+              </h3>
+              <div data-nid="el-div-639" class="touch-box">
+                <p data-nid="el-p-640" class="hint">
+                  在移动设备上触摸此处
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-641" class="card">
+              <h3 data-nid="el-h3-642" class="card-title">
+                滚轮事件
+              </h3>
+              <div data-nid="el-div-643" class="wheel-box">
+                <p data-nid="el-p-644" class="hint">
+                  滚轮计数:
+                  <span data-nid="el-interp-645"></span>
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-646" class="card">
+              <h3 data-nid="el-h3-647" class="card-title">
+                媒体与资源事件
+              </h3>
+              <img data-nid="el-img-648" alt="test" class="hidden-img" src="about:blank" />
+              <div data-nid="el-div-649" class="media-box">
+                <p data-nid="el-p-650" class="hint">
+                  媒体状态:
+                  <span data-nid="el-interp-651"></span>
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-652" class="card">
+              <h3 data-nid="el-h3-653" class="card-title">
+                动画与过渡事件
+              </h3>
+              <div data-nid="el-div-654" class="anim-box">
+                <p data-nid="el-p-655" class="hint">
+                  动画状态:
+                  <span data-nid="el-interp-656"></span>
+                </p>
+              </div>
+            </article>
+            <article data-nid="el-article-657" class="card">
+              <h3 data-nid="el-h3-658" class="card-title">
+                Toggle 事件
+              </h3>
+              <details data-nid="el-details-659" class="details-box">
+                <summary data-nid="el-summary-660" class="summary">
+                  点击展开 (toggle count:
+                  <span data-nid="el-interp-661"></span>
+                  )
+                </summary>
+                <p data-nid="el-p-662" class="details-text">
+                  这是详情内容。每次展开/折叠触发 @onToggle。
+                </p>
+              </details>
+            </article>
+            <article data-nid="el-article-663" class="card">
+              <h3 data-nid="el-h3-664" class="card-title">
+                事件日志
+              </h3>
+              <p data-nid="el-p-665" class="log-text">
+                日志:
+                <span data-nid="el-interp-666"></span>
+                条事件
+              </p>
+            </article>
+            <article data-nid="el-article-667" class="card">
+              <h3 data-nid="el-h3-668" class="card-title">
+                HTML 语义标签
+              </h3>
+              <section data-nid="el-section-669" class="tag-section">
+                <h4 data-nid="el-h4-670" class="tag-group">
+                  文本语义
+                </h4>
+                <p data-nid="el-p-671">
+                  <b data-nid="el-b-672">
+                    粗体 (b)
+                  </b>
+                  <strong data-nid="el-strong-673">
+                    重要 (strong)
+                  </strong>
+                  <i data-nid="el-i-674">
+                    斜体 (i)
+                  </i>
+                  <em data-nid="el-em-675">
+                    强调 (em)
+                  </em>
+                  <mark data-nid="el-mark-676">
+                    高亮 (mark)
+                  </mark>
+                  <small data-nid="el-small-677">
+                    小字 (small)
+                  </small>
+                  <del data-nid="el-del-678">
+                    删除 (del)
+                  </del>
+                  <ins data-nid="el-ins-679">
+                    插入 (ins)
+                  </ins>
+                </p>
+                <p data-nid="el-p-680">
+                  <code data-nid="el-code-681">
+                    代码 (code)
+                  </code>
+                  <kbd data-nid="el-kbd-682">
+                    按键 (kbd)
+                  </kbd>
+                  <samp data-nid="el-samp-683">
+                    输出 (samp)
+                  </samp>
+                  <var data-nid="el-var-684">
+                    变量 (var)
+                  </var>
+                </p>
+                <p data-nid="el-p-685">
+                  <sup data-nid="el-sup-686">
+                    上标 (sup)
+                  </sup>
+                  /
+                  <sub data-nid="el-sub-687">
+                    下标 (sub)
+                  </sub>
+                </p>
+                <p data-nid="el-p-688">
+                  <abbr data-nid="el-abbr-689" title="HyperText Markup Language">
+                    HTML (abbr)
+                  </abbr>
+                  <dfn data-nid="el-dfn-690">
+                    定义 (dfn)
+                  </dfn>
+                </p>
+                <p data-nid="el-p-691">
+                  <q data-nid="el-q-692">
+                    短引用 (q)
+                  </q>
+                </p>
+                <blockquote data-nid="el-blockquote-693" class="blockquote">
+                  块引用 (blockquote)
+                  <cite data-nid="el-cite-694">
+                    — 来源 (cite)
+                  </cite>
+                </blockquote>
+                <p data-nid="el-p-695">
+                  <time data-nid="el-time-696" datetime="2025-06-20">
+                    时间 (time)
+                  </time>
+                </p>
+                <p data-nid="el-p-697">
+                  <address data-nid="el-address-698">
+                    地址: contact@example.com (address)
+                  </address>
+                </p>
+                <p data-nid="el-p-699">
+                  <bdi data-nid="el-bdi-700">
+                    双向文本 (bdi)
+                  </bdi>
+                  <bdo data-nid="el-bdo-701" dir="rtl">
+                    双向覆盖 (bdo)
+                  </bdo>
+                </p>
+                <p data-nid="el-p-702">
+                  换行
+                  <wbr data-nid="el-wbr-703" />
+                  机会 (wbr)
+                </p>
+              </section>
+              <section data-nid="el-section-704" class="tag-section">
+                <h4 data-nid="el-h4-705" class="tag-group">
+                  表单标签
+                </h4>
+                <fieldset data-nid="el-fieldset-706" class="fieldset">
+                  <legend data-nid="el-legend-707">
+                    分组字段 (fieldset + legend)
+                  </legend>
+                  <label data-nid="el-label-708">
+                    搜索:
+                    <input data-nid="el-input-709" list="options" />
+                  </label>
+                  <datalist data-nid="el-datalist-710" id="options">
+                    <option data-nid="el-option-711" value="Apple">
+                    </option>
+                    <option data-nid="el-option-712" value="Banana">
+                    </option>
+                  </datalist>
+                  <select data-nid="el-select-713" class="select">
+                    <optgroup data-nid="el-optgroup-714" data-label="水果">
+                      <option data-nid="el-option-715">
+                        苹果
+                      </option>
+                      <option data-nid="el-option-716">
+                        香蕉
+                      </option>
+                    </optgroup>
+                  </select>
+                </fieldset>
+              </section>
+              <section data-nid="el-section-717" class="tag-section">
+                <h4 data-nid="el-h4-718" class="tag-group">
+                  媒体与嵌入
+                </h4>
+                <figure data-nid="el-figure-719" class="figure">
+                  <figcaption data-nid="el-figcaption-720">
+                    插图标题 (figure + figcaption)
+                  </figcaption>
+                  <video data-nid="el-video-721" width="200" class="media" controls>
+                    <source data-nid="el-source-722" src="sample.mp4" type="video/mp4" />
+                  </video>
+                  <audio data-nid="el-audio-723" controls class="media">
+                    <source data-nid="el-source-724" type="audio/mpeg" src="sample.mp3" />
+                  </audio>
+                </figure>
+                <canvas data-nid="el-canvas-725" class="canvas">
+                </canvas>
+                <picture data-nid="el-picture-726">
+                  <source data-nid="el-source-727" srcset="large.jpg" media="(min-width: 800px)" />
+                  <img data-nid="el-img-728" src="fallback.jpg" alt="responsive" />
+                </picture>
+                <map data-nid="el-map-729" name="demo-map">
+                  <area data-nid="el-area-730" coords="0,0,50,50" alt="Area 1" href="#area1" shape="rect" />
+                </map>
+              </section>
+              <section data-nid="el-section-731" class="tag-section">
+                <h4 data-nid="el-h4-732" class="tag-group">
+                  度量与进度
+                </h4>
+                <progress data-nid="el-progress-733" value="70" max="100" class="progress">
+                  70%
+                </progress>
+                <meter data-nid="el-meter-734" min="0" class="meter" value="0.6" max="1">
+                  60%
+                </meter>
+              </section>
+              <section data-nid="el-section-735" class="tag-section">
+                <h4 data-nid="el-h4-736" class="tag-group">
+                  注音
+                </h4>
+                <ruby data-nid="el-ruby-737">
+                  漢字
+                  <rt data-nid="el-rt-738">
+                    かんじ
+                  </rt>
+                </ruby>
+              </section>
+            </article>
+          </main>
+        </div>
+      </div>
+      <div data-nid="el-div-739" class="demo-row">
+        <div data-nid="el-div-740" class="demo-col">
+          <div data-nid="el-InlineStoreDemo-741" data-component="InlineStoreDemo">
+            <div data-nid="el-div-742" class="container">
+              <h3 data-nid="el-h3-743">
+                Inline Store Demo
+              </h3>
+              <p data-nid="el-p-744">
+                Items:
+                <span data-nid="el-interp-745"></span>
+              </p>
+              <p data-nid="el-p-746">
+                Summary:
+                <span data-nid="el-interp-747"></span>
+              </p>
+              <p data-nid="el-p-748">
+                Total:
+                <span data-nid="el-interp-749"></span>
+              </p>
+              <button data-nid="el-button-750">
+                Add Apple
+              </button>
+              <button data-nid="el-button-751">
+                Remove
+              </button>
+              <p data-nid="el-p-752">
+                <span data-nid="el-interp-753"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div data-nid="el-div-754" class="demo-col">
+          <div data-nid="el-NullishDemo-755" data-component="NullishDemo">
+            <div data-nid="el-div-756">
+              <span data-nid="el-interp-757"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-nid="el-div-758" class="demo-full">
+        <div data-nid="el-CssUnitsDemo-759" data-component="CssUnitsDemo">
+          <div data-nid="el-div-760" class="container">
+            <h3 data-nid="el-h3-761" class="title">
+              CSS 单位全覆盖
+            </h3>
+            <p data-nid="el-p-762" class="subtitle">
+              30 个 CSS 单位全覆盖（含 10 个新增：s, vmax, svw, lvw, dvw, cqh, cqb, cqmin, cqmax, rlh）
+            </p>
+            <div data-nid="el-div-763" class="grid">
+              <div data-nid="el-div-764" class="box-vh">
+                10vh
+              </div>
+              <div data-nid="el-div-765" class="box-fr">
+                1fr
+              </div>
+              <div data-nid="el-div-766" class="box-pt">
+                12pt
+              </div>
+              <div data-nid="el-div-767" class="box-cm">
+                1cm
+              </div>
+              <div data-nid="el-div-768" class="box-mm">
+                10mm
+              </div>
+              <div data-nid="el-div-769" class="box-ms">
+                150ms
+              </div>
+              <div data-nid="el-div-770" class="box-deg">
+                15deg
+              </div>
+              <div data-nid="el-div-771" class="box-rad">
+                0.5rad
+              </div>
+              <div data-nid="el-div-772" class="box-grad">
+                50grad
+              </div>
+              <div data-nid="el-div-773" class="box-turn">
+                0.25turn
+              </div>
+              <div data-nid="el-div-774" class="box-vmin">
+                5vmin
+              </div>
+              <div data-nid="el-div-775" class="box-svh">
+                5svh
+              </div>
+              <div data-nid="el-div-776" class="box-lvh">
+                5lvh
+              </div>
+              <div data-nid="el-div-777" class="box-dvh">
+                5dvh
+              </div>
+              <div data-nid="el-div-778" class="box-ch">
+                20ch
+              </div>
+              <div data-nid="el-div-779" class="box-ex">
+                10ex
+              </div>
+              <div data-nid="el-div-780" class="box-ic">
+                15ic
+              </div>
+              <div data-nid="el-div-781" class="box-lh">
+                2lh
+              </div>
+              <div data-nid="el-div-782" class="box-cq">
+                10cqw
+              </div>
+              <div data-nid="el-div-783" class="box-cqi">
+                5cqi
+              </div>
+              <div data-nid="el-div-784" class="box-s">
+                1s
+              </div>
+              <div data-nid="el-div-785" class="box-vmax">
+                5vmax
+              </div>
+              <div data-nid="el-div-786" class="box-svw">
+                5svw
+              </div>
+              <div data-nid="el-div-787" class="box-lvw">
+                5lvw
+              </div>
+              <div data-nid="el-div-788" class="box-dvw">
+                5dvw
+              </div>
+              <div data-nid="el-div-789" class="box-cqh">
+                5cqh
+              </div>
+              <div data-nid="el-div-790" class="box-cqb">
+                5cqb
+              </div>
+              <div data-nid="el-div-791" class="box-cqmin">
+                5cqmin
+              </div>
+              <div data-nid="el-div-792" class="box-cqmax">
+                5cqmax
+              </div>
+              <div data-nid="el-div-793" class="box-rlh">
+                2rlh
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-nid="el-div-794" class="demo-full">
+        <div data-nid="el-StringLiteralsDemo-795" data-component="StringLiteralsDemo">
+          <div data-nid="el-div-796" class="container">
+            <h3 data-nid="el-h3-797" class="title">
+              字符串字面量演示
+            </h3>
+            <p data-nid="el-p-798" class="subtitle">
+              反引号字符串 · 单引号字符串
+            </p>
+            <div data-nid="el-div-799" class="card">
+              <h4 data-nid="el-h4-800" class="label">
+                反引号字符串
+              </h4>
+              <p data-nid="el-p-801" class="value">
+                signal = `{&quot;Hello \&quot;OmniView\&quot; world&quot;}`
+              </p>
+              <p data-nid="el-p-802" class="result">
+                结果:
+                <span data-nid="el-interp-803"></span>
+              </p>
+            </div>
+            <div data-nid="el-div-804" class="card">
+              <h4 data-nid="el-h4-805" class="label">
+                单引号字符串
+              </h4>
+              <p data-nid="el-p-806" class="result">
+                结果:
+                <span data-nid="el-interp-807"></span>
+              </p>
+            </div>
+            <div data-nid="el-div-808" class="card">
+              <h4 data-nid="el-h4-809" class="label">
+                混合字符串
+              </h4>
+              <p data-nid="el-p-810" class="result">
+                结果:
+                <span data-nid="el-interp-811"></span>
+              </p>
+            </div>
+            <div data-nid="el-div-812" class="card">
+              <h4 data-nid="el-h4-813" class="label">
+                模板字符串插值
+                <span data-nid="el-interp-814"></span>
+              </h4>
+              <p data-nid="el-p-815" class="value">
+                buildGreeting(&quot;Alice&quot;, 30) -&gt; &quot;{buildGreeting(&quot;Alice&quot;, 30)}&quot;
+              </p>
+              <p data-nid="el-p-816" class="value">
+                dynamic:
+                <span data-nid="el-interp-817"></span>
+              </p>
+              <button data-nid="el-button-818" class="btn-sm">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-nid="el-div-819" class="demo-row">
+        <div data-nid="el-div-820" class="demo-col">
+          <div data-nid="el-TypeSystemDemo-821" data-component="TypeSystemDemo">
+            <div data-nid="el-div-822" class="container">
+              <h3 data-nid="el-h3-823" class="title">
+                类型系统全覆盖
+              </h3>
+              <p data-nid="el-p-824" class="subtitle">
+                i8 · i16 · i64 · u8 · u16 · u32 · u64 · f32 · isize · usize · Void
+              </p>
+              <div data-nid="el-div-825" class="section">
+                <h4 data-nid="el-h4-826" class="section-title">
+                  有符号整数
+                </h4>
+                <ul data-nid="el-ul-827" class="list">
+                  <li data-nid="el-li-828" class="item">
+                    <code data-nid="el-code-829" class="code">
+                      i8
+                    </code>
+                    max =
+                    <span data-nid="el-interp-830"></span>
+                  </li>
+                  <li data-nid="el-li-831" class="item">
+                    <code data-nid="el-code-832" class="code">
+                      i16
+                    </code>
+                    max =
+                    <span data-nid="el-interp-833"></span>
+                  </li>
+                  <li data-nid="el-li-834" class="item">
+                    <code data-nid="el-code-835" class="code">
+                      i64
+                    </code>
+                    max =
+                    <span data-nid="el-interp-836"></span>
+                  </li>
+                  <li data-nid="el-li-837" class="item">
+                    <code data-nid="el-code-838" class="code">
+                      isize
+                    </code>
+                    =
+                    <span data-nid="el-interp-839"></span>
+                  </li>
+                </ul>
+              </div>
+              <div data-nid="el-div-840" class="section">
+                <h4 data-nid="el-h4-841" class="section-title">
+                  无符号整数
+                </h4>
+                <ul data-nid="el-ul-842" class="list">
+                  <li data-nid="el-li-843" class="item">
+                    <code data-nid="el-code-844" class="code">
+                      u8
+                    </code>
+                    max =
+                    <span data-nid="el-interp-845"></span>
+                  </li>
+                  <li data-nid="el-li-846" class="item">
+                    <code data-nid="el-code-847" class="code">
+                      u16
+                    </code>
+                    max =
+                    <span data-nid="el-interp-848"></span>
+                  </li>
+                  <li data-nid="el-li-849" class="item">
+                    <code data-nid="el-code-850" class="code">
+                      u32
+                    </code>
+                    max =
+                    <span data-nid="el-interp-851"></span>
+                  </li>
+                  <li data-nid="el-li-852" class="item">
+                    <code data-nid="el-code-853" class="code">
+                      u64
+                    </code>
+                    max =
+                    <span data-nid="el-interp-854"></span>
+                  </li>
+                  <li data-nid="el-li-855" class="item">
+                    <code data-nid="el-code-856" class="code">
+                      usize
+                    </code>
+                    =
+                    <span data-nid="el-interp-857"></span>
+                  </li>
+                </ul>
+              </div>
+              <div data-nid="el-div-858" class="section">
+                <h4 data-nid="el-h4-859" class="section-title">
+                  浮点类型
+                </h4>
+                <ul data-nid="el-ul-860" class="list">
+                  <li data-nid="el-li-861" class="item">
+                    <code data-nid="el-code-862" class="code">
+                      f32
+                    </code>
+                    =
+                    <span data-nid="el-interp-863"></span>
+                  </li>
+                </ul>
+              </div>
+              <div data-nid="el-div-864" class="summary-box">
+                <p data-nid="el-p-865" class="summary-text">
+                  综合:
+                  <span data-nid="el-interp-866"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-nid="el-div-867" class="demo-col">
+          <div data-nid="el-ViewAttributesDemo-868" data-component="ViewAttributesDemo">
+            <div data-nid="el-div-869" class="container">
+              <h3 data-nid="el-h3-870" class="title">
+                视图属性演示
+              </h3>
+              <p data-nid="el-p-871" class="subtitle">
+                testId · class:string · bind:checked
+              </p>
+              <div data-nid="el-div-872" class="card">
+                <h4 data-nid="el-h4-873" class="label">
+                  testId 属性标记
+                </h4>
+                <div data-nid="el-div-874" class="info-box" data-testid="attr-demo-container">
+                  <p data-nid="el-p-875" class="info-text">
+                    此 div 使用 testId 属性标记，用于测试定位
+                  </p>
+                </div>
+              </div>
+              <div data-nid="el-div-876" class="card">
+                <h4 data-nid="el-h4-877" class="label">
+                  bind:checked 复选框绑定
+                </h4>
+                <label data-nid="el-label-878" class="checkbox-label">
+                  <input data-nid="el-input-879" data-testid="agree-checkbox" type="checkbox" />
+                  <span data-nid="el-span-880">
+                    同意条款:
+                    <span data-nid="el-interp-881"></span>
+                  </span>
+                </label>
+              </div>
+              <div data-nid="el-div-882" class="card">
+                <h4 data-nid="el-h4-883" class="label">
+                  bind:value 文本输入
+                </h4>
+                <textarea data-nid="el-textarea-884" class="rich-input" placeholder="输入文本...">
+                </textarea>
+                <p data-nid="el-p-885" class="preview">
+                  预览:
+                  <span data-nid="el-interp-886"></span>
+                </p>
+              </div>
+              <div data-nid="el-div-887" class="card">
+                <h4 data-nid="el-h4-888" class="label">
+                  class:&quot;string&quot; 字面量绑定
+                </h4>
+                <div data-nid="el-div-889" class="bg-blue-100 border border-blue-300 rounded-lg p-3 mb-2">
+                  <p data-nid="el-p-890" class="info-text">
+                    此 div 使用 class: &quot;bg-blue-100 ...&quot; 字符串字面量
+                  </p>
+                </div>
+                <div data-nid="el-div-891" class="bg-green-100 border border-green-300 rounded-lg p-3 mb-2">
+                  <p data-nid="el-p-892" class="info-text">
+                    此 div 使用 class: &quot;bg-green-100 ...&quot; 字符串字面量
+                  </p>
+                </div>
+                <div data-nid="el-div-893" class="bg-amber-100 border border-amber-300 rounded-lg p-3">
+                  <p data-nid="el-p-894" class="info-text">
+                    字符串字面量 class 适用于无对应 style 规则的工具类
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <footer data-nid="el-footer-895" class="footer">
+      <p data-nid="el-p-896" class="footer-text">
+        OmniView 教学项目 · 56 源文件 · omnic run
       </p>
     </footer>
   </div>
