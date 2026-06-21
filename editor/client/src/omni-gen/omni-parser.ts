@@ -72,11 +72,17 @@ export function parseOmniSource(source: string): ParseResult {
       case "IN_FN":
         parseFnBodyLine(trimmed, ctx);
         break;
+      case "IN_STORE":
+        parseStoreLine(trimmed, ctx);
+        break;
       case "IN_STYLE":
         parseStyleBlockLine(trimmed, ctx);
         break;
       case "IN_CHAIN":
         parseChainLine(trimmed, ctx);
+        break;
+      default:
+        ctx.errors.push({ severity: "warning", code: "P099", message: `Unhandled parser state: ${ctx.state}`, line: 0, col: 0, end_line: 0, end_col: 0 });
         break;
     }
   }
@@ -98,7 +104,12 @@ export function parseOmniSource(source: string): ParseResult {
 function parseRootLine(trimmed: string, ctx: ParseContext): void {
   if (trimmed.startsWith("// @code-tab type=")) {
     const m = trimmed.match(/type=(logic|event)/);
-    if (m) ctx.codeTabType = m[1] as "logic" | "event";
+    if (m) {
+      ctx.codeTabType = m[1] as "logic" | "event";
+      ctx.codeTabs[0].type = ctx.codeTabType;
+    } else {
+      ctx.errors.push({ severity: "warning", code: "P001", message: `Invalid @code-tab type value in: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
+    }
     return;
   }
   if (trimmed.startsWith("import ")) {
@@ -111,6 +122,8 @@ function parseRootLine(trimmed: string, ctx: ParseContext): void {
       ctx.currentComponent = m[1];
       ctx.braceDepth = 1;
       pushState(ctx, "IN_COMPONENT");
+    } else {
+      ctx.errors.push({ severity: "error", code: "P002", message: `Invalid component declaration: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
     }
     return;
   }
@@ -120,6 +133,8 @@ function parseRootLine(trimmed: string, ctx: ParseContext): void {
       ctx.currentStore = m[1];
       ctx.braceDepth = 1;
       pushState(ctx, "IN_STORE");
+    } else {
+      ctx.errors.push({ severity: "error", code: "P003", message: `Invalid store declaration: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
     }
     return;
   }
@@ -310,10 +325,20 @@ function parseFnBodyLine(trimmed: string, ctx: ParseContext): void {
   }
 }
 
+// ── IN_STORE — skip store body (tracks braces only) ──
+
+function parseStoreLine(trimmed: string, ctx: ParseContext): void {
+  if (trimmed === "{" || trimmed.endsWith("{")) ctx.braceDepth++;
+  if (trimmed === "}") {
+    ctx.braceDepth--;
+    if (ctx.braceDepth <= 0) popState(ctx);
+  }
+}
+
 // ── IN_STYLE — skip style block ──
 
 function parseStyleBlockLine(trimmed: string, ctx: ParseContext): void {
-  if (trimmed === "{") ctx.braceDepth++;
+  if (trimmed === "{" || trimmed.endsWith("{")) ctx.braceDepth++;
   if (trimmed === "}") {
     ctx.braceDepth--;
     if (ctx.braceDepth <= 0) popState(ctx);

@@ -34,6 +34,13 @@ describe("parseOmniSource", () => {
     expect(result.codeTabs[0].type).toBe("logic");
   });
 
+  it("parses @code-tab type=event produces event type", () => {
+    const result = parseOmniSource(`// @code-tab type=event
+component Test { view { <div/> } }`);
+    expect(result.codeTabs).toHaveLength(1);
+    expect(result.codeTabs[0].type).toBe("event");
+  });
+
   it("parses component signal", () => {
     const result = parseOmniSource(SIMPLE_OMNI);
     const signals = result.designElements!.filter(e => e.tag === "signal");
