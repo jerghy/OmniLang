@@ -1,6 +1,7 @@
 /** HTTP + WebSocket 通信封装。*/
 
 import type { CompileResponse, FsEntry, ProjectInfo } from "./types";
+import type { AnnotatedLoadResponse, AnnotatedSaveResponse, EditorTomlState, AnnotationFile } from "../annotation/types";
 
 class ApiClient {
   private ws: WebSocket | null = null;
@@ -231,6 +232,30 @@ class ApiClient {
     this.debugWs = null;
     this.onDebugMessage = null;
     this.onDebugStatusChange = null;
+  }
+
+  // ── Annotation API ──
+  async annotatedSave(filePath: string, annotations: AnnotationFile, source: string): Promise<AnnotatedSaveResponse> {
+    return this.post("/api/annotated-save", {
+      body: JSON.stringify({ filePath, annotations, source }),
+    });
+  }
+
+  async annotatedLoad(filePath: string): Promise<AnnotatedLoadResponse> {
+    return this.post("/api/annotated-load", {
+      body: JSON.stringify({ filePath }),
+    });
+  }
+
+  async saveEditorToml(state: EditorTomlState): Promise<{ ok: boolean; error?: string }> {
+    return this.post("/api/editor-toml/save", {
+      body: JSON.stringify({ state }),
+    });
+  }
+
+  async loadEditorToml(): Promise<{ state: EditorTomlState | null; error?: string }> {
+    const res = await fetch("/api/editor-toml/load");
+    return res.json();
   }
 }
 
