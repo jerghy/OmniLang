@@ -1854,6 +1854,43 @@ function __omni_bindText(nid) {
             self.emit_motion_triggers_for_element(&nid, &el.motion_triggers);
         }
 
+        // @driven-by — external progress control for animations on this element
+        if let Some(ref driven_by_expr) = el.driven_by {
+            let driven_js = self.expr_to_js(driven_by_expr);
+            // When driven-by is set, the animation progress is bound to the signal value.
+            // We seek ALL animations on this element whenever the signal changes.
+            // The signal is auto-tracked by __omni_effect.
+            self.mount_js.push_str(&format!(
+                "// @driven-by binding\n\
+                 __omni_effect(() => {{\n\
+                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
+                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 player.seek(progress);\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }});\n",
+                nid = nid,
+                driven = driven_js
+            ));
+        }
+
+        // @paused override — per-element pause override for all animations
+        if let Some(paused) = el.paused_override {
+            self.mount_js.push_str(&format!(
+                "// @paused override\n\
+                 (function() {{\n\
+                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 if ({paused}) {{ player.pause(); }} else {{ player.resume(); }}\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }})();\n",
+                nid = nid,
+                paused = if paused { "true" } else { "false" }
+            ));
+        }
+
         // Record source map entry
         self.source_map.push(SourceMapEntry {
             node_id: nid.clone(),

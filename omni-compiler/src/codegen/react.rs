@@ -176,6 +176,11 @@ impl ReactCodegen {
             emit_motion_effects_tsx(&mut w, view, &mut ref_counter, name);
         }
 
+        // @driven-by effects — emit reactive hooks for external progress control
+        if let Some(ref view) = comp.view {
+            emit_driven_by_effects_tsx(&mut w, view);
+        }
+
         w.emit("");
 
         // Render return (JSX view tree)
@@ -324,6 +329,62 @@ fn has_enter_trigger(node: &ViewTree) -> bool {
     }
 }
 
+/// Emit React useEffect hooks for @driven-by external progress control.
+/// Uses data-driven-by attributes on JSX elements and a useEffect that watches
+/// the driven signal and seeks WAAPI animations accordingly.
+fn emit_driven_by_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
+    if !has_driven_by(node) {
+        return;
+    }
+
+    // Emit a single useEffect that handles all driven-by elements.
+    // Each element has a data-driven-by attribute with the signal expression.
+    w.emit("// @driven-by bindings: external progress control via signal");
+    w.emit("useEffect(() => {");
+    w.indent();
+    w.emit("const els = document.querySelectorAll('[data-driven-by]');");
+    w.emit("els.forEach(el => {");
+    w.indent();
+    w.emit("const drivenVal = el.getAttribute('data-driven-by');");
+    w.emit("const progress = Math.max(0, Math.min(1, Number(drivenVal)));");
+    w.emit("const anims = el.getAnimations();");
+    w.emit("anims.forEach(a => {");
+    w.indent();
+    w.emit("if (a.playState !== 'finished') {");
+    w.indent();
+    w.emit("const duration = a.effect?.getTiming()?.duration || 300;");
+    w.emit("a.currentTime = progress * duration;");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+    w.dedent();
+    w.emit("});");
+}
+
+/// Check if any element in the view tree has @driven-by.
+fn has_driven_by(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if el.driven_by.is_some() {
+                return true;
+            }
+            el.children.iter().any(|c| has_driven_by(c))
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches.iter().any(|b| b.body.as_ref().map_or(false, |body| has_driven_by(body)))
+                || cond.fallback.as_ref().map_or(false, |fb| has_driven_by(fb))
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().map_or(false, |body| has_driven_by(body))
+                || list.empty_body.as_ref().map_or(false, |empty| has_driven_by(empty))
+        }
+        _ => false,
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
@@ -376,6 +437,12 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                     }
                     _ => {}
                 }
+            }
+
+            // @driven-by — external progress control marker attribute
+            if let Some(ref driven_expr) = el.driven_by {
+                let driven_js = format_expr_ir_tsx(driven_expr);
+                attrs.push(format!("data-driven-by={{{}}}", driven_js));
             }
 
             // Events
