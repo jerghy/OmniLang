@@ -1,0 +1,172 @@
+<h2>Motion 块属性完整规范</h2>
+<p class="subtitle">每个属性需要同时能编译到 Web（WAAPI/CSS）和 Flutter（AnimationController）</p>
+
+<div class="mockup" style="margin-bottom:1.5rem;">
+  <div class="mockup-header">属性总览</div>
+  <div class="mockup-body">
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+@motion example {
+  from { opacity: 0; y: 20 }
+  to   { opacity: 1; y: 0 }
+
+  // ── 必填 ──
+  over 300ms                          // 时长（唯一必填）
+
+  // ── 可选：时序 ──
+  ease easeOut                        // 缓动
+  delay 100ms                         // 延迟
+
+  // ── 可选：播放控制 ──
+  loop 3                              // 循环次数（infinite 无限）
+  alternate true                      // 往返交替
+  reverse false                       // 反向播放
+
+  // ── 可选：填充 ──
+  fill forwards                       // none | forwards | backwards | both
+}
+</pre>
+  </div>
+</div>
+
+<div class="section">
+<h3>1. 时长 & 延迟：时间值</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+over 300ms           // 毫秒
+over 1.5s            // 秒
+over 0.3s            // 小数秒
+
+delay 100ms          // 同时间单位
+delay 0s             // 默认无延迟
+</pre>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th style="text-align:left;padding:4px 8px;">Web</th><td style="padding:4px 8px;">WAAPI <code>duration</code> / <code>delay</code>（毫秒）</td></tr>
+  <tr><th style="text-align:left;padding:4px 8px;">Flutter</th><td style="padding:4px 8px;"><code>Duration(milliseconds: N)</code></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>2. 缓动函数：预设 + 自定义 + 物理</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// ── 标准预设（两端统一） ──
+ease linear
+ease easeIn        | ease easeOut        | ease easeInOut
+
+// ── 自定义贝塞尔 ──
+ease cubic(0.16, 1, 0.3, 1)       // Web: cubic-bezier(); Flutter: Cubic()
+
+// ── 物理弹簧 ──
+ease spring(200, 15)               // tension, friction
+ease spring(200, 15, 2)            // tension, friction, velocity
+
+// ── 高级预设 ──
+ease back(1.7)                     // 超出再回弹（Web: 用 cubic-bezier 近似 / Flutter: 原生支持）
+ease elastic(1, 0.5)               // 弹性
+ease bounce                        // 弹跳
+
+// ── 步进 ──
+ease steps(5, end)                 // 分步（Web: steps() / Flutter: 自定义 Curve）
+</pre>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th style="text-align:left;padding:4px 8px;">Web</th><td style="padding:4px 8px;">WAAPI <code>easing</code> + JS spring 模拟（spring/bounce 在 WAAPI 中无原生支持，运行时用 JS 实现）</td></tr>
+  <tr><th style="text-align:left;padding:4px 8px;">Flutter</th><td style="padding:4px 8px;"><code>Curve</code> 子类 + <code>SpringSimulation</code></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>3. 动画属性（可插值的 CSS / Flutter 属性）</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 变换（两端统一）
+opacity   // 0 → 1
+x         // translateX (px)
+y         // translateY (px)
+scale     // 1 → 2
+scaleX    // 1 → 1.5
+scaleY
+rotate    // 0deg → 360deg
+skewX
+skewY
+
+// 颜色（两端统一）
+color
+backgroundColor
+borderColor
+
+// 尺寸（两端统一）
+width
+height
+
+// 仅 Web（Flutter 中编译为 Container 约束）
+margin
+padding
+borderRadius
+boxShadow    // 需运行时处理
+
+// 仅 Flutter（Web 忽略或无等效）
+elevation    // → Material elevation
+</pre>
+</div>
+
+<div class="mockup" style="margin-top:1.5rem;">
+  <div class="mockup-header">4. 语法位置：motion 块内部顺序</div>
+  <div class="mockup-body">
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 规范顺序（编译器可以放松，但建议按此顺序写）：
+@motion NAME {
+  // ① 帧：from → to / 0% {...} 100% {...}
+  from { ... }
+  to   { ... }
+
+  // ② 时长（必填）
+  over DURATION
+
+  // ③ 缓动
+  ease EASING
+
+  // ④ 延迟
+  delay DURATION
+
+  // ⑤ 播放
+  loop COUNT | infinite
+  alternate true | false
+  reverse true | false
+
+  // ⑥ 填充
+  fill none | forwards | backwards | both
+}
+
+// 组成时省略块结构
+@motion entrance {
+  from { opacity: 0; y: 30 } over 400ms ease easeOut
+  then from { opacity: 0; x: -20 } over 300ms
+}
+// ↑ 每个 motion_item 可以带自己的 over / ease / delay
+// 如果省略，继承上一个 motion_item 的值
+</pre>
+  </div>
+</div>
+
+<div class="section">
+<h3>5. 未解决问题</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <tr style="border-bottom:1px solid var(--color-border);">
+    <th style="text-align:left;padding:8px;">问题</th>
+    <th style="text-align:left;padding:8px;">选项</th>
+  </tr>
+  <tr style="border-bottom:1px solid var(--color-border);">
+    <td style="padding:8px;">属性用 <code>;</code> 还是换行分隔？</td>
+    <td style="padding:8px;">建议换行（和 CSS 风格一致），<code>;</code> 可选用于同行多属性</td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--color-border);">
+    <td style="padding:8px;"><code>loop infinite</code> 还是 <code>loop: infinite</code>？</td>
+    <td style="padding:8px;">建议 <code>loop infinite</code>（免冒号，和 <code>ease easeOut</code> 一致）</td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--color-border);">
+    <td style="padding:8px;"><code>alternate true</code> 还是 <code>direction alternate</code>？</td>
+    <td style="padding:8px;">建议 <code>direction alternate</code>（更像 GSAP/CSS，支持 normal | reverse | alternate | alternateReverse）</td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--color-border);">
+    <td style="padding:8px;">Spring 的 velocity 应该是什么单位？</td>
+    <td style="padding:8px;">建议无单位（GSAP 风格：<code>spring(200, 15, 2)</code>），编译器按平台换算</td>
+  </tr>
+</table>
+</div>

@@ -1810,6 +1810,17 @@ mod tests {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
+            scroll_start: None,
+            scroll_end: None,
+            scroll_scrub: None,
+            drag_constraints: None,
+            drag_elastic: None,
+            drag_scrub: None,
+            drag_momentum: None,
+            drag_threshold: None,
+            drag_velocity_max: None,
+            hero_tag: None,
+            hero_transition: None,
         };
         assert_eq!(format_view_tree(&ViewTree::Element(el), &[]), "Container()");
     }
@@ -1838,6 +1849,17 @@ mod tests {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
+            scroll_start: None,
+            scroll_end: None,
+            scroll_scrub: None,
+            drag_constraints: None,
+            drag_elastic: None,
+            drag_scrub: None,
+            drag_momentum: None,
+            drag_threshold: None,
+            drag_velocity_max: None,
+            hero_tag: None,
+            hero_transition: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el), &[]);
         assert_eq!(expr, "Container(child: Text('Hello'))");
@@ -1870,6 +1892,17 @@ mod tests {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
+            scroll_start: None,
+            scroll_end: None,
+            scroll_scrub: None,
+            drag_constraints: None,
+            drag_elastic: None,
+            drag_scrub: None,
+            drag_momentum: None,
+            drag_threshold: None,
+            drag_velocity_max: None,
+            hero_tag: None,
+            hero_transition: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el), &[]);
         assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
@@ -1909,6 +1942,17 @@ mod tests {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
+            scroll_start: None,
+            scroll_end: None,
+            scroll_scrub: None,
+            drag_constraints: None,
+            drag_elastic: None,
+            drag_scrub: None,
+            drag_momentum: None,
+            drag_threshold: None,
+            drag_velocity_max: None,
+            hero_tag: None,
+            hero_transition: None,
         };
         let expr = format_view_tree(&ViewTree::Element(el), &[]);
         assert!(expr.contains("ElevatedButton("));
@@ -2011,6 +2055,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -2096,6 +2142,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -2159,6 +2207,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -2210,6 +2260,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -2261,6 +2313,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -2426,7 +2480,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-            timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -2537,7 +2593,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-            timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),

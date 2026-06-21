@@ -1190,6 +1190,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1248,6 +1250,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1307,6 +1311,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1359,6 +1365,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1416,6 +1424,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1552,7 +1562,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-            timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -1658,7 +1670,9 @@ mod tests {
             view: None,
             styles: vec![],
             motions: vec![],
-            timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
         };
         let ir = IRProgram {
             version: "0.1".into(),

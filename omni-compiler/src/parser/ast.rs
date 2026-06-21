@@ -364,6 +364,8 @@ pub struct ComponentDef {
     pub events: Vec<EventDecl>,
     pub refs: Vec<RefDecl>,
     pub store_refs: Vec<String>,
+    pub if_mode_default: Option<String>,
+    pub hero_defs: Vec<HeroDef>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,
@@ -498,6 +500,28 @@ pub enum ElementProp {
     DelayChildren(Expr),
     /// staggerChildren: — auto-stagger shorthand
     StaggerChildren(Expr),
+    /// @scroll-start="top 80%"
+    ScrollStart(String),
+    /// @scroll-end="bottom 20%"
+    ScrollEnd(String),
+    /// @scroll-scrub={0.5}
+    ScrollScrub(Expr),
+    /// @drag-constraints="left:0 right:300"
+    DragConstraints(String),
+    /// @drag-elastic={0.2}
+    DragElastic(Expr),
+    /// @drag-scrub={true}
+    DragScrub(Expr),
+    /// @drag-momentum={friction:0.95}
+    DragMomentum(Expr),
+    /// @drag-threshold={30%}
+    DragThreshold(Expr),
+    /// @drag-velocity-max={2000px}
+    DragVelocityMax(Expr),
+    /// @hero="tag-name"
+    HeroTag(String),
+    /// @hero-transition={motionName}
+    HeroTransition(Expr),
 }
 
 #[derive(Debug, Clone)]
@@ -591,6 +615,10 @@ pub struct KeyframeBody {
     pub ease: Option<EasingExpr>,
     pub color_space: Option<String>,
     pub playback: Vec<PlaybackProp>,
+    /// Path for motion path animation: path: "M10 10 ..."
+    pub path: Option<String>,
+    /// Whether to rotate element along the path
+    pub path_rotate: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -638,6 +666,10 @@ pub struct DirectionItem {
     pub delay: Option<Expr>,
     pub color_space: Option<String>,
     pub start: Option<PositionValue>,
+    /// Path for motion path animation: path: "M10 10 ..."
+    pub path: Option<String>,
+    /// Whether to rotate element along the path
+    pub path_rotate: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -817,6 +849,15 @@ pub struct StateDef {
     pub properties: Vec<(String, Expr)>,
     pub over: Option<Expr>,
     pub ease: Option<EasingExpr>,
+}
+
+/// Hero definition for cross-component shared element transitions
+#[derive(Debug, Clone)]
+pub struct HeroDef {
+    pub name: String,
+    pub over: Expr,
+    pub ease: Option<EasingExpr>,
+    pub span: Span,
 }
 
 // ── Store & Theme ─────────────────────────────────────

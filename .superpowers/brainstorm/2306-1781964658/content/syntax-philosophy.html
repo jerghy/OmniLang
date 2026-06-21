@@ -1,0 +1,93 @@
+<h2>动画语法设计：三种根本不同的哲学</h2>
+<p class="subtitle">不只是"放在哪里"——而是动画是什么的底层模型差异</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">哲学 A：CSS 启发式 — 熟悉的声明式</div>
+    <div class="mockup-body">
+      <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:1rem;border-radius:8px;overflow-x:auto;">
+// 关键帧定义
+@keyframes fadeIn {
+  0%   { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+// 元素上引用
+&lt;div animation: fadeIn 0.3s ease-out&gt;
+&lt;div transition: opacity 0.2s, transform 0.3s&gt;
+
+// 入场
+&lt;div @enter="fadeIn" @leave="fadeOut"&gt;
+
+// 状态过渡
+&lt;div transition:bind="activeStyle"&gt;
+      </pre>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Web 开发者零学习成本</li><li>CSS 社区工具链</li><li>关键帧语法成熟</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>受 CSS 心智模型限制</li><li>手势/物理需不同语法</li><li>两个独立系统（transition + animation）</li><li>Flutter 映射不自然</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">哲学 B：Motion-First — 一切皆"运动"</div>
+    <div class="mockup-body">
+      <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:1rem;border-radius:8px;overflow-x:auto;">
+// motion 是唯一原语
+motion fadeIn {
+  keyframes {
+    0%   { opacity: 0; y: 20px }
+    100% { opacity: 1; y: 0 }
+  }
+  over: 0.3s using: easeOut
+}
+
+// 物理弹簧也是 motion
+motion springBounce {
+  from { scale: 0.8 }
+  to   { scale: 1 }
+  over: 0.5s
+  physics: spring(200, 15)
+}
+
+// 统一挂载语法
+&lt;div @motion:enter="fadeIn"
+     @motion:exit="fadeOut"
+     @motion:hover="scaleUp"
+     @motion:drag="swipeCard"
+     @motion:stagger="50ms"&gt;
+      </pre>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>单一原语统一所有动画</li><li>物理/关键帧/手势同一模型</li><li>Web + Flutter 都自然映射</li><li>组合性好</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>全新语法，需学习</li><li>简单场景不如 CSS 简洁</li><li>抽象层需要仔细设计</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:1.5rem;">
+  <div class="mockup-header">哲学 C：Signal-Animated — 动画即信号过渡</div>
+  <div class="mockup-body">
+    <pre style="font-size:11px;line-height:1.5;background:var(--color-surface);padding:1rem;border-radius:8px;overflow-x:auto;">
+// 动画信号：值变化时自动插值
+signal isOpen: bool = false;
+@style cardStyle {
+  when isOpen → { opacity: 1; scale: 1; y: 0 }
+  default   → { opacity: 0; scale: 0.95; y: 20px }
+  animate: 0.3s spring(200, 15);  // ← 动画作为信号的过渡规则
+}
+
+&lt;div style="{cardStyle}" @click="{isOpen = !isOpen}"&gt;
+  // isOpen 切换 → 样式自动插值过渡
+
+// 列表编排
+&lt;div @for="item in items"
+     style:animate="fadeSlideIn"
+     style:animate-stagger="60ms"&gt;
+      </pre>
+    <div class="pros-cons">
+      <div class="pros"><h4>Pros</h4><ul><li>与 OmniView 信号模型深度统一</li><li>消除"触发动画"的显式概念</li><li>自然表达列表编排</li><li>状态即动画源</li></ul></div>
+      <div class="cons"><h4>Cons</h4><ul><li>颠覆传统动画思维</li><li>连续动画（spinner）不自然</li><li>需要大量运行时支持</li><li>调试困难</li></ul></div>
+    </div>
+  </div>
+</div>

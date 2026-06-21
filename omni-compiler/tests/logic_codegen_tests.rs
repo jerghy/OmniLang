@@ -56,7 +56,9 @@ fn simple_component_ir(comp_name: &str) -> IRProgram {
         view: None,
         styles: vec![],
         motions: vec![],
-        timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
     };
     components.insert(comp_name.into(), comp);
     make_ir(components, HashMap::new())
@@ -92,7 +94,9 @@ fn ir_with_function(comp_name: &str, fn_name: &str) -> IRProgram {
         view: None,
         styles: vec![],
         motions: vec![],
-        timelines: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
+                timelines: vec![],
     };
     components.insert(comp_name.into(), comp);
     make_ir(components, HashMap::new())

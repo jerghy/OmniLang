@@ -2622,6 +2622,8 @@ function __omni_bindText(nid) {
                     delay,
                     color_space: _,
                     start,
+                    path: _,
+                    path_rotate: _,
                 } => {
                     // Build direction properties (from/to/fromTo)
                     let (from_props, to_props) = match dir {

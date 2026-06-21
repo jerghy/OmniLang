@@ -1,0 +1,172 @@
+<h2>新增 7 个动画能力</h2>
+<p class="subtitle">hover 反向 / 手势惯性 / 即时设置 / 颜色插值 / 路径动画 / 共享元素 / 时间线标签</p>
+
+<div class="section">
+<h3>1. Hover 反向：离开时自动倒放</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 默认行为：@hover 进入时 play，离开时自动 reverse（从当前进度倒回去）
+&lt;button @hover={scale(1.05)}&gt;          // 进入放大，离开缩回去
+
+// 可以禁用反向
+&lt;button @hover={scale(1.05)} @hover-reverse={false}&gt;
+
+// 也可以用不同的离开动画
+&lt;button @hover={scaleUp} @unhover={scaleDown}&gt;
+
+// 编译器逻辑：
+// @hover → 绑定 mouseenter/mouseleave（Web）或 onHover（Flutter）
+// enter → play()   leave → reverse()
+</pre>
+</div>
+
+<div class="section">
+<h3>2. 手势惯性：松手后减速滑行</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// momentum: friction 值越小减速越快，1.0 永远不停
+&lt;Card @drag-horizontal={swipeCard}
+      @drag-momentum={friction: 0.95}
+      @drag-velocity-max={2000px}&gt;      // 速度上限
+
+// 更真实的物理：
+&lt;Panel @drag-vertical={panelSlide}
+       @drag-inertia={true}               // 自动用合理默认值
+       @drag-boundary={0, panelHeight}&gt;  // 惯性衰减到边界内
+
+// 松手时 velocity 传给动画回调
+@motion swipeCard {
+  onStart: { startVelocity = $velocity }  // $velocity 来自手势
+  to { x: $direction * screenWidth } over: 500ms
+  ease: spring(tension: 100, friction: 10, velocity: $velocity)
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>3. 即时设置：set —— 不动画的属性赋值</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// set 块：瞬间赋初始值，无过渡
+@motion flyIn {
+  set { opacity: 0; y: 50px; scale: 0.9 }    // 瞬间归位
+  then to { opacity: 1; y: 0; scale: 1 } over: 400ms ease: easeOut
+}
+
+// 也用于清理
+@motion cleanup {
+  set { opacity: 0; x: 0; y: 0 }    // 所有属性瞬间重置
+}
+
+// 内联
+&lt;div @enter={
+  set { opacity: 0; x: -100px }
+  then to { opacity: 1; x: 0 } over: 400ms
+}&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>4. 颜色插值模式：HSL / OKLCH / RGB</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+@motion rainbowShift {
+  to { color: #ff0000; backgroundColor: #00ff00 } over: 1s
+  colorSpace: hsl          // 过亮色，不是灰色！
+                           // hsl（色相旋转）| rgb（直线）| oklch（感知均匀）
+}
+
+// 不同模式产生完全不同的中间色
+// rgb:     红 → 灰 → 绿（沉闷）
+// hsl:     红 → 黄 → 绿（鲜艳）
+// oklch:   红 → 橙 → 绿（最自然）
+</pre>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th style="text-align:left;padding:4px 8px;">Web</th><td style="padding:4px 8px;">WAAPI 不支持 HSL 插值 → 运行时 JS 在每一帧手动插值</td></tr>
+  <tr><th style="text-align:left;padding:4px 8px;">Flutter</th><td style="padding:4px 8px;"><code>ColorTween</code> 或用 <code>HSLColor.lerp</code></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>5. 路径动画：元素沿路径运动</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 用 SVG path 语法定义运动轨迹
+@motion followPath {
+  to { offset: 1 } over: 2s ease: easeInOut
+  path: "M 0,0 C 50,-50 100,50 200,0"   // SVG 路径字符串
+}
+
+// 或者用贝塞尔控制点
+@motion curvePath {
+  to { offset: 1 } over: 2s
+  path: cubic(x1: 0, y1: 0, x2: 100, y2: -50, x3: 200, y3: 0)
+}
+
+// 元素上
+&lt;Ball @enter={followPath}&gt;
+
+// 路径 + 旋转跟随
+@motion pathWithRotate {
+  to { offset: 1; rotate: 360deg } over: 2s
+  path: "M 0,0 Q 100,-100 200,0"
+  pathRotate: true              // 元素自动朝向路径方向
+}
+</pre>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th style="text-align:left;padding:4px 8px;">Web</th><td style="padding:4px 8px;"><code>offset-path</code> + <code>offset-distance</code>（CSS）或 WAAPI</td></tr>
+  <tr><th style="text-align:left;padding:4px 8px;">Flutter</th><td style="padding:4px 8px;"><code>Path</code> + <code>PathMetric.getTangentForOffset</code></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>6. 共享元素过渡：Hero 动画</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// ── 定义共享元素（跨页面/组件） ──
+// 页面 A
+&lt;img src={product.image} @hero="product-image"&gt;
+
+// 页面 B（不同的布局位置，同一张图）
+&lt;img src={product.image} @hero="product-image"&gt;
+
+// 页面切换时 → 图片从 A 的位置平滑飞到 B 的位置
+// 编译器自动生成 FLIP 动画 + WAAPI / Hero widget
+</pre>
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+  <tr><th style="text-align:left;padding:4px 8px;">Web</th><td style="padding:4px 8px;">记录旧位置 → FLIP → WAAPI 插值 transform</td></tr>
+  <tr><th style="text-align:left;padding:4px 8px;">Flutter</th><td style="padding:4px 8px;">直接编译为 <code>Hero(tag: "product-image", child: ...)</code></td></tr>
+</table>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;margin-top:0.5rem;">
+// 高级：自定义共享过渡动画
+@hero product-image {
+  over: 400ms
+  ease: spring(tension: 200, friction: 15)
+}
+
+&lt;img @hero="product-image" @hero-transition={product-image}&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>7. 时间线标签：命名关键点</h3>
+<pre style="font-size:12px;line-height:1.7;background:var(--color-surface);padding:1rem;border-radius:8px;">
+@motion complexReveal {
+  from { opacity: 0; y: 40px } over: 300ms
+  label "fadedIn"                               // ← 这个时刻叫 "fadedIn"
+
+  then to { scale: 1.05 } over: 150ms
+  label "popped"
+
+  then to { scale: 1 } over: 200ms
+  label "done"
+}
+
+// 通过标签 seek
+action replayPop {
+  card.complexReveal.seek("popped")   // 直接跳到 "popped" 的位置
+  card.complexReveal.play()           // 从那里继续播
+}
+
+// 标签也可以用于回调
+@motion entrance {
+  from { opacity: 0 } over: 300ms
+  label "visible" onEnter: { startTracking() }  // 到达此标签时触发
+  then to { y: 0 } over: 200ms
+}
+</pre>
+</div>

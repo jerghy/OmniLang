@@ -102,6 +102,8 @@ pub enum TokenKind {
     DragMomentum,
     DragThreshold,
     DragVelocityMax,
+    AtHero,
+    AtHeroTransition,
     Bind,
 
     // Literals

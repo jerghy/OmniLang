@@ -722,7 +722,18 @@ impl SemanticAnalyzer {
                 | ElementProp::InViewThreshold(_)
                 | ElementProp::When(_)
                 | ElementProp::DelayChildren(_)
-                | ElementProp::StaggerChildren(_) => {}
+                | ElementProp::StaggerChildren(_)
+                | ElementProp::ScrollStart(_)
+                | ElementProp::ScrollEnd(_)
+                | ElementProp::ScrollScrub(_)
+                | ElementProp::DragConstraints(_)
+                | ElementProp::DragElastic(_)
+                | ElementProp::DragScrub(_)
+                | ElementProp::DragMomentum(_)
+                | ElementProp::DragThreshold(_)
+                | ElementProp::DragVelocityMax(_)
+                | ElementProp::HeroTag(_)
+                | ElementProp::HeroTransition(_) => {}
             }
         }
         for child in &element.children {

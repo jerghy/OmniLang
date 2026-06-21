@@ -936,6 +936,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -982,6 +984,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1034,6 +1038,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1085,6 +1091,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1139,6 +1147,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1206,6 +1216,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );
@@ -1386,6 +1398,8 @@ mod tests {
                 view: None,
                 styles: vec![],
                 motions: vec![],
+                if_mode_default: None,
+                hero_defs: vec![],
                 timelines: vec![],
             },
         );

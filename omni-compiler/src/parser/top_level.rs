@@ -158,6 +158,8 @@ impl<'a> Parser<'a> {
         let mut events = Vec::new();
         let mut refs = Vec::new();
         let mut store_refs = Vec::new();
+        let mut if_mode_default: Option<String> = None;
+        let mut hero_defs: Vec<HeroDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
         let mut actions = Vec::new();
@@ -222,6 +224,49 @@ impl<'a> Parser<'a> {
                     if self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
+                }
+                TokenKind::IfMode => {
+                    // if_mode: "wait" — component-level transition mode default
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after if_mode")?;
+                    let mode = self.expect_string("expected string value for if_mode")?;
+                    if self.peek_kind() == TokenKind::Semicolon {
+                        self.advance();
+                    }
+                    if_mode_default = Some(mode);
+                }
+                TokenKind::AtHero => {
+                    // @hero NAME { over: ..., ease: ... }
+                    self.advance(); // '@hero'
+                    let name = self.expect_ident("expected hero name")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    // Parse hero body
+                    // Expected fields: over: <expr> [, ease: <easing>]
+                    let mut over = Expr::Literal(Literal::Float(0.3), self.peek_span());
+                    let mut ease = None;
+                    loop {
+                        match self.peek_ident_value() {
+                            Some(ref s) if s == "over" => {
+                                self.advance();
+                                over = self.parse_expr()?;
+                            }
+                            Some(ref s) if s == "ease" => {
+                                self.advance();
+                                ease = Some(self.parse_easing()?);
+                            }
+                            _ => break,
+                        }
+                        if self.peek_kind() == TokenKind::Comma {
+                            self.advance();
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    hero_defs.push(HeroDef {
+                        name,
+                        over,
+                        ease,
+                        span: self.peek_span(),
+                    });
                 }
                 TokenKind::Const => {
                     self.advance(); // 'const'
@@ -332,6 +377,8 @@ impl<'a> Parser<'a> {
             events,
             refs,
             store_refs,
+            if_mode_default,
+            hero_defs,
             lifecycles,
             fns,
             actions,
@@ -1100,6 +1147,32 @@ impl<'a> Parser<'a> {
 
         self.parse_shared_timing(&mut over, &mut ease, &mut color_space)?;
 
+        // Parse optional path/pathRotate
+        let mut path: Option<String> = None;
+        let mut path_rotate: Option<bool> = None;
+        loop {
+            match self.peek_ident_value() {
+                Some(ref s) if s == "path" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':'")?;
+                    path = Some(self.expect_string("expected path string")?);
+                }
+                Some(ref s) if s == "pathRotate" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':'")?;
+                    path_rotate = Some(match self.peek_kind() {
+                        TokenKind::True => { self.advance(); true }
+                        TokenKind::False => { self.advance(); false }
+                        _ => return Err(self.error("expected bool for pathRotate")),
+                    });
+                }
+                _ => break,
+            }
+            if self.peek_kind() == TokenKind::Comma {
+                self.advance();
+            }
+        }
+
         let playback = self.parse_playback_props()?;
 
         Ok(MotionBody::Keyframe(KeyframeBody {
@@ -1108,6 +1181,8 @@ impl<'a> Parser<'a> {
             ease,
             color_space,
             playback,
+            path,
+            path_rotate,
         }))
     }
 
@@ -1323,6 +1398,8 @@ impl<'a> Parser<'a> {
         let mut delay = None;
         let mut color_space = None;
         let mut start = None;
+        let mut path: Option<String> = None;
+        let mut path_rotate: Option<bool> = None;
 
         self.parse_timeline_item_timing(
             &mut over,
@@ -1330,6 +1407,8 @@ impl<'a> Parser<'a> {
             &mut delay,
             &mut color_space,
             &mut start,
+            &mut path,
+            &mut path_rotate,
         )?;
 
         Ok(DirectionItem {
@@ -1340,10 +1419,12 @@ impl<'a> Parser<'a> {
             delay,
             color_space,
             start,
+            path,
+            path_rotate,
         })
     }
 
-    /// Parse timeline item timing: over:, ease:, delay:, start:
+    /// Parse timeline item timing: over:, ease:, delay:, start:, path:, pathRotate:
     fn parse_timeline_item_timing(
         &mut self,
         over: &mut Expr,
@@ -1351,6 +1432,8 @@ impl<'a> Parser<'a> {
         delay: &mut Option<Expr>,
         color_space: &mut Option<String>,
         start: &mut Option<PositionValue>,
+        path: &mut Option<String>,
+        path_rotate: &mut Option<bool>,
     ) -> Result<(), ParseError> {
         loop {
             match self.peek_ident_value() {
@@ -1373,6 +1456,18 @@ impl<'a> Parser<'a> {
                 Some(ref s) if s == "start" => {
                     self.advance();
                     *start = Some(self.parse_position_value()?);
+                }
+                Some(ref s) if s == "path" => {
+                    self.advance();
+                    *path = Some(self.expect_string("expected path string")?);
+                }
+                Some(ref s) if s == "pathRotate" => {
+                    self.advance();
+                    *path_rotate = Some(match self.peek_kind() {
+                        TokenKind::True => { self.advance(); true }
+                        TokenKind::False => { self.advance(); false }
+                        _ => return Err(self.error("expected bool for pathRotate")),
+                    });
                 }
                 _ => break,
             }

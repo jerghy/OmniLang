@@ -357,6 +357,31 @@ pub struct ElementIR {
     /// InView trigger: threshold expression
     #[serde(default)]
     pub in_view_threshold: Option<ExprIR>,
+    /// Scroll sub-attributes
+    #[serde(default)]
+    pub scroll_start: Option<String>,
+    #[serde(default)]
+    pub scroll_end: Option<String>,
+    #[serde(default)]
+    pub scroll_scrub: Option<ExprIR>,
+    /// Drag sub-attributes
+    #[serde(default)]
+    pub drag_constraints: Option<String>,
+    #[serde(default)]
+    pub drag_elastic: Option<ExprIR>,
+    #[serde(default)]
+    pub drag_scrub: Option<ExprIR>,
+    #[serde(default)]
+    pub drag_momentum: Option<ExprIR>,
+    #[serde(default)]
+    pub drag_threshold: Option<ExprIR>,
+    #[serde(default)]
+    pub drag_velocity_max: Option<ExprIR>,
+    /// Hero tag and transition
+    #[serde(default)]
+    pub hero_tag: Option<String>,
+    #[serde(default)]
+    pub hero_transition: Option<ExprIR>,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -423,6 +448,12 @@ pub struct ComponentIR {
     pub event_names: Vec<String>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
+    /// Component-level @if mode default
+    #[serde(default)]
+    pub if_mode_default: Option<String>,
+    /// Hero definitions for cross-component shared element transitions
+    #[serde(default)]
+    pub hero_defs: Vec<HeroIntent>,
     /// Motion animation definitions (@motion blocks)
     #[serde(default)]
     pub motions: Vec<MotionIntent>,
@@ -514,6 +545,12 @@ pub struct KeyframeIR {
     pub ease: Option<EasingIR>,
     pub color_space: Option<String>,
     pub playback: PlaybackIR,
+    /// Path for motion path animation
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Whether to rotate element along the path
+    #[serde(default)]
+    pub path_rotate: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -545,6 +582,10 @@ pub enum TimelineItemKindIR {
         delay: Option<ExprIR>,
         color_space: Option<String>,
         start: Option<String>,
+        /// Path for motion path animation
+        path: Option<String>,
+        /// Whether to rotate element along the path
+        path_rotate: Option<bool>,
     },
     Set(Vec<(String, ExprIR)>),
     MotionRef(String),
@@ -626,6 +667,14 @@ pub enum EasingIR {
         count: u32,
         direction: String,
     },
+}
+
+/// Hero intent for cross-component shared element transitions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeroIntent {
+    pub name: String,
+    pub over: ExprIR,
+    pub ease: Option<EasingIR>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1053,6 +1102,16 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         .map(|t| lower_timeline_def(t, variant_map))
         .collect();
 
+    let hero_defs: Vec<HeroIntent> = comp
+        .hero_defs
+        .iter()
+        .map(|h| HeroIntent {
+            name: h.name.clone(),
+            over: lower_expr(&h.over, variant_map),
+            ease: h.ease.as_ref().map(|e| lower_easing(e)),
+        })
+        .collect();
+
     ComponentIR {
         name: comp.name.clone(),
         generic_params: vec![],
@@ -1070,6 +1129,8 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         styles,
         motions,
         timelines,
+        if_mode_default: comp.if_mode_default.clone(),
+        hero_defs,
     }
 }
 
@@ -1191,6 +1252,17 @@ fn lower_view_node(
             let mut in_view_once: Option<ExprIR> = None;
             let mut in_view_repeat: Option<ExprIR> = None;
             let mut in_view_threshold: Option<ExprIR> = None;
+            let mut scroll_start: Option<String> = None;
+            let mut scroll_end: Option<String> = None;
+            let mut scroll_scrub: Option<ExprIR> = None;
+            let mut drag_constraints: Option<String> = None;
+            let mut drag_elastic: Option<ExprIR> = None;
+            let mut drag_scrub: Option<ExprIR> = None;
+            let mut drag_momentum: Option<ExprIR> = None;
+            let mut drag_threshold: Option<ExprIR> = None;
+            let mut drag_velocity_max: Option<ExprIR> = None;
+            let mut hero_tag: Option<String> = None;
+            let mut hero_transition: Option<ExprIR> = None;
 
             for prop in &el.props {
                 match prop {
@@ -1387,6 +1459,42 @@ fn lower_view_node(
                     ElementProp::When(_) | ElementProp::DelayChildren(_) | ElementProp::StaggerChildren(_) => {
                         // Lowered at trigger level; no direct IR field on ElementIR
                     }
+                    // Scroll sub-attributes
+                    ElementProp::ScrollStart(s) => {
+                        scroll_start = Some(s.clone());
+                    }
+                    ElementProp::ScrollEnd(s) => {
+                        scroll_end = Some(s.clone());
+                    }
+                    ElementProp::ScrollScrub(expr) => {
+                        scroll_scrub = Some(lower_expr(expr, variant_map));
+                    }
+                    // Drag sub-attributes
+                    ElementProp::DragConstraints(s) => {
+                        drag_constraints = Some(s.clone());
+                    }
+                    ElementProp::DragElastic(expr) => {
+                        drag_elastic = Some(lower_expr(expr, variant_map));
+                    }
+                    ElementProp::DragScrub(expr) => {
+                        drag_scrub = Some(lower_expr(expr, variant_map));
+                    }
+                    ElementProp::DragMomentum(expr) => {
+                        drag_momentum = Some(lower_expr(expr, variant_map));
+                    }
+                    ElementProp::DragThreshold(expr) => {
+                        drag_threshold = Some(lower_expr(expr, variant_map));
+                    }
+                    ElementProp::DragVelocityMax(expr) => {
+                        drag_velocity_max = Some(lower_expr(expr, variant_map));
+                    }
+                    // Hero attributes
+                    ElementProp::HeroTag(s) => {
+                        hero_tag = Some(s.clone());
+                    }
+                    ElementProp::HeroTransition(expr) => {
+                        hero_transition = Some(lower_expr(expr, variant_map));
+                    }
                 }
             }
 
@@ -1437,6 +1545,17 @@ fn lower_view_node(
                 in_view_once,
                 in_view_repeat,
                 in_view_threshold,
+                scroll_start,
+                scroll_end,
+                scroll_scrub,
+                drag_constraints,
+                drag_elastic,
+                drag_scrub,
+                drag_momentum,
+                drag_threshold,
+                drag_velocity_max,
+                hero_tag,
+                hero_transition,
             })
         }
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
@@ -1473,6 +1592,17 @@ fn lower_view_node(
                     in_view_once: None,
                     in_view_repeat: None,
                     in_view_threshold: None,
+                    scroll_start: None,
+                    scroll_end: None,
+                    scroll_scrub: None,
+                    drag_constraints: None,
+                    drag_elastic: None,
+                    drag_scrub: None,
+                    drag_momentum: None,
+                    drag_threshold: None,
+                    drag_velocity_max: None,
+                    hero_tag: None,
+                    hero_transition: None,
                 })),
             })
             .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
@@ -1503,6 +1633,17 @@ fn lower_view_node(
                         in_view_once: None,
                         in_view_repeat: None,
                         in_view_threshold: None,
+                        scroll_start: None,
+                        scroll_end: None,
+                        scroll_scrub: None,
+                        drag_constraints: None,
+                        drag_elastic: None,
+                        drag_scrub: None,
+                        drag_momentum: None,
+                        drag_threshold: None,
+                        drag_velocity_max: None,
+                        hero_tag: None,
+                        hero_transition: None,
                     })),
                 }
             }))
@@ -1534,6 +1675,17 @@ fn lower_view_node(
                     in_view_once: None,
                     in_view_repeat: None,
                     in_view_threshold: None,
+                    scroll_start: None,
+                    scroll_end: None,
+                    scroll_scrub: None,
+                    drag_constraints: None,
+                    drag_elastic: None,
+                    drag_scrub: None,
+                    drag_momentum: None,
+                    drag_threshold: None,
+                    drag_velocity_max: None,
+                    hero_tag: None,
+                    hero_transition: None,
                 })
             });
 
@@ -1573,6 +1725,17 @@ fn lower_view_node(
                         in_view_once: None,
                         in_view_repeat: None,
                         in_view_threshold: None,
+                        scroll_start: None,
+                        scroll_end: None,
+                        scroll_scrub: None,
+                        drag_constraints: None,
+                        drag_elastic: None,
+                        drag_scrub: None,
+                        drag_momentum: None,
+                        drag_threshold: None,
+                        drag_velocity_max: None,
+                        hero_tag: None,
+                        hero_transition: None,
                     }))
                 }
             };
@@ -2340,6 +2503,8 @@ fn lower_keyframe_body(
         ease,
         color_space: kf.color_space.clone(),
         playback,
+        path: kf.path.clone(),
+        path_rotate: kf.path_rotate,
     }
 }
 
@@ -2389,6 +2554,8 @@ fn lower_timeline_item_kind(
             delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
             color_space: di.color_space.clone(),
             start: di.start.as_ref().map(format_position_value),
+            path: di.path.clone(),
+            path_rotate: di.path_rotate,
         },
         crate::parser::ast::TimelineItemKind::SetBlock(props) => TimelineItemKindIR::Set(
             props

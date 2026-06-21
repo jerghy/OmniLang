@@ -387,6 +387,68 @@ impl<'a> Parser<'a> {
                         _ => {}
                     }
                 }
+                // Scroll sub-attributes
+                TokenKind::AtScrollStart | TokenKind::AtScrollEnd => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    match kind {
+                        TokenKind::AtScrollStart => props.push(ElementProp::ScrollStart(val)),
+                        TokenKind::AtScrollEnd => props.push(ElementProp::ScrollEnd(val)),
+                        _ => {}
+                    }
+                }
+                TokenKind::AtScrollScrub => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::ScrollScrub(val));
+                }
+                // Drag sub-attributes
+                TokenKind::DragConstraints => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    props.push(ElementProp::DragConstraints(val));
+                }
+                TokenKind::DragElastic
+                | TokenKind::DragScrub
+                | TokenKind::DragMomentum
+                | TokenKind::DragThreshold
+                | TokenKind::DragVelocityMax => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    match kind {
+                        TokenKind::DragElastic => props.push(ElementProp::DragElastic(val)),
+                        TokenKind::DragScrub => props.push(ElementProp::DragScrub(val)),
+                        TokenKind::DragMomentum => props.push(ElementProp::DragMomentum(val)),
+                        TokenKind::DragThreshold => props.push(ElementProp::DragThreshold(val)),
+                        TokenKind::DragVelocityMax => props.push(ElementProp::DragVelocityMax(val)),
+                        _ => {}
+                    }
+                }
+                // Hero attributes
+                TokenKind::AtHero => {
+                    // @hero="tag-name"
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    let val = self.expect_string("expected string value")?;
+                    props.push(ElementProp::HeroTag(val));
+                }
+                TokenKind::AtHeroTransition => {
+                    // @hero-transition={motionName}
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::HeroTransition(val));
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -921,6 +983,14 @@ impl<'a> Parser<'a> {
     fn parse_if_directive(&mut self) -> Result<ViewNode, ParseError> {
         self.advance(); // '@if'
         let condition = self.parse_expr()?;
+        // Parse optional mode= "wait|sync" after condition, before {
+        let transition_mode = if self.peek_ident_value().map_or(false, |s| s == "mode") {
+            self.advance(); // consume 'mode'
+            self.expect_token(TokenKind::Eq, "expected '='")?;
+            Some(self.expect_string("expected string literal")?)
+        } else {
+            None
+        };
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
@@ -973,7 +1043,7 @@ impl<'a> Parser<'a> {
             body,
             else_ifs,
             else_body,
-            transition_mode: None,
+            transition_mode,
             span: if_span,
         }))
     }

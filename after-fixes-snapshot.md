@@ -1,0 +1,591 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - heading "OmniView 鏁欏椤圭洰" [level=1] [ref=e6]
+    - paragraph [ref=e7]: 娑电洊 Store銆丼ignal銆丆omputed銆丳rop銆丒vent銆乥ind:value 绛夋牳蹇冪壒鎬�
+  - generic [ref=e9]:
+    - banner [ref=e10]:
+      - heading "Dashboard" [level=2] [ref=e11]
+      - paragraph [ref=e12]:
+        - text: Overview of
+        - text: items 路 Updated
+      - button "Refresh" [ref=e13]
+    - generic [ref=e14]:
+      - heading "Statistics" [level=3] [ref=e15]
+      - generic [ref=e17]:
+        - heading "缁熻闈㈡澘" [level=3] [ref=e18]
+        - generic [ref=e19]:
+          - generic [ref=e20]: 鎬讳簨椤�
+          - generic [ref=e21]: 鐘舵€�
+      - generic [ref=e23]:
+        - heading "StatsDashboard Demo" [level=3] [ref=e24]
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: "MAX_ITEMS:"
+          - paragraph [ref=e27]: prefixed consts declared
+        - generic [ref=e28]:
+          - paragraph [ref=e29]:
+            - text: "Counter:"
+            - text: (
+            - text: )
+          - generic [ref=e30]:
+            - button "+5" [ref=e31]
+            - button "-3" [ref=e32]
+            - button "x2" [ref=e33]
+            - button "/2" [ref=e34]
+            - button "mod3" [ref=e35]
+        - paragraph [ref=e37]:
+          - text: math_abs(counter) =
+          - text: "| math_sqrt(counter) ="
+        - generic [ref=e38]:
+          - paragraph [ref=e39]:
+            - text: "Random:"
+            - text: "| Ceil*100 ="
+            - text: "| Floor*100 ="
+          - button "Roll Dice" [ref=e40]
+        - paragraph [ref=e42]: "First value:"
+    - generic [ref=e43]:
+      - heading "Interactions" [level=3] [ref=e44]
+      - generic [ref=e45]:
+        - generic [ref=e48]:
+          - heading "璁℃暟鍣ㄦ紨绀�" [level=3] [ref=e49]
+          - paragraph
+          - paragraph [ref=e50]:
+            - text: 缈诲€嶏細
+            - text: "|"
+          - generic [ref=e51]:
+            - button "-" [ref=e52]
+            - generic [ref=e53]: 姝ラ暱
+            - button "+" [ref=e54]
+          - generic [ref=e55]:
+            - button "姝ラ暱1" [ref=e56]
+            - button "姝ラ暱5" [ref=e57]
+            - button "姝ラ暱10" [ref=e58]
+            - button "閲嶇疆" [ref=e59]
+        - generic [ref=e62]:
+          - heading "FeatureCard Demo" [level=3] [ref=e63]
+          - textbox "Click" [ref=e64]
+          - paragraph [ref=e65]:
+            - text: "X:"
+            - text: "| Focus:"
+          - button "Reset" [ref=e66]
+  - generic [ref=e68]:
+    - banner [ref=e69]:
+      - heading "Todo List" [level=2] [ref=e70]
+      - paragraph [ref=e71]: "tasks 路 Filter:"
+      - generic [ref=e72]: Loaded 脳
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - textbox "Filter todos..." [ref=e77]
+        - button "X" [ref=e78]
+      - generic [ref=e79]:
+        - paragraph
+        - button "Sort" [ref=e80]: Sort
+        - button "Sync" [ref=e81]
+      - generic [ref=e82]:
+        - paragraph [ref=e83]:
+          - text: "Store:"
+          - text: "items | Filter:"
+          - text: "| Changes:"
+        - paragraph [ref=e84]: "Last:"
+        - paragraph [ref=e85]:
+          - text: "Filtered frameworks:"
+          - text: /
+    - generic [ref=e88]:
+      - heading "寰呭姙鍒楄〃" [level=2] [ref=e89]: 寰呭姙鍒楄〃
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - textbox [ref=e93]
+          - button "娣诲姞" [ref=e94]
+          - button "娓呯┖" [ref=e95]
+        - paragraph [ref=e96]:
+          - text: 宸茶緭鍏�
+          - text: 瀛楃
+      - paragraph [ref=e102]: 杩樻病鏈夊緟鍔炰簨椤癸紝鍦ㄤ笂鏂规坊鍔犲惂
+    - contentinfo [ref=e103]:
+      - button "Clear All" [ref=e104]
+      - button "Sync Reminders" [ref=e105]
+      - generic [ref=e106]: "Last:"
+  - heading "Features ( items)" [level=3] [ref=e110]:
+    - text: Features (
+    - text: items)
+  - generic [ref=e112]:
+    - banner [ref=e113]:
+      - heading "Settings" [level=2] [ref=e114]
+      - paragraph [ref=e115]: Customize your experience
+    - generic [ref=e116]:
+      - heading "Appearance" [level=3] [ref=e117]
+      - generic [ref=e119]:
+        - paragraph [ref=e121]:
+          - text: Toggled
+          - text: times
+        - button [ref=e122]
+        - generic [ref=e123]:
+          - paragraph [ref=e124]: "Current palette:"
+          - generic [ref=e125]: BG TX PR BD MU
+        - generic [ref=e126]:
+          - button "Light" [ref=e127]
+          - button "Dark" [ref=e128]
+    - heading "Theme Colors" [level=3] [ref=e130]
+    - heading "About" [level=3] [ref=e133]
+    - contentinfo [ref=e134]:
+      - generic [ref=e135]:
+        - text: "Current:"
+        - text: "mode | Toggles:"
+  - generic [ref=e136]:
+    - heading "鐙珛婕旂ず缁勪欢" [level=2] [ref=e137]
+    - generic [ref=e138]:
+      - generic [ref=e141]:
+        - heading "ValidationInput Demo" [level=3] [ref=e142]
+        - paragraph
+        - generic [ref=e143]:
+          - textbox "Enter text to validate..." [ref=e144]
+          - button [ref=e145]
+          - button "Clear" [ref=e146]
+        - generic [ref=e147]:
+          - paragraph [ref=e148]: "Status:"
+          - paragraph
+          - paragraph [ref=e149]:
+            - text: "Chars:"
+            - text: "| EvenPos:"
+        - generic [ref=e150]:
+          - 'heading "Phase 4: 琛ㄨ揪寮忎笌鎺у埗娴�" [level=4] [ref=e151]'
+          - paragraph [ref=e152]: See lib/transform.omni and StatsDashboard.omni for Phase 4 features
+      - generic [ref=e155]:
+        - heading "Timer Demo" [level=3] [ref=e156]
+        - paragraph [ref=e157]:
+          - text: "Count:"
+          - text: / 10
+        - paragraph [ref=e158]:
+          - text: "Interval:"
+          - text: "ms | Status:"
+        - generic [ref=e159]:
+          - button "Start" [ref=e160]
+          - button "Stop" [ref=e161]
+          - button "Tick" [ref=e162]
+          - button "Reset" [ref=e163]
+        - generic [ref=e164]:
+          - button "Faster" [ref=e165]
+          - button "Slower" [ref=e166]
+    - generic [ref=e167]:
+      - generic [ref=e170]:
+        - button "Open Modal" [ref=e171]
+        - paragraph [ref=e172]:
+          - text: "Status:"
+          - text: "| Hover:"
+      - generic [ref=e176]:
+        - button "Home" [ref=e177] [cursor=pointer]
+        - button "About" [ref=e178] [cursor=pointer]
+        - button "Settings" [ref=e179] [cursor=pointer]
+    - generic [ref=e182]:
+      - generic [ref=e183]:
+        - img "dot" [ref=e184]
+        - heading "DataTable Demo" [level=2] [ref=e185]
+        - separator [ref=e186]
+      - generic [ref=e187]:
+        - paragraph [ref=e188]:
+          - text: "Scroll count:"
+          - text: "Sort:"
+        - button "Toggle Sort" [ref=e189]
+        - button "Scroll +1" [ref=e190]
+      - table [ref=e192]:
+        - rowgroup [ref=e193]:
+          - row "ID Name Status Score" [ref=e194]:
+            - columnheader "ID" [ref=e195]
+            - columnheader "Name" [ref=e196]
+            - columnheader "Status" [ref=e197]
+            - columnheader "Score" [ref=e198]
+        - rowgroup [ref=e199]:
+          - row "No data" [ref=e200]:
+            - cell "No data" [ref=e201]
+      - generic [ref=e202]:
+        - heading "Summary" [level=3] [ref=e203]
+        - list [ref=e204]:
+          - listitem [ref=e205]:
+            - img "dot" [ref=e206]
+            - text: "Total items:"
+          - listitem [ref=e207]:
+            - img "dot" [ref=e208]
+            - text: "Active items:"
+          - listitem [ref=e209]:
+            - img "dot" [ref=e210]
+            - text: "Scroll events:"
+      - generic [ref=e211]:
+        - heading "Map and Closure Demo" [level=3] [ref=e212]
+        - list [ref=e213]:
+          - listitem [ref=e214]:
+            - img "dot" [ref=e215]
+            - text: "Grade for 95:"
+          - listitem [ref=e216]:
+            - img "dot" [ref=e217]
+            - text: "Grade for 72:"
+          - listitem [ref=e218]:
+            - img "dot" [ref=e219]
+            - text: "Grade for 59:"
+          - listitem [ref=e220]:
+            - img "dot" [ref=e221]
+            - text: "Adj total (s+5):"
+      - separator [ref=e222]
+      - generic [ref=e223]:
+        - img "dot" [ref=e224]
+        - paragraph [ref=e225]: DataTable Phase 4 Demo
+    - generic [ref=e228]:
+      - heading "FormPage Demo" [level=2] [ref=e229]
+      - generic [ref=e230]:
+        - generic [ref=e231]:
+          - text: Name
+          - textbox "Full name input" [ref=e232]:
+            - /placeholder: Your name
+        - generic [ref=e233]:
+          - text: Email
+          - textbox "Email address input" [ref=e234]:
+            - /placeholder: your@email.com
+        - generic [ref=e235]:
+          - text: Message
+          - textbox "Message input" [ref=e236]:
+            - /placeholder: Your message (optional)
+        - generic [ref=e237]:
+          - text: Disabled field
+          - textbox "Disabled input" [disabled] [ref=e238]:
+            - /placeholder: This field is disabled
+        - generic [ref=e239]:
+          - text: Readonly field
+          - textbox "Read-only input" [ref=e240]: Read-only value
+        - generic [ref=e241]:
+          - paragraph [ref=e242]:
+            - text: "Scrollable area (scroll count:"
+            - text: )
+          - paragraph [ref=e243]: "Line 1: Scroll to trigger @onScroll"
+          - paragraph [ref=e244]: "Line 2: More content below"
+          - paragraph [ref=e245]: "Line 3: Keep scrolling"
+          - paragraph [ref=e246]: "Line 4: Almost there"
+          - paragraph [ref=e247]: "Line 5: Bottom reached"
+        - generic:
+          - paragraph
+        - generic [ref=e248]:
+          - button "Submit form" [ref=e249]: Submit
+          - button "Reset form" [ref=e250]: Reset
+        - button "Conditional submit button" [ref=e252]
+    - generic [ref=e255]:
+      - generic [ref=e256]:
+        - heading "Notifications" [level=3] [ref=e257]
+        - generic [ref=e258]:
+          - button "Add" [ref=e259]
+          - button "Remove" [ref=e260]
+          - button "Clear" [ref=e261]
+      - paragraph [ref=e263]: "Total:"
+  - generic [ref=e264]:
+    - 'heading "Phase 8: 缂栬瘧鍣ㄦ柊鐗规€�" [level=2] [ref=e265]'
+    - generic [ref=e268]:
+      - heading "HTTP GET Demo" [level=3] [ref=e269]
+      - paragraph [ref=e270]: async action + await http_get + json_parse + match
+      - generic [ref=e271]:
+        - textbox [ref=e272]
+        - button "Load" [ref=e273]
+        - button "API" [ref=e274]
+        - button "Reset" [ref=e275]
+    - generic [ref=e278]:
+      - heading "HTTP POST Demo" [level=3] [ref=e279]
+      - paragraph [ref=e280]: json_stringify + http_post + await + match status
+      - generic [ref=e281]:
+        - text: Title
+        - textbox "Enter title..." [ref=e282]
+        - text: Body
+        - textbox "Enter body..." [ref=e283]
+        - generic [ref=e284]:
+          - button "Submit" [ref=e285]
+          - button "Reset" [ref=e286]
+    - generic [ref=e289]:
+      - heading "Storage Demo" [level=3] [ref=e290]
+      - paragraph [ref=e291]: storage get/set + json parse/stringify + mount
+      - generic [ref=e292]:
+        - text: Username
+        - textbox "Your name..." [ref=e293]
+        - generic [ref=e294]:
+          - button "Save" [ref=e295]
+          - button "Clear" [ref=e296]
+      - generic:
+        - paragraph
+  - generic [ref=e297]:
+    - 'heading "Phase 9: 鏂板婕旂ず缁勪欢" [level=2] [ref=e298]'
+    - generic [ref=e299]:
+      - generic [ref=e302]:
+        - heading "Event Shorthand Demo" [level=3] [ref=e303]
+        - generic [ref=e304]:
+          - paragraph [ref=e305]:
+            - text: "Form 1:"
+            - text: 鈥� auto-wraps inline
+          - button "greet(\"World\")" [ref=e306]
+          - button "farewell(\"World\")" [ref=e307]
+        - generic [ref=e308]:
+          - paragraph [ref=e309]:
+            - text: "Form 2:"
+            - text: 鈥� StoreAction ref
+          - button "NotificationStore.add(...)" [ref=e310]
+          - button "NotificationStore.clear" [ref=e311]
+        - generic [ref=e312]:
+          - paragraph [ref=e313]: "@eventName syntax (same as onEventName):"
+          - generic [ref=e314]:
+            - button "onPress" [ref=e315]
+            - button "@onPress" [ref=e316]
+        - generic [ref=e317]:
+          - paragraph
+          - paragraph [ref=e318]: "Clicks:"
+          - paragraph [ref=e319]: "Notifications:"
+        - button "Reset" [ref=e320]
+      - generic [ref=e323]:
+        - heading "Form Controls Demo" [level=3] [ref=e324]
+        - paragraph [ref=e325]: a-tag 路 select 路 checkbox 路 range 路 number
+        - generic [ref=e326]:
+          - paragraph [ref=e327]: "a-tag link with href / title / target:"
+          - link "Click me ( )" [ref=e328] [cursor=pointer]:
+            - /url: "#"
+            - text: Click me (
+            - text: )
+        - generic [ref=e329]:
+          - paragraph [ref=e330]: "select with option:"
+          - combobox [ref=e331]:
+            - option "Option 1 鈥� First" [selected]
+            - option "Option 2 鈥� Second"
+            - option "Option 3 鈥� Third"
+          - paragraph [ref=e332]: "Value:"
+        - generic [ref=e333]:
+          - paragraph [ref=e334]: "Checkbox with checked attribute:"
+          - generic [ref=e335]:
+            - checkbox "I agree to the terms" [ref=e336]
+            - text: I agree to the terms
+          - paragraph [ref=e337]: "Status:"
+        - generic [ref=e338]:
+          - paragraph [ref=e339]: "Number input with min/max/step:"
+          - spinbutton "Enter your age (0-120)" [ref=e340]
+          - paragraph [ref=e341]: "Age:"
+        - generic [ref=e342]:
+          - paragraph [ref=e343]: "Range slider with min/max/step:"
+          - slider "Select a value (0-100, step 5)" [ref=e344]: "50"
+          - paragraph [ref=e345]:
+            - text: "Range:"
+            - text: / 100
+        - generic:
+          - paragraph
+    - main [ref=e348]:
+      - navigation "Event Demo" [ref=e349]:
+        - heading "浜嬩欢澶勭悊鍣ㄥ叏瑕嗙洊" [level=2] [ref=e350]
+        - paragraph [ref=e351]: 鍙屽嚮 路 鍙抽敭 路 鎷栨嫿 路 瑙︽懜 路 婊氳疆 路 濯掍綋 路 鍔ㄧ敾 路 鍒囨崲
+      - article [ref=e352]:
+        - heading "杈撳叆涓庨敭鐩樹簨浠�" [level=3] [ref=e353]
+        - textbox "鍦ㄦ杈撳叆..." [ref=e354]
+      - article [ref=e355]:
+        - heading "鍙屽嚮涓庡彸閿�" [level=3] [ref=e356]
+        - paragraph [ref=e358]: 鍙屽嚮鎴栧彸閿偣鍑绘鍖哄煙
+      - article [ref=e359]:
+        - heading "鎷栨嫿浜嬩欢" [level=3] [ref=e360]
+        - paragraph [ref=e362]: "鎷栨嫿鐘舵€�:"
+      - article [ref=e363]:
+        - heading "瑙︽懜浜嬩欢" [level=3] [ref=e364]
+        - paragraph [ref=e366]: 鍦ㄧЩ鍔ㄨ澶囦笂瑙︽懜姝ゅ
+      - article [ref=e367]:
+        - heading "婊氳疆浜嬩欢" [level=3] [ref=e368]
+        - paragraph [ref=e370]: "婊氳疆璁℃暟:"
+      - article [ref=e371]:
+        - heading "濯掍綋涓庤祫婧愪簨浠�" [level=3] [ref=e372]
+        - img "test" [ref=e373]
+        - paragraph [ref=e375]: "濯掍綋鐘舵€�:"
+      - article [ref=e376]:
+        - heading "鍔ㄧ敾涓庤繃娓′簨浠�" [level=3] [ref=e377]
+        - paragraph [ref=e379]: "鍔ㄧ敾鐘舵€�:"
+      - article [ref=e380]:
+        - heading "Toggle 浜嬩欢" [level=3] [ref=e381]
+        - group [ref=e382]:
+          - 'generic "鐐瑰嚮灞曞紑 (toggle count: )" [ref=e383]':
+            - text: "鐐瑰嚮灞曞紑 (toggle count:"
+            - text: )
+      - article [ref=e384]:
+        - heading "浜嬩欢鏃ュ織" [level=3] [ref=e385]
+        - paragraph [ref=e386]:
+          - text: "鏃ュ織:"
+          - text: 鏉′簨浠�
+      - article [ref=e387]:
+        - heading "HTML 璇箟鏍囩" [level=3] [ref=e388]
+        - generic [ref=e389]:
+          - heading "鏂囨湰璇箟" [level=4] [ref=e390]
+          - paragraph [ref=e391]:
+            - text: 绮椾綋 (b)
+            - strong [ref=e392]: 閲嶈 (strong)
+            - text: 鏂滀綋 (i)
+            - emphasis [ref=e393]: 寮鸿皟 (em)
+            - mark [ref=e394]: 楂樹寒 (mark)
+            - text: 灏忓瓧 (small)
+            - deletion [ref=e395]: 鍒犻櫎 (del)
+            - insertion [ref=e396]: 鎻掑叆 (ins)
+          - paragraph [ref=e397]:
+            - code [ref=e398]: 浠ｇ爜 (code)
+            - text: 鎸夐敭 (kbd) 杈撳嚭 (samp) 鍙橀噺 (var)
+          - paragraph [ref=e399]:
+            - superscript [ref=e400]: 涓婃爣 (sup)
+            - text: /
+            - subscript [ref=e401]: 涓嬫爣 (sub)
+          - paragraph [ref=e402]:
+            - text: HTML (abbr)
+            - term [ref=e403]: 瀹氫箟 (dfn)
+          - paragraph [ref=e404]: 鐭紩鐢� (q)
+          - blockquote [ref=e405]: 鍧楀紩鐢� (blockquote) 鈥� 鏉ユ簮 (cite)
+          - paragraph [ref=e406]:
+            - time [ref=e407]: 鏃堕棿 (time)
+          - paragraph
+          - generic [ref=e408]: "鍦板潃: contact@example.com (address)"
+          - paragraph
+          - paragraph [ref=e409]: 鍙屽悜鏂囨湰 (bdi) 鍙屽悜瑕嗙洊 (bdo)
+          - paragraph [ref=e410]:
+            - text: 鎹㈣
+            - text: 鏈轰細 (wbr)
+        - generic [ref=e411]:
+          - heading "琛ㄥ崟鏍囩" [level=4] [ref=e412]
+          - group "鍒嗙粍瀛楁 (fieldset + legend)" [ref=e413]:
+            - generic [ref=e414]: 鍒嗙粍瀛楁 (fieldset + legend)
+            - generic [ref=e415]:
+              - text: "鎼滅储:"
+              - combobox "鎼滅储:" [ref=e416]
+            - combobox [ref=e417]:
+              - option "鑻规灉" [selected]
+              - option "棣欒晧"
+        - generic [ref=e418]:
+          - heading "濯掍綋涓庡祵鍏�" [level=4] [ref=e419]
+          - figure "鎻掑浘鏍囬 (figure + figcaption)" [ref=e420]:
+            - generic [ref=e421]: 鎻掑浘鏍囬 (figure + figcaption)
+          - img "responsive" [ref=e425]
+          - generic:
+            - link "Area 1":
+              - /url: "#area1"
+        - generic [ref=e426]:
+          - heading "搴﹂噺涓庤繘搴�" [level=4] [ref=e427]
+          - progressbar [ref=e428]: 70%
+          - meter [ref=e429]: 60%
+        - generic [ref=e430]:
+          - heading "娉ㄩ煶" [level=4] [ref=e431]
+          - generic [ref=e432]:
+            - text: 婕㈠瓧
+            - generic [ref=e433]: 銇嬨倱銇�
+    - generic [ref=e437]:
+      - heading "Inline Store Demo" [level=3] [ref=e438]
+      - paragraph [ref=e439]: "Items:"
+      - paragraph [ref=e440]: "Summary:"
+      - paragraph [ref=e441]: "Total:"
+      - button "Add Apple" [ref=e442]
+      - button "Remove" [ref=e443]
+      - paragraph
+    - generic [ref=e446]:
+      - heading "CSS 鍗曚綅鍏ㄨ鐩�" [level=3] [ref=e447]
+      - paragraph [ref=e448]: 30 涓� CSS 鍗曚綅鍏ㄨ鐩栵紙鍚� 10 涓柊澧烇細s, vmax, svw, lvw, dvw, cqh, cqb, cqmin, cqmax, rlh锛�
+      - generic [ref=e449]:
+        - generic [ref=e450]: 10vh
+        - generic [ref=e451]: 1fr
+        - generic [ref=e452]: 12pt
+        - generic [ref=e453]: 1cm
+        - generic [ref=e454]: 10mm
+        - generic [ref=e455]: 150ms
+        - generic [ref=e456]: 15deg
+        - generic [ref=e457]: 0.5rad
+        - generic [ref=e458]: 50grad
+        - generic [ref=e459]: 0.25turn
+        - generic [ref=e460]: 5vmin
+        - generic [ref=e461]: 5svh
+        - generic [ref=e462]: 5lvh
+        - generic [ref=e463]: 5dvh
+        - generic [ref=e464]: 20ch
+        - generic [ref=e465]: 10ex
+        - generic [ref=e466]: 15ic
+        - generic [ref=e467]: 2lh
+        - generic [ref=e468]: 10cqw
+        - generic [ref=e469]: 5cqi
+        - generic [ref=e470]: 1s
+        - generic [ref=e471]: 5vmax
+        - generic [ref=e472]: 5svw
+        - generic [ref=e473]: 5lvw
+        - generic [ref=e474]: 5dvw
+        - generic [ref=e475]: 5cqh
+        - generic [ref=e476]: 5cqb
+        - generic [ref=e477]: 5cqmin
+        - generic [ref=e478]: 5cqmax
+        - generic [ref=e479]: 2rlh
+    - generic [ref=e482]:
+      - heading "瀛楃涓插瓧闈㈤噺婕旂ず" [level=3] [ref=e483]
+      - paragraph [ref=e484]: 鍙嶅紩鍙峰瓧绗︿覆 路 鍗曞紩鍙峰瓧绗︿覆
+      - generic [ref=e485]:
+        - heading "鍙嶅紩鍙峰瓧绗︿覆" [level=4] [ref=e486]
+        - paragraph [ref=e487]: "signal = `{\"Hello \\\"OmniView\\\" world\"}`"
+        - paragraph [ref=e488]: "缁撴灉:"
+      - generic [ref=e489]:
+        - heading "鍗曞紩鍙峰瓧绗︿覆" [level=4] [ref=e490]
+        - paragraph [ref=e491]: "缁撴灉:"
+      - generic [ref=e492]:
+        - heading "娣峰悎瀛楃涓�" [level=4] [ref=e493]
+        - paragraph [ref=e494]: "缁撴灉:"
+      - generic [ref=e495]:
+        - heading "妯℃澘瀛楃涓叉彃鍊�" [level=4] [ref=e496]: 妯℃澘瀛楃涓叉彃鍊�
+        - paragraph [ref=e497]: "buildGreeting(\"Alice\", 30) -> \"{buildGreeting(\"Alice\", 30)}\""
+        - paragraph [ref=e498]: "dynamic:"
+        - button "Update" [ref=e499]
+    - generic [ref=e500]:
+      - generic [ref=e503]:
+        - heading "绫诲瀷绯荤粺鍏ㄨ鐩�" [level=3] [ref=e504]
+        - paragraph [ref=e505]: i8 路 i16 路 i64 路 u8 路 u16 路 u32 路 u64 路 f32 路 isize 路 usize 路 Void
+        - generic [ref=e506]:
+          - heading "鏈夌鍙锋暣鏁�" [level=4] [ref=e507]
+          - list [ref=e508]:
+            - listitem [ref=e509]:
+              - code [ref=e510]: i8
+              - text: max =
+            - listitem [ref=e511]:
+              - code [ref=e512]: i16
+              - text: max =
+            - listitem [ref=e513]:
+              - code [ref=e514]: i64
+              - text: max =
+            - listitem [ref=e515]:
+              - code [ref=e516]: isize
+              - text: =
+        - generic [ref=e517]:
+          - heading "鏃犵鍙锋暣鏁�" [level=4] [ref=e518]
+          - list [ref=e519]:
+            - listitem [ref=e520]:
+              - code [ref=e521]: u8
+              - text: max =
+            - listitem [ref=e522]:
+              - code [ref=e523]: u16
+              - text: max =
+            - listitem [ref=e524]:
+              - code [ref=e525]: u32
+              - text: max =
+            - listitem [ref=e526]:
+              - code [ref=e527]: u64
+              - text: max =
+            - listitem [ref=e528]:
+              - code [ref=e529]: usize
+              - text: =
+        - generic [ref=e530]:
+          - heading "娴偣绫诲瀷" [level=4] [ref=e531]
+          - list [ref=e532]:
+            - listitem [ref=e533]:
+              - code [ref=e534]: f32
+              - text: =
+        - paragraph [ref=e536]: "缁煎悎:"
+      - generic [ref=e539]:
+        - heading "瑙嗗浘灞炴€ф紨绀�" [level=3] [ref=e540]
+        - paragraph [ref=e541]: testId 路 class:string 路 bind:checked
+        - generic [ref=e542]:
+          - heading "testId 灞炴€ф爣璁�" [level=4] [ref=e543]
+          - paragraph [ref=e545]: 姝� div 浣跨敤 testId 灞炴€ф爣璁帮紝鐢ㄤ簬娴嬭瘯瀹氫綅
+        - generic [ref=e546]:
+          - heading "bind:checked 澶嶉€夋缁戝畾" [level=4] [ref=e547]
+          - generic [ref=e548]:
+            - checkbox "鍚屾剰鏉℃:" [ref=e549]
+            - generic [ref=e550]: "鍚屾剰鏉℃:"
+        - generic [ref=e551]:
+          - heading "bind:value 鏂囨湰杈撳叆" [level=4] [ref=e552]
+          - textbox "杈撳叆鏂囨湰..." [ref=e553]
+          - paragraph [ref=e554]: "棰勮:"
+        - generic [ref=e555]:
+          - heading "class:\"string\" 瀛楅潰閲忕粦瀹�" [level=4] [ref=e556]
+          - paragraph [ref=e558]: "姝� div 浣跨敤 class: \"bg-blue-100 ...\" 瀛楃涓插瓧闈㈤噺"
+          - paragraph [ref=e560]: "姝� div 浣跨敤 class: \"bg-green-100 ...\" 瀛楃涓插瓧闈㈤噺"
+          - paragraph [ref=e562]: 瀛楃涓插瓧闈㈤噺 class 閫傜敤浜庢棤瀵瑰簲 style 瑙勫垯鐨勫伐鍏风被
+  - contentinfo [ref=e563]:
+    - paragraph [ref=e564]: OmniView 鏁欏椤圭洰 路 56 婧愭枃浠� 路 omnic run

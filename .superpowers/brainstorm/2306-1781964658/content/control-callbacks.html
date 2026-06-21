@@ -1,0 +1,145 @@
+<h2>补充：可控制的动画 & 回调</h2>
+<p class="subtitle">动画不只是"播放"——还要能被外部输入驱动、能回调</p>
+
+<div class="section">
+<h3>1. 动画回调：onStart / onUpdate / onComplete / onRepeat</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+@motion fadeIn {
+  to { opacity: 1; y: 0 } over: 300ms ease: easeOut
+
+  onStart:    { isAnimating = true }
+  onUpdate:   { animProgress = $progress }   // $progress 是魔法变量，0→1
+  onComplete: { isAnimating = false; count += 1 }
+  onRepeat:   { repeatCount += 1 }
+}
+
+// 也可以引用函数
+@motion fadeIn {
+  to { opacity: 1 } over: 300ms
+  onStart: startAnim
+  onComplete: finishAnim
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>2. 可控制的动画：driven-by —— 外部输入驱动进度</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 核心：动画进度不由时间驱动，而由外部表达式驱动（0→1）
+
+// ── 信号驱动 ──
+signal scrollProgress: float = 0
+&lt;div @animate={fadeIn} @driven-by={scrollProgress}&gt;
+// scrollProgress: 0 → 动画在 0%
+// scrollProgress: 1 → 动画在 100%
+// 中间值 → 动画停在对应进度
+
+// ── 指针驱动 ──
+&lt;div @animate={fadeIn} @driven-by={mouseX / containerWidth}&gt;
+
+// ── 滚动驱动（driven-by 的便利封装） ──
+&lt;div @scroll={fadeIn}                          // scroll 自动生成 0→1 进度
+     @scroll-start="top 80%"                    // 滚动到此处 → 进度 0
+     @scroll-end="bottom 20%"&gt;                  // 滚动到此处 → 进度 1
+
+// ── scrub 模式：滚动位置平滑跟随 ──
+&lt;div @scroll={fadeIn}
+     scrub: 0.5                                 // 0 = 直接跟随, >0 = 平滑延迟（秒）
+     @scroll-start="top bottom"
+     @scroll-end="bottom top"&gt;
+
+// ── 手势 scrubbing ──
+&lt;Slider @drag-horizontal={slideAnim}
+        @drag-scrub={true}
+        @drag-bounds={0, containerWidth}&gt;
+</pre>
+</div>
+
+<div class="section">
+<h3>3. 动画控制 API：程序化操控</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 元素上声明动画后，可通过 ref 获取控制句柄
+&lt;div ref:card @enter={fadeIn} @leave={fadeOut}&gt;
+
+// 在 action 或事件中操控
+action playCardAnim {
+  card.fadeIn.play()           // 从头播放
+  card.fadeIn.pause()          // 暂停
+  card.fadeIn.resume()         // 继续
+  card.fadeIn.reverse()        // 反向播放
+  card.fadeIn.seek(0.5)        // 跳到 50% 进度
+  card.fadeIn.progress = 0.5   // 直接设进度
+  card.fadeIn.kill()           // 终止并清除
+}
+
+// 组合控制
+action sequenceDemo {
+  logo.entrance.play()
+  await logo.entrance.complete   // 等待动画完成
+  cards.listIn.play()
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>4. 动画状态查询</h3>
+<pre style="font-size:12px;line-height:1.8;background:var(--color-surface);padding:1rem;border-radius:8px;">
+// 每个动画实例暴露只读状态
+signal isPlaying: bool = card.fadeIn.playing
+signal progress: float = card.fadeIn.progress     // 0→1
+signal currentLoop: int = card.fadeIn.iteration
+
+// 可在条件中使用
+@if card.fadeIn.completed {
+  &lt;div&gt;动画完成&lt;/div&gt;
+}
+</pre>
+</div>
+
+<div class="section">
+<h3>5. 完整分类总结</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <tr style="border-bottom:2px solid var(--color-border);">
+    <th style="text-align:left;padding:8px;">驱动方式</th>
+    <th style="text-align:left;padding:8px;">触发属性</th>
+    <th style="text-align:left;padding:8px;">进度来源</th>
+    <th style="text-align:left;padding:8px;">典型场景</th>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">🕐 时间驱动</td>
+    <td style="padding:6px 8px;"><code>@enter</code> <code>@leave</code> <code>@hover</code> <code>@press</code></td>
+    <td style="padding:6px 8px;">时钟</td>
+    <td style="padding:6px 8px;">入场/退场/交互反馈</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">🔄 循环驱动</td>
+    <td style="padding:6px 8px;"><code>@animate</code></td>
+    <td style="padding:6px 8px;">时钟 + loop</td>
+    <td style="padding:6px 8px;">spinner / 脉冲 / 呼吸灯</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">📜 滚动驱动</td>
+    <td style="padding:6px 8px;"><code>@scroll</code> + <code>scrub</code></td>
+    <td style="padding:6px 8px;">scroll 位置 → 0→1</td>
+    <td style="padding:6px 8px;">视差 / 滚动揭示 / 进度条</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">👆 手势驱动</td>
+    <td style="padding:6px 8px;"><code>@drag-horizontal</code> + <code>@drag-scrub</code></td>
+    <td style="padding:6px 8px;">手指/鼠标位移</td>
+    <td style="padding:6px 8px;">滑动删除 / 拖拽排序</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">📡 信号驱动</td>
+    <td style="padding:6px 8px;"><code>@driven-by</code></td>
+    <td style="padding:6px 8px;">任意 signal (0→1)</td>
+    <td style="padding:6px 8px;">自定义进度条 / 音频可视化</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 8px;">🎮 程序驱动</td>
+    <td style="padding:6px 8px;"><code>ref.anim.play()</code> <code>.seek()</code></td>
+    <td style="padding:6px 8px;">代码 API</td>
+    <td style="padding:6px 8px;">游戏逻辑 / 复杂编排</td>
+  </tr>
+</table>
+</div>

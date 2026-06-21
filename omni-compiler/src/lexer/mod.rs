@@ -737,6 +737,18 @@ impl Lexer {
             "@scroll-start" => TokenKind::AtScrollStart,
             "@scroll-end" => TokenKind::AtScrollEnd,
             "@scroll-scrub" => TokenKind::AtScrollScrub,
+            // Drag sub-attributes
+            "@drag-constraints" => TokenKind::DragConstraints,
+            "@drag-elastic" => TokenKind::DragElastic,
+            "@drag-scrub" => TokenKind::DragScrub,
+            "@drag-momentum" => TokenKind::DragMomentum,
+            "@drag-threshold" => TokenKind::DragThreshold,
+            "@drag-velocity-max" => TokenKind::DragVelocityMax,
+            // @hero support
+            "@hero" => TokenKind::AtHero,
+            "@hero-transition" => TokenKind::AtHeroTransition,
+            // @if-mode component prop
+            "@if-mode" => TokenKind::IfMode,
             // Unknown @-prefixed words are event bindings like @onPress, @onChange
             _ => TokenKind::Ident(kw),
         };
