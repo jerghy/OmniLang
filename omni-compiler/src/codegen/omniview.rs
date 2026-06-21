@@ -175,6 +175,7 @@ impl OmniViewGenerator {
 /// Inline runtime for OmniView-compiled output. No external dependencies.
 let __omni_activeEffect = null;
 const __omni_subs = new Map();
+const __omni_forHandlers = {};
 
 function __omni_signal(name, init) {
   let val = init;
@@ -597,13 +598,25 @@ function __omni_bindText(nid) {
             }
         }
         let async_kw = if f.is_async { "async " } else { "" };
+        let has_ret = f.return_type.is_some();
         self.js.push_str(&format!(
             "{}function {}({}) {{\n",
             async_kw,
             name,
             params.join(", ")
         ));
-        for stmt in &f.body.statements {
+        for (i, stmt) in f.body.statements.iter().enumerate() {
+            let is_last = i == f.body.statements.len() - 1;
+            // Implicit return: if the function has a return type and the last
+            // statement is a trailing expression (not an explicit return), wrap it
+            // with `return ` so the value flows back to the caller.
+            if is_last && has_ret {
+                if let StatementIR::ExprStmtIR { expr } = stmt {
+                    self.js
+                        .push_str(&format!("return {};\n", self.expr_to_js(expr)));
+                    continue;
+                }
+            }
             self.emit_statement(stmt);
         }
         self.js.push_str("}\n\n");
@@ -633,12 +646,20 @@ function __omni_bindText(nid) {
             StatementIR::IfStmtIR {
                 condition,
                 then_body,
+                else_ifs,
                 else_body,
             } => {
                 let cond = self.expr_to_js(condition);
                 self.js.push_str(&format!("  if ({}) {{\n", cond));
                 for s in &then_body.statements {
                     self.emit_statement(s);
+                }
+                for (elif_cond, elif_body) in else_ifs {
+                    let elif_js = self.expr_to_js(elif_cond);
+                    self.js.push_str(&format!("  }} else if ({}) {{\n", elif_js));
+                    for s in &elif_body.statements {
+                        self.emit_statement(s);
+                    }
                 }
                 if let Some(ref else_b) = else_body {
                     self.js.push_str("  } else {\n");
@@ -931,7 +952,7 @@ function __omni_bindText(nid) {
                     let js_expr = self.expr_to_js(expr);
                     format!(
                         "{}<span data-nid=\"{}\" data-bind-text=\"{}\"></span>\n",
-                        pad, nid, js_expr
+                        pad, nid, escape_html(&js_expr)
                     )
                 } else {
                     // Emit placeholder span + deferred _effect() binding
@@ -1143,13 +1164,14 @@ function __omni_bindText(nid) {
             .push_str("      const expr = el.getAttribute('data-bind-text');\n");
         self.js.push_str("      if (expr) {\n");
         self.js.push_str("        try {\n");
+        // eval() runs in the enclosing closure scope (IIFE), so signals like
+        // TodoItem_checked are accessible — unlike new Function() which is global-scope only.
         self.js.push_str(
-            "          // Use Function constructor to evaluate expressions like `item.name`\n",
+            "          // eval() runs in the enclosing IIFE scope — all signals are accessible\n",
         );
-        self.js.push_str(&format!(
-            "          el.textContent = String((new Function('{}', 'return ' + expr))({}));\n",
-            item_var, item_var
-        ));
+        self.js.push_str(
+            "          el.textContent = String(eval(expr));\n",
+        );
         self.js
             .push_str("        } catch(e) { el.textContent = ''; }\n");
         self.js.push_str("      }\n");
@@ -1172,8 +1194,7 @@ function __omni_bindText(nid) {
             "            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n",
         );
         self.js.push_str(&format!(
-            "            const resolved = (new Function('{}', 'return `' + jsTemplate + '`'))({});\n",
-            item_var, item_var
+            "            const resolved = eval('`' + jsTemplate + '`');\n",
         ));
         self.js
             .push_str("            el.setAttribute(attr.name, resolved);\n");
@@ -1184,6 +1205,40 @@ function __omni_bindText(nid) {
         self.js.push_str("    });\n");
         self.js.push_str("    ctr.appendChild(clone);\n");
         self.js.push_str("  });\n");
+        // Attach delegated event listeners on the container for @for item events.
+        // Elements inside the template have data-event-* attributes (e.g.
+        // data-event-click="fn:handlerName") that we read via event bubbling.
+        self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
+        self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
+        self.js.push_str("    const _forHandle = (e) => {\n");
+        self.js.push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
+        self.js.push_str("      if (!t) return;\n");
+        self.js.push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
+        self.js.push_str("      if (!attr) return;\n");
+        self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
+        self.js.push_str("      if (attr.startsWith('fn:')) {\n");
+        self.js
+            .push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
+        self.js.push_str("        if (typeof fn === 'function') fn(e.detail);\n");
+        self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
+        self.js
+            .push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
+        self.js.push_str("        if (typeof fn === 'function') fn();\n");
+        self.js.push_str("      }\n");
+        self.js.push_str("    };\n");
+        self.js
+            .push_str("    ctr.addEventListener('click', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('submit', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('input', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('change', _forHandle);\n");
+        self.js.push_str("    ctr.addEventListener('focus', _forHandle);\n");
+        self.js.push_str("    ctr.addEventListener('blur', _forHandle);\n");
+        self.js
+            .push_str("    ctr.addEventListener('keydown', _forHandle);\n");
+        self.js.push_str("  }\n");
 
         self.js.push_str("});\n");
 
@@ -1301,14 +1356,15 @@ function __omni_bindText(nid) {
                     // Emit event bindings for the component element
                     for (event_name, handler) in &el.events {
                         let js_event = map_event(event_name);
+                        let pd = if js_event == "submit" { " e.preventDefault();" } else { "" };
                         match handler.kind.as_str() {
                             "fn_ref" => {
                                 if let Some(ref fn_name) = handler.r#ref {
                                     let prefixed =
                                         format!("{}_{}", self.current_component, fn_name);
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {}(e.detail)); }}\n",
-                                        nid, js_event, prefixed
+                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                                        nid, js_event, pd, prefixed
                                     ));
                                 }
                             }
@@ -1316,8 +1372,8 @@ function __omni_bindText(nid) {
                                 if let Some(ref action_path) = handler.r#ref {
                                     let var_name = action_path.replace('.', "_");
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", () => {{ {}(); }}); }}\n",
-                                        nid, js_event, var_name
+                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(); }}); }}\n",
+                                        nid, js_event, pd, var_name
                                     ));
                                 }
                             }
@@ -1336,8 +1392,8 @@ function __omni_bindText(nid) {
                                 }
                                 self.js.push_str("}\n");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {}(e.detail)); }}\n",
-                                    nid, js_event, wrapper_name
+                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                                    nid, js_event, pd, wrapper_name
                                 ));
                             }
                             _ => {}
@@ -1365,13 +1421,14 @@ function __omni_bindText(nid) {
                 "class" | "id" | "placeholder" | "type" | "value" | "disabled" | "checked"
                 | "required" | "readonly" | "href" | "src" | "alt" | "title" | "name" | "rows"
                 | "cols" | "max" | "min" | "step" | "autocomplete" | "autofocus" | "multiple"
-                | "pattern" | "selected"
+                | "pattern" | "selected" | "for" | "action" | "method" | "enctype" | "accept"
                 | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset" | "sizes"
                 | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
                 | "loop" | "muted" | "poster" | "preload" | "tabindex" | "role"
                 | "content" | "charset" | "http-equiv" | "property" | "itemprop"
                 | "crossorigin" | "integrity" | "referrerpolicy" | "loading" | "decoding"
-                | "async" | "defer" | "nonce" => {
+                | "async" | "defer" | "nonce" | "download" | "draggable" | "spellcheck"
+                | "contenteditable" | "translate" | "autocapitalize" | "capture" => {
                     let val_str = self.expr_to_static_str(value);
                     // Known boolean attributes with value "true" — emit bare attribute name
                     let is_boolean_attr = matches!(
@@ -1396,6 +1453,8 @@ function __omni_bindText(nid) {
                     } else if is_boolean_attr && val_str == "true" {
                         // Boolean attribute: emit just the attribute name (no ="true")
                         attrs.push_str(&format!(" {}", name));
+                    } else if is_boolean_attr && val_str == "false" {
+                        // Boolean attribute with value "false": skip entirely (don't emit)
                     } else if !val_str.is_empty() {
                         attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
                     } else {
@@ -1403,9 +1462,14 @@ function __omni_bindText(nid) {
                     }
                 }
                 _ => {
-                    // Emit as data attribute for unknown props
+                    // Emit as data attribute for unknown props,
+                    // but preserve aria-* and data-* attributes as-is.
                     let val_str = self.expr_to_static_str(value);
-                    if !val_str.is_empty() {
+                    if val_str.is_empty() { continue; }
+                    if name.starts_with("aria-") || name.starts_with("data-") {
+                        // Real HTML aria/data attributes — emit as-is
+                        attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
+                    } else {
                         attrs.push_str(&format!(" data-{}=\"{}\"", name, escape_html(&val_str)));
                     }
                 }
@@ -1520,43 +1584,117 @@ function __omni_bindText(nid) {
         // Events → generate JS bindings
         for (event_name, handler) in &el.events {
             let js_event = map_event(event_name);
-            match handler.kind.as_str() {
-                "fn_ref" => {
-                    if let Some(ref fn_name) = handler.r#ref {
-                        let prefixed = format!("{}_{}", self.current_component, fn_name);
-                        self.js.push_str(&format!(
-                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {}(e.detail)); }}\n",
-                            nid, js_event, prefixed
-                        ));
-                    }
-                }
-                "store_action" => {
-                    if let Some(ref action_path) = handler.r#ref {
-                        let var_name = action_path.replace('.', "_");
-                        self.js.push_str(&format!(
-                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", () => {{ {}(); }}); }}\n",
-                            nid, js_event, var_name
-                        ));
-                    }
-                }
-                "inline_fn" => {
-                    // Inline event handlers get a named wrapper with params
-                    let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                    let params_str = handler.params.join(", ");
-                    self.js
-                        .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
-                    if let Some(ref body) = handler.body {
-                        for stmt in &body.statements {
-                            self.emit_statement(stmt);
+            if self.in_for_template {
+                // Inside @for template: emit data-event-* attributes for delegation.
+                // The @for container gets a single delegated listener that reads these.
+                let val = match handler.kind.as_str() {
+                    "fn_ref" => {
+                        if let Some(ref fn_name) = handler.r#ref {
+                            let prefixed = format!("{}_{}", self.current_component, fn_name);
+                            format!("fn:{}", escape_html(&prefixed))
+                        } else {
+                            continue;
                         }
                     }
-                    self.js.push_str("}\n");
+                    "store_action" => {
+                        if let Some(ref action_path) = handler.r#ref {
+                            let var_name = action_path.replace('.', "_");
+                            format!("store:{}", escape_html(&var_name))
+                        } else {
+                            continue;
+                        }
+                    }
+                    "inline_fn" => {
+                        let wrapper_name =
+                            format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                        let params_str = handler.params.join(", ");
+                        self.js.push_str(&format!(
+                            "function {}({}) {{\n",
+                            wrapper_name, params_str
+                        ));
+                        if let Some(ref body) = handler.body {
+                            for stmt in &body.statements {
+                                self.emit_statement(stmt);
+                            }
+                        }
+                        self.js.push_str("}\n");
+                        format!("fn:{}", escape_html(&wrapper_name))
+                    }
+                    _ => continue,
+                };
+                attrs.push_str(&format!(
+                    " data-event-{}=\"{}\"",
+                    js_event, val
+                ));
+                // Register handler in the global lookup so the delegated
+                // listener can find it (functions are IIFE-local, not on
+                // window).
+                let handler_name = match handler.kind.as_str() {
+                    "fn_ref" => {
+                        handler.r#ref.as_ref().map(|n| {
+                            format!("{}_{}", self.current_component, n)
+                        })
+                    }
+                    "store_action" => {
+                        handler.r#ref.as_ref().map(|p| p.replace('.', "_"))
+                    }
+                    "inline_fn" => {
+                        Some(format!(
+                            "__on{}_{}",
+                            event_name,
+                            nid.replace('-', "_")
+                        ))
+                    }
+                    _ => None,
+                };
+                if let Some(ref hname) = handler_name {
                     self.js.push_str(&format!(
-                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {}(e.detail)); }}\n",
-                        nid, js_event, wrapper_name
+                        "__omni_forHandlers[\"{}\"] = {};\n",
+                        hname, hname
                     ));
                 }
-                _ => {}
+            } else {
+                let pd = if js_event == "submit" { " e.preventDefault();" } else { "" };
+                match handler.kind.as_str() {
+                    "fn_ref" => {
+                        if let Some(ref fn_name) = handler.r#ref {
+                            let prefixed = format!("{}_{}", self.current_component, fn_name);
+                            self.js.push_str(&format!(
+                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                                nid, js_event, pd, prefixed
+                            ));
+                        }
+                    }
+                    "store_action" => {
+                        if let Some(ref action_path) = handler.r#ref {
+                            let var_name = action_path.replace('.', "_");
+                            self.js.push_str(&format!(
+                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(); }}); }}\n",
+                                nid, js_event, pd, var_name
+                            ));
+                        }
+                    }
+                    "inline_fn" => {
+                        let wrapper_name =
+                            format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                        let params_str = handler.params.join(", ");
+                        self.js.push_str(&format!(
+                            "function {}({}) {{\n",
+                            wrapper_name, params_str
+                        ));
+                        if let Some(ref body) = handler.body {
+                            for stmt in &body.statements {
+                                self.emit_statement(stmt);
+                            }
+                        }
+                        self.js.push_str("}\n");
+                        self.js.push_str(&format!(
+                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                            nid, js_event, pd, wrapper_name
+                        ));
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -1572,12 +1710,17 @@ function __omni_bindText(nid) {
                     .unwrap_or_else(|| binding.name.clone());
                 // Prevent infinite loop: guard flag to stop the effect from re-triggering input event
                 self.guard_counter += 1;
-                let guard_name = format!("_guard_{}", self.guard_counter);
+                let guard_name = format!("_guard_{}_{}", prop_name, nid.replace('-', "_"));
                 self.js
                     .push_str(&format!("let {} = false;\n", guard_name));
+                let (event_name, dom_prop) = if prop_name == "checked" {
+                    ("change", "checked")
+                } else {
+                    ("input", "value")
+                };
                 self.js.push_str(&format!(
-                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"input\", (e) => {{ if (!{1}) {{ {2}.set(e.target.value); }} }}); }}\n",
-                    nid, guard_name, sig_name
+                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ {3}.set(e.target.{4}); }} }}); }}\n",
+                    nid, event_name, guard_name, sig_name, dom_prop
                 ));
                 // Reactive binding: signal → DOM (guard against programmatic updates)
                 self.js.push_str(&format!(
@@ -1640,6 +1783,23 @@ function __omni_bindText(nid) {
         // Emit any interpolation _effect() calls
         for effect in &interp_effects {
             self.js.push_str(effect);
+        }
+
+        // Class map dynamic bindings: for each dynamic class, emit an effect
+        // that toggles it reactively via classList.toggle().
+        if !el.class_map_bindings.is_empty() {
+            for (class_name, expr) in &el.class_map_bindings {
+                let js_expr = self.expr_to_js(expr);
+                let js_access = if self.signal_names.contains(&js_expr) {
+                    format!("{}.value", js_expr)
+                } else {
+                    js_expr
+                };
+                self.js.push_str(&format!(
+                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!{}); }});\n",
+                    nid, class_name, js_access
+                ));
+            }
         }
 
         // Record source map entry
@@ -1846,7 +2006,7 @@ function __omni_bindText(nid) {
                             vals.join(", "), obj
                         )
                     }
-                    "pop" => format!("(/* pop */ ({} || []).pop())", obj),
+                    "pop" => format!("((_a) => {{ _a.pop(); return _a.slice(); }})({} || [])", obj),
                     _ => format!(
                         "{}.{}({})",
                         obj,
@@ -1909,8 +2069,19 @@ function __omni_bindText(nid) {
                     .map(|arm| {
                         let body_js = self.block_to_expr(&arm.body);
                         match &arm.pattern.kind {
-                            MatchPatternKindIR::Variant { name, .. } => {
-                                format!("if (_v._variant === \"{}\") {{ return {}; }}", name, body_js)
+                            MatchPatternKindIR::Variant { name, bindings } => {
+                                // Emit let-bindings for each captured field so the body
+                                // can reference them directly (e.g. `error` → `_v.error`)
+                                let let_bindings: Vec<String> = bindings
+                                    .iter()
+                                    .map(|b| format!(" const {} = _v.{}; ", b, b))
+                                    .collect();
+                                format!(
+                                    "if (_v._variant === \"{}\") {{ {} return {}; }}",
+                                    name,
+                                    let_bindings.join(""),
+                                    body_js
+                                )
                             }
                             MatchPatternKindIR::Wildcard => {
                                 format!("return {};", body_js)
@@ -1922,8 +2093,10 @@ function __omni_bindText(nid) {
                         }
                     })
                     .collect();
+                // Wrap in IIFE so match can be used inside expressions/templates.
+                // The `return` captures the IIFE result back to the caller.
                 format!(
-                    "(() => {{ const _v = {}; {} }})()",
+                    "/*match*/ (() => {{ const _v = {}; {}; throw new Error('match: no arm matched'); }})()",
                     matched_js,
                     cases.join(" ")
                 )

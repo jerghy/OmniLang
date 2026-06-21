@@ -13,7 +13,7 @@ component App {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(
         result
@@ -43,7 +43,7 @@ component App {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     // Passes semantic analysis (undeclared 'count' might be flagged depending on scope)
     let _ = result;
@@ -68,7 +68,7 @@ component Counter {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     // Should not crash — symbol collection must complete
     let _ = result;
@@ -82,7 +82,7 @@ fn main() {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(!result.diagnostics.is_empty(), "Should emit error for break outside loop");
     assert!(result.diagnostics.iter().any(|d| d.message.contains("break")),
@@ -97,7 +97,7 @@ fn main() {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(!result.diagnostics.is_empty(), "Should emit error for continue outside loop");
     assert!(result.diagnostics.iter().any(|d| d.message.contains("continue")),
@@ -112,7 +112,7 @@ fn main() {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(!result.diagnostics.is_empty(), "Should emit error for await in non-async fn");
     assert!(result.diagnostics.iter().any(|d| d.message.contains("await")),
@@ -129,7 +129,7 @@ fn main() {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(result.diagnostics.is_empty(),
         "break inside while loop should be valid. Got: {:?}", result.diagnostics);
@@ -143,7 +143,7 @@ async fn main() {
 }
 "#;
     let tokens = tokenize(source);
-    let program = parse(&tokens).unwrap();
+    let program = parse(&tokens, "").unwrap();
     let result = analyze(&program);
     assert!(result.diagnostics.is_empty(),
         "await in async fn should be valid. Got: {:?}", result.diagnostics);

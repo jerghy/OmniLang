@@ -204,6 +204,7 @@ pub enum StatementIR {
     IfStmtIR {
         condition: ExprIR,
         then_body: BlockIR,
+        else_ifs: Vec<(ExprIR, BlockIR)>,
         else_body: Option<BlockIR>,
     },
     ReturnStmtIR {
@@ -324,6 +325,11 @@ pub struct ElementIR {
     pub test_id: Option<String>,
     pub ref_name: Option<String>,
     pub construction_kind: String,
+    /// Dynamic class map bindings: class_name → signal expression
+    /// e.g. "visible" → IR for `isOpen` signal. Codegen emits
+    /// __omni_effect(() => el.classList.toggle(name, signal.value))
+    #[serde(default)]
+    pub class_map_bindings: HashMap<String, ExprIR>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_line: u32,
@@ -881,6 +887,7 @@ fn lower_view_node(
             let mut events = HashMap::new();
             let mut inline_style: Option<serde_json::Value> = None;
             let mut has_value_binding = false;
+            let mut class_map_bindings_from_prop: HashMap<String, ExprIR> = HashMap::new();
 
             for prop in &el.props {
                 match prop {
@@ -924,6 +931,7 @@ fn lower_view_node(
                     }
                     ElementProp::Class { value } => {
                         // class: styleRef or class: "literal-class"
+                        let mut class_map_bindings: HashMap<String, ExprIR> = HashMap::new();
                         let class_str = match value {
                             ClassValue::StyleRef(s) => s.clone(),
                             ClassValue::StringLiteral(s) => s.clone(),
@@ -931,7 +939,7 @@ fn lower_view_node(
                                 // Include classes based on their literal value:
                                 //   Bool(true)  → static truth  → include the class
                                 //   Bool(false) → static falsy → skip the class
-                                //   dynamic     → unknown at compile time → skip (JS handles)
+                                //   dynamic     → unknown at compile time → JS handles
                                 let mut static_classes: Vec<String> = Vec::new();
                                 for (key, val_expr) in entries {
                                     let mut skip = false;
@@ -944,6 +952,10 @@ fn lower_view_node(
                                     if !skip {
                                         static_classes.push(key.clone());
                                     }
+                                    // Collect dynamic bindings (non-literal values) for reactive JS toggling
+                                    if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
+                                        class_map_bindings.insert(key.clone(), lower_expr(val_expr, variant_map));
+                                    }
                                 }
                                 static_classes.join(" ")
                             }
@@ -954,6 +966,8 @@ fn lower_view_node(
                                 value: serde_json::Value::String(class_str),
                             },
                         );
+                        // Pass class_map_bindings through the element
+                        class_map_bindings_from_prop = class_map_bindings;
                     }
                     ElementProp::Style { entries } => {
                         // style: { key: value, ... } — passed as inline_style
@@ -986,6 +1000,12 @@ fn lower_view_node(
                             },
                         );
                     }
+                    // Motion/animation props — handled in later phases
+                    ElementProp::MotionTrigger(_)
+                    | ElementProp::StatesMap(_)
+                    | ElementProp::AnimateSignal(_)
+                    | ElementProp::PausedOverride(_)
+                    | ElementProp::HoverReverse(_) => {}
                 }
             }
 
@@ -1022,6 +1042,7 @@ fn lower_view_node(
                 test_id: None,
                 ref_name: None,
                 construction_kind: "tag-mapping".into(),
+                class_map_bindings: class_map_bindings_from_prop,
                 source_line: el.span.line,
                 source_col: el.span.col,
             })
@@ -1046,6 +1067,7 @@ fn lower_view_node(
                         .iter()
                         .map(|n| lower_view_node(n, string_signals, None, variant_map))
                         .collect(),
+                    class_map_bindings: HashMap::new(),
                     test_id: None,
                     ref_name: None,
                     construction_kind: "conditional".into(),
@@ -1063,6 +1085,7 @@ fn lower_view_node(
                         events: HashMap::new(),
                         style_classes: None,
                         inline_style: None,
+                        class_map_bindings: HashMap::new(),
                         children: body
                             .iter()
                             .map(|n| lower_view_node(n, string_signals, None, variant_map))
@@ -1091,6 +1114,7 @@ fn lower_view_node(
                         .collect(),
                     test_id: None,
                     ref_name: None,
+                    class_map_bindings: HashMap::new(),
                     construction_kind: "conditional".into(),
                     source_line: 0,
                     source_col: 0,
@@ -1111,6 +1135,7 @@ fn lower_view_node(
                         events: HashMap::new(),
                         style_classes: None,
                         inline_style: None,
+                        class_map_bindings: HashMap::new(),
                         children: nodes
                             .iter()
                             .map(|n| lower_view_node(n, string_signals, None, variant_map))
@@ -1172,11 +1197,18 @@ fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> StatementIR
         Stmt::If {
             condition,
             then_body,
+            else_ifs,
             else_body,
             ..
         } => StatementIR::IfStmtIR {
             condition: lower_expr(condition, variant_map),
             then_body: lower_block(then_body, variant_map),
+            else_ifs: else_ifs
+                .iter()
+                .map(|(cond, body)| {
+                    (lower_expr(cond, variant_map), lower_block(body, variant_map))
+                })
+                .collect(),
             else_body: else_body.as_ref().map(|b| lower_block(b, variant_map)),
         },
         Stmt::Print { newline, arg, .. } => StatementIR::ExprStmtIR {

@@ -38,7 +38,7 @@ pub fn compile(source: &str) -> CompileResult {
     let tokens = lexer::tokenize(source);
 
     // 2. Parse
-    let program = match parser::parse(&tokens) {
+    let program = match parser::parse(&tokens, source) {
         Ok(p) => p,
         Err(e) => {
             errors.push(e.into());
@@ -101,7 +101,7 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
     let tokens = lexer::tokenize(source);
 
     // 2. Parse
-    let program = match parser::parse(&tokens) {
+    let program = match parser::parse(&tokens, source) {
         Ok(p) => p,
         Err(e) => {
             errors.push(e.into());
@@ -202,7 +202,7 @@ pub fn validate_multi(
     // Phase 1: Parse all sources
     for (path, source) in &sources {
         let tokens = lexer::tokenize(source);
-        match parser::parse(&tokens) {
+        match parser::parse(&tokens, source) {
             Ok(program) => {
                 programs.insert(path.clone(), program);
             }
@@ -499,7 +499,7 @@ pub fn compile_multi_to_target(
     // Phase 1: Parse all sources
     for (path, source) in &sources {
         let tokens = lexer::tokenize(source);
-        match parser::parse(&tokens) {
+        match parser::parse(&tokens, source) {
             Ok(program) => {
                 programs.insert(path.clone(), program);
             }
@@ -705,7 +705,7 @@ pub unsafe extern "C" fn omni_analyse(
     // Phase 1: Parse all sources
     for (path, source) in &input.sources {
         let tokens = crate::lexer::tokenize(source);
-        match crate::parser::parse(&tokens) {
+        match crate::parser::parse(&tokens, source) {
             Ok(program) => {
                 programs.insert(path.clone(), program);
             }

@@ -150,12 +150,21 @@ impl SemanticAnalyzer {
                 });
             }
 
-            // Functions and actions
+            // Functions, actions, getters
             for f in &comp.fns {
                 self.collect_fn_symbols(f);
             }
             for a in &comp.actions {
                 self.collect_action_symbols(a);
+            }
+            for g in &comp.getters {
+                self.declare_or_warn(Symbol {
+                    name: g.name.clone(),
+                    kind: SymbolKind::Getter,
+                    type_ann: Some(type_to_string(&g.type_ann)),
+                    mutable: false,
+                    declared_at: g.type_ann.span().start,
+                });
             }
 
             // Lifecycle hooks
@@ -699,7 +708,14 @@ impl SemanticAnalyzer {
                 ElementProp::Event { handler, .. } => {
                     self.resolve_event_handler_refs(handler);
                 }
-                ElementProp::Bind { .. } | ElementProp::TestId(_) | ElementProp::Ref(_) => {}
+                ElementProp::Bind { .. }
+                | ElementProp::TestId(_)
+                | ElementProp::Ref(_)
+                | ElementProp::MotionTrigger(_)
+                | ElementProp::StatesMap(_)
+                | ElementProp::AnimateSignal(_)
+                | ElementProp::PausedOverride(_)
+                | ElementProp::HoverReverse(_) => {}
             }
         }
         for child in &element.children {
@@ -890,6 +906,23 @@ impl SemanticAnalyzer {
                 Stmt::EventEmit { args, .. } => {
                     for arg in args {
                         self.validate_expr_await(arg, is_async);
+                    }
+                }
+                Stmt::Throw { expr, .. } => {
+                    self.validate_expr_await(expr, is_async);
+                }
+                Stmt::TryCatch {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    self.validate_block(try_body, is_async, loop_depth);
+                    if let Some(ref b) = catch_body {
+                        self.validate_block(b, is_async, loop_depth);
+                    }
+                    if let Some(ref b) = finally_body {
+                        self.validate_block(b, is_async, loop_depth);
                     }
                 }
             }

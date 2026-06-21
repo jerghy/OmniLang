@@ -208,8 +208,9 @@ fn codegen_http_send(args: &[String], target: Target) -> String {
     let req = &args[0]; // HttpRequest struct variable
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            // fetch() returns a Response; extract text body so callers get String
             format!(
-                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }})",
+                "fetch({req}.url, {{ method: {req}.method, headers: {req}.headers, body: {req}.body, signal: AbortSignal.timeout({req}.timeout) }}).then(r => r.text())",
                 req = req
             )
         }
@@ -238,7 +239,8 @@ fn codegen_http_get(args: &[String], target: Target) -> String {
     let url = &args[0];
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("fetch({url})", url = url)
+            // fetch() returns a Response; extract text body so callers get String
+            format!("fetch({url}).then(r => r.text())", url = url)
         }
         Target::Python => format!("requests.get({url})", url = url),
         Target::Rust | Target::Dioxus => {
@@ -255,8 +257,9 @@ fn codegen_http_post(args: &[String], target: Target) -> String {
     let body = args.get(1).map(|s| s.as_str()).unwrap_or("null");
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
+            // fetch() returns a Response; extract text body so callers get String
             format!(
-                "fetch({url}, {{ method: 'POST', body: {body} }})",
+                "fetch({url}, {{ method: 'POST', body: {body} }}).then(r => r.text())",
                 url = url,
                 body = body
             )
@@ -666,7 +669,7 @@ fn codegen_array_push(args: &[String], target: Target) -> String {
     let arr = &args[0]; let item = &args[1];
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("({arr}).push({item}), {arr}")
+            format!("(({arr}).push({item}), ({arr}).slice())")
         }
         Target::Python => format!("({arr}).append({item}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).push({item}); {arr} }}"),
@@ -690,7 +693,7 @@ fn codegen_array_remove(args: &[String], target: Target) -> String {
     let arr = &args[0]; let idx = &args[1];
     match target {
         Target::JavaScript | Target::TypeScript | Target::React | Target::Vue | Target::OmniView => {
-            format!("({arr}).splice({idx}, 1), {arr}")
+            format!("(({arr}).splice({idx}, 1), ({arr}).slice())")
         }
         Target::Python => format!("({arr}).pop({idx}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).remove({idx} as usize); {arr} }}"),

@@ -309,6 +309,7 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
         StatementIR::IfStmtIR {
             condition,
             then_body,
+            else_ifs,
             else_body,
         } => {
             let cond = format_expr_ir(condition, ts_mode);
@@ -318,6 +319,15 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
                 generate_statement(w, s, ts_mode);
             }
             w.dedent();
+            for (elif_cond, elif_body) in else_ifs {
+                let elif_js = format_expr_ir(elif_cond, ts_mode);
+                w.emit(&format!("}} else if ({}) {{", elif_js));
+                w.indent();
+                for s in &elif_body.statements {
+                    generate_statement(w, s, ts_mode);
+                }
+                w.dedent();
+            }
             if let Some(else_blk) = else_body {
                 if !else_blk.statements.is_empty() {
                     w.emit("} else {");
@@ -446,6 +456,9 @@ fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
         ExprIR::IdentifierExpr { name } => super::sanitize_js_ident(name),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir(object, _ts_mode), field)
+        }
+        ExprIR::OptionalChainExpr { object, field } => {
+            format!("{}?.{}", format_expr_ir(object, _ts_mode), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
             let js_op = binary_op_to_js(op);

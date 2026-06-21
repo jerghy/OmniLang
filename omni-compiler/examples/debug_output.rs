@@ -6,7 +6,7 @@ use omni_compiler::semantic;
 
 fn debug(src: &str, label: &str) {
     let tokens = lexer::tokenize(src);
-    match parser::parse(&tokens) {
+    match parser::parse(&tokens, src) {
         Ok(program) => {
             let semantics = semantic::analyze(&program);
             let ir_program = ir::lower(&program, &semantics);

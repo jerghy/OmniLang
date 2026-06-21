@@ -585,6 +585,7 @@ fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
         StatementIR::IfStmtIR {
             condition,
             then_body,
+            else_ifs,
             else_body,
         } => {
             let cond = format_expr_vue(condition);
@@ -594,6 +595,15 @@ fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
                 generate_statement_vue(w, s);
             }
             w.dedent();
+            for (elif_cond, elif_body) in else_ifs {
+                let elif_js = format_expr_vue(elif_cond);
+                w.emit(&format!("}} else if ({}) {{", elif_js));
+                w.indent();
+                for s in &elif_body.statements {
+                    generate_statement_vue(w, s);
+                }
+                w.dedent();
+            }
             if let Some(else_blk) = else_body {
                 if !else_blk.statements.is_empty() {
                     w.emit("} else {");
@@ -722,6 +732,9 @@ fn format_expr_vue(expr: &ExprIR) -> String {
         ExprIR::LiteralExpr { value } => format_json_value_vue(value),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
+            format!("{}.{}", format_expr_vue(object), field)
+        }
+        ExprIR::OptionalChainExpr { object, field } => {
             format!("{}.{}", format_expr_vue(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
@@ -1180,6 +1193,7 @@ mod tests {
                 }],
                 execution_mode: "client-only".into(),
             },
+            else_ifs: vec![],
             else_body: None,
         };
         generate_statement_vue(&mut w, &stmt);

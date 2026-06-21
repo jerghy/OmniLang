@@ -9,7 +9,7 @@ use omni_compiler::semantic;
 /// Helper: compile .omni source to IR, then generate OmniView output.
 fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
     let tokens = lexer::tokenize(source);
-    let program = parser::parse(&tokens).expect("parse failed");
+    let program = parser::parse(&tokens, source).expect("parse failed");
     let semantics = semantic::analyze(&program);
     let ir_program = ir::lower(&program, &semantics);
     omniview::generate(&ir_program)

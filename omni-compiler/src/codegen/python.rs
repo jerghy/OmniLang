@@ -292,6 +292,7 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
         StatementIR::IfStmtIR {
             condition,
             then_body,
+            else_ifs,
             else_body,
         } => {
             let cond = format_expr_ir(condition);
@@ -301,6 +302,15 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                 generate_statement(w, s);
             }
             w.dedent();
+            for (elif_cond, elif_body) in else_ifs {
+                let elif_js = format_expr_ir(elif_cond);
+                w.emit(&format!("elif {}:", elif_js));
+                w.indent();
+                for s in &elif_body.statements {
+                    generate_statement(w, s);
+                }
+                w.dedent();
+            }
             if let Some(else_blk) = else_body {
                 if !else_blk.statements.is_empty() {
                     w.emit("else:");
@@ -546,8 +556,13 @@ fn format_json_value(value: &serde_json::Value) -> String {
             }
         }
         serde_json::Value::String(s) => {
-            // Escape single quotes (use double quotes for Python strings)
-            let escaped = s.replace('\\', "\\\\").replace('\'', "\\'");
+            // Escape special characters for Python string literals
+            let escaped = s
+                .replace('\\', "\\\\")
+                .replace('\'', "\\'")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r")
+                .replace('\t', "\\t");
             format!("'{}'", escaped)
         }
         // Arrays and objects: use repr
