@@ -1,6 +1,6 @@
 # OmniGen — 编辑器前端 .omni 代码生成器设计
 
-> 2026-06-21 | 状态: 修订完成（整合 Editor .omni 保存格式规格） | 下一步: writing-plans
+> 2026-06-21 | 状态: 架构终版 | 下一步: writing-plans
 
 ## 1. 背景与目标
 
@@ -18,92 +18,97 @@
 
 ### 1.3 核心原则（来自 Editor .omni 保存格式规格）
 
-1. **`.omni` 源码 = 唯一真相源** — 不再以 `.omni.json` 为主存储格式
+1. **`.omni` 源码 = 唯一真相源**
 2. **编译器可推导的数据不存注释** — tag、props、children、事件绑定由编译器解析
-3. **编辑器元数据嵌入严格的注释格式** — `@code-tab`、`@edit`、`@chain` 块
-4. **格式不对 → 解析失败，直接报错** — 严格解析规则
-5. **多文件，每个文件 = 一个 Code Tab**
+3. **编辑器元数据嵌入严格的注释格式** — `@code-tab`、`@edit`、`@chain`
+4. **格式不对 → 解析失败，直接报错**
+5. **多文件，每个文件 = 一个 Code Tab**（event tab 除外，见 §2.2）
 
-### 1.4 方案选择
+### 1.4 架构决策
 
-纯前端 TypeScript 管道（方案 B），12 个独立模块，纯函数 + 值传递，零副作用。
+| 决策 | 选择 |
+|------|------|
+| 实现位置 | 纯前端 TypeScript |
+| 模块风格 | 纯函数 + 值传递，零副作用 |
+| 错误传播 | 三阶段 `StageResult<T>`，阶段内全收集，阶段间短路 |
+| 数据聚合 | 取消 ComponentAssembler，Pipeline 直连 SourceEmitter |
+| 注解生成 | 结构化 `AnnotationData` + `AnnotationStrategy` 回调，不后期注入 |
+| Tab 映射 | Event inline + Logic external |
 
 ---
 
 ## 2. 架构总览
 
+### 2.1 三阶段管道
+
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    Editor State                           │
-│  useEditorStore (design) + useCodeGraphStore (code)       │
-│  elements[] + wires[] + codeTabs[] + componentRegistry    │
+│  designElements[] + designWires[] + codeTabs[]            │
+│  + componentRegistry + designTokens                      │
 └──────────────────────┬───────────────────────────────────┘
                        ↓
-┌──────────────────────────────────────────────────────────┐
-│              omni-gen/ 代码生成管道                        │
-│                                                          │
-│  ① ViewTreeBuilder      扁 elements → 嵌套 view tree     │
-│  ② WireAnalyzer         连线 → 数据绑定 + 依赖分析        │
-│  ③ StoreExtractor       代码块 → Store 结构化定义         │
-│  ④ ExpressionLowering   代码图 → .omni 表达式/语句        │
-│  ⑤ StyleResolver        区分 style props / component props│
-│  ⑥ ComponentAssembler   聚合 → 完整 Component 定义        │
-│  ⑦ SourceEmitter        结构化文档 → .omni 源码           │
-│  ⑧ TokenEmitter         DesignTokens → theme 块           │
-│  ⑨ CustomComponentEmitter  自定义组件 → component 块      │
-│  ⑩ ChainEmitter         代码图 → @chain/@node/@wire 注释  │
-│  ⑪ AnnotationInjector   @code-tab + @edit 注入            │
-│  ⑫ Pipeline             编排 ①-⑪ → 完整 .omni 源码       │
+┌─ Phase A: 结构分析 ──────────────────────────────────────┐
+│  ① ViewTreeBuilder    扁 elements → 嵌套 view tree       │
+│  ② WireAnalyzer       连线 → signalBindings + storeRefs  │
+│  ③ ImportCollector    扫描引用 → import 语句列表          │
+│  产出: StageResult<{viewTree, bindings, imports}>        │
 └──────────────────────┬───────────────────────────────────┘
+          errors? → 返回错误, 终止
                        ↓
-          .omni 源码（含编辑器注释元数据）
+┌─ Phase B: 语义降级 ──────────────────────────────────────┐
+│  ④ StoreExtractor     代码块 → Store 结构化定义           │
+│  ⑤ ExpressionLowering 代码图 → fns/actions/getters       │
+│  ⑥ StyleResolver      tag映射 + style分离 + class生成    │
+│  ⑦ ChainEmitter       代码图 → @chain/@node/@wire 注释   │
+│  产出: StageResult<{stores, loweredCode, chains, styledView}>│
+└──────────────────────┬───────────────────────────────────┘
+          errors? → 返回错误, 终止
+                       ↓
+┌─ Phase C: 代码生成 ──────────────────────────────────────┐
+│  ⑧ buildAnnotationData  → codeTab + editAnnotation map  │
+│  ⑨ SourceEmitter        → .omni 源码（内嵌 @edit + @chain）│
+│  ⑩ TokenEmitter         → theme 块                       │
+│  ⑪ CustomComponentEmitter → 自定义组件文件               │
+│  产出: StageResult<string>                                │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 2.1 文件结构
+### 2.2 Tab → File 映射
+
+| Tab 类型 | 映射目标 | 说明 |
+|---------|---------|------|
+| **main tab** (id="main") | `src/main.omni` | component 主体（view + signals + fns） |
+| **event tabs** | **内联到 main.omni** | handler 需访问 component scope，不独立文件 |
+| **logic tabs** (非 main) | `src/lib/<label>.omni` | 独立工具函数 |
+| **store 定义** | `src/stores/<Name>.omni` | 独立 store 文件 |
+| **自定义组件** | `src/components/<Name>.omni` | 独立 component 文件 |
+
+**Event tab round-trip**: 内联时在每个 handler 前注入 `// @code-tab type=event label=<tabLabel>`，解析器据此重建 event tab 边界。
+
+### 2.3 文件结构
 
 ```
 editor/client/src/omni-gen/
 ├── index.ts                  # 入口: generateOmniSource() / generateOmniFiles()
-├── types.ts                  # 共享类型定义
+├── types.ts                  # 共享类型 + StageResult<T> + PipelineError
 ├── view-tree-builder.ts      # ①
 ├── wire-analyzer.ts          # ②
-├── store-extractor.ts        # ③
-├── expression-lowering.ts    # ④
-├── style-resolver.ts         # ⑤
-├── component-assembler.ts    # ⑥
-├── source-emitter.ts         # ⑦ (CodeWriter + emitDocument/emitStore/emitComponent/emitViewNode)
-├── token-emitter.ts          # ⑧
-├── custom-component-emitter.ts # ⑨
-├── chain-emitter.ts          # ⑩ 代码图 → @chain 注释块
-├── annotation-injector.ts    # ⑪ @code-tab + @edit 注入
-├── pipeline.ts               # ⑫ 编排层
+├── import-collector.ts       # ③ 新增
+├── store-extractor.ts        # ④
+├── expression-lowering.ts    # ⑤
+├── style-resolver.ts         # ⑥
+├── chain-emitter.ts          # ⑦
+├── annotation-data.ts        # ⑧ buildAnnotationData() + AnnotationStrategy
+├── source-emitter.ts         # ⑨ (接收 EmitInput + AnnotationStrategy + chains)
+├── token-emitter.ts          # ⑩
+├── custom-component-emitter.ts # ⑪
+├── pipeline.ts               # 编排层（三阶段 StageResult）
 └── __tests__/
     ├── integration.test.ts
-    ├── view-tree-builder.test.ts
-    ├── wire-analyzer.test.ts
-    ├── store-extractor.test.ts
-    ├── expression-lowering.test.ts
-    ├── style-resolver.test.ts
-    ├── source-emitter.test.ts
-    ├── chain-emitter.test.ts
-    ├── annotation-injector.test.ts
-    └── fixtures/
-```
-
-### 2.2 多文件生成
-
-每个 code tab 产出**一个 `.omni` 文件**，按项目结构分布：
-
-```
-my-project/
-├── src/
-│   ├── main.omni           ← 主画布 + Main logic tab
-│   ├── lib/
-│   │   └── validation.omni  ← logic tab → @code-tab type=logic
-│   ├── stores/
-│   │   └── TodoStore.omni   ← store 定义 + action chain
-│   └── components/
-│       └── MyCard.omni      ← 自定义 component + @edit
+    ├── import-collector.test.ts
+    ├── annotation-data.test.ts
+    ├── ... (各模块测试 + fixtures/)
 ```
 
 ---
@@ -112,35 +117,30 @@ my-project/
 
 ### 3.1 ViewTreeBuilder — 视图树构建
 
-**方案**: Recursive Top-down（自顶向下递归构建）
+**方案**: Recursive Top-down
 
 **输入**: `ElementData[]`（已过滤 nodeType === "view"）
 **输出**: `ViewNode[]` 嵌套树
 
 **核心算法**:
 ```
-1. 构建 Map<id, ElementData> 哈希表
+1. 构建 Map<id, ElementData>
 2. 找到 parentId === null 的根节点
 3. 递归 convert(node):
    - 创建 ViewNode{ id, tag, props, kind:"element", children:[] }
-   - 若 COMPONENT_PROTOCOL[tag].children !== false:
-       遍历 node.children[]，递归 convert 每个子节点
+   - 若 COMPONENT_PROTOCOL[tag].children !== false → 递归子节点
    - 返回 ViewNode
 ```
 
-**新增**: 每个 ViewNode 必须保留原始 element.id，供后续 `@edit` 注解和 `id="xxx"` 属性生成使用。
+**新增**: 收集所有 PascalCase 标签（不在 TAG_HTML_MAP 中），供 ImportCollector 使用。
 
-**复杂度**: O(n) 时间，O(n) 空间
-**代码量**: ~40 行
-**边界处理**:
-- 自闭合标签（Image, Text, Spinner, Progress 等 children===false）不处理 children
-- 保留 children 数组顺序
-- 忽略 nodeType !== "view" 的元素
-- Web 安全：递归深度限制 5000 层
+**复杂度**: O(n)，~50 行
+
+---
 
 ### 3.2 WireAnalyzer — 连线分析器
 
-**方案**: 线性端口分类器（Linear Wire Classifier）
+**方案**: 线性端口分类器
 
 **输入**: `ElementData[] + WireData[]`
 **输出**: `BindingResult`
@@ -154,844 +154,393 @@ interface BindingResult {
 }
 ```
 
-**核心算法**:
-```
-单次遍历 wires，对每条 wire 根据 (src.tag, fromPort, tgt.tag, toPort) 分类:
-  (signal, "value", view, prop)   → signalBindings[srcName] += {tgtId, prop}
-  (store, "items", view, *)       → storeRefs[srcName] += tgtId
-  (signal|computed|literal, "value", computed, "deps") → computedDeps[tgtName] += srcName
-  (computed, "value", view, prop) → signalBindings[srcName] += {tgtId, prop}
-
-第二阶段：检测 unwired props — 遍历 view 元素，找出既未连线又非事件的 props
-```
-
 **复杂度**: O(W + V)，~50 行
 
-### 3.3 StoreExtractor — Store 提取器
+---
 
-**方案**: 两阶段声明式提取
+### 3.3 ImportCollector — Import 收集器（新增）
 
-**同前版设计，无变化。**
+**职责**: 扫描所有引用，生成 import 语句列表。
 
-**复杂度**: O(N + W)，~150 行
+**输入**: `{ viewTree, storeRefs, allCodeTabs, componentRegistry }`
+**输出**: `string[]` — import 语句列表
 
-### 3.4 ExpressionLowering — 表达式降级器
+**收集规则**:
 
-**方案**: 递归下降构建器（MVP）
+```
+1. "import omniview;"  ← 始终第一
 
-**同前版设计，无变化。** 节点 → .omni 映射表不变。
+2. 扫描 view tree → PascalCase 标签（不在 TAG_HTML_MAP 中）
+   → import { Tag } from "./components/Tag";
 
-**新增约束**: 降级产出的函数体需要保留 source location 信息（供 ChainEmitter 定位 `@chain` 块插入位置）。
+3. storeRefs → import { StoreName } from "./stores/StoreName";
 
-**复杂度**: O(N + W)，~350 行
+4. 跨 tab 函数引用:
+   a. 扫描所有 logic tab → Map<fnName, tabLabel>
+   b. 扫描所有 event handler body 中的函数调用
+   c. 若调用的函数在 logic tab map 中 → import { fn } from "./lib/<tabLabel>";
+```
 
-### 3.5 StyleResolver — 样式/属性分离 + 标签映射
+**复杂度**: O(N + W)，~60 行
 
-**必须基于真实 .omni 语法设计。**
+---
 
-#### 3.5.1 设计系统 → HTML 标签映射
+### 3.4 StoreExtractor — Store 提取器
 
-编辑器 COMPONENT_PROTOCOL 使用设计系统名称（`Button`, `Container`, `Heading`），但 .omni 源码使用 HTML 元素。需要映射表：
+两阶段声明式提取。无变化。~150 行。
+
+---
+
+### 3.5 ExpressionLowering — 表达式降级器
+
+递归下降构建器（MVP）。无变化。~350 行。
+
+---
+
+### 3.6 StyleResolver — 样式/属性分离 + 标签映射
+
+**TAG_HTML_MAP**（19 个设计系统→HTML 标签映射）+ **STYLE_PROP_CSS_MAP**（snake_case→kebab-case）。
+
+**输出**: `ResolvedStyle`（`htmlTag`, `cssClassName`, `contentText`, `htmlAttrs`, `eventBindings`, `bindings`, `cssRules`）
+
+~80 行。
+
+---
+
+### 3.7 ChainEmitter — 链注释生成器
+
+**输入**: `CodeTab.graph + LoweredCode.functions`
+**输出**: `Map<string, ChainBlock>` — fnName → { functionName, nodeLines[], wireLines[] }
+
+**@node 必填属性表** + **@wire 格式规则**（fn 节点不写端口名、箭头 `->`、branch true/false 端口）+ **S5 变量引用验证**。
+
+~210 行。
+
+---
+
+### 3.8 buildAnnotationData — 注解数据生成器（重构）
+
+**原 AnnotationInjector 拆分后的数据层**。
 
 ```typescript
-const TAG_HTML_MAP: Record<string, {
-  tag: string;                          // HTML 标签名
-  propsToContent?: string;              // 哪个 prop 转为文本内容
-  propsToAttrs?: Record<string, string>; // prop → HTML 属性名映射
-  tagByProp?: string;                   // 由 prop 值决定实际标签名
-}> = {
-  Container: { tag: "div" },
-  Flex:      { tag: "div" },
-  Grid:      { tag: "div" },
-  Card:      { tag: "div" },
-  Text:      { tag: "p", propsToContent: "label" },
-  Heading:   { tag: "h1", propsToContent: "label", tagByProp: "level" },
-  Button:    { tag: "button", propsToContent: "label" },
-  Input:     { tag: "input" },
-  TextArea:  { tag: "textarea" },
-  Select:    { tag: "select" },
-  Checkbox:  { tag: "input" },
-  List:      { tag: "ul" },
-  ListItem:  { tag: "li" },
-  Image:     { tag: "img" },
-  Spinner:   { tag: "div" },
-  Progress:  { tag: "progress" },
-  Alert:     { tag: "div" },
-  Link:      { tag: "a", propsToContent: "label" },
-  Form:      { tag: "form" },
-};
+interface AnnotationData {
+  codeTabDirective: string;                             // "// @code-tab type=logic"
+  editAnnotations: Map<string, EditAnnotation>;         // nodeId → annotation
+}
+
+interface EditAnnotation {
+  line: string;         // "// @edit" | "// @edit folded" | "// @edit render=canvas"
+  indent: number;       // view tree 深度（SourceEmitter 控制实际缩进空格数）
+}
+
+function buildAnnotationData(
+  viewNodes: ViewNode[],
+  tabType: "logic" | "event",
+): AnnotationData;
 ```
 
-**Heading 的 tagByProp**: `level="1"` → `<h1>`, `level="2"` → `<h2>`，依此类推。
+**纯数据转换**: 遍历 view tree → 为每个 ViewNode 生成 `EditAnnotation`（含折叠/渲染标志）。不涉及字符串拼接，不依赖 SourceEmitter。
 
-**自定义组件**（来自 componentRegistry）：直接使用 PascalCase 名称，不经过映射表。
+~60 行。
 
-#### 3.5.2 Style 属性分离 + CSS 类名生成
+---
 
-实际 .omni 语法使用 `class: className` + `style { .className { css-prop: css-value } }` 模式，**不使用内联 `style={{}}`**。
+### 3.9 SourceEmitter — 源码生成器（重构）
+
+#### 3.9.1 输入接口
 
 ```typescript
-// 输入
-interface ResolvedStyle {
-  htmlTag: string;                          // 映射后的 HTML 标签名
-  cssClassName: string;                     // 分配给此元素的 CSS class 名
-  contentText?: string;                     // 标签间的文本内容（若有 propsToContent）
-  htmlAttrs: Record<string, string>;        // HTML 属性（如 src, href, type, placeholder）
-  eventBindings: Record<string, string>;    // 事件绑定：{ onPress: "handleClick" }
-  bindings: Record<string, string>;         // bind:prop → signalName（来自 wire 分析）
-  cssRules: Record<string, string>;         // CSS 属性：{ "background": "white", "border-radius": "8px" }
-  usedClassNames: string[];                 // 此元素引用的 CSS class 名列表
+interface EmitInput {
+  // 文件级
+  codeTabType: "logic" | "event";
+  imports: string[];
+
+  // Store（可有多个）
+  stores: Array<{
+    name: string;
+    signals: Record<string, { type: string; default?: unknown }>;
+    getters: Record<string, { returnType: string; body: string }>;
+    actions: Array<{ name: string; params: Array<{name:string; type:string}>; body: string }>;
+  }>;
+
+  // Component（主组件）
+  component: {
+    name: string;
+    signals: Record<string, { type: string; default?: unknown }>;
+    computeds: Record<string, { type: string; body: string }>;
+    storeRefs: string[];
+    fns: Array<{ name: string; params: Array<{name:string; type:string}>; returnType: string; body: string }>;
+    view: ViewNode | null;
+    style: Record<string, Record<string, string>>;
+  };
+
+  // 可选
+  themes?: ThemeDefinition[];
+  customComponents?: Array<{ name: string; source: string }>;
+}
+
+interface AnnotationStrategy {
+  /** 在每个 view 元素前调用，返回注解行或 null */
+  beforeViewNode(node: ViewNode, depth: number): string | null;
+  /** 在整个文件生成前调用，返回文件头指令（@code-tab） */
+  beforeFile(): string;
+}
+
+class SourceEmitter {
+  constructor(
+    private annotationStrategy?: AnnotationStrategy,
+  ) {}
+  emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string;
 }
 ```
 
-**核心逻辑**:
+#### 3.9.2 关键变化
+
+| 变化 | 旧设计 | 新设计 |
+|------|--------|--------|
+| **输入** | ComponentDefinition | `EmitInput`（展开的字段） |
+| **主题/自定义组件** | 后期字符串拼接 | 作为 EmitInput 字段，emitDocument 内部输出 |
+| **注解** | 后期行解析注入 | `AnnotationStrategy.beforeViewNode` 回调，生成时内嵌 |
+| **Chain** | 构造函数传入 chains Map | 同，emitComponent 内 emit fn 时先 emit chain |
+| **@code-tab** | AnnotationInjector 后期注入 | `AnnotationStrategy.beforeFile()` 在 emitDocument 开头调用 |
+
+#### 3.9.3 View 元素生成
+
 ```
-1. 查 TAG_HTML_MAP[element.tag] 获取 HTML 映射
-   若不在表中 → 自定义组件，直接用 element.tag 作为 htmlTag
-2. 从 element.props 中分离：
-   - propsToContent 指定的 prop → contentText
-   - COMPONENT_PROTOCOL[tag].styleProperties → cssRules（需 snake_case→kebab-case 转换）
-   - COMPONENT_PROTOCOL[tag].events 中已绑定的 → eventBindings
-   - bind: 前缀的（来自 WireAnalyzer.signalBindings） → bindings
-   - 其余 COMPONENT_PROTOCOL props → htmlAttrs
-3. 生成 CSS class 名：基于 element.id sanitize，如 "el-abc123" → css class "el-abc123"
-4. 收集 styleProperties 的值 → cssRules（snake_case→kebab-case 映射）
+<{htmlTag} id="{id}" class: {className}[ @onEvent={handler}]*[ attr="value"]*[ bind:prop={signal}]*
 ```
 
-#### 3.5.3 snake_case → kebab-case CSS 属性映射
+- **标签**: 始终成对 `<tag></tag>`
+- **CSS class**: `class: className`
+- **事件**: `@onEvent={handler}`
+- **缩进**: 4 空格
+
+#### 3.9.4 Store 生成
+
+使用 `action` 关键字（非 `fn`）：`action addTodo(text: String) { ... }`，`getter name: type = expr;`。
+
+#### 3.9.5 已知限制（Phase 3）
+
+- `@if` / `@for` 指令的 view 节点生成
+- 动态 CSS class: `class: { cls1: true, cls2: condition }`
+
+~370 行。
+
+---
+
+### 3.10 TokenEmitter
+
+始终完整生成。~30 行。
+
+### 3.11 CustomComponentEmitter
+
+简化子管道（C2）。~60 行。
+
+---
+
+### 3.12 错误处理系统
+
+#### 3.12.1 类型定义
 
 ```typescript
-const STYLE_PROP_CSS_MAP: Record<string, string> = {
-  background_color: "background",
-  border_radius: "border-radius",
-  font_size: "font-size",
-  font_weight: "font-weight",
-  text_align: "text-align",
-  // 直接映射（同名或简单转换）
-  padding: "padding",
-  margin: "margin",
-  gap: "gap",
-  width: "width",
-  height: "height",
-  color: "color",
-  shadow: "box-shadow",
-};
-```
+interface PipelineError {
+  phase: "A" | "B" | "C";
+  module: string;
+  severity: "fatal" | "warning";
+  elementId?: string;
+  code: string;
+  message: string;
+}
 
-**CSS 值格式**: 直接使用原始值（`"16px"`, `"white"`, `"1px solid #e5e7eb"`），不加额外引号包裹。
-
-**代码量**: ~80 行
-
-### 3.6 ComponentAssembler — 组件组装器
-
-**同前版设计，无变化。** ~80 行。
-
-### 3.7 SourceEmitter — 源码生成器
-
-**方案**: Visitor + Builder（递归下降 + CodeWriter），按真实 .omni 语法生成。
-
-#### 3.7.1 CodeWriter
-
-```typescript
-class CodeWriter {
-  private lines: string[] = [];
-  private _indent = 0;
-  private readonly indentStep = "    ";  // 4 空格（.omni 规范）
-
-  emit(line: string): void;      // 在当前缩进追加
-  indent(): void;                // +1
-  dedent(): void;                // -1
-  blank(): void;                 // 空行
-  toString(): string;            // join("\n") + "\n"
+interface StageResult<T> {
+  value: T | null;               // null = fatal 导致阶段失败
+  errors: PipelineError[];       // 当前阶段收集的错误
 }
 ```
 
-#### 3.7.2 输出结构
+#### 3.12.2 三阶段执行规则
 
 ```
-// @code-tab type=logic          ← AnnotationInjector 注入
-import omniview;
-import { ... } from "...";
+Phase A: 所有模块执行 → 全收集错误
+  ├─ 有 fatal → 返回 StageResult{ value: null, errors }
+  └─ 无 fatal → 继续 Phase B
 
-store TodoStore {
-    signal todos: Array = [];
-    getter activeCount: i32 = ...;
-    action addTodo(text: String) {
-        todos.push({ text, done: false });
-    }
-}
+Phase B: 所有模块执行 → 全收集错误
+  ├─ 有 fatal → 返回 StageResult{ value: null, errors }
+  └─ 无 fatal → 继续 Phase C
 
-component App {
-    @store TodoStore;
-    signal counter: i32 = 0;
-    computed doubled: i32 = counter * 2;
-
-    fn handleClick() -> void {
-        counter = counter + 1;
-    }
-
-    view {
-        // @edit                     ← AnnotationInjector 注入
-        <div id="el-root" class: app>
-            // @edit
-            <h3 id="el-title" class: title>计数器演示</h3>
-            // @edit
-            <button id="el-btn" class: btn @onPress={handleClick}>-</button>
-        </div>
-    }
-    style {
-        .app { max-width: 700px; margin: 0 auto; background: #f9fafb; }
-        .title { font-size: 18px; color: #1f2937; }
-        .btn { width: 40px; height: 40px; border: 2px solid #e5e7eb; border-radius: 8px; }
-    }
-}
+Phase C: 所有模块执行 → 全收集错误
+  返回 StageResult{ value: source, errors }
 ```
 
-#### 3.7.3 View 元素生成规则
+**关键**: 阶段内不短路——即使模块 2 报 fatal，仍执行模块 3（收集更多错误）。阶段间短路——Phase A 失败则跳过 B/C。
 
-**打开标签**:
-```
-<{htmlTag} id="{element.id}" class: {className}[ @onEvent={handler}]*[ attr="value"]*>
-```
+~50 行（Pipeline 编排逻辑）。
 
-**关闭标签**: `</{htmlTag}>`（始终成对，不自闭合）
+---
 
-**内容**: 
-- 有 `contentText` → 文本内容或插值 `{expression}`
-- 有 children → 递归 emit 子 ViewNode
-- 都无 → 空内容 `<div class: cls></div>`
+### 3.13 Pipeline — 编排层
 
-**自闭合**: .omni 不使用 `<tag />` 自闭合语法。用 `<tag></tag>`。
-
-**Props 格式化**（针对 HTML attrs）:
-```
-字符串  → attr="value"    (双引号，转义内部引号)
-数字    → attr={42}
-布尔    → attr={true} 或简写 attr（disabled 等HTML布尔属性）
-表达式  → attr={expression}
-绑定    → bind:attr={signalName}
-```
-
-**事件**: 统一 `@onEvent={handlerFn}` 格式（带 `@` 前缀）
-
-**CSS class**: 统一 `class: className` 格式（冒号分隔）。多个 class 用对象语法 `class: { cls1: true, cls2: condition }`
-
-**插值**: 内容文本中的 `{expression}` 直接输出（不转义大括号）
-
-#### 3.7.4 Style 块生成
-
-```
-style {
-    .{className} { {css-prop}: {css-value}; {css-prop}: {css-value}; ... }
-}
-```
-
-- 每行一个 class 规则
-- CSS 属性使用 kebab-case 名称（由 StyleResolver 转换）
-- CSS 值不加引号（`16px`, `#FFF`, `1px solid #e5e7eb`）
-
-#### 3.7.5 emitDocument / emitStore / emitComponent
-
-**emitDocument** 入口：自动添加 `import omniview;`（所有 .omni UI 文件必需），然后按序输出 store / component / theme。
-
-**emitStore**（Store 使用 `action` 关键字，不是 `fn`）:
-```typescript
-function emitStore(store: StoreDefinition): void {
-  writer.emit(`store ${store.name} {`);
-  writer.indent();
-  for (const [name, sig] of Object.entries(store.signals)) {
-    const def = sig.default !== undefined ? ` = ${formatValue(sig.default, sig.type)}` : "";
-    writer.emit(`signal ${name}: ${sig.type}${def};`);
-  }
-  for (const [name, getter] of Object.entries(store.getters)) {
-    writer.emit(`getter ${name}: ${getter.returnType} = ${getter.body};`);
-  }
-  for (const action of store.actions) {
-    const params = action.params.map(p => `${p.name}: ${p.type}`).join(", ");
-    writer.emit(`action ${action.name}(${params}) {`);
-    writer.indent();
-    for (const line of action.body.split("\n")) writer.emit(line);
-    writer.dedent();
-    writer.emit("}");
-  }
-  writer.dedent();
-  writer.emit("}");
-}
-```
-
-**emitComponent**（详见 3.7.6）:
-
-```typescript
-function emitComponent(comp: ComponentDefinition, chains: Map<string, ChainBlock>): void {
-  writer.emit(`component ${comp.name} {`);
-  writer.indent();
-
-  // @store 引用
-  for (const sr of comp.storeRefs) writer.emit(`@store ${sr};`);
-
-  // signals
-  for (const [name, sig] of Object.entries(comp.signals)) {
-    const def = sig.default !== undefined ? ` = ${formatValue(sig.default, sig.type)}` : "";
-    writer.emit(`signal ${name}: ${sig.type}${def};`);
-  }
-
-  // computeds (带 body)
-  for (const [name, comp] of Object.entries(comp.computeds)) {
-    const body = comp.body || "undefined";
-    writer.emit(`computed ${name}: ${comp.type} = ${body};`);
-  }
-
-  // functions (带 @chain 块)
-  for (const fn of comp.fns) {
-    const chain = chains.get(fn.name);
-    if (chain) writer.emit(chain);  // ChainEmitter 产出的 @chain 块
-    const params = fn.params.map(p => `${p.name}: ${p.type}`).join(", ");
-    writer.emit(`fn ${fn.name}(${params}) -> ${fn.returnType} {`);
-    writer.indent();
-    for (const line of fn.body.split("\n")) writer.emit(line);
-    writer.dedent();
-    writer.emit("}");
-    writer.blank();
-  }
-
-  // view
-  if (comp.view) {
-    writer.emit("view {");
-    writer.indent();
-    emitViewNode(comp.view);
-    writer.dedent();
-    writer.emit("}");
-  }
-
-  // style block
-  if (Object.keys(comp.style).length > 0) {
-    writer.emit("style {");
-    writer.indent();
-    for (const [cls, rules] of Object.entries(comp.style)) {
-      const ruleStr = Object.entries(rules).map(([k,v]) => `${k}: ${v};`).join(" ");
-      writer.emit(`.${cls} { ${ruleStr} }`);
-    }
-    writer.dedent();
-    writer.emit("}");
-  }
-
-  writer.dedent();
-  writer.emit("}");
-}
-```
-
-#### 3.7.6 emitViewNode 方法
-
-```typescript
-function emitViewNode(node: ViewNode): void {
-  const style = node.resolvedStyle!;  // 来自 StyleResolver
-  const parts: string[] = [];
-
-  // HTML tag
-  parts.push(`<${style.htmlTag}`);
-
-  // id
-  parts.push(` id="${sanitizeId(node.id)}"`);
-
-  // CSS class
-  parts.push(` class: ${style.cssClassName}`);
-
-  // HTML attrs
-  for (const [attr, val] of Object.entries(style.htmlAttrs)) {
-    parts.push(` ${attr}="${escapeAttr(val)}"`);
-  }
-
-  // bindings
-  for (const [prop, signalName] of Object.entries(style.bindings)) {
-    parts.push(` bind:${prop}={${signalName}}`);
-  }
-
-  // event bindings
-  for (const [evt, handler] of Object.entries(style.eventBindings)) {
-    parts.push(` @${evt}={${handler}}`);
-  }
-
-  const openTag = parts.join("");
-
-  // 内容
-  const hasContent = style.contentText || node.children.length > 0;
-  if (!hasContent) {
-    writer.emit(`${openTag}></${style.htmlTag}>`);
-    return;
-  }
-
-  writer.emit(`${openTag}>`);
-  writer.indent();
-
-  // 文本内容 / 插值
-  if (style.contentText) {
-    writer.emit(style.contentText);  // 如 "Click me" 或 "{count}"
-  }
-
-  // 子元素
-  for (const child of node.children) {
-    emitViewNode(child);
-  }
-
-  writer.dedent();
-  writer.emit(`</${style.htmlTag}>`);
-}
-```
-
-#### 3.7.7 与 ChainEmitter 的协作
-
-SourceEmitter 在生成函数前，检查 `chains: Map<fnName, ChainBlock>`。若存在，先 emit chain 注释块（保证 @chain 紧贴函数，满足规则 P4）。
-
-```typescript
-// SourceEmitter 构造函数
-constructor(
-  private styleMode: "class" = "class",
-  private chains: Map<string, ChainBlock> = new Map(),
-) {}
-```
-
-#### 3.7.8 已知限制（Phase 3 补充）
-
-- `@if` / `@for` 指令: `emitViewNode` 当前仅处理 `kind: "element"`。`@if`/`@for` 视图节点需在 Phase 3 补充递归生成逻辑。
-- 动态 CSS class：`class: { cls1: true, cls2: condition }` 对象语法暂不生成，Phase 3 支持。
-
-**代码量**: ~350 行
-
-### 3.8 TokenEmitter — 设计令牌生成器
-
-**同前版设计，无变化。** ~30 行。
-
-### 3.9 CustomComponentEmitter — 自定义组件生成器
-
-**方案**: 简化子管道（C2 — 仅 View + Style）
-
-**同前版设计**，新增约束：
-- 生成的组件文件第一行写入 `// @code-tab type=logic`
-- 组件内部 view 元素需要 `// @edit` 注解
-
-**代码量**: ~60 行
-
-### 3.10 ChainEmitter — 链注释生成器（新增）
-
-**将代码图 elements + wires 转为 `@chain` / `@node` / `@wire` 注释块。**
-
-#### 3.10.1 @chain 块格式
-
-```
-// ═══════════════════════════════════════════════════════
-// @chain <functionName>
-//   @node <id> <tag> <attrs...>  pos=<x>,<y>
-//   @wire <id> <from_id>.<from_port> -> <to_id>.<to_port> [collapsed] [group=<id>]
-// ═══════════════════════════════════════════════════════
-```
-
-#### 3.10.2 @node 属性速查
-
-**变量类:**
-
-| tag | 必填属性 | 可选属性 |
-|-----|---------|---------|
-| `signal` | name, type | init |
-| `store` | name | — |
-| `computed` | name, deps | — |
-
-**数据访问类:**
-
-| tag | 必填属性 |
-|-----|---------|
-| `getVariable` | name |
-| `setVariable` | name |
-
-**算术类:**
-
-| tag | 属性 |
-|-----|------|
-| `add` | — |
-| `sub` | — |
-| `mul` | — |
-| `div` | — |
-
-**逻辑类:**
-
-| tag | 必填属性 |
-|-----|---------|
-| `compare` | op（==, !=, >, <, >=, <=） |
-| `and` | — |
-| `or` | — |
-| `not` | — |
-| `concat` | — |
-
-**字面量:**
-
-| tag | 必填属性 |
-|-----|---------|
-| `literal` | value, type |
-
-**流程控制:**
-
-| tag | 必填属性 |
-|-----|---------|
-| `branch` | — |
-| `sequence` | outputs |
-| `forEach` | — |
-
-**UI 操作:**
-
-| tag | 必填属性 |
-|-----|---------|
-| `updateUIProperty` | target, property |
-
-**函数/代码:**
-
-| tag | 必填属性 | 可选属性 |
-|-----|---------|---------|
-| `fn` | source | — |
-| `customFn` | name, params, return | desc |
-| `return` | — | value |
-
-**通用规则:**
-- 必填属性必须齐全（规则 C1）
-- `pos=x,y` 必须存在，x/y 为整数（规则 C2）
-- tag 只允许上表中列出的值（规则 S4）
-- 属性值含空格时必须用引号包裹（规则 F3）
-
-#### 3.10.3 @wire 格式
-
-```
-@wire <id> <from_id>.<from_port> -> <to_id>.<to_port> [collapsed] [group=<id>]
-```
-
-**特殊规则:**
-- `fn` 节点的 wire 不写端口名：`@wire w5  n4.false -> n6`（n6 是 fn 节点）
-- `branch` 有 `true` / `false` 输出端口 + `condition` 输入端口
-- 箭头必须是 `->`（规则 F2）
-- `from_id` / `to_id` 必须在同一 `@chain` 的 `@node` 中存在（规则 S1）
-- 端口名必须是该节点的合法端口（规则 S2）
-
-#### 3.10.4 核心算法
-
-```
-function emitChain(tab: CodeTab, loweredFunctions: LoweredFunction[]): string {
-  // 每个 code tab 对应一个文件，其 elements+wires 生成该文件的 @chain 块
-  // 但 main tab 的 customFn 可能散布在设计画布中
-  // 查找规则: 每个 code tab 的 graph 生成一个或多个 @chain 块
-
-  const chains: ChainBlock[] = [];
-
-  // 按 customFn 分组
-  for (const fn of loweredFunctions) {
-    const fnNode = tab.graph.elements.find(e => e.tag === "customFn" && e.config?.fnName === fn.name);
-    if (!fnNode) continue;
-
-    // BFS 从 customFn 出发，收集所有可达节点
-    const reachableNodes = bfsCollect(fnNode.id, tab.graph);
-    // 拓扑排序
-    const sortedNodes = topologicalSort(reachableNodes, tab.graph.wires);
-    // @node 全部在 @wire 之前（规则 P6）
-    const nodeLines = sortedNodes.map(n => formatNode(n));
-    const wireLines = tab.graph.wires
-      .filter(w => reachableNodes.has(w.fromId) && reachableNodes.has(w.toId))
-      .map(w => formatWire(w, tab.graph.elements));
-
-    chains.push({
-      functionName: fn.name,
-      nodeLines,
-      wireLines,
-    });
-  }
-
-  return formatChainBlocks(chains);
-}
-```
-
-**formatNode 核心逻辑**:
-```
-根据 node.tag 查找必填属性表：
-  signal → name=<props.name>, type=<props.typeAnnotation>
-           可选: init=<默认值>
-  literal → value=<config.value>, type=<config.type>
-  compare → op=<config.op>
-  getVariable → name=<config.variableName>
-  setVariable → name=<config.targetSignal>
-  updateUIProperty → target=<config.targetId>, property=<config.property>
-  customFn → name=<config.fnName>, params=<...>, return=<config.fnReturnType>
-  fn → source=<element.source 或 "">
-  branch/forEach/add/sub/... → 无必填属性
-
-pos=<element.position.x>,<element.position.y>  ← 从 element.position 获取
-```
-
-**formatWire 核心逻辑**:
-```
-若 targetElement.tag === "fn":
-  → "@wire <id> <from>.<port> -> <to>"     (不写端口名)
-若 sourceElement.tag === "fn":
-  → "@wire <id> <from> -> <to>.<port>"     (不写端口名)
-否则:
-  → "@wire <id> <from>.<port> -> <to>.<port>"
-
-[collapsed] 和 [group=<id>] 来自 wireData
-```
-
-#### 3.10.5 变量引用验证（规则 S5）
-
-`@node` 属性中引用的变量名必须在链内或组件作用域已声明。ChainEmitter 在 `formatNode` 时进行验证：
-- `getVariable(name=...)` → 检查 name 是否在 tab.variables 或 graph elements 中存在
-- `setVariable(name=...)` → 同上
-- 引用的 signal/store/computed 名 → 必须在 elements 或 tab.variables 中存在
-- 验证失败 → 输出 warning（不阻塞生成，因源数据可能来自不完整画布）
-
-**代码量**: ~210 行
-
-### 3.11 AnnotationInjector — 注解注入器（重写）
-
-**从"最小标记"升级为"完整注释注入"。**
-
-#### 3.11.1 文件头：@code-tab 声明
-
-```typescript
-function injectCodeTab(source: string, tabType: "logic" | "event"): string {
-  const directive = `// @code-tab type=${tabType}`;
-  // 必须是文件第一行（规则 P1）
-  // 若 source 已以 @code-tab 开头，替换
-  if (source.startsWith("// @code-tab")) {
-    return source.replace(/^\/\/ @code-tab .*/, directive);
-  }
-  return `${directive}\n${source}`;
-}
-```
-
-#### 3.11.2 View 元素：@edit 注解
-
-对 SourceEmitter 生成的 view 部分，每个 `<` 元素前插入 `// @edit` 行：
-
-```typescript
-function injectEditAnnotations(viewSource: string, viewNodes: ViewNode[]): string {
-  // 遍历 view tree，在每个 <element> 行前插入 // @edit 注释
-  // 规则 P2: // @edit 下一行必须是 < 开头的元素，中间不许有空行
-  // 规则 P3: // @edit 和它的 < 元素的缩进必须一致
-  // 规则 C4: View block 内每个 < 元素必须有唯一对应的 // @edit
-
-  const lines = viewSource.split("\n");
-  const result: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith("<") && !trimmed.startsWith("</")) {
-      const indent = line.length - trimmed.length;
-      const indentStr = " ".repeat(indent);
-
-      // 查找对应 ViewNode 获取折叠/渲染模式信息
-      const nodeId = extractIdFromLine(trimmed);
-      const node = findNodeById(nodeId, viewNodes);
-      const flags = buildEditFlags(node);  // "folded" / "render=canvas" / ""
-
-      result.push(`${indentStr}// @edit${flags ? " " + flags : ""}`);
-    }
-    result.push(line);
-  }
-
-  return result.join("\n");
-}
-
-function buildEditFlags(node?: ViewNode): string {
-  const flags: string[] = [];
-  if (node?.isFolded) flags.push("folded");
-  if (node?.renderMode === "canvas") flags.push("render=canvas");
-  return flags.join(" ");
-}
-```
-
-**@edit 标志规则** (F1): 只允许 `folded`、`render=dom`、`render=canvas`。
-
-#### 3.11.3 组合注入
-
-```
-// 最终产出顺序：
-//   1. @code-tab 声明（文件头）
-//   2. import 语句
-//   3. store 定义
-//   4. component 定义（内含 @edit 注解的 view tree + @chain 块）
-//   5. theme 块
-```
-
-**代码量**: ~150 行
-
-### 3.12 Pipeline — 编排层
-
-**入口函数**:
 ```typescript
 // 单文件生成
 function generateOmniSource(options: {
   designElements: ElementData[];
   designWires: WireData[];
-  activeCodeTab: CodeTab;          // 当前文件的 code tab
+  codeTabs: CodeTab[];             // 所有 tab（main + event + logic）
   componentRegistry: Record<string, ComponentDefinition>;
   designTokens: DesignTokens;
-}): string;
+}): StageResult<string>;
 
-// 多文件生成（保存整个项目）
+// 多文件生成
 function generateOmniFiles(options: {
   designElements: ElementData[];
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentRegistry: Record<string, ComponentDefinition>;
   designTokens: DesignTokens;
-}): Record<string, string>;  // filePath → .omni source
+}): StageResult<Record<string, string>>;  // filePath → source
 ```
 
 **单文件生成执行顺序**:
 ```
-1. ViewTreeBuilder: designElements → viewTree
-2. WireAnalyzer: designElements + designWires → bindingResult
-3. StoreExtractor: codeBlocks + codeWires → stores + standaloneSignals
-4. ExpressionLowering: codeBlocks + codeWires → functions + actions + getters
-5. StyleResolver: 各 view element → ResolvedStyle (htmlTag, cssClassName, cssRules, eventBindings...)
-6. ChainEmitter: activeCodeTab.graph + loweredFunctions → Map<fnName, ChainBlock>
-7. ComponentAssembler: 以上结果 → ComponentDefinition (含 ResolvedStyle + chain 引用)
-8. SourceEmitter: ComponentDefinition + chains → .omni 源码（ChainEmitter 内联在函数前）
-9. TokenEmitter: DesignTokens → theme 块
-10. CustomComponentEmitter: 自定义组件 → component 块
-11. AnnotationInjector.injectCodeTab: → 文件头 @code-tab 声明
-12. AnnotationInjector.injectEditAnnotations: → view 元素 @edit 注解（解析源码行，在每个 <tag 前插入）
-13. 返回完整 .omni 源码
+Phase A:
+  1. ViewTreeBuilder: designElements → viewTree + pascalCaseTags[]
+  2. WireAnalyzer: elements + wires → BindingResult
+  3. ImportCollector: tags + storeRefs + codeTabs → importLines[]
+  检查 fatal → 终止或继续
+
+Phase B:
+  4. StoreExtractor: codeBlocks + codeWires → stores + standaloneSignals
+  5. ExpressionLowering: codeBlocks + codeWires → LoweredCode
+  6. StyleResolver: viewTree 各节点 → ViewNode.resolvedStyle (in-place)
+  7. ChainEmitter: codeTabs + loweredCode → Map<fnName, ChainBlock>
+  检查 fatal → 终止或继续
+
+Phase C:
+  8. buildAnnotationData: viewTree → AnnotationData
+  9. SourceEmitter.emitDocument(EmitInput{...}, chains)
+     - 构造 EmitInput（imports + stores + component + themes + customComponents）
+     - 构造 AnnotationStrategy（from AnnotationData）
+     - 生成 .omni 源码
+  10. 返回 StageResult{ value: source, errors }
 ```
 
-**多文件生成逻辑**:
-```
-每个 code tab → 一个文件:
-  - "main" tab       → src/main.omni (包含主画布 view tree)
-  - "event" tabs     → src/main.omni (内嵌，或独立文件)
-  - "logic" tabs     → src/lib/<tabLabel>.omni
-  - custom component → src/components/<Name>.omni
-```
+**多文件生成**: main.omni（含内联 event）+ logic tab 文件 + store 文件 + 自定义组件文件。
 
-**代码量**: ~120 行
+~130 行。
 
 ---
 
 ## 4. 类型系统
 
-### 4.1 核心输出类型
+### 4.1 核心类型
 
 ```typescript
-interface OmniDocument {
-  codeTabType: "logic" | "event";
-  imports: string[];
-  stores: StoreDefinition[];
-  components: ComponentDefinition[];
-  themes: ThemeDefinition[];
+// ── 管道错误 ──
+interface PipelineError {
+  phase: "A" | "B" | "C";
+  module: string;
+  severity: "fatal" | "warning";
+  elementId?: string;
+  code: string;
+  message: string;
 }
 
-interface StoreDefinition {
+interface StageResult<T> {
+  value: T | null;
+  errors: PipelineError[];
+}
+
+// ── EmitInput（SourceEmitter 输入）──
+interface EmitInput {
+  codeTabType: "logic" | "event";
+  imports: string[];
+  stores: StoreDef[];
+  component: ComponentPart;
+  themes?: ThemeDef[];
+  customComponents?: Array<{ name: string; source: string }>;
+}
+
+interface StoreDef {
   name: string;
   signals: Record<string, { type: string; default?: unknown }>;
   getters: Record<string, { returnType: string; body: string }>;
   actions: Array<{ name: string; params: Array<{name:string; type:string}>; body: string }>;
 }
 
-interface ComponentDefinition {
+interface ComponentPart {
   name: string;
-  props: Record<string, { type: string; default?: unknown }>;
   signals: Record<string, { type: string; default?: unknown }>;
-  computeds: Record<string, { type: string; deps?: string[] }>;
-  events: string[];
+  computeds: Record<string, { type: string; body: string }>;
   storeRefs: string[];
   fns: Array<{ name: string; params: Array<{name:string; type:string}>; returnType: string; body: string }>;
   view: ViewNode | null;
   style: Record<string, Record<string, string>>;
-  lifecycles: Record<string, string[]>;
 }
 
+// ── Annotation ──
+interface AnnotationData {
+  codeTabDirective: string;
+  editAnnotations: Map<string, EditAnnotation>;
+}
+
+interface EditAnnotation {
+  line: string;
+  indent: number;
+}
+
+interface AnnotationStrategy {
+  beforeViewNode(node: ViewNode, depth: number): string | null;
+  beforeFile(): string;
+}
+
+// ── ViewNode ──
 interface ViewNode {
-  id: string;           // 原始 element.id
-  tag: string;          // 设计系统标签（Button, Container...）
+  id: string;
+  tag: string;          // 设计系统标签（Button, Container...），StyleResolver 填充 htmlTag
   props: Record<string, unknown>;
   children: ViewNode[];
   kind: "element" | "text" | "interpolation" | "if" | "for" | "slot";
-  resolvedStyle?: ResolvedStyle;  // StyleResolver 填充
+  resolvedStyle?: ResolvedStyle;
   isFolded?: boolean;
   renderMode?: "dom" | "canvas";
-  // @if
   condition?: string;
   branches?: { condition: string; body: ViewNode[] }[];
   fallback?: ViewNode[] | null;
-  // @for
   iterable?: string;
   itemBinding?: string;
   keyExpr?: string;
   emptyBody?: ViewNode[] | null;
-  // text/interpolation
   text?: string;
   expression?: string;
-  // slot
   slotName?: string;
 }
 
-interface ThemeDefinition {
-  name: string;
-  categories: Record<string, Record<string, string>>;
-}
-
-type PropValue =
-  | { kind: "string"; value: string }
-  | { kind: "number"; value: number }
-  | { kind: "boolean"; value: boolean }
-  | { kind: "expr"; code: string }
-  | { kind: "bind"; signalPath: string };
-```
-
-### 4.2 中间类型
-
-```typescript
-// WireAnalyzer 产出
-interface BindingResult {
-  signalBindings: Map<string, Array<{ elementId: string; propName: string }>>;
-  storeRefs: Map<string, string[]>;
-  computedDeps: Map<string, string[]>;
-  unwiredProps: Array<{ elementId: string; tag: string; propName: string }>;
-}
-
-// StyleResolver 产出
+// ── StyleResolver 产出 ──
 interface ResolvedStyle {
-  htmlTag: string;                          // 映射后的 HTML 标签名
-  cssClassName: string;                     // CSS class 名（基于 element.id sanitize）
-  contentText?: string;                     // 标签间文本（来自 propsToContent）
-  htmlAttrs: Record<string, string>;        // HTML 属性（src, href, type, placeholder...）
-  eventBindings: Record<string, string>;    // @onPress → handlerFn
-  bindings: Record<string, string>;         // bind:prop → signalName
-  cssRules: Record<string, string>;         // CSS 属性（kebab-case，如 "border-radius": "8px"）
-  usedClassNames: string[];                 // 此元素引用的 CSS class 名
+  htmlTag: string;
+  cssClassName: string;
+  contentText?: string;
+  htmlAttrs: Record<string, string>;
+  eventBindings: Record<string, string>;
+  bindings: Record<string, string>;
+  cssRules: Record<string, string>;
+  usedClassNames: string[];
 }
 
-// ExpressionLowering 产出
-interface LoweredCode {
-  expressions: Map<string, string>;
-  functions: Array<{
-    name: string;
-    params: Array<{ name: string; type: string }>;
-    returnType: string;
-    body: string;
-  }>;
-  actions: Array<{
-    storeName: string;
-    name: string;
-    params: Array<{ name: string; type: string }>;
-    body: string;
-  }>;
-  getters: Array<{
-    name: string;
-    returnType: string;
-    body: string;
-    deps: string[];
-  }>;
-}
-
-// ChainEmitter 产出
+// ── ChainEmitter 产出 ──
 interface ChainBlock {
   functionName: string;
-  nodeLines: string[];    // "//   @node n1  signal  name=counter  pos=50,50"
-  wireLines: string[];    // "//   @wire w1  n1.value -> n2.a"
+  nodeLines: string[];
+  wireLines: string[];
+}
+
+// ── ExpressionLowering 产出 ──
+interface LoweredCode {
+  expressions: Map<string, string>;
+  functions: Array<{ name: string; params: Array<{name:string; type:string}>; returnType: string; body: string }>;
+  actions: Array<{ storeName: string; name: string; params: Array<{name:string; type:string}>; body: string }>;
+  getters: Array<{ name: string; returnType: string; body: string; deps: string[] }>;
 }
 ```
 
@@ -999,22 +548,24 @@ interface ChainBlock {
 
 ## 5. 代码量估算
 
-| 模块 | 估算行数 | 变化 |
-|------|---------|------|
-| types.ts | 160 | +40 (ResolvedStyle 重定义) |
-| view-tree-builder.ts | 40 | — |
+| 模块 | 行数 | 变化 |
+|------|------|------|
+| types.ts | 180 | +20 (StageResult + PipelineError) |
+| view-tree-builder.ts | 50 | +10 (收集 PascalCase 标签) |
 | wire-analyzer.ts | 50 | — |
+| import-collector.ts | 60 | **新增** |
 | store-extractor.ts | 150 | — |
 | expression-lowering.ts | 350 | — |
-| style-resolver.ts | 80 | +50 (TAG_HTML_MAP + CSS 映射 + class 生成) |
-| component-assembler.ts | 80 | — |
-| source-emitter.ts | 350 | +30 (class:语法/@事件/HTML标签/内容文本/style块) |
+| style-resolver.ts | 80 | — |
+| chain-emitter.ts | 210 | — |
+| annotation-data.ts | 60 | **拆分自旧 AnnotationInjector** |
+| source-emitter.ts | 370 | +20 (EmitInput + AnnotationStrategy) |
 | token-emitter.ts | 30 | — |
 | custom-component-emitter.ts | 60 | — |
-| chain-emitter.ts | 210 | 新增 |
-| annotation-injector.ts | 150 | +140 |
-| pipeline.ts (index.ts) | 120 | +40 |
-| **总计** | **~1830** |
+| pipeline.ts | 130 | +10 (三阶段 StageResult 编排) |
+| **总计** | **~1780** | |
+
+> 旧设计 ~1830 行，移除 ComponentAssembler (-80)、拆分 AnnotationInjector、新增 ImportCollector (+60)，净减少 ~50 行且架构更清晰。
 
 ---
 
@@ -1022,33 +573,31 @@ interface ChainBlock {
 
 ### 6.1 `.omni` 为唯一真相源
 
-`.omni` 源码文件包含完整信息：代码 + 编辑器注释元数据。不再需要 `.omni.json` 作为主要存储格式。
-
 ```
 .omni 文件内容 = OmniLang 合法代码 + 编辑器注释
-  ├── // @code-tab type=logic          ← 编辑器文件类型
-  ├── import omniview;                 ← 自动添加
-  ├── store TodoStore {
-  │     signal items: Array = [];
-  │     getter totalCount: i32 = ...;
-  │     action addTodo(text: String) { ... }
-  │   }
+  ├── // @code-tab type=logic
+  ├── import omniview;
+  ├── import { TodoStore } from "./stores/TodoStore";
+  ├── store TodoStore { ... }
   ├── component App {
   │     @store TodoStore;
   │     signal counter: i32 = 0;
   │
-  │     // ════════════════════      ← @chain 紧贴函数（规则 P4）
-  │     // @chain handleClick
-  │     //   @node n1  ...
-  │     //   @wire w1  ...
   │     // ════════════════════
-  │     fn handleClick() -> void { ... }
+  │     // @chain handleClick
+  │     //   @node n1  signal  name=counter  pos=50,50
+  │     //   @wire w1  n1.value -> n2.a
+  │     // ════════════════════
+  │     fn handleClick() -> void { counter = counter + 1; }
+  │
+  │     // @code-tab type=event label=onReset    ← event tab 边界
+  │     fn onReset() -> void { counter = 0; }
   │
   │     view {
-  │         // @edit                 ← 编辑器元素标记
+  │         // @edit
   │         <div id="el-root" class: app>
-  │             // @edit folded      ← 编辑器折叠状态
-  │             <button id="el-btn" class: btn @onPress={handleClick}>Click</button>
+  │             // @edit
+  │             <button id="el-btn" class: btn @onPress={handleClick}>+</button>
   │         </div>
   │     }
   │     style {
@@ -1059,12 +608,11 @@ interface ChainBlock {
   └── theme myTheme { ... }
 ```
 
-### 6.2 保存时触发（saveProject）
+### 6.2 保存时触发
 
 ```typescript
-const saveProject = useCallback(async (customPath?: string) => {
-  // 1. 生成所有 .omni 文件
-  const files = generateOmniFiles({
+const saveProject = useCallback(async () => {
+  const result = generateOmniFiles({
     designElements: store.elements,
     designWires: store.wires,
     codeTabs: useCodeGraphStore.getState().toSerializable().tabs,
@@ -1072,52 +620,52 @@ const saveProject = useCallback(async (customPath?: string) => {
     designTokens: useTokenStore.getState().tokens,
   });
 
-  // 2. 写入每个文件
-  for (const [filePath, source] of Object.entries(files)) {
+  if (!result.value) {
+    // 有 fatal 错误 → 显示错误面板，不写入
+    setCompileErrors(result.errors);
+    return;
+  }
+
+  // 写入所有文件
+  for (const [filePath, source] of Object.entries(result.value)) {
     await api.writeFile(filePath, source);
   }
 
-  // 3. 更新编辑器 UI 状态文件
-  await api.saveEditorToml({
-    active_file: store.activeFilePath || "src/main.omni",
-    active_mode: store.activeMode,
-    open_files: Object.keys(files),
-    left_open: true,
-    right_width: 320,
-    viewports: { /* ... */ },
-  });
+  // 更新 .omni-editor.toml
+  await api.saveEditorToml({ active_file, active_mode, open_files, ... });
 
-  // 4. 更新编辑器内 activeFileContent
-  const mainSource = files["src/main.omni"] || "";
-  store.setSourceCode(mainSource);
-
+  store.setSourceCode(result.value["src/main.omni"] || "");
   store.markClean();
+
+  // 显示 warnings（如有）
+  if (result.errors.length > 0) {
+    showWarnings(result.errors);
+  }
 });
 ```
 
-### 6.3 编译时触发（handleCompile）
+### 6.3 编译时触发
 
 ```typescript
 const handleCompile = useCallback(async () => {
-  // 编译前先同步：生成当前文件源码
-  const source = generateOmniSource({
+  const result = generateOmniSource({
     designElements: store.elements,
     designWires: store.wires,
-    activeCodeTab: currentCodeTab,
+    codeTabs: useCodeGraphStore.getState().toSerializable().tabs,
     componentRegistry: useComponentRegistry.getState().definitions,
     designTokens: useTokenStore.getState().tokens,
   });
-  store.setSourceCode(source);
-  const result = await api.compile(source, target);
-  // ...
+
+  if (!result.value) {
+    setCompileErrors(result.errors);
+    return;
+  }
+
+  store.setSourceCode(result.value);
+  const compileResult = await api.compile(result.value, target);
+  setCompileErrors(compileResult.errors || []);
 });
 ```
-
-### 6.4 与旧 `.omni.json` 的共存
-
-- **过渡期**: `.omni.json` 继续保存（编辑器快速加载缓存），但 `.omni` 是权威源
-- **打开项目**: 优先读 `.omni` 源码 → 解析画布；若不存在则 fallback 到 `.omni.json`
-- **迁移**: 使用 `omnic migrate` CLI 命令一次性迁移旧项目
 
 ---
 
@@ -1125,85 +673,18 @@ const handleCompile = useCallback(async () => {
 
 ### 7.1 单元测试
 
-每个模块纯函数，输入画布状态 → 断言输出。
-
-```typescript
-// source-emitter.test.ts — 验证 View 元素输出
-test("Button → <button> with class: and @onPress", () => {
-  const comp: ComponentDefinition = {
-    name: "Counter",
-    signals: { count: { type: "i32", default: 0 } },
-    computeds: {},
-    storeRefs: [],
-    events: [],
-    fns: [{ name: "inc", params: [], returnType: "void", body: "count = count + 1;" }],
-    view: {
-      id: "el-btn",
-      tag: "Button",
-      props: { label: "+" },
-      children: [],
-      kind: "element",
-      resolvedStyle: {
-        htmlTag: "button",
-        cssClassName: "btn",
-        contentText: "+",
-        htmlAttrs: {},
-        eventBindings: { onPress: "inc" },
-        bindings: {},
-        cssRules: { "width": "40px", "border-radius": "8px" },
-        usedClassNames: ["btn"],
-      },
-    },
-    style: { btn: { width: "40px", "border-radius": "8px" } },
-    lifecycles: {},
-  };
-
-  const emitter = new SourceEmitter();
-  const output = emitter.emitComponent(comp, new Map());
-
-  expect(output).toContain('<button id="el-btn" class: btn @onPress={inc}>');
-  expect(output).toContain('+');
-  expect(output).toContain('</button>');
-  expect(output).toContain('.btn { width: 40px; border-radius: 8px; }');
-});
-
-// chain-emitter.test.ts
-test("customFn → @chain block with @node and @wire", () => {
-  const tab: CodeTab = {
-    id: "tab-1", type: "event", label: "handleClick", icon: "⚡",
-    graph: {
-      elements: [
-        { id: "n1", tag: "customFn", config: { fnName: "handleClick", fnReturnType: "void" },
-          position: { x: 50, y: 50 }, /* ... */ },
-        { id: "n2", tag: "literal", config: { value: "0", type: "i32" },
-          position: { x: 50, y: 150 }, /* ... */ },
-      ],
-      wires: [
-        { id: "w1", fromId: "n2", fromPort: "value", toId: "n1", toPort: "param" },
-      ],
-    },
-    variables: [],
-  };
-
-  const result = emitChain(tab, [{ name: "handleClick", params: [], returnType: "void", body: "..." }]);
-
-  expect(result).toContain("// @chain handleClick");
-  expect(result).toContain("@node n1  customFn  name=handleClick  return=void  pos=50,50");
-  expect(result).toContain("@node n2  literal  value=0  type=i32  pos=50,150");
-  expect(result).toContain("@wire w1  n2.value -> n1.param");
-});
-```
+每个模块纯函数测试。各阶段可独立构造输入数据。
 
 ### 7.2 集成测试
 
-使用现有 E2E 项目的画布 snapshot，走完整管道，验证：
-1. 输出 .omni 源码符合所有解析规则（P1-P6, I1-I4, C1-C4, S1-S5, F1-F3）
-2. 编译器可成功解析输出 .omni 源码
-3. 解析后的画布状态与输入画布状态等价（round-trip）
+- 用现有 E2E 项目 snapshot 走完整管道
+- 验证输出 .omni 符合所有解析规则（P1-P6, I1-I4, C1-C4, S1-S5, F1-F3）
+- 验证 round-trip：编译器解析生成的 .omni → 无错误
 
-### 7.3 回归测试
+### 7.3 错误路径测试
 
-用 learn-omniview 等现有项目作为 golden test。
+- 构造有循环依赖的 ExpressionLowering 输入 → 验证 Phase B 返回 fatal
+- 构造有非法 port 的 wire → 验证 Phase A 收集 error 但继续执行其余模块
 
 ---
 
@@ -1211,40 +692,43 @@ test("customFn → @chain block with @node and @wire", () => {
 
 | 风险 | 缓解 |
 |------|------|
-| ExpressionLowering 复杂度过高 | MVP 先处理核心 80% 场景（linear data flow），branch/forEach 作为 Phase 2 |
-| ChainEmitter @node/@wire 格式与解析器不一致 | 共享测试 fixture，两端用同一套 node tag 属性表 |
-| 生成代码格式不完美 | round-trip 测试验证正确性；格式细节由编译器承担 |
-| 大型项目性能 | 生成在保存/编译时触发（非实时），1-2 秒可接受；后续可加 Web Worker |
-| 与手写代码冲突 | `@code-tab` / `@edit` / `@chain` 标记明确分界线；无标记文件不覆盖 |
-| 多文件项目保存一致性 | `generateOmniFiles()` 原子化写入，或先写临时文件再 rename |
+| ExpressionLowering 复杂度过高 | MVP 先处理 linear data flow，branch/forEach 作为 Phase 2 |
+| Event tab round-trip 边界识别 | `// @code-tab type=event label=xxx` 作为明确的切分标记 |
+| 生成代码格式不完美 | round-trip 测试验证正确性 |
+| 大型项目性能 | 生成在保存/编译时触发（非实时），1-2 秒可接受 |
+| 与手写代码冲突 | `@code-tab` / `@edit` / `@chain` 标记明确分界线 |
+| StageResult 样板代码 | 类型定义集中在 types.ts，Pipeline 编排在一个函数内 |
 
 ---
 
 ## 9. 实施阶段
 
-### Phase 1: 核心管道（无注释，验证 round-trip）
-1. types.ts
+### Phase 1: Phase A（结构分析 → round-trip）
+1. types.ts（含 StageResult + PipelineError）
 2. view-tree-builder.ts
 3. wire-analyzer.ts
-4. style-resolver.ts
-5. source-emitter.ts（含 id 生成）
-6. pipeline.ts — 单文件生成
-7. **目标**: 能生成合法 .omni 源码，编译器解析无错误
+4. import-collector.ts
+5. style-resolver.ts
+6. source-emitter.ts（基础版，不含 AnnotationStrategy）
+7. pipeline.ts（Phase A + C 骨架）
+8. **目标**: 能生成合法 .omni 源码（view tree + props + style）
 
-### Phase 2: 编辑器注释
-8. chain-emitter.ts — @chain/@node/@wire 块
-9. annotation-injector.ts — @code-tab + @edit 注入
-10. **目标**: 生成含完整编辑器元数据的 .omni 源码
+### Phase 2: Phase B（语义降级）
+9. store-extractor.ts
+10. expression-lowering.ts
+11. chain-emitter.ts
+12. **目标**: 完整的 component + store + fn + @chain 生成
 
-### Phase 3: 逻辑层
-11. store-extractor.ts
-12. expression-lowering.ts
-13. component-assembler.ts
-14. **目标**: component + store + fn 定义完整生成
+### Phase 3: 注解 + 错误处理
+13. annotation-data.ts
+14. SourceEmitter 集成 AnnotationStrategy
+15. Pipeline 三阶段 StageResult 编排
+16. **目标**: 含完整编辑器元数据 + 错误报告的 .omni 源码
 
 ### Phase 4: 扩展 + 集成
-15. token-emitter.ts
-16. custom-component-emitter.ts
-17. pipeline.ts — 多文件生成
-18. 集成到 App.tsx（saveProject / handleCompile）
-19. **目标**: 完整双向同步上线
+17. token-emitter.ts
+18. custom-component-emitter.ts
+19. 多文件生成（generateOmniFiles）
+20. 集成到 App.tsx
+21. @if / @for 指令支持
+22. **目标**: 完整双向同步上线
