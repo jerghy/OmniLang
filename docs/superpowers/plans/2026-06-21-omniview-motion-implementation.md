@@ -1,8 +1,8 @@
-# OmniView Motion Animation — Phase 1 Implementation Plan
+# OmniView Motion Animation — Complete Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the core OmniView Motion animation system — @motion definitions, @timeline cross-element orchestration, element triggers, stagger, @if/@for animation integration, callbacks, and cross-platform codegen to Web (WAAPI + JS runtime) and Flutter (AnimationController + Tween).
+**Goal:** Implement the full OmniView Motion animation system across 3 phases (19 tasks) — @motion, @timeline, triggers, stagger, @if/@for animation, callbacks, scroll/drag/gesture, path animation, FLIP, @hero, DevTools, and cross-platform codegen to Web (React + OmniView) and Flutter.
 
 **Architecture:** Extends the existing omni-compiler pipeline (lexer → parser → AST → IR → codegen) with animation-specific nodes at each layer. The Web runtime embeds a JS animation engine (~500 lines) with WAAPI integration and spring physics. Flutter codegen maps motion constructs to AnimationController/Tween. All validation is compile-time; zero runtime animation errors are possible.
 
@@ -2154,7 +2154,7 @@ git commit -m "test: add E2E motion animation test project"
 
 ## Phase 1 Completion Checklist
 
-After all 11 tasks, verify:
+After Tasks 1-11, verify:
 - [ ] `cargo test` — all tests pass (target: ~450 tests, up from ~410)
 - [ ] `cargo build --release` — production build succeeds
 - [ ] Manual E2E: compile MotionDemo.omni → open in browser → animations play correctly
