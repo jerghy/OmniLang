@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the core OmniView Motion animation system — @motion definitions, element triggers, stagger, @if/@for animation integration, callbacks, and cross-platform codegen to Web (WAAPI + JS runtime) and Flutter (AnimationController + Tween).
+**Goal:** Implement the core OmniView Motion animation system — @motion definitions, @timeline cross-element orchestration, element triggers, stagger, @if/@for animation integration, callbacks, and cross-platform codegen to Web (WAAPI + JS runtime) and Flutter (AnimationController + Tween).
 
 **Architecture:** Extends the existing omni-compiler pipeline (lexer → parser → AST → IR → codegen) with animation-specific nodes at each layer. The Web runtime embeds a JS animation engine (~500 lines) with WAAPI integration and spring physics. Flutter codegen maps motion constructs to AnimationController/Tween. All validation is compile-time; zero runtime animation errors are possible.
 
@@ -48,6 +48,7 @@ In `TokenKind` enum, add:
 ```rust
 // Motion definition
 AtMotion,        // @motion
+AtTimeline,      // @timeline
 // Element trigger attributes
 AtEnter,         // @enter
 AtLeave,         // @leave
@@ -86,6 +87,7 @@ Add all `@`-prefixed tokens to the existing `@`-keyword matcher in the lexer. Mo
 
 ```rust
 "@motion" => TokenKind::AtMotion,
+"@timeline" => TokenKind::AtTimeline,
 "@enter" => TokenKind::AtEnter,
 "@leave" => TokenKind::AtLeave,
 "@hover" => TokenKind::AtHover,
@@ -141,6 +143,18 @@ pub struct MotionDef {
     pub name: String,
     pub body: MotionBody,
     pub span: Span,
+}
+
+/// Cross-element timeline orchestration
+#[derive(Debug, Clone)]
+pub struct TimelineDef {
+    pub name: String,
+    pub items: Vec<TimelineItem>,  // reuse timeline item type from MotionBody
+    pub span: Span,
+}
+impl TimelineDef {
+    /// Each item references an element `id` + motion name
+    /// Syntax: <id> <motion_ref> over:... start:...
 }
 
 #[derive(Debug, Clone)]
@@ -330,6 +344,7 @@ pub enum TriggerKind {
     Enter, Leave, Hover, Unhover, Press, Focus,
     Animate, InView, Scroll,
     DragHorizontal, DragVertical,
+    Timeline,  // for @timeline attribute
 }
 
 pub struct StateDef {
@@ -496,9 +511,43 @@ impl<'a> Parser<'a> {
 }
 ```
 
-- [ ] **Step 3: Register @motion parsing in mod.rs**
+- [ ] **Step 3: Add @timeline parser**
 
-In `parser/mod.rs`, hook `parse_motion_def` into the top-level statement parser and component body parser.
+```rust
+impl<'a> Parser<'a> {
+    pub fn parse_timeline_def(&mut self) -> ParseResult<TimelineDef> {
+        let span_start = self.span();
+        self.expect_token(TokenKind::AtTimeline, "expected '@timeline'")?;
+        let name = self.expect_ident()?;
+        self.expect_token(TokenKind::LBrace, "expected '{'")?;
+        // Parse items: <id> <motion_ref> over:... start:...
+        let mut items = Vec::new();
+        let mut connector = Connector::None;
+        while self.peek_kind() != TokenKind::RBrace {
+            let id = self.expect_ident()?;       // element id
+            let motion = self.expect_ident()?;   // motion name
+            let over = self.parse_optional_timing()?;
+            let start = self.parse_optional_start()?;
+            items.push(TimelineItem { kind: TimelineItemKind::Direction(DirectionItem {
+                direction: Direction::To,
+                properties: vec![],
+                over: over.unwrap_or(/* error */),
+                ease: /* ... */,
+                delay: None,
+                color_space: None,
+                start,
+            }), connector: connector.clone() });
+            connector = self.parse_connector()?;
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(TimelineDef { name, items, span: self.span_from(span_start) })
+    }
+}
+```
+
+- [ ] **Step 4: Register @motion and @timeline parsing in mod.rs**
+
+In `parser/mod.rs`, hook `parse_motion_def` and `parse_timeline_def` into the top-level statement parser and component body parser.
 
 - [ ] **Step 4: Run tests**
 
@@ -542,6 +591,11 @@ TokenKind::AtHover => {
 }
 // ... similarly for AtPress, AtFocus, AtAnimate, AtInView, AtScroll,
 //     AtDragHorizontal, AtDragVertical, AtDrivenBy
+
+TokenKind::AtTimeline => {
+    let trigger = self.parse_motion_trigger(TriggerKind::Timeline)?;
+    props.push(ElementProp::MotionTrigger(trigger));
+}
 
 // @paused — boolean override for motion's paused value
 TokenKind::AtPaused => {
@@ -785,6 +839,7 @@ pub enum TriggerKind {
     Enter, Leave, Hover, Unhover, Press, Focus,
     Animate, InView, Scroll,
     DragHorizontal, DragVertical,
+    Timeline,
 }
 
 /// State animation IR
@@ -1628,7 +1683,36 @@ fn emit_element_trigger_js(&mut self, el: &ElementIR) -> String {
 }
 ```
 
-- [ ] **Step 6: Implement @if double-branch codegen**
+- [ ] **Step 6: Implement @timeline codegen**
+
+Generate JS that orchestrates multiple elements by `id`:
+
+```rust
+fn emit_timeline_js(&self, timeline: &TimelineIntent) -> String {
+    let mut out = String::new();
+    for item in &timeline.items {
+        // item.id → document.getElementById(item.id)
+        // item.motion_name → resolve to motion config
+        let start_delay = self.compute_start_delay(item);
+        out.push_str(&format!(
+            "setTimeout(() => {{ 
+                const el = document.getElementById('{id}');
+                if (el) __omni_createAnimation('{id}', {{trigger:'timeline', ...{config}}});
+            }}, {delay});\n",
+            id = item.element_id,
+            config = self.emit_motion_config_js(&item.motion_config),
+            delay = start_delay
+        ));
+    }
+    out
+}
+// Flutter: generate GlobalKey lookups for each id
+// final _headerKey = GlobalKey(); → Header(key: _headerKey)
+```
+
+On Flutter, compile `id="header"` → `GlobalKey` and use it for the widget lookup.
+
+- [ ] **Step 7: Implement @if double-branch codegen**
 
 Generate JS that:
 - Renders both branches with display:none wrappers
@@ -1636,14 +1720,14 @@ Generate JS that:
 - For wait mode: awaits @leave completion before showing new branch
 - Removes old branch from DOM after @leave completes
 
-- [ ] **Step 7: Implement @for key + animation codegen**
+- [ ] **Step 8: Implement @for key + animation codegen**
 
 - Add key-based identity tracking to list rendering
 - Generate `data-for-key` attributes
 - Implement `_leavingItems` map in runtime
 - Stagger indices based on item positions
 
-- [ ] **Step 8: Implement @hero (same page)**
+- [ ] **Step 9: Implement @hero (same page)**
 
 Generate FLIP animation for same-page hero transitions:
 
@@ -1672,7 +1756,7 @@ function __omni_hero_after(before, tag) {
 
 Flutter: compile @hero tag directly to Flutter's `Hero(tag: "...", child: ...)` widget.
 
-- [ ] **Step 9: Embed runtime JS in output**
+- [ ] **Step 10: Embed runtime JS in output**
 
 ```rust
 fn emit_animation_runtime(&self) -> String {
@@ -1681,14 +1765,14 @@ fn emit_animation_runtime(&self) -> String {
 }
 ```
 
-- [ ] **Step 10: Run codegen tests**
+- [ ] **Step 11: Run codegen tests**
 
 ```bash
 cd omni-compiler && cargo test test_react_codegen test_codegen_motion -- --nocapture 2>&1 | tail -10
 ```
 Expected: all React + OmniView codegen tests pass.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add omni-compiler/src/codegen/react.rs omni-compiler/src/codegen/omniview.rs omni-compiler/tests/codegen_tests.rs
