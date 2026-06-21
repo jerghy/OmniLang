@@ -1257,6 +1257,14 @@ function __omni_bindText(nid) {
                 .push_str("  if (!data || data.length === 0) return;\n");
         }
 
+        // FLIP: record element positions before re-render (for @for with key)
+        if has_key {
+            self.js.push_str(&format!(
+                "  __omni_flip_before('[data-nid=\"{}\"]');\n",
+                container_nid
+            ));
+        }
+
         // Iterate and clone
         self.js
             .push_str(&format!("  data.forEach(({}, _idx) => {{\n", item_var));
@@ -1362,6 +1370,14 @@ function __omni_bindText(nid) {
             self.js.push_str("    }\n");
             self.js.push_str("  });\n");
         }
+        // FLIP: animate elements to new positions
+        if has_key {
+            self.js.push_str(&format!(
+                "  __omni_flip_after('[data-nid=\"{}\"]');\n",
+                container_nid
+            ));
+        }
+
         // Attach delegated event listeners on the container for @for item events.
         // Elements inside the template have data-event-* attributes (e.g.
         // data-event-click="fn:handlerName") that we read via event bubbling.
@@ -2111,6 +2127,14 @@ function __omni_bindText(nid) {
         // Easing
         if let Some(ref ease) = kf.ease {
             parts.push(format!("\"easing\": {}", self.easing_to_js(ease)));
+        }
+
+        // Path animation
+        if let Some(ref path) = kf.path {
+            parts.push(format!("\"path\": \"{}\"", path.replace('"', "\\\"")));
+            if let Some(rotate) = kf.path_rotate {
+                parts.push(format!("\"pathRotate\": {}", rotate));
+            }
         }
 
         // Playback config properties
@@ -3043,6 +3067,7 @@ function __omni_bindText(nid) {
             .push_str(&format!("/// ── @timeline {} ──\n", timeline.name));
 
         let mut cursor_delay = 0.0;
+        let mut labels: Vec<(String, f64)> = Vec::new();
 
         for (i, item) in timeline.items.iter().enumerate() {
             let item_label = format!("tl_{}_item_{}", timeline.name, i);
@@ -3056,8 +3081,8 @@ function __omni_bindText(nid) {
                     delay,
                     color_space: _,
                     start,
-                    path: _,
-                    path_rotate: _,
+                    ref path,
+                    ref path_rotate,
                 } => {
                     // Build direction properties (from/to/fromTo)
                     let (from_props, to_props) = match dir {
@@ -3110,6 +3135,15 @@ function __omni_bindText(nid) {
                         "[data-nid]"
                     });
 
+                    // Path animation support
+                    let path_config = path.as_ref().map(|p| {
+                        let mut path_parts = vec![format!("\"path\": \"{}\"", p.replace('"', "\\\""))];
+                        if let Some(pr) = path_rotate {
+                            path_parts.push(format!("\"pathRotate\": {}", pr));
+                        }
+                        path_parts.join(",\n\x20\x20\x20\x20")
+                    }).unwrap_or_default();
+
                     self.mount_js.push_str(&format!(
                         "setTimeout(function() {{\n\
                          \x20 const el = document.querySelector(\"{sel}\");\n\
@@ -3118,7 +3152,7 @@ function __omni_bindText(nid) {
                          \x20\x20\x20 {from}\n\
                          \x20\x20\x20 {to}\n\
                          \x20\x20\x20 \"over\": {over},\n\
-                         \x20\x20\x20 \"easing\": {easing}\n\
+                         \x20\x20\x20 \"easing\": {easing}{path_comma}{path}\n\
                          \x20\x20 }};\n\
                          \x20\x20 const player = new AnimationPlayer(el, config);\n\
                          \x20\x20 __omni_animations.set(\"{label}\", player);\n\
@@ -3141,6 +3175,8 @@ function __omni_bindText(nid) {
                             .as_ref()
                             .map(|e| self.easing_to_js(e))
                             .unwrap_or_else(|| "\"easeOut\"".into()),
+                        path_comma = if path_config.is_empty() { "" } else { ",\n\x20\x20\x20\x20" },
+                        path = path_config,
                         delay = item_delay,
                         label = item_label
                     ));
@@ -3204,14 +3240,16 @@ function __omni_bindText(nid) {
                         ));
                     }
                 }
-                TimelineItemKindIR::Label(_name, _expr) => {
-                    // Label: sets a cursor position marker
-                    if let Some(ref expr) = _expr {
-                        if let ExprIR::LiteralExpr { value } = expr {
-                            if let Some(n) = value.as_f64() {
-                                cursor_delay = n;
-                            }
-                        }
+                TimelineItemKindIR::Label(ref name, ref on_enter) => {
+                    // Label: record position for labels dictionary
+                    labels.push((name.clone(), cursor_delay));
+                    // Execute onEnter callback at the label's position if provided
+                    if let Some(ref expr) = on_enter {
+                        let callback_js = self.expr_to_js(expr);
+                        self.mount_js.push_str(&format!(
+                            "setTimeout(function() {{ {} }}, {});\n",
+                            callback_js, cursor_delay
+                        ));
                     }
                 }
             }
@@ -3231,6 +3269,17 @@ function __omni_bindText(nid) {
                     // (already handled — item_delay is computed independently)
                 }
             }
+        }
+
+        // Emit labels dictionary for timeline
+        if !labels.is_empty() {
+            let labels_str: Vec<String> = labels
+                .iter()
+                .map(|(name, pos)| format!("\"{}\": {}", name, pos))
+                .collect();
+            self.mount_js
+                .push_str(&format!("__omni_timeline_labels.set(\"{}\", {{{}}});\n",
+                    timeline.name, labels_str.join(", ")));
         }
     }
 
