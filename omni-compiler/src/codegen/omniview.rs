@@ -1069,9 +1069,10 @@ function __omni_bindText(nid) {
             conditions_js.push((cond_js, branch_nids[i].clone()));
         }
 
+        let is_wait_mode = cond.transition_mode.as_deref() == Some("wait");
+
         self.js
             .push_str(&format!("\n/// ── @if conditional {} ──\n", nid));
-        self.js.push_str("__omni_effect(() => {\n");
 
         // Emit all NIDs as a JS array for efficient bulk toggling
         let nid_list: Vec<String> = branch_nids
@@ -1079,27 +1080,81 @@ function __omni_bindText(nid) {
             .chain(fallback_nid.iter())
             .map(|n| format!("\"{}\"", n))
             .collect();
-        self.js
-            .push_str(&format!("  const _nids = [{}];\n", nid_list.join(", ")));
-        // Helper to toggle all branches at once (O(n) not O(n²))
-        self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = (id === nid) ? \"block\" : \"none\"; }); };\n");
+        let nid_array = format!("[{}]", nid_list.join(", "));
+
+        if is_wait_mode {
+            // Wait mode: play @leave on old branch, wait for completion, then show new branch
+            self.js.push_str(&format!(
+                "var _current_{nid} = null;\n\
+                 __omni_effect(() => {{\n\
+                 \x20 const _nids = {nids};\n\
+                 \x20 const _hideAll = (except) => {{ _nids.forEach(id => {{ const e = __omni_el(id); if (e && id !== except) e.style.display = \"none\"; }}); }};\n\
+                 \x20 const _showNow = (nid) => {{ const e = __omni_el(nid); if (e) e.style.display = \"block\"; _hideAll(nid); _current_{nid} = nid; }};\n\
+                 \x20 const _transition = (newNid) => {{\n\
+                 \x20\x20 const oldNid = _current_{nid};\n\
+                 \x20\x20 if (oldNid === newNid) return;\n\
+                 \x20\x20 if (!oldNid) {{ _showNow(newNid); return; }}\n\
+                 \x20\x20 // Play @leave on old branch, then show new\n\
+                 \x20\x20 const leavePlayer = __omni_animations.get(oldNid + \"_leave\");\n\
+                 \x20\x20 if (leavePlayer) {{\n\
+                 \x20\x20\x20 leavePlayer.play();\n\
+                 \x20\x20\x20 // Wait for leave animation to complete\n\
+                 \x20\x20\x20 const checkComplete = setInterval(() => {{\n\
+                 \x20\x20\x20\x20 if (leavePlayer.completed || !leavePlayer.playing) {{\n\
+                 \x20\x20\x20\x20\x20 clearInterval(checkComplete);\n\
+                 \x20\x20\x20\x20\x20 _showNow(newNid);\n\
+                 \x20\x20\x20\x20\x20 // Trigger @enter on new branch\n\
+                 \x20\x20\x20\x20\x20 const enterPlayer = __omni_animations.get(newNid + \"_enter\");\n\
+                 \x20\x20\x20\x20\x20 if (enterPlayer && enterPlayer.config?.paused !== false) enterPlayer.play();\n\
+                 \x20\x20\x20\x20 }}\n\
+                 \x20\x20\x20 }}, 16);\n\
+                 \x20\x20 }} else {{\n\
+                 \x20\x20\x20 _showNow(newNid);\n\
+                 \x20\x20 }}\n\
+                 \x20 }};\n",
+                nid = nid,
+                nids = nid_array
+            ));
+        } else {
+            // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
+            self.js.push_str("__omni_effect(() => {\n");
+            self.js
+                .push_str(&format!("  const _nids = {};\n", nid_array));
+            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = (id === nid) ? \"block\" : \"none\"; }); };\n");
+        }
 
         // For each branch, build the if/else if chain
         for (i, (cond_js, branch_nid)) in conditions_js.iter().enumerate() {
             let if_word = if i == 0 { "if" } else { "else if" };
-            self.js.push_str(&format!(
-                "  {} ({}) {{ _show(\"{}\"); }}\n",
-                if_word, cond_js, branch_nid
-            ));
+            if is_wait_mode {
+                self.js.push_str(&format!(
+                    "  {} ({}) {{ _transition(\"{}\"); }}\n",
+                    if_word, cond_js, branch_nid
+                ));
+            } else {
+                self.js.push_str(&format!(
+                    "  {} ({}) {{ _show(\"{}\"); }}\n",
+                    if_word, cond_js, branch_nid
+                ));
+            }
         }
 
         // Else clause (fallback or hide-all)
         if let Some(ref fb_nid) = fallback_nid {
-            self.js
-                .push_str(&format!("  else {{ _show(\"{}\"); }}\n", fb_nid));
+            if is_wait_mode {
+                self.js
+                    .push_str(&format!("  else {{ _transition(\"{}\"); }}\n", fb_nid));
+            } else {
+                self.js
+                    .push_str(&format!("  else {{ _show(\"{}\"); }}\n", fb_nid));
+            }
         } else {
             // No @else — hide all branches when no condition matches
-            self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
+            if is_wait_mode {
+                self.js.push_str("  else { _hideAll(null); _current_{nid} = null; }\n");
+            } else {
+                self.js.push_str("  else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = \"none\"; }); }\n");
+            }
         }
 
         self.js.push_str("});\n");
