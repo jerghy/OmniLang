@@ -390,7 +390,36 @@ style {
 - CSS 属性使用 kebab-case 名称（由 StyleResolver 转换）
 - CSS 值不加引号（`16px`, `#FFF`, `1px solid #e5e7eb`）
 
-#### 3.7.5 emitComponent 方法
+#### 3.7.5 emitDocument / emitStore / emitComponent
+
+**emitDocument** 入口：自动添加 `import omniview;`（所有 .omni UI 文件必需），然后按序输出 store / component / theme。
+
+**emitStore**（Store 使用 `action` 关键字，不是 `fn`）:
+```typescript
+function emitStore(store: StoreDefinition): void {
+  writer.emit(`store ${store.name} {`);
+  writer.indent();
+  for (const [name, sig] of Object.entries(store.signals)) {
+    const def = sig.default !== undefined ? ` = ${formatValue(sig.default, sig.type)}` : "";
+    writer.emit(`signal ${name}: ${sig.type}${def};`);
+  }
+  for (const [name, getter] of Object.entries(store.getters)) {
+    writer.emit(`getter ${name}: ${getter.returnType} = ${getter.body};`);
+  }
+  for (const action of store.actions) {
+    const params = action.params.map(p => `${p.name}: ${p.type}`).join(", ");
+    writer.emit(`action ${action.name}(${params}) {`);
+    writer.indent();
+    for (const line of action.body.split("\n")) writer.emit(line);
+    writer.dedent();
+    writer.emit("}");
+  }
+  writer.dedent();
+  writer.emit("}");
+}
+```
+
+**emitComponent**（详见 3.7.6）:
 
 ```typescript
 function emitComponent(comp: ComponentDefinition, chains: Map<string, ChainBlock>): void {
@@ -521,7 +550,12 @@ constructor(
 ) {}
 ```
 
-**代码量**: ~350 行（增加 tag 映射、语法格式化复杂性）
+#### 3.7.8 已知限制（Phase 3 补充）
+
+- `@if` / `@for` 指令: `emitViewNode` 当前仅处理 `kind: "element"`。`@if`/`@for` 视图节点需在 Phase 3 补充递归生成逻辑。
+- 动态 CSS class：`class: { cls1: true, cls2: condition }` 对象语法暂不生成，Phase 3 支持。
+
+**代码量**: ~350 行
 
 ### 3.8 TokenEmitter — 设计令牌生成器
 
@@ -699,7 +733,15 @@ pos=<element.position.x>,<element.position.y>  ← 从 element.position 获取
 [collapsed] 和 [group=<id>] 来自 wireData
 ```
 
-**代码量**: ~200 行
+#### 3.10.5 变量引用验证（规则 S5）
+
+`@node` 属性中引用的变量名必须在链内或组件作用域已声明。ChainEmitter 在 `formatNode` 时进行验证：
+- `getVariable(name=...)` → 检查 name 是否在 tab.variables 或 graph elements 中存在
+- `setVariable(name=...)` → 同上
+- 引用的 signal/store/computed 名 → 必须在 elements 或 tab.variables 中存在
+- 验证失败 → 输出 warning（不阻塞生成，因源数据可能来自不完整画布）
+
+**代码量**: ~210 行
 
 ### 3.11 AnnotationInjector — 注解注入器（重写）
 
@@ -969,10 +1011,10 @@ interface ChainBlock {
 | source-emitter.ts | 350 | +30 (class:语法/@事件/HTML标签/内容文本/style块) |
 | token-emitter.ts | 30 | — |
 | custom-component-emitter.ts | 60 | — |
-| chain-emitter.ts | 200 | 新增 |
+| chain-emitter.ts | 210 | 新增 |
 | annotation-injector.ts | 150 | +140 |
 | pipeline.ts (index.ts) | 120 | +40 |
-| **总计** | **~1820** |
+| **总计** | **~1830** |
 
 ---
 
@@ -985,12 +1027,21 @@ interface ChainBlock {
 ```
 .omni 文件内容 = OmniLang 合法代码 + 编辑器注释
   ├── // @code-tab type=logic          ← 编辑器文件类型
-  ├── import omniview;                 ← 常规代码
-  ├── store TodoStore { ... }          ← 常规代码
+  ├── import omniview;                 ← 自动添加
+  ├── store TodoStore {
+  │     signal items: Array = [];
+  │     getter totalCount: i32 = ...;
+  │     action addTodo(text: String) { ... }
+  │   }
   ├── component App {
   │     @store TodoStore;
   │     signal counter: i32 = 0;
   │
+  │     // ════════════════════      ← @chain 紧贴函数（规则 P4）
+  │     // @chain handleClick
+  │     //   @node n1  ...
+  │     //   @wire w1  ...
+  │     // ════════════════════
   │     fn handleClick() -> void { ... }
   │
   │     view {
@@ -1004,13 +1055,6 @@ interface ChainBlock {
   │         .app { max-width: 700px; margin: 0 auto; }
   │         .btn { width: 40px; border-radius: 8px; }
   │     }
-  │
-  │     // ════════════════════      ← 编辑器链标记
-  │     // @chain handleClick
-  │     //   @node n1  ...
-  │     //   @wire w1  ...
-  │     // ════════════════════
-  │     fn handleClick() -> void { ... }
   │   }
   └── theme myTheme { ... }
 ```
