@@ -237,6 +237,7 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::AtHero => {
                     // @hero NAME { over: ..., ease: ... }
+                    let span_start = self.peek_span();
                     self.advance(); // '@hero'
                     let name = self.expect_ident("expected hero name")?;
                     self.expect_token(TokenKind::LBrace, "expected '{'")?;
@@ -248,10 +249,12 @@ impl<'a> Parser<'a> {
                         match self.peek_ident_value() {
                             Some(ref s) if s == "over" => {
                                 self.advance();
+                                self.expect_token(TokenKind::Colon, "expected ':'")?;
                                 over = self.parse_expr()?;
                             }
                             Some(ref s) if s == "ease" => {
                                 self.advance();
+                                self.expect_token(TokenKind::Colon, "expected ':'")?;
                                 ease = Some(self.parse_easing()?);
                             }
                             _ => break,
@@ -261,11 +264,17 @@ impl<'a> Parser<'a> {
                         }
                     }
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    let span_end = self.peek_span();
                     hero_defs.push(HeroDef {
                         name,
                         over,
                         ease,
-                        span: self.peek_span(),
+                        span: Span {
+                            start: span_start.start,
+                            end: span_end.end,
+                            line: span_start.line,
+                            col: span_start.col,
+                        },
                     });
                 }
                 TokenKind::Const => {
