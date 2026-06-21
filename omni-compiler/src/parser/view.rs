@@ -293,6 +293,93 @@ impl<'a> Parser<'a> {
                     let prop = self.parse_event_prop()?;
                     props.push(prop);
                 }
+                // ── Motion trigger attributes @enter={...}, @hover={...} ──
+                TokenKind::AtEnter => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Enter)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtLeave => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Leave)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtHover => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Hover)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtUnhover => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Unhover)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtPress => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Press)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtFocus => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Focus)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtAnimate => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Animate)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtInView => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::InView)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtScroll => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Scroll)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDragHorizontal => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragHorizontal)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDragVertical => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtDrivenBy => {
+                    // @driven-by={signal} — external progress control
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let signal = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::DrivenBy(signal));
+                }
+                TokenKind::AtTimeline => {
+                    let trigger = self.parse_motion_trigger(TriggerKind::Timeline)?;
+                    props.push(ElementProp::MotionTrigger(trigger));
+                }
+                TokenKind::AtPaused => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::PausedOverride(true));
+                }
+                TokenKind::AtHoverReverse => {
+                    self.advance();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let mode = self.expect_ident("expected hover reverse mode")?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    props.push(ElementProp::HoverReverse(mode));
+                }
+                TokenKind::AtInViewOnce | TokenKind::AtInViewRepeat | TokenKind::AtInViewThreshold => {
+                    let kind = self.advance().kind.clone();
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
+                    let val = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    match kind {
+                        TokenKind::AtInViewOnce => props.push(ElementProp::InViewOnce(val)),
+                        TokenKind::AtInViewRepeat => props.push(ElementProp::InViewRepeat(val)),
+                        TokenKind::AtInViewThreshold => props.push(ElementProp::InViewThreshold(val)),
+                        _ => {}
+                    }
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -473,6 +560,53 @@ impl<'a> Parser<'a> {
                     self.advance(); // consume ':'
                     let ref_name = self.expect_ident("expected ref name")?;
                     return Ok(ElementProp::Ref(ref_name));
+                }
+                // states: { state1: { ... }, state2: { ... }, ... }
+                if name == "states" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
+                    let mut states = Vec::new();
+                    while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                        let state_name = self.expect_ident("expected state name")?;
+                        self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
+                        let props = self.parse_property_block()?;
+                        let over = if self.peek_ident_value().map_or(false, |s| s == "over") {
+                            self.advance();
+                            self.expect_token(TokenKind::Colon, "expected ':'")?;
+                            Some(self.parse_expr()?)
+                        } else {
+                            None
+                        };
+                        let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
+                            self.advance();
+                            self.expect_token(TokenKind::Colon, "expected ':'")?;
+                            Some(self.parse_easing()?)
+                        } else {
+                            None
+                        };
+                        states.push((
+                            state_name.clone(),
+                            StateDef {
+                                name: state_name,
+                                properties: props,
+                                over,
+                                ease,
+                            },
+                        ));
+                        if self.peek_kind() == TokenKind::Comma {
+                            self.advance();
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::StatesMap(states));
+                }
+                // on: { signal }
+                if name == "on" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'on:'")?;
+                    let signal = self.parse_expr()?;
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::AnimateSignal(signal));
                 }
                 // style: entries or class: name
                 self.advance();
@@ -1187,6 +1321,38 @@ impl<'a> Parser<'a> {
             class_name,
             properties,
         })
+    }
+
+    // ── Motion Trigger Parsing ──────────────────────────────
+
+    /// Parse a motion trigger: consumes `={motionExpr}` after the trigger keyword.
+    fn parse_motion_trigger(&mut self, kind: TriggerKind) -> Result<MotionTrigger, ParseError> {
+        self.advance(); // consume the @enter/@hover/etc. token
+        self.expect_token(TokenKind::Eq, "expected '=' after motion trigger")?;
+        self.expect_token(TokenKind::LBrace, "expected '{'")?;
+        let motion_expr = self.parse_motion_expr()?;
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(MotionTrigger {
+            trigger: kind,
+            motion_expr,
+        })
+    }
+
+    /// Parse a property block: { key: expr, ... }
+    fn parse_property_block(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+        self.expect_token(TokenKind::LBrace, "expected '{' for property block")?;
+        let mut properties = Vec::new();
+        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            let key = self.expect_ident("expected property name")?;
+            self.expect_token(TokenKind::Colon, "expected ':' after property name")?;
+            let value = self.parse_expr()?;
+            properties.push((key, value));
+            if self.peek_kind() == TokenKind::Comma {
+                self.advance();
+            }
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}' at end of property block")?;
+        Ok(properties)
     }
 }
 

@@ -1188,7 +1188,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse timeline body: sequence of items with connectors
-    fn parse_timeline_body(&mut self) -> Result<MotionBody, ParseError> {
+    pub(crate) fn parse_timeline_body(&mut self) -> Result<MotionBody, ParseError> {
         let mut items = Vec::new();
         let mut connector = Connector::None;
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {

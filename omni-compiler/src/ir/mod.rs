@@ -1005,7 +1005,11 @@ fn lower_view_node(
                     | ElementProp::StatesMap(_)
                     | ElementProp::AnimateSignal(_)
                     | ElementProp::PausedOverride(_)
-                    | ElementProp::HoverReverse(_) => {}
+                    | ElementProp::HoverReverse(_)
+                    | ElementProp::DrivenBy(_)
+                    | ElementProp::InViewOnce(_)
+                    | ElementProp::InViewRepeat(_)
+                    | ElementProp::InViewThreshold(_) => {}
                 }
             }
 

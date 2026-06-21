@@ -715,7 +715,11 @@ impl SemanticAnalyzer {
                 | ElementProp::StatesMap(_)
                 | ElementProp::AnimateSignal(_)
                 | ElementProp::PausedOverride(_)
-                | ElementProp::HoverReverse(_) => {}
+                | ElementProp::HoverReverse(_)
+                | ElementProp::DrivenBy(_)
+                | ElementProp::InViewOnce(_)
+                | ElementProp::InViewRepeat(_)
+                | ElementProp::InViewThreshold(_) => {}
             }
         }
         for child in &element.children {

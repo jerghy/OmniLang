@@ -939,10 +939,29 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parse a motion expression: either a motion reference (ident) or inline tween
+    /// Parse a motion expression: either a motion reference (ident), inline tween,
+    /// or stagger call.
     pub fn parse_motion_expr(&mut self) -> Result<Expr, ParseError> {
-        // For now, parse as a general expression (handles ident, function calls, etc.)
-        self.parse_expr()
+        match self.peek_ident_value() {
+            Some(ref s) if s == "to" || s == "from" || s == "set" => {
+                // Inline tween literal — parse as a mini-motion body (placeholder)
+                let _body = self.parse_timeline_body()?;
+                Ok(Expr::NotYetImplemented {
+                    feature: "inline_motion".into(),
+                    span: self.peek_span(),
+                })
+            }
+            Some(ref s) if s == "stagger" => {
+                self.parse_stagger_call().map(|_sc| Expr::NotYetImplemented {
+                    feature: "stagger".into(),
+                    span: self.peek_span(),
+                })
+            }
+            _ => {
+                // Named motion reference or complex expression
+                self.parse_expr()
+            }
+        }
     }
 }
 

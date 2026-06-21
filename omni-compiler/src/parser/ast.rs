@@ -474,6 +474,14 @@ pub enum ElementProp {
     AnimateSignal(Expr),
     PausedOverride(bool),
     HoverReverse(String),
+    /// @driven-by={signal} — external progress control
+    DrivenBy(Expr),
+    /// @in-view-once={bool}
+    InViewOnce(Expr),
+    /// @in-view-repeat={bool}
+    InViewRepeat(Expr),
+    /// @in-view-threshold={number}
+    InViewThreshold(Expr),
 }
 
 #[derive(Debug, Clone)]
