@@ -355,9 +355,12 @@ impl<'a> Parser<'a> {
                     self.advance();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
                     self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    self.parse_expr()?;
+                    let val = match self.parse_expr()? {
+                        Expr::Literal(Literal::Bool(b), _) => b,
+                        _ => true, // non-literal (e.g., signal ref): default to true
+                    };
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::PausedOverride(true));
+                    props.push(ElementProp::PausedOverride(val));
                 }
                 TokenKind::AtHoverReverse => {
                     self.advance();
