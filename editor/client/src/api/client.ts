@@ -138,6 +138,7 @@ class ApiClient {
     this.ws = new WebSocket(`${protocol}//${location.host}/api/watch`);
 
     this.ws.onopen = () => {
+      this.everConnected = true;
       this.onStatusChange?.("就绪", false);
       this._startHeartbeat();
     };
@@ -152,12 +153,15 @@ class ApiClient {
     };
 
     this.ws.onclose = () => {
-      this.onStatusChange?.("🔌 重连中...", true);
+      if (this.everConnected) {
+        this.onStatusChange?.("🔌 重连中...", true);
+      }
       this._stopHeartbeat();
       this.reconnectTimer = window.setTimeout(() => this._doConnect(), 3000);
     };
   }
 
+  private everConnected = false;
   private _heartbeatInterval: number | null = null;
 
   private _startHeartbeat(): void {

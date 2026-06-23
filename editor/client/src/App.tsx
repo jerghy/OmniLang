@@ -34,6 +34,7 @@ import type { CommandContext } from "./commands/types";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./commands/CopyPaste";
 import { showToast } from "./notifications/toast";
 import { parseOmniSource, generateOmniSource, generateOmniFiles, validate } from "./omni-gen";
+import { ProjectWelcome } from "./panels/ProjectWelcome";
 import { compilerCache } from "./omni-compiler-cache";
 
 // ═══════════════════════════════════════════════
@@ -72,6 +73,7 @@ export default function App() {
   const [showFocusOrder, setShowFocusOrder] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showConflict, setShowConflict] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const codeEditorRef = useRef<MonacoEditorHandle>(null);
   const [layoutTrigger, setLayoutTrigger] = useState(0);
@@ -123,10 +125,18 @@ export default function App() {
       if (proj.dir) setProjectDir(proj.dir);
       const list = await api.listDir(".");
       if (list.entries) loadFiles(list.entries);
-      // Start with a new unnamed project
-      useEditorStore.getState().newProject();
+      // Show welcome screen instead of auto-creating project
+      setShowWelcome(true);
     })();
   }, []);
+
+  const handleProjectReady = useCallback((dir: string, name: string) => {
+    setProjectDir(dir);
+    useEditorStore.setState({ projectName: name, projectPath: dir });
+    useEditorStore.getState().newProject();
+    setShowWelcome(false);
+    setStatus({ text: `📂 已打开 ${name}`, isError: false });
+  }, [setProjectDir]);
 
   // ── Initial compile for canvas (client-side, via compilerCache) ──
   useEffect(() => {
@@ -221,20 +231,14 @@ export default function App() {
     (window as any).__OMNI_TARGET__ = target;
   }, [target]);
 
+  // Connect watch WS when a project is active (starts after welcome flow)
   useEffect(() => {
+    if (!projectDir) return;
     api.connectWatch(
-      (data) => {
-        setCompileErrors(data.errors || []);
-        const hasErrors = data.errors?.some((e: {severity:string}) => e.severity === "error");
-        const warns = data.errors?.filter((e: {severity:string}) => e.severity === "warning").length || 0;
-        if (hasErrors) setStatus({ text: "❌ 编译失败", isError: true });
-        else if (warns) setStatus({ text: `⚠ 已编译 — ${new Date().toLocaleTimeString()} (${warns} 条警告)`, isError: false });
-        else setStatus({ text: `✅ 已编译 — ${new Date().toLocaleTimeString()}`, isError: false });
-      },
       (msg, isErr) => setStatus({ text: msg, isError: isErr })
     );
     return () => api.disconnect();
-  }, []);
+  }, [projectDir]);
 
   // ── Compile ─────────────────────────────────
 
@@ -1029,6 +1033,10 @@ export default function App() {
   // ═════════════════════════════════════════════
   // Render
   // ═════════════════════════════════════════════
+
+  if (showWelcome) {
+    return <ProjectWelcome onProjectReady={handleProjectReady} />;
+  }
 
   return (
     <div style={S.app}>
