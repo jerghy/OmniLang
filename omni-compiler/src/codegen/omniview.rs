@@ -27,7 +27,7 @@ pub struct OmniViewOutput {
 }
 
 /// Generate OmniView output from an IR program.
-pub fn generate(ir: &IRProgram) -> OmniViewOutput {
+pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     let mut gen = OmniViewGenerator {
         js: String::new(),
         html: String::new(),
@@ -50,6 +50,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         dom_emitted: false,
         guard_counter: 0,
         mount_js: String::new(),
+        editor_mode,
     };
 
     gen.emit_js_header();
@@ -99,7 +100,8 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
 
     // Emit ONE innerHTML insertion with accumulated HTML + ALL deferred bindings
     gen.emit_dom_and_bindings();
-
+    // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
+    gen.emit_editor_bridge();
     gen.finalize_js();
 
     OmniViewOutput {
@@ -153,6 +155,8 @@ struct OmniViewGenerator {
     guard_counter: u32,
     /// Accumulated mount lifecycle JS — called after DOM insertion.
     mount_js: String,
+    /// When true, emit editor bridge code (postMessage, nid_map, highlight, hot-replace).
+    editor_mode: bool,
 }
 
 impl OmniViewGenerator {
@@ -961,6 +965,97 @@ function __omni_bindText(nid) {
             self.js.push_str("\n/// ── Mount Lifecycle ──\n");
             self.js.push_str(&self.mount_js);
         }
+    }
+
+    /// Inject editor bridge code when `editor_mode` is enabled.
+    /// Provides:
+    ///   - window.__omni_signals / __omni_components for external access
+    ///   - __omni_buildNidMap() — scans DOM for [data-nid] elements
+    ///   - Click → postMessage omni-select
+    ///   - postMessage handlers: omni-replace-component, omni-highlight, omni-clear-hl
+    ///   - window.__omni_editor — highlight/clearHighlight helpers
+    ///   - __omni_replaceComponent(name, factoryCode) — snapshot signals, teardown, restore
+    ///   - parent.postMessage omni-rendered on load
+    ///
+    /// All JS is ES5-compatible (no arrow functions, no template literals).
+    fn emit_editor_bridge(&mut self) {
+        if !self.editor_mode {
+            return;
+        }
+        self.js.push_str(
+            r#"
+/// ── Editor Bridge ──
+window.__omni_signals = {};
+window.__omni_components = {};
+
+function __omni_buildNidMap() {
+  var map = {};
+  document.querySelectorAll('[data-nid]').forEach(function(el) {
+    map[el.dataset.nid] = {
+      elementId: el.id || '',
+      tag: el.tagName.toLowerCase(),
+      component: (el.closest('[data-component]') || {}).dataset ? el.closest('[data-component]').dataset.component : '',
+    };
+  });
+  return map;
+}
+
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-nid]');
+  if (el) {
+    e.stopPropagation();
+    parent.postMessage({ type: 'omni-select', nid: el.dataset.nid }, '*');
+  }
+});
+
+window.addEventListener('message', function(e) {
+  switch (e.data.type) {
+    case 'omni-replace-component':
+      __omni_replaceComponent(e.data.name, e.data.js);
+      break;
+    case 'omni-highlight':
+      __omni_editor.highlight(e.data.nid);
+      break;
+    case 'omni-clear-hl':
+      __omni_editor.clearHighlight();
+      break;
+  }
+});
+
+window.__omni_editor = {
+  highlight: function(nid) {
+    var el = document.querySelector('[data-nid="' + nid + '"]');
+    if (el) { el.style.outline = '2px solid #4F46E5'; }
+  },
+  clearHighlight: function() {
+    document.querySelectorAll('[data-nid]').forEach(function(el) {
+      el.style.outline = '';
+    });
+  },
+};
+
+function __omni_replaceComponent(name, factoryCode) {
+  var oldComp = window.__omni_components[name];
+  var savedSignals = {};
+  if (oldComp && oldComp.signals) {
+    Object.keys(oldComp.signals).forEach(function(k) {
+      savedSignals[k] = oldComp.signals[k].peek();
+    });
+    if (oldComp.teardown) oldComp.teardown();
+  }
+  window.__omni_components[name] = (0, eval)(factoryCode);
+  var newComp = window.__omni_components[name];
+  if (newComp && newComp.signals) {
+    Object.keys(savedSignals).forEach(function(k) {
+      if (newComp.signals[k]) newComp.signals[k].set(savedSignals[k]);
+    });
+  }
+  parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*');
+}
+
+parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*');
+"#,
+        );
     }
 
     fn next_nid(&mut self, tag: &str) -> String {
@@ -3862,7 +3957,7 @@ pub fn compile_files(
     ir: &crate::ir::IRProgram,
     _source_files: &HashMap<String, String>,
 ) -> CompileOutput {
-    let output = generate(ir);
+    let output = generate(ir, false);
     CompileOutput::success(vec![
         CompiledFile {
             path: "index.js".into(),

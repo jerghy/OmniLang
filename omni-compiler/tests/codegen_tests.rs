@@ -10,13 +10,13 @@ use omni_compiler::parser;
 use omni_compiler::semantic;
 use std::collections::HashMap;
 
-/// Helper: compile .omni source to IR, then generate OmniView output.
+/// Helper: compile .omni source to IR, then generate OmniView output (normal mode).
 fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
     let tokens = lexer::tokenize(source);
     let program = parser::parse(&tokens, source).expect("parse failed");
     let semantics = semantic::analyze(&program);
     let ir_program = ir::lower(&program, &semantics);
-    omniview::generate(&ir_program)
+    omniview::generate(&ir_program, false)
 }
 
 #[test]

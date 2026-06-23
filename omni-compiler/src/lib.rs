@@ -129,7 +129,7 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
     let ir_program = ir::lower(&program, &semantics);
 
     // 5. Generate OmniView output
-    let output = codegen::omniview::generate(&ir_program);
+    let output = codegen::omniview::generate(&ir_program, false);
 
     OmniViewResult {
         success: !has_errors,
