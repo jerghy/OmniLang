@@ -213,7 +213,7 @@ export function generateOmniSource(options: {
         kind: "element" as const,
         resolvedStyle: {
           htmlTag: "div",
-          cssClassName: "",
+          cssClassName: `${options.componentName.toLowerCase()}-view`,
           contentText: undefined,
           htmlAttrs: {},
           eventBindings: {},

@@ -733,16 +733,24 @@ impl<'a> Parser<'a> {
                                 // Also accept IntLiteral after '-' (CSS allows numbers after hyphens: -0, -1, etc.)
                                 while self.peek_kind() == TokenKind::Minus {
                                     self.advance(); // consume '-'
-                                    let next = match self.peek_kind() {
+                                    let next: String = match self.peek_kind() {
                                         TokenKind::Ident(_) => self.expect_ident("")?,
                                         TokenKind::IntLiteral(n) => {
                                             self.advance();
                                             n.to_string()
                                         }
-                                        _ => return Err(ParseError {
-                                            message: "expected identifier or number after '-' in class name".into(),
-                                            span: self.peek_span(),
-                                        }),
+                                        ref k => {
+                                            // Accept keywords (view, style, theme, etc.) after '-'
+                                            if let Some(name) = keyword_as_ident_name(k) {
+                                                self.advance();
+                                                name
+                                            } else {
+                                                return Err(ParseError {
+                                                    message: "expected identifier or number after '-' in class name".into(),
+                                                    span: self.peek_span(),
+                                                });
+                                            }
+                                        }
                                     };
                                     class_name = format!("{}-{}", class_name, next);
                                 }
@@ -754,16 +762,23 @@ impl<'a> Parser<'a> {
                                     let mut class_name = name;
                                     while self.peek_kind() == TokenKind::Minus {
                                         self.advance(); // consume '-'
-                                        let next = match self.peek_kind() {
+                                        let next: String = match self.peek_kind() {
                                             TokenKind::Ident(_) => self.expect_ident("")?,
                                             TokenKind::IntLiteral(n) => {
                                                 self.advance();
                                                 n.to_string()
                                             }
-                                            _ => return Err(ParseError {
-                                                message: "expected identifier or number after '-' in class name".into(),
-                                                span: self.peek_span(),
-                                            }),
+                                            ref k => {
+                                                if let Some(name) = keyword_as_ident_name(k) {
+                                                    self.advance();
+                                                    name
+                                                } else {
+                                                    return Err(ParseError {
+                                                        message: "expected identifier or number after '-' in class name".into(),
+                                                        span: self.peek_span(),
+                                                    });
+                                                }
+                                            }
                                         };
                                         class_name = format!("{}-{}", class_name, next);
                                     }
