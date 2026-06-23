@@ -11,6 +11,7 @@ import type { CommandContext } from "../commands/types";
 import { AddElement } from "../commands/AddElement";
 import { RemoveElement } from "../commands/RemoveElement";
 import { ReorderElement } from "../commands/ReorderElement";
+import { MoveElement } from "../commands/MoveElement";
 import { copySelection, pasteFromClipboard } from "../commands/CopyPaste";
 import { uid } from "../utils/id";
 
@@ -69,6 +70,13 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     elementId: string;
   } | null>(null);
 
+  // Drag & drop state
+  const [dropTarget, setDropTarget] = useState<{
+    targetId: string;
+    position: "before" | "after" | "inside";
+  } | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+
   // ── Build tree from flat elements ──────────────────
 
   const treeData = useMemo((): TreeNode[] => {
@@ -121,6 +129,53 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
   const closeMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
+
+  // ── Drag & Drop ───────────────────────────────────
+
+  const handleDragOver = useCallback(
+    (targetId: string | null, position: "before" | "after" | "inside") => {
+      if (targetId) {
+        setDropTarget({ targetId, position });
+      } else {
+        setDropTarget(null);
+      }
+    },
+    [],
+  );
+
+  const handleDrop = useCallback(
+    (targetId: string) => {
+      setDropTarget(null);
+      const draggedId = dragIdRef.current;
+      if (!draggedId || draggedId === targetId) return;
+
+      const el = elements.find((e) => e.id === draggedId);
+      const target = elements.find((e) => e.id === targetId);
+      if (!el || !target) return;
+
+      // Determine drop action
+      const dropPos = dropTarget?.position ?? "after";
+      if (dropPos === "inside" && target.children !== undefined) {
+        // Move into target as child
+        const cmd = new MoveElement(draggedId, targetId, null, "after");
+        undoExec(cmd, ctx);
+      } else {
+        // Reorder relative to target sibling
+        const parentId = target.parentId;
+        const siblings = parentId
+          ? elements.filter((e) => e.parentId === parentId).map((e) => e.id)
+          : rootOrder;
+        const targetIdx = siblings.indexOf(targetId);
+        const targetSibling = dropPos === "after"
+          ? siblings[targetIdx + 1] || null
+          : siblings[targetIdx - 1] || null;
+        const cmd = new MoveElement(draggedId, parentId, targetSibling, dropPos === "after" ? "after" : "before");
+        undoExec(cmd, ctx);
+      }
+      dragIdRef.current = null;
+    },
+    [elements, rootOrder, dropTarget, undoExec, ctx],
+  );
 
   // ── Render ─────────────────────────────────────────
 
@@ -175,6 +230,10 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
               onToggle={toggleCollapse}
               onSelect={(id, multi) => selectElement(id, multi)}
               onContextMenu={handleContextMenu}
+              onDragStart={(id) => { dragIdRef.current = id; }}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              dropTarget={dropTarget}
             />
           ))
         )}
@@ -221,6 +280,10 @@ interface TreeNodeViewProps {
   onToggle: (id: string) => void;
   onSelect: (id: string, multi?: boolean) => void;
   onContextMenu: (e: React.MouseEvent, id: string) => void;
+  onDragStart?: (id: string) => void;
+  onDragOver: (targetId: string | null, position: "before" | "after" | "inside") => void;
+  onDrop: (targetId: string) => void;
+  dropTarget: { targetId: string; position: "before" | "after" | "inside" } | null;
 }
 
 function TreeNodeView({
@@ -231,17 +294,49 @@ function TreeNodeView({
   onToggle,
   onSelect,
   onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  dropTarget,
 }: TreeNodeViewProps) {
   const isSelected = selectedIds.includes(node.id);
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
 
+  const getDropStyle = (): React.CSSProperties => {
+    if (!dropTarget || dropTarget.targetId !== node.id) return {};
+    const borderColor = "#4F46E5";
+    switch (dropTarget.position) {
+      case "before": return { borderTop: `2px solid ${borderColor}` };
+      case "after": return { borderBottom: `2px solid ${borderColor}` };
+      case "inside": return { outline: `2px solid ${borderColor}`, outlineOffset: -2 };
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const h = rect.height;
+    let position: "before" | "after" | "inside";
+    if (y < h * 0.25) position = "before";
+    else if (y > h * 0.75) position = "after";
+    else position = hasChildren ? "inside" : "after";
+    onDragOver(node.id, position);
+  };
+
   return (
     <div>
       {/* Node row */}
       <div
+        draggable
         onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
         onContextMenu={(e) => onContextMenu(e, node.id)}
+        onDragStart={(e) => { e.dataTransfer.setData("text/omni-tree-id", node.id); onDragStart?.(node.id); }}
+        onDragOver={handleDragOver}
+        onDragLeave={() => onDragOver(null, "after")}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop(node.id); }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -256,6 +351,7 @@ function TreeNodeView({
           fontWeight: isSelected ? 600 : 400,
           border: isSelected ? "1px solid #C7D2FE" : "1px solid transparent",
           marginBottom: 1,
+          ...getDropStyle(),
         }}
         onMouseEnter={(e) => {
           if (!isSelected) {
@@ -383,6 +479,7 @@ function ContextMenu({
 }: ContextMenuProps) {
   const [showAddChild, setShowAddChild] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const addChildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contextElement = elements.find((e) => e.id === elementId);
 
@@ -573,16 +670,30 @@ function ContextMenu({
       {/* ── Add Child (cascading submenu) ── */}
       <div
         style={itemBase}
-        onMouseEnter={() => setShowAddChild(true)}
+        onMouseEnter={() => {
+          setShowAddChild(true);
+          if (addChildTimer.current) clearTimeout(addChildTimer.current);
+        }}
         onMouseLeave={() => {
-          setShowAddChild(false);
-          setActiveCategory(null);
+          // Delay hiding to allow moving to submenu
+          addChildTimer.current = setTimeout(() => {
+            setShowAddChild(false);
+            setActiveCategory(null);
+          }, 150);
         }}
       >
         <span>添加子组件 ▸</span>
 
         {showAddChild && (
-          <div style={submenu}>
+          <div style={submenu}
+            onMouseEnter={() => {
+              if (addChildTimer.current) clearTimeout(addChildTimer.current);
+            }}
+            onMouseLeave={() => {
+              setShowAddChild(false);
+              setActiveCategory(null);
+            }}
+          >
             {Array.from(groupedComponents.entries()).map(([cat, items]) => (
               <div
                 key={cat}
@@ -596,7 +707,11 @@ function ContextMenu({
                 <span style={{ color: "#9CA3AF", fontSize: 10 }}>▸</span>
 
                 {activeCategory === cat && (
-                  <div style={subSubmenu}>
+                  <div style={subSubmenu}
+                    onMouseEnter={() => {
+                      if (addChildTimer.current) clearTimeout(addChildTimer.current);
+                    }}
+                  >
                     {items.map((comp) => (
                       <div
                         key={comp.component}
