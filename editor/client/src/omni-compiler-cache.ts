@@ -20,17 +20,29 @@ export interface CompileProjectOutput {
   errors?: string[];
 }
 
+/** Internal cache entry with timestamp for time-based eviction. */
+interface CacheEntry {
+  output: CompileProjectOutput;
+  timestamp: number;
+}
+
 class OmniCompilerCache {
-  private cache = new Map<string, CompileProjectOutput>();
+  private cache = new Map<string, CacheEntry>();
+  private lastOutput: CompileProjectOutput | null = null;
+  private static readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
 
   /**
    * Compile a project design into an HTML srcdoc for the CanvasPreview iframe.
    * Returns null when no source could be generated (empty project).
+   * On failure, returns the previous (stale) output to keep the preview alive.
    */
   compileProject(
     input: CompileProjectInput,
     editorMode: boolean = false,
   ): CompileProjectOutput | null {
+    // Validate cache — remove stale entries
+    this.validateCache();
+
     // Generate OmniLang source from design elements
     const genResult = generateOmniSource({
       designElements: input.designElements,
@@ -44,6 +56,11 @@ class OmniCompilerCache {
         genResult.errors.length > 0
           ? genResult.errors.map((e) => e.message)
           : ["No OmniLang source generated"];
+      // Return stale output if available, otherwise show error
+      if (this.lastOutput) {
+        console.warn('[OmniCompilerCache] Source generation failed, returning stale output');
+        return this.lastOutput;
+      }
       return this.errorResult(msgs);
     }
 
@@ -51,7 +68,7 @@ class OmniCompilerCache {
 
     // Check cache
     const cached = this.cache.get(source);
-    if (cached) return cached;
+    if (cached) return cached.output;
 
     // Compile through WASM
     const result = rustCompiler.compileToOmniView(source, editorMode);
@@ -59,8 +76,13 @@ class OmniCompilerCache {
     if (!result.success || !result.files) {
       const msgs =
         result.errors?.map((e) => e.message) ?? ["WASM compilation failed"];
+      // Return stale output if available, otherwise show error
+      if (this.lastOutput) {
+        console.warn('[OmniCompilerCache] WASM compilation failed, returning stale output');
+        return this.lastOutput;
+      }
       const output = this.errorResult(msgs);
-      this.cache.set(source, output);
+      this.cache.set(source, { output, timestamp: Date.now() });
       return output;
     }
 
@@ -71,13 +93,28 @@ class OmniCompilerCache {
       result.files.html,
     );
     const output: CompileProjectOutput = { srcdoc };
-    this.cache.set(source, output);
+    this.cache.set(source, { output, timestamp: Date.now() });
+    this.lastOutput = output; // Save successful output for stale fallback
     return output;
   }
 
   /** Invalidate the entire cache (e.g. when compiler reloads). */
   invalidate(): void {
     this.cache.clear();
+    this.lastOutput = null;
+  }
+
+  /**
+   * Remove cache entries older than MAX_CACHE_AGE to prevent stale
+   * caches from persisting forever.
+   */
+  private validateCache(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (now - entry.timestamp > OmniCompilerCache.MAX_CACHE_AGE) {
+        this.cache.delete(key);
+      }
+    }
   }
 
   private buildSrcdoc(js: string, css: string, bodyHtml: string): string {

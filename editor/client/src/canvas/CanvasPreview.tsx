@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 
 export interface NidEntry {
   elementId: string;
@@ -25,6 +25,19 @@ export function CanvasPreview({
 }: CanvasPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const nidMapRef = useRef<Record<string, NidEntry>>({});
+  const [loadError, setLoadError] = useState(false);
+
+  // Reset error state when srcdoc changes
+  useEffect(() => {
+    setLoadError(false);
+  }, [srcdoc]);
+
+  // Detect error markers in srcdoc and show fallback UI instead of iframe error page
+  useEffect(() => {
+    if (srcdoc && srcdoc.includes('Compilation Error')) {
+      setLoadError(true);
+    }
+  }, [srcdoc]);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -68,6 +81,28 @@ export function CanvasPreview({
   const postMessage = useCallback((msg: unknown) => {
     iframeRef.current?.contentWindow?.postMessage(msg, '*');
   }, []);
+
+  if (loadError) {
+    return (
+      <div style={{
+        width: '100%',
+        height: '100%',
+        padding: 20,
+        color: '#ef4444',
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+        ...style,
+      }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Compilation Error</div>
+          <div style={{ fontSize: 13, color: '#94a3b8' }}>Check the .omni source for syntax errors</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <iframe
