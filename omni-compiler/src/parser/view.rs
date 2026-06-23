@@ -729,12 +729,21 @@ impl<'a> Parser<'a> {
                             TokenKind::StringLiteral(s) => s.clone(),
                             TokenKind::Ident(s) => {
                                 let mut class_name = s.clone();
-                                // Handle hyphenated class names: theme-bar, btn-add, etc.
+                                // Handle hyphenated class names: theme-bar, btn-add, demo1-r-0, etc.
+                                // Also accept IntLiteral after '-' (CSS allows numbers after hyphens: -0, -1, etc.)
                                 while self.peek_kind() == TokenKind::Minus {
                                     self.advance(); // consume '-'
-                                    let next = self.expect_ident(
-                                        "expected identifier after '-' in class name",
-                                    )?;
+                                    let next = match self.peek_kind() {
+                                        TokenKind::Ident(_) => self.expect_ident("")?,
+                                        TokenKind::IntLiteral(n) => {
+                                            self.advance();
+                                            n.to_string()
+                                        }
+                                        _ => return Err(ParseError {
+                                            message: "expected identifier or number after '-' in class name".into(),
+                                            span: self.peek_span(),
+                                        }),
+                                    };
                                     class_name = format!("{}-{}", class_name, next);
                                 }
                                 class_name
@@ -745,9 +754,17 @@ impl<'a> Parser<'a> {
                                     let mut class_name = name;
                                     while self.peek_kind() == TokenKind::Minus {
                                         self.advance(); // consume '-'
-                                        let next = self.expect_ident(
-                                            "expected identifier after '-' in class name",
-                                        )?;
+                                        let next = match self.peek_kind() {
+                                            TokenKind::Ident(_) => self.expect_ident("")?,
+                                            TokenKind::IntLiteral(n) => {
+                                                self.advance();
+                                                n.to_string()
+                                            }
+                                            _ => return Err(ParseError {
+                                                message: "expected identifier or number after '-' in class name".into(),
+                                                span: self.peek_span(),
+                                            }),
+                                        };
                                         class_name = format!("{}-{}", class_name, next);
                                     }
                                     class_name
