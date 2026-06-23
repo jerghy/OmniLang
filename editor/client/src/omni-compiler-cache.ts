@@ -81,9 +81,8 @@ class OmniCompilerCache {
         console.warn('[OmniCompilerCache] WASM compilation failed, returning stale output');
         return this.lastOutput;
       }
-      const output = this.errorResult(msgs);
-      this.cache.set(source, { output, timestamp: Date.now() });
-      return output;
+      // Do NOT cache error results — transient failures should be retried
+      return this.errorResult(msgs);
     }
 
     // Build srcdoc from compiled JS/CSS/HTML

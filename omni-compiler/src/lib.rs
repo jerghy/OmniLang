@@ -161,6 +161,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
 // WASM Bindings
 // ═══════════════════════════════════════════════════════
 
+#[cfg(feature = "wasm")]
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct CompileOptions {
     #[serde(default)]
@@ -184,6 +185,27 @@ pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
         })
         .to_string()
     })
+}
+
+/// Compile a single .omni component to OmniView output. Returns JSON string.
+/// The source should contain the full .omni file; component_name selects which component to extract.
+/// options_json: {"editor_mode": true}
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn compile_omniview_component(source: &str, component_name: &str, options_json: &str) -> String {
+    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let result = compile_omniview(source, opts.editor_mode);
+
+    let component = result.components
+        .as_ref()
+        .and_then(|comps| comps.get(component_name).cloned());
+
+    serde_json::json!({
+        "success": result.success && component.is_some(),
+        "component": component,
+        "errors": result.errors,
+    })
+    .to_string()
 }
 
 /// Return compiler version.

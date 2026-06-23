@@ -672,9 +672,11 @@ function __omni_bindText(nid) {
 
         self.js.push('\n');
 
-        // Capture per-component JS delta for editor hot-replace
-        let component_js = self.js[js_before..].to_string();
-        self.component_js.insert(name.to_string(), component_js);
+        // Capture per-component JS delta for editor hot-replace (only in editor mode)
+        if self.editor_mode {
+            let component_js = self.js[js_before..].to_string();
+            self.component_js.insert(name.to_string(), component_js);
+        }
     }
 
     /// Finalize the JS output with closing IIFE wrapper.
@@ -1070,7 +1072,7 @@ function __omni_bindText(nid) {
     ///   - __omni_replaceComponent(name, factoryCode) — snapshot signals, teardown, restore
     ///   - parent.postMessage omni-rendered on load
     ///
-    /// All JS is ES5-compatible (no arrow functions, no template literals).
+    /// Bridge code below is ES5-compatible (no arrow functions, no template literals).
     fn emit_editor_bridge(&mut self) {
         if !self.editor_mode {
             return;

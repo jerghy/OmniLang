@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
-import { getUnifiedComponentMeta } from "../store/componentRegistry";
+import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
 import type { CommandContext } from "../commands/types";
 import { AddElement } from "../commands/AddElement";
 import { RemoveElement } from "../commands/RemoveElement";
@@ -395,6 +395,9 @@ function ContextMenu({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  // Track registry version so "Add Child" submenu stays fresh
+  const registryVersion = useComponentRegistry((s) => Object.keys(s.definitions).length);
+
   // Build grouped component metadata for "Add Child"
   const groupedComponents = useMemo(() => {
     const allMeta = getUnifiedComponentMeta();
@@ -419,7 +422,7 @@ function ContextMenu({
       if (!sorted.has(cat)) sorted.set(cat, items);
     }
     return sorted;
-  }, []);
+  }, [registryVersion]);
 
   // ── Action handlers ───────────────────────────────
 

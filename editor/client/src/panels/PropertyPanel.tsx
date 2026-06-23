@@ -276,6 +276,13 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
     }, 300);
   }, [selectedIds]);
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
   const raw = elements.find((e) => e.id === selectedIds[0]);
 
   // When editing a component definition and nothing is selected, show component meta editor

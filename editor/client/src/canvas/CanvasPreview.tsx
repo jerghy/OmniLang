@@ -54,7 +54,7 @@ export function CanvasPreview({
           const entry = nidMapRef.current[nid];
           onSelect?.(nid, entry || { elementId: '', tag: '', component: '' });
           // Also highlight in iframe
-          iframe.contentWindow?.postMessage({ type: 'omni-highlight', nid }, '*');
+          iframe.contentWindow?.postMessage({ type: 'omni-highlight', nid }, window.location.origin);
           break;
         }
         case 'omni-hover': {
@@ -79,7 +79,7 @@ export function CanvasPreview({
   }, [srcdoc, onSelect, onRendered, onHover]);
 
   const postMessage = useCallback((msg: unknown) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, '*');
+    iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
   }, []);
 
   if (loadError) {
@@ -121,7 +121,8 @@ export function CanvasPreview({
   );
 }
 
-// Expose postMessage capability for parent to call
+// Reserved for future forwardRef usage — enables parent components to call
+// postMessage / highlight / replaceComponent imperatively on the CanvasPreview.
 export type CanvasPreviewHandle = {
   postMessage: (msg: unknown) => void;
   highlight: (nid: string) => void;
