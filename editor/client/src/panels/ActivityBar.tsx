@@ -24,7 +24,8 @@ export const CODE_PANELS: PanelDef[] = [
 /** Default panels for design mode. */
 export const DESIGN_PANELS: PanelDef[] = [
   { id: "components", icon: "🧩", label: "组件面板", shortcut: "Ctrl+1" },
-  { id: "canvas",     icon: "📄", label: "画布面板", shortcut: "Ctrl+2" },
+  { id: "tree",       icon: "🔀", label: "组件树",   shortcut: "Ctrl+2" },
+  { id: "canvas",     icon: "📄", label: "画布面板", shortcut: "Ctrl+3" },
 ];
 
 interface ActivityBarProps {

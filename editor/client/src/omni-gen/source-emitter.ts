@@ -149,7 +149,7 @@ export class SourceEmitter {
 
     const parts: string[] = [];
     parts.push(`<${style.htmlTag}`);
-    parts.push(` id="${node.path}"`);
+    parts.push(` id="${node.id}"`);
     parts.push(` class: ${style.cssClassName}`);
 
     for (const [attr, val] of Object.entries(style.htmlAttrs)) {

@@ -8,6 +8,7 @@ import { BlockPalette } from "./panels/BlockPalette";
 import { PropertyPanel } from "./panels/PropertyPanel";
 import { CodePropertyPanel } from "./panels/CodePropertyPanel";
 import { ComponentPalette } from "./panels/ComponentPalette";
+import { ComponentTree } from "./panels/ComponentTree";
 import { ConnectorPanel } from "./panels/ConnectorPanel";
 import { TokenPanel, useTokenStore } from "./panels/TokenPanel";
 import { StatePanel } from "./panels/StatePanel";
@@ -146,9 +147,13 @@ export default function App() {
           // Parse into design elements
           const parseResult = parseOmniSource(res.content);
           if (parseResult.designElements) {
+            const rootOrder = parseResult.designElements
+              .filter((e: ElementData) => !e.parentId)
+              .map((e: ElementData) => e.id);
             useEditorStore.setState({
               elements: parseResult.designElements,
               wires: parseResult.designWires || [],
+              rootOrder,
             });
             if (parseResult.codeTabs?.length) {
               useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
@@ -1173,8 +1178,9 @@ export default function App() {
         /* ══════ 设计模式 ══════ */
         <>
           <ActivityBar panels={DESIGN_PANELS} activePanel={activePanel} onToggle={(id) => setActivePanel(p => p === id ? null : id)} />
-          <PanelContainer visible={activePanel === "components" || activePanel === "canvas"}>
+          <PanelContainer visible={activePanel === "components" || activePanel === "tree" || activePanel === "canvas"}>
             {activePanel === "components" && <ComponentPalette />}
+            {activePanel === "tree" && <ComponentTree />}
             {activePanel === "canvas" && <CanvasPanel />}
             {showTokens && activePanel !== null && (
               <div style={{ borderTop: "1px solid #e5e7eb" }}>
