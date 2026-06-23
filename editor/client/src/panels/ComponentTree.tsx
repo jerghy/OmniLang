@@ -155,9 +155,12 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     [elements],
   );
 
-  const handleDragLeave = useCallback(() => {
-    setDropTarget(null);
-    setDropPos(null);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if truly leaving the row, not entering a child
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+      setDropTarget(null);
+      setDropPos(null);
+    }
   }, []);
 
   const handleDrop = useCallback(
@@ -285,24 +288,34 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     const isOver = dropTarget === node.el.id;
     const canChild = acceptsChildren(node.el.tag);
 
-    // Drop indicator style
-    let dropStyle: React.CSSProperties = {};
-    if (isOver && dropPos === "before") {
-      dropStyle = { borderTop: "2px solid #4F46E5" };
-    } else if (isOver && dropPos === "after") {
-      dropStyle = { borderBottom: "2px solid #4F46E5" };
-    } else if (isOver && dropPos === "inside") {
-      dropStyle = {
-        outline: "2px solid #4F46E5",
-        outlineOffset: -2,
-        borderRadius: 4,
-        background: "rgba(79,70,229,0.06)",
-      };
-    }
+    // Drop indicator — absolutely-positioned overlay (before / after / inside)
+    const indicator = isOver
+      ? React.createElement("div", {
+          style: {
+            position: "absolute",
+            left: 0,
+            right: 0,
+            pointerEvents: "none",
+            zIndex: 10,
+            ...(dropPos === "before"
+              ? { top: 0, height: 0, borderTop: "2px solid #4F46E5" }
+              : dropPos === "after"
+                ? { bottom: 0, height: 0, borderBottom: "2px solid #4F46E5" }
+                : {
+                    top: 0,
+                    bottom: 0,
+                    outline: "2px solid #4F46E5",
+                    outlineOffset: -2,
+                    borderRadius: 4,
+                    background: "rgba(79,70,229,0.06)",
+                  }),
+          },
+        })
+      : null;
 
     return React.createElement(
       "div",
-      { key: node.el.id },
+      { key: node.el.id, style: { position: "relative" } },
       // ── Row ──
       React.createElement(
         "div",
@@ -327,7 +340,6 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
             background: isSel ? "#EEF2FF" : "transparent",
             userSelect: "none",
             transition: "background 0.1s",
-            ...dropStyle,
           },
           onMouseEnter: (e: React.MouseEvent) => {
             if (!isSel)
@@ -338,6 +350,7 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
               (e.currentTarget as HTMLElement).style.background = "transparent";
           },
         },
+        indicator,
         // Toggle arrow
         React.createElement(
           "span",
