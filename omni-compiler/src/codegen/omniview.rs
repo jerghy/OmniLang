@@ -32,6 +32,8 @@ pub struct OmniViewOutput {
 }
 
 /// Per-component compiled output for hot-replace.
+/// Note: `html` and `css` are reserved for future per-component HTML/CSS splitting;
+/// currently only `js` is populated by the delta tracker in `generate_component()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentOutput {
     pub js: String,
