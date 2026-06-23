@@ -101,3 +101,37 @@ component App {
     assert!(js.contains("__omni_replaceComponent"), "missing __omni_replaceComponent");
     assert!(js.contains("teardown"), "missing teardown in replaceComponent");
 }
+
+#[test]
+fn editor_mode_emits_factory_not_bare_const() {
+    let source = r#"
+component Counter {
+    signal count: number = 0;
+    view { <button id="Counter.btn.0" @click={inc}>Count</button> }
+    fn inc() { count = count + 1; }
+}
+"#;
+    let normal = compile_omniview(source, false);
+    let editor = compile_omniview(source, true);
+
+    // Normal mode uses bare const for signal variable
+    assert!(
+        normal.js.contains("Counter_count"),
+        "normal mode should contain signal variable 'Counter_count'"
+    );
+    // Editor mode wraps in factory
+    assert!(
+        editor.js.contains("window.__omni_components[\"Counter\"] = (function()"),
+        "editor mode should wrap component in factory IIFE"
+    );
+    // Editor mode no longer has bare signal const at outer scope (it's inside factory)
+    // Instead we check factory return includes the signal
+    assert!(
+        editor.js.contains("Counter_count: Counter_count"),
+        "editor mode factory return should reference prefixed signal names"
+    );
+    assert!(
+        editor.js.contains(".teardown"),
+        "editor mode should have teardown in factory return"
+    );
+}

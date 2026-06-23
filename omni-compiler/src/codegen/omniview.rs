@@ -12,9 +12,11 @@
 use super::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OmniViewOutput {
     /// JavaScript code (inline signal runtime + generated component)
     pub js: String,
@@ -24,6 +26,19 @@ pub struct OmniViewOutput {
     pub css: String,
     /// Source map entries
     pub source_map: Vec<SourceMapEntry>,
+    /// Per-component output for hot-replace (keyed by component name)
+    #[serde(default)]
+    pub components: HashMap<String, ComponentOutput>,
+}
+
+/// Per-component compiled output for hot-replace.
+/// Note: `html` and `css` are reserved for future per-component HTML/CSS splitting;
+/// currently only `js` is populated by the delta tracker in `generate_component()`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentOutput {
+    pub js: String,
+    pub html: String,
+    pub css: String,
 }
 
 /// Generate OmniView output from an IR program.
@@ -51,6 +66,8 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         guard_counter: 0,
         mount_js: String::new(),
         editor_mode,
+        comp_mount_js: String::new(),
+        component_js: HashMap::new(),
     };
 
     gen.emit_js_header();
@@ -98,6 +115,16 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
     }
 
+    // Build per-component output map for editor hot-replace
+    let mut components: HashMap<String, ComponentOutput> = HashMap::new();
+    for (name, js) in &gen.component_js {
+        components.insert(name.clone(), ComponentOutput {
+            js: js.clone(),
+            html: String::new(),
+            css: String::new(),
+        });
+    }
+
     // Emit ONE innerHTML insertion with accumulated HTML + ALL deferred bindings
     gen.emit_dom_and_bindings();
     // Inject editor bridge code (postMessage, nid_map, highlight, hot-replace)
@@ -109,6 +136,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         html: gen.html,
         css: gen.css,
         source_map: gen.source_map,
+        components,
     }
 }
 
@@ -157,6 +185,13 @@ struct OmniViewGenerator {
     mount_js: String,
     /// When true, emit editor bridge code (postMessage, nid_map, highlight, hot-replace).
     editor_mode: bool,
+    /// Per-component mount JS buffer for editor mode factory pattern.
+    /// Accumulates mount lifecycle and effect code for the current component
+    /// and is flushed inside the factory IIFE before the return.
+    comp_mount_js: String,
+    /// Per-component JS deltas for hot-replace (keyed by component name).
+    /// Captured at the end of each `generate_component()` call.
+    component_js: HashMap<String, String>,
 }
 
 impl OmniViewGenerator {
@@ -369,10 +404,21 @@ function __omni_bindText(nid) {
         ir: &IRProgram,
         is_root: bool,
     ) {
+        let js_before = self.js.len();
         self.current_component = name.to_string();
         // Clear component-local signal renames (global function/event renames persist).
         self.name_renames.clear();
         self.signal_names.clear();
+        self.comp_mount_js.clear();
+
+        // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
+        // via __omni_replaceComponent in the editor bridge.
+        if self.editor_mode {
+            self.js.push_str(&format!(
+                "window.__omni_components[\"{}\"] = (function() {{\n",
+                name
+            ));
+        }
         // Register THIS component's signal/computed names with component prefix.
         for state in &comp.states {
             let prefixed = format!("{}_{}", name, state.name);
@@ -535,8 +581,13 @@ function __omni_bindText(nid) {
                 self.js.truncate(old_js_len);
                 match kind.as_str() {
                     "mount" => {
-                        self.mount_js.push_str(&format!("// @mount {}\n", name));
-                        self.mount_js.push_str(&body_js);
+                        if self.editor_mode {
+                            self.comp_mount_js.push_str(&format!("// @mount {}\n", name));
+                            self.comp_mount_js.push_str(&body_js);
+                        } else {
+                            self.mount_js.push_str(&format!("// @mount {}\n", name));
+                            self.mount_js.push_str(&body_js);
+                        }
                     }
                     "unmount" => {
                         self.js.push_str(&format!(
@@ -572,16 +623,58 @@ function __omni_bindText(nid) {
                 // Emit reactive effect via __omni_effect, which auto-tracks
                 // signal dependencies and re-runs when they change.
                 // Placed in mount_js so DOM elements are available.
-                self.mount_js.push_str(&format!(
-                    "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
-                    name, body_js
-                ));
+                if self.editor_mode {
+                    self.comp_mount_js.push_str(&format!(
+                        "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
+                        name, body_js
+                    ));
+                } else {
+                    self.mount_js.push_str(&format!(
+                        "// @effect {}\n__omni_effect(() => {{\n{}}});\n",
+                        name, body_js
+                    ));
+                }
             }
             self.signal_names = saved_signal_names;
             self.current_component = saved_component;
         }
 
+        if self.editor_mode {
+            // Flush component mount JS inside the factory, before return
+            if !self.comp_mount_js.is_empty() {
+                self.js.push_str("\n  // ── Mount Lifecycle ──\n");
+                self.js.push_str(&self.comp_mount_js);
+                self.comp_mount_js.clear();
+            }
+
+            // Collect signal variable names (prefixed) for the factory return object
+            let mut signal_entries: Vec<String> = Vec::new();
+            for state in &comp.states {
+                let prefixed = format!("{}_{}", name, state.name);
+                signal_entries.push(format!("{}: {}", prefixed, prefixed));
+            }
+            for c in &comp.computeds {
+                let prefixed = format!("{}_{}", name, c.name);
+                signal_entries.push(format!("{}: {}", prefixed, prefixed));
+            }
+            for (prop_name, _) in &comp.prop_defaults {
+                let prefixed = format!("{}_{}", name, prop_name);
+                signal_entries.push(format!("{}: {}", prefixed, prefixed));
+            }
+
+            let signal_entries_str = signal_entries.join(", ");
+
+            self.js.push_str(&format!(
+                "  return {{\n    signals: {{ {} }},\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
+                signal_entries_str, name
+            ));
+        }
+
         self.js.push('\n');
+
+        // Capture per-component JS delta for editor hot-replace
+        let component_js = self.js[js_before..].to_string();
+        self.component_js.insert(name.to_string(), component_js);
     }
 
     /// Finalize the JS output with closing IIFE wrapper.
@@ -3919,7 +4012,7 @@ fn escape_html(s: &str) -> String {
 // Codegen Dispatch Wrapper
 // ══════════════════════════════════════════════════════════
 
-use std::collections::HashMap;
+
 
 use super::{CompileOutput, CompiledFile};
 

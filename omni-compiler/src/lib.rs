@@ -17,7 +17,12 @@ pub mod sourcemap;
 pub mod stdlib;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
+use crate::codegen::omniview::ComponentOutput;
 use crate::parser::ast::{ImportStmt, Program, Visibility};
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
@@ -80,6 +85,9 @@ pub struct OmniViewResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<OmniViewFiles>,
+    /// Per-component output for hot-replace (keyed by component name)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub components: Option<HashMap<String, ComponentOutput>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -94,7 +102,7 @@ pub struct OmniViewFiles {
 }
 
 /// Compile .omni → OmniView (JS + HTML + CSS + SourceMap). Core function.
-pub fn compile_omniview(source: &str) -> OmniViewResult {
+pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
     let mut errors: Vec<error::Diagnostic> = Vec::new();
 
     // 1. Lex
@@ -108,6 +116,7 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
             return OmniViewResult {
                 success: false,
                 files: None,
+                components: None,
                 source_map: None,
                 errors,
             };
@@ -129,7 +138,7 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
     let ir_program = ir::lower(&program, &semantics);
 
     // 5. Generate OmniView output
-    let output = codegen::omniview::generate(&ir_program, false);
+    let output = codegen::omniview::generate(&ir_program, editor_mode);
 
     OmniViewResult {
         success: !has_errors,
@@ -138,9 +147,65 @@ pub fn compile_omniview(source: &str) -> OmniViewResult {
             html: output.html,
             css: output.css,
         }),
+        components: if output.components.is_empty() {
+            None
+        } else {
+            Some(output.components)
+        },
         source_map: Some(output.source_map),
         errors,
     }
+}
+
+// ═══════════════════════════════════════════════════════
+// WASM Bindings
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct CompileOptions {
+    #[serde(default)]
+    editor_mode: bool,
+}
+
+/// Compile .omni source to OmniView (JS + HTML + CSS). Returns JSON string.
+/// options_json: {"editor_mode": true}
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
+    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let result = compile_omniview(source, opts.editor_mode);
+    serde_json::to_string(&result).unwrap_or_else(|e| {
+        serde_json::json!({
+            "success": false,
+            "files": null,
+            "components": null,
+            "source_map": null,
+            "errors": [{ "message": e.to_string() }]
+        })
+        .to_string()
+    })
+}
+
+/// Return compiler version.
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Compile .omni source to IR JSON. Returns JSON string.
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn compile_to_ir(source: &str) -> String {
+    let result = compile(source);
+    serde_json::to_string(&result).unwrap_or_else(|e| {
+        serde_json::json!({
+            "success": false,
+            "ir": null,
+            "errors": [{ "message": e.to_string() }]
+        })
+        .to_string()
+    })
 }
 
 // ═══════════════════════════════════════════════════════
@@ -613,7 +678,6 @@ pub fn compile_multi_to_target(
 // Native FFI (for Python ctypes/cffi)
 // ═══════════════════════════════════════════════════════
 
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
