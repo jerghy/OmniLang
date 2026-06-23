@@ -152,35 +152,21 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
       const draggedId = dragIdRef.current;
       if (!draggedId || draggedId === targetId) return;
 
-      const el = elements.find((e) => e.id === draggedId);
-      const target = elements.find((e) => e.id === targetId);
-      if (!el || !target) return;
-
       // Use ref for reliable drop position (state may be stale)
       const dropInfo = dropPosRef.current;
       const dropPos = dropInfo?.targetId === targetId ? dropInfo.position : "after";
 
-      if (dropPos === "inside" && target.children !== undefined) {
-        // Move into target as child
-        undoExec(new ReorderElement(draggedId, targetId, -1), ctx);
+      if (dropPos === "inside") {
+        // Move dragged element INTO target as a child
+        undoExec(new MoveElement(draggedId, targetId, null, "after"), ctx);
       } else {
-        // Reorder relative to target among siblings
-        const parentId = target.parentId;
-        const siblings = parentId
-          ? (elements.find((e) => e.id === parentId)?.children ?? [])
-          : rootOrder;
-        const targetIdx = siblings.indexOf(targetId);
-        if (dropPos === "after") {
-          const nextSibling = targetIdx >= 0 && targetIdx < siblings.length - 1 ? siblings[targetIdx + 1] : null;
-          undoExec(new ReorderElement(draggedId, parentId, nextSibling ? siblings.indexOf(nextSibling) : undefined), ctx);
-        } else {
-          undoExec(new ReorderElement(draggedId, parentId, Math.max(0, targetIdx)), ctx);
-        }
+        // Reorder: move dragged element to a position relative to target among siblings
+        undoExec(new ReorderElement(draggedId, targetId, dropPos), ctx);
       }
       dragIdRef.current = null;
       dropPosRef.current = null;
     },
-    [elements, rootOrder, undoExec, ctx],
+    [undoExec, ctx],
   );
 
   // ── Render ─────────────────────────────────────────
