@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 
-interface NidEntry {
+export interface NidEntry {
   elementId: string;
   tag: string;
   component: string;
