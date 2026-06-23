@@ -276,6 +276,23 @@ function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
     if (ctx.viewParentStack.length > 0) ctx.viewParentStack.pop();
     return;
   }
+
+  // Text content between tags (e.g., "Hello" between <p> and </p>)
+  if (trimmed && !trimmed.startsWith("//")) {
+    const text = trimmed.trim();
+    if (text && !text.startsWith("<")) {
+      // Attach as label prop to the current parent element
+      const parentId = ctx.viewParentStack.length > 0
+        ? ctx.viewParentStack[ctx.viewParentStack.length - 1]
+        : null;
+      if (parentId) {
+        const parent = ctx.elements.find(e => e.id === parentId);
+        if (parent && !parent.props.label) {
+          parent.props.label = text;
+        }
+      }
+    }
+  }
 }
 
 function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {

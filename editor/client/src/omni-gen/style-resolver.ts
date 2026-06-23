@@ -82,6 +82,13 @@ export function resolveStyle(node: ViewNode): ResolvedStyle {
       continue;
     }
 
+    // For raw HTML tags (no mapping), treat 'label' prop as content text
+    // (p, button, h1-h6, etc. can contain text from parsed .omni source)
+    if (!mapping && key === "label" && typeof val === "string") {
+      contentText = val;
+      continue;
+    }
+
     // Regular attrs
     htmlAttrs[key] = String(val);
   }
