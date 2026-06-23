@@ -1,0 +1,57 @@
+/* Styles for Dashboard */
+.dashboard-page {
+  margin: 16px 0;
+  background: #f9fafb;
+  border: 1px solid #d4d4d8;
+  max-width: 90vw;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.page-header {
+  padding: 20px;
+  gap: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  background: #fff;
+  flex-wrap: wrap;
+  display: flex;
+}
+.page-title {
+  color: #111;
+  margin: 0.0px;
+  font-size: 22px;
+  font-weight: 700.0px;
+}
+.page-subtitle {
+  margin: 0.0px;
+  flex: 1.0px;
+  font-size: 13px;
+  color: #888;
+}
+.refresh-btn {
+  padding: 8px 16px;
+  background: #6366f1;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+}
+.section {
+  padding: 0 16px 16px 16px;
+}
+.section-title {
+  letter-spacing: 0.5px;
+  margin: 16px 0 8px 0;
+  text-transform: uppercase;
+  font-weight: 600.0px;
+  font-size: 14px;
+  color: #666;
+}
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.demo-card {
+}

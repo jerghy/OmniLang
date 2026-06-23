@@ -1,7 +1,7 @@
 /** 属性面板。根据选中元素和统一元数据动态渲染编辑器。
  *  编辑自定义组件定义时显示 ComponentMetaEditor。*/
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";

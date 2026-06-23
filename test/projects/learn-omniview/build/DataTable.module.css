@@ -1,0 +1,133 @@
+/* Styles for DataTable */
+.datatable {
+  border-radius: 12px;
+  padding: 20px 16px;
+  border: 1px solid #d4d4d8;
+  margin: 16px 0;
+  background: white;
+}
+.header-row {
+  margin-bottom: 16px;
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+.title {
+  margin: 0.0px;
+  color: #1f2937;
+  font-size: 20px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.info-text {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0.0px;
+}
+.sort-btn {
+  background: #f3f4f6;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 14px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.table-wrapper {
+  overflow-y: auto;
+  border-radius: 8px;
+  max-height: 400px;
+  border: 1px solid #d4d4d8;
+}
+.data-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.th {
+  padding: 12px;
+  border-bottom: 2px solid #d4d4d8;
+  color: #6b7280;
+  background: #f9fafb;
+}
+.td {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 12px;
+  color: #374151;
+  font-size: 14px;
+}
+.tr {
+}
+.badge {
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.active {
+  color: #166534;
+  background: #d1fac5;
+}
+.inactive {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+.score-text {
+  font-size: 14px;
+  font-weight: bold;
+}
+.td-empty {
+  color: #9ca3af;
+  text-align: center;
+  padding: 20px;
+}
+.summary-section {
+  margin-top: 20px;
+}
+.section-title {
+  font-size: 16px;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+.summary-list {
+  padding: 0.0px;
+  margin: 0.0px;
+  list-style: none;
+}
+.summary-item {
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  display: flex;
+  color: #374151;
+  padding: 6px 0;
+}
+.features-section {
+  margin-top: 20px;
+}
+.features-list {
+  list-style: none;
+  margin: 0.0px;
+  padding: 0.0px;
+}
+.features-item {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #4b5563;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.footer-row {
+  gap: 8px;
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+}
+.footer-text {
+  color: #9ca3af;
+  font-size: 12px;
+  margin: 0.0px;
+}

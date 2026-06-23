@@ -1,0 +1,141 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  EmitEventDemo — 父子组件事件流演示                                ║
+// ║                                                                    ║
+// ║  · event 声明（含返回值类型）                                       ║
+// ║  · event? 可选事件（nullable event）                               ║
+// ║  · 父组件 @onEvent 绑定 + 参数流转                                  ║
+// ║  · emit 语句（注：编译器 P2 保留语法，目前用直接调用代替）         ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+import omniview;
+import { array_push } from "std/array";
+
+// ── 子组件：事件来源 ───────────────────────────────────────
+component EmitChild {
+    prop label: String = "Child";
+    event onAction: String;
+    event onOptionalAck: String?;
+    event onCount: i32;
+
+    signal clickCount: i32 = 0;
+
+    fn doAction() {
+        clickCount = clickCount + 1;
+        // 直接调用事件处理函数（等价于 emit onAction(...)）
+        onAction(label + " #" + clickCount.to_string());
+        // 可选事件：如果绑定则触发
+        if onOptionalAck != null {
+            onOptionalAck("ack for " + clickCount.to_string());
+        }
+    }
+
+    fn incrementParent() {
+        onCount(clickCount);
+    }
+
+    view {
+        <div class: child-box>
+            <strong>{label}</strong>
+            <p>Clicks: {clickCount}</p>
+            <button class: child-btn @onPress={doAction}>Send Action</button>
+            <button class: child-btn-outline @onPress={incrementParent}>Send Count</button>
+        </div>
+    }
+
+    style {
+        .child-box { padding: 14px; background: #f3f0ff; border-radius: 10px; border: 1px solid #c7d2fe; margin: 8px 0; }
+        .child-box strong { font-size: 13px; color: #4338ca; display: block; margin-bottom: 4px; }
+        .child-box p { font-size: 12px; color: #6b7280; margin: 0 0 8px 0; }
+        .child-btn { padding: 6px 14px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 6px; }
+        .child-btn-outline { padding: 6px 14px; background: transparent; color: #6366f1; border: 1px solid #6366f1; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    }
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to EmitEventDemo component.                    ║
+// ║  2. Click "Send Action" button in child component.          ║
+// ║  3. Click "Send Count" button in child component.           ║
+// ║  4. Check the event log in the parent component.            ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - Clicking "Send Action" adds an event entry to the log.  ║
+// ║  - Clicking "Send Count" logs count event with numbers.    ║
+// ║  - Event log shows correct number of entries.              ║
+// ║  - Clear button resets the event log and total count.      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── 父组件：事件消费者 ─────────────────────────────────────
+component EmitEventDemo {
+    signal messages: Array<String> = [];
+    signal totalCount: i32 = 0;
+
+    fn onChildAction(msg: String) {
+        totalCount = totalCount + 1;
+        array_push(messages, totalCount.to_string() + ": " + msg);
+    }
+
+    fn onOptionalAck(msg: String) {
+        array_push(messages, "[ACK] " + msg);
+    }
+
+    fn onChildCount(n: i32) {
+        totalCount = totalCount + n;
+        array_push(messages, "[COUNT] += " + n.to_string() + ", total=" + totalCount.to_string());
+    }
+
+    fn clearLog() { messages = []; totalCount = 0; }
+
+    view {
+        <div class: container>
+            <h3 class: title>事件流演示</h3>
+            <p class: subtitle>event 声明 · @onAction 绑定 · 可选事件 event? · 父→子→父回调链</p>
+
+            <div class: event-grid>
+                <EmitChild
+                    label="Sender A"
+                    @onAction={onChildAction}
+                    @onOptionalAck={onOptionalAck}
+                    @onCount={onChildCount}
+                />
+                <EmitChild
+                    label="Sender B"
+                    @onAction={onChildAction}
+                    @onCount={onChildCount}
+                />
+            </div>
+
+            <div class: log-section>
+                <div class: log-header>
+                    <strong>Event Log（{messages.len().to_string()} entries）</strong>
+                    <button class: clear-btn @onPress={clearLog}>Clear</button>
+                </div>
+                <div class: log-list>
+                    @for msg in messages {
+                        <p class: log-entry>{msg}</p>
+                    }
+                    @empty {
+                        <p class: empty-hint>No events yet — click buttons above</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: #9ca3af; margin: 0 0 14px 0; }
+
+        .event-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+
+        .log-section { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+        .log-header { padding: 10px 14px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .log-header strong { font-size: 13px; color: #374151; }
+        .clear-btn { padding: 4px 12px; background: #6b7280; color: #fff; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .log-list { padding: 10px 14px; max-height: 200px; overflow-y: auto; }
+        .log-entry { font-size: 12px; color: #4b5563; margin: 2px 0; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; }
+        .empty-hint { font-size: 12px; color: #9ca3af; text-align: center; padding: 20px; margin: 0; }
+    }
+}

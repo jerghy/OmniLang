@@ -1,0 +1,56 @@
+/* Styles for TypeSystemDemo */
+.container {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+  padding: 20px 16px;
+  margin: 16px 0;
+}
+.title {
+  color: #1f2937;
+  margin: 0 0 4px 0;
+  font-size: 18px;
+}
+.subtitle {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0 0 16px 0;
+}
+.section {
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: 15px;
+  color: #374151;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin: 0 0 8px 0;
+}
+.list {
+  margin: 0.0px;
+  padding-left: 16px;
+}
+.item {
+  font-size: 14px;
+  margin: 4px 0;
+  color: #4b5563;
+}
+.code {
+  background: #f3f4f6;
+  border-radius: 4px;
+  color: #6366f1;
+  padding: 1px 6px;
+  font-size: 13px;
+}
+.summary-box {
+  border-radius: 8px;
+  background: #f0f9ff;
+  margin-top: 12px;
+  border: 1px solid #bae6fd;
+  padding: 10px 14px;
+}
+.summary-text {
+  color: #369a1;
+  margin: 0.0px;
+  font-size: 13px;
+}

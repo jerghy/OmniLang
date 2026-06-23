@@ -1,0 +1,43 @@
+## BASELINE: OmniLang Editor Test Baseline
+
+Recorded: 2026-06-22
+
+### Unit Tests (Vitest)
+- Test files: 14
+- Tests: 150
+- Status: ALL PASS
+
+### Test Distribution by Subsystem
+
+| Subsystem | Test File(s) | Tests | Status |
+|-----------|-------------|-------|--------|
+| omni-gen (pipeline integration) | integration-generate.test.ts | 21 | ✅ |
+| omni-gen (store extractor) | store-extractor.test.ts | 13 | ✅ |
+| omni-gen (omni parser) | omni-parser.test.ts | 14 | ✅ |
+| omni-gen (view tree builder) | view-tree-builder.test.ts | 3 | ✅ |
+| omni-gen (expression lowering) | expression-lowering.test.ts | 20 | ✅ |
+| omni-gen (chain emitter) | chain-emitter.test.ts | 3 | ✅ |
+| omni-gen (source emitter / annotation) | source-emitter-annotation.test.ts | 14 | ✅ |
+| omni-gen (annotation data) | annotation-data.test.ts | 16 | ✅ |
+| omni-gen (validator) | validator.test.ts | 6 | ✅ |
+| commands | commands.test.ts | 24 | ✅ |
+| store (editor) | editor.test.ts | 10 | ✅ |
+| store (undo) | undo.test.ts | 6 | ✅ |
+| canvas (FlowEngine) | FlowEngine.test.ts — see sub-tests | ✅ |
+| canvas (connection validators) | connectionValidators.test.ts — see sub-tests | ✅ |
+
+### E2E Tests (Playwright)
+- spec files: 5 (editor, omni-driver-*, wire)
+- Status: (run to confirm)
+
+### Coverage Gaps — Subsystems with NO unit tests
+
+| Subsystem | Files | Risk |
+|-----------|-------|------|
+| Panels (all 15 panels) | panels/*.tsx | HIGH |
+| Editor (Monaco) | editor/*.ts / tsx | HIGH |
+| Search | search/*.ts / tsx | MEDIUM |
+| API client | api/client.ts | MEDIUM |
+| OmniDriver | driver/*.ts | MEDIUM |
+| Canvas UI components | canvas/*.tsx (non-test) | MEDIUM |
+| Store (component registry) | store/componentRegistry.ts | LOW |

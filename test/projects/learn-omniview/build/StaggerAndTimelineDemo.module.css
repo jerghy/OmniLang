@@ -1,0 +1,77 @@
+/* Styles for StaggerAndTimelineDemo */
+.container {
+  margin: 16px 0;
+  padding: 20px 16px;
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+}
+.title {
+  color: #1f2937;
+  font-size: 18px;
+  margin: 0 0 4px 0;
+}
+.subtitle {
+  color: #9ca3af;
+  font-size: 12px;
+  margin: 0 0 14px 0;
+}
+.group-title {
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  margin: 20px 0 10px 0;
+  font-weight: 600.0px;
+  font-size: 14px;
+  padding-bottom: 4px;
+}
+.stagger-section {
+  margin-bottom: 14px;
+}
+.stagger-section {
+  color: #374151;
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.stagger-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dot {
+  background: #6366f1;
+  width: 36px;
+  border-radius: 50%;
+  justify-content: center;
+  color: #fff;
+  display: flex;
+  font-weight: 600.0px;
+  align-items: center;
+  height: 36px;
+  font-size: 12px;
+}
+.timeline-area {
+  padding: 14px;
+  flex-direction: column;
+  gap: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  display: flex;
+}
+.tl-label {
+  font-weight: 600.0px;
+  margin-top: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #9ca3af;
+  letter-spacing: 0.5px;
+}
+.tl-box {
+  padding: 10px 14px;
+  color: #4338ca;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  font-size: 12px;
+  border-radius: 8px;
+}

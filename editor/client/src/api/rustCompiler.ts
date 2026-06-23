@@ -63,7 +63,6 @@ class RustCompiler {
     try {
       // Dynamic import of the WASM JS glue
       const wasmModule = await import(
-        /* webpackChunkName: "omni-compiler" */
         '../../../public/wasm/omni_compiler.js'
       );
 
@@ -73,6 +72,7 @@ class RustCompiler {
       this.wasm = {
         compile_to_ir: wasmModule.compile_to_ir,
         compile_to_omniview: wasmModule.compile_to_omniview,
+        compile_omniview_component: wasmModule.compile_omniview_component,
         version: wasmModule.version,
       };
       this.ready = true;

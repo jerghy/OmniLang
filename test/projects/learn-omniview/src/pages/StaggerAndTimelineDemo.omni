@@ -1,0 +1,165 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  StaggerAndTimelineDemo — Stagger 方向 + 时间线连接器 + MotionRef  ║
+// ║                                                                    ║
+// ║  Stagger 方向： start · end · edges                                ║
+// ║  时间线连接器： then（显式） · with（并行）                        ║
+// ║  时间线特性：   MotionRef（引用 @motion）                          ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to StaggerAndTimelineDemo component page.     ║
+// ║  2. Verify 3 stagger rows render: staggerFrom start, end,  ║
+// ║     and edges. Each row contains 5 dot children.           ║
+// ║  3. Check each stagger row has @enter with its @motion.    ║
+// ║  4. Verify timeline section (connectorDemo) renders with   ║
+// ║     @timeline={connectorDemo} on the timeline-area div.    ║
+// ║  5. Check timeline boxes: box1, box2, box3, box4 with      ║
+// ║     their data-box attributes.                             ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - staggerStart row has @enter={staggerStart} with         ║
+// ║    staggerFrom="start".                                    ║
+// ║  - staggerEnd row has @enter={staggerEnd} with             ║
+// ║    staggerFrom="end".                                      ║
+// ║  - staggerEdges row has @enter={staggerEdges} with         ║
+// ║    staggerFrom="edges".                                    ║
+// ║  - timeline-area has @timeline={connectorDemo} attr.       ║
+// ║  - box1-box4 elements have data-box attributes.            ║
+// ║  - refMotion is referenced inside the connectorDemo        ║
+// ║    timeline with "with" connector.                         ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── 供 MotionRef 引用 ─────────────────────────────────────
+@motion refMotion {
+    from { scale: 1, opacity: 0.5 }
+    to   { scale: 1.3, opacity: 1 }
+    over 400 ease power2Out
+}
+
+// ── 供时间线内联使用的动画 ───────────────────────────────
+
+// ── staggerFrom start ──────────────────────────────────────
+@motion staggerStart {
+    from { opacity: 0, y: 15 }
+    to   { opacity: 1, y: 0 }
+    over 300 ease power2Out
+    delayChildren 30
+    staggerChildren 25
+    staggerFrom start
+}
+
+// ── staggerFrom end ────────────────────────────────────────
+@motion staggerEnd {
+    from { opacity: 0, y: 15 }
+    to   { opacity: 1, y: 0 }
+    over 300 ease power2Out
+    delayChildren 30
+    staggerChildren 25
+    staggerFrom end
+}
+
+// ── staggerFrom edges ──────────────────────────────────────
+@motion staggerEdges {
+    from { opacity: 0, y: 15 }
+    to   { opacity: 1, y: 0 }
+    over 300 ease power2Out
+    delayChildren 30
+    staggerChildren 25
+    staggerFrom edges
+}
+
+// ── 时间线：then + with + MotionRef ─────────────────────
+@timeline connectorDemo {
+    set { opacity: 0 }
+    label phase1
+    box1 { from { x: -20 opacity: 0 } to { x: 0 opacity: 1 } over 300 ease power2Out }
+    then
+    box2 { from { x: 40 opacity: 0 } to { x: 0 opacity: 1 } over 300 ease power2Out }
+    with
+    refMotion
+    then
+    box3 { from { y: 20 opacity: 0 } to { y: 0 opacity: 1 } over 300 ease power2Out }
+    with
+    label outro
+    box4 { from { y: -10 opacity: 0 } to { y: 0 opacity: 1 } over 200 ease easeOut }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  组件
+// ══════════════════════════════════════════════════════════════════════
+component StaggerAndTimelineDemo {
+    view {
+        <div class: container>
+            <h3 class: title>Stagger 方向 + 时间线连接器</h3>
+            <p class: subtitle>staggerFrom start/end/edges · then · with · MotionRef</p>
+
+            <!-- ═══ Stagger 方向组 ═══ -->
+            <h4 class: group-title>Stagger 方向（start / end / edges — center 已测）</h4>
+
+            <div class: stagger-section>
+                <strong>staggerFrom start</strong>
+                <div class: stagger-row @enter={staggerStart}>
+                    <div class: dot>1</div>
+                    <div class: dot>2</div>
+                    <div class: dot>3</div>
+                    <div class: dot>4</div>
+                    <div class: dot>5</div>
+                </div>
+            </div>
+
+            <div class: stagger-section>
+                <strong>staggerFrom end</strong>
+                <div class: stagger-row @enter={staggerEnd}>
+                    <div class: dot>1</div>
+                    <div class: dot>2</div>
+                    <div class: dot>3</div>
+                    <div class: dot>4</div>
+                    <div class: dot>5</div>
+                </div>
+            </div>
+
+            <div class: stagger-section>
+                <strong>staggerFrom edges</strong>
+                <div class: stagger-row @enter={staggerEdges}>
+                    <div class: dot>1</div>
+                    <div class: dot>2</div>
+                    <div class: dot>3</div>
+                    <div class: dot>4</div>
+                    <div class: dot>5</div>
+                </div>
+            </div>
+
+            <!-- ═══ 时间线连接器组 ═══ -->
+            <h4 class: group-title>时间线连接器: then（顺序） + with（并行）+ MotionRef</h4>
+            <div @timeline={connectorDemo} class: timeline-area>
+                <div class: tl-label>phase1（set 后）</div>
+                <div data-box="box1" class: tl-box>box1 · then →</div>
+                <div data-box="box2" class: tl-box>box2 · with（与 refMotion 并行）</div>
+                <div data-box="box3" class: tl-box>box3 · then after above</div>
+                <div class: tl-label>outro</div>
+                <div data-box="box4" class: tl-box>box4 · with outro</div>
+            </div>
+        </div>
+    }
+
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 12px; color: #9ca3af; margin: 0 0 14px 0; }
+
+        .group-title { font-size: 14px; font-weight: 600; color: #374151; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+
+        .stagger-section { margin-bottom: 14px; }
+        .stagger-section strong { font-size: 12px; color: #374151; display: block; margin-bottom: 6px; }
+        .stagger-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .dot { width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+
+        .timeline-area { padding: 14px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 8px; }
+        .tl-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+        .tl-box { padding: 10px 14px; background: #eef2ff; border-radius: 8px; border: 1px solid #c7d2fe; font-size: 12px; color: #4338ca; }
+    }
+}

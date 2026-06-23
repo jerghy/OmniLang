@@ -110,6 +110,13 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         all_comps.last().map(|(n, _)| *n).unwrap_or("App")
     };
 
+    // Initialize editor bridge globals before component factories reference them
+    if gen.editor_mode {
+        gen.js.push_str(
+            "window.__omni_signals = {};\nwindow.__omni_components = window.__omni_components || {};\n"
+        );
+    }
+
     // Generate each component (signals, fns). Only root component emits its view.
     for (comp_name, comp) in ir.all_components() {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);

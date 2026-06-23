@@ -1,0 +1,93 @@
+/* Styles for FormControlsDemo */
+.form-controls {
+  background: white;
+  padding: 20px 16px;
+  margin: 16px 0;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+}
+.title {
+  font-size: 18px;
+  margin: 0 0 4px 0;
+  color: #1f2937;
+}
+.subtitle {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0 0 16px 0;
+}
+.section {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+  margin-bottom: 14px;
+  border: 1px solid #e5e7eb;
+}
+.section-title {
+  margin: 0 0 8px 0;
+  font-weight: 600.0px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.demo-link {
+  cursor: pointer;
+  font-size: 14px;
+  color: #6366f1;
+  text-decoration: underline;
+}
+.demo-select {
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  width: 100%;
+  border: 2px solid #d4d4d8;
+}
+.select-value {
+  font-size: 13px;
+  color: #374151;
+  margin: 4px 0 0 0;
+}
+.check-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+.demo-checkbox {
+  cursor: pointer;
+  height: 18px;
+  width: 18px;
+  accent-color: #6366f1;
+}
+.check-text {
+  font-size: 14px;
+  color: #374151;
+}
+.check-status {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+.demo-input {
+  border: 2px solid #d4d4d8;
+  font-size: 14px;
+  border-radius: 8px;
+  width: 100%;
+  padding: 8px 12px;
+}
+.demo-range {
+  width: 100%;
+  margin: 8px 0;
+}
+.status-area {
+  border: 1px solid #bbf7d0;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border-radius: 8px;
+  background: #f0fdf4;
+}
+.status-text {
+  color: #166534;
+  margin: 0.0px;
+  font-size: 14px;
+}

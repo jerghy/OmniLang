@@ -1,0 +1,108 @@
+/* Styles for DataFetching */
+.data-fetching {
+  border-radius: 12px;
+  margin: 16px 0;
+  border: 1px solid #ddd;
+  padding: 20px 16px;
+  background: #fff;
+}
+.title {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 18px;
+}
+.desc {
+  margin: 0 0 12px 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+.controls {
+  margin-bottom: 12px;
+  gap: 8px;
+  display: flex;
+}
+.url-input {
+  border-radius: 6px;
+  border: 1px solid #d4d4d8;
+  font-size: 13px;
+  padding: 8px 12px;
+  flex: 1.0px;
+}
+.btn-load {
+  padding: 8px 16px;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #fff;
+  background: #6366f1;
+}
+.btn-api {
+  cursor: pointer;
+  color: #fff;
+  border: none;
+  background: #8b5cf6;
+  border-radius: 6px;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+.btn-reset {
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  background: #6b7280;
+  padding: 8px 16px;
+  border-radius: 6px;
+  color: #fff;
+}
+.status-box {
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #d4d4d8;
+  padding: 12px;
+}
+.loading-box {
+  background: #f0f4ff;
+  border-color: #6366f1;
+}
+.success-box {
+  border-color: #22c55d;
+  background: #f0fdf4;
+}
+.error-box {
+  border-color: #f97316;
+  background: #fff5f0;
+}
+.idle-box {
+}
+.label {
+  font-size: 13px;
+  font-weight: 600.0px;
+  color: #374151;
+  margin: 0 0 4px 0;
+}
+.result {
+  max-height: 200px;
+  color: #333;
+  padding: 8px;
+  overflow-y: auto;
+  border-radius: 4px;
+  margin: 0.0px;
+  background: #fff;
+  font-size: 12px;
+}
+.loading-text {
+  margin: 0.0px;
+  color: #6366f1;
+  font-size: 14px;
+}
+.idle-text {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0.0px;
+}
+.error-text {
+  font-size: 14px;
+  margin: 0.0px;
+  color: #f97316;
+}

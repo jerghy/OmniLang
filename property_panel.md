@@ -1,0 +1,229 @@
+- generic [ref=e2]:
+  - region "Notifications alt+T"
+  - generic [ref=e22]:
+    - generic [ref=e23]:
+      - generic "组件面板 (Ctrl+1)" [ref=e24] [cursor=pointer]: 🧩
+      - generic "组件树 (Ctrl+2)" [ref=e25] [cursor=pointer]: 🌳
+      - generic "画布面板 (Ctrl+3)" [ref=e26] [cursor=pointer]: 📄
+    - generic [ref=e79]:
+      - generic [ref=e80]: 🧩 组件面板
+      - textbox "搜索组件..." [ref=e81]
+      - button "+ 自定义组件" [ref=e82] [cursor=pointer]
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85] [cursor=pointer]:
+            - generic [ref=e86]: ▼
+            - text: 布局
+            - generic [ref=e87]: (8)
+          - generic "通用块容器 (div)" [ref=e89]:
+            - generic [ref=e90]: 🔲
+            - generic [ref=e91]: Div
+          - generic "行内容器 (span)" [ref=e93]:
+            - generic [ref=e94]: 〰
+            - generic [ref=e95]: Span
+          - generic "通用容器 — 编译器映射到 <div>" [ref=e97]:
+            - generic [ref=e98]: 📦
+            - generic [ref=e99]: Container
+          - generic "弹性布局容器 — 编译器映射到 <div>" [ref=e101]:
+            - generic [ref=e102]: ↔
+            - generic [ref=e103]: Flex
+          - generic "水平弹性行 — 编译器 Flutter 映射到 Row" [ref=e105]:
+            - generic [ref=e106]: ➡
+            - generic [ref=e107]: Row
+          - generic "垂直弹性列 — 编译器 Flutter 映射到 Column" [ref=e109]:
+            - generic [ref=e110]: ⬇
+            - generic [ref=e111]: Column
+          - generic "CSS 网格布局" [ref=e113]:
+            - generic [ref=e114]: ⊞
+            - generic [ref=e115]: Grid
+          - generic "卡片容器 — 编译器映射到 <div>" [ref=e117]:
+            - generic [ref=e118]: 🃏
+            - generic [ref=e119]: Card
+        - generic [ref=e120]:
+          - generic [ref=e121] [cursor=pointer]:
+            - generic [ref=e122]: ▼
+            - text: 排版
+            - generic [ref=e123]: (3)
+          - generic "文本 — 编译器映射到 <span>" [ref=e125]:
+            - generic [ref=e126]: 📝
+            - generic [ref=e127]: Text
+          - generic "段落 <p>" [ref=e129]:
+            - generic [ref=e130]: 📄
+            - generic [ref=e131]: Paragraph
+          - generic "标题 — 编译器映射到 <h2>" [ref=e133]:
+            - generic [ref=e134]: 📰
+            - generic [ref=e135]: Heading
+        - generic [ref=e136]:
+          - generic [ref=e137] [cursor=pointer]:
+            - generic [ref=e138]: ▼
+            - text: 表单
+            - generic [ref=e139]: (8)
+          - generic "按钮 — 编译器映射到 <button>" [ref=e141]:
+            - generic [ref=e142]: 🔘
+            - generic [ref=e143]: Button
+          - generic "文本输入框 — 编译器映射到 <input>" [ref=e145]:
+            - generic [ref=e146]: 📋
+            - generic [ref=e147]: Input
+          - generic "多行输入 — 编译器映射到 <textarea>" [ref=e149]:
+            - generic [ref=e150]: 📄
+            - generic [ref=e151]: TextArea
+          - generic "下拉选择 — 编译器映射到 <select>" [ref=e153]:
+            - generic [ref=e154]: 📌
+            - generic [ref=e155]: Select
+          - generic "复选框 — 编译器映射到 <input type=checkbox>" [ref=e157]:
+            - generic [ref=e158]: ☑
+            - generic [ref=e159]: Checkbox
+          - generic "开关切换 — 编译器 Flutter 映射到 Switch" [ref=e161]:
+            - generic [ref=e162]: 🔄
+            - generic [ref=e163]: Switch
+          - generic "范围滑块 — 编译器 Flutter 映射到 Slider" [ref=e165]:
+            - generic [ref=e166]: 🔀
+            - generic [ref=e167]: Slider
+          - generic "表单容器 — 编译器映射到 <form>" [ref=e169]:
+            - generic [ref=e170]: 📨
+            - generic [ref=e171]: Form
+        - generic [ref=e172]:
+          - generic [ref=e173] [cursor=pointer]:
+            - generic [ref=e174]: ▼
+            - text: 数据
+            - generic [ref=e175]: (2)
+          - generic "列表容器 — 编译器映射到 <ul>" [ref=e177]:
+            - generic [ref=e178]: 📃
+            - generic [ref=e179]: List
+          - generic "列表项 — 编译器映射到 <li>" [ref=e181]:
+            - generic [ref=e182]: 📎
+            - generic [ref=e183]: ListItem
+        - generic [ref=e184]:
+          - generic [ref=e185] [cursor=pointer]:
+            - generic [ref=e186]: ▼
+            - text: 媒体
+            - generic [ref=e187]: (1)
+          - generic "图片 — 编译器映射到 <img>" [ref=e189]:
+            - generic [ref=e190]: 🖼
+            - generic [ref=e191]: Image
+        - generic [ref=e192]:
+          - generic [ref=e193] [cursor=pointer]:
+            - generic [ref=e194]: ▼
+            - text: 反馈
+            - generic [ref=e195]: (3)
+          - generic "加载旋转动画" [ref=e197]:
+            - generic [ref=e198]: ⏳
+            - generic [ref=e199]: Spinner
+          - generic "进度条 — 映射到 <progress>" [ref=e201]:
+            - generic [ref=e202]: 📊
+            - generic [ref=e203]: Progress
+          - generic "提示框" [ref=e205]:
+            - generic [ref=e206]: ⚠
+            - generic [ref=e207]: Alert
+        - generic [ref=e208]:
+          - generic [ref=e209] [cursor=pointer]:
+            - generic [ref=e210]: ▼
+            - text: 导航
+            - generic [ref=e211]: (1)
+          - generic "链接 — 编译器映射到 <a>" [ref=e213]:
+            - generic [ref=e214]: 🔗
+            - generic [ref=e215]: Link
+    - main [ref=e27]:
+      - generic [ref=e28]:
+        - button "🎨 设计" [ref=e29] [cursor=pointer]
+        - button "💻 代码" [ref=e30] [cursor=pointer]
+        - button "↩" [ref=e31] [cursor=pointer]
+        - button "↪" [ref=e32] [cursor=pointer]
+        - button "💾" [ref=e33] [cursor=pointer]
+        - button "📂" [ref=e34] [cursor=pointer]
+        - generic [ref=e35]: "视口:"
+        - button "🖥" [ref=e36] [cursor=pointer]
+        - button "📱" [ref=e37] [cursor=pointer]
+        - button "📱" [ref=e38] [cursor=pointer]
+        - combobox "Component state preview" [ref=e39]:
+          - option "👁" [selected]
+          - option "🖱"
+          - option "👆"
+          - option "🎯"
+          - option "🚫"
+          - option "⏳"
+        - button "🎨" [ref=e40] [cursor=pointer]
+        - button "🔗" [ref=e41] [cursor=pointer]
+        - button "🔍" [ref=e42] [cursor=pointer]
+        - button "↹" [ref=e43] [cursor=pointer]
+        - button "▶ 运行" [ref=e44] [cursor=pointer]
+        - button "编译" [ref=e45] [cursor=pointer]
+      - generic [ref=e46]:
+        - generic "主画布" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 📄
+          - generic [ref=e50]: 主画布
+        - button "+" [ref=e52] [cursor=pointer]
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - button "⋮⋮ ⇄ Hello" [active] [ref=e216]:
+            - generic "同级排序" [ref=e217]: ⋮⋮
+            - generic "跨容器移动" [ref=e218]: ⇄
+            - paragraph [ref=e59]: Hello
+          - generic [ref=e63]: 拖入组件
+          - generic [ref=e67]: 拖入组件
+        - status [ref=e68]
+      - generic [ref=e69]:
+        - generic [ref=e70]: 就绪
+        - generic [ref=e71]: demo1 | 📁 D:\space\omni\demo1
+        - generic [ref=e72]: — fps
+    - complementary [ref=e73]:
+      - generic [ref=e74]:
+        - heading "<p>" [level=3] [ref=e219]
+        - generic [ref=e220]: 样式
+        - generic [ref=e221]:
+          - generic [ref=e222]: padding
+          - textbox "padding" [ref=e223]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e224]:
+          - generic [ref=e225]: margin
+          - textbox "margin" [ref=e226]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e227]:
+          - generic [ref=e228]: width
+          - textbox "width" [ref=e229]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e230]:
+          - generic [ref=e231]: height
+          - textbox "height" [ref=e232]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e233]:
+          - generic [ref=e234]: color
+          - generic [ref=e235]:
+            - textbox "color" [ref=e236] [cursor=pointer]: "#000000"
+            - textbox [ref=e237]
+        - generic [ref=e238]:
+          - generic [ref=e239]: background_color
+          - generic [ref=e240]:
+            - textbox "background_color" [ref=e241] [cursor=pointer]: "#000000"
+            - textbox [ref=e242]
+        - generic [ref=e243]:
+          - generic [ref=e244]: border_radius
+          - textbox "border_radius" [ref=e245]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e246]:
+          - generic [ref=e247]: font_size
+          - textbox "font_size" [ref=e248]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e249]:
+          - generic [ref=e250]: font_weight
+          - textbox "font_weight" [ref=e251]:
+            - /placeholder: e.g. 16px
+        - generic [ref=e252]: 通用属性
+        - generic [ref=e253]:
+          - generic [ref=e254]: id (HTML)
+          - textbox "id (HTML)" [ref=e255]:
+            - /placeholder: 元素 ID
+            - text: demo1.r.0.p.0
+        - generic [ref=e256]:
+          - generic [ref=e257]: class
+          - textbox "class" [ref=e258]:
+            - /placeholder: CSS 类名
+            - text: demo1
+        - generic [ref=e259]:
+          - generic [ref=e260]: title
+          - textbox "title" [ref=e261]:
+            - /placeholder: 工具提示
+        - generic [ref=e262]:
+          - checkbox "hidden (隐藏)" [ref=e263]
+          - generic [ref=e264]: hidden (隐藏)
+        - generic [ref=e265]: "ID: demo1.r...."

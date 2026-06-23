@@ -1,0 +1,41 @@
+/* Styles for TodoItem */
+.item {
+  align-items: center;
+  padding: 14px 16px;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 12px;
+  background: white;
+  border-radius: 8px;
+}
+.check-btn {
+  padding: 0.0px;
+  height: 28px;
+  width: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+}
+.text {
+  flex: 1.0px;
+  color: #1f2937;
+  font-size: 16px;
+}
+.badge {
+  border-radius: 10px;
+  color: #888;
+  background: #f3f4f6;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.del-btn {
+  height: 32px;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  background: none;
+  width: 32px;
+  color: #ef4444;
+}

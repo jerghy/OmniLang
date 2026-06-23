@@ -1,0 +1,17 @@
+/* Styles for Header */
+.header {
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 24px 16px;
+  color: white;
+  background: #6366f1;
+  text-align: center;
+}
+.title {
+  font-size: 28px;
+  margin: 0 0 8px 0;
+}
+.subtitle {
+  margin: 0.0px;
+  font-size: 13px;
+}

@@ -1,0 +1,70 @@
+/* Styles for EmitEventDemo */
+.container {
+  margin: 16px 0;
+  background: white;
+  border: 1px solid #d4d4d8;
+  padding: 20px 16px;
+  border-radius: 12px;
+}
+.title {
+  color: #1f2937;
+  margin: 0 0 4px 0;
+  font-size: 18px;
+}
+.subtitle {
+  color: #9ca3af;
+  margin: 0 0 14px 0;
+  font-size: 12px;
+}
+.event-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.log-section {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+.log-header {
+  padding: 10px 14px;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  justify-content: space-between;
+  display: flex;
+}
+.log-header {
+  color: #374151;
+  font-size: 13px;
+}
+.clear-btn {
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  background: #6b7280;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.log-list {
+  overflow-y: auto;
+  max-height: 200px;
+  padding: 10px 14px;
+}
+.log-entry {
+  font-size: 12px;
+  margin: 2px 0;
+  color: #4b5563;
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.empty-hint {
+  margin: 0.0px;
+  font-size: 12px;
+  padding: 20px;
+  color: #9ca3af;
+  text-align: center;
+}

@@ -13,6 +13,7 @@ import { uid } from "../utils/id";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
 import { compilerCache } from "../omni-compiler-cache";
+import { rustCompiler } from "../api/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
 
 // ============================================================
@@ -32,7 +33,19 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
 
   // -- Compilation state --
   const [srcdoc, setSrcdoc] = useState<string>("");
+  const [wasmReady, setWasmReady] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initAttempted = useRef(false);
+
+  // -- Initialize WASM compiler --
+  useEffect(() => {
+    if (initAttempted.current) return;
+    initAttempted.current = true;
+    rustCompiler.init().then(() => {
+      setWasmReady(true);
+      console.log('[LayoutView] WASM compiler ready');
+    });
+  }, []);
 
   const hasContent = elements.some(
     (e) => !e.parentId && (hideCodeBlocks ? e.nodeType !== "codeblock" : true),
@@ -69,10 +82,11 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     }
   }, [hideCodeBlocks]);
 
-  // -- Initial compile on mount --
+  // -- Initial compile on mount (re-runs when WASM becomes ready) --
   useEffect(() => {
+    if (!wasmReady) return;
     recompile();
-  }, [recompile]);
+  }, [recompile, wasmReady]);
 
   // -- Subscribe to store changes and debounce recompilation --
   useEffect(() => {
