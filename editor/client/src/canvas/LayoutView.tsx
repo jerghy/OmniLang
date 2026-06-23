@@ -73,6 +73,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
         designWires: store.wires,
         codeTabs,
         componentName: "App",
+        rootOrder: store.rootOrder,
       },
       true, // editorMode — inject bridge code for postMessage selection
     );

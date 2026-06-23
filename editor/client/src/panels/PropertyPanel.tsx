@@ -265,6 +265,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         designWires: store.wires,
         codeTabs,
         componentName: compName,
+        rootOrder: store.rootOrder,
       }, true);
 
       if (output?.srcdoc) {

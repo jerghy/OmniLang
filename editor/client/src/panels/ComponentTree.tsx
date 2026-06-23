@@ -160,8 +160,22 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
         // Move dragged element INTO target as a child
         undoExec(new MoveElement(draggedId, targetId, null, "after"), ctx);
       } else {
-        // Reorder: move dragged element to a position relative to target among siblings
-        undoExec(new ReorderElement(draggedId, targetId, dropPos), ctx);
+        const draggedEl = ctx.getElement(draggedId);
+        const targetEl = ctx.getElement(targetId);
+
+        if (draggedEl && targetEl && draggedEl.parentId === targetEl.parentId) {
+          // Same parent → reorder among siblings
+          undoExec(new ReorderElement(draggedId, targetId, dropPos), ctx);
+        } else if (targetEl) {
+          // Different parent → move dragged element INTO target's parent
+          // at the position relative to target (e.g. p after div-B)
+          const newParentId = targetEl.parentId;
+          if (newParentId !== null) {
+            undoExec(new MoveElement(draggedId, newParentId, targetId, dropPos), ctx);
+          }
+          // If target is root-level (parentId === null), cross-parent drop to root
+          // is not supported yet — currently drops silently.
+        }
       }
       dragIdRef.current = null;
       dropPosRef.current = null;
@@ -434,6 +448,10 @@ function TreeNodeView({
               onToggle={onToggle}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              dropTarget={dropTarget}
             />
           ))}
         </div>

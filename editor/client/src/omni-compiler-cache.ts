@@ -13,6 +13,7 @@ export interface CompileProjectInput {
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentName: string;
+  rootOrder?: string[];
 }
 
 export interface CompileProjectOutput {
@@ -49,6 +50,7 @@ class OmniCompilerCache {
       designWires: input.designWires,
       codeTabs: input.codeTabs,
       componentName: input.componentName,
+      rootOrder: input.rootOrder,
     });
 
     if (!genResult.value) {

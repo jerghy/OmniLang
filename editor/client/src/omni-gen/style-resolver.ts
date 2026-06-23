@@ -113,5 +113,5 @@ export function resolveStyle(node: ViewNode): ResolvedStyle {
 }
 
 function sanitizeClassName(path: string): string {
-  return path.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/^-+/, "");
+  return path.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^_+/, "");
 }

@@ -250,6 +250,7 @@ export default function App() {
       designWires: store.wires,
       codeTabs,
       componentName,
+      rootOrder: store.rootOrder,
     });
 
     let content = store.activeFileContent;
@@ -367,6 +368,7 @@ export default function App() {
         const ct = cg.toSerializable().tabs;
         const out = compilerCache.compileProject({
           designElements: s.elements, designWires: s.wires, codeTabs: ct, componentName,
+          rootOrder: s.rootOrder,
         }, true);
         if (out) window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: out.srcdoc } }));
       }

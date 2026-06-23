@@ -57,13 +57,14 @@ export function generateOmniSource(options: {
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentName: string;
+  rootOrder?: string[];
 }): StageResult<string> {
   const allErrors: PipelineError[] = [];
 
   // ── Phase A: Build view tree, analyze wires, collect imports ──
 
   const a1 = runPhase("A", "view-tree-builder", () =>
-    buildViewTree(options.designElements, options.componentName),
+    buildViewTree(options.designElements, options.componentName, options.rootOrder),
   );
   allErrors.push(...a1.errors);
   const { roots, pascalCaseTags } = a1.value ?? {
@@ -213,7 +214,7 @@ export function generateOmniSource(options: {
         kind: "element" as const,
         resolvedStyle: {
           htmlTag: "div",
-          cssClassName: `${options.componentName.toLowerCase()}-view`,
+          cssClassName: `${options.componentName.toLowerCase()}_view`,
           contentText: undefined,
           htmlAttrs: {},
           eventBindings: {},
@@ -257,6 +258,7 @@ export function generateOmniFiles(options: {
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentName: string;
+  rootOrder?: string[];
 }): StageResult<Record<string, string>> {
   // Run the full pipeline for the main source
   const mainResult = generateOmniSource(options);
@@ -304,8 +306,9 @@ export function generateOmniFragment(options: {
   designElements: ElementData[];
   designWires: WireData[];
   codeTabs: CodeTab[];
+  rootOrder?: string[];
 }): StageResult<string> {
-  const { componentName, designElements, designWires, codeTabs } = options;
+  const { componentName, designElements, designWires, codeTabs, rootOrder } = options;
 
   // Filter elements belonging to this component
   const componentElements = designElements.filter((el) => {
@@ -326,6 +329,7 @@ export function generateOmniFragment(options: {
     designWires,
     codeTabs,
     componentName,
+    rootOrder,
   });
 }
 
