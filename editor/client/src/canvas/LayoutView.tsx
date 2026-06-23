@@ -86,6 +86,18 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     };
   }, [recompile]);
 
+  // -- Listen for srcdoc updates dispatched by PropertyPanel or App-level --
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.srcdoc) {
+        setSrcdoc(detail.srcdoc);
+      }
+    };
+    window.addEventListener("omni-srcdoc-update", handler);
+    return () => window.removeEventListener("omni-srcdoc-update", handler);
+  }, []);
+
   // -- iframe callbacks --
 
   const handleSelect = useCallback(
