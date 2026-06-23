@@ -1190,7 +1190,7 @@ export default function App() {
           <ActivityBar panels={DESIGN_PANELS} activePanel={activePanel} onToggle={(id) => setActivePanel(p => p === id ? null : id)} />
           <PanelContainer visible={activePanel === "components" || activePanel === "tree" || activePanel === "canvas"}>
             {activePanel === "components" && <ComponentPalette />}
-            {activePanel === "tree" && <ComponentTree />}
+            {activePanel === "tree" && <ComponentTree ctx={ctx} />}
             {activePanel === "canvas" && <CanvasPanel />}
             {showTokens && activePanel !== null && (
               <div style={{ borderTop: "1px solid #e5e7eb" }}>
