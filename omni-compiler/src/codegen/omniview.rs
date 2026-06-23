@@ -113,6 +113,16 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
     }
 
+    // Build per-component output map for editor hot-replace
+    let mut components: HashMap<String, ComponentOutput> = HashMap::new();
+    for (name, js) in &gen.component_js {
+        components.insert(name.clone(), ComponentOutput {
+            js: js.clone(),
+            html: String::new(),
+            css: String::new(),
+        });
+    }
+
     // Emit ONE innerHTML insertion with accumulated HTML + ALL deferred bindings
     gen.emit_dom_and_bindings();
 
@@ -123,7 +133,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         html: gen.html,
         css: gen.css,
         source_map: gen.source_map,
-        components: HashMap::new(),
+        components,
     }
 }
 
@@ -386,6 +396,7 @@ function __omni_bindText(nid) {
         ir: &IRProgram,
         is_root: bool,
     ) {
+        let js_before = self.js.len();
         self.current_component = name.to_string();
         // Clear component-local signal renames (global function/event renames persist).
         self.name_renames.clear();
@@ -599,6 +610,10 @@ function __omni_bindText(nid) {
         }
 
         self.js.push('\n');
+
+        // Capture per-component JS delta for editor hot-replace
+        let component_js = self.js[js_before..].to_string();
+        self.component_js.insert(name.to_string(), component_js);
     }
 
     /// Finalize the JS output with closing IIFE wrapper.
