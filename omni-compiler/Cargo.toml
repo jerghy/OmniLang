@@ -23,10 +23,10 @@ default = []
 wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
 native = []
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [profile.release]
 lto = true
 opt-level = "s"
 strip = true
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false

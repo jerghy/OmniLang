@@ -22,7 +22,6 @@ import { useCodeGraphStore } from "./codegraph/store";
 import { createMainTab } from "./codegraph/types";
 import { migrateOldCodeGraph } from "./codegraph/migration";
 import { useComponentRegistry } from "./store/componentRegistry";
-import { WireOverlay } from "./canvas/WireOverlay";
 import { StateHUD } from "./canvas/StateHUD";
 import { PerfBadge } from "./canvas/PerfBadge";
 import { DebugPanel } from "./canvas/DebugPanel";
@@ -1265,7 +1264,6 @@ export default function App() {
                 display: "flex", flexDirection: "column",
               }}>
                 <LayoutView ctx={ctx} hideCodeBlocks />
-                {wireMode && <WireOverlay />}
                 {selectedId && <StateHUD elementId={selectedId} visible={showHUD} onClose={() => setShowHUD(false)} />}
                 {showFocusOrder && <FocusOrderOverlay />}
               </div>
