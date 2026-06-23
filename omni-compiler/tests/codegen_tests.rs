@@ -16,7 +16,7 @@ fn compile_omniview(source: &str) -> omniview::OmniViewOutput {
     let program = parser::parse(&tokens, source).expect("parse failed");
     let semantics = semantic::analyze(&program);
     let ir_program = ir::lower(&program, &semantics);
-    omniview::generate(&ir_program)
+    omniview::generate(&ir_program, false)
 }
 
 #[test]

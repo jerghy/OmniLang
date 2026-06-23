@@ -12,9 +12,11 @@
 use super::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Output of the OmniView codegen — standalone JS/HTML/CSS.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OmniViewOutput {
     /// JavaScript code (inline signal runtime + generated component)
     pub js: String,
@@ -24,10 +26,22 @@ pub struct OmniViewOutput {
     pub css: String,
     /// Source map entries
     pub source_map: Vec<SourceMapEntry>,
+    /// Per-component output for hot-replace (keyed by component name)
+    #[serde(default)]
+    pub components: HashMap<String, ComponentOutput>,
+}
+
+/// Per-component compiled output for hot-replace.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentOutput {
+    pub js: String,
+    pub html: String,
+    pub css: String,
 }
 
 /// Generate OmniView output from an IR program.
-pub fn generate(ir: &IRProgram) -> OmniViewOutput {
+/// `editor_mode` controls whether the output includes editor bridge code.
+pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     let mut gen = OmniViewGenerator {
         js: String::new(),
         html: String::new(),
@@ -50,6 +64,8 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         dom_emitted: false,
         guard_counter: 0,
         mount_js: String::new(),
+        editor_mode,
+        component_js: HashMap::new(),
     };
 
     gen.emit_js_header();
@@ -107,6 +123,7 @@ pub fn generate(ir: &IRProgram) -> OmniViewOutput {
         html: gen.html,
         css: gen.css,
         source_map: gen.source_map,
+        components: HashMap::new(),
     }
 }
 
@@ -153,6 +170,10 @@ struct OmniViewGenerator {
     guard_counter: u32,
     /// Accumulated mount lifecycle JS — called after DOM insertion.
     mount_js: String,
+    /// Whether editor bridge code is included in the output.
+    editor_mode: bool,
+    /// Per-component JS snippets for editor hot-replace (keyed by component name).
+    component_js: HashMap<String, String>,
 }
 
 impl OmniViewGenerator {
@@ -3824,7 +3845,7 @@ fn escape_html(s: &str) -> String {
 // Codegen Dispatch Wrapper
 // ══════════════════════════════════════════════════════════
 
-use std::collections::HashMap;
+
 
 use super::{CompileOutput, CompiledFile};
 
@@ -3862,7 +3883,7 @@ pub fn compile_files(
     ir: &crate::ir::IRProgram,
     _source_files: &HashMap<String, String>,
 ) -> CompileOutput {
-    let output = generate(ir);
+    let output = generate(ir, false);
     CompileOutput::success(vec![
         CompiledFile {
             path: "index.js".into(),

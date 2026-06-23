@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const compile_to_ir: (a: number, b: number, c: number) => void;
+export const compile_to_omniview: (a: number, b: number, c: number, d: number, e: number) => void;
 export const omni_analyse: (a: number, b: number) => number;
 export const omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const omni_free_string: (a: number) => void;

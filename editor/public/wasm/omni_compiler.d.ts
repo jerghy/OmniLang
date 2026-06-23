@@ -8,6 +8,12 @@
 export function compile_to_ir(source: string): string;
 
 /**
+ * Compile .omni source to OmniView (JS + HTML + CSS). Returns JSON string.
+ * options_json: {"editor_mode": true}
+ */
+export function compile_to_omniview(source: string, options_json: string): string;
+
+/**
  * Return compiler version.
  */
 export function version(): string;
@@ -17,6 +23,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
+    readonly compile_to_omniview: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly omni_analyse: (a: number, b: number) => number;
     readonly omni_compile_multi_to_target: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly omni_free_string: (a: number) => void;

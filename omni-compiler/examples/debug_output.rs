@@ -10,7 +10,7 @@ fn debug(src: &str, label: &str) {
         Ok(program) => {
             let semantics = semantic::analyze(&program);
             let ir_program = ir::lower(&program, &semantics);
-            let output = omniview::generate(&ir_program);
+            let output = omniview::generate(&ir_program, false);
             println!("=== {} ===", label);
             println!("{}", output.js);
             println!();
