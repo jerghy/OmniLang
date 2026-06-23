@@ -42,10 +42,17 @@ type SourceMapEntry = {
   target_spans: { file: string; line: number; col: number; len: number; kind: string }[];
 };
 
+type ComponentCompileResult = {
+  success: boolean;
+  component?: { js: string; html: string; css: string };
+  errors?: Diagnostic[];
+};
+
 class RustCompiler {
   private wasm: {
     compile_to_ir: (source: string) => string;
-    compile_to_omniview?: (source: string) => string;
+    compile_to_omniview: (source: string, options_json: string) => string;
+    compile_omniview_component?: (source: string, component_name: string, options_json: string) => string;
     version: () => string;
   } | null = null;
   private ready = false;
@@ -101,7 +108,7 @@ class RustCompiler {
     }
   }
 
-  compileToOmniView(source: string): OmniViewResult {
+  compileToOmniView(source: string, editorMode: boolean = false): OmniViewResult {
     if (!this.wasm || !this.wasm.compile_to_omniview) {
       return {
         success: false,
@@ -109,12 +116,41 @@ class RustCompiler {
       };
     }
     try {
-      const json = this.wasm.compile_to_omniview(source);
+      const options = JSON.stringify({ editor_mode: editorMode });
+      const json = this.wasm.compile_to_omniview(source, options);
       return JSON.parse(json);
     } catch (e) {
       return {
         success: false,
         errors: [{ severity: 'error', code: 'WASM', message: `OmniView compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
+      };
+    }
+  }
+
+  compileOmniViewComponent(source: string, componentName: string, editorMode: boolean = false): ComponentCompileResult {
+    if (!this.wasm || !this.wasm.compile_omniview_component) {
+      // Fallback: use full compile and extract on TS side
+      const full = this.compileToOmniView(source, editorMode);
+      if (!full.success || !full.files) {
+        return { success: false, errors: full.errors };
+      }
+      return {
+        success: true,
+        component: {
+          js: full.files.js,
+          html: full.files.html,
+          css: full.files.css,
+        },
+      };
+    }
+    try {
+      const options = JSON.stringify({ editor_mode: editorMode });
+      const json = this.wasm.compile_omniview_component(source, componentName, options);
+      return JSON.parse(json) as ComponentCompileResult;
+    } catch (e) {
+      return {
+        success: false,
+        errors: [{ severity: 'error', code: 'WASM', message: `Component compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
   }
@@ -131,4 +167,4 @@ class RustCompiler {
 
 // Singleton
 export const rustCompiler = new RustCompiler();
-export type { CompileResult, OmniViewResult, Diagnostic, SourceMap };
+export type { CompileResult, OmniViewResult, ComponentCompileResult, Diagnostic, SourceMap };

@@ -1,189 +1,169 @@
 // editor/client/src/omni-compiler-cache.ts
-// Compilation cache bridging omni-gen -> WASM compiler -> iframe srcdoc.
-// Provides full-project compile, incremental per-component recompile,
-// and cache invalidation with stale-output fallback on errors.
+// Caches compiled OmniView output by source content.
+// Wraps the omni-gen pipeline (elements -> .omni source) and the
+// Rust WASM compiler (.omni source -> JS/HTML/CSS) into a single cache.
 
-import { rustCompiler } from './api/rustCompiler';
-import type { OmniViewResult, ComponentCompileResult } from './api/rustCompiler';
-import { generateOmniSource } from './omni-gen/pipeline';
-import type { ElementData, WireData } from './store/editor';
-import type { CodeTab } from './codegraph/types';
+import { generateOmniSource } from "./omni-gen/pipeline";
+import { rustCompiler } from "./api/rustCompiler";
+import type { ElementData, WireData } from "./store/editor";
+import type { CodeTab } from "./codegraph/types";
 
-// ── Types ──
-
-export interface CompileOptions {
+export interface CompileProjectInput {
   designElements: ElementData[];
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentName: string;
 }
 
-interface ComponentCacheEntry {
-  omniFragment: string;
-  compiledJS: string;
-  compiledHTML: string;
-  compiledCSS: string;
-  signalNames: string[];
-  lastCompiled: number;
-}
-
-export interface CompiledOutput {
+export interface CompileProjectOutput {
   srcdoc: string;
+  errors?: string[];
 }
 
-// ── OmniCompilerCache ──
+/** Internal cache entry with timestamp for time-based eviction. */
+interface CacheEntry {
+  output: CompileProjectOutput;
+  timestamp: number;
+}
 
 class OmniCompilerCache {
-  private components = new Map<string, ComponentCacheEntry>();
-  private runtimeJS = '';
-  private lastFullCompile = 0;
-  private lastOutput: CompiledOutput | null = null;
+  private cache = new Map<string, CacheEntry>();
+  private lastOutput: CompileProjectOutput | null = null;
+  private static readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
 
   /**
-   * Full project compile.
-   * Runs omni-gen pipeline to produce OmniLang source, then WASM compile to
-   * JS/HTML/CSS, assembles an iframe srcdoc, and caches per-component results.
-   * On error, returns the previous (stale) output to avoid blank iframe.
+   * Compile a project design into an HTML srcdoc for the CanvasPreview iframe.
+   * Returns null when no source could be generated (empty project).
+   * On failure, returns the previous (stale) output to keep the preview alive.
    */
   compileProject(
-    options: CompileOptions,
-    editorMode: boolean = true,
-  ): CompiledOutput | null {
-    const genResult = generateOmniSource(options);
-    if (genResult.errors?.length) {
-      console.error('[OmniCompilerCache] omni-gen errors:', genResult.errors);
-      return this.lastOutput;
+    input: CompileProjectInput,
+    editorMode: boolean = false,
+  ): CompileProjectOutput | null {
+    // Validate cache — remove stale entries
+    this.validateCache();
+
+    // Generate OmniLang source from design elements
+    const genResult = generateOmniSource({
+      designElements: input.designElements,
+      designWires: input.designWires,
+      codeTabs: input.codeTabs,
+      componentName: input.componentName,
+    });
+
+    if (!genResult.value) {
+      const msgs =
+        genResult.errors.length > 0
+          ? genResult.errors.map((e) => e.message)
+          : ["No OmniLang source generated"];
+      // Return stale output if available, otherwise show error
+      if (this.lastOutput) {
+        console.warn('[OmniCompilerCache] Source generation failed, returning stale output');
+        return this.lastOutput;
+      }
+      return this.errorResult(msgs);
     }
 
-    const omniSource = genResult.value;
-    if (omniSource === null) {
-      console.error('[OmniCompilerCache] omni-gen returned null value');
-      return this.lastOutput;
+    const source = genResult.value;
+
+    // Check cache
+    const cached = this.cache.get(source);
+    if (cached) return cached.output;
+
+    // Compile through WASM
+    const result = rustCompiler.compileToOmniView(source, editorMode);
+
+    if (!result.success || !result.files) {
+      const msgs =
+        result.errors?.map((e) => e.message) ?? ["WASM compilation failed"];
+      // Return stale output if available, otherwise show error
+      if (this.lastOutput) {
+        console.warn('[OmniCompilerCache] WASM compilation failed, returning stale output');
+        return this.lastOutput;
+      }
+      const output = this.errorResult(msgs);
+      this.cache.set(source, { output, timestamp: Date.now() });
+      return output;
     }
 
-    const wasmResult: OmniViewResult = rustCompiler.compileToOmniView(
-      omniSource,
-      editorMode,
+    // Build srcdoc from compiled JS/CSS/HTML
+    const srcdoc = this.buildSrcdoc(
+      result.files.js,
+      result.files.css,
+      result.files.html,
     );
+    const output: CompileProjectOutput = { srcdoc };
+    this.cache.set(source, { output, timestamp: Date.now() });
+    this.lastOutput = output; // Save successful output for stale fallback
+    return output;
+  }
 
-    if (!wasmResult.success || !wasmResult.files) {
-      console.error('[OmniCompilerCache] WASM errors:', wasmResult.errors);
-      return this.lastOutput;
-    }
-
-    // Build srcdoc from compiled output
-    const srcdoc = buildSrcdoc(
-      wasmResult.files.js,
-      wasmResult.files.html,
-      wasmResult.files.css,
-    );
-
-    this.lastFullCompile = Date.now();
-    this.lastOutput = { srcdoc };
-
-    return this.lastOutput;
+  /** Invalidate the entire cache (e.g. when compiler reloads). */
+  invalidate(): void {
+    this.cache.clear();
+    this.lastOutput = null;
   }
 
   /**
-   * Incremental per-component recompile.
-   * Runs the full omni-gen pipeline (Task 9 will add generateOmniFragment for
-   * true incremental), checks if the fragment changed, and skips WASM if not.
+   * Remove cache entries older than MAX_CACHE_AGE to prevent stale
+   * caches from persisting forever.
    */
-  recompileComponent(
-    name: string,
-    options: CompileOptions,
-    editorMode: boolean = true,
-  ): { js: string } | null {
-    const genResult = generateOmniSource(options);
-    if (genResult.errors?.length) {
-      console.error('[OmniCompilerCache] omni-gen errors:', genResult.errors);
-      return null;
+  private validateCache(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (now - entry.timestamp > OmniCompilerCache.MAX_CACHE_AGE) {
+        this.cache.delete(key);
+      }
     }
-
-    const fragment = genResult.value;
-    if (fragment === null) {
-      console.error('[OmniCompilerCache] omni-gen returned null value');
-      return null;
-    }
-
-    const cached = this.components.get(name);
-
-    // Skip WASM if the fragment hasn't changed
-    if (cached && cached.omniFragment === fragment) {
-      return { js: cached.compiledJS };
-    }
-
-    const wasmResult: ComponentCompileResult =
-      rustCompiler.compileOmniViewComponent(fragment, name, editorMode);
-
-    if (!wasmResult.success || !wasmResult.component) {
-      console.error(
-        '[OmniCompilerCache] Component compile errors:',
-        wasmResult.errors,
-      );
-      return null;
-    }
-
-    const componentJS = wasmResult.component.js;
-    this.components.set(name, {
-      omniFragment: fragment,
-      compiledJS: componentJS,
-      compiledHTML: wasmResult.component.html || '',
-      compiledCSS: wasmResult.component.css || '',
-      signalNames: extractSignalNames(componentJS),
-      lastCompiled: Date.now(),
-    });
-
-    return { js: componentJS };
   }
 
-  /** Remove a single component from the cache. */
-  invalidate(name: string): void {
-    this.components.delete(name);
+  private buildSrcdoc(js: string, css: string, bodyHtml: string): string {
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="en">',
+      "<head>",
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      "<title>OmniView Preview</title>",
+      "<style>",
+      "*,*::before,*::after{box-sizing:border-box}",
+      "body{margin:0;padding:8px;font-family:system-ui,sans-serif}",
+      css,
+      "</style>",
+      "</head>",
+      "<body>",
+      bodyHtml,
+      "<script>",
+      js,
+      "</script>",
+      "</body>",
+      "</html>",
+    ].join("\n");
   }
 
-  /** Clear all cached state. */
-  invalidateAll(): void {
-    this.components.clear();
-    this.runtimeJS = '';
-    this.lastFullCompile = 0;
-    this.lastOutput = null;
+  private errorResult(errors: string[]): CompileProjectOutput {
+    const escaped = errors
+      .join("\n")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    return {
+      srcdoc: [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head><meta charset=\"UTF-8\"><title>Error</title></head>",
+        '<body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;padding:20px;box-sizing:border-box;margin:0">',
+        '<div style="color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:16px;max-width:500px">',
+        '<h3 style="margin:0 0 8px;font-size:14px">Compilation Error</h3>',
+        `<pre style="font-size:12px;white-space:pre-wrap;margin:0">${escaped}</pre>`,
+        "</div>",
+        "</body>",
+        "</html>",
+      ].join("\n"),
+      errors,
+    };
   }
 }
 
-// ── Helpers ──
-
-/**
- * Assemble a full HTML document for the iframe from compiled JS/HTML/CSS files.
- */
-function buildSrcdoc(js: string, html: string, css: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>${css}</style>
-</head>
-<body>
-  <div id="root">${html}</div>
-  <script>${js}<\/script>
-</body>
-</html>`;
-}
-
-/**
- * Extract signal names from compiled JS by matching __omni_signal("name") calls.
- */
-function extractSignalNames(js: string): string[] {
-  const names: string[] = [];
-  const re = /__omni_signal\("([^"]+)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(js)) !== null) {
-    names.push(m[1]);
-  }
-  return names;
-}
-
-// ── Singleton export ──
-
+/** Singleton compiler cache instance. */
 export const compilerCache = new OmniCompilerCache();

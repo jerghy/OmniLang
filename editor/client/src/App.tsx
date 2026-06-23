@@ -22,7 +22,6 @@ import { useCodeGraphStore } from "./codegraph/store";
 import { createMainTab } from "./codegraph/types";
 import { migrateOldCodeGraph } from "./codegraph/migration";
 import { useComponentRegistry } from "./store/componentRegistry";
-import { WireOverlay } from "./canvas/WireOverlay";
 import { StateHUD } from "./canvas/StateHUD";
 import { PerfBadge } from "./canvas/PerfBadge";
 import { DebugPanel } from "./canvas/DebugPanel";
@@ -35,6 +34,7 @@ import type { CommandContext } from "./commands/types";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./commands/CopyPaste";
 import { showToast } from "./notifications/toast";
 import { parseOmniSource, generateOmniSource, generateOmniFiles, validate } from "./omni-gen";
+import { compilerCache } from "./omni-compiler-cache";
 
 // ═══════════════════════════════════════════════
 // Styles
@@ -126,6 +126,53 @@ export default function App() {
       // Start with a new unnamed project
       useEditorStore.getState().newProject();
     })();
+  }, []);
+
+  // ── Initial compile for canvas (client-side, via compilerCache) ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const store = useEditorStore.getState();
+      if (store.elements.length === 0) return;
+      const cg = useCodeGraphStore.getState();
+      const codeTabs = cg.toSerializable().tabs;
+      const output = compilerCache.compileProject({
+        designElements: store.elements,
+        designWires: store.wires,
+        codeTabs,
+        componentName: "App",
+      }, true);
+      if (output) {
+        window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: output.srcdoc } }));
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ── Store subscription: recompile on element/wire changes ──
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = useEditorStore.subscribe((state, prevState) => {
+      if (state.elements !== prevState.elements || state.wires !== prevState.wires) {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const cg = useCodeGraphStore.getState();
+          const codeTabs = cg.toSerializable().tabs;
+          const output = compilerCache.compileProject({
+            designElements: state.elements,
+            designWires: state.wires,
+            codeTabs,
+            componentName: "App",
+          }, true);
+          if (output) {
+            window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: output.srcdoc } }));
+          }
+        }, 300);
+      }
+    });
+    return () => {
+      unsub();
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, []);
 
   // Auto-save component definitions when registry changes
@@ -1217,7 +1264,6 @@ export default function App() {
                 display: "flex", flexDirection: "column",
               }}>
                 <LayoutView ctx={ctx} hideCodeBlocks />
-                {wireMode && <WireOverlay />}
                 {selectedId && <StateHUD elementId={selectedId} visible={showHUD} onClose={() => setShowHUD(false)} />}
                 {showFocusOrder && <FocusOrderOverlay />}
               </div>

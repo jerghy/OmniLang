@@ -1,82 +1,51 @@
-/** 组件树面板 — 画布元素的层级树视图。
- *  点击 → 选中画布元素。拖拽 → 跨容器移动 / 同级重排。 */
+/** ComponentTree -- 元素树状面板，支持右键菜单、选择、折叠/展开。
+ *
+ *  Phase 3: 作为结构编辑的主要界面。右键菜单提供添加子组件（按分类级联）、
+ *  复制/粘贴、上移/下移、删除、编辑自定义组件等操作。 */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
-import { MoveElement } from "../commands/MoveElement";
-import { ReorderElement } from "../commands/ReorderElement";
-import { RemoveElement } from "../commands/RemoveElement";
-import { copySelection, pasteFromClipboard } from "../commands/CopyPaste";
+import { getUnifiedComponentMeta } from "../store/componentRegistry";
 import type { CommandContext } from "../commands/types";
-import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
+import { AddElement } from "../commands/AddElement";
+import { RemoveElement } from "../commands/RemoveElement";
+import { ReorderElement } from "../commands/ReorderElement";
+import { copySelection, pasteFromClipboard } from "../commands/CopyPaste";
+import { uid } from "../utils/id";
 
-// ═══════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════
+// ── Constants ───────────────────────────────────────
 
-interface TreeNode {
-  el: ElementData;
-  children: TreeNode[];
-  depth: number;
-}
-
-type DropPos = "before" | "inside" | "after" | null;
-
-// ═══════════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════════
-
-function buildTree(elements: ElementData[]): TreeNode[] {
-  const map = new Map<string, TreeNode>();
-  for (const el of elements) {
-    if (el.nodeType !== "view") continue;
-    map.set(el.id, { el, children: [], depth: 0 });
-  }
-  const roots: TreeNode[] = [];
-  for (const node of map.values()) {
-    if (!node.el.parentId || !map.has(node.el.parentId)) {
-      roots.push(node);
-    } else {
-      map.get(node.el.parentId)!.children.push(node);
-    }
-  }
-  // Assign depths
-  function assignDepth(nodes: TreeNode[], d: number) {
-    for (const n of nodes) {
-      n.depth = d;
-      assignDepth(n.children, d + 1);
-    }
-  }
-  assignDepth(roots, 0);
-  return roots;
-}
-
-const TAG_ICONS: Record<string, string> = {
-  Container: "📦", Flex: "↔", Grid: "⊞", Card: "🃏", Divider: "—",
-  Text: "📝", Paragraph: "📄", Heading: "📰",
-  Button: "🔘", Input: "📋", TextArea: "📄", Select: "📌", Checkbox: "☑",
-  List: "📃", ListItem: "📎", Image: "🖼", Link: "🔗",
-  Spinner: "⏳", Progress: "📊", Alert: "⚠", Form: "📨", Stack: "📚",
-  Div: "🔲", Span: "〰", Spacer: "▫",
+const CATEGORY_LABELS: Record<string, string> = {
+  Layout: "布局", Typography: "排版", Actions: "操作", Forms: "表单",
+  Data: "数据", Media: "媒体", Feedback: "反馈", Navigation: "导航",
+  Custom: "★ 自定义",
 };
 
-function getIcon(tag: string): string {
-  return TAG_ICONS[tag] || "▪";
+const CATEGORY_ORDER = ["Custom", "Layout", "Typography", "Actions", "Forms", "Data", "Media", "Feedback", "Navigation"];
+
+const COMPONENT_ICONS: Record<string, string> = {
+  Container: "📦", Flex: "↔", Grid: "⊞", Card: "🃏",
+  Text: "📝", Heading: "📰",
+  Button: "🔘", Input: "📋", TextArea: "📄", Select: "📌", Checkbox: "☑",
+  List: "📃", ListItem: "📎",
+  Image: "🖼",
+  Spinner: "⏳", Progress: "📊", Alert: "⚠",
+  Link: "🔗", Form: "📨",
+};
+
+// ── Types ───────────────────────────────────────────
+
+interface TreeNode {
+  id: string;
+  tag: string;
+  componentRef?: string;
+  children: TreeNode[];
 }
 
-function getLabel(el: ElementData): string {
-  const p = el.props || {};
-  return String(p.label || p.name || p.placeholder || `<${el.tag}>`);
-}
-
-function acceptsChildren(tag: string): boolean {
-  return COMPONENT_PROTOCOL[tag]?.children === true;
-}
-
-// ═══════════════════════════════════════════════
-// Component
-// ═══════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
+// ComponentTree
+// ═════════════════════════════════════════════════════
 
 interface ComponentTreeProps {
   ctx: CommandContext;
@@ -84,29 +53,55 @@ interface ComponentTreeProps {
 
 export function ComponentTree({ ctx }: ComponentTreeProps) {
   const elements = useEditorStore((s) => s.elements);
+  const rootOrder = useEditorStore((s) => s.rootOrder);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const selectElement = useEditorStore((s) => s.selectElement);
   const undoExec = useUndoStore((s) => s.execute);
+  const enterCanvas = useEditorStore((s) => s.enterComponentCanvas);
 
-  // All container-like nodes expanded by default
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    for (const el of elements) {
-      if (el.nodeType !== "view") continue;
-      if (el.children.length > 0 || acceptsChildren(el.tag)) s.add(el.id);
-    }
-    return s;
-  });
+  // Collapse/expand state (by element ID)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // Drop hover state — per-element, reset on dragLeave / drop
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [dropPos, setDropPos] = useState<DropPos>(null);
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    elementId: string;
+  } | null>(null);
 
-  const viewElements = elements.filter((e) => e.nodeType === "view");
-  const tree = buildTree(viewElements);
+  // ── Build tree from flat elements ──────────────────
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpanded((prev) => {
+  const treeData = useMemo((): TreeNode[] => {
+    const elMap = new Map(elements.map((e) => [e.id, e]));
+    const rootIds = rootOrder.filter((id) => elMap.has(id));
+
+    const childrenOf = (parentId: string): ElementData[] => {
+      const parent = elMap.get(parentId);
+      if (!parent) return [];
+      return parent.children
+        .map((cid) => elMap.get(cid))
+        .filter((e): e is ElementData => e !== undefined);
+    };
+
+    const buildNode = (el: ElementData): TreeNode => ({
+      id: el.id,
+      tag: el.tag,
+      componentRef: el.componentRef,
+      children: childrenOf(el.id).map(buildNode),
+    });
+
+    return rootIds
+      .map((id) => {
+        const el = elMap.get(id);
+        return el ? buildNode(el) : null;
+      })
+      .filter((n): n is TreeNode => n !== null);
+  }, [elements, rootOrder]);
+
+  // ── Handlers ───────────────────────────────────────
+
+  const toggleCollapse = useCallback((id: string) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -114,327 +109,615 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     });
   }, []);
 
-  const handleSelect = useCallback(
-    (id: string) => {
-      selectElement(id);
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, elementId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY, elementId });
     },
-    [selectElement],
+    [],
   );
 
-  // ── Tree drag-and-drop ──
-
-  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData("omni-tree-node", id);
-    e.dataTransfer.effectAllowed = "move";
+  const closeMenu = useCallback(() => {
+    setContextMenu(null);
   }, []);
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent, targetId: string) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
+  // ── Render ─────────────────────────────────────────
 
-      const rect = e.currentTarget.getBoundingClientRect();
-      const y = (e.clientY - rect.top) / rect.height;
-      const target = elements.find((el) => el.id === targetId);
-      const canChild = target ? acceptsChildren(target.tag) : false;
+  return (
+    <div
+      style={{
+        padding: 8,
+        fontSize: 12,
+        userSelect: "none",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          fontWeight: 600,
+          marginBottom: 6,
+          fontSize: 11,
+          color: "#6b7280",
+          textTransform: "uppercase",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        🌳 元素树
+      </div>
 
-      let pos: DropPos;
-      if (y < 0.25) {
-        pos = "before";
-      } else if (y > 0.75) {
-        pos = "after";
-      } else if (canChild) {
-        pos = "inside";
-      } else {
-        pos = y < 0.5 ? "before" : "after";
-      }
-
-      setDropTarget(targetId);
-      setDropPos(pos);
-    },
-    [elements],
-  );
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if truly leaving the row, not entering a child
-    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-      setDropTarget(null);
-      setDropPos(null);
-    }
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent, targetId: string) => {
-      e.preventDefault();
-      setDropTarget(null);
-      setDropPos(null);
-
-      const draggedId = e.dataTransfer.getData("omni-tree-node");
-      if (!draggedId || draggedId === targetId) return;
-      if (!dropPos) return;
-
-      if (dropPos === "inside") {
-        const target = elements.find((el) => el.id === targetId);
-        if (target && acceptsChildren(target.tag)) {
-          undoExec(new MoveElement(draggedId, targetId, null, "after"), ctx);
-        }
-      } else {
-        undoExec(new ReorderElement(draggedId, targetId, dropPos), ctx);
-      }
-    },
-    [dropPos, elements, undoExec, ctx],
-  );
-
-  // ── Keyboard shortcuts ──
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const store = useEditorStore.getState();
-      const selectedIds = store.selectedElementIds;
-      if (selectedIds.length === 0) return;
-      const elementId = selectedIds[0];
-
-      // Don't intercept when typing in input fields
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      )
-        return;
-
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        const cmd = new RemoveElement(elementId);
-        useUndoStore.getState().execute(cmd, ctx);
-        return;
-      }
-
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case "c":
-            e.preventDefault();
-            copySelection(ctx, selectedIds);
-            break;
-          case "v":
-            e.preventDefault();
-            const pasted = pasteFromClipboard(ctx);
-            if (pasted && pasted.length > 0) {
-              store.selectElement(pasted[0]);
-            }
-            break;
-          case "ArrowUp":
-            e.preventDefault();
-            moveElementUp(elementId);
-            break;
-          case "ArrowDown":
-            e.preventDefault();
-            moveElementDown(elementId);
-            break;
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [ctx]);
-
-  function moveElementUp(elementId: string) {
-    const store = useEditorStore.getState();
-    const elements = store.elements;
-    const el = elements.find((e) => e.id === elementId);
-    if (!el || !el.parentId) return;
-
-    const parent = elements.find((e) => e.id === el.parentId);
-    if (!parent) return;
-
-    const idx = parent.children.indexOf(elementId);
-    if (idx <= 0) return;
-
-    const cmd = new ReorderElement(
-      elementId,
-      parent.children[idx - 1],
-      "before",
-    );
-    useUndoStore.getState().execute(cmd, ctx);
-  }
-
-  function moveElementDown(elementId: string) {
-    const store = useEditorStore.getState();
-    const elements = store.elements;
-    const el = elements.find((e) => e.id === elementId);
-    if (!el || !el.parentId) return;
-
-    const parent = elements.find((e) => e.id === el.parentId);
-    if (!parent) return;
-
-    const idx = parent.children.indexOf(elementId);
-    if (idx < 0 || idx >= parent.children.length - 1) return;
-
-    const cmd = new ReorderElement(
-      elementId,
-      parent.children[idx + 1],
-      "after",
-    );
-    useUndoStore.getState().execute(cmd, ctx);
-  }
-
-  // ── Render ──
-
-  function renderNode(node: TreeNode): React.ReactElement {
-    const isSel = selectedIds.includes(node.el.id);
-    const isExp = expanded.has(node.el.id);
-    const hasKids = node.children.length > 0;
-    const isOver = dropTarget === node.el.id;
-    const canChild = acceptsChildren(node.el.tag);
-
-    // Drop indicator — absolutely-positioned overlay (before / after / inside)
-    const indicator = isOver
-      ? React.createElement("div", {
-          style: {
-            position: "absolute",
-            left: 0,
-            right: 0,
-            pointerEvents: "none",
-            zIndex: 10,
-            ...(dropPos === "before"
-              ? { top: 0, height: 0, borderTop: "2px solid #4F46E5" }
-              : dropPos === "after"
-                ? { bottom: 0, height: 0, borderBottom: "2px solid #4F46E5" }
-                : {
-                    top: 0,
-                    bottom: 0,
-                    outline: "2px solid #4F46E5",
-                    outlineOffset: -2,
-                    borderRadius: 4,
-                    background: "rgba(79,70,229,0.06)",
-                  }),
-          },
-        })
-      : null;
-
-    return React.createElement(
-      "div",
-      { key: node.el.id, style: { position: "relative" } },
-      // ── Row ──
-      React.createElement(
-        "div",
-        {
-          draggable: true,
-          "data-omni-id": node.el.id,
-          onDragStart: (e: React.DragEvent) => handleDragStart(e, node.el.id),
-          onDragOver: (e: React.DragEvent) => handleDragOver(e, node.el.id),
-          onDragLeave: handleDragLeave,
-          onDrop: (e: React.DragEvent) => handleDrop(e, node.el.id),
-          onClick: () => handleSelect(node.el.id),
-          style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 3,
-            padding: "3px 6px 3px 0",
-            paddingLeft: 8 + node.depth * 16,
-            cursor: "pointer",
-            borderRadius: 3,
-            fontSize: 12,
-            color: isSel ? "#4F46E5" : "#374151",
-            background: isSel ? "#EEF2FF" : "transparent",
-            userSelect: "none",
-            transition: "background 0.1s",
-          },
-          onMouseEnter: (e: React.MouseEvent) => {
-            if (!isSel)
-              (e.currentTarget as HTMLElement).style.background = "#F3F4F6";
-          },
-          onMouseLeave: (e: React.MouseEvent) => {
-            if (!isSel && !isOver)
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-          },
-        },
-        indicator,
-        // Toggle arrow
-        React.createElement(
-          "span",
-          {
-            onClick: (e: React.MouseEvent) => {
-              e.stopPropagation();
-              toggleExpand(node.el.id);
-            },
-            style: {
-              display: "inline-block",
-              width: 14,
+      {/* Tree */}
+      <div style={{ flex: 1, overflow: "auto" }}>
+        {treeData.length === 0 ? (
+          <div
+            style={{
               textAlign: "center",
-              fontSize: 9,
-              color: "#9CA3AF",
-              flexShrink: 0,
-              visibility: hasKids || canChild ? "visible" : "hidden",
-            },
-          },
-          isExp ? "▼" : "▶",
-        ),
-        // Icon
-        React.createElement(
-          "span",
-          { style: { flexShrink: 0, fontSize: 12 } },
-          getIcon(node.el.tag),
-        ),
-        // Tag name
-        React.createElement(
-          "span",
-          {
-            style: {
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            },
-          },
-          node.el.tag,
-        ),
-        // Label
-        React.createElement(
-          "span",
-          {
-            style: {
               color: "#9CA3AF",
               fontSize: 11,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              flex: 1,
-              minWidth: 0,
-            },
-          },
-          getLabel(node.el),
-        ),
-      ),
-      // ── Children ──
-      isExp && hasKids
-        ? React.createElement(
-            "div",
-            null,
-            ...node.children.map((c) => renderNode(c)),
-          )
-        : null,
-    );
-  }
+              padding: "16px 0",
+            }}
+          >
+            空画布 -- 从组件面板拖入元素
+          </div>
+        ) : (
+          treeData.map((node) => (
+            <TreeNodeView
+              key={node.id}
+              node={node}
+              depth={0}
+              selectedIds={selectedIds}
+              collapsed={collapsed}
+              onToggle={toggleCollapse}
+              onSelect={(id, multi) => selectElement(id, multi)}
+              onContextMenu={handleContextMenu}
+            />
+          ))
+        )}
+      </div>
 
-  if (viewElements.length === 0) {
-    return React.createElement(
-      "div",
-      {
-        style: {
-          padding: 16,
-          fontSize: 11,
-          color: "#9CA3AF",
-          textAlign: "center",
-        },
-      },
-      "画布为空 — 从组件面板拖入组件",
-    );
-  }
+      {/* ── Context Menu ── */}
+      {contextMenu && (
+        <>
+          {/* Backdrop — catches clicks outside the menu */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+            onClick={closeMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              closeMenu();
+            }}
+          />
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            elementId={contextMenu.elementId}
+            elements={elements}
+            rootOrder={rootOrder}
+            undoExec={undoExec}
+            ctx={ctx}
+            enterCanvas={enterCanvas}
+            onClose={closeMenu}
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
-  return React.createElement(
-    "div",
-    { style: { padding: "2px 0", fontSize: 12, overflow: "auto" } },
-    ...tree.map((n) => renderNode(n)),
+// ═════════════════════════════════════════════════════
+// TreeNodeView — recursive tree node
+// ═════════════════════════════════════════════════════
+
+interface TreeNodeViewProps {
+  node: TreeNode;
+  depth: number;
+  selectedIds: string[];
+  collapsed: Set<string>;
+  onToggle: (id: string) => void;
+  onSelect: (id: string, multi?: boolean) => void;
+  onContextMenu: (e: React.MouseEvent, id: string) => void;
+}
+
+function TreeNodeView({
+  node,
+  depth,
+  selectedIds,
+  collapsed,
+  onToggle,
+  onSelect,
+  onContextMenu,
+}: TreeNodeViewProps) {
+  const isSelected = selectedIds.includes(node.id);
+  const isCollapsed = collapsed.has(node.id);
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <div>
+      {/* Node row */}
+      <div
+        onClick={(e) => onSelect(node.id, e.ctrlKey || e.metaKey)}
+        onContextMenu={(e) => onContextMenu(e, node.id)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 3,
+          padding: "3px 6px",
+          paddingLeft: 8 + depth * 16,
+          borderRadius: 4,
+          cursor: "pointer",
+          fontSize: 12,
+          background: isSelected ? "#EEF2FF" : "transparent",
+          color: isSelected ? "#4F46E5" : "#374151",
+          fontWeight: isSelected ? 600 : 400,
+          border: isSelected ? "1px solid #C7D2FE" : "1px solid transparent",
+          marginBottom: 1,
+        }}
+        onMouseEnter={(e) => {
+          if (!isSelected) {
+            e.currentTarget.style.background = "#F9FAFB";
+            e.currentTarget.style.borderColor = "#F3F4F6";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = "transparent";
+          }
+        }}
+      >
+        {/* Expand/collapse toggle */}
+        {hasChildren ? (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(node.id);
+            }}
+            style={{
+              fontSize: 8,
+              width: 12,
+              textAlign: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+              transition: "transform 0.15s",
+              transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            }}
+          >
+            ▼
+          </span>
+        ) : (
+          <span style={{ width: 12, flexShrink: 0 }} />
+        )}
+
+        {/* Icon */}
+        <span
+          style={{
+            fontSize: 11,
+            width: 16,
+            textAlign: "center",
+            flexShrink: 0,
+          }}
+        >
+          {COMPONENT_ICONS[node.tag] || "▪"}
+        </span>
+
+        {/* Label */}
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {node.tag}
+        </span>
+
+        {/* Custom component badge */}
+        {node.componentRef && (
+          <span
+            style={{
+              fontSize: 9,
+              color: "#8B5CF6",
+              background: "#F5F3FF",
+              padding: "0 4px",
+              borderRadius: 3,
+            }}
+          >
+            ★
+          </span>
+        )}
+      </div>
+
+      {/* Children (recursive) */}
+      {hasChildren && !isCollapsed && (
+        <div>
+          {node.children.map((child) => (
+            <TreeNodeView
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              selectedIds={selectedIds}
+              collapsed={collapsed}
+              onToggle={onToggle}
+              onSelect={onSelect}
+              onContextMenu={onContextMenu}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════
+// ContextMenu — right-click context menu
+// ═════════════════════════════════════════════════════
+
+interface ContextMenuProps {
+  x: number;
+  y: number;
+  elementId: string;
+  elements: ElementData[];
+  rootOrder: string[];
+  undoExec: (cmd: unknown, ctx: CommandContext) => void;
+  ctx: CommandContext;
+  enterCanvas: (name: string) => void;
+  onClose: () => void;
+}
+
+function ContextMenu({
+  x,
+  y,
+  elementId,
+  elements,
+  rootOrder,
+  undoExec,
+  ctx,
+  enterCanvas,
+  onClose,
+}: ContextMenuProps) {
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  const contextElement = elements.find((e) => e.id === elementId);
+
+  // Escape key to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Build grouped component metadata for "Add Child"
+  const groupedComponents = useMemo(() => {
+    const allMeta = getUnifiedComponentMeta();
+    const map = new Map<
+      string,
+      Array<{ component: string; isCustom: boolean }>
+    >();
+    for (const [name, meta] of Object.entries(allMeta)) {
+      const list = map.get(meta.category) || [];
+      list.push({ component: name, isCustom: meta.isCustom });
+      map.set(meta.category, list);
+    }
+    // Sort by CATEGORY_ORDER
+    const sorted = new Map<
+      string,
+      Array<{ component: string; isCustom: boolean }>
+    >();
+    for (const cat of CATEGORY_ORDER) {
+      if (map.has(cat)) sorted.set(cat, map.get(cat)!);
+    }
+    for (const [cat, items] of map) {
+      if (!sorted.has(cat)) sorted.set(cat, items);
+    }
+    return sorted;
+  }, []);
+
+  // ── Action handlers ───────────────────────────────
+
+  const handleAddChild = useCallback(
+    (parentId: string, tag: string) => {
+      const el: ElementData = {
+        id: uid(),
+        nodeType: "view",
+        tag,
+        props: {},
+        children: [],
+        parentId,
+      };
+      const cmd = new AddElement(el);
+      undoExec(cmd, ctx);
+      onClose();
+    },
+    [undoExec, ctx, onClose],
+  );
+
+  const handleCopy = useCallback(() => {
+    copySelection(ctx, [elementId]);
+    onClose();
+  }, [ctx, elementId, onClose]);
+
+  const handlePaste = useCallback(() => {
+    const pastedIds = pasteFromClipboard(ctx);
+    if (pastedIds && pastedIds.length > 0) {
+      useEditorStore.setState({ selectedElementIds: pastedIds });
+    }
+    onClose();
+  }, [ctx, onClose]);
+
+  const handleMoveUp = useCallback(() => {
+    const el = elements.find((e) => e.id === elementId);
+    if (!el) return;
+    const siblings = el.parentId
+      ? (elements.find((e) => e.id === el.parentId)?.children || [])
+      : rootOrder;
+    const idx = siblings.indexOf(elementId);
+    if (idx <= 0) return;
+    const cmd = new ReorderElement(elementId, siblings[idx - 1], "before");
+    undoExec(cmd, ctx);
+    onClose();
+  }, [elements, elementId, rootOrder, undoExec, ctx, onClose]);
+
+  const handleMoveDown = useCallback(() => {
+    const el = elements.find((e) => e.id === elementId);
+    if (!el) return;
+    const siblings = el.parentId
+      ? (elements.find((e) => e.id === el.parentId)?.children || [])
+      : rootOrder;
+    const idx = siblings.indexOf(elementId);
+    if (idx < 0 || idx >= siblings.length - 1) return;
+    const cmd = new ReorderElement(elementId, siblings[idx + 1], "after");
+    undoExec(cmd, ctx);
+    onClose();
+  }, [elements, elementId, rootOrder, undoExec, ctx, onClose]);
+
+  const handleDelete = useCallback(() => {
+    const cmd = new RemoveElement(elementId);
+    undoExec(cmd, ctx);
+    onClose();
+  }, [elementId, undoExec, ctx, onClose]);
+
+  const handleEditComponent = useCallback(() => {
+    if (contextElement?.componentRef) {
+      enterCanvas(contextElement.componentRef);
+    }
+    onClose();
+  }, [contextElement, enterCanvas, onClose]);
+
+  // ── Adjust position to stay within viewport ───────
+
+  const [adjustedX, adjustedY] = useMemo(() => {
+    const menuWidth = 210;
+    const menuHeight = 300;
+    return [
+      Math.min(x, window.innerWidth - menuWidth),
+      Math.min(y, window.innerHeight - menuHeight),
+    ];
+  }, [x, y]);
+
+  // ── Styles ─────────────────────────────────────────
+
+  const itemBase: React.CSSProperties = {
+    padding: "6px 16px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    fontSize: 12,
+    color: "#374151",
+    position: "relative",
+  };
+
+  const submenu: React.CSSProperties = {
+    position: "absolute",
+    left: "100%",
+    top: 0,
+    background: "#fff",
+    border: "1px solid #E5E7EB",
+    borderRadius: 6,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+    minWidth: 160,
+    padding: "3px 0",
+    zIndex: 10000,
+  };
+
+  const subSubmenu: React.CSSProperties = {
+    position: "absolute",
+    left: "100%",
+    top: 0,
+    background: "#fff",
+    border: "1px solid #E5E7EB",
+    borderRadius: 6,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+    minWidth: 140,
+    padding: "3px 0",
+    zIndex: 10001,
+    maxHeight: 280,
+    overflowY: "auto",
+  };
+
+  // ── Render ─────────────────────────────────────────
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: adjustedX,
+        top: adjustedY,
+        zIndex: 9999,
+        background: "#fff",
+        border: "1px solid #E5E7EB",
+        borderRadius: 8,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+        minWidth: 200,
+        padding: "4px 0",
+        fontSize: 12,
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      {/* ── Add Child (cascading submenu) ── */}
+      <div
+        style={itemBase}
+        onMouseEnter={() => setShowAddChild(true)}
+        onMouseLeave={() => {
+          setShowAddChild(false);
+          setActiveCategory(null);
+        }}
+      >
+        <span>添加子组件 ▸</span>
+
+        {showAddChild && (
+          <div style={submenu}>
+            {Array.from(groupedComponents.entries()).map(([cat, items]) => (
+              <div
+                key={cat}
+                style={{ ...itemBase, paddingRight: 24 }}
+                onMouseEnter={() => setActiveCategory(cat)}
+                onMouseLeave={() => {
+                  if (activeCategory === cat) setActiveCategory(null);
+                }}
+              >
+                <span>{CATEGORY_LABELS[cat] || cat}</span>
+                <span style={{ color: "#9CA3AF", fontSize: 10 }}>▸</span>
+
+                {activeCategory === cat && (
+                  <div style={subSubmenu}>
+                    {items.map((comp) => (
+                      <div
+                        key={comp.component}
+                        style={{
+                          ...itemBase,
+                          whiteSpace: "nowrap",
+                        }}
+                        onClick={() => handleAddChild(elementId, comp.component)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#F5F3FF";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        <span>
+                          <span style={{ marginRight: 4, fontSize: 11 }}>
+                            {COMPONENT_ICONS[comp.component] ||
+                              (comp.isCustom ? "★" : "▪")}
+                          </span>
+                          {comp.component}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Separator ── */}
+      <Separator />
+
+      {/* ── Copy ── */}
+      <MenuRow label="复制" shortcut="Ctrl+C" onClick={handleCopy} />
+
+      {/* ── Paste ── */}
+      <MenuRow label="粘贴" shortcut="Ctrl+V" onClick={handlePaste} />
+
+      {/* ── Separator ── */}
+      <Separator />
+
+      {/* ── Move Up ── */}
+      <MenuRow label="上移" shortcut="Ctrl+↑" onClick={handleMoveUp} />
+
+      {/* ── Move Down ── */}
+      <MenuRow label="下移" shortcut="Ctrl+↓" onClick={handleMoveDown} />
+
+      {/* ── Delete ── */}
+      <MenuRow label="删除" shortcut="Delete" onClick={handleDelete} />
+
+      {/* ── Edit Component (only for custom components) ── */}
+      {contextElement?.componentRef && (
+        <>
+          <Separator />
+          <MenuRow
+            label={`编辑 ${contextElement.componentRef}`}
+            onClick={handleEditComponent}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════
+// MenuRow — single context menu row
+// ═════════════════════════════════════════════════════
+
+function MenuRow({
+  label,
+  shortcut,
+  onClick,
+}: {
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        padding: "6px 16px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        fontSize: 12,
+        color: "#374151",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "#F5F3FF";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <span>{label}</span>
+      {shortcut && (
+        <span
+          style={{
+            color: "#9CA3AF",
+            fontSize: 10,
+            marginLeft: 24,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {shortcut}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════
+// Separator — horizontal divider in context menu
+// ═════════════════════════════════════════════════════
+
+function Separator() {
+  return (
+    <div
+      style={{ height: 1, background: "#F3F4F6", margin: "4px 8px" }}
+    />
   );
 }

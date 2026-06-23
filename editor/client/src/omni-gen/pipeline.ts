@@ -269,6 +269,49 @@ export function generateOmniFiles(options: {
   return { value: files, errors: allErrors };
 }
 
+// ── generateOmniFragment: single-component output ────────────────────
+
+/**
+ * Generate .omni source fragment for a single component.
+ * Filters `designElements` to only those belonging to the specified component,
+ * then runs the full pipeline on the filtered set.
+ *
+ * Used for incremental compilation — only re-generates the changed component's source.
+ *
+ * NOTE: This is a simplified approach for Phase 1. In a future phase, this will
+ * use a true sub-pipeline that only processes one component without the overhead
+ * of the full pipeline entry point.
+ */
+export function generateOmniFragment(options: {
+  componentName: string;
+  designElements: ElementData[];
+  designWires: WireData[];
+  codeTabs: CodeTab[];
+}): StageResult<string> {
+  const { componentName, designElements, designWires, codeTabs } = options;
+
+  // Filter elements belonging to this component
+  const componentElements = designElements.filter((el) => {
+    if (componentName === "App" || componentName === "main") {
+      return !el.componentRef || el.componentRef === componentName;
+    }
+    return el.componentRef === componentName;
+  });
+
+  // If no elements for this component, return empty
+  if (componentElements.length === 0) {
+    return { value: "", errors: [] };
+  }
+
+  // Re-run the full pipeline but only for these elements
+  return generateOmniSource({
+    designElements: componentElements,
+    designWires,
+    codeTabs,
+    componentName,
+  });
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /**

@@ -1,12 +1,13 @@
 /** 属性面板。根据选中元素和统一元数据动态渲染编辑器。
  *  编辑自定义组件定义时显示 ComponentMetaEditor。*/
 
-import React, { useState } from "react";
-import { useEditorStore } from "../store/editor";
+import React, { useState, useCallback, useRef } from "react";
+import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";
 import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
 import { SetProp } from "../commands/SetProp";
+import { compilerCache } from "../omni-compiler-cache";
 import { COMPONENT_PROTOCOL } from "./ComponentPalette";
 import {
   getUnifiedComponentMeta,
@@ -206,6 +207,26 @@ function ComponentMetaEditor({ componentName }: { componentName: string }) {
 }
 
 // ═══════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════
+
+/** Walk up the element tree to find which component owns an element.
+ *  Returns 'App' for top-level elements that are not inside a custom component. */
+function findOwningComponent(elementId: string, elements: ElementData[]): string {
+  let current = elements.find((e) => e.id === elementId);
+  if (!current) return 'App';
+
+  // Walk up to root
+  while (current?.parentId) {
+    const parent = elements.find((e) => e.id === current!.parentId);
+    if (!parent) break;
+    current = parent;
+  }
+
+  return current?.componentRef || 'App';
+}
+
+// ═══════════════════════════════════════════════
 // Main Component
 // ═══════════════════════════════════════════════
 
@@ -224,6 +245,36 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
 
   const isEditingComponent = activeDocId?.startsWith("comp:") ?? false;
   const editingCompName = isEditingComponent ? activeDocId!.replace("comp:", "") : null;
+
+  // ── Debounced recompile on property change ──
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRecompile = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      const store = useEditorStore.getState();
+      const cg = useCodeGraphStore.getState();
+      const codeTabs = cg.toSerializable().tabs;
+
+      // Determine which component owns the currently selected element
+      const compName = selectedIds[0]
+        ? findOwningComponent(selectedIds[0], store.elements)
+        : 'App';
+
+      const output = compilerCache.compileProject({
+        designElements: store.elements,
+        designWires: store.wires,
+        codeTabs,
+        componentName: compName,
+      }, true);
+
+      if (output?.srcdoc) {
+        // Dispatch custom event so LayoutView can update the iframe
+        window.dispatchEvent(
+          new CustomEvent('omni-srcdoc-update', { detail: { srcdoc: output.srcdoc } }),
+        );
+      }
+    }, 300);
+  }, [selectedIds]);
 
   const raw = elements.find((e) => e.id === selectedIds[0]);
 
@@ -287,6 +338,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
 
   const handleChange = (prop: string, value: unknown) => {
     undoExec(new SetProp(el.id, prop, value), ctx);
+    debouncedRecompile();
   };
 
   return (
