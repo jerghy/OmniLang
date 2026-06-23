@@ -76,6 +76,7 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     position: "before" | "after" | "inside";
   } | null>(null);
   const dragIdRef = useRef<string | null>(null);
+  const dropPosRef = useRef<{ targetId: string; position: "before" | "after" | "inside" } | null>(null);
 
   // ── Build tree from flat elements ──────────────────
 
@@ -136,8 +137,10 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     (targetId: string | null, position: "before" | "after" | "inside") => {
       if (targetId) {
         setDropTarget({ targetId, position });
+        dropPosRef.current = { targetId, position };
       } else {
         setDropTarget(null);
+        dropPosRef.current = null;
       }
     },
     [],
@@ -153,28 +156,31 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
       const target = elements.find((e) => e.id === targetId);
       if (!el || !target) return;
 
-      // Determine drop action
-      const dropPos = dropTarget?.position ?? "after";
+      // Use ref for reliable drop position (state may be stale)
+      const dropInfo = dropPosRef.current;
+      const dropPos = dropInfo?.targetId === targetId ? dropInfo.position : "after";
+
       if (dropPos === "inside" && target.children !== undefined) {
         // Move into target as child
-        const cmd = new MoveElement(draggedId, targetId, null, "after");
-        undoExec(cmd, ctx);
+        undoExec(new ReorderElement(draggedId, targetId, -1), ctx);
       } else {
-        // Reorder relative to target sibling
+        // Reorder relative to target among siblings
         const parentId = target.parentId;
         const siblings = parentId
-          ? elements.filter((e) => e.parentId === parentId).map((e) => e.id)
+          ? (elements.find((e) => e.id === parentId)?.children ?? [])
           : rootOrder;
         const targetIdx = siblings.indexOf(targetId);
-        const targetSibling = dropPos === "after"
-          ? siblings[targetIdx + 1] || null
-          : siblings[targetIdx - 1] || null;
-        const cmd = new MoveElement(draggedId, parentId, targetSibling, dropPos === "after" ? "after" : "before");
-        undoExec(cmd, ctx);
+        if (dropPos === "after") {
+          const nextSibling = targetIdx >= 0 && targetIdx < siblings.length - 1 ? siblings[targetIdx + 1] : null;
+          undoExec(new ReorderElement(draggedId, parentId, nextSibling ? siblings.indexOf(nextSibling) : undefined), ctx);
+        } else {
+          undoExec(new ReorderElement(draggedId, parentId, Math.max(0, targetIdx)), ctx);
+        }
       }
       dragIdRef.current = null;
+      dropPosRef.current = null;
     },
-    [elements, rootOrder, dropTarget, undoExec, ctx],
+    [elements, rootOrder, undoExec, ctx],
   );
 
   // ── Render ─────────────────────────────────────────
