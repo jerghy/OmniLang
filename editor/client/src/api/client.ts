@@ -261,6 +261,32 @@ class ApiClient {
     const res = await fetch("/api/editor-toml/load");
     return res.json();
   }
+
+  // ── Welcome screen API ─────────────────────
+
+  async listDirectory(path: string): Promise<{ ok: boolean; current?: string; entries?: Array<{ name: string; isDir: boolean }>; error?: string }> {
+    const res = await fetch("/api/fs/list-directory", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    return res.json();
+  }
+
+  async setProjectDir(dir: string): Promise<{ ok: boolean; dir?: string; error?: string }> {
+    const res = await fetch("/api/project/set-dir", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir }),
+    });
+    return res.json();
+  }
+
+  async createProject(dir: string, name: string): Promise<{ ok: boolean; dir?: string; error?: string }> {
+    const res = await fetch("/api/project/create", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir, name }),
+    });
+    return res.json();
+  }
 }
 
 export const api = new ApiClient();

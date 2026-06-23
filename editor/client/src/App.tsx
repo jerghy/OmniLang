@@ -132,58 +132,48 @@ export default function App() {
 
   const handleProjectReady = useCallback((dir: string, name: string) => {
     setProjectDir(dir);
-    useEditorStore.setState({ projectName: name, projectPath: dir });
+    // Reset editor state first, then set project identity
     useEditorStore.getState().newProject();
+    useEditorStore.setState({ projectName: name, projectPath: dir });
+
+    // Load main.omni from the project directory
+    (async () => {
+      try {
+        const res = await api.readFile("src/main.omni");
+        if (res.content) {
+          // Store the source for the editor to reference
+          useEditorStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
+          // Parse into design elements
+          const parseResult = parseOmniSource(res.content);
+          if (parseResult.designElements) {
+            useEditorStore.setState({
+              elements: parseResult.designElements,
+              wires: parseResult.designWires || [],
+            });
+            if (parseResult.codeTabs?.length) {
+              useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
+            }
+          }
+          // Compile is handled automatically by LayoutView's store subscription
+          // when WASM becomes ready. No need to trigger here.
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load main.omni:', e);
+      }
+    })();
+
     setShowWelcome(false);
     setStatus({ text: `📂 已打开 ${name}`, isError: false });
   }, [setProjectDir]);
 
   // ── Initial compile for canvas (client-side, via compilerCache) ──
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const store = useEditorStore.getState();
-      if (store.elements.length === 0) return;
-      const cg = useCodeGraphStore.getState();
-      const codeTabs = cg.toSerializable().tabs;
-      const output = compilerCache.compileProject({
-        designElements: store.elements,
-        designWires: store.wires,
-        codeTabs,
-        componentName: "App",
-      }, true);
-      if (output) {
-        window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: output.srcdoc } }));
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
+  // Handled by LayoutView's effect chain: wait for wasmReady → recompile.
+  // App.tsx no longer triggers compilation to avoid WASM-not-ready races.
 
   // ── Store subscription: recompile on element/wire changes ──
-  useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsub = useEditorStore.subscribe((state, prevState) => {
-      if (state.elements !== prevState.elements || state.wires !== prevState.wires) {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          const cg = useCodeGraphStore.getState();
-          const codeTabs = cg.toSerializable().tabs;
-          const output = compilerCache.compileProject({
-            designElements: state.elements,
-            designWires: state.wires,
-            codeTabs,
-            componentName: "App",
-          }, true);
-          if (output) {
-            window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: output.srcdoc } }));
-          }
-        }, 300);
-      }
-    });
-    return () => {
-      unsub();
-      if (debounceTimer) clearTimeout(debounceTimer);
-    };
-  }, []);
+  // NOTE: LayoutView handles its own compile subscription with WASM readiness
+  // This App-level subscription is intentionally omitted to avoid race conditions
+  // with WASM initialization. LayoutView's subscription waits for wasmReady.
 
   // Auto-save component definitions when registry changes
   useEffect(() => {

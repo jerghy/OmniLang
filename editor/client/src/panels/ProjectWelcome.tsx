@@ -50,7 +50,7 @@ function DirBrowser({ onSelectDir }: { onSelectDir: (absPath: string) => void })
     setLoading(true);
     setError("");
     try {
-      const res = await api.listTree(dirPath);
+      const res = await api.listDirectory(dirPath);
       if (res.ok && res.entries) {
         const abs = res.current || dirPath;
         setCurrentPath(abs);
@@ -67,7 +67,7 @@ function DirBrowser({ onSelectDir }: { onSelectDir: (absPath: string) => void })
   }, []);
 
   useEffect(() => {
-    loadDir("~");
+    loadDir("/");
   }, [loadDir]);
 
   // Sync the current directory back to parent

@@ -532,6 +532,71 @@ async def api_project(request: Request):
 
 
 # ═══════════════════════════════════════════════════════
+# Welcome screen API — directory browser + project management
+# ═══════════════════════════════════════════════════════
+
+from pydantic import BaseModel
+
+class ListDirectoryRequest(BaseModel):
+    path: str = "."
+
+@app.post("/api/fs/list-directory")
+async def api_list_directory(req: ListDirectoryRequest):
+    """列出指定目录内容（供欢迎页目录浏览器使用）。"""
+    try:
+        target = Path(req.path).expanduser().resolve()
+        if not target.is_dir():
+            return {"ok": False, "error": "目录不存在"}
+        entries = []
+        for entry in sorted(target.iterdir()):
+            if entry.name.startswith("."):
+                continue
+            entries.append({
+                "name": entry.name,
+                "isDir": entry.is_dir(),
+            })
+        return {"ok": True, "current": str(target), "entries": entries}
+    except PermissionError:
+        return {"ok": False, "error": "权限不足"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+class SetProjectDirRequest(BaseModel):
+    dir: str
+
+@app.post("/api/project/set-dir")
+async def api_project_set_dir(req: SetProjectDirRequest, request: Request):
+    """设置项目目录。"""
+    try:
+        target = Path(req.dir).expanduser().resolve()
+        if not target.is_dir():
+            return {"ok": False, "error": "目录不存在"}
+        request.app.state.project_dir = str(target)
+        return {"ok": True, "dir": str(target)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+class CreateProjectRequest(BaseModel):
+    dir: str
+    name: str
+
+@app.post("/api/project/create")
+async def api_project_create(req: CreateProjectRequest, request: Request):
+    """创建新项目（创建目录并初始化配置）。"""
+    try:
+        target = Path(req.dir).expanduser().resolve() / req.name
+        target.mkdir(parents=True, exist_ok=True)
+        src_dir = target / "src"
+        src_dir.mkdir(exist_ok=True)
+        # Create main.omni with empty component
+        main_omni = src_dir / "main.omni"
+        main_omni.write_text(f"import omniview;\n\ncomponent {req.name} {{\n    view {{\n        <Container id=\"{req.name}.root.0\">\n            <Text id=\"{req.name}.root.0.text.0\">Hello</Text>\n        </Container>\n    }}\n}}\n", encoding="utf-8")
+        request.app.state.project_dir = str(target)
+        return {"ok": True, "dir": str(target)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+# ═══════════════════════════════════════════════════════
 # M5 API — 部署 + 代码所有权
 # ═══════════════════════════════════════════════════════
 
