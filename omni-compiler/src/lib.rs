@@ -84,10 +84,12 @@ pub fn compile(source: &str) -> CompileResult {
 pub fn compile_to_ir(source: &str) -> String {
     let result = compile(source);
     serde_json::to_string(&result).unwrap_or_else(|e| {
-        format!(
-            r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#,
-            e
-        )
+        serde_json::json!({
+            "success": false,
+            "ir": null,
+            "errors": [{ "message": e.to_string() }]
+        })
+        .to_string()
     })
 }
 
