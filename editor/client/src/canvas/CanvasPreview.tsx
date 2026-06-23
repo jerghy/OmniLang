@@ -8,6 +8,7 @@ export interface NidEntry {
 
 interface CanvasPreviewProps {
   srcdoc: string;
+  selectedId?: string | null;
   onSelect?: (nid: string, entry: NidEntry) => void;
   onRendered?: (nidMap: Record<string, NidEntry>) => void;
   onHover?: (nid: string) => void;
@@ -17,6 +18,7 @@ interface CanvasPreviewProps {
 
 export function CanvasPreview({
   srcdoc,
+  selectedId,
   onSelect,
   onRendered,
   onHover,
@@ -69,6 +71,37 @@ export function CanvasPreview({
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, [srcdoc, onSelect, onRendered, onHover]);
+
+  // Sync selection highlight: when selectedId changes (from tree click), highlight in iframe
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    // Clear previous, then highlight the element by ID
+    iframe.contentWindow?.postMessage({ type: 'omni-clear-hl' }, window.location.origin);
+    if (selectedId) {
+      // Build reverse map: elementId → nid
+      let targetNid: string | null = null;
+      for (const [nid, entry] of Object.entries(nidMapRef.current)) {
+        if (entry.elementId === selectedId) { targetNid = nid; break; }
+      }
+      if (targetNid) {
+        iframe.contentWindow?.postMessage({ type: 'omni-highlight', nid: targetNid }, window.location.origin);
+      } else {
+        // Fallback: try querying the element by id attribute directly
+        // The compiled DOM has id="{store_element_id}" so we can find it
+        const doc = iframe.contentDocument;
+        if (doc) {
+          const el = doc.querySelector(`[id="${selectedId}"]`) as HTMLElement | null;
+          if (el) {
+            const nid = el.dataset.nid;
+            if (nid) {
+              iframe.contentWindow?.postMessage({ type: 'omni-highlight', nid }, window.location.origin);
+            }
+          }
+        }
+      }
+    }
+  }, [selectedId]);
 
   const postMessage = useCallback((msg: unknown) => {
     iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);

@@ -232,6 +232,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
           srcdoc={srcdoc}
           onSelect={handleSelect}
           onRendered={handleRendered}
+          selectedId={selectedIds.length > 0 ? selectedIds[0] : null}
           style={{ width: "100%", height: "100%" }}
         />
       ) : (
