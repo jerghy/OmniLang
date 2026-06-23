@@ -360,6 +360,16 @@ export default function App() {
       if (runStatus.running && result.files) {
         api.writeRunFiles(result.files).catch(() => {});
       }
+      // Update canvas preview via client-side WASM compile
+      const s = useEditorStore.getState();
+      if (s.elements.length > 0) {
+        const cg = useCodeGraphStore.getState();
+        const ct = cg.toSerializable().tabs;
+        const out = compilerCache.compileProject({
+          designElements: s.elements, designWires: s.wires, codeTabs: ct, componentName,
+        }, true);
+        if (out) window.dispatchEvent(new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: out.srcdoc } }));
+      }
     }
   }, [target, runStatus.running]);
 

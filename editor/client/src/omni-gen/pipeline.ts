@@ -204,7 +204,14 @@ export function generateOmniSource(options: {
       computeds: componentComputeds,
       storeRefs: [...bindings.storeRefs.keys()],
       fns: lowered.functions,
-      view: roots[0] ?? null,
+      view: roots.length > 0 ? {
+        id: `${options.componentName}.view`,
+        path: `${options.componentName}.view`,
+        tag: "div",
+        props: {},
+        children: roots,
+        kind: "element",
+      } : null,
       style: componentStyle,
     },
   };
