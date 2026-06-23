@@ -3,7 +3,7 @@
  *  Phase 3: 作为结构编辑的主要界面。右键菜单提供添加子组件（按分类级联）、
  *  复制/粘贴、上移/下移、删除、编辑自定义组件等操作。 */
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
