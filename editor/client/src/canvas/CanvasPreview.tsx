@@ -25,6 +25,7 @@ export function CanvasPreview({
 }: CanvasPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const nidMapRef = useRef<Record<string, NidEntry>>({});
+  const prevSelectedNid = useRef<string | null>(null);
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !srcdoc) return;
@@ -39,7 +40,12 @@ export function CanvasPreview({
           const nid = e.data.nid as string;
           const entry = nidMapRef.current[nid];
           onSelect?.(nid, entry || { elementId: '', tag: '', component: '' });
-          // Also highlight in iframe
+          // Clear previous highlight before setting new one
+          if (prevSelectedNid.current && prevSelectedNid.current !== nid) {
+            iframe.contentWindow?.postMessage({ type: 'omni-clear-hl' }, window.location.origin);
+          }
+          prevSelectedNid.current = nid;
+          // Highlight the newly selected element
           iframe.contentWindow?.postMessage({ type: 'omni-highlight', nid }, window.location.origin);
           break;
         }
