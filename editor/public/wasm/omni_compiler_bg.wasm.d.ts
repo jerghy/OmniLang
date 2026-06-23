@@ -1,7 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const compile_omniview_component: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const compile_to_ir: (a: number, b: number, c: number) => void;
 export const compile_to_omniview: (a: number, b: number, c: number, d: number, e: number) => void;
 export const omni_analyse: (a: number, b: number) => number;

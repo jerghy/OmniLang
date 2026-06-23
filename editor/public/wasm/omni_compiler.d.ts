@@ -2,15 +2,7 @@
 /* eslint-disable */
 
 /**
- * Compile a single .omni component to OmniView output. Returns JSON string.
- * The source should contain a single component definition.
- * options_json: {"editor_mode": true}
- */
-export function compile_omniview_component(source: string, component_name: string, options_json: string): string;
-
-/**
  * Compile .omni source to IR JSON. Returns JSON string.
- * This is the WASM entry point and also used by native FFI.
  */
 export function compile_to_ir(source: string): string;
 
@@ -29,7 +21,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly compile_omniview_component: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly compile_to_ir: (a: number, b: number, c: number) => void;
     readonly compile_to_omniview: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly omni_analyse: (a: number, b: number) => number;
