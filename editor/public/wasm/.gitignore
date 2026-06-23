@@ -1,4 +1,1 @@
-# Keep built WASM files tracked
-!*.wasm
-!*.js
-!*.d.ts
+*

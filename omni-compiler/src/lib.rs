@@ -18,6 +18,9 @@ pub mod stdlib;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 use crate::parser::ast::{ImportStmt, Program, Visibility};
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
@@ -68,6 +71,31 @@ pub fn compile(source: &str) -> CompileResult {
         ir: Some(ir_program), // always return IR (even with warnings)
         errors,
     }
+}
+
+// ═══════════════════════════════════════════════════════
+// WASM Bindings
+// ═══════════════════════════════════════════════════════
+
+/// Compile .omni source to IR JSON. Returns JSON string.
+/// This is the WASM entry point and also used by native FFI.
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn compile_to_ir(source: &str) -> String {
+    let result = compile(source);
+    serde_json::to_string(&result).unwrap_or_else(|e| {
+        format!(
+            r#"{{"success":false,"ir":null,"errors":[{{"message":"{}"}}]}}"#,
+            e
+        )
+    })
+}
+
+/// Return compiler version.
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 // ═══════════════════════════════════════════════════════
