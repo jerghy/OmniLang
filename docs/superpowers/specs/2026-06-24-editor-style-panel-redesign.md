@@ -11,10 +11,11 @@
 ## 一、设计目标
 
 1. 样式脱离 `props` 平面混装，独立为 `StyleEntry[]` 列表
-2. 三层体系：CSS 变量 → Class 样式 → Inline 覆盖（后覆盖前，标准 CSS 级联）
+2. 三层体系：CSS 变量 → Class 样式 → Inline 覆盖（后覆盖前，遵循 CSS 声明顺序，不涵盖特异性规则）
 3. 属性编辑器按 CSS 属性类型智能匹配控件和单位
 4. 面板内联展开（非弹窗），实时预览
 5. 全链路支持 CSS 自定义属性（`--primary-color`），包括 parser / codegen / WASM
+6. 旧数据向后兼容：无 `style { }` 块的旧 `.omni` 文件可正常解析（props 中样式 key → inline StyleEntry）
 
 ---
 
@@ -52,12 +53,39 @@ interface ElementData {
 }
 ```
 
-**迁移规则：** 旧数据 `props` 中包含的样式 key（`padding`, `color`, `background_color` 等）→ 迁移到一个 `type: "inline"` 的 StyleEntry。
+**迁移规则：** 旧数据 `props` 中包含的样式 key → 迁移到元素的 `type: "inline"` StyleEntry。
+
+样式 key 的识别标准：key 命中 `STYLE_PROP_CSS_MAP`（`style-resolver.ts:23-29`）或者 key 在下列**全局样式属性名集合**中：
+
+```typescript
+const STYLE_PROPERTY_NAMES = new Set([
+  // 映射表中已有的
+  "background_color", "border_radius", "font_size", "font_weight",
+  "text_align", "shadow", "padding", "margin", "gap",
+  "width", "height", "color",
+  // 额外的 CSS 属性（连字符式 + 驼峰式都支持）
+  "display", "position", "opacity", "overflow", "z_index", "zIndex",
+  "box_shadow", "boxShadow", "border", "border_color", "borderColor",
+  "font_family", "fontFamily", "line_height", "lineHeight",
+  "letter_spacing", "letterSpacing", "text_decoration", "textDecoration",
+  "text_transform", "textTransform", "white_space", "whiteSpace",
+  "word_break", "wordBreak", "min_width", "minWidth",
+  "max_width", "maxWidth", "min_height", "minHeight",
+  "max_height", "maxHeight", "transform", "transition",
+  "animation", "cursor", "box_sizing", "boxSizing",
+  "flex_direction", "flexDirection", "flex_wrap", "flexWrap",
+  "justify_content", "justifyContent", "align_items", "alignItems",
+  "align_self", "alignSelf", "grid_template_columns", "gridTemplateColumns",
+  "background_image", "backgroundImage",
+]);
+```
+
+不在上述集合中的 key → 保留在 `props` 中（功能属性）。
 
 ### 2.3 覆盖优先级
 
 ```
-StyleEntry 列表从上到下 → 后覆盖前（标准 CSS 级联）
+StyleEntry 列表从上到下 → 后覆盖前（CSS 声明顺序行为，不涵盖特异性规则）
 
   styles[0]: variable(--primary-color)    ← 底层 token
   styles[1]: class(.card-style)           ← 复用样式
@@ -68,9 +96,24 @@ StyleEntry 列表从上到下 → 后覆盖前（标准 CSS 级联）
 
 ```
 styles: [s1(variable), s2(class), s3(inline)]
-  → class: var-primary card-style
-  + style: { padding: "8px" }    ← inline 的覆盖属性
+  → class: _v-primary card-style              ← variable 生成 _v- 前缀类名
+  + style: { padding: "8px" }                 ← inline 的覆盖属性
 ```
+
+### 2.4 变量 → 类名映射
+
+变量名 `--xxx` 生成类名 `_v-xxx`（`_v-` 前缀避免与用户 class 名冲突）。
+
+```
+--primary-color  →  _v-primary-color
+--spacing-md     →  _v-spacing-md
+
+编译产出：
+  style { ._v-primary-color { --primary-color: #4F46E5; } }
+  元素: class: _v-primary-color
+```
+
+解析回读：类名以 `_v-` 开头 → 提取 `--` + 剩余部分 → 还原为 variable 类型 StyleEntry。若不想用自动映射，用户可在编辑器中自定义类名。
 
 ---
 
@@ -93,7 +136,7 @@ styles: [s1(variable), s2(class), s3(inline)]
 │ ▶ .card-style                       │   折叠：只显示类名/变量名
 │ ▼ .card-style                       │   展开一个（手风琴）
 │   ┌─────────────────────────────┐   │
-│   │ ○class ○inline ○变量        │   │  类型切换
+│   │ ○class ○inline ○variable        │   │  类型切换（UI 文本按 locale 本地化）
 │   │ 类名: [card-style______]    │   │  class/变量时有此字段
 │   │                             │   │
 │   │ [padding  ▼] [16] [px ▼][×]│   │  属性编辑器行
@@ -126,9 +169,47 @@ styles: [s1(variable), s2(class), s3(inline)]
 | 添加按钮 | `[+添加]` | `[+添加]` |
 | 删除 | `[×]` | `[×]` |
 
+### 3.4 Command 体系（undo/redo）
+
+现有 `SetProp` Command 只处理扁平 `(elementId, propKey, value)`，无法支持 `StyleEntry[]` 的嵌套操作。新增专用 Command：
+
+```typescript
+// 条目级操作
+class AddStyleEntry implements Command {
+  // undo: 删除该 entry, redo: 重新添加
+  elementId: string; entry: StyleEntry;
+}
+class RemoveStyleEntry implements Command {
+  // undo: 恢复该 entry（含原始索引位置）, redo: 删除
+  elementId: string; entry: StyleEntry; index: number;
+}
+class ReorderStyleEntry implements Command {
+  // undo: 恢复旧顺序, redo: 应用新顺序
+  elementId: string; oldOrder: string[]; newOrder: string[]; // entry id 列表
+}
+
+// 条目内部操作
+class SetStyleEntryType implements Command {
+  // 切换 class/variable/inline（保留 properties）
+  elementId: string; entryId: string; oldType: StyleEntry["type"]; newType: StyleEntry["type"];
+}
+class UpdateStyleProperty implements Command {
+  // 单个属性的增/改/删
+  elementId: string; entryId: string;
+  propertyIndex: number; // -1 = 新增
+  oldProperty: StyleProperty | null;
+  newProperty: StyleProperty | null;
+}
+class RenameStyleEntry implements Command {
+  elementId: string; entryId: string; oldName: string; newName: string;
+}
+```
+
+**实现模式：** 每个 Command 在 execute 时修改 `element.styles` 数组（遵循不可变模式——返回新数组/新对象），undo 时用保存的快照还原。
+
 ---
 
-## 四、属性编辑器控件（方案 A）
+## 四、属性编辑器控件
 
 ### 4.1 属性行结构
 
@@ -195,20 +276,24 @@ styles: [s1(variable), s2(class), s3(inline)]
 | 颜色 (`color`, `background-color`, `border-color`) | 颜色选择器 + hex 文本 | — |
 | 长度 (`width`, `height`, `padding`, `margin`, `gap`, `min-width`, `max-width`) | 数字输入 | **常用**: px, rem, em, %   **高级**: vw, vh, vmin, vmax, ch, auto |
 | 字号 (`font-size`) | 数字输入 | px, rem, em, %, pt, ch |
-| 字重 (`font-weight`) | 下拉选择 | 100-900, normal, bold, lighter, bolder |
+| 行高 (`line-height`) | 数字输入 | **无单位优先**（如 1.5），也支持 px, rem, em, % |
+| 透明度 (`opacity`) | 滑块 + 数字输入（0-1，步长 0.01） | — |
+| 字重 (`font-weight`) | 下拉选择 + 自由输入 | 100-900, normal, bold, lighter, bolder |
 | 文本对齐 (`text-align`) | 下拉选择 | left, center, right, justify, start, end |
 | 显示 (`display`) | 下拉选择 | block, flex, grid, inline, inline-block, inline-flex, none |
 | 定位 (`position`) | 下拉选择 | static, relative, absolute, fixed, sticky |
 | 时间 (`transition-duration`, `animation-duration`) | 数字输入 | ms, s |
-| 角度 (`transform: rotate`) | 数字输入 | deg, rad, turn, grad |
+| 角度（`transform` 子属性） | 数字输入 | deg, rad, turn, grad |
 | 圆角 (`border-radius`) | 数字输入（可选四角独立） | px, rem, em, % |
-| 阴影 (`box-shadow`) | 展开: x y blur spread color | px |
+| 阴影 (`box-shadow`) | **Phase 1: 文本输入（自由）**；Phase 2: 结构化编辑器 | px |
 | 字体 (`font-family`) | 文本输入 + 常用下拉 | — |
 | 溢出 (`overflow`) | 下拉选择 | visible, hidden, scroll, auto |
 | 光标 (`cursor`) | 下拉选择 | pointer, default, text, move, not-allowed, grab... |
 | 背景图 (`background-image`) | 文本输入 | url(...) |
-| 变换 (`transform`) | 函数选择 | translate, rotate, scale, skew + 参数 |
+| 变换 (`transform`) | **Phase 1: 文本输入（自由）**；Phase 2: 函数选择器 | — |
 | **通用文本** | 文本输入（自由） | — |
+
+> **Phase 1/2 说明**：`box-shadow` 和 `transform` 的值解析/序列化复复杂，Phase 1 先提供自由文本输入（值正确透传即可），Phase 2 再做结构化编辑器。`opacity` 和 `line-height` 在 Phase 1 就支持专用控件。
 
 ### 4.4 示例行
 
@@ -257,17 +342,17 @@ StyleEntry:                              .omni 产出:
 StyleEntry:                              .omni 产出:
 {                                        component Button {
   id: "s2",                                style {
-  type: "variable",                          .var-primary {
+  type: "variable",                          ._v-primary-color {
   name: "--primary-color",                     --primary-color: #4F46E5;
   properties: [                              }
     { name: "value", value: "#4F46E5" },    }
   ]                                          view {
-}                                              Button(class: var-primary)
+}                                              Button(class: _v-primary-color)
                                             }
                                           }
 ```
 
-> 注：variable 条目内只有一条 property，name 固定为 `"value"`，value 为变量值。name 为变量名（含 `--` 前缀）。
+> 注：variable 条目内只有一条 property，name 固定为 `"value"`。变量名 `--primary-color` → 类名 `_v-primary-color`（`_v-` 前缀防止与用户 class 名冲突）。
 
 ### 5.3 Inline 类型
 
@@ -288,10 +373,13 @@ StyleEntry:                              .omni 产出:
 
 ```
 styles: [s1(class), s2(variable), s3(inline)]
-  → class: "card-style var-primary"
+  → class: "card-style _v-primary-color"
   + style: { padding: "8px", color: "#333" }
 
-class 名生成: variable 的 name "--primary-color" → class 名: "var-primary"
+class 名生成规则：
+  - class 类型:  直接使用 name ("card-style")
+  - variable 类型: "--primary-color" → "_v-primary-color" (_v- 前缀)
+  - inline 类型:  不生成 class 名（属性直接写入 style: { }）
 ```
 
 ---
@@ -343,10 +431,11 @@ Style 数据完全是合法 `.omni` 语法，**不需要**编辑器注释（`// 
 
 | # | 规则 |
 |---|------|
-| P1 | 解析失败 → 报错，不静默跳过 |
-| P2 | `style { }` 内 class 未被任何元素引用 → 保留（可能被其他元素引用） |
-| P3 | 元素 `class:` 引用了不存在的 class → 警告 |
+| P1 | 解析失败 → 报错，不静默跳过（实时编辑期间：保留最后有效状态，保存时严格执行） |
+| P2 | `style { }` 内 class 未被任何元素引用 → 保留（可能被其他组件元素引用） |
+| P3 | 元素 `class:` 引用了不存在的 class → 在 PropertyPanel 中显示警告图标 |
 | P4 | 同名 class 出现多次 → 合并为一个 entry（后覆盖前） |
+| P5 | **向后兼容**：组件定义中无 `style { }` 块 → 从元素 `props` 中提取样式 key（按 2.2 的 `STYLE_PROPERTY_NAMES` 集合识别），为每个元素生成单个 `type: "inline"` StyleEntry |
 
 ### 6.3 数据一致性
 
@@ -478,6 +567,21 @@ cd omni-compiler && wasm-pack build --target web --out-dir ../editor/public/wasm
 - `omni_compiler_bg.wasm`（编译产物）
 - `omni_compiler.d.ts`（类型声明）
 
+**验证步骤（重编译后必须执行）：**
+
+```bash
+# 1. 重编译 WASM
+cd omni-compiler && wasm-pack build --target web --out-dir ../editor/public/wasm --features wasm
+
+# 2. 验证：含 --custom-property 的 .omni 能正常编译
+echo 'component Test { style { .foo { --my-color: #333; color: var(--my-color); } } view { <div class: foo/> } }' > /tmp/test_var.omni
+cargo run -- compile /tmp/test_var.omni
+# 期望：输出含 --my-color: #333 的 CSS，无报错
+
+# 3. 验证：动态 inline style 生成 setProperty
+# 检查编译后的 JS 中 -- 开头的属性用 setProperty
+```
+
 ---
 
 ## 八、改动文件总览
@@ -485,15 +589,20 @@ cd omni-compiler && wasm-pack build --target web --out-dir ../editor/public/wasm
 | # | 文件 | 改动类型 | 说明 |
 |---|------|---------|------|
 | 1 | `editor/client/src/store/editor.ts` | 数据模型 | ElementData 加 `styles: StyleEntry[]` |
-| 2 | `editor/client/src/panels/PropertyPanel.tsx` | UI 重构 | 样式列表 + 内联展开 + 控件 |
+| 2 | `editor/client/src/panels/PropertyPanel.tsx` | UI 重构 | 样式列表 + 内联展开 |
 | 3 | `editor/client/src/panels/StylePropertyEditor.tsx` | **新建** | 属性编辑器行组件（属性下拉 + 值控件 + 单位） |
 | 4 | `editor/client/src/panels/StyleEntryEditor.tsx` | **新建** | 单条 StyleEntry 编辑器（三种模式） |
-| 5 | `editor/client/src/omni-gen/source-emitter.ts` | 保存 | style block 生成 |
-| 6 | `editor/client/src/omni-gen/pipeline.ts` | 保存/解析 | style entry 收集 & AST 读取 |
-| 7 | `editor/client/src/omni-gen/style-resolver.ts` | 解析 | CSS 自定义属性透传 |
-| 8 | `omni-compiler/src/parser/view.rs` | Parser | `--` 属性名支持 |
-| 9 | `omni-compiler/src/codegen/omniview.rs` | Codegen | `setProperty` for `--` props |
-| 10 | `editor/public/wasm/*` | WASM | 重编译 |
+| 5 | `editor/client/src/constants/style-properties.ts` | **新建** | `PROPERTY_UNIT_MAP` + `DROPDOWN_PROPERTIES` + `STYLE_PROPERTY_NAMES`（单一真相源） |
+| 6 | `editor/client/src/commands/AddStyleEntry.ts` | **新建** | 添加样式条目 Command |
+| 7 | `editor/client/src/commands/RemoveStyleEntry.ts` | **新建** | 删除样式条目 Command |
+| 8 | `editor/client/src/commands/ReorderStyleEntry.ts` | **新建** | 排序样式条目 Command |
+| 9 | `editor/client/src/commands/UpdateStyleProperty.ts` | **新建** | 更新样式属性 Command |
+| 10 | `editor/client/src/omni-gen/source-emitter.ts` | 保存 | style block 生成 |
+| 11 | `editor/client/src/omni-gen/pipeline.ts` | 保存/解析 | style entry 收集 & AST 读取 + 向后兼容 |
+| 12 | `editor/client/src/omni-gen/style-resolver.ts` | 解析 | CSS 自定义属性透传 (`--` → cssRules) |
+| 13 | `omni-compiler/src/parser/view.rs` | Parser | `--` 属性名支持 |
+| 14 | `omni-compiler/src/codegen/omniview.rs` | Codegen | `setProperty` for `--` props（3处） |
+| 15 | `editor/public/wasm/*` | WASM | 重编译 + 验证测试 |
 
 ---
 
@@ -527,43 +636,41 @@ cd omni-compiler && wasm-pack build --target web --out-dir ../editor/public/wasm
 ## 十、属性→单位映射参考表
 
 ```typescript
+// 键名使用连字符式 CSS 属性名，与 StyleProperty.name 一致
 const PROPERTY_UNIT_MAP: Record<string, { default: string; common: string[]; advanced?: string[] }> = {
   // 长度类
   width:         { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "vmin", "vmax", "auto"] },
   height:        { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "vmin", "vmax", "auto"] },
-  minWidth:      { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh"] },
-  maxWidth:      { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "none"] },
-  minHeight:     { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh"] },
-  maxHeight:     { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "none"] },
+  "min-width":   { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh"] },
+  "max-width":   { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "none"] },
+  "min-height":  { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh"] },
+  "max-height":  { default: "px", common: ["px", "rem", "em", "%"], advanced: ["vw", "vh", "none"] },
   padding:       { default: "px", common: ["px", "rem", "em", "%"] },
-  paddingTop:    { default: "px", common: ["px", "rem", "em", "%"] },
-  paddingRight:  { default: "px", common: ["px", "rem", "em", "%"] },
-  paddingBottom: { default: "px", common: ["px", "rem", "em", "%"] },
-  paddingLeft:   { default: "px", common: ["px", "rem", "em", "%"] },
+  "padding-top":    { default: "px", common: ["px", "rem", "em", "%"] },
+  "padding-right":  { default: "px", common: ["px", "rem", "em", "%"] },
+  "padding-bottom": { default: "px", common: ["px", "rem", "em", "%"] },
+  "padding-left":   { default: "px", common: ["px", "rem", "em", "%"] },
   margin:        { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
-  marginTop:     { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
-  marginRight:   { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
-  marginBottom:  { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
-  marginLeft:    { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
+  "margin-top":    { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
+  "margin-right":  { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
+  "margin-bottom": { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
+  "margin-left":   { default: "px", common: ["px", "rem", "em", "%"], advanced: ["auto"] },
   gap:           { default: "px", common: ["px", "rem", "em", "%"] },
 
   // 字号
-  fontSize:      { default: "px", common: ["px", "rem", "em", "%"], advanced: ["pt", "ch"] },
-  lineHeight:    { default: "px", common: ["px", "rem", "em", "%"], advanced: ["ch"] },
-  letterSpacing: { default: "px", common: ["px", "rem", "em"] },
+  "font-size":      { default: "px", common: ["px", "rem", "em", "%"], advanced: ["pt", "ch"] },
+  "line-height":    { default: "", common: ["", "px", "rem", "em", "%"], advanced: ["ch"] },  // "" = 无单位
+  "letter-spacing": { default: "px", common: ["px", "rem", "em"] },
 
   // 圆角
-  borderRadius:  { default: "px", common: ["px", "rem", "em", "%"] },
+  "border-radius":  { default: "px", common: ["px", "rem", "em", "%"] },
 
   // 阴影
-  boxShadow:     { default: "px", common: ["px"] },
+  "box-shadow":     { default: "px", common: ["px"] },
 
   // 时间
-  transitionDuration: { default: "ms", common: ["ms", "s"] },
-  animationDuration:  { default: "ms", common: ["ms", "s"] },
-
-  // 角度
-  transform:     { default: "deg", common: ["deg", "rad", "turn", "grad"] },
+  "transition-duration": { default: "ms", common: ["ms", "s"] },
+  "animation-duration":  { default: "ms", common: ["ms", "s"] },
 };
 ```
 
@@ -572,24 +679,44 @@ const PROPERTY_UNIT_MAP: Record<string, { default: string; common: string[]; adv
 ## 十一、单元属性集（不在映射表中的通用处理）
 
 ```typescript
+// 键名使用连字符式 CSS 属性名，与 StyleProperty.name 一致
 const DROPDOWN_PROPERTIES: Record<string, string[]> = {
   display:      ["block", "flex", "grid", "inline", "inline-block", "inline-flex", "none"],
   position:     ["static", "relative", "absolute", "fixed", "sticky"],
-  fontWeight:   ["100", "200", "300", "400", "500", "600", "700", "800", "900", "normal", "bold", "lighter", "bolder"],
-  textAlign:    ["left", "center", "right", "justify", "start", "end"],
+  "font-weight":   ["100", "200", "300", "400", "500", "600", "700", "800", "900", "normal", "bold", "lighter", "bolder"],
+  "text-align":    ["left", "center", "right", "justify", "start", "end"],
   overflow:     ["visible", "hidden", "scroll", "auto"],
-  overflowX:    ["visible", "hidden", "scroll", "auto"],
-  overflowY:    ["visible", "hidden", "scroll", "auto"],
+  "overflow-x":    ["visible", "hidden", "scroll", "auto"],
+  "overflow-y":    ["visible", "hidden", "scroll", "auto"],
   cursor:       ["auto", "default", "pointer", "text", "move", "not-allowed", "grab", "grabbing", "crosshair", "zoom-in", "zoom-out"],
-  boxSizing:    ["content-box", "border-box"],
-  textTransform: ["none", "uppercase", "lowercase", "capitalize"],
-  textDecoration: ["none", "underline", "line-through", "overline"],
-  whiteSpace:   ["normal", "nowrap", "pre", "pre-wrap", "pre-line"],
-  wordBreak:    ["normal", "break-all", "break-word", "keep-all"],
-  flexDirection: ["row", "row-reverse", "column", "column-reverse"],
-  flexWrap:     ["nowrap", "wrap", "wrap-reverse"],
-  justifyContent: ["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"],
-  alignItems:   ["stretch", "flex-start", "flex-end", "center", "baseline"],
-  alignSelf:    ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"],
+  "box-sizing":    ["content-box", "border-box"],
+  "text-transform": ["none", "uppercase", "lowercase", "capitalize"],
+  "text-decoration": ["none", "underline", "line-through", "overline"],
+  "white-space":   ["normal", "nowrap", "pre", "pre-wrap", "pre-line"],
+  "word-break":    ["normal", "break-all", "break-word", "keep-all"],
+  "flex-direction": ["row", "row-reverse", "column", "column-reverse"],
+  "flex-wrap":     ["nowrap", "wrap", "wrap-reverse"],
+  "justify-content": ["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"],
+  "align-items":   ["stretch", "flex-start", "flex-end", "center", "baseline"],
+  "align-self":    ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"],
+  // Grid 子属性
+  "grid-template-columns": null,  // 自由文本
+  "grid-template-rows": null,
+  "grid-column": null,
+  "grid-row": null,
+  // 过渡/动画子属性
+  "transition-property": null,
+  "transition-timing-function": ["ease", "ease-in", "ease-out", "ease-in-out", "linear", "step-start", "step-end"],
+  "animation-name": null,
+  "animation-iteration-count": ["infinite", "1", "2", "3"],
+  "animation-direction": ["normal", "reverse", "alternate", "alternate-reverse"],
+  "animation-fill-mode": ["none", "forwards", "backwards", "both"],
+  "animation-timing-function": ["ease", "ease-in", "ease-out", "ease-in-out", "linear"],
+  // Flex 子属性
+  "flex-grow": null,     // 数字输入，无单位
+  "flex-shrink": null,   // 数字输入，无单位
+  "flex-basis": null,    // 文本输入
 };
 ```
+
+> `null` 值 = 自由文本输入（不在下拉中显示，但属性名可选）。
