@@ -6,9 +6,10 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { resolveStyle } from "../style-resolver";
-import { collectStylesFromEntries } from "../pipeline";
+import { collectStylesFromEntries, parseStylesFromAST } from "../pipeline";
 import type { StyleEntry } from "../../constants/style-properties";
 import type { ViewNode } from "../types";
+import type { ElementData } from "../../store/editor";
 import { rustCompiler } from "../../api/rustCompiler";
 
 beforeAll(async () => {
@@ -139,5 +140,67 @@ describe("collectStylesFromEntries", () => {
     expect(result.elementClassMap.get("a")).toEqual(["btn"]);
     expect(result.elementClassMap.get("b")).toEqual(["_v-gap"]);
     expect(result.elementInlineMap.get("b")).toEqual({ display: "flex" });
+  });
+});
+
+describe("parseStylesFromAST", () => {
+  it("restores class type from style { } block", () => {
+    const componentAST: any = {
+      style: [
+        { class_name: "card", properties: { padding: { value: "16px" }, color: { value: "#333" } } },
+      ],
+    };
+    const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, styles: [], nodeType: "view", tag: "div", children: [], parentId: null }]]);
+    componentAST.view = { id: "a", props: { class: "card" }, inline_style: null, children: [] };
+
+    parseStylesFromAST(componentAST, elements);
+    const styles = elements.get("a")!.styles!;
+    expect(styles).toHaveLength(1);
+    expect(styles[0].type).toBe("class");
+    expect(styles[0].name).toBe("card");
+    expect(styles[0].properties).toHaveLength(2);
+  });
+
+  it("restores variable type from _v- prefixed class", () => {
+    const componentAST: any = {
+      style: [
+        { class_name: "_v-primary-color", properties: { "--primary-color": { value: "#4F46E5" } } },
+      ],
+    };
+    const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, styles: [], nodeType: "view", tag: "div", children: [], parentId: null }]]);
+    componentAST.view = { id: "a", props: { class: "_v-primary-color" }, inline_style: null, children: [] };
+
+    parseStylesFromAST(componentAST, elements);
+    const styles = elements.get("a")!.styles!;
+    expect(styles).toHaveLength(1);
+    expect(styles[0].type).toBe("variable");
+    expect(styles[0].name).toBe("--primary-color");
+  });
+
+  it("restores inline type from style: attribute", () => {
+    const componentAST: any = { style: [] };
+    const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, styles: [], nodeType: "view", tag: "div", children: [], parentId: null }]]);
+    componentAST.view = { id: "a", props: {}, inline_style: { padding: "8px" }, children: [] };
+
+    parseStylesFromAST(componentAST, elements);
+    const styles = elements.get("a")!.styles!;
+    expect(styles).toHaveLength(1);
+    expect(styles[0].type).toBe("inline");
+    expect(styles[0].properties[0]).toEqual({ name: "padding", value: "8px" });
+  });
+
+  it("backward compat: props style keys → inline StyleEntry when no style block", () => {
+    const componentAST: any = { style: [] };
+    const elements = new Map<string, ElementData>([["a", { id: "a", props: { padding: "16px", label: "Submit", background_color: "#eee" }, styles: [], nodeType: "view", tag: "div", children: [], parentId: null }]]);
+    componentAST.view = { id: "a", props: {}, inline_style: null, children: [] };
+
+    parseStylesFromAST(componentAST, elements);
+    const styles = elements.get("a")!.styles!;
+    expect(styles).toHaveLength(1);
+    expect(styles[0].type).toBe("inline");
+    const propNames = styles[0].properties.map(p => p.name);
+    expect(propNames).toContain("padding");
+    expect(propNames).toContain("background_color");
+    expect(propNames).not.toContain("label");
   });
 });
