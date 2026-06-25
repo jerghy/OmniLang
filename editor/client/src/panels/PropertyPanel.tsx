@@ -18,6 +18,7 @@ import {
 import { StyleEntryEditor } from "./StyleEntryEditor";
 import { AddStyleEntry } from "../commands/AddStyleEntry";
 import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
+import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
 import type { StyleEntry } from "../constants/style-properties";
 
 // ═══════════════════════════════════════════════
@@ -474,7 +475,16 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
                 entry={entry}
                 elementId={el.id}
                 onChange={(patch) => {
-                  useEditorStore.getState().updateStyleEntry(el.id, entry.id, patch);
+                  const oldEntry = useEditorStore
+                    .getState()
+                    .getStyles(el.id)
+                    .find((s) => s.id === entry.id);
+                  if (!oldEntry) return;
+                  const newEntry = { ...oldEntry, ...patch };
+                  undoExec(
+                    new UpdateStyleEntry(el.id, entry.id, oldEntry, newEntry),
+                    ctx,
+                  );
                   debouncedRecompile();
                 }}
                 onClose={() => setExpandedStyleId(null)}
