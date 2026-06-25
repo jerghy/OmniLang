@@ -194,7 +194,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
         <input
           type="range"
           min="0" max="1" step="0.01"
-          value={parseFloat(property.value) || 1}
+          value={isNaN(parseFloat(property.value)) ? 1 : parseFloat(property.value)}
           onChange={(e) => onChange({ ...property, value: e.target.value })}
           style={{ flex: 1 }}
         />
