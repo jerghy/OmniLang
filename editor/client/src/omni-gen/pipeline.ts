@@ -13,6 +13,8 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
+import type { StyleEntry } from "../constants/style-properties";
+import { variableToClassName } from "../constants/style-properties";
 import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
 import type {
@@ -165,8 +167,8 @@ export function generateOmniSource(options: {
   });
   allErrors.push(...c1.errors);
 
-  const componentStyle: Record<string, Record<string, string>> = {};
-  collectStyles(roots, componentStyle);
+  // Build componentStyle and per-element maps from StyleEntry[] on designElements
+  const { componentStyle, elementClassMap, elementInlineMap } = collectStylesFromEntries(options.designElements);
 
   // Build component-level signals from standaloneSignals (signals not in a store)
   const componentSignals: Record<
@@ -229,7 +231,7 @@ export function generateOmniSource(options: {
 
   // Emit the source document
   const c3 = runPhase("C", "source-emitter", () => {
-    const emitter = new SourceEmitter(annotationStrategy);
+    const emitter = new SourceEmitter(annotationStrategy, elementClassMap, elementInlineMap);
     return emitter.emitDocument(emitInput, allChains);
   });
   allErrors.push(...c3.errors);
@@ -375,17 +377,56 @@ function applyStyles(roots: ViewNode[]): void {
   }
 }
 
-function collectStyles(
-  roots: ViewNode[],
-  out: Record<string, Record<string, string>>,
-): void {
-  for (const r of roots) {
-    walkCollect(r);
-  }
-  function walkCollect(n: ViewNode): void {
-    if (n.resolvedStyle && Object.keys(n.resolvedStyle.cssRules).length > 0) {
-      out[n.resolvedStyle.cssClassName] = n.resolvedStyle.cssRules;
+export function collectStylesFromEntries(
+  elements: Array<{ id: string; styles?: StyleEntry[] }>,
+): {
+  componentStyle: Record<string, Record<string, string>>;
+  elementClassMap: Map<string, string[]>;
+  elementInlineMap: Map<string, Record<string, string>>;
+} {
+  const componentStyle: Record<string, Record<string, string>> = {};
+  const elementClassMap = new Map<string, string[]>();
+  const elementInlineMap = new Map<string, Record<string, string>>();
+
+  for (const el of elements) {
+    if (!el.styles?.length) continue;
+    const classNames: string[] = [];
+    const inlineStyles: Record<string, string> = {};
+
+    for (const entry of el.styles) {
+      switch (entry.type) {
+        case "class": {
+          const rules: Record<string, string> = {};
+          for (const prop of entry.properties) {
+            rules[prop.name] = prop.value;
+          }
+          componentStyle[entry.name] = rules;
+          classNames.push(entry.name);
+          break;
+        }
+        case "variable": {
+          const varName = entry.name;
+          const className = variableToClassName(varName);
+          componentStyle[className] = { [varName]: entry.properties[0]?.value ?? "" };
+          classNames.push(className);
+          break;
+        }
+        case "inline": {
+          for (const prop of entry.properties) {
+            inlineStyles[prop.name] = prop.value;
+          }
+          break;
+        }
+      }
     }
-    for (const c of n.children) walkCollect(c);
+
+    if (classNames.length > 0) {
+      elementClassMap.set(el.id, classNames);
+    }
+    if (Object.keys(inlineStyles).length > 0) {
+      elementInlineMap.set(el.id, inlineStyles);
+    }
   }
+
+  return { componentStyle, elementClassMap, elementInlineMap };
 }

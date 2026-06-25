@@ -6,6 +6,8 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { resolveStyle } from "../style-resolver";
+import { collectStylesFromEntries } from "../pipeline";
+import type { StyleEntry } from "../../constants/style-properties";
 import type { ViewNode } from "../types";
 import { rustCompiler } from "../../api/rustCompiler";
 
@@ -77,5 +79,65 @@ describe("resolveStyle — CSS custom properties", () => {
     };
     const result = resolveStyle(node);
     expect(result.cssRules["background"]).toBe("#eee");
+  });
+});
+
+describe("collectStylesFromEntries", () => {
+  it("generates componentStyle with class entries", () => {
+    const styles: StyleEntry[] = [
+      { id: "s1", type: "class", name: "card", properties: [{ name: "padding", value: "16px" }] },
+    ];
+    const elements = [{ id: "a", styles }];
+    const result = collectStylesFromEntries(elements);
+    expect(result.componentStyle["card"]).toEqual({ padding: "16px" });
+    expect(result.elementClassMap.get("a")).toEqual(["card"]);
+  });
+
+  it("generates variable entries with _v- prefix class", () => {
+    const styles: StyleEntry[] = [
+      { id: "s1", type: "variable", name: "--primary-color", properties: [{ name: "value", value: "#333" }] },
+    ];
+    const elements = [{ id: "a", styles }];
+    const result = collectStylesFromEntries(elements);
+    expect(result.componentStyle["_v-primary-color"]).toEqual({ "--primary-color": "#333" });
+    expect(result.elementClassMap.get("a")).toEqual(["_v-primary-color"]);
+  });
+
+  it("generates inline styles separately", () => {
+    const styles: StyleEntry[] = [
+      { id: "s1", type: "inline", name: "", properties: [{ name: "padding", value: "8px" }] },
+    ];
+    const elements = [{ id: "a", styles }];
+    const result = collectStylesFromEntries(elements);
+    expect(result.elementInlineMap.get("a")).toEqual({ padding: "8px" });
+    expect(result.elementClassMap.get("a")).toBeUndefined();
+  });
+
+  it("skips elements without styles", () => {
+    const elements = [{ id: "a" }];
+    const result = collectStylesFromEntries(elements);
+    expect(Object.keys(result.componentStyle)).toHaveLength(0);
+    expect(result.elementClassMap.size).toBe(0);
+    expect(result.elementInlineMap.size).toBe(0);
+  });
+
+  it("handles multiple elements with mixed entry types", () => {
+    const elA: StyleEntry[] = [
+      { id: "s1", type: "class", name: "btn", properties: [{ name: "color", value: "red" }] },
+    ];
+    const elB: StyleEntry[] = [
+      { id: "s2", type: "variable", name: "--gap", properties: [{ name: "value", value: "8px" }] },
+      { id: "s3", type: "inline", name: "", properties: [{ name: "display", value: "flex" }] },
+    ];
+    const elements = [
+      { id: "a", styles: elA },
+      { id: "b", styles: elB },
+    ];
+    const result = collectStylesFromEntries(elements);
+    expect(result.componentStyle["btn"]).toEqual({ color: "red" });
+    expect(result.componentStyle["_v-gap"]).toEqual({ "--gap": "8px" });
+    expect(result.elementClassMap.get("a")).toEqual(["btn"]);
+    expect(result.elementClassMap.get("b")).toEqual(["_v-gap"]);
+    expect(result.elementInlineMap.get("b")).toEqual({ display: "flex" });
   });
 });
