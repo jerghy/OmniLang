@@ -190,7 +190,7 @@ describe("parseStylesFromAST", () => {
   });
 
   it("backward compat: props style keys → inline StyleEntry when no style block", () => {
-    const componentAST: any = { style: [] };
+    const componentAST: any = { style: undefined };
     const elements = new Map<string, ElementData>([["a", { id: "a", props: { padding: "16px", label: "Submit", background_color: "#eee" }, styles: [], nodeType: "view", tag: "div", children: [], parentId: null }]]);
     componentAST.view = { id: "a", props: {}, inline_style: null, children: [] };
 

@@ -97,7 +97,9 @@ export function parseStylesFromAST(
   // 1. Parse style { } blocks → class/variable StyleEntry map by class name
   const styleClassMap = new Map<string, StyleEntry>();
   const styleBlock = componentNode?.style;
-  const hasStyleBlock = styleBlock && Array.isArray(styleBlock) && styleBlock.length > 0;
+  // styleBlock being an array (even empty) means an explicit style {} block in source.
+  // undefined means no style block at all (old-format file), triggering backward compat.
+  const hasStyleBlock = Array.isArray(styleBlock);
   if (hasStyleBlock) {
     for (const rule of styleBlock) {
       const className: string = rule.class_name;
