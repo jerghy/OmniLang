@@ -13,6 +13,8 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
+import type { StyleEntry, StyleProperty } from "../constants/style-properties";
+import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../constants/style-properties";
 import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
 import type {
@@ -47,6 +49,141 @@ function runPhase<T>(
       message: e instanceof Error ? e.message : String(e),
     };
     return { value: null, errors: [error] };
+  }
+}
+
+// ── parseStylesFromAST ─────────────────────────────────────────────
+// Reconstruct StyleEntry[] from a component AST node (view tree + style blocks).
+// Called when loading .omni files to populate element styles before storing.
+
+let _idCounter = 0;
+function generateId(): string {
+  return `s_${Date.now()}_${++_idCounter}`;
+}
+
+function findViewNode(view: any, elId: string): any | null {
+  if (!view) return null;
+  if (view.id === elId) return view;
+  for (const child of view.children || []) {
+    const found = findViewNode(child, elId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function exprToString(expr: any): string {
+  if (!expr) return "";
+  if (typeof expr === "string") return expr;
+  if (typeof expr === "number") return String(expr);
+  if (expr.value !== undefined) return String(expr.value);
+  if (expr.literal !== undefined) return String(expr.literal);
+  return String(expr);
+}
+
+/**
+ * Parse style { } blocks from a component AST and populate StyleEntry[]
+ * on the given view elements.
+ *
+ * Also handles:
+ *   - class: attributes on view nodes → matching class/variable StyleEntry
+ *   - inline_style on view nodes → inline StyleEntry
+ *   - Backward compatibility: old files without style { } blocks
+ *     → extracts known style property keys from element props
+ */
+export function parseStylesFromAST(
+  componentNode: any,
+  viewElements: Map<string, ElementData>,
+): void {
+  // 1. Parse style { } blocks → class/variable StyleEntry map by class name
+  const styleClassMap = new Map<string, StyleEntry>();
+  const styleBlock = componentNode?.style;
+  // styleBlock being an array (even empty) means an explicit style {} block in source.
+  // undefined means no style block at all (old-format file), triggering backward compat.
+  const hasStyleBlock = Array.isArray(styleBlock);
+  if (hasStyleBlock) {
+    for (const rule of styleBlock) {
+      const className: string = rule.class_name;
+      const properties: StyleProperty[] = Object.entries(rule.properties).map(
+        ([name, valueExpr]: [string, any]) => ({
+          name,
+          value: exprToString(valueExpr),
+        })
+      );
+
+      const varName = classNameToVariable(className);
+      if (varName) {
+        styleClassMap.set(className, {
+          id: generateId(),
+          type: "variable",
+          name: varName,
+          properties: properties.length > 0 ? properties : [{ name: "value", value: "" }],
+        });
+      } else {
+        styleClassMap.set(className, {
+          id: generateId(),
+          type: "class",
+          name: className,
+          properties,
+        });
+      }
+    }
+  }
+
+  // 2. Walk view elements → map class: and style: to StyleEntry[]
+  for (const [elId, el] of viewElements) {
+    const styles: StyleEntry[] = [];
+    const viewNode = findViewNode(componentNode?.view, elId);
+
+    if (viewNode) {
+      // Parse class: attribute → find matching StyleEntries
+      const classAttr = viewNode.props?.["class"];
+      if (classAttr && typeof classAttr === "string") {
+        const classNames = classAttr.split(/\s+/);
+        for (const cn of classNames) {
+          const entry = styleClassMap.get(cn);
+          if (entry) {
+            styles.push({ ...entry, id: generateId() });
+          }
+        }
+      }
+
+      // Parse style: attribute → inline StyleEntry
+      const inlineStyle = viewNode.inline_style;
+      if (inlineStyle && typeof inlineStyle === "object") {
+        const properties: StyleProperty[] = Object.entries(inlineStyle).map(
+          ([name, value]) => ({ name, value: String(value) })
+        );
+        if (properties.length > 0) {
+          styles.push({
+            id: generateId(),
+            type: "inline",
+            name: "",
+            properties,
+          });
+        }
+      }
+    }
+
+    // 3. Backward compatibility: no style { } block and no class:/style: attributes
+    //    → extract style keys from el.props and create inline StyleEntry
+    if (styles.length === 0 && !hasStyleBlock) {
+      const styleProps: StyleProperty[] = [];
+      for (const key of Object.keys(el.props)) {
+        if (STYLE_PROPERTY_NAMES.has(key)) {
+          styleProps.push({ name: key, value: String(el.props[key]) });
+        }
+      }
+      if (styleProps.length > 0) {
+        styles.push({
+          id: generateId(),
+          type: "inline",
+          name: "",
+          properties: styleProps,
+        });
+      }
+    }
+
+    el.styles = styles;
   }
 }
 
@@ -165,8 +302,12 @@ export function generateOmniSource(options: {
   });
   allErrors.push(...c1.errors);
 
-  const componentStyle: Record<string, Record<string, string>> = {};
-  collectStyles(roots, componentStyle);
+  // If applyStyles failed, roots may be partially modified (some nodes got
+  // resolvedStyle, others didn't).  Skip style collection and let the fatal
+  // error check below short-circuit the pipeline with null value.
+  const { componentStyle, elementClassMap, elementInlineMap } = c1.errors.length > 0
+    ? { componentStyle: {}, elementClassMap: new Map<string, string[]>(), elementInlineMap: new Map<string, Record<string, string>>() }
+    : collectStylesFromEntries(options.designElements, roots);
 
   // Build component-level signals from standaloneSignals (signals not in a store)
   const componentSignals: Record<
@@ -229,7 +370,7 @@ export function generateOmniSource(options: {
 
   // Emit the source document
   const c3 = runPhase("C", "source-emitter", () => {
-    const emitter = new SourceEmitter(annotationStrategy);
+    const emitter = new SourceEmitter(annotationStrategy, elementClassMap, elementInlineMap);
     return emitter.emitDocument(emitInput, allChains);
   });
   allErrors.push(...c3.errors);
@@ -375,17 +516,97 @@ function applyStyles(roots: ViewNode[]): void {
   }
 }
 
-function collectStyles(
-  roots: ViewNode[],
-  out: Record<string, Record<string, string>>,
-): void {
-  for (const r of roots) {
-    walkCollect(r);
-  }
-  function walkCollect(n: ViewNode): void {
-    if (n.resolvedStyle && Object.keys(n.resolvedStyle.cssRules).length > 0) {
-      out[n.resolvedStyle.cssClassName] = n.resolvedStyle.cssRules;
+export function collectStylesFromEntries(
+  elements: Array<{ id: string; styles?: StyleEntry[] }>,
+  roots?: ViewNode[],
+): {
+  componentStyle: Record<string, Record<string, string>>;
+  elementClassMap: Map<string, string[]>;
+  elementInlineMap: Map<string, Record<string, string>>;
+} {
+  const componentStyle: Record<string, Record<string, string>> = {};
+  const elementClassMap = new Map<string, string[]>();
+  const elementInlineMap = new Map<string, Record<string, string>>();
+
+  // Phase 1: Process StyleEntry[] from design elements (new style-panel path)
+  for (const el of elements) {
+    if (!el.styles?.length) continue;
+    const classNames: string[] = [];
+    const inlineStyles: Record<string, string> = {};
+
+    for (const entry of el.styles) {
+      switch (entry.type) {
+        case "class": {
+          const rules: Record<string, string> = {};
+          for (const prop of entry.properties) {
+            rules[prop.name] = prop.value;
+          }
+          // Issue 2: merge instead of overwrite on class name collision
+          if (componentStyle[entry.name]) {
+            componentStyle[entry.name] = { ...componentStyle[entry.name], ...rules };
+          } else {
+            componentStyle[entry.name] = rules;
+          }
+          classNames.push(entry.name);
+          break;
+        }
+        case "variable": {
+          const varName = entry.name;
+          const className = variableToClassName(varName);
+          const rules = { [varName]: entry.properties[0]?.value ?? "" };
+          // Issue 2: merge instead of overwrite on class name collision
+          if (componentStyle[className]) {
+            componentStyle[className] = { ...componentStyle[className], ...rules };
+          } else {
+            componentStyle[className] = rules;
+          }
+          classNames.push(className);
+          break;
+        }
+        case "inline": {
+          for (const prop of entry.properties) {
+            inlineStyles[prop.name] = prop.value;
+          }
+          break;
+        }
+      }
     }
-    for (const c of n.children) walkCollect(c);
+
+    // Issue 3: deduplicate class names before storing
+    if (classNames.length > 0) {
+      elementClassMap.set(el.id, [...new Set(classNames)]);
+    }
+    if (Object.keys(inlineStyles).length > 0) {
+      elementInlineMap.set(el.id, inlineStyles);
+    }
+  }
+
+  // Phase 2: Merge resolvedStyle.cssRules from ViewNode tree (Issue 1).
+  // applyStyles(roots) computed resolvedStyle on each ViewNode with cssRules from
+  // snake_case props (e.g. background_color -> background).  Make sure those rules
+  // end up in componentStyle under the correct class name so they appear in the
+  // emitted style block, not just as inline HTML attrs.
+  if (roots) {
+    walkViewNodes(roots, (n) => {
+      if (!n.resolvedStyle) return;
+      const { cssRules, cssClassName } = n.resolvedStyle;
+      if (!cssRules || Object.keys(cssRules).length === 0) return;
+
+      if (componentStyle[cssClassName]) {
+        componentStyle[cssClassName] = { ...componentStyle[cssClassName], ...cssRules };
+      } else {
+        componentStyle[cssClassName] = cssRules;
+      }
+    });
+  }
+
+  return { componentStyle, elementClassMap, elementInlineMap };
+}
+
+/** Walk a ViewNode tree breadth-first, invoking callback on every node. */
+function walkViewNodes(nodes: ViewNode[], callback: (node: ViewNode) => void): void {
+  for (const n of nodes) {
+    callback(n);
+    walkViewNodes(n.children, callback);
   }
 }

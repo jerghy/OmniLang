@@ -1,6 +1,7 @@
 /** 编辑器核心 Zustand store — v2: design/code 分叉 + 项目管理。*/
 
 import { create } from "zustand";
+import type { StyleEntry } from "../constants/style-properties";
 
 // ── Data Types (R2 upgraded schema) ─────────────────
 
@@ -19,6 +20,7 @@ export interface ElementData {
   nodeType: "view" | "codeblock" | "group";
   tag: string;
   props: Record<string, unknown>;
+  styles?: StyleEntry[];
   children: string[];
   parentId: string | null;
   ports?: PortData[];
@@ -107,6 +109,13 @@ interface EditorState {
 
   reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
+
+  // ── Style management ──
+  addStyleEntry: (elementId: string, entry: StyleEntry) => void;
+  removeStyleEntry: (elementId: string, entryId: string) => void;
+  updateStyleEntry: (elementId: string, entryId: string, patch: Partial<StyleEntry>) => void;
+  reorderStyleEntries: (elementId: string, entryIds: string[]) => void;
+  getStyles: (elementId: string) => StyleEntry[];
 
   // ── Active mode switching ──
   setActiveMode: (mode: "design" | "code") => void;
@@ -371,6 +380,59 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       return { elements, isDirty: true };
     }),
+
+  // ── Style management ──
+  addStyleEntry: (elementId, entry) =>
+    set((s) => ({
+      elements: s.elements.map((e) =>
+        e.id === elementId
+          ? { ...e, styles: [...(e.styles || []), entry] }
+          : e
+      ),
+      isDirty: true,
+    })),
+
+  removeStyleEntry: (elementId, entryId) =>
+    set((s) => ({
+      elements: s.elements.map((e) =>
+        e.id === elementId
+          ? { ...e, styles: (e.styles || []).filter((s) => s.id !== entryId) }
+          : e
+      ),
+      isDirty: true,
+    })),
+
+  updateStyleEntry: (elementId, entryId, patch) =>
+    set((s) => ({
+      elements: s.elements.map((e) =>
+        e.id === elementId
+          ? { ...e, styles: (e.styles || []).map((s) =>
+              s.id === entryId ? { ...s, ...patch } : s
+            )}
+          : e
+      ),
+      isDirty: true,
+    })),
+
+  reorderStyleEntries: (elementId, entryIds) =>
+    set((s) => {
+      const el = s.elements.find((e) => e.id === elementId);
+      if (!el?.styles) return { elements: s.elements };
+      const byId = new Map(el.styles.map((s) => [s.id, s]));
+      // Validate all IDs exist before reordering
+      if (!entryIds.every((id) => byId.has(id))) return { elements: s.elements };
+      const reordered = entryIds.map((id) => byId.get(id)!);
+      return {
+        elements: s.elements.map((e) =>
+          e.id === elementId ? { ...e, styles: reordered } : e
+        ),
+        isDirty: true,
+      };
+    }),
+
+  getStyles: (elementId) => {
+    return get().elements.find((e) => e.id === elementId)?.styles || [];
+  },
 
   // ── Active mode switching ──
   setActiveMode: (mode) => set({ activeMode: mode }),

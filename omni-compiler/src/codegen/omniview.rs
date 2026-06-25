@@ -686,6 +686,20 @@ function __omni_bindText(nid) {
         }
     }
 
+    /// Emit a style property assignment for an element.
+    /// Uses `el.style.setProperty()` for CSS custom properties (`--` prefix),
+    /// and direct `el.style.prop = value` for standard properties.
+    fn emit_style_assignment(&mut self, prop: &str, value_expr: &str) {
+        if prop.starts_with("--") {
+            self.js.push_str(&format!(
+                "el.style.setProperty(\"{}\",{});",
+                prop, value_expr
+            ));
+        } else {
+            self.js.push_str(&format!("el.style.{}={};", prop, value_expr));
+        }
+    }
+
     /// Finalize the JS output with closing IIFE wrapper.
     fn finalize_js(&mut self) {
         self.js.push_str("\n})();\n");
@@ -1901,9 +1915,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 // Use camelCase for JS el.style, not kebab-case
                                 let js_prop = prop;
                                 self.js.push_str(&format!(
-                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}.value; }});\n",
-                                    nid, js_prop, prefixed
+                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                    nid
                                 ));
+                                self.emit_style_assignment(js_prop, &format!("{}.value", prefixed));
+                                self.js.push_str(" });\n");
                             }
                         }
                         serde_json::Value::Object(obj) if obj.contains_key("$concat") => {
@@ -1928,9 +1944,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 }
                                 let js_prop = prop; // camelCase for el.style
                                 self.js.push_str(&format!(
-                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}; }});\n",
-                                    nid, js_prop, js_parts.join(" + ")
+                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                    nid
                                 ));
+                                self.emit_style_assignment(js_prop, &js_parts.join(" + "));
+                                self.js.push_str(" });\n");
                             }
                         }
                         serde_json::Value::Object(obj) if obj.contains_key("$call") => {
@@ -1963,9 +1981,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                     }
                                     let js_prop = prop; // camelCase for el.style
                                     self.js.push_str(&format!(
-                                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}({}); }});\n",
-                                        nid, js_prop, prefixed, arg_strs.join(", ")
+                                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                        nid
                                     ));
+                                    self.emit_style_assignment(js_prop, &format!("{}({})", prefixed, arg_strs.join(", ")));
+                                    self.js.push_str(" });\n");
                                 }
                             }
                         }
@@ -2349,6 +2369,16 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         // Playback config properties
         let playback_parts = self.playback_to_config(&kf.playback);
         parts.extend(playback_parts);
+
+        // Path animation support
+        if let Some(ref path) = kf.path {
+            parts.push(format!("\"path\": \"{}\"", path.replace('"', "\\\"")));
+        }
+        if let Some(path_rotate) = kf.path_rotate {
+            if path_rotate {
+                parts.push("\"pathRotate\": true".to_string());
+            }
+        }
 
         parts.join(", ")
     }
@@ -3358,8 +3388,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                          \x20 const el = document.querySelector(\"{sel}\");\n\
                          \x20 if (el) {{\n\
                          \x20\x20 const config = {{\n\
-                         \x20\x20\x20 {from}\n\
-                         \x20\x20\x20 {to}\n\
+                         \x20\x20\x20 {from}\
+                         \x20\x20\x20 {to}\
                          \x20\x20\x20 \"over\": {over},\n\
                          \x20\x20\x20 \"easing\": {easing}{path_comma}{path}\n\
                          \x20\x20 }};\n\
@@ -3387,7 +3417,16 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         path_comma = if path_config.is_empty() { "" } else { ",\n\x20\x20\x20\x20" },
                         path = path_config,
                         delay = item_delay,
-                        label = item_label
+                        label = item_label,
+                        path_field = if let Some(p) = path {
+                            let escaped = p.replace('"', "\\\"");
+                            format!("\"path\": \"{}\",\n\"pathRotate\": {},\n",
+                                escaped,
+                                path_rotate.unwrap_or(false)
+                            )
+                        } else {
+                            String::new()
+                        },
                     ));
 
                     // Advance cursor by over + delay for next chained item

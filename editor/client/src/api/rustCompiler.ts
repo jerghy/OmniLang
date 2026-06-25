@@ -66,8 +66,25 @@ class RustCompiler {
         '../../../public/wasm/omni_compiler.js'
       );
 
-      // Initialize WASM (calls the default export)
-      await wasmModule.default();
+      try {
+        // Primary: fetch-based initialization (works in browser/dev server)
+        await wasmModule.default();
+      } catch (_fetchErr) {
+        // Fallback: use initSync + readFileSync (works in test/Node environments
+        // where fetch() is unavailable or fails)
+        const { readFileSync } = await import('node:fs');
+        const { resolve, dirname } = await import('node:path');
+        const { fileURLToPath } = await import('node:url');
+
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        const wasmPath = resolve(
+          __dirname,
+          '../../../public/wasm/omni_compiler_bg.wasm',
+        );
+        const wasmBytes = readFileSync(wasmPath);
+        wasmModule.initSync(wasmBytes.buffer);
+      }
 
       this.wasm = {
         compile_to_ir: wasmModule.compile_to_ir,

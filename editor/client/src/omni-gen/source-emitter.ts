@@ -20,7 +20,11 @@ export class CodeWriter {
 }
 
 export class SourceEmitter {
-  constructor(private annotationStrategy?: AnnotationStrategy) {}
+  constructor(
+    private annotationStrategy?: AnnotationStrategy,
+    private elementClassMap?: Map<string, string[]>,
+    private elementInlineMap?: Map<string, Record<string, string>>,
+  ) {}
 
   emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string {
     const writer = new CodeWriter();
@@ -150,11 +154,27 @@ export class SourceEmitter {
     const parts: string[] = [];
     parts.push(`<${style.htmlTag}`);
     parts.push(` id="${node.id}"`);
-    parts.push(` class: ${style.cssClassName}`);
+
+    // Base class name from resolved style + extra classes from StyleEntry[]
+    const extraClasses = this.elementClassMap?.get(node.id);
+    const fullClassName = extraClasses?.length
+      ? `${style.cssClassName} ${extraClasses.join(" ")}`
+      : style.cssClassName;
+    parts.push(` class: ${fullClassName}`);
 
     for (const [attr, val] of Object.entries(style.htmlAttrs)) {
       parts.push(` ${attr}="${escapeAttr(val)}"`);
     }
+
+    // Inline styles from StyleEntry[]
+    const inlineStyles = this.elementInlineMap?.get(node.id);
+    if (inlineStyles && Object.keys(inlineStyles).length > 0) {
+      const styleStr = Object.entries(inlineStyles)
+        .map(([k, v]) => `${k}: ${v};`)
+        .join(" ");
+      parts.push(` style: { ${styleStr} }`);
+    }
+
     for (const [evt, handler] of Object.entries(style.eventBindings)) {
       parts.push(` @${evt}={${handler}}`);
     }

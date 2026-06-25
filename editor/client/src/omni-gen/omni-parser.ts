@@ -2,6 +2,7 @@
 import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
 import type { ParseResult } from "./types";
+import { parseStylesFromAST } from "./pipeline";
 
 type ParserState =
   | "ROOT"
@@ -30,6 +31,7 @@ interface ParseContext {
   viewParentStack: string[];
   braceDepth: number;
   pendingEditFlags: string | null;
+  parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
 }
 
 export function parseOmniSource(source: string): ParseResult {
@@ -45,6 +47,7 @@ export function parseOmniSource(source: string): ParseResult {
     codeTabType: "logic",
     currentComponent: "",
     currentStore: "",
+    parsedStyleRules: [],
     chainName: "",
     chainElements: [],
     chainWires: [],
@@ -91,6 +94,55 @@ export function parseOmniSource(source: string): ParseResult {
 
   // Flush any remaining chain elements
   flushChain(ctx);
+
+  // Parse styles from the captured AST (style blocks + view tree)
+  if (ctx.parsedStyleRules.length > 0 && ctx.elements.length > 0) {
+    // Build a view tree node from element parent/child relationships
+    function buildViewTreeFromElements(el: ElementData): any {
+      // Parse style prop string into inline_style object
+      let inline_style: Record<string, string> | null = null;
+      const styleStr = el.props.style as string | undefined;
+      if (styleStr && typeof styleStr === "string") {
+        // Remove surrounding braces, split on ";", extract key:value pairs
+        const cleaned = styleStr.replace(/^\s*\{\s*/, "").replace(/\s*\}\s*$/, "");
+        if (cleaned.length > 0) {
+          const pairs: Record<string, string> = {};
+          for (const part of cleaned.split(";")) {
+            const trimmed = part.trim();
+            if (trimmed.length === 0) continue;
+            const colonIdx = trimmed.indexOf(":");
+            if (colonIdx > 0) {
+              pairs[trimmed.slice(0, colonIdx).trim()] = trimmed.slice(colonIdx + 1).trim();
+            }
+          }
+          if (Object.keys(pairs).length > 0) {
+            inline_style = pairs;
+          }
+        }
+      }
+
+      return {
+        id: el.id,
+        props: { ...el.props, class: (el.props.className as string) || "" },
+        inline_style,
+        children: (el.children || [])
+          .map((cid: string) => ctx.elements.find((e: ElementData) => e.id === cid))
+          .filter((c: ElementData | undefined): c is ElementData => c !== undefined)
+          .map(buildViewTreeFromElements),
+      };
+    }
+    const rootElements = ctx.elements.filter(
+      (e: ElementData) => e.nodeType === "view" && !e.parentId,
+    );
+    if (rootElements.length > 0) {
+      const elementMap = new Map(ctx.elements.map((e: ElementData) => [e.id, e]));
+      const componentNode = {
+        style: ctx.parsedStyleRules,
+        view: buildViewTreeFromElements(rootElements[0]),
+      };
+      parseStylesFromAST(componentNode, elementMap);
+    }
+  }
 
   return {
     designElements: ctx.elements.length > 0 ? ctx.elements : null,
@@ -302,7 +354,7 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
   const idMatch = trimmed.match(/id="([^"]*)"/);
   const id = idMatch ? idMatch[1] : `${ctx.currentComponent}.${tag}.${ctx.elements.length}`;
 
-  const classMatch = trimmed.match(/class:\s*(\w+)/);
+  const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$)/);
   const className = classMatch ? classMatch[1] : "";
 
   const events: Record<string, string> = {};
@@ -354,13 +406,35 @@ function parseStoreLine(trimmed: string, ctx: ParseContext): void {
   }
 }
 
-// ── IN_STYLE — skip style block ──
+// ── IN_STYLE — parse style block ──
 
 function parseStyleBlockLine(trimmed: string, ctx: ParseContext): void {
-  if (trimmed === "{" || trimmed.endsWith("{")) ctx.braceDepth++;
+  // Track brace depth for the style block itself
+  if (trimmed === "{" || trimmed.endsWith("{")) {
+    ctx.braceDepth++;
+    return;
+  }
   if (trimmed === "}") {
     ctx.braceDepth--;
-    if (ctx.braceDepth <= 0) popState(ctx);
+    if (ctx.braceDepth <= 0) {
+      popState(ctx);
+    }
+    return;
+  }
+
+  // Parse CSS rule: ".class-name { prop: value; prop2: value2; }"
+  const ruleMatch = trimmed.match(/^\.([\w-]+)\s*\{\s*(.*?)\s*\}$/);
+  if (ruleMatch) {
+    const className = ruleMatch[1];
+    const propsStr = ruleMatch[2];
+    const properties: Record<string, string> = {};
+    for (const pair of propsStr.split(";").filter(s => s.trim().length > 0)) {
+      const colonIdx = pair.indexOf(":");
+      if (colonIdx > 0) {
+        properties[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
+      }
+    }
+    ctx.parsedStyleRules.push({ class_name: className, properties });
   }
 }
 

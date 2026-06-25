@@ -15,6 +15,11 @@ import {
   type PropSchema,
   type EventSchema,
 } from "../store/componentRegistry";
+import { StyleEntryEditor } from "./StyleEntryEditor";
+import { AddStyleEntry } from "../commands/AddStyleEntry";
+import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
+import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
+import type { StyleEntry } from "../constants/style-properties";
 
 // ═══════════════════════════════════════════════
 // Types
@@ -38,7 +43,6 @@ interface ComponentMeta {
   category: string;
   props: Record<string, PropMeta>;
   events: Record<string, EventMeta>;
-  styleProperties: string[];
   children: boolean;
   isCustom?: boolean;
 }
@@ -242,6 +246,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const activeDocId = useEditorStore((s) => s.activeDocId);
   const undoExec = useUndoStore((s) => s.execute);
+  const [expandedStyleId, setExpandedStyleId] = useState<string | null>(null);
 
   const isEditingComponent = activeDocId?.startsWith("comp:") ?? false;
   const editingCompName = isEditingComponent ? activeDocId!.replace("comp:", "") : null;
@@ -325,7 +330,6 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         category: def.category,
         props: def.props,
         events: def.events,
-        styleProperties: def.styleProperties,
         children: def.children,
         isCustom: true,
       };
@@ -402,15 +406,93 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         </>
       )}
 
-      {/* Style Properties */}
-      {meta.styleProperties.length > 0 && (
-        <>
-          <div style={sectionHeaderStyle}>样式</div>
-          {meta.styleProperties.map((prop) => (
-            <StyleEditor key={prop} name={prop} value={el.props[prop]} onChange={(v) => handleChange(prop, v)} />
-          ))}
-        </>
-      )}
+      {/* Style List */}
+      <div style={{ ...sectionHeaderStyle, display: "flex", alignItems: "center" }}>
+        样式
+        <button
+          onClick={() => {
+            const entry: StyleEntry = {
+              id: `s_${Date.now()}`,
+              type: "inline",
+              name: "",
+              properties: [],
+            };
+            undoExec(new AddStyleEntry(el.id, entry), ctx);
+            setExpandedStyleId(entry.id);
+            debouncedRecompile();
+          }}
+          style={{
+            background: "none", border: "1px solid #585b70", borderRadius: 4,
+            color: "#a6adc8", cursor: "pointer", fontSize: 11,
+            padding: "2px 8px", marginLeft: "auto",
+          }}
+        >
+          +添加
+        </button>
+      </div>
+
+      {/* Render each style entry */}
+      {(el.styles || []).map((entry: StyleEntry, index: number) => {
+        const isExpanded = expandedStyleId === entry.id;
+        const displayName = entry.type === "inline"
+          ? `inline (${entry.properties.map(p => p.name).join(", ") || "empty"})`
+          : entry.type === "variable"
+            ? entry.name || "--unnamed"
+            : `.${entry.name}`;
+
+        return (
+          <div key={entry.id}>
+            {/* Collapsed row */}
+            <div
+              onClick={() => setExpandedStyleId(isExpanded ? null : entry.id)}
+              style={{
+                display: "flex", alignItems: "center", cursor: "pointer",
+                padding: "4px 0", color: "#cdd6f4", fontSize: 12,
+                userSelect: "none",
+              }}
+            >
+              <span style={{ marginRight: 6 }}>{isExpanded ? "▼" : "▶"}</span>
+              <span style={{ flex: 1 }}>{displayName}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  undoExec(new RemoveStyleEntry(el.id, entry, index), ctx);
+                  if (isExpanded) setExpandedStyleId(null);
+                  debouncedRecompile();
+                }}
+                style={{
+                  background: "none", border: "none", color: "#f38ba8",
+                  cursor: "pointer", fontSize: 14, padding: "0 4px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Expanded editor */}
+            {isExpanded && (
+              <StyleEntryEditor
+                entry={entry}
+                elementId={el.id}
+                onChange={(patch) => {
+                  const oldEntry = useEditorStore
+                    .getState()
+                    .getStyles(el.id)
+                    .find((s) => s.id === entry.id);
+                  if (!oldEntry) return;
+                  const newEntry = { ...oldEntry, ...patch };
+                  undoExec(
+                    new UpdateStyleEntry(el.id, entry.id, oldEntry, newEntry),
+                    ctx,
+                  );
+                  debouncedRecompile();
+                }}
+                onClose={() => setExpandedStyleId(null)}
+              />
+            )}
+          </div>
+        );
+      })}
 
       {/* Instance info for custom components */}
       {el.componentRef && (
@@ -462,28 +544,6 @@ function PropEditor({ name, config, value, onChange }: {
     default:
       return null;
   }
-}
-
-function StyleEditor({ name, value, onChange }: {
-  name: string; value: unknown; onChange: (v: unknown) => void;
-}) {
-  if (name.includes("color")) {
-    return (
-      <label style={labelStyle}>
-        <span style={labelTextStyle}>{name}</span>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input type="color" value={String(value ?? "#000000")} onChange={(e) => onChange(e.target.value)} style={{ width: 28, height: 24, border: "none", cursor: "pointer" }} />
-          <input type="text" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-        </div>
-      </label>
-    );
-  }
-  return (
-    <label style={labelStyle}>
-      <span style={labelTextStyle}>{name}</span>
-      <input type="text" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} style={inputStyle} placeholder="e.g. 16px" />
-    </label>
-  );
 }
 
 // ═══════════════════════════════════════════════

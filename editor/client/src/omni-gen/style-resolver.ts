@@ -89,8 +89,12 @@ export function resolveStyle(node: ViewNode): ResolvedStyle {
       continue;
     }
 
-    // Regular attrs
-    htmlAttrs[key] = String(val);
+    // CSS custom property (-- prefixed) or regular HTML attr
+    if (key.startsWith("--")) {
+      cssRules[key] = String(val);
+    } else {
+      htmlAttrs[key] = String(val);
+    }
   }
 
   // tagByProp: level="2" → <h2>

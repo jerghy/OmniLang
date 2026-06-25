@@ -708,13 +708,13 @@ impl<'a> Parser<'a> {
                         self.advance();
                         let mut entries = Vec::new();
                         if self.peek_kind() != TokenKind::RBrace {
-                            let key = self.expect_ident("expected style key")?;
+                            let key = self.parse_css_property_name("expected style key")?;
                             self.expect_token(TokenKind::Colon, "expected ':'")?;
                             let val = self.parse_expr()?;
                             entries.push((key, val));
                             while self.peek_kind() == TokenKind::Comma {
                                 self.advance();
-                                let key = self.expect_ident("expected style key")?;
+                                let key = self.parse_css_property_name("expected style key")?;
                                 self.expect_token(TokenKind::Colon, "expected ':'")?;
                                 let val = self.parse_expr()?;
                                 entries.push((key, val));
@@ -1131,6 +1131,46 @@ impl<'a> Parser<'a> {
 
     // ── Style rule ─────────────────────────────────────
 
+    /// Parse a CSS property name, supporting CSS custom properties (`--name`).
+    /// For `--` prefixed names, consumes the `--` prefix then reads ident parts
+    /// separated by hyphens. For regular names, uses expect_ident.
+    fn parse_css_property_name(&mut self, msg: &str) -> Result<String, ParseError> {
+        if self.peek_kind() == TokenKind::Minus
+            && self
+                .tokens
+                .get(self.pos + 1)
+                .map_or(false, |t| t.kind == TokenKind::Minus)
+        {
+            self.advance(); // eat first '-'
+            self.advance(); // eat second '-'
+            let mut name = String::from("--");
+            loop {
+                match self.peek_kind() {
+                    TokenKind::Ident(s) => {
+                        name.push_str(&s);
+                        self.advance();
+                    }
+                    TokenKind::Minus => {
+                        name.push('-');
+                        self.advance();
+                    }
+                    _ => break,
+                }
+            }
+            Ok(name)
+        } else {
+            let key = self.expect_ident(msg)?;
+            let mut result = key;
+            // Handle hyphenated CSS property names: font-family, min-height, etc.
+            while self.peek_kind() == TokenKind::Minus {
+                self.advance(); // consume '-'
+                let next = self.expect_ident("expected identifier after '-'")?;
+                result = format!("{}-{}", result, next);
+            }
+            Ok(result)
+        }
+    }
+
     /// Parse style rules from `style { .class1 { ... } .class2 { ... } }` block.
     /// Returns a list of StyleRule — one per CSS class rule.
     pub fn parse_style_rules(&mut self) -> Result<Vec<StyleRule>, ParseError> {
@@ -1168,13 +1208,8 @@ impl<'a> Parser<'a> {
 
             let mut properties = Vec::new();
             while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-                let mut key = self.expect_ident("expected property name")?;
-                // Handle hyphenated CSS property names: font-family, min-height, etc.
-                while self.peek_kind() == TokenKind::Minus {
-                    self.advance(); // consume '-'
-                    let next = self.expect_ident("expected identifier after '-'")?;
-                    key = format!("{}-{}", key, next);
-                }
+                // Parse property name — supports CSS custom properties (--name)
+                let key = self.parse_css_property_name("expected property name")?;
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
 
                 let value = {
