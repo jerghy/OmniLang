@@ -25,7 +25,8 @@ export const STYLE_PROPERTY_NAMES = new Set([
   "text_align", "shadow", "padding", "margin", "gap",
   "width", "height", "color",
   // Additional CSS properties (kebab-case + camelCase aliases)
-  "display", "position", "opacity", "overflow", "z-index", "z_index", "zIndex",
+  "display", "position", "opacity", "overflow", "overflow-x", "overflow_x", "overflowX",
+  "overflow-y", "overflow_y", "overflowY", "z-index", "z_index", "zIndex",
   "box-shadow", "box_shadow", "boxShadow",
   "border", "border-color", "border_color", "borderColor",
   "font-family", "font_family", "fontFamily",
