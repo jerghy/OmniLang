@@ -5,6 +5,8 @@
 // and dynamic inline styles.
 
 import { describe, it, expect, beforeAll } from "vitest";
+import { resolveStyle } from "../style-resolver";
+import type { ViewNode } from "../types";
 import { rustCompiler } from "../../api/rustCompiler";
 
 beforeAll(async () => {
@@ -46,5 +48,34 @@ describe("WASM -- CSS custom properties", () => {
     expect(result.success).toBe(false);
     expect(result.errors).toBeDefined();
     expect(result.errors!.length).toBeGreaterThan(0);
+  });
+});
+
+describe("resolveStyle — CSS custom properties", () => {
+  it("routes --prefixed keys to cssRules not htmlAttrs", () => {
+    const node: ViewNode = {
+      id: "1",
+      tag: "Container",
+      path: "root.container",
+      props: { "--primary-color": "#333", padding: "16px" },
+      children: [],
+      kind: "element",
+    };
+    const result = resolveStyle(node);
+    expect(result.cssRules["--primary-color"]).toBe("#333");
+    expect(result.htmlAttrs["--primary-color"]).toBeUndefined();
+  });
+
+  it("backward compatible: non-prefixed keys still map through STYLE_PROP_CSS_MAP", () => {
+    const node: ViewNode = {
+      id: "2",
+      tag: "Container",
+      path: "root.container",
+      props: { background_color: "#eee" },
+      children: [],
+      kind: "element",
+    };
+    const result = resolveStyle(node);
+    expect(result.cssRules["background"]).toBe("#eee");
   });
 });
