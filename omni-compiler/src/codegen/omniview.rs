@@ -686,6 +686,20 @@ function __omni_bindText(nid) {
         }
     }
 
+    /// Emit a style property assignment for an element.
+    /// Uses `el.style.setProperty()` for CSS custom properties (`--` prefix),
+    /// and direct `el.style.prop = value` for standard properties.
+    fn emit_style_assignment(&mut self, prop: &str, value_expr: &str) {
+        if prop.starts_with("--") {
+            self.js.push_str(&format!(
+                "el.style.setProperty(\"{}\",{});",
+                prop, value_expr
+            ));
+        } else {
+            self.js.push_str(&format!("el.style.{}={};", prop, value_expr));
+        }
+    }
+
     /// Finalize the JS output with closing IIFE wrapper.
     fn finalize_js(&mut self) {
         self.js.push_str("\n})();\n");
@@ -1901,9 +1915,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 // Use camelCase for JS el.style, not kebab-case
                                 let js_prop = prop;
                                 self.js.push_str(&format!(
-                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}.value; }});\n",
-                                    nid, js_prop, prefixed
+                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                    nid
                                 ));
+                                self.emit_style_assignment(js_prop, &format!("{}.value", prefixed));
+                                self.js.push_str(" });\n");
                             }
                         }
                         serde_json::Value::Object(obj) if obj.contains_key("$concat") => {
@@ -1928,9 +1944,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 }
                                 let js_prop = prop; // camelCase for el.style
                                 self.js.push_str(&format!(
-                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}; }});\n",
-                                    nid, js_prop, js_parts.join(" + ")
+                                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                    nid
                                 ));
+                                self.emit_style_assignment(js_prop, &js_parts.join(" + "));
+                                self.js.push_str(" });\n");
                             }
                         }
                         serde_json::Value::Object(obj) if obj.contains_key("$call") => {
@@ -1963,9 +1981,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                     }
                                     let js_prop = prop; // camelCase for el.style
                                     self.js.push_str(&format!(
-                                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.style.{} = {}({}); }});\n",
-                                        nid, js_prop, prefixed, arg_strs.join(", ")
+                                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
+                                        nid
                                     ));
+                                    self.emit_style_assignment(js_prop, &format!("{}({})", prefixed, arg_strs.join(", ")));
+                                    self.js.push_str(" });\n");
                                 }
                             }
                         }
