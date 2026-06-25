@@ -1168,7 +1168,33 @@ impl<'a> Parser<'a> {
 
             let mut properties = Vec::new();
             while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-                let mut key = self.expect_ident("expected property name")?;
+                // Parse property name — supports CSS custom properties (--name)
+                let mut key = if self.peek_kind() == TokenKind::Minus
+                    && self
+                        .tokens
+                        .get(self.pos + 1)
+                        .map_or(false, |t| t.kind == TokenKind::Minus)
+                {
+                    self.advance(); // eat first '-'
+                    self.advance(); // eat second '-'
+                    let mut name = String::from("--");
+                    loop {
+                        match self.peek_kind() {
+                            TokenKind::Ident(s) => {
+                                name.push_str(&s);
+                                self.advance();
+                            }
+                            TokenKind::Minus => {
+                                name.push('-');
+                                self.advance();
+                            }
+                            _ => break,
+                        }
+                    }
+                    name
+                } else {
+                    self.expect_ident("expected property name")?
+                };
                 // Handle hyphenated CSS property names: font-family, min-height, etc.
                 while self.peek_kind() == TokenKind::Minus {
                     self.advance(); // consume '-'
