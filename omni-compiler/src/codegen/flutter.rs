@@ -45,6 +45,9 @@ impl FlutterCodegen {
         if comp_has_spring_motion(comp) {
             w.emit("import 'package:flutter/physics.dart';");
         }
+        if comp_has_path_motion(comp) {
+            w.emit("import 'dart:ui' show Path, PathMetric;");
+        }
         w.emit("");
 
         // Store imports
@@ -123,6 +126,14 @@ impl FlutterCodegen {
             let anim_name = format!("_{}Animation", motion.name);
             w.emit(&format!("late final AnimationController {};", ctrl_name));
             w.emit(&format!("late final Animation<double> {};", anim_name));
+            if motion_has_path(motion) {
+                let path_name = format!("_{}Path", motion.name);
+                let metric_name = format!("_{}Metric", motion.name);
+                let length_name = format!("_{}Length", motion.name);
+                w.emit(&format!("late final Path {};", path_name));
+                w.emit(&format!("late final PathMetric {};", metric_name));
+                w.emit(&format!("late final double {};", length_name));
+            }
         }
         if !comp.motions.is_empty() {
             w.emit("");

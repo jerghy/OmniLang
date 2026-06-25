@@ -2370,6 +2370,16 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         let playback_parts = self.playback_to_config(&kf.playback);
         parts.extend(playback_parts);
 
+        // Path animation support
+        if let Some(ref path) = kf.path {
+            parts.push(format!("\"path\": \"{}\"", path.replace('"', "\\\"")));
+        }
+        if let Some(path_rotate) = kf.path_rotate {
+            if path_rotate {
+                parts.push("\"pathRotate\": true".to_string());
+            }
+        }
+
         parts.join(", ")
     }
 
@@ -3378,8 +3388,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                          \x20 const el = document.querySelector(\"{sel}\");\n\
                          \x20 if (el) {{\n\
                          \x20\x20 const config = {{\n\
-                         \x20\x20\x20 {from}\n\
-                         \x20\x20\x20 {to}\n\
+                         \x20\x20\x20 {from}\
+                         \x20\x20\x20 {to}\
                          \x20\x20\x20 \"over\": {over},\n\
                          \x20\x20\x20 \"easing\": {easing}{path_comma}{path}\n\
                          \x20\x20 }};\n\
@@ -3407,7 +3417,16 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         path_comma = if path_config.is_empty() { "" } else { ",\n\x20\x20\x20\x20" },
                         path = path_config,
                         delay = item_delay,
-                        label = item_label
+                        label = item_label,
+                        path_field = if let Some(p) = path {
+                            let escaped = p.replace('"', "\\\"");
+                            format!("\"path\": \"{}\",\n\"pathRotate\": {},\n",
+                                escaped,
+                                path_rotate.unwrap_or(false)
+                            )
+                        } else {
+                            String::new()
+                        },
                     ));
 
                     // Advance cursor by over + delay for next chained item
