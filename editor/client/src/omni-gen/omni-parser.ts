@@ -354,7 +354,7 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
   const idMatch = trimmed.match(/id="([^"]*)"/);
   const id = idMatch ? idMatch[1] : `${ctx.currentComponent}.${tag}.${ctx.elements.length}`;
 
-  const classMatch = trimmed.match(/class:\s*(\w+)/);
+  const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$)/);
   const className = classMatch ? classMatch[1] : "";
 
   const events: Record<string, string> = {};
