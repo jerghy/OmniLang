@@ -3,7 +3,8 @@
 // Palette -> canvas drops are captured by a transparent overlay on top of the iframe.
 
 import React, { useCallback, useState, useEffect, useRef } from "react";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";
 import { AddElement } from "../commands/AddElement";

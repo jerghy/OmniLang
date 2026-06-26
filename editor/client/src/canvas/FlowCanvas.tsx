@@ -15,7 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import { useCodeGraphStore } from "../codegraph/store";
 import { createCodeGraphContext } from "../codegraph/context";
 import { AddWire } from "../commands/AddWire";

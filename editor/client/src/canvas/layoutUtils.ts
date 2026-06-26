@@ -6,7 +6,7 @@
  *  data-flow sinks (actions, computed results) appear on the right. */
 
 import dagre from "dagre";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 
 // ── Node dimensions (matched to ACTUAL Rete node rendering) ──
 // Real rendered sizes measured via getBoundingClientRect():

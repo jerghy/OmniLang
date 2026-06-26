@@ -1,7 +1,7 @@
 // editor/client/src/omni-gen/__tests__/expression-lowering.test.ts
 import { describe, it, expect } from "vitest";
 import { lowerCode } from "../expression-lowering";
-import type { ElementData, WireData } from "../../store/editor";
+import type { ElementData, WireData } from "../../core/types";
 
 describe("lowerCode", () => {
   it("builds setVariable expression from literal add", () => {

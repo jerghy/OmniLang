@@ -1,15 +1,14 @@
 /** CodeGraph — independent visual programming canvas abstraction.
- *  Each CodeTab owns one CodeGraph. The active tab's graph is rendered by FlowCanvas. */
+ *  Each CodeTab owns one CodeGraph. The active tab's graph is rendered by FlowCanvas.
+ *
+ *  Core types (CodeGraph, CodeTab, CodeTabType, CodeTabVariable) are now in
+ *  core/types/ — re-exported from there.  Module-specific types and helpers
+ *  remain here. */
 
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 
-// ── CodeGraph ──
-
-/** A single visual programming canvas (elements + wires). */
-export interface CodeGraph {
-  elements: ElementData[];
-  wires: WireData[];
-}
+// ── Re-exports from core/types (migrated types) ──
+export type { CodeGraph, CodeTab, CodeTabType, CodeTabVariable } from "../core/types";
 
 // ── Signal Definition ──
 
@@ -30,23 +29,9 @@ export interface FnParam {
   default?: unknown;
 }
 
-// ── CodeTab ──
-
-/** Tab type: "event" = event handler functions (appear in design event binding),
- *  "logic" = general logic code (not shown in event binding dropdown). */
-export type CodeTabType = "event" | "logic";
-
-export interface CodeTab {
-  /** Unique tab identifier (e.g. "main", "tab-xxxx") */
-  id: string;
-  type: CodeTabType;
-  label: string;
-  icon: string;
-  graph: CodeGraph;
-
-  /** Variables (signals/stores) defined in this tab's scope */
-  variables: SignalDefinition[];
-}
+// ── CodeTab (legacy re-export alias, prefer CodeTabVariable from core/types) ──
+/** @deprecated Use CodeTabVariable from core/types */
+export type { CodeTabVariable as SignalDefinition_v2 } from "../core/types";
 
 // ── Custom Function Metadata ──
 

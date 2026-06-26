@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useCodeGraphStore } from "../codegraph/store";
-import type { CodeTab, CodeTabType } from "../codegraph/types";
+import type { CodeTab, CodeTabType } from "../core/types";
 
 import { newTabId } from "../codegraph/types";
 

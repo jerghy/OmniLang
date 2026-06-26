@@ -2,7 +2,7 @@
  *  Data-only edges — flow edges are removed in the new architecture. */
 
 import type { Edge } from "@xyflow/react";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import { getAllPorts } from "./connectionValidators";
 
 export interface WiresToEdgesOptions {

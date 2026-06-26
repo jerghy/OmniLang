@@ -3,7 +3,7 @@
 // Phase 1: scan for tag==="store" -> StoreDef skeleton
 // Phase 2: group signal/computed/action into parent stores
 
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import type { StoreDef } from "./types";
 
 export interface StoreExtractResult {

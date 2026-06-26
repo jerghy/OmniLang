@@ -2,7 +2,8 @@
  *  编辑自定义组件定义时显示 ComponentMetaEditor。*/
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";
 import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
@@ -21,7 +22,7 @@ import { AddStyleEntry } from "../commands/AddStyleEntry";
 import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
 import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
 import { ReorderStyleEntry } from "../commands/ReorderStyleEntry";
-import type { StyleEntry } from "../constants/style-properties";
+import type { StyleEntry } from "../core/types";
 import { getComponentEvents, UNIVERSAL_EVENTS } from "../data/componentProtocol";
 
 // ═══════════════════════════════════════════════

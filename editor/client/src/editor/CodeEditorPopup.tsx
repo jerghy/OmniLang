@@ -3,7 +3,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { MonacoEditor, type MonacoEditorHandle } from "./MonacoEditor";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { SnippetPanel } from "../panels/SnippetPanel";
 import { TYPE_COLORS } from "../canvas/socketTypes";
 

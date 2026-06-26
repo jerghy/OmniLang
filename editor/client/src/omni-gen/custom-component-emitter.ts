@@ -19,9 +19,9 @@ import { resolveStyle } from "./style-resolver";
 import { SourceEmitter } from "./source-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { collectStylesFromEntries } from "./pipeline";
-import type { ElementData } from "../store/editor";
+import type { ElementData } from "../core/types";
 import type { StageResult, EmitInput, ViewNode } from "./types";
-import type { StyleEntry, StyleProperty } from "../constants/style-properties";
+import type { StyleEntry, StyleProperty } from "../core/types";
 
 /**
  * Emit standalone OmniLang source files for each custom component.

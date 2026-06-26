@@ -19,7 +19,7 @@ import type {
   FunctionSignature,
   TabExportData,
 } from "./types";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 
 interface ElementHandle {
   readonly id: string;

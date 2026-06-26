@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from "./types";
-import type { ElementData } from "../store/editor";
+import type { ElementData } from "../core/types";
 
 export class AddElement implements Command {
   readonly type = "AddElement";

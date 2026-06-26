@@ -4,7 +4,8 @@
  *  复制/粘贴、上移/下移、删除、编辑自定义组件等操作。 */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
 import { COMPONENT_PROTOCOL } from "../data/componentProtocol";

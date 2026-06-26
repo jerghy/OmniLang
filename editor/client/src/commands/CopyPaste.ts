@@ -6,7 +6,7 @@
  *  - 同步操作，无需 async 权限请求 */
 
 import type { Command, CommandContext } from "./types";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import { AddElement } from "./AddElement";
 import { AddWire } from "./AddWire";
 import { RemoveElement } from "./RemoveElement";

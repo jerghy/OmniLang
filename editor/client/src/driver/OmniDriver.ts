@@ -18,7 +18,8 @@
  *  ```
  */
 
-import { useEditorStore, type ElementData, type WireData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";

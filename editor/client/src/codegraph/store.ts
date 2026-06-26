@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import {
   type CodeTab,
   type CodeTabType,

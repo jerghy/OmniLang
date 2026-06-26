@@ -1,7 +1,7 @@
 // editor/client/src/omni-gen/wire-analyzer.ts
 // Analyzes wire connections between elements to extract signal/ref/dep bindings.
 
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 import type { BindingResult } from "./types";
 
 export function analyzeWires(elements: ElementData[], wires: WireData[]): BindingResult {

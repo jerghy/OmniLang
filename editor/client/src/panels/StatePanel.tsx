@@ -3,7 +3,8 @@
  *  Form-based creation (no code editor for state creation — §2.3). */
 
 import { useState } from "react";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { AddElement } from "../commands/AddElement";
 import type { CommandContext } from "../commands/types";

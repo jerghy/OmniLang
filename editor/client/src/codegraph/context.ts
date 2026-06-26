@@ -9,7 +9,7 @@
  */
 
 import { useCodeGraphStore, type CodeGraphCommandContext } from "./store";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 
 /** Get the active tab's graph elements (Zustand getters not supported in selectors). */
 function getActiveGraph() {

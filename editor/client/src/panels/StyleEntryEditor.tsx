@@ -1,5 +1,5 @@
 import React from "react";
-import type { StyleEntry, StyleProperty } from "../constants/style-properties";
+import type { StyleEntry, StyleProperty } from "../core/types";
 import { StylePropertyEditor } from "./StylePropertyEditor";
 
 interface Props {

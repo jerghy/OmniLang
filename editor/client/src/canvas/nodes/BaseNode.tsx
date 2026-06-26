@@ -3,7 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getNodeConfig } from "../nodeRegistry";
 import { TYPE_COLORS } from "../socketTypes";
-import type { PortData } from "../../store/editor";
+import type { PortData } from "../../core/types";
 
 export interface BaseNodeData {
   elementId: string;

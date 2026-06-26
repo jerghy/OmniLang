@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from "./types";
-import type { StyleEntry } from "../constants/style-properties";
+import type { StyleEntry } from "../core/types";
 
 export class UpdateStyleEntry implements Command {
   readonly type = "UpdateStyleEntry";

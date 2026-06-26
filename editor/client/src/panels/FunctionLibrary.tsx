@@ -3,7 +3,8 @@
  *  Double-click → open CodeEditorPopup. Drag to canvas → creates 📞 call node. */
 
 import { useState } from "react";
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import type { CommandContext } from "../commands/types";
 import { MonacoEditor } from "../editor/MonacoEditor";
 

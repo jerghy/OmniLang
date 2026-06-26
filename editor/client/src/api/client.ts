@@ -1,7 +1,7 @@
 /** HTTP + WebSocket 通信封装。*/
 
 import type { CompileResponse, FsEntry, ProjectInfo } from "./types";
-import type { AnnotatedLoadResponse, AnnotatedSaveResponse, EditorTomlState, AnnotationFile } from "../annotation/types";
+import type { AnnotatedLoadResponse, AnnotatedSaveResponse, EditorTomlState, AnnotationFile } from "../core/types";
 
 class ApiClient {
   private ws: WebSocket | null = null;

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { useEditorStore } from "../editor";
-import type { StyleEntry } from "../../constants/style-properties";
+import type { StyleEntry } from "../../core/types";
 
 function makeEntry(overrides: Partial<StyleEntry> = {}): StyleEntry {
   return {

@@ -8,9 +8,9 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { resolveStyle } from "../style-resolver";
 import { collectStylesFromEntries, parseStylesFromAST, generateOmniSource } from "../pipeline";
 import { parseOmniSource } from "../omni-parser";
-import type { StyleEntry } from "../../constants/style-properties";
+import type { StyleEntry } from "../../core/types";
 import type { ViewNode } from "../types";
-import type { ElementData } from "../../store/editor";
+import type { ElementData } from "../../core/types";
 import { rustCompiler } from "../../api/rustCompiler";
 
 beforeAll(async () => {

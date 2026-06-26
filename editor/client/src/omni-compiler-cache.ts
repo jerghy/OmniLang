@@ -5,8 +5,7 @@
 
 import { generateOmniSource } from "./omni-gen/pipeline";
 import { rustCompiler } from "./api/rustCompiler";
-import type { ElementData, WireData } from "./store/editor";
-import type { CodeTab } from "./codegraph/types";
+import type { ElementData, WireData, CodeTab } from "./core/types";
 
 export interface CompileProjectInput {
   designElements: ElementData[];

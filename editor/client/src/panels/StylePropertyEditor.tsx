@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import type { StyleProperty } from "../constants/style-properties";
+import type { StyleProperty } from "../core/types";
 import {
   isColorProperty,
   isCustomProperty,

@@ -8,8 +8,8 @@ import { UpdateStyleProperty } from "../UpdateStyleProperty";
 import { SetStyleEntryType } from "../SetStyleEntryType";
 import { RenameStyleEntry } from "../RenameStyleEntry";
 import type { CommandContext } from "../types";
-import type { ElementData, WireData } from "../../store/editor";
-import type { StyleEntry } from "../../constants/style-properties";
+import type { ElementData, WireData } from "../../core/types";
+import type { StyleEntry } from "../../core/types";
 
 function makeCtx(elements: ElementData[] = [], wires: WireData[] = []): CommandContext {
   const ctxElements = [...elements];

@@ -1,6 +1,5 @@
 // editor/client/src/omni-gen/omni-parser.ts
-import type { ElementData, WireData } from "../store/editor";
-import type { CodeTab } from "../codegraph/types";
+import type { ElementData, WireData, CodeTab } from "../core/types";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./pipeline";
 import { useComponentRegistry } from "../store/componentRegistry";

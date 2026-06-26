@@ -1,7 +1,7 @@
 // editor/client/src/omni-gen/import-collector.ts
 // Collects import statements from component tags, store refs, and cross-tab function references.
 
-import type { CodeTab } from "../codegraph/types";
+import type { CodeTab } from "../core/types";
 
 export function collectImports(
   pascalCaseTags: string[],

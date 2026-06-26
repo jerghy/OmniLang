@@ -2,7 +2,8 @@
  *  Used in both design mode sidebar and code mode FunctionLibrary panel.
  *  Each type creates a code block with proper ports, nodeCategory, and source template. */
 
-import { useEditorStore, type ElementData } from "../store/editor";
+import { useEditorStore } from "../store/editor";
+import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { uid } from "../utils/id";
 import { getNodeConfig } from "../canvas/nodeRegistry";

@@ -13,10 +13,8 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
-import type { StyleEntry, StyleProperty } from "../constants/style-properties";
-import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../constants/style-properties";
-import type { ElementData, WireData } from "../store/editor";
-import type { CodeTab } from "../codegraph/types";
+import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../core/types";
+import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../core/types";
 import { useComponentRegistry } from "../store/componentRegistry";
 import type { ComponentDefinition } from "../store/componentRegistry";
 import type {

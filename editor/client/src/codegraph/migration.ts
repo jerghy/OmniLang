@@ -9,7 +9,7 @@
  *  3. Keep all other nodes (signal, computed, store, fn, literal, etc.)
  */
 
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../core/types";
 
 /** Node tags that existed in v1 but are removed in v2 (pure data-flow). */
 const DEPRECATED_TAGS = new Set([

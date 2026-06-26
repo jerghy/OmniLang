@@ -1,57 +1,12 @@
 /** 编辑器核心 Zustand store — v2: design/code 分叉 + 项目管理。*/
 
 import { create } from "zustand";
-import type { StyleEntry } from "../constants/style-properties";
+import type { StyleEntry } from "../core/types";
 import { parseOmniSource } from "../omni-gen";
 
-// ── Data Types (R2 upgraded schema) ─────────────────
-
-export interface PortData {
-  name: string;
-  direction: "in" | "out";
-  portType?: "flow" | "data";
-  type: string;
-  label?: string;
-  configurable?: boolean;
-  defaultValue?: unknown;
-}
-
-export interface ElementData {
-  id: string;
-  nodeType: "view" | "codeblock" | "group";
-  tag: string;
-  props: Record<string, unknown>;
-  styles?: StyleEntry[];
-  children: string[];
-  parentId: string | null;
-  ports?: PortData[];
-  renderMode?: "dom" | "canvas";
-  isFolded?: boolean;
-  typeAnnotation?: string;
-  storeName?: string;
-  source?: string;
-  outputValue?: unknown;
-  position?: { x: number; y: number };
-  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";
-  config?: Record<string, unknown>;
-  flowOrder?: number;
-  componentRef?: string;
-}
-
-export interface WireData {
-  id: string;
-  fromId: string;
-  fromPort: string;
-  toId: string;
-  toPort: string;
-  isCollapsed?: boolean;
-  collapseGroupId?: string;
-}
-
-export interface ProjectConfig {
-  target: string;       // "react" | "vue" | "flutter" | "omniview"
-  autoSave: boolean;
-}
+// ── Data Types (re-exported from core/types) ────────
+// Local definitions moved to core/types/ for cross-module sharing.
+export type { ElementData, WireData, PortData, ProjectConfig } from "../core/types";
 
 // ── Store ──────────────────────────────────────────
 
