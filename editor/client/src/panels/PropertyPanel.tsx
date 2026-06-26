@@ -525,6 +525,17 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
             ? entry.name || "--unnamed"
             : `.${entry.name}`;
 
+        const handleDropAt = (toIndex: number) => {
+          if (dragIndex !== null && dragIndex !== toIndex) {
+            const entries = el.styles || [];
+            const oldIds = entries.map((e: StyleEntry) => e.id);
+            const newIds = reorderArray(oldIds, dragIndex, toIndex);
+            undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
+          }
+          setDragIndex(null);
+          setDropIndex(null);
+        };
+
         return (
           <div key={entry.id}>
             {/* Collapsed row — draggable unless expanded */}
@@ -533,20 +544,19 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
               onDragStart={(e) => {
                 setDragIndex(index);
                 e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", entry.id);
               }}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
-                if (dragIndex !== index) setDropIndex(index);
-              }}
-              onDragEnd={() => {
-                if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
-                  const entries = el.styles || [];
-                  const oldIds = entries.map((e: StyleEntry) => e.id);
-                  const newIds = reorderArray(oldIds, dragIndex, dropIndex);
-                  undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
+                if (dragIndex !== index && dropIndex !== index) {
+                  setDropIndex(index);
                 }
+              }}
+              onDragLeave={() => {
+                if (dropIndex === index) setDropIndex(null);
+              }}
+              onDrop={() => handleDropAt(index)}
+              onDragEnd={() => {
                 setDragIndex(null);
                 setDropIndex(null);
               }}
@@ -608,7 +618,23 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
           onDragOver={(e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
-            setDropIndex(el.styles!.length);
+            const len = el.styles!.length;
+            if (dropIndex !== len) setDropIndex(len);
+          }}
+          onDragLeave={() => {
+            const len = el.styles!.length;
+            if (dropIndex === len) setDropIndex(null);
+          }}
+          onDrop={() => {
+            const len = el.styles!.length;
+            if (dragIndex !== null && dragIndex !== len) {
+              const entries = el.styles || [];
+              const oldIds = entries.map((e: StyleEntry) => e.id);
+              const newIds = reorderArray(oldIds, dragIndex, len);
+              undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
+            }
+            setDragIndex(null);
+            setDropIndex(null);
           }}
           style={{
             height: 4,
