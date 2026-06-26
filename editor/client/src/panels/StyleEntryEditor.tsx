@@ -11,23 +11,25 @@ interface Props {
 
 const styles = {
   container: {
-    background: "#181825", border: "1px solid #313244", borderRadius: 6,
+    background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6,
     padding: 8, marginBottom: 6,
   } as React.CSSProperties,
   typeBtn: (active: boolean): React.CSSProperties => ({
-    background: active ? "#45475a" : "transparent",
-    border: "1px solid #585b70", borderRadius: 4,
-    color: "#cdd6f4", cursor: "pointer", fontSize: 11,
+    background: active ? "#EEF2FF" : "transparent",
+    border: active ? "1px solid #C7D2FE" : "1px solid #d1d5db",
+    borderRadius: 4,
+    color: active ? "#4F46E5" : "#6B7280",
+    cursor: "pointer", fontSize: 11,
     padding: "2px 8px", marginRight: 4,
   }),
   input: {
-    background: "#1e1e2e", color: "#cdd6f4", border: "1px solid #45475a",
+    background: "#fff", color: "#374151", border: "1px solid #d1d5db",
     borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%",
-    marginTop: 4, marginBottom: 8,
+    marginTop: 4, marginBottom: 8, boxSizing: "border-box",
   } as React.CSSProperties,
   addBtn: {
-    background: "none", border: "1px dashed #585b70", borderRadius: 4,
-    color: "#a6adc8", cursor: "pointer", fontSize: 11,
+    background: "none", border: "1px dashed #C7D2FE", borderRadius: 4,
+    color: "#4F46E5", cursor: "pointer", fontSize: 11,
     padding: "4px 8px", width: "100%", marginTop: 4,
   } as React.CSSProperties,
 };
@@ -36,7 +38,42 @@ export function StyleEntryEditor({ entry, onChange, onClose }: Props) {
   const isVariable = entry.type === "variable";
 
   const handleTypeChange = (newType: StyleEntry["type"]) => {
-    onChange({ type: newType });
+    // No-op guard: clicking the already-active type should not create undo entries
+    if (newType === entry.type) return;
+
+    const patch: Partial<StyleEntry> = { type: newType };
+
+    // Switching TO variable: auto-add -- prefix and truncate properties to 1
+    if (newType === "variable") {
+      // --- 2.1: Variable type auto-add -- prefix ---
+      if (entry.type === "class") {
+        if (entry.name.startsWith("_v-")) {
+          patch.name = "--" + entry.name.slice(3);
+        } else if (!entry.name.startsWith("--") && entry.name !== "") {
+          patch.name = "--" + entry.name;
+        }
+        // If name already starts with -- or is empty, keep as-is
+      } else if (entry.type === "inline") {
+        if (entry.name === "") {
+          patch.name = "--unnamed";
+        } else if (!entry.name.startsWith("--")) {
+          patch.name = "--" + entry.name;
+        }
+        // If name already starts with --, keep as-is
+      }
+
+      // --- 2.2: Variable type limit to 1 property ---
+      patch.properties = [
+        { name: "value", value: entry.properties[0]?.value ?? "" },
+      ];
+    }
+
+    // Switching FROM variable: strip -- prefix (properties stay as-is, undo system handles restoration)
+    if (entry.type === "variable" && newType !== "variable") {
+      patch.name = entry.name.startsWith("--") ? entry.name.slice(2) : entry.name;
+    }
+
+    onChange(patch);
   };
 
   const handlePropertyChange = (index: number, prop: StyleProperty) => {
@@ -87,7 +124,7 @@ export function StyleEntryEditor({ entry, onChange, onClose }: Props) {
         /* Variable mode: single value */
         entry.properties.length > 0 && (
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#a6adc8", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap" }}>
               {entry.name || "--var"}:
             </span>
             <input
