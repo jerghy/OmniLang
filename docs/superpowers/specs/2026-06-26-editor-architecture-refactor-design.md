@@ -37,6 +37,10 @@ editor/e2e:          ~1,300 行 | 8 文件 (Playwright)
 | 15 | componentName 识别正则 `/component\s+(\w+)\s*\{/` 在 6 处复制粘贴 | App.tsx(5), LayoutView.tsx(1) | - | 🟡 |
 | 16 | 部分操作绕过 Undo：OmniDriver 和 StatePanel 直接调 store 不走命令模式，创建的元素无法撤销 | OmniDriver.ts, StatePanel.tsx | - | 🟡 |
 | 17 | compilerCache.compileProject 在 3 处各自构造参数，componentName 提取方式不一致 | App.tsx, PropertyPanel.tsx, LayoutView.tsx | - | 🟡 |
+| 18 | 自定义组件 view 连线静默丢失：saveComponentDefinitionsToServer 只传 elements 不传 wires | App.tsx, custom-component-emitter.ts | - | 🔴 |
+| 19 | 主画布和自定义组件使用两套独立保存/加载机制（api.writeFile vs api.saveComponentDefinitions） | App.tsx | - | 🟠 |
+| 20 | `@code-tab` 文件头命名错误：.omni 文件同时包含 view + code，但头只描述代码类型 | source-emitter.ts, omni-parser.ts, annotation/parser.py | - | 🟡 |
+| 🔗 | 自定义组件不支持代码逻辑（chain）— 待深究后补充 | custom-component-emitter.ts | - | 🔗 |
 
 ### 1.3 功能不一致问题详查
 
@@ -140,6 +144,50 @@ StatePanel 注释写 "Use Zustand directly to avoid undo for initial creation"�
 | `FunctionLibrary.tsx:201` | `cb-fn-{Date.now()}-{random}` |
 
 **解决方案：** 统一使用 `utils/id.ts` 的 `uid(prefix)`。对于需要特殊前缀的场景（如 style entry ID `s_xxx`），扩展 `uid` 支持自定义前缀即可。
+
+#### 1.3.9 主画布 vs 自定义组件：两套保存/加载机制（🔴🟠）
+
+主画布和自定义组件使用完全不同的保存路径：
+
+```
+主画布保存:
+  saveFileEntry() → generateOmniSource(forSave:true) → api.writeFile()
+  .omni 源码包含：view + style + @chain 注解 + @edit 标记
+
+自定义组件保存:
+  exitComponentCanvas() → saveCanvas(elements, wires) → registry
+  saveComponentDefinitionsToServer()
+    ↓
+  ❌ 只传 elements，wires 被丢弃！
+    emitCustomComponents({ name, elements })  ← 参数无 wires
+    ↓
+  生成的 .omni 源码无连线信息
+    ↓
+  api.saveComponentDefinitions() → 服务端写入 src/components/Name.omni
+```
+
+加载同样两套：
+```
+主画布加载:  api.annotatedLoad() → parseOmniSource() → elements + wires + chains
+自定义组件:  loadComponentDefinitionsFromServer() → parseOmniSource() → elements + wires
+             ↑ 加载侧支持 wires，但保存侧从未写入
+```
+
+**核心问题：** `emitCustomComponents` 函数签名不接受 wires，保存时静默丢弃。对比格式设计文档（2026-06-21），规格明确要求主画布和自定义组件使用相同的 `.omni` 格式。
+
+**解决方案：** 合并 `emitCustomComponents` 入 `generateOmniSource`。`generateOmniSource` 增加可选的 `componentMeta` 参数（含 props/events 声明），统一生成主画布和自定义组件的 .omni 源码。自定义组件也走 `api.writeFile` 保存。
+
+#### 1.3.10 `@code-tab` 文件头命名不当（🟡）
+
+格式设计文档规定每个 `.omni` 文件以 `// @code-tab type=logic|event` 开头。但这个命名有误导——`.omni` 文件同时包含 view（设计画布）和 code（代码画布），文件头只描述了代码部分。
+
+**解决方案：** 重命名为 `// @omni-file type=logic|event`（或 `// @omni tab=logic`），明确表示这是整个文件的元数据，不是仅代码部分。
+
+解析器同步更新：客户端 `omni-parser.ts:244`、服务端 `annotation/parser.py:22`。
+
+#### 1.3.11 自定义组件代码逻辑（chain）— 待深究 🔗
+
+详见 Chain 系统深度分析。当前 `emitCustomComponents` 传空 chains，自定义组件的代码画布无法持久化。修正方案待 chain 深究完成。
 
 ### 1.4 依赖关联项目
 
@@ -390,6 +438,47 @@ services/codegen/
 ```
 
 关键改造：管线函数不再 import Zustand stores，通过参数接收所需数据。
+
+### 4.2b 统一保存/加载管线（合并 emitCustomComponents）
+
+当前 `emitCustomComponents` 是独立于 `generateOmniSource` 的简化版管线——不支持 wires、不支持 chain。重构后合并为统一管线：
+
+```typescript
+// services/codegen/generate-omni-source.ts
+function generateOmniSource(options: {
+  designElements: ElementData[]
+  designWires: WireData[]        // ✅ 主画布和自定义组件都传入
+  codeTabs: CodeTab[]
+  componentName: string
+  rootOrder: string[]
+  forSave?: boolean
+  componentMeta?: {              // ← 自定义组件额外参数
+    props: Record<string, PropSchema>
+    events: Record<string, EventSchema>
+    category: string
+    description: string
+    styleProperties: string[]
+    children: boolean
+  }
+}): StageResult<string>
+```
+
+- 自定义组件传入 `designWires` → wires 被正确编码到 `.omni` 源码
+- 自定义组件传入 `componentMeta` → 生成 `prop`/`event` 声明
+- 不传 `componentMeta` → 行为与当前主画布一致
+- 废弃 `emitCustomComponents`，全部走统一管线
+
+### 4.2c `@code-tab` 重命名为 `@omni-file`
+
+| 位置 | 当前 | 改为 |
+|------|------|------|
+| source-emitter.ts | `// @code-tab type=logic` | `// @omni-file type=logic` |
+| annotation-data.ts | `@code-tab` | `@omni-file` |
+| omni-parser.ts:244 | 解析 `// @code-tab type=` | 解析 `// @omni-file type=` |
+| annotation/parser.py:22 | `_CODE_TAB_RE` | `_OMNI_FILE_RE` |
+| 格式设计文档 | `// @code-tab type=logic\|event` | `// @omni-file type=logic\|event` |
+
+向后兼容：解析器同时接受 `@code-tab` 旧格式，新保存统一用 `@omni-file`。
 
 ### 4.3 项目管理服务
 
@@ -675,13 +764,17 @@ server/
 | # | 步骤 | 风险 |
 |---|------|------|
 | 2.1 | 迁移 `omni-gen/` → `services/codegen/`，拆分 pipeline.ts | 中 |
-| 2.2 | 拆分 `api/client.ts` → 按域的子模块 | 低 |
-| 2.3 | 提取编译逻辑：App.tsx handleCompile → `services/compiler/` | 中 |
-| 2.4 | 提取保存逻辑：App.tsx saveProject → `services/project/` | 中 |
-| 2.5 | 提取运行逻辑：App.tsx handleRun/Stop → `services/runtime/` | 中 |
-| 2.6 | 提取解析逻辑 → `services/parser/` | 低 |
-| 2.7 | Python 后端拆分：routers/ + services/ + models/ | 中 |
-| 2.8 | 运行全部测试，验证通过 | - |
+| 2.2 | **合并 emitCustomComponents 入 generateOmniSource**：统一参数（增加 designWires + componentMeta），废弃独立管线 | 高 |
+| 2.3 | **修复自定义组件 wires 丢失**：saveComponentDefinitionsToServer 传入 def.wires | 中 |
+| 2.4 | **`@code-tab` → `@omni-file` 重命名**：source-emitter、omni-parser、annotation/parser.py 同步更新，向后兼容旧格式 | 中 |
+| 2.5 | 拆分 `api/client.ts` → 按域的子模块 | 低 |
+| 2.6 | 提取编译逻辑：App.tsx handleCompile → `services/compiler/` | 中 |
+| 2.7 | 提取保存逻辑：App.tsx saveProject → `services/project/` | 中 |
+| 2.8 | 提取运行逻辑：App.tsx handleRun/Stop → `services/runtime/` | 中 |
+| 2.9 | 提取解析逻辑 → `services/parser/` | 低 |
+| 2.10 | Python 后端拆分：routers/ + services/ + models/ | 中 |
+| 2.11 | 🔗 自定义组件 chain 支持 — 待深究后插入 | - |
+| 2.12 | 运行全部测试，验证通过 | - |
 
 **验收标准：** `npm test` 全绿，`npm run build` 成功，UI 不变，`omnic serve` 正常启动。
 
@@ -743,4 +836,4 @@ server/
 - ❌ 不修改数据格式（.omni、.omni-editor.toml 等）
 - ❌ 不修改 omni-compiler、omnilang、vscode-extension
 - ❌ 不在这个重构中优化逻辑代码（除 1.3 节列出的不一致修复外，其余逻辑 1:1 复制，优化留给后续 PR）
-- ✅ 1.3 节列出的所有不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、Toolbar 提取、正则去重、Undo 统一、ID 生成器统一 — 这些是 bug 修复和去重，不改变用户可见界面
+- ✅ 1.3 节列出的所有不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、Toolbar 提取、正则去重、Undo 统一、ID 生成器统一、wires 丢失修复、管线统一、`@code-tab` 重命名 — 这些是 bug 修复和去重，不改变用户可见界面
