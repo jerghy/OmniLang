@@ -5,7 +5,7 @@
 import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
-import { uid } from "../utils/id";
+import { uid } from "../core/utils";
 import { getNodeConfig } from "../canvas/nodeRegistry";
 import { AddElement } from "../core/commands/AddElement";
 import type { CommandContext } from "../core/commands/types";
@@ -38,15 +38,13 @@ const BLOCK_TYPES: BlockTypeDef[] = [
   { tag: "store",    label: "Store",    desc: "数据集合容器",           icon: "🗄️", color: "#7C3AED" },
 ];
 
-let _seq = 1;
-
 /**
  * Create a code block element with proper ports/nodeCategory from nodeRegistry.
  * Auto-selects the new element so PropertyPanel shows immediately.
  */
 function createBlock(tag: string, name?: string): ElementData {
-  const id = `cb-${tag}-${Date.now()}-${_seq++}`;
-  const label = name || `${tag}_${_seq}`;
+  const id = uid(`cb-${tag}`);
+  const label = name || `${tag}`;
   const cfg = getNodeConfig(tag);
 
   // Clone ports from nodeRegistry, mapping "any" data ports to "i32" for signal/computed

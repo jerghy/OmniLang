@@ -6,6 +6,7 @@
  *  remain here. */
 
 import type { ElementData, WireData } from "../core/types";
+import { uid } from "../core/utils";
 
 // ── Re-exports from core/types (migrated types) ──
 export type { CodeGraph, CodeTab, CodeTabType, CodeTabVariable } from "../core/types";
@@ -100,7 +101,6 @@ export function createMainTab(): CodeTab {
 }
 
 /** Generate a unique tab id. */
-let _tabUid = 0;
 export function newTabId(): string {
-  return `tab-${Date.now().toString(36)}-${(_tabUid++).toString(36)}`;
+  return uid("tab");
 }

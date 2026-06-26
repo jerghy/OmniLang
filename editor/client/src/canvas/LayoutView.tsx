@@ -10,7 +10,7 @@ import { useCodeGraphStore } from "../codegraph/store";
 import { AddElement } from "../core/commands/AddElement";
 import { RemoveElement } from "../core/commands/RemoveElement";
 import type { CommandContext } from "../core/commands/types";
-import { uid } from "../utils/id";
+import { uid, extractComponentName } from "../core/utils";
 import { getDefaultProps } from "../core/constants";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
@@ -75,8 +75,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     if (store.activeDocId?.startsWith("comp:")) {
       componentName = store.activeDocId.replace("comp:", "");
     } else if (store.activeFileContent) {
-      const match = store.activeFileContent.match(/component\s+(\w+)\s*\{/);
-      if (match) componentName = match[1];
+      componentName = extractComponentName(store.activeFileContent, "App");
     }
 
     const output = compilerCache.compileProject(

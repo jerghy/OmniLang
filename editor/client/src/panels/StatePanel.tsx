@@ -8,6 +8,7 @@ import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { AddElement } from "../core/commands/AddElement";
 import type { CommandContext } from "../core/commands/types";
+import { uid } from "../core/utils";
 
 // ── Types ──────────────────────────────────────
 
@@ -361,7 +362,7 @@ function createState(
   ctx: CommandContext,
 ) {
   const safeName = name || `new${kind === "signal" ? "Signal" : "Computed"}`;
-  const id = `cb-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = uid(`cb-${kind}`);
   const val = tryParseValue(initialValue);
 
   let source: string;
@@ -395,8 +396,7 @@ set(newValue) { value = newValue; }`;
     source,
   };
 
-  // Use Zustand directly to avoid undo for initial creation
-  ctx.addElement(el);
+  useUndoStore.getState().execute(new AddElement(el), ctx);
   if (val !== undefined) {
     useEditorStore.getState().setBlockValue(id, val);
   }
@@ -404,7 +404,7 @@ set(newValue) { value = newValue; }`;
 
 function createStore(name: string, source: string, ctx: CommandContext) {
   const safeName = name || "NewStore";
-  const id = `cb-store-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = uid("cb-store");
 
   const el: ElementData = {
     id, nodeType: "codeblock", tag: "store",
@@ -417,7 +417,7 @@ function createStore(name: string, source: string, ctx: CommandContext) {
     source,
   };
 
-  ctx.addElement(el);
+  useUndoStore.getState().execute(new AddElement(el), ctx);
 }
 
 function tryParseValue(raw: string): unknown {

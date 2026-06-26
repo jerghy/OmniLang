@@ -11,6 +11,7 @@
  */
 
 import { create } from "zustand";
+import { uid as _uid } from "../utils";
 import type { ElementData, WireData } from "../../core/types";
 import {
   type CodeTab,
@@ -117,7 +118,7 @@ const TAB_ICONS: Record<CodeTabType, string> = {
 };
 
 function uid(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return _uid();
 }
 
 /** Helper: update the active tab in a Zustand set call. Eliminates repeated

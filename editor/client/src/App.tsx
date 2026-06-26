@@ -30,6 +30,7 @@ import { SearchModal } from "./search/SearchModal";
 import { collectFocusOrder, focusOverlayStyles } from "./a11y/FocusOrder";
 import type { SearchResult } from "./search/SearchIndex";
 import type { CommandContext } from "./core/commands/types";
+import { extractComponentName } from "./core/utils";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./core/commands/CopyPaste";
 import { showToast } from "./notifications/toast";
 import { parseOmniSource, generateOmniSource, emitCustomComponents, validate } from "./omni-gen";
@@ -434,8 +435,7 @@ export default function App() {
     const store = useEditorStore.getState();
     const cg = useCodeGraphStore.getState();
     const codeTabs = cg.toSerializable().tabs;
-    const compMatch = (store.activeFileContent || "").match(/component\s+(\w+)\s*\{/);
-    const componentName = compMatch ? compMatch[1] : "App";
+    const componentName = extractComponentName(store.activeFileContent || "");
 
     const genResult = generateOmniSource({
       designElements: store.elements,
@@ -528,8 +528,7 @@ export default function App() {
 
       // Build fnToNodeMap for execution highlighting
       const newFnToNodeMap2: Record<string, string> = {};
-      const compMatch2 = content.match(/component\s+(\w+)\s*\{/);
-      const componentName2 = compMatch2 ? compMatch2[1] : "App";
+      const componentName2 = extractComponentName(content);
       if (cbData.success && cbData.blocks) {
         for (const block of cbData.blocks) {
           if (block.blockType === "fn") {
@@ -622,8 +621,7 @@ export default function App() {
       }
       // Build fnToNodeMap: semantic ID → canvas element ID for execution highlighting
       const newFnToNodeMap: Record<string, string> = {};
-      const compMatch = content.match(/component\s+(\w+)\s*\{/);
-      const componentName = compMatch ? compMatch[1] : "App";
+      const componentName = extractComponentName(content);
       if (cbData.success && cbData.blocks) {
         for (const block of cbData.blocks) {
           if (block.blockType === "fn") {
@@ -674,8 +672,7 @@ export default function App() {
     codeTabs: any,
     store: ReturnType<typeof useEditorStore.getState>,
   ): Promise<boolean> => {
-    const compMatch = (store.activeFileContent || store.sourceCode || "").match(/component\s+(\w+)\s*\{/);
-    const componentName = compMatch ? compMatch[1] : "App";
+    const componentName = extractComponentName(store.activeFileContent || store.sourceCode || "");
 
     const genResult = generateOmniSource({
       designElements: entry.elements,
@@ -797,7 +794,7 @@ export default function App() {
             designElements: entry.elements,
             designWires: entry.wires,
             codeTabs: codeTabs.tabs,
-            componentName: (store.activeFileContent || store.sourceCode || "").match(/component\s+(\w+)\s*\{/)?.[1] || "App",
+            componentName: extractComponentName(store.activeFileContent || store.sourceCode || ""),
             rootOrder: entry.rootOrder,
             forSave: true,
           });

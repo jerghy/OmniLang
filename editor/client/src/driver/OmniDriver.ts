@@ -27,6 +27,10 @@ import { getDefaultProps } from "../core/constants";
 import { api } from "../api/client";
 import { getNodeConfig } from "../canvas/nodeRegistry";
 import { getAllPorts, validateConnection } from "../canvas/connectionValidators";
+import { uid } from "../core/utils";
+import { AddElement } from "../core/commands/AddElement";
+import { AddWire } from "../core/commands/AddWire";
+import type { CommandContext } from "../core/commands/types";
 import type {
   PortDescriptor,
   ElementQuery,
@@ -538,7 +542,7 @@ class OmniDriver {
   // ── Canvas Operations ─────────────────────────────
 
   private _nextId(): string {
-    return `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return uid("el");
   }
 
   /** Add a view component to the canvas.
@@ -580,7 +584,22 @@ class OmniDriver {
       parentId: parentId || null,
     };
 
-    this._store().addElement(el);
+    const cmdCtx: CommandContext = {
+      get elements() { return useEditorStore.getState().elements; },
+      get wires() { return useEditorStore.getState().wires; },
+      getElement: (id) => useEditorStore.getState().elements.find((e) => e.id === id),
+      addElement: (el) => useEditorStore.getState().addElement(el),
+      removeElement: (id) => useEditorStore.getState().removeElement(id),
+      setProp: (id, p, v) => useEditorStore.getState().setProp(id, p, v),
+      getProp: (id, p) => useEditorStore.getState().getProp(id, p) ?? null,
+      addWire: (w) => useEditorStore.getState().addWire(w),
+      removeWire: (id) => useEditorStore.getState().removeWire(id),
+      setElementsAndWires: (els, ws) => useEditorStore.getState().setElementsAndWires(els, ws),
+      reorderElement: (...args: any[]) => (useEditorStore.getState() as any).reorderElement(...args),
+      moveElement: (...args: any[]) => (useEditorStore.getState() as any).moveElement(...args),
+      getRootOrder: () => (useEditorStore.getState() as any).rootOrder,
+    };
+    new AddElement(el).execute(cmdCtx);
     // Note: parentId sync is now handled by store.addElement()
 
     // Auto-nest inline children
@@ -848,7 +867,22 @@ class OmniDriver {
       return new WireHandle(id, this);
     }
 
-    store.addWire({ id, fromId, fromPort, toId, toPort });
+    const wire: WireData = { id, fromId, fromPort, toId, toPort };
+    const wireCtx: CommandContext = {
+      get elements() { return store.elements; },
+      get wires() { return store.wires; },
+      getElement: (id) => store.elements.find((e: ElementData) => e.id === id),
+      addElement: (el) => store.addElement(el),
+      removeElement: (id) => store.removeElement(id),
+      setProp: (id, p, v) => store.setProp(id, p, v),
+      getProp: (id, p) => store.getProp(id, p) ?? null,
+      addWire: (w) => store.addWire(w),
+      removeWire: (id) => store.removeWire(id),
+      setElementsAndWires: (els, ws) => store.setElementsAndWires?.(els, ws) ?? undefined,
+      reorderElement: (...args: any[]) => {},
+      moveElement: (...args: any[]) => {},
+    };
+    new AddWire(wire).execute(wireCtx);
     return new WireHandle(id, this);
   }
 
@@ -1432,9 +1466,8 @@ class OmniDriver {
     const srcTab = store.tabs.find((t: any) => t.id === tabId);
     if (!srcTab) return null;
     const idMap = new Map<string, string>();
-    const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const cloneElements = srcTab.graph.elements.map((el: ElementData) => {
-      const newElId = newId(); idMap.set(el.id, newElId);
+      const newElId = uid(); idMap.set(el.id, newElId);
       return { ...el, id: newElId, children: [], parentId: null };
     });
     for (let i = 0; i < cloneElements.length; i++) {
@@ -1445,7 +1478,7 @@ class OmniDriver {
       }
     }
     const cloneWires = srcTab.graph.wires.map((w: WireData) => ({
-      ...w, id: newId(),
+      ...w, id: uid(),
       fromId: idMap.get(w.fromId) || w.fromId,
       toId: idMap.get(w.toId) || w.toId,
     }));

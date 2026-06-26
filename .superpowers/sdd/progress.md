@@ -7,3 +7,6 @@ Base: 3f423921
 Task 1.1: complete (commit 3f423921..2a1c8614, review Approved)
 Task 1.2: complete (commit 2a1c8614..56cc95f0, review Approved)
 Task 1.3: complete (commit 56cc95f0..fdae1360, review Approved)
+Task 1.4: complete (commit fdae1360..b78e3e1b, review Approved)
+Task 1.5: complete (commit b78e3e1b..fca287fb, review Approved)
+Task 1.6: complete (commit fca287fb..b2c06c4e, review Approved)

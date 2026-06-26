@@ -13,6 +13,7 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
+import { uid } from "../core/utils";
 import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../core/types";
 import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../core/types";
 import { useComponentRegistry } from "../store/componentRegistry";
@@ -138,9 +139,8 @@ function runPhase<T>(
 // Reconstruct StyleEntry[] from a component AST node (view tree + style blocks).
 // Called when loading .omni files to populate element styles before storing.
 
-let _idCounter = 0;
 function generateId(): string {
-  return `s_${Date.now()}_${++_idCounter}`;
+  return uid("s");
 }
 
 function findViewNode(view: any, elId: string): any | null {

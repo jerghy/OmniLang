@@ -7,6 +7,7 @@ import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import type { CommandContext } from "../core/commands/types";
 import { MonacoEditor } from "../editor/MonacoEditor";
+import { uid } from "../core/utils";
 
 // ── Types ──────────────────────────────────────
 
@@ -199,7 +200,7 @@ ${body}
 }`;
 
   const handleCreate = () => {
-    const id = `cb-fn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = uid("cb-fn");
     const el: ElementData = {
       id, nodeType: "codeblock", tag: "fn",
       props: { name: fnName },
