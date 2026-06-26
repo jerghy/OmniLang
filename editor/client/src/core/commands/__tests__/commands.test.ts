@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { CommandContext, Command } from "../types";
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData } from "../../types";
 import { AddElement } from "../AddElement";
 import { RemoveElement } from "../RemoveElement";
 import { AddWire } from "../AddWire";

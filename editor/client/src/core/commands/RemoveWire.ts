@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from "./types";
-import type { WireData } from "../core/types";
+import type { WireData } from "../types";
 
 export class RemoveWire implements Command {
   readonly type = "RemoveWire";

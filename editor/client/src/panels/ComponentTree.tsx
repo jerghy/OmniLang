@@ -9,12 +9,12 @@ import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
 import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
-import type { CommandContext } from "../commands/types";
-import { AddElement } from "../commands/AddElement";
-import { RemoveElement } from "../commands/RemoveElement";
-import { ReorderElement } from "../commands/ReorderElement";
-import { MoveElement } from "../commands/MoveElement";
-import { copySelection, pasteFromClipboard } from "../commands/CopyPaste";
+import type { CommandContext } from "../core/commands/types";
+import { AddElement } from "../core/commands/AddElement";
+import { RemoveElement } from "../core/commands/RemoveElement";
+import { ReorderElement } from "../core/commands/ReorderElement";
+import { MoveElement } from "../core/commands/MoveElement";
+import { copySelection, pasteFromClipboard } from "../core/commands/CopyPaste";
 import { uid } from "../utils/id";
 
 // ── Constants ───────────────────────────────────────

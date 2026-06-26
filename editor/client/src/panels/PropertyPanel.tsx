@@ -7,7 +7,7 @@ import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";
 import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
-import { SetProp } from "../commands/SetProp";
+import { SetProp } from "../core/commands/SetProp";
 import { uid } from "../utils/id";
 import { compilerCache } from "../omni-compiler-cache";
 import { COMPONENT_PROTOCOL } from "./ComponentPalette";
@@ -18,10 +18,10 @@ import {
   type EventSchema,
 } from "../store/componentRegistry";
 import { StyleEntryEditor } from "./StyleEntryEditor";
-import { AddStyleEntry } from "../commands/AddStyleEntry";
-import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
-import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
-import { ReorderStyleEntry } from "../commands/ReorderStyleEntry";
+import { AddStyleEntry } from "../core/commands/AddStyleEntry";
+import { RemoveStyleEntry } from "../core/commands/RemoveStyleEntry";
+import { UpdateStyleEntry } from "../core/commands/UpdateStyleEntry";
+import { ReorderStyleEntry } from "../core/commands/ReorderStyleEntry";
 import type { StyleEntry } from "../core/types";
 import { getComponentEvents, UNIVERSAL_EVENTS } from "../data/componentProtocol";
 
@@ -246,7 +246,7 @@ function findOwningComponent(elementId: string, elements: ElementData[]): string
 // Main Component
 // ═══════════════════════════════════════════════
 
-import type { CommandContext } from "../commands/types";
+import type { CommandContext } from "../core/commands/types";
 
 interface PropertyPanelProps {
   ctx: CommandContext;

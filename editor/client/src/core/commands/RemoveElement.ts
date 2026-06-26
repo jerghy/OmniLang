@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from "./types";
-import type { ElementData } from "../core/types";
+import type { ElementData } from "../types";
 
 export class RemoveElement implements Command {
   readonly type = "RemoveElement";

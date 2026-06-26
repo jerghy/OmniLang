@@ -6,13 +6,13 @@
  *  - 同步操作，无需 async 权限请求 */
 
 import type { Command, CommandContext } from "./types";
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData } from "../types";
 import { AddElement } from "./AddElement";
 import { AddWire } from "./AddWire";
 import { RemoveElement } from "./RemoveElement";
 import { RemoveWire } from "./RemoveWire";
 import { CompositeCommand } from "./CompositeCommand";
-import { uid } from "../utils/id";
+import { uid } from "../../utils/id";
 
 // ── Clipboard data types ────────────────────────────────────────────
 

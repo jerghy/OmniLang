@@ -1,6 +1,6 @@
 /** Command 模式类型定义。*/
 
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData } from "../types";
 
 export interface CommandContext {
   getElement: (id: string) => ElementData | undefined;

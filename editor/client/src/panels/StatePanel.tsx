@@ -6,8 +6,8 @@ import { useState } from "react";
 import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
-import { AddElement } from "../commands/AddElement";
-import type { CommandContext } from "../commands/types";
+import { AddElement } from "../core/commands/AddElement";
+import type { CommandContext } from "../core/commands/types";
 
 // ── Types ──────────────────────────────────────
 

@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useUndoStore } from "../undo";
-import type { Command, CommandContext } from "../../commands/types";
+import type { Command, CommandContext } from "../../core/commands/types";
 
 function makeMockCtx(): CommandContext {
   const elements: unknown[] = [];

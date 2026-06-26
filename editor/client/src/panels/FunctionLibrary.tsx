@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
-import type { CommandContext } from "../commands/types";
+import type { CommandContext } from "../core/commands/types";
 import { MonacoEditor } from "../editor/MonacoEditor";
 
 // ── Types ──────────────────────────────────────

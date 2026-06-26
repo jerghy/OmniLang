@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from "./types";
-import type { StyleEntry } from "../core/types";
+import type { StyleEntry } from "../types";
 
 export class ReorderStyleEntry implements Command {
   readonly type = "ReorderStyleEntry";

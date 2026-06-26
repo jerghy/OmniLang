@@ -4,7 +4,7 @@
  *  Snapshots the current state on first execute() so undo can restore it. */
 
 import type { Command, CommandContext } from "./types";
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData } from "../types";
 
 export class SetElementsAndWires implements Command {
   readonly type = "SetElementsAndWires";

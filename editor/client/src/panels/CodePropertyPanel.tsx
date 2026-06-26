@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useCodeGraphStore } from "../codegraph/store";
 import { getNodeConfig, getAllNodeConfigs } from "../canvas/nodeRegistry";
 import { createCodeGraphContext } from "../codegraph/context";
-import { AddElement } from "../commands/AddElement";
+import { AddElement } from "../core/commands/AddElement";
 import type { ElementData } from "../core/types";
 import type { FnParam, SignalDefinition } from "../codegraph/types";
 

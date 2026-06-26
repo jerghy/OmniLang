@@ -1,12 +1,29 @@
-/** 编辑器核心 Zustand store — v2: design/code 分叉 + 项目管理。*/
+/** 编辑器核心 Zustand store — v2: design/code 分叉 + 项目管理。
+ *
+ *  Backward-compatible combined store + atom re-exports.
+ *  State is owned here; changes are synced TO atoms for the refactored architecture.
+ */
 
 import { create } from "zustand";
 import type { StyleEntry } from "../core/types";
 import { parseOmniSource } from "../omni-gen";
 
-// ── Data Types (re-exported from core/types) ────────
-// Local definitions moved to core/types/ for cross-module sharing.
+// ── Atom re-exports (preferred imports for refactored consumers) ──
+export { useElementStore } from "../core/state/elements";
+export { useWireStore } from "../core/state/wires";
+export { useSelectionStore } from "../core/state/selection";
+export { styleOperations } from "../core/state/styles";
+export { useProjectStore } from "../core/state/project";
+export { useTabStore } from "../core/state/tabs";
+
+// ── Type re-exports ──
 export type { ElementData, WireData, PortData, ProjectConfig } from "../core/types";
+
+// ── Atom imports for sync ──
+import { useElementStore, useWireStore, useSelectionStore, useProjectStore, useTabStore } from "../core/state";
+
+// ── Data Types (re-exported from core/types) ────────
+export type { ElementData as _ElementData, WireData as _WireData, PortData, ProjectConfig } from "../core/types";
 
 // ── Store ──────────────────────────────────────────
 
@@ -19,8 +36,8 @@ interface EditorState {
   compileErrors: { code: string; message: string; line: number }[];
 
   // ── Design canvas (drag-drop UI) ──
-  elements: ElementData[];
-  wires: WireData[];
+  elements: import("../core/types/element").ElementData[];
+  wires: import("../core/types/wire").WireData[];
   rootOrder: string[];  // display order of root elements (parentId === null)
 
   // ── Active mode ──
@@ -37,7 +54,7 @@ interface EditorState {
   projectName: string;              // "未命名项目" or from filename
   sourceCode: string;               // embedded .omni source
   isDirty: boolean;                 // unsaved changes flag
-  config: ProjectConfig;            // { target, autoSave }
+  config: import("../core/types/project").ProjectConfig;            // { target, autoSave }
 
   // Actions
   setProjectDir: (dir: string) => void;
@@ -47,7 +64,7 @@ interface EditorState {
   setCompileErrors: (errors: { code: string; message: string; line: number }[]) => void;
   setPreviewUrl: (url: string | null) => void;
 
-  addElement: (el: ElementData) => void;
+  addElement: (el: import("../core/types/element").ElementData) => void;
   removeElement: (id: string) => void;
   setProp: (id: string, prop: string, value: unknown) => void;
   getProp: (id: string, prop: string) => unknown;
@@ -55,11 +72,11 @@ interface EditorState {
   selectAll: () => void;
   clearSelection: () => void;
 
-  addWire: (w: WireData) => void;
+  addWire: (w: import("../core/types/wire").WireData) => void;
   removeWire: (id: string) => void;
 
   setElementSource: (id: string, source: string) => void;
-  setElementPorts: (id: string, ports: ElementData["ports"]) => void;
+  setElementPorts: (id: string, ports: import("../core/types/element").ElementData["ports"]) => void;
   setBlockValue: (id: string, value: unknown) => void;
   setEventBindings: (id: string, eventName: string, binding: { fnName: string; paramBindings: Record<string, { sourceType: string; value: string; expectedType: string }> }) => void;
   removeEventBindings: (id: string, eventName: string) => void;
@@ -67,7 +84,7 @@ interface EditorState {
   /** 重命名元素 ID（自动更新子元素的 parentId 引用） */
   setElementId: (oldId: string, newId: string) => void;
 
-  setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
+  setElementsAndWires: (elements: import("../core/types/element").ElementData[], wires: import("../core/types/wire").WireData[]) => void;
 
   reorderElement: (elementId: string, targetSiblingId: string, position: "before" | "after") => void;
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
@@ -95,22 +112,22 @@ interface EditorState {
   markDirty: () => void;
   /** Mark project as clean (saved). */
   markClean: () => void;
-  setConfig: (patch: Partial<ProjectConfig>) => void;
+  setConfig: (patch: Partial<import("../core/types/project").ProjectConfig>) => void;
   setSourceCode: (code: string) => void;
 
   // ── Multi-Canvas Support (design mode tabs) ──
   activeDocId: string | null;
-  docBackup: { elements: ElementData[]; wires: WireData[] } | null;
+  docBackup: { elements: import("../core/types/element").ElementData[]; wires: import("../core/types/wire").WireData[] } | null;
   enterComponentCanvas: (componentName: string) => void;
   exitComponentCanvas: () => void;
 
   // ── Tab System ──
   openTabs: string[];
-  tabStates: Record<string, { elements: ElementData[]; wires: WireData[] }>;
+  tabStates: Record<string, { elements: import("../core/types/element").ElementData[]; wires: import("../core/types/wire").WireData[] }>;
   switchTab: (docId: string | null) => void;
   closeTab: (docId: string) => void;
   /** 打开 .omni.json 文件作为项目（替换当前项目）。 */
-  openFileTab: (path: string, name: string, elements: ElementData[], wires: WireData[], customComponents?: unknown[]) => void;
+  openFileTab: (path: string, name: string, elements: import("../core/types/element").ElementData[], wires: import("../core/types/wire").WireData[], customComponents?: unknown[]) => void;
 
   /** 内部：打开 .omni 源码文件，解析为视觉元素 */
   _openOmniFile: (path: string, source: string) => void;
@@ -454,22 +471,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openProject: (path, sourceOrDocument) => {
     // .omni 源码字符串 → 解析为视觉元素
     if (typeof sourceOrDocument === "string") {
-      return useEditorStore.getState()._openOmniFile(path, sourceOrDocument);
+      return get()._openOmniFile(path, sourceOrDocument);
     }
 
     // .omni.json 旧格式 → 从 document 提取数据
     const document = sourceOrDocument;
     const doc = document as Record<string, unknown>;
-    const meta = (doc.meta || doc.meta || {}) as Record<string, unknown>;
+    const meta = (doc.meta || {}) as Record<string, unknown>;
     const design = (doc.design || {}) as Record<string, unknown>;
     const code = (doc.code || {}) as Record<string, unknown>;
     const tabState = (doc.tabState || {}) as Record<string, unknown>;
     const config = (doc.config || {}) as Record<string, unknown>;
-    const canvasLayout = (doc.canvasLayout || {}) as Record<string, unknown>;
     const compRefs = (doc.components || []) as Array<Record<string, unknown>>;
 
-    const designElements = (design.elements || []) as ElementData[];
-    const designWires = (design.wires || []) as WireData[];
+    const designElements = (design.elements || []) as import("../core/types/element").ElementData[];
+    const designWires = (design.wires || []) as import("../core/types/wire").WireData[];
 
     // Restore component definitions
     if (compRefs.length > 0) {
@@ -522,7 +538,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       openTabs: (tabState.openTabs as string[]) || ["main"],
       tabStates: {},
       selectedElementIds: [],
-      // Switch to the active tab from saved state
     });
   },
 
@@ -539,7 +554,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   _openOmniFile: (path, source) => {
     // 使用客户端解析器从 .omni 源码提取视觉元素
-    let designElements: ElementData[] = [];
+    let designElements: import("../core/types/element").ElementData[] = [];
     try {
       const parsed = parseOmniSource(source);
       if (parsed.designElements) {
@@ -626,9 +641,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       let leavingComponentFile = false;
       if (currentKey && currentKey.startsWith("file:")) {
         newTabStates[currentKey] = { elements: s.elements, wires: s.wires };
-        // If this file tab corresponds to a custom component (src/components/XXX.omni),
-        // also sync the edits back to the component registry so the main canvas
-        // expands the latest definition on recompile.
         const filePath = currentKey.replace("file:", "");
         const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
         if (compMatch) {
@@ -644,8 +656,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
       }
 
-      let newElements: ElementData[];
-      let newWires: WireData[];
+      let newElements: import("../core/types/element").ElementData[];
+      let newWires: import("../core/types/wire").WireData[];
       let newDocBackup = s.docBackup;
 
       if (docId === null) {
@@ -678,11 +690,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
 
-      // Bump compVersion when leaving a component canvas or component file tab
-      // so LayoutView triggers recompile with the updated definition
       const shouldBump = currentKey?.startsWith("comp:") || leavingComponentFile;
-
-      // Recompute rootOrder from the restored elements to stay in sync
       const newRootOrder = newElements
         .filter((e) => !e.parentId)
         .map((e) => e.id);
@@ -696,8 +704,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tabStates: newTabStates,
         selectedElementIds: [],
         compVersion: shouldBump ? s.compVersion + 1 : s.compVersion,
-        // Sync activeFilePath when switching to a file tab so saveProject
-        // writes to the correct file path instead of the previous tab's path
         activeFilePath: docId?.startsWith("file:")
           ? docId.replace("file:", "")
           : s.activeFilePath,
@@ -717,7 +723,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
         } else if (docId.startsWith("file:")) {
           newTabStates[docId] = { elements: s.elements, wires: s.wires };
-          // Sync component file edits back to the registry before closing
           const filePath = docId.replace("file:", "");
           const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
           if (compMatch) {
@@ -778,6 +783,51 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 }));
 
 import { useComponentRegistry } from "./componentRegistry";
+
+// ── Sync combined store → atoms (one-way) ──
+// This allows the refactored architecture to work: consumers using atom stores
+// directly will see the state from this combined store.
+
+let _syncingToAtoms = false;
+useEditorStore.subscribe((state) => {
+  if (_syncingToAtoms) return;
+  _syncingToAtoms = true;
+  try {
+    useElementStore.setState({
+      elements: state.elements as import("../core/types/element").ElementData[],
+      rootOrder: state.rootOrder,
+    });
+    useWireStore.setState({
+      wires: state.wires as import("../core/types/wire").WireData[],
+    });
+    useSelectionStore.setState({
+      selectedElementIds: state.selectedElementIds,
+    });
+    useProjectStore.setState({
+      projectDir: state.projectDir,
+      projectPath: state.projectPath,
+      projectName: state.projectName,
+      sourceCode: state.sourceCode,
+      isDirty: state.isDirty,
+      activeFilePath: state.activeFilePath,
+      activeFileContent: state.activeFileContent,
+      activeMode: state.activeMode,
+      config: state.config as import("../core/types/project").ProjectConfig,
+      compileErrors: state.compileErrors,
+      previewUrl: state.previewUrl,
+      files: state.files as Array<{ name: string; path: string; type: "file" | "directory" }>,
+    });
+    useTabStore.setState({
+      activeDocId: state.activeDocId,
+      docBackup: state.docBackup as { elements: import("../core/types/element").ElementData[]; wires: import("../core/types/wire").WireData[] } | null,
+      openTabs: state.openTabs,
+      tabStates: state.tabStates as Record<string, { elements: import("../core/types/element").ElementData[]; wires: import("../core/types/wire").WireData[] }>,
+      compVersion: state.compVersion,
+    });
+  } finally {
+    _syncingToAtoms = false;
+  }
+});
 
 // Expose store for E2E tests (Playwright page.evaluate)
 if (typeof window !== "undefined") {
