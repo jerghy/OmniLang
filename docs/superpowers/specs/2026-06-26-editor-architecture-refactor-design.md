@@ -39,8 +39,8 @@ editor/e2e:          ~1,300 行 | 8 文件 (Playwright)
 | 17 | compilerCache.compileProject 在 3 处各自构造参数，componentName 提取方式不一致 | App.tsx, PropertyPanel.tsx, LayoutView.tsx | - | 🟡 |
 | 18 | 自定义组件 view 连线静默丢失：saveComponentDefinitionsToServer 只传 elements 不传 wires | App.tsx, custom-component-emitter.ts | - | 🔴 |
 | 19 | 主画布和自定义组件使用两套独立保存/加载机制（api.writeFile vs api.saveComponentDefinitions） | App.tsx | - | 🟠 |
-| 20 | `@code-tab` 文件头命名错误：.omni 文件同时包含 view + code，但头只描述代码类型 | source-emitter.ts, omni-parser.ts, annotation/parser.py | - | 🟡 |
-| 🔗 | 自定义组件不支持代码逻辑（chain）— 待深究后补充 | custom-component-emitter.ts | - | 🔗 |
+| 20 | `@code-tab` 文件头命名不当：.omni 文件同时包含 view + code，但头只描述代码类型 | source-emitter.ts, omni-parser.ts, annotation/parser.py | - | 🟡 |
+| 21 | 自定义组件 code tabs/chains 不持久化：emitCustomComponents 不走 Phase B 管线，codeTabs 和 chains 全部丢弃 | custom-component-emitter.ts, pipeline.ts | - | 🔴 |
 
 ### 1.3 功能不一致问题详查
 
@@ -185,9 +185,36 @@ StatePanel 注释写 "Use Zustand directly to avoid undo for initial creation"�
 
 解析器同步更新：客户端 `omni-parser.ts:244`、服务端 `annotation/parser.py:22`。
 
-#### 1.3.11 自定义组件代码逻辑（chain）— 待深究 🔗
+#### 1.3.11 自定义组件不支持 code tabs / chains 持久化（🔴）
 
-详见 Chain 系统深度分析。当前 `emitCustomComponents` 传空 chains，自定义组件的代码画布无法持久化。修正方案待 chain 深究完成。
+**Chain 是什么：** 代码画布上一个函数对应的可视化节点+连线集合。View 元素绑定事件 → 创建 event tab → 内含 customFn 节点 + return 节点 + wire → 这就是 chain。
+
+**事件绑定机制（主组件和自定义组件完全相同）：**
+
+```
+View 元素 onPress ──绑定──→ event code tab ──包含──→ [customFn]──→[return]
+                                                        ↑ chain ↑
+```
+
+自定义组件的 chain 函数参数来源更多（组件的 prop + 内部 signal + event payload），但 chain 的**创建、存储、恢复机制与主组件完全一样**。
+
+**当前问题：** `emitCustomComponents` 不走完整管线，直接把 codeTabs 和 chains 传空：
+
+```
+emitCustomComponents 的 EmitInput:
+  stores: []              ❌ 没有走 Phase B extractStores
+  component.signals: {}   ❌ 没有走 Phase B lowerCode
+  component.fns: []       ❌ 没有走 Phase B lowerCode
+  chains: new Map()       ❌ 没有走 Phase B emitChains
+```
+
+**根因：** `emitCustomComponents` 是独立于 `generateOmniSource` 的简化管线，只处理 view + style，完全跳过了代码逻辑相关的 Phase B（store-extractor、expression-lowering、chain-emitter）。
+
+**解决方案：** `emitCustomComponents` 合并入 `generateOmniSource`。自定义组件保存时也走完整 Phase A→B→C 管线，自然拥有 chain 支持。统一后：
+
+- 主画布和自定义组件用同一个函数生成 `.omni` 源码
+- 区别仅在于 `componentMeta` 参数：自定义组件传 props/events 声明，主画布不传
+- 不需要为自定义组件单独维护一套"不支持 chain"的管线
 
 ### 1.4 依赖关联项目
 
@@ -773,7 +800,7 @@ server/
 | 2.8 | 提取运行逻辑：App.tsx handleRun/Stop → `services/runtime/` | 中 |
 | 2.9 | 提取解析逻辑 → `services/parser/` | 低 |
 | 2.10 | Python 后端拆分：routers/ + services/ + models/ | 中 |
-| 2.11 | 🔗 自定义组件 chain 支持 — 待深究后插入 | - |
+| 2.11 | **自定义组件 chain 支持**：generateOmniSource 传入自定义组件的 codeTabs → Phase B 正常生成 chains；补充 E2E 验证事件绑定→保存→重开完整链路 | 高 |
 | 2.12 | 运行全部测试，验证通过 | - |
 
 **验收标准：** `npm test` 全绿，`npm run build` 成功，UI 不变，`omnic serve` 正常启动。
@@ -836,4 +863,4 @@ server/
 - ❌ 不修改数据格式（.omni、.omni-editor.toml 等）
 - ❌ 不修改 omni-compiler、omnilang、vscode-extension
 - ❌ 不在这个重构中优化逻辑代码（除 1.3 节列出的不一致修复外，其余逻辑 1:1 复制，优化留给后续 PR）
-- ✅ 1.3 节列出的所有不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、Toolbar 提取、正则去重、Undo 统一、ID 生成器统一、wires 丢失修复、管线统一、`@code-tab` 重命名 — 这些是 bug 修复和去重，不改变用户可见界面
+- ✅ 1.3 节列出的所有不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、Toolbar 提取、正则去重、Undo 统一、ID 生成器统一、wires 丢失修复、管线统一、`@code-tab`→`@omni-file` 重命名、自定义组件 chain 支持 — 这些是 bug 修复和去重，不改变用户可见界面
