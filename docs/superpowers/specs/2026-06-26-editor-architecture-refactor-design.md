@@ -34,6 +34,9 @@ editor/e2e:          ~1,300 行 | 8 文件 (Playwright)
 | 12 | CATEGORY_LABELS/ORDER/ICONS 在两个面板中重复维护 | ComponentPalette.tsx, ComponentTree.tsx | ~60 | 🟡 |
 | 13 | canvas/toast.ts 死代码：自定义 toast 实现无任何 import | canvas/toast.ts | 44 | 🟡 |
 | 14 | 设计/代码模式 Toolbar JSX 各写一份（~120+120 行） | App.tsx | ~240 | 🟡 |
+| 15 | componentName 识别正则 `/component\s+(\w+)\s*\{/` 在 6 处复制粘贴 | App.tsx(5), LayoutView.tsx(1) | - | 🟡 |
+| 16 | 部分操作绕过 Undo：OmniDriver 和 StatePanel 直接调 store 不走命令模式，创建的元素无法撤销 | OmniDriver.ts, StatePanel.tsx | - | 🟡 |
+| 17 | compilerCache.compileProject 在 3 处各自构造参数，componentName 提取方式不一致 | App.tsx, PropertyPanel.tsx, LayoutView.tsx | - | 🟡 |
 
 ### 1.3 功能不一致问题详查
 
@@ -89,6 +92,55 @@ function getDefaultProps(tag: string): Record<string, unknown> {
 
 **解决方案：** 提取 `<EditorToolbar>` 共享组件到 `ui/shell/Toolbar.tsx`，模式特定按钮通过 children/插槽传入。
 
+#### 1.3.6 componentName 识别正则 6 处复制（🟡）
+
+同一个正则 `/component\s+(\w+)\s*\{/` 在以下位置各自复制：
+
+| 文件 | 行号 | 函数 |
+|------|------|------|
+| App.tsx | 437 | handleCompile |
+| App.tsx | 531 | handleCompile（同一函数内两处！） |
+| App.tsx | 625 | handleRun |
+| App.tsx | 677 | saveFileEntry |
+| App.tsx | 800 | saveProject |
+| LayoutView.tsx | 76 | recompile |
+
+**解决方案：** 提取 `extractComponentName(source: string)` 到 `core/` 层工具函数，6 处调用统一入口。
+
+#### 1.3.7 部分操作绕过 Undo 系统（🟡）
+
+当前 Undo/Redo 基于命令模式。但以下路径绕过命令直接操作 store：
+
+| 路径 | 方式 | 可撤销 |
+|------|------|--------|
+| 面板拖入 | `undoExec(new AddElement(el), ctx)` | ✅ |
+| 右键添加 | `undoExec(new AddElement(el), ctx)` | ✅ |
+| OmniDriver 添加元素 | `store.addElement(el)` | ❌ |
+| OmniDriver 添加连线 | `store.addWire(w)` | ❌ |
+| StatePanel 创建 signal | `ctx.addElement(el)`（不经过 Command.execute） | ❌ |
+| StatePanel 创建 store | `ctx.addElement(el)` | ❌ |
+
+StatePanel 注释写 "Use Zustand directly to avoid undo for initial creation"，但这导致这些"初始创建"节点在后续按 Ctrl+Z 时会残留。
+
+**解决方案：** OmniDriver 和 StatePanel 的创建操作统一使用 `undoExec(new AddElement(el), ctx)`，与拖入/右键添加行为一致。
+
+#### 1.3.8 ID 生成器分散实现（🟡）
+
+`utils/id.ts:9` 已定义 `uid(prefix)`，但仍有 5+ 处自行实现 ID 生成：
+
+| 位置 | ID 格式 |
+|------|---------|
+| `utils/id.ts` ✅ 官方 | `{prefix}-{random}` |
+| `OmniDriver.ts:539` | `el-{Date.now()}-{random}` |
+| `codegraph/store.ts:117` | `{Date.now().toString(36)}-{random}` |
+| `BlockPalette.tsx:47` | `cb-{tag}-{Date.now()}-{seq}` |
+| `pipeline.ts:143` | `s_{Date.now()}_{counter}` |
+| `PropertyPanel.tsx:501` | `s_{Date.now()}` |
+| `StatePanel.tsx:363,406` | `cb-{kind}-{Date.now()}-{random}` |
+| `FunctionLibrary.tsx:201` | `cb-fn-{Date.now()}-{random}` |
+
+**解决方案：** 统一使用 `utils/id.ts` 的 `uid(prefix)`。对于需要特殊前缀的场景（如 style entry ID `s_xxx`），扩展 `uid` 支持自定义前缀即可。
+
 ### 1.4 依赖关联项目
 
 | 项目 | 关系 |
@@ -132,6 +184,7 @@ editor/client/src/
 ├── core/
 │   ├── types/           # 全部共享类型（从各处收敛）
 │   ├── constants/       # 共享常量（分类、图标、组件默认 props 工厂）
+│   ├── utils/           # 纯工具函数（uid、extractComponentName、isOmniFile）
 │   ├── state/           # 按域拆分的 Zustand atoms（含 codegraph）
 │   ├── commands/        # 命令模式 (undo/redo)
 │   └── events/          # 事件总线 (mitt)
@@ -259,6 +312,31 @@ core/constants/
 - `OmniDriver.component()` — 调用 `getDefaultProps(tag)` 作为 props 基底，调用者传入的 props 覆盖默认值
 
 这样三个入口创建的组件 props 完全一致。
+
+### 3.6 共享工具函数
+
+当前分散在多处的通用逻辑统一到 `core/utils/`：
+
+```
+core/utils/
+├── id.ts              # uid(prefix) — 唯一 ID 生成器（从 src/utils/id.ts 迁移并扩展）
+├── omni.ts            # extractComponentName(source) — 从 .omni 源码提取组件名
+└── index.ts
+```
+
+**ID 统一：** 所有 6+ 处自实现 ID 生成替换为 `uid(prefix)` 调用。`uid` 扩展支持自定义前缀参数以覆盖现有场景（`s_`、`cb-`、`tab-` 等）。
+
+**extractComponentName 统一：**
+```typescript
+// core/utils/omni.ts
+export function extractComponentName(source: string, fallback = "App"): string {
+  const match = source.match(/component\s+(\w+)\s*\{/);
+  return match ? match[1] : fallback;
+}
+```
+App.tsx 5 处 + LayoutView.tsx 1 处全部替换为调用此函数。
+
+**Undo 统一：** OmniDriver 和 StatePanel 的 element/wire 创建操作改为使用 `undoExec(new AddElement(el), ctx)` 或等价的命令包装，确保所有用户可见的元素创建都可撤销。
 
 ---
 
@@ -585,7 +663,10 @@ server/
 | 1.5 | 迁移 `constants/style-properties.ts` → `core/types/style.ts` | 低 |
 | 1.6 | 创建 `core/constants/`：提取 CATEGORY_LABELS/ORDER/ICONS + getDefaultProps，统一三处调用 | 低 |
 | 1.7 | 删除死代码 `canvas/toast.ts`（确认无 import 后移除） | 低 |
-| 1.8 | 运行全部测试 + TypeScript 检查，验证通过 | - |
+| 1.8 | 创建 `core/utils/id.ts`：扩展 uid 支持自定义前缀，替换 6+ 处自实现 ID 生成 | 低 |
+| 1.9 | 创建 `core/utils/omni.ts`：提取 extractComponentName，替换 App.tsx(5) + LayoutView(1) 共 6 处 | 低 |
+| 1.10 | 修复 Undo 绕过：OmniDriver + StatePanel 创建操作改为命令模式 | 中 |
+| 1.11 | 运行全部测试 + TypeScript 检查，验证通过 | - |
 
 **验收标准：** `npm test` 全绿，`npm run build` 成功，编辑器 UI 不变。
 
@@ -662,4 +743,4 @@ server/
 - ❌ 不修改数据格式（.omni、.omni-editor.toml 等）
 - ❌ 不修改 omni-compiler、omnilang、vscode-extension
 - ❌ 不在这个重构中优化逻辑代码（除 1.3 节列出的不一致修复外，其余逻辑 1:1 复制，优化留给后续 PR）
-- ✅ 1.3 节列出的 5 个不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、双模式 Toolbar 提取 — 这些是 bug 修复和去重，不改变用户可见界面
+- ✅ 1.3 节列出的所有不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、Toolbar 提取、正则去重、Undo 统一、ID 生成器统一 — 这些是 bug 修复和去重，不改变用户可见界面
