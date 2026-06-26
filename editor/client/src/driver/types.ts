@@ -3,7 +3,7 @@
  *  Exposed as `window.__OMNI__` for AI-driven automation. */
 
 import type { ElementData, WireData } from "../core/types";
-import type { EventMeta } from "../panels/ComponentPalette";
+import type { EventMeta } from "../ui/panels/ComponentPalette";
 
 // ── Re-export store types ────────────────────────────
 

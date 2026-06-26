@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import type { ElementData, StyleEntry } from "../../../core/types";
-import { StyleEntryEditor } from "../../../panels/StyleEntryEditor";
+import { StyleEntryEditor } from "../../panels/StyleEntryEditor";
 import { AddStyleEntry } from "../../../core/commands/AddStyleEntry";
 import { RemoveStyleEntry } from "../../../core/commands/RemoveStyleEntry";
 import { UpdateStyleEntry } from "../../../core/commands/UpdateStyleEntry";

@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorBoundary } from "./ui/shared/ErrorBoundary";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(

@@ -308,7 +308,7 @@ export function StateHUD({ elementId, visible, onClose }: StateHUDProps) {
 
 function collectElementSignals(
   elementId: string,
-  elements: import("../store/editor").ElementData[]
+  elements: import("../../store/editor").ElementData[]
 ): string[] {
   const el = elements.find((e) => e.id === elementId);
   if (!el) return [];

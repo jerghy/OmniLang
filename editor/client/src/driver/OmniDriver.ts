@@ -22,7 +22,7 @@ import { useEditorStore } from "../store/editor";
 import type { ElementData, WireData } from "../core/types";
 import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
-import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";
+import { COMPONENT_PROTOCOL, type EventMeta } from "../ui/panels/ComponentPalette";
 import { getDefaultProps } from "../core/constants";
 import { api } from "../services/api";
 import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
