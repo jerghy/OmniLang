@@ -7,6 +7,7 @@ import { useUndoStore } from "../store/undo";
 import { useCodeGraphStore } from "../codegraph/store";
 import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
 import { SetProp } from "../commands/SetProp";
+import { uid } from "../utils/id";
 import { compilerCache } from "../omni-compiler-cache";
 import { COMPONENT_PROTOCOL } from "./ComponentPalette";
 import {
@@ -20,6 +21,7 @@ import { AddStyleEntry } from "../commands/AddStyleEntry";
 import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
 import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
 import type { StyleEntry } from "../constants/style-properties";
+import { getComponentEvents, UNIVERSAL_EVENTS } from "../data/componentProtocol";
 
 // ═══════════════════════════════════════════════
 // Types
@@ -282,6 +284,9 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
     }, 300);
   }, [selectedIds]);
 
+  const [showEventDialog, setShowEventDialog] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<string | null>(null);
+
   // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
@@ -316,9 +321,31 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
 
   const el = { ...raw, props: raw.props || {} };
 
+  // ── Map HTML tags to OmniLang component names for metadata lookup ──
+  const HTML_TAG_TO_COMPONENT: Record<string, string> = {
+    // Typography
+    'p': 'Text', 'span': 'Text',
+    'h1': 'Heading', 'h2': 'Heading', 'h3': 'Heading',
+    'h4': 'Heading', 'h5': 'Heading', 'h6': 'Heading',
+    // Actions
+    'button': 'Button',
+    // Forms
+    'input': 'Input', 'textarea': 'TextArea', 'select': 'Select', 'form': 'Form',
+    // Media
+    'img': 'Image',
+    // Navigation
+    'a': 'Link',
+    // Data
+    'ul': 'List', 'li': 'ListItem',
+    // Layout (ambiguous — default to Container for best-effort metadata)
+    'div': 'Container', 'section': 'Container', 'header': 'Container',
+    'footer': 'Container', 'main': 'Container',
+  };
+  const resolvedTag = HTML_TAG_TO_COMPONENT[el.tag] || el.tag;
+
   // Resolve metadata: custom component instances use their definition's metadata
   const unifiedMeta = getUnifiedComponentMeta();
-  let meta: ComponentMeta | undefined = unifiedMeta[el.tag];
+  let meta: ComponentMeta | undefined = unifiedMeta[resolvedTag];
 
   // If this is a custom component instance, use the definition's metadata
   if (!meta && el.componentRef) {
@@ -347,6 +374,14 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
       </div>
     );
   }
+
+  // ── Merge universal events + component-specific events ──
+  // OmniView 采用开放事件模型：任何组件都能绑定任何 onXxx 事件。
+  // 通用事件是所有组件都支持的，组件特殊事件则提供更精准的描述和 ID。
+  const allEvents: Record<string, EventMeta> = {
+    ...getComponentEvents(resolvedTag),
+    ...meta.events,
+  };
 
   const handleChange = (prop: string, value: unknown) => {
     undoExec(new SetProp(el.id, prop, value), ctx);
@@ -387,23 +422,63 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         </>
       )}
 
-      {/* Events — new binding UI */}
-      {Object.keys(meta.events).length > 0 && (
-        <>
-          <div style={sectionHeaderStyle}>事件</div>
-          {Object.entries(meta.events).map(([name, config]) => (
-            <div key={name} style={{ marginBottom: 4 }}>
-              <EventBindingRow
-                eventName={name}
-                eventConfig={config}
-                selectedEl={el}
-                onBind={(binding) => {
-                  undoExec(new SetProp(el.id, name, binding), ctx);
-                }}
-              />
-            </div>
-          ))}
-        </>
+      {/* Events — collapsible list, only bound events shown */}
+      <div style={sectionHeaderStyle}>事件 <span style={{ fontWeight: 400, color: "#9CA3AF", fontSize: 9 }}>（所有组件支持通用事件）</span></div>
+
+      {/* Legend: show universal events hint */}
+      {Object.entries(allEvents).filter(([name]) => el.props[name]).length === 0 && (
+        <div style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 4, padding: "0 4px" }}>
+          所有组件支持通用事件（点击、输入、焦点、键盘等）
+        </div>
+      )}
+
+      {/* Bound events as expandable items */}
+      {Object.entries(allEvents).filter(([name]) => el.props[name]).map(([name]) => {
+        const binding = el.props[name] as EventBinding;
+        const isSpecial = !!meta.events[name];
+        return (
+          <BoundEventItem
+            key={name}
+            name={name}
+            binding={binding}
+            description={allEvents[name]?.description || ""}
+            isSpecial={isSpecial}
+            onRemove={() => handleChange(name, null)}
+            onUpdate={(updatedBinding) => handleChange(name, updatedBinding)}
+          />
+        );
+      })}
+
+      {/* Add event button */}
+      <button
+        onClick={() => { setEditingEvent(null); setShowEventDialog(true); }}
+        style={{
+          width: "100%", padding: "5px 8px", fontSize: 11, fontWeight: 600,
+          border: "1px dashed #C7D2FE", borderRadius: 5,
+          background: "#EEF2FF", color: "#4F46E5", cursor: "pointer",
+          marginTop: Object.entries(allEvents).some(([n]) => el.props[n]) ? 4 : 0,
+        }}
+      >
+        + 添加事件
+      </button>
+
+      {/* Event binding dialog */}
+      {showEventDialog && (
+        <EventBindingDialog
+          events={Object.entries(allEvents)}
+          specialEventNames={new Set(Object.keys(meta.events))}
+          initialEvent={editingEvent}
+          selectedEl={el}
+          onBind={(eventName, binding) => {
+            handleChange(eventName, binding);
+            setShowEventDialog(false);
+            setEditingEvent(null);
+          }}
+          onClose={() => {
+            setShowEventDialog(false);
+            setEditingEvent(null);
+          }}
+        />
       )}
 
       {/* Style List */}
@@ -419,11 +494,10 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
             };
             undoExec(new AddStyleEntry(el.id, entry), ctx);
             setExpandedStyleId(entry.id);
-            debouncedRecompile();
           }}
           style={{
-            background: "none", border: "1px solid #585b70", borderRadius: 4,
-            color: "#a6adc8", cursor: "pointer", fontSize: 11,
+            background: "none", border: "1px solid #d1d5db", borderRadius: 4,
+            color: "#4F46E5", cursor: "pointer", fontSize: 11,
             padding: "2px 8px", marginLeft: "auto",
           }}
         >
@@ -447,7 +521,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
               onClick={() => setExpandedStyleId(isExpanded ? null : entry.id)}
               style={{
                 display: "flex", alignItems: "center", cursor: "pointer",
-                padding: "4px 0", color: "#cdd6f4", fontSize: 12,
+                padding: "4px 0", color: "#374151", fontSize: 12,
                 userSelect: "none",
               }}
             >
@@ -458,10 +532,9 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
                   e.stopPropagation();
                   undoExec(new RemoveStyleEntry(el.id, entry, index), ctx);
                   if (isExpanded) setExpandedStyleId(null);
-                  debouncedRecompile();
                 }}
                 style={{
-                  background: "none", border: "none", color: "#f38ba8",
+                  background: "none", border: "none", color: "#DC2626",
                   cursor: "pointer", fontSize: 14, padding: "0 4px",
                 }}
               >
@@ -485,7 +558,6 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
                     new UpdateStyleEntry(el.id, entry.id, oldEntry, newEntry),
                     ctx,
                   );
-                  debouncedRecompile();
                 }}
                 onClose={() => setExpandedStyleId(null)}
               />
@@ -501,11 +573,18 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
         </div>
       )}
 
-      {/* ID info */}
-      <div style={{ marginTop: 16, paddingTop: 8, borderTop: "1px solid #e5e7eb", fontSize: 10, color: "#9ca3af" }}>
-        ID: {el.id.slice(0, 8)}...
-        {meta.isCustom && <span style={{ marginLeft: 8 }}>| 🏷 {meta.category}</span>}
-      </div>
+      {/* ID — 可编辑 */}
+      <label style={{ marginTop: 16, paddingTop: 8, borderTop: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>ID</span>
+        <IdEditor
+          currentId={el.id}
+          allIds={new Set(elements.map((x) => x.id))}
+          onRename={(newId) => {
+            useEditorStore.getState().setElementId(el.id, newId);
+            debouncedRecompile();
+          }}
+        />
+      </label>
     </div>
   );
 }
@@ -547,17 +626,25 @@ function PropEditor({ name, config, value, onChange }: {
 }
 
 // ═══════════════════════════════════════════════
-// Event binding row — NEW (replaces old "navigate to code" button)
+// Event binding dialog (modal)
 // ═══════════════════════════════════════════════
 
-function EventBindingRow({ eventName, eventConfig, selectedEl, onBind }: {
-  eventName: string;
-  eventConfig: EventMeta;
+function EventBindingDialog({ events, specialEventNames, initialEvent, selectedEl, onBind, onClose }: {
+  events: [string, EventMeta][];
+  specialEventNames: Set<string>;
+  initialEvent: string | null;
   selectedEl: import("../store/editor").ElementData;
-  onBind: (binding: EventBinding | null) => void;
+  onBind: (eventName: string, binding: EventBinding | null) => void;
+  onClose: () => void;
 }) {
   const tabs = useCodeGraphStore((s) => s.tabs);
-  const existingBinding = (selectedEl.props[eventName] as EventBinding | null) || null;
+  const [selectedEventName, setSelectedEventName] = useState<string>(initialEvent || events[0]?.[0] || "");
+  const [selectedFn, setSelectedFn] = useState("");
+  const [selectedTab, setSelectedTab] = useState("");
+  const [paramBindings, setParamBindings] = useState<Record<string, ParamBinding>>({});
+
+  const eventConfig = events.find(([n]) => n === selectedEventName)?.[1];
+  const existingBinding = selectedEl.props[selectedEventName] as EventBinding | null;
 
   // Get all custom functions from event-code tabs
   const eventFnOptions: Array<{ tabId: string; tabLabel: string; fnName: string; fnParams: FnParam[]; fnReturnType: string }> = [];
@@ -576,23 +663,16 @@ function EventBindingRow({ eventName, eventConfig, selectedEl, onBind }: {
     }
   }
 
-  const [isExpanded, setIsExpanded] = useState(!!existingBinding);
-  const [selectedFn, setSelectedFn] = useState(existingBinding?.fnName || "");
-  const [selectedTab, setSelectedTab] = useState(existingBinding?.tabId || "");
-  const [paramBindings, setParamBindings] = useState<Record<string, ParamBinding>>(existingBinding?.paramBindings || {});
-
   const currentFn = eventFnOptions.find((f) => f.fnName === selectedFn && f.tabId === selectedTab);
 
   const handleSelectFn = (fnName: string, tabId: string) => {
     setSelectedFn(fnName);
     setSelectedTab(tabId);
-    // Auto-generate default param bindings from function signature
     const fn = eventFnOptions.find((f) => f.fnName === fnName && f.tabId === tabId);
     if (fn) {
       const bindings: Record<string, ParamBinding> = {};
       for (const param of fn.fnParams) {
-        // Default: try to auto-match with event payload if types match
-        if (param.type === (eventConfig.payload || "any") && Object.keys(bindings).length === 0) {
+        if (param.type === (eventConfig?.payload || "any") && Object.keys(bindings).length === 0) {
           bindings[param.name] = { sourceType: "event", value: `event.${param.name}`, expectedType: param.type };
         } else {
           bindings[param.name] = { sourceType: "literal", value: "", expectedType: param.type };
@@ -602,177 +682,589 @@ function EventBindingRow({ eventName, eventConfig, selectedEl, onBind }: {
     }
   };
 
-  const handleSaveBinding = () => {
+  const handleSave = () => {
     if (!selectedFn || !selectedTab) return;
-    const binding: EventBinding = {
-      eventType: eventName,
+    onBind(selectedEventName, {
+      eventType: selectedEventName,
       tabId: selectedTab,
       fnName: selectedFn,
       paramBindings,
-    };
-    onBind(binding);
-    setIsExpanded(true);
+    });
   };
 
-  const handleRemoveBinding = () => {
-    setSelectedFn("");
-    setSelectedTab("");
-    setParamBindings({});
-    onBind(null);
-    setIsExpanded(false);
+  const handleRemove = () => {
+    onBind(selectedEventName, null);
   };
 
-  // Type mismatch check
+  const handleCreateFunction = () => {
+    // Generate function name from event (e.g. onPress → onPress, onChange → onChange)
+    const fnName = selectedEventName.charAt(0).toUpperCase() + selectedEventName.slice(1);
+    // If event name starts with "on", remove it for the handler name: onPress → handlePress
+    const handlerName = fnName.startsWith("On") ? `handle${fnName.slice(2)}` : `handle${fnName}`;
+
+    // Build params from event payload
+    const fnParams: FnParam[] = eventConfig?.payload
+      ? [{ name: "event", type: eventConfig.payload }]
+      : [];
+
+    // Create a new event code tab
+    const cgStore = useCodeGraphStore.getState();
+    const newFnId = uid("fn");
+    const returnNodeId = uid("ret");
+    const tabLabel = `事件: ${selectedEventName}`;
+    const tabId = cgStore.addTab("event", tabLabel, {
+      icon: "⚡",
+      initialGraph: {
+        elements: [
+          {
+            id: newFnId,
+            nodeType: "codeblock",
+            tag: "customFn",
+            props: {},
+            children: [],
+            parentId: null,
+            config: {
+              fnName: handlerName,
+              fnParams,
+              fnReturnType: "void",
+              description: `Handle ${selectedEventName} event`,
+            },
+            position: { x: 100, y: 100 },
+          },
+          {
+            id: returnNodeId,
+            nodeType: "codeblock",
+            tag: "return",
+            props: {},
+            children: [],
+            parentId: null,
+            config: {},
+            position: { x: 400, y: 100 },
+          },
+        ],
+        wires: [{
+          id: uid("wire"),
+          fromId: newFnId,
+          fromPort: "return",
+          toId: returnNodeId,
+          toPort: "value",
+        }],
+      },
+    });
+
+    // Auto-generate param bindings from the function signature
+    const newParamBindings: Record<string, ParamBinding> = {};
+    for (const param of fnParams) {
+      newParamBindings[param.name] = {
+        sourceType: "event",
+        value: `event.${param.name}`,
+        expectedType: param.type,
+      };
+    }
+
+    // Save the event binding
+    onBind(selectedEventName, {
+      eventType: selectedEventName,
+      tabId,
+      fnName: handlerName,
+      paramBindings: newParamBindings,
+    });
+
+    // Switch to code mode and select the new function node
+    window.dispatchEvent(new CustomEvent("omni-mode-change", {
+      detail: { mode: "code" },
+    }));
+
+    // On next tick, select the newly created node in the code graph
+    setTimeout(() => {
+      useCodeGraphStore.getState().selectElement(newFnId);
+    }, 50);
+  };
+
   const getTypeError = (param: FnParam, binding: ParamBinding): string | null => {
-    if (binding.sourceType === "event" && param.type !== (eventConfig.payload || "any") && eventConfig.payload) {
+    if (binding.sourceType === "event" && param.type !== (eventConfig?.payload || "any") && eventConfig?.payload) {
       if (param.type !== "any" && eventConfig.payload !== "any") {
-        return `类型不匹配: 参数类型 ${param.type} ≠ 事件数据类型 ${eventConfig.payload}`;
+        return `类型不匹配: ${param.type} ≠ ${eventConfig.payload}`;
       }
     }
     return null;
   };
 
   return (
-    <div style={{
-      border: "1px solid #E5E7EB", borderRadius: 6, padding: 6,
-      background: existingBinding ? "#F0FDF4" : "#FAFAFA",
-      marginBottom: 4,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>
-          {eventName}
-          {eventConfig.description && (
-            <span style={{ fontWeight: 400, color: "#9CA3AF", marginLeft: 4 }}>
-              ({eventConfig.description}{eventConfig.payload ? ` → ${eventConfig.payload}` : ""})
+    <>
+      {/* Overlay */}
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.3)",
+      }} />
+      {/* Dialog */}
+      <div style={{
+        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+        zIndex: 9999, background: "#fff", borderRadius: 12,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+        width: 520, maxWidth: "90vw", maxHeight: "80vh",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "12px 16px", borderBottom: "1px solid #E5E7EB",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>~ 事件绑定</span>
+          <button onClick={onClose} style={{
+            border: "none", background: "transparent", cursor: "pointer",
+            fontSize: 16, color: "#9CA3AF", padding: 0, lineHeight: 1,
+          }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 240 }}>
+          {/* Left: Event list with grouping */}
+          <div style={{
+            width: 200, flexShrink: 0, borderRight: "1px solid #E5E7EB",
+            overflow: "auto", padding: 8,
+          }}>
+            {/* Special events section */}
+            {events.filter(([name]) => specialEventNames.has(name)).length > 0 && (
+              <>
+                <div style={{ fontSize: 9, color: "#7C3AED", fontWeight: 700, marginBottom: 4, padding: "0 4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  ⭐ 特殊事件
+                </div>
+                {events.filter(([name]) => specialEventNames.has(name)).map(([name, config]) => {
+                  const hasBinding = !!selectedEl.props[name];
+                  return (
+                    <div
+                      key={name}
+                      onClick={() => {
+                        setSelectedEventName(name);
+                        setSelectedFn(existingBinding?.fnName || "");
+                        setSelectedTab(existingBinding?.tabId || "");
+                        setParamBindings(existingBinding?.paramBindings || {});
+                      }}
+                      style={{
+                        padding: "5px 8px", borderRadius: 5, cursor: "pointer", fontSize: 11,
+                        background: selectedEventName === name ? "#F5F3FF" : "transparent",
+                        color: selectedEventName === name ? "#6D28D9" : "#374151",
+                        fontWeight: selectedEventName === name ? 600 : 400,
+                        marginBottom: 2, border: `1px solid ${selectedEventName === name ? "#DDD6FE" : "transparent"}`,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      <span>{hasBinding ? "🔗" : "●"}</span>
+                      <span style={{ flex: 1 }}>{name}</span>
+                      {config.payload && (
+                        <span style={{ fontSize: 9, color: "#9CA3AF" }}>{config.payload}</span>
+                      )}
+                    </div>
+                  );
+                })}
+                <div style={{ height: 8 }} />
+              </>
+            )}
+
+            {/* Universal events section */}
+            <div style={{ fontSize: 9, color: "#6B7280", fontWeight: 700, marginBottom: 4, padding: "0 4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              🌐 通用事件
+            </div>
+            {events.filter(([name]) => !specialEventNames.has(name)).map(([name, config]) => {
+              const hasBinding = !!selectedEl.props[name];
+              return (
+                <div
+                  key={name}
+                  onClick={() => {
+                    setSelectedEventName(name);
+                    setSelectedFn(existingBinding?.fnName || "");
+                    setSelectedTab(existingBinding?.tabId || "");
+                    setParamBindings(existingBinding?.paramBindings || {});
+                  }}
+                  style={{
+                    padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 10,
+                    background: selectedEventName === name ? "#EEF2FF" : "transparent",
+                    color: selectedEventName === name ? "#4F46E5" : "#6B7280",
+                    fontWeight: selectedEventName === name ? 600 : 400,
+                    marginBottom: 1, border: `1px solid ${selectedEventName === name ? "#C7D2FE" : "transparent"}`,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 9 }}>{hasBinding ? "🔗" : "○"}</span>
+                  <span style={{ flex: 1 }}>{name}</span>
+                  {config.payload && (
+                    <span style={{ fontSize: 8, color: "#9CA3AF" }}>{config.payload}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right: Function selector + param binding */}
+          <div style={{ flex: 1, padding: 12, overflow: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Event info */}
+            <div>
+              <div style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>选中事件</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                {selectedEventName}
+                {eventConfig?.description && (
+                  <span style={{ fontWeight: 400, color: "#9CA3AF", marginLeft: 6, fontSize: 11 }}>
+                    ({eventConfig.description})
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Function selector */}
+            <div>
+              <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, marginBottom: 4 }}>
+                选择函数
+              </div>
+              {eventFnOptions.length === 0 ? (
+                <div style={{ fontSize: 11, color: "#D97706", padding: "6px 8px", background: "#FFFBEB", borderRadius: 4, border: "1px solid #FDE68A", marginBottom: 6 }}>
+                  ⚠ 暂无可用函数
+                </div>
+              ) : (
+                <select
+                  value={selectedFn ? `${selectedTab}:${selectedFn}` : ""}
+                  onChange={(e) => {
+                    const [tabId, fnName] = e.target.value.split(":");
+                    handleSelectFn(fnName, tabId);
+                  }}
+                  style={{
+                    padding: "5px 8px", fontSize: 11, border: "1px solid #D1D5DB",
+                    borderRadius: 5, width: "100%", boxSizing: "border-box",
+                    background: "#fff", marginBottom: 6,
+                  }}
+                >
+                  <option value="">-- 选择自定义函数 --</option>
+                  {eventFnOptions.map((f) => (
+                    <option key={`${f.tabId}:${f.fnName}`} value={`${f.tabId}:${f.fnName}`}>
+                      [{f.tabLabel}] {f.fnName}({f.fnParams.map(p => `${p.name}: ${p.type}`).join(", ")}) → {f.fnReturnType}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={handleCreateFunction}
+                style={{
+                  width: "100%", padding: "5px 8px", fontSize: 10, fontWeight: 600,
+                  border: "1px dashed #7C3AED", borderRadius: 5,
+                  background: "#F5F3FF", color: "#7C3AED", cursor: "pointer",
+                }}
+              >
+                + 创建函数
+              </button>
+            </div>
+
+            {/* Param binding */}
+            {currentFn && (
+              <div>
+                <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, marginBottom: 4 }}>
+                  参数绑定
+                </div>
+                {currentFn.fnParams.length === 0 ? (
+                  <div style={{ fontSize: 11, color: "#9CA3AF" }}>
+                    该函数无参数
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {currentFn.fnParams.map((param) => {
+                      const binding = paramBindings[param.name];
+                      const typeError = binding ? getTypeError(param, binding) : null;
+                      return (
+                        <div key={param.name} style={{
+                          padding: "6px 8px", background: "#F9FAFB", borderRadius: 5,
+                          border: "1px solid #E5E7EB",
+                        }}>
+                          <div style={{ fontSize: 10, color: "#374151", marginBottom: 3, fontFamily: "monospace" }}>
+                            {param.name}: <span style={{ color: "#6B7280" }}>{param.type}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <select
+                              value={binding?.sourceType || "literal"}
+                              onChange={(e) => {
+                                const sourceType = e.target.value as ParamBinding["sourceType"];
+                                setParamBindings({
+                                  ...paramBindings,
+                                  [param.name]: { sourceType, value: "", expectedType: param.type },
+                                });
+                              }}
+                              style={{
+                                padding: "3px 6px", fontSize: 10, border: "1px solid #D1D5DB",
+                                borderRadius: 4, width: 75, background: "#fff",
+                              }}
+                            >
+                              <option value="event">📩 事件</option>
+                              <option value="self">🔤 self</option>
+                              <option value="literal">🔢 固定值</option>
+                              <option value="global">🌐 全局</option>
+                            </select>
+                            <input
+                              value={binding?.value || ""}
+                              onChange={(e) => {
+                                setParamBindings({
+                                  ...paramBindings,
+                                  [param.name]: {
+                                    ...binding,
+                                    sourceType: binding?.sourceType || "literal",
+                                    value: e.target.value,
+                                    expectedType: param.type,
+                                  },
+                                });
+                              }}
+                              placeholder={
+                                binding?.sourceType === "self" ? "self.signalName" :
+                                binding?.sourceType === "event" ? "event.value" :
+                                binding?.sourceType === "global" ? "app.xxx" :
+                                "固定值"
+                              }
+                              style={{
+                                padding: "3px 6px", fontSize: 10, border: "1px solid #D1D5DB",
+                                borderRadius: 4, flex: 1, boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+                          {typeError && (
+                            <div style={{ fontSize: 9, color: "#DC2626", marginTop: 2 }}>🚫 {typeError}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Existing binding info */}
+            {existingBinding && (
+              <div style={{
+                fontSize: 11, color: "#059669", padding: "6px 8px",
+                background: "#F0FDF4", borderRadius: 5, border: "1px solid #BBF7D0",
+              }}>
+                ✅ 当前已绑定: <strong>{existingBinding.fnName}</strong>
+                <button
+                  onClick={handleRemove}
+                  style={{
+                    marginLeft: 8, fontSize: 10, padding: "1px 8px",
+                    border: "1px solid #FCA5A5", borderRadius: 3,
+                    background: "#FEF2F2", color: "#DC2626", cursor: "pointer",
+                  }}
+                >
+                  解除绑定
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "8px 16px", borderTop: "1px solid #E5E7EB",
+          display: "flex", justifyContent: "flex-end", gap: 8,
+        }}>
+          <button onClick={onClose} style={{
+            padding: "6px 14px", fontSize: 11, border: "1px solid #D1D5DB",
+            borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151",
+          }}>
+            取消
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!selectedFn || !selectedTab}
+            style={{
+              padding: "6px 14px", fontSize: 11, fontWeight: 600,
+              border: "none", borderRadius: 6,
+              background: selectedFn && selectedTab ? "#4F46E5" : "#D1D5DB",
+              color: "#fff", cursor: selectedFn && selectedTab ? "pointer" : "not-allowed",
+            }}
+          >
+            保存事件绑定
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// BoundEventItem — collapsible bound event with param bindings
+// ═══════════════════════════════════════════════
+
+function BoundEventItem({ name, binding, description, isSpecial, onRemove, onUpdate }: {
+  name: string;
+  binding: EventBinding;
+  description: string;
+  isSpecial?: boolean;
+  onRemove: () => void;
+  onUpdate: (binding: EventBinding) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginBottom: 3, borderRadius: 5, border: "1px solid #BBF7D0", background: "#F0FDF4", overflow: "hidden" }}>
+      {/* Header — click to expand/collapse */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "6px 8px", cursor: "pointer", userSelect: "none",
+          fontSize: 11,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 8, transition: "transform 0.15s", transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+            ▼
+          </span>
+          <span style={{ fontWeight: 600, color: "#374151" }}>{name}</span>
+          {isSpecial && (
+            <span style={{ fontSize: 8, padding: "0 4px", borderRadius: 3, background: "#EDE9FE", color: "#6D28D9", fontWeight: 600 }}>
+              特有
             </span>
           )}
-        </span>
-        {existingBinding ? (
-          <button onClick={handleRemoveBinding} style={removeBtnStyle}>
+          {description && (
+            <span style={{ fontSize: 9, color: "#9CA3AF" }}>({description})</span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, color: "#059669", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            → {binding.fnName}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            title="移除事件绑定"
+            style={{
+              border: "none", background: "transparent", cursor: "pointer",
+              color: "#DC2626", fontSize: 10, padding: "0 2px", lineHeight: 1,
+            }}
+          >
             ✕
           </button>
-        ) : (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{ ...addBtnStyle, marginTop: 0 }}
-          >
-            {isExpanded ? "取消" : "+ 绑定函数"}
-          </button>
-        )}
+        </div>
       </div>
 
-      {existingBinding && (
-        <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
-          → {existingBinding.fnName}({Object.values(existingBinding.paramBindings).map((b) => {
-            if (b.sourceType === "event") return `📩 ${b.value.split(".")[1] || b.value}`;
-            if (b.sourceType === "self") return `🔤 ${b.value}`;
-            if (b.sourceType === "literal") return `🔢 ${b.value || "..."}`;
-            if (b.sourceType === "global") return `🌐 ${b.value}`;
-            return b.value;
-          }).join(", ")})
-        </div>
-      )}
-
-      {isExpanded && !existingBinding && (
-        <div style={{ marginTop: 6 }}>
-          {/* Function selector */}
-          <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 2 }}>选择函数</div>
-          {eventFnOptions.length === 0 ? (
-            <div style={{ fontSize: 10, color: "#D97706", padding: "4px 0" }}>
-              ⚠ 没有可用的事件函数。请在代码模式中创建"事件代码"标签页，并添加自定义函数节点。
-            </div>
+      {/* Expanded: param bindings */}
+      {expanded && (
+        <div style={{ padding: "6px 8px 8px 22px", borderTop: "1px solid #D1FAE5", fontSize: 11 }}>
+          <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 4, fontWeight: 600 }}>参数绑定</div>
+          {Object.keys(binding.paramBindings).length === 0 ? (
+            <div style={{ color: "#9CA3AF", fontSize: 10 }}>无参数</div>
           ) : (
-            <select
-              value={selectedFn ? `${selectedTab}:${selectedFn}` : ""}
-              onChange={(e) => {
-                const [tabId, fnName] = e.target.value.split(":");
-                handleSelectFn(fnName, tabId);
-              }}
-              style={{ ...inputStyle, fontSize: 10, marginBottom: 6 }}
-            >
-              <option value="">-- 选择自定义函数 --</option>
-              {eventFnOptions.map((f) => (
-                <option key={`${f.tabId}:${f.fnName}`} value={`${f.tabId}:${f.fnName}`}>
-                  [{f.tabLabel}] {f.fnName}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Parameter binding table */}
-          {currentFn && currentFn.fnParams.length > 0 && (
-            <>
-              <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 2, marginTop: 4 }}>
-                参数绑定
+            Object.entries(binding.paramBindings).map(([paramName, pb]) => (
+              <div key={paramName} style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: "#374151", marginBottom: 1, fontFamily: "monospace" }}>
+                  {paramName}
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <select
+                    value={pb.sourceType}
+                    onChange={(e) => {
+                      const sourceType = e.target.value as ParamBinding["sourceType"];
+                      onUpdate({
+                        ...binding,
+                        paramBindings: {
+                          ...binding.paramBindings,
+                          [paramName]: { ...pb, sourceType, value: "", expectedType: pb.expectedType },
+                        },
+                      });
+                    }}
+                    style={{ padding: "3px 6px", fontSize: 10, border: "1px solid #D1D5DB", borderRadius: 4, width: 70, background: "#fff" }}
+                  >
+                    <option value="event">📩 事件</option>
+                    <option value="self">🔤 self</option>
+                    <option value="literal">🔢 固定值</option>
+                    <option value="global">🌐 全局</option>
+                  </select>
+                  <input
+                    value={pb.value || ""}
+                    onChange={(e) => {
+                      onUpdate({
+                        ...binding,
+                        paramBindings: {
+                          ...binding.paramBindings,
+                          [paramName]: { ...pb, value: e.target.value },
+                        },
+                      });
+                    }}
+                    placeholder={pb.sourceType === "self" ? "self.signalName" : pb.sourceType === "event" ? "event.value" : pb.sourceType === "global" ? "app.xxx" : "固定值"}
+                    style={{ padding: "3px 6px", fontSize: 10, border: "1px solid #D1D5DB", borderRadius: 4, flex: 1 }}
+                  />
+                </div>
               </div>
-              {currentFn.fnParams.map((param) => {
-                const binding = paramBindings[param.name];
-                const typeError = binding ? getTypeError(param, binding) : null;
-                return (
-                  <div key={param.name} style={{ marginBottom: 4 }}>
-                    <div style={{ fontSize: 10, color: "#374151", marginBottom: 1 }}>
-                      {param.name}: <span style={{ color: "#6B7280" }}>{param.type}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <select
-                        value={binding?.sourceType || "literal"}
-                        onChange={(e) => {
-                          const sourceType = e.target.value as ParamBinding["sourceType"];
-                          setParamBindings({
-                            ...paramBindings,
-                            [param.name]: { sourceType, value: "", expectedType: param.type },
-                          });
-                        }}
-                        style={{ ...inputStyle, fontSize: 10, width: 70 }}
-                      >
-                        <option value="event">📩 事件</option>
-                        <option value="self">🔤 self</option>
-                        <option value="literal">🔢 固定值</option>
-                        <option value="global">🌐 全局</option>
-                      </select>
-                      <input
-                        value={binding?.value || ""}
-                        onChange={(e) => {
-                          setParamBindings({
-                            ...paramBindings,
-                            [param.name]: { ...binding, sourceType: binding?.sourceType || "literal", value: e.target.value, expectedType: param.type },
-                          });
-                        }}
-                        placeholder={
-                          binding?.sourceType === "self" ? "self.signalName" :
-                          binding?.sourceType === "event" ? "event.value" :
-                          binding?.sourceType === "global" ? "app.xxx" :
-                          "固定值"
-                        }
-                        style={{ ...inputStyle, fontSize: 10, flex: 1 }}
-                      />
-                    </div>
-                    {typeError && (
-                      <div style={{ fontSize: 9, color: "#DC2626", marginTop: 1 }}>🚫 {typeError}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {/* Save button */}
-          {selectedFn && (
-            <button
-              onClick={handleSaveBinding}
-              disabled={!selectedFn}
-              style={{
-                width: "100%", padding: "3px 8px", marginTop: 6,
-                fontSize: 10, fontWeight: 600,
-                background: "#059669", color: "#fff",
-                border: "none", borderRadius: 4, cursor: "pointer",
-              }}
-            >
-              保存事件绑定
-            </button>
+            ))
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// ID Editor — inline editable ID with duplicate check
+// ═══════════════════════════════════════════════
+
+function IdEditor({ currentId, allIds, onRename }: {
+  currentId: string;
+  allIds: Set<string>;
+  onRename: (newId: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(currentId);
+  const [error, setError] = useState("");
+
+  const handleSave = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) { setError("ID 不能为空"); return; }
+    if (trimmed === currentId) { setEditing(false); setError(""); return; }
+    if (allIds.has(trimmed)) { setError(`ID "${trimmed}" 已存在`); return; }
+    onRename(trimmed);
+    setEditing(false);
+    setError("");
+  };
+
+  const handleCancel = () => {
+    setDraft(currentId);
+    setEditing(false);
+    setError("");
+  };
+
+  if (!editing) {
+    return (
+      <div
+        onClick={() => { setDraft(currentId); setEditing(true); }}
+        style={{
+          padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4,
+          fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 6, color: "#374151", fontFamily: "monospace",
+        }}
+        title="点击编辑 ID"
+      >
+        <span style={{ flex: 1 }}>{currentId}</span>
+        <span style={{ fontSize: 10, color: "#9ca3af" }}>✏️</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", gap: 4 }}>
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => { setDraft(e.target.value); setError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
+          style={{
+            flex: 1, padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4,
+            fontSize: 12, fontFamily: "monospace", outline: "none",
+            borderColor: error ? "#DC2626" : "#d1d5db",
+          }}
+          placeholder="唯一标识"
+          autoFocus
+        />
+        <button onClick={handleSave} style={{
+          padding: "3px 8px", fontSize: 10, border: "none", borderRadius: 4,
+          background: "#4F46E5", color: "#fff", cursor: "pointer",
+        }}>✓</button>
+        <button onClick={handleCancel} style={{
+          padding: "3px 8px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 4,
+          background: "#fff", cursor: "pointer", color: "#6B7280",
+        }}>✕</button>
+      </div>
+      {error && <div style={{ fontSize: 10, color: "#DC2626" }}>❌ {error}</div>}
     </div>
   );
 }
