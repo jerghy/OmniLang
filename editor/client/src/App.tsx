@@ -33,7 +33,7 @@ import type { CommandContext } from "./core/commands/types";
 import { extractComponentName } from "./core/utils";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./core/commands/CopyPaste";
 import { showToast } from "./notifications/toast";
-import { parseOmniSource, generateOmniSource, emitCustomComponents, validate } from "./services/codegen";
+import { parseOmniSource, generateOmniSource, validate } from "./services/codegen";
 import type { ElementData, WireData } from "./core/types";
 import type { ComponentDefinition } from "./store/componentRegistry";
 import { ProjectWelcome } from "./panels/ProjectWelcome";
@@ -65,34 +65,38 @@ const S = {
  * with metadata stored as // @component / @prop / @event / @style comments (no more .meta.json).
  */
 async function saveComponentDefinitionsToServer(defs: Record<string, ComponentDefinition>): Promise<void> {
-  const components: Array<{ name: string; elements: ElementData[]; meta?: Record<string, unknown> }> = [];
+  const payload: Record<string, { omniSource: string }> = {};
 
   for (const [name, def] of Object.entries(defs)) {
-    components.push({
-      name,
-      elements: def.elements || [],
-      meta: {
+    const result = generateOmniSource({
+      designElements: def.elements || [],
+      designWires: def.wires || [],           // BUG FIX: wires were not passed before
+      codeTabs: [],                           // code tabs for chains (empty for custom components)
+      componentName: name,
+      rootOrder: (def.elements || [])
+        .filter((e: any) => !e.parentId)
+        .map((e: any) => e.id),
+      forSave: true,
+      componentMeta: {
         id: def.id,
-        props: def.props,
-        events: def.events,
-        styleProperties: def.styleProperties,
         category: def.category,
         description: def.description,
+        props: def.props as Record<string, unknown>,
+        events: def.events as Record<string, unknown>,
+        styleProperties: def.styleProperties,
         children: def.children,
+        createdAt: def.createdAt,
       },
     });
+
+    if (result.value) {
+      payload[name] = { omniSource: result.value };
+    }
   }
 
-  const result = emitCustomComponents(components);
-  if (!result.value) return;
-
-  const payload: Record<string, { omniSource: string }> = {};
-  for (const [name] of Object.entries(defs)) {
-    const omniSource = result.value[`src/components/${name}.omni`] || "";
-    if (omniSource) payload[name] = { omniSource };
+  if (Object.keys(payload).length > 0) {
+    await api.saveComponentDefinitions(payload as unknown as Record<string, unknown>);
   }
-
-  await api.saveComponentDefinitions(payload as unknown as Record<string, unknown>);
 }
 
 /**

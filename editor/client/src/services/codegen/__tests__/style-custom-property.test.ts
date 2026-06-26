@@ -6,7 +6,8 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { resolveStyle } from "../style-resolver";
-import { collectStylesFromEntries, parseStylesFromAST, generateOmniSource } from "../pipeline";
+import { parseStylesFromAST, generateOmniSource } from "../pipeline";
+import { collectStylesFromEntries } from "../collect-styles";
 import { parseOmniSource } from "../omni-parser";
 import type { StyleEntry } from "../../../core/types";
 import type { ViewNode } from "../types";

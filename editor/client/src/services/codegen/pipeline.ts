@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/pipeline.ts
+// editor/client/src/services/codegen/pipeline.ts
 // Orchestrates the 3-phase omni-gen pipeline:
 //   Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
 //   Phase B: StoreExtractor + ExpressionLowering + ChainEmitter
@@ -7,17 +7,17 @@
 import { buildViewTree } from "./view-tree-builder";
 import { analyzeWires } from "./wire-analyzer";
 import { collectImports } from "./import-collector";
-import { resolveStyle } from "./style-resolver";
 import { extractStores } from "./store-extractor";
 import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
+import { expandCustomComponents } from "./expand-custom-components";
+import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { uid } from "../../core/utils";
-import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../../core/types";
+import { classNameToVariable, STYLE_PROPERTY_NAMES } from "../../core/types";
 import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
 import { useComponentRegistry } from "../../core/state/componentRegistry";
-import type { ComponentDefinition } from "../../core/state/componentRegistry";
 import type {
   StageResult,
   PipelineError,
@@ -26,88 +26,6 @@ import type {
   StoreDef,
   ChainBlock,
 } from "./types";
-
-// ── Custom Component Expansion ─────────────────────────────────────
-
-/**
- * Expand custom component references in the elements array.
- *
- * For each element with `componentRef`, look up the component definition
- * from the registry and clone its internal elements as children of the
- * referencing element. Handles recursive expansion (custom components
- * used inside custom components).
- *
- * Uses deterministic IDs (based on instance element ID) to ensure the
- * generated omniLang source is stable across recompiles, so the compilerCache
- * can hit correctly and the preview iframe doesn't reload unnecessarily.
- */
-function expandCustomComponents(elements: ElementData[]): ElementData[] {
-  const registry = useComponentRegistry.getState().definitions;
-
-  const hasRefs = elements.some((el) => el.componentRef);
-  if (!hasRefs) return elements;
-
-  // Build element map (shallow clone so we can safely update children arrays)
-  const elementMap = new Map<string, ElementData>();
-  for (const el of elements) {
-    elementMap.set(el.id, { ...el });
-  }
-
-  const expandedRefs = new Set<string>();
-
-  // Keep expanding until no new componentRefs are found (handles nesting)
-  let foundNew = true;
-  while (foundNew) {
-    foundNew = false;
-    for (const [id, el] of [...elementMap]) {
-      if (!el.componentRef || expandedRefs.has(id)) continue;
-      expandedRefs.add(id);
-
-      const def: ComponentDefinition | undefined = registry[el.componentRef];
-      if (!def || def.elements.length === 0) continue;
-
-      // Map old definition element IDs -> deterministic IDs based on instance element ID
-      const idMap = new Map<string, string>();
-      let idx = 0;
-      for (const defEl of def.elements) {
-        idMap.set(defEl.id, `${el.id}__${idx++}`);
-      }
-
-      // Clone definition elements with remapped IDs and parent references
-      const rootIds: string[] = [];
-      for (const defEl of def.elements) {
-        const newId = idMap.get(defEl.id)!;
-        const isRoot = defEl.parentId === null;
-
-        const cloned: ElementData = {
-          ...defEl,
-          id: newId,
-          parentId: isRoot
-            ? el.id
-            : idMap.get(defEl.parentId) || defEl.parentId,
-          children: defEl.children.map((cid) => idMap.get(cid) || cid),
-        };
-
-        elementMap.set(newId, cloned);
-        foundNew = true;
-        if (isRoot) rootIds.push(newId);
-      }
-
-      // Append definition root IDs to the referencing element's children
-      const updatedContainer = { ...elementMap.get(id)! };
-      let changed = false;
-      for (const rootId of rootIds) {
-        if (!updatedContainer.children.includes(rootId)) {
-          updatedContainer.children = [...updatedContainer.children, rootId];
-          changed = true;
-        }
-      }
-      if (changed) elementMap.set(id, updatedContainer);
-    }
-  }
-
-  return [...elementMap.values()];
-}
 
 // ── runPhase helper ─────────────────────────────────────────────────
 
@@ -285,6 +203,18 @@ export function generateOmniSource(options: {
   componentName: string;
   rootOrder?: string[];
   forSave?: boolean;  // true: keep <MyCard> tags + generate imports; false (default): expand inline
+  componentMeta?: {
+    id?: string;
+    category?: string;
+    description?: string;
+    props?: Record<string, unknown>;
+    events?: Record<string, unknown>;
+    styleProperties?: string[];
+    children?: boolean;
+    propSchema?: Record<string, { editor?: string; values?: string[] }>;
+    eventSchema?: Record<string, { payload?: string | null; description?: string }>;
+    createdAt?: string;
+  };
 }): StageResult<string> {
   const allErrors: PipelineError[] = [];
 
@@ -452,6 +382,59 @@ export function generateOmniSource(options: {
     viewWrapperId = `${options.componentName}.view-wrapper`;
   }
 
+  // ── Custom component metadata conversion ──
+  // When componentMeta is provided, extract DSL prop/event declarations and
+  // convert to EmitInput.componentMeta format for // @component / @prop / @event / @style comments.
+
+  let componentProps: EmitInput["component"]["props"];
+  let componentEvents: EmitInput["component"]["events"];
+  let emitComponentMeta: EmitInput["componentMeta"];
+
+  if (options.componentMeta) {
+    const meta = options.componentMeta;
+    const rawProps = meta.props as Record<string, Record<string, unknown>> | undefined;
+    const rawEvents = meta.events as Record<string, Record<string, unknown>> | undefined;
+
+    // DSL prop declarations (e.g. `prop title: String = ""`)
+    componentProps = rawProps
+      ? Object.entries(rawProps).map(([name, schema]) => ({
+          name,
+          type: (schema.type as string) || "String",
+          default: schema.default,
+        }))
+      : undefined;
+
+    // DSL event declarations (e.g. `event onAction`)
+    componentEvents = rawEvents
+      ? Object.keys(rawEvents).map((name) => ({ name }))
+      : undefined;
+
+    // Editor metadata comments (replaces old *.meta.json sidecar)
+    emitComponentMeta = {
+      id: (meta.id as string) || options.componentName,
+      category: (meta.category as string) || "Custom",
+      description: (meta.description as string) || "",
+      children: (meta.children as boolean) ?? true,
+      styleProperties: (meta.styleProperties as string[]) || [],
+      propSchema: rawProps
+        ? Object.fromEntries(
+            Object.entries(rawProps).map(([name, p]) => [
+              name,
+              { editor: p.editor as string, values: p.values as string[] },
+            ])
+          )
+        : undefined,
+      eventSchema: rawEvents
+        ? Object.fromEntries(
+            Object.entries(rawEvents).map(([name, e]) => [
+              name,
+              { payload: e.payload as string, description: e.description as string },
+            ])
+          )
+        : undefined,
+    };
+  }
+
   // Assemble the full EmitInput
   const emitInput: EmitInput = {
     codeTabType: (mainTab.type as "logic" | "event") ?? "logic",
@@ -463,6 +446,8 @@ export function generateOmniSource(options: {
       computeds: componentComputeds,
       storeRefs: [...bindings.storeRefs.keys()],
       fns: lowered.functions,
+      props: componentProps,
+      events: componentEvents,
       view: roots.length > 0 ? {
         id: viewWrapperId,
         path: viewWrapperId,
@@ -483,6 +468,7 @@ export function generateOmniSource(options: {
       } : null,
       style: componentStyle,
     },
+    componentMeta: emitComponentMeta,
   };
 
   // Emit the source document
@@ -623,107 +609,3 @@ function emitStoreBlock(store: StoreDef): string {
   return w.toString();
 }
 
-function applyStyles(roots: ViewNode[]): void {
-  for (const r of roots) {
-    walkApply(r);
-  }
-  function walkApply(n: ViewNode): void {
-    n.resolvedStyle = resolveStyle(n);
-    for (const c of n.children) walkApply(c);
-  }
-}
-
-export function collectStylesFromEntries(
-  elements: Array<{ id: string; styles?: StyleEntry[] }>,
-  roots?: ViewNode[],
-): {
-  componentStyle: Record<string, Record<string, string>>;
-  elementClassMap: Map<string, string[]>;
-  elementInlineMap: Map<string, Record<string, string>>;
-} {
-  const componentStyle: Record<string, Record<string, string>> = {};
-  const elementClassMap = new Map<string, string[]>();
-  const elementInlineMap = new Map<string, Record<string, string>>();
-
-  // Phase 1: Process StyleEntry[] from design elements (new style-panel path)
-  for (const el of elements) {
-    if (!el.styles?.length) continue;
-    const classNames: string[] = [];
-    const inlineStyles: Record<string, string> = {};
-
-    for (const entry of el.styles) {
-      switch (entry.type) {
-        case "class": {
-          const rules: Record<string, string> = {};
-          for (const prop of entry.properties) {
-            rules[prop.name] = prop.value;
-          }
-          // Issue 2: merge instead of overwrite on class name collision
-          if (componentStyle[entry.name]) {
-            componentStyle[entry.name] = { ...componentStyle[entry.name], ...rules };
-          } else {
-            componentStyle[entry.name] = rules;
-          }
-          classNames.push(entry.name);
-          break;
-        }
-        case "variable": {
-          const varName = entry.name;
-          const className = variableToClassName(varName);
-          const rules = { [varName]: entry.properties[0]?.value ?? "" };
-          // Issue 2: merge instead of overwrite on class name collision
-          if (componentStyle[className]) {
-            componentStyle[className] = { ...componentStyle[className], ...rules };
-          } else {
-            componentStyle[className] = rules;
-          }
-          classNames.push(className);
-          break;
-        }
-        case "inline": {
-          for (const prop of entry.properties) {
-            inlineStyles[prop.name] = prop.value;
-          }
-          break;
-        }
-      }
-    }
-
-    // Issue 3: deduplicate class names before storing
-    if (classNames.length > 0) {
-      elementClassMap.set(el.id, [...new Set(classNames)]);
-    }
-    if (Object.keys(inlineStyles).length > 0) {
-      elementInlineMap.set(el.id, inlineStyles);
-    }
-  }
-
-  // Phase 2: Merge resolvedStyle.cssRules from ViewNode tree (Issue 1).
-  // applyStyles(roots) computed resolvedStyle on each ViewNode with cssRules from
-  // snake_case props (e.g. background_color -> background).  Make sure those rules
-  // end up in componentStyle under the correct class name so they appear in the
-  // emitted style block, not just as inline HTML attrs.
-  if (roots) {
-    walkViewNodes(roots, (n) => {
-      if (!n.resolvedStyle) return;
-      const { cssRules, cssClassName } = n.resolvedStyle;
-      if (!cssRules || Object.keys(cssRules).length === 0) return;
-
-      if (componentStyle[cssClassName]) {
-        componentStyle[cssClassName] = { ...componentStyle[cssClassName], ...cssRules };
-      } else {
-        componentStyle[cssClassName] = cssRules;
-      }
-    });
-  }
-
-  return { componentStyle, elementClassMap, elementInlineMap };
-}
-
-/** Walk a ViewNode tree breadth-first, invoking callback on every node. */
-function walkViewNodes(nodes: ViewNode[], callback: (node: ViewNode) => void): void {
-  for (const n of nodes) {
-    callback(n);
-    walkViewNodes(n.children, callback);
-  }
-}
