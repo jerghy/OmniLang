@@ -3,5 +3,4 @@ export { parseOmniSource } from "./omni-parser";
 export { validate } from "./validator";
 export { generateOmniSource, generateOmniFiles } from "./pipeline";
 export { emitTokens } from "./token-emitter";
-export { emitCustomComponents } from "./custom-component-emitter";
 export type * from "./types";

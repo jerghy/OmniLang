@@ -3,7 +3,7 @@ import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../codegraph/store";
 import { parseOmniSource } from "../../services/codegen";
 import { api } from "../../services/api";
-import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../../services/project/project-service";
+import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../../services/project/component-service";
 import { useComponentRegistry } from "../../store/componentRegistry";
 import type { ElementData } from "../../core/types";
 
