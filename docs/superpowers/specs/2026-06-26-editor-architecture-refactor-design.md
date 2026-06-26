@@ -30,8 +30,66 @@ editor/e2e:          ~1,300 行 | 8 文件 (Playwright)
 | 8 | 19 个面板无统一接口模式 | panels/ | 7,002 | 🟡 |
 | 9 | 后端单体：所有 API 路由在一个文件 | server/main.py | 1,096 | 🔴 |
 | 10 | 类型定义分散在 4 个不同位置 | - | - | 🟡 |
+| 11 | 组件创建默认 props 不统一：LayoutView 拖入用硬编码英文，ComponentTree 右键添加用 COMPONENT_PROTOCOL 中文 | LayoutView.tsx, ComponentTree.tsx | - | 🔴 |
+| 12 | CATEGORY_LABELS/ORDER/ICONS 在两个面板中重复维护 | ComponentPalette.tsx, ComponentTree.tsx | ~60 | 🟡 |
+| 13 | canvas/toast.ts 死代码：自定义 toast 实现无任何 import | canvas/toast.ts | 44 | 🟡 |
+| 14 | 设计/代码模式 Toolbar JSX 各写一份（~120+120 行） | App.tsx | ~240 | 🟡 |
 
-### 1.3 依赖关联项目
+### 1.3 功能不一致问题详查
+
+审查发现 5 处"同一件事有多个做法"的问题，均需在重构中统一：
+
+#### 1.3.1 组件创建默认 Props 不一致（🔴 严重）
+
+`LayoutView.tsx` 的 `handleDrop`（从组件面板拖入画布）只有 4 个 tag 有硬编码默认值，且是英文：
+
+```typescript
+// LayoutView.tsx:185-189 — 仅覆盖 4 种组件
+if (tag === "Text") props.label = "Text";
+else if (tag === "Heading") props.label = "Heading";
+else if (tag === "Button") props.label = "Button";
+else if (tag === "Input") props.placeholder = "Input";
+```
+
+`ComponentTree.tsx` 的 `getDefaultProps`（右键→添加子组件）读取 `COMPONENT_PROTOCOL` 中所有组件的默认 props，且是中文占位：
+
+```typescript
+// ComponentTree.tsx:573-589 — 完整覆盖所有组件
+function getDefaultProps(tag: string): Record<string, unknown> {
+  const meta = COMPONENT_PROTOCOL[tag];
+  // ... 读取 schema.default 并补充中文 placeholder
+}
+```
+
+**影响：** 同一个 Button，从面板拖出显示 "Button"（英文），右键添加显示 "按钮"（中文）。
+
+**解决方案：** 将 `getDefaultProps` 提取到 `core/component-defaults.ts`，LayoutView、ComponentTree、OmniDriver 三处统一调用。
+
+#### 1.3.2 常量重复维护（🟡）
+
+`CATEGORY_LABELS`、`CATEGORY_ORDER`、`COMPONENT_ICONS` 三份常量在 `ComponentPalette.tsx` 和 `ComponentTree.tsx` 中各维护一份完全相同的副本。新增组件/分类时需改两处。
+
+**解决方案：** 收敛到 `core/constants/components.ts`，两处 import 同一份。
+
+#### 1.3.3 canvas/toast.ts 死代码（🟡）
+
+`canvas/toast.ts` (44 行) 定义了 `showToast`/`getToasts`/`TOAST_STYLES`，但**没有任何文件 import 它**。实际使用的是 `notifications/toast.ts`（基于 sonner 库）。
+
+**解决方案：** 删除 `canvas/toast.ts`。
+
+#### 1.3.4 OmniDriver 不设默认 Props（🟡）
+
+`OmniDriver.ts:544-594` 创建 view 元素时 `props: cleanProps`（调用者传什么用什么），不合并 COMPONENT_PROTOCOL 的默认值。AI/脚本调用方必须自己知道每个组件的必填属性。
+
+**解决方案：** OmniDriver 创建组件时也调用统一的 `getDefaultProps(tag)` 作为 props 基底。
+
+#### 1.3.5 双模式 Toolbar 重复（🟡）
+
+`App.tsx` 中设计模式和代码模式的工具栏 JSX 各写一份（~120 行 × 2），编译、运行、undo/redo 等按钮完全一致但被复制。
+
+**解决方案：** 提取 `<EditorToolbar>` 共享组件到 `ui/shell/Toolbar.tsx`，模式特定按钮通过 children/插槽传入。
+
+### 1.4 依赖关联项目
 
 | 项目 | 关系 |
 |------|------|
@@ -73,6 +131,7 @@ core/         ← 微内核（types, state atoms, commands, events）
 editor/client/src/
 ├── core/
 │   ├── types/           # 全部共享类型（从各处收敛）
+│   ├── constants/       # 共享常量（分类、图标、组件默认 props 工厂）
 │   ├── state/           # 按域拆分的 Zustand atoms（含 codegraph）
 │   ├── commands/        # 命令模式 (undo/redo)
 │   └── events/          # 事件总线 (mitt)
@@ -179,6 +238,27 @@ export const editorBus = mitt<EditorEvents>()
 ### 3.4 命令模式
 
 保持现有 17 个命令文件不变，迁移到 `core/commands/`。`CommandContext` 接口统一在 `core/commands/types.ts`。
+
+### 3.5 共享常量 + 组件默认 Props 工厂
+
+当前分散在三处的常量/函数统一收敛到 `core/constants/`：
+
+```
+core/constants/
+├── components.ts     # CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS（单一份）
+├── defaults.ts       # getDefaultProps(tag) — 组件默认 props 工厂
+└── index.ts
+```
+
+**`getDefaultProps(tag)` — 统一入口：**
+
+从 ComponentTree.tsx 的 `getDefaultProps` 提取（该实现已是正确的——读 COMPONENT_PROTOCOL 所有默认值 + 中文占位），统一为：
+
+- `LayoutView.handleDrop` — 拖入时调用 `getDefaultProps(tag)` 替代硬编码 4 个 if-else
+- `ComponentTree.handleAddChild` — 已有正确实现，改为 import 共享版本
+- `OmniDriver.component()` — 调用 `getDefaultProps(tag)` 作为 props 基底，调用者传入的 props 覆盖默认值
+
+这样三个入口创建的组件 props 完全一致。
 
 ---
 
@@ -311,6 +391,20 @@ function compile(elements: ElementData[], wires: WireData[], ...): CompileResult
 
 后续 PR 中可引入 PanelPlugin（约 30 行接口 + 40 行注册表），收益是新增面板时无需修改 ActivityBar。
 
+### 5.1b 共享 Toolbar 组件（解决双模式重复）
+
+当前设计/代码模式的工具栏在 App.tsx 中各写一份（~240 行重复）。重构后：
+
+```
+ui/shell/
+├── Toolbar.tsx              # 共享工具栏容器 + 通用按钮（编译、运行、undo/redo、save、目标选择器）
+├── DesignToolbar.tsx        # 设计模式特有按钮（viewport、state preview、wire 模式、HUD、焦点顺序）
+├── CodeToolbar.tsx          # 代码模式特有按钮（模板、连接器、自动布局）
+└── index.ts
+```
+
+`DesignModeLayout.tsx` 和 `CodeModeLayout.tsx` 各组合 `<Toolbar>` + 各自的特定按钮。
+
 ### 5.2 巨型文件拆分
 
 **PropertyPanel.tsx** (1,362 行 → 拆 4 部分):
@@ -339,6 +433,9 @@ ui/panels/
 | 原始内容 | 行数 | 目标位置 |
 |----------|------|----------|
 | S 样式常量 | 30 | `ui/shell/theme.ts` |
+| 设计模式 Toolbar JSX | 120 | `ui/shell/DesignToolbar.tsx` |
+| 代码模式 Toolbar JSX | 120 | `ui/shell/CodeToolbar.tsx` |
+| 共享 Toolbar 按钮 | 60 | `ui/shell/Toolbar.tsx` |
 | 自定义组件保存/加载函数 | 100 | `services/project/component-service.ts` |
 | handleCompile | 150 | `services/compiler/` + `features/compiler/useCompile.ts` |
 | handleRun / handleStop | 100 | `services/runtime/` + `features/compiler/useRun.ts` |
@@ -486,7 +583,9 @@ server/
 | 1.3 | 拆分 `store/editor.ts` → 6 个 state atoms，保持 API 兼容 | 中 |
 | 1.4 | 迁移 `commands/` → `core/commands/`，更新 import | 低 |
 | 1.5 | 迁移 `constants/style-properties.ts` → `core/types/style.ts` | 低 |
-| 1.6 | 运行全部测试 + TypeScript 检查，验证通过 | - |
+| 1.6 | 创建 `core/constants/`：提取 CATEGORY_LABELS/ORDER/ICONS + getDefaultProps，统一三处调用 | 低 |
+| 1.7 | 删除死代码 `canvas/toast.ts`（确认无 import 后移除） | 低 |
+| 1.8 | 运行全部测试 + TypeScript 检查，验证通过 | - |
 
 **验收标准：** `npm test` 全绿，`npm run build` 成功，编辑器 UI 不变。
 
@@ -525,7 +624,7 @@ server/
 
 | # | 步骤 | 风险 |
 |---|------|------|
-| 3.1 | 创建 `ui/shell/`，提取 AppShell, Toolbar（design+code）, StatusBar | 中 |
+| 3.1 | 创建 `ui/shell/`，提取共享 Toolbar + DesignToolbar + CodeToolbar + StatusBar | 中 |
 | 3.2 | 重组 `ui/canvas/` → design/ + code/ + shared/ | 中 |
 | 3.3 | 重组 `ui/inspector/`，拆分 PropertyPanel.tsx（1,362→~300 行 + 4 sections） | 高 |
 | 3.4 | 迁移所有面板文件到 `ui/panels/`（仅文件迁移，不改接口） | 中 |
@@ -562,4 +661,5 @@ server/
 - ❌ 不修改 API 端点路径
 - ❌ 不修改数据格式（.omni、.omni-editor.toml 等）
 - ❌ 不修改 omni-compiler、omnilang、vscode-extension
-- ❌ 不在这个重构中优化逻辑代码（逻辑 1:1 复制，优化留给后续 PR）
+- ❌ 不在这个重构中优化逻辑代码（除 1.3 节列出的不一致修复外，其余逻辑 1:1 复制，优化留给后续 PR）
+- ✅ 1.3 节列出的 5 个不一致项：默认 props 统一、常量去重、死代码删除、OmniDriver 默认 props、双模式 Toolbar 提取 — 这些是 bug 修复和去重，不改变用户可见界面
