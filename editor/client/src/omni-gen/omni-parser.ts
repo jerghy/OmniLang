@@ -474,6 +474,11 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
   const idMatch = trimmed.match(/id="([^"]*)"/);
   const id = idMatch ? idMatch[1] : `${ctx.currentComponent}.${tag}.${ctx.elements.length}`;
 
+  // Captures one or more [\w-] class names after "class:", separated by whitespace.
+  // Lookahead terminates on:
+  //   - whitespace + known attribute prefix (key=, @, bind:, style:, >, //)
+  //   - end-of-string
+  //   - /> or > immediately (no trailing space, e.g. <div class: foo>)
   const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$|\/>|>)/);
   const className = classMatch ? classMatch[1] : "";
 

@@ -206,7 +206,7 @@ describe("parseStylesFromAST", () => {
   });
 });
 
-describe("Integration: StyleEntry round-trip", () => {
+describe("Integration: StyleEntry codegen and round-trip", () => {
   it("round-trips class and variable StyleEntry through generate -> parse", () => {
     const elements: ElementData[] = [
       {
@@ -242,7 +242,9 @@ describe("Integration: StyleEntry round-trip", () => {
     expect(result.value).not.toBeNull();
 
     const parsed = parseOmniSource(result.value!);
-    expect(parsed.errors.length).toBeLessThanOrEqual(2);
+    // Only check for hard errors — non-fatal warnings can vary by parser version
+    const hardErrors = parsed.errors.filter(e => e.severity === "error");
+    expect(hardErrors).toHaveLength(0);
     expect(parsed.designElements).not.toBeNull();
 
     const parsedChild = parsed.designElements!.find(el => el.id === "child1");
@@ -257,11 +259,13 @@ describe("Integration: StyleEntry round-trip", () => {
     expect(classEntry.properties).toContainEqual({ name: "padding", value: "16px" });
     expect(classEntry.properties).toContainEqual({ name: "color", value: "#333" });
 
-    // Verify variable entry: name and value preserved (property name may differ after round-trip)
+    // Verify variable entry: name and value preserved (property name may differ after round-trip
+    // because the style block stores --primary-color: #4F46E5, not value: #4F46E5)
     const varEntry = parsedChild!.styles!.find(s => s.type === "variable")!;
     expect(varEntry.name).toBe("--primary-color");
-    expect(varEntry.properties.length).toBeGreaterThanOrEqual(1);
-    expect(varEntry.properties[0].value).toBe("#4F46E5");
+    expect(varEntry.properties).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: "#4F46E5" })])
+    );
   });
 
   it("quotes inline style values in generated .omni source", () => {
@@ -314,5 +318,49 @@ describe("Integration: StyleEntry round-trip", () => {
 
     // elementInlineMap should have inline styles only
     expect(result.elementInlineMap.get("a")).toEqual({ display: "flex" });
+  });
+
+  it("parses class: attribute when it is the last attribute before >", () => {
+    // Regression test: parser must capture class names when class: is the
+    // last attribute before the closing > without a trailing space.
+    // Each element must be on its own line for parseOmniSource.
+    const src = [
+      "component Test {",
+      "    view {",
+      '        <div class: foo/>',
+      "    }",
+      "}",
+    ].join("\n");
+    const parsed = parseOmniSource(src);
+    const el = parsed.designElements?.find(e => e.props.className === "foo");
+    expect(el).toBeDefined();
+  });
+
+  it("parses class: attribute with multiple names before >", () => {
+    // Same as above but with multiple space-separated class names
+    const src = [
+      "component Test {",
+      "    view {",
+      '        <div class: foo bar baz/>',
+      "    }",
+      "}",
+    ].join("\n");
+    const parsed = parseOmniSource(src);
+    const el = parsed.designElements?.find(e => e.props.className === "foo bar baz");
+    expect(el).toBeDefined();
+  });
+
+  it("parses class: attribute before other attributes (not last)", () => {
+    // Verify that existing behavior (class: before other attrs) still works
+    const src = [
+      "component Test {",
+      "    view {",
+      '        <div class: foo id="bar"/>',
+      "    }",
+      "}",
+    ].join("\n");
+    const parsed = parseOmniSource(src);
+    const el = parsed.designElements?.find(e => e.props.className === "foo");
+    expect(el).toBeDefined();
   });
 });
