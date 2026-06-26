@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { StyleProperty } from "../constants/style-properties";
 import {
   isColorProperty,
@@ -70,37 +70,126 @@ function parseValueAndUnit(raw: string): { num: string; unit: string } {
 const styles = {
   row: { display: "flex", gap: 6, alignItems: "center", marginBottom: 4 } as React.CSSProperties,
   input: {
-    background: "#1e1e2e", color: "#cdd6f4", border: "1px solid #45475a",
+    background: "#fff", color: "#374151", border: "1px solid #d1d5db",
     borderRadius: 4, padding: "4px 8px", fontSize: 12, flex: 1,
   } as React.CSSProperties,
-  select: { background: "#1e1e2e", color: "#cdd6f4", border: "1px solid #45475a",
+  select: { background: "#fff", color: "#374151", border: "1px solid #d1d5db",
     borderRadius: 4, padding: "4px 8px", fontSize: 12, width: 110, flex: "none" } as React.CSSProperties,
   deleteBtn: {
-    background: "none", border: "none", color: "#f38ba8", cursor: "pointer",
+    background: "none", border: "none", color: "#DC2626", cursor: "pointer",
     fontSize: 14, padding: "0 4px",
   } as React.CSSProperties,
 };
 
-const PropertyNameSelect: React.FC<{
+const PropertyNameSearchSelect: React.FC<{
   value: string;
   onChange: (name: string) => void;
   includeCustom?: boolean;
-}> = ({ value, onChange, includeCustom }) => (
-  <select
-    style={styles.select}
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-  >
-    {PROPERTY_CATEGORIES.map((cat) => (
-      <optgroup key={cat.label} label={cat.label}>
-        {cat.props.map((n) => (
-          <option key={n} value={n}>{n}</option>
-        ))}
-      </optgroup>
-    ))}
-    {includeCustom && <option value={value}>{value}</option>}
-  </select>
-);
+}> = ({ value, onChange, includeCustom }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [hoveredValue, setHoveredValue] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click and Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => { setIsOpen(false); setSearchText(""); };
+    const mouseHandler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", mouseHandler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", mouseHandler);
+      document.removeEventListener("keydown", keyHandler);
+    };
+  }, [isOpen]);
+
+  const filtered = PROPERTY_CATEGORIES
+    .map(cat => ({
+      ...cat,
+      props: cat.props.filter(p =>
+        p.toLowerCase().includes(searchText.toLowerCase())
+      )
+    }))
+    .filter(cat => cat.props.length > 0);
+
+  // Custom property support: if includeCustom and value starts with --,
+  // show it as an option when it matches the search
+  const showCustom = includeCustom && value.startsWith("--") &&
+    value.toLowerCase().includes(searchText.toLowerCase());
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ ...styles.select, cursor: "pointer" }}
+      >
+        {value || "select property..."}
+      </div>
+      {isOpen && (
+        <div style={{
+          position: "absolute", zIndex: 10,
+          background: "#fff", border: "1px solid #d1d5db",
+          borderRadius: 4, marginTop: 2,
+          maxHeight: 250, overflow: "auto",
+          width: "100%", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        }}>
+          <input
+            autoFocus
+            placeholder="🔍 搜索属性..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", border: "none", borderBottom: "1px solid #e5e7eb", outline: "none", fontSize: 12 }}
+          />
+          {filtered.length === 0 && !showCustom && searchText && (
+            <div style={{ padding: "8px", color: "#9CA3AF", fontSize: 11 }}>无匹配属性</div>
+          )}
+          {filtered.map(cat => (
+            <div key={cat.label}>
+              <div style={{ padding: "4px 8px", fontSize: 10, color: "#6B7280", fontWeight: 600 }}>{cat.label}</div>
+              {cat.props.map(p => (
+                <div key={p}
+                  onClick={() => { onChange(p); setIsOpen(false); setSearchText(""); }}
+                  onMouseEnter={() => setHoveredValue(p)}
+                  onMouseLeave={() => setHoveredValue(null)}
+                  style={{
+                    padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                    background: p === value ? "#EEF2FF" : hoveredValue === p ? "#F3F4F6" : "transparent",
+                    color: p === value ? "#4F46E5" : "#374151",
+                  }}
+                >
+                  {p}
+                </div>
+              ))}
+            </div>
+          ))}
+          {showCustom && (
+            <div key="custom-section">
+              <div style={{ padding: "4px 8px", fontSize: 10, color: "#6B7280", fontWeight: 600 }}>Custom</div>
+              <div
+                onClick={() => { onChange(value); setIsOpen(false); setSearchText(""); }}
+                onMouseEnter={() => setHoveredValue(value)}
+                onMouseLeave={() => setHoveredValue(null)}
+                style={{
+                  padding: "4px 8px", cursor: "pointer", fontSize: 12,
+                  background: hoveredValue === value ? "#F3F4F6" : "#EEF2FF",
+                  color: "#4F46E5",
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const DeleteButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button style={styles.deleteBtn} onClick={onClick} title="Delete property">×</button>
@@ -116,7 +205,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
   if (color) {
     return (
       <div style={styles.row}>
-        <PropertyNameSelect
+        <PropertyNameSearchSelect
           value={property.name}
           onChange={(name) => onChange({ ...property, name })}
           includeCustom={isCustom}
@@ -144,7 +233,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
     if (Array.isArray(dropdownOpts)) {
       return (
         <div style={styles.row}>
-          <PropertyNameSelect
+          <PropertyNameSearchSelect
             value={property.name}
             onChange={(name) => onChange({ ...property, name })}
             includeCustom={isCustom}
@@ -165,7 +254,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
     // dropdownOpts is null — free text for properties like transform, font-family
     return (
       <div style={styles.row}>
-        <PropertyNameSelect
+        <PropertyNameSearchSelect
           value={property.name}
           onChange={(name) => onChange({ ...property, name })}
           includeCustom={isCustom}
@@ -186,7 +275,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
   if (property.name === "opacity") {
     return (
       <div style={styles.row}>
-        <PropertyNameSelect
+        <PropertyNameSearchSelect
           value={property.name}
           onChange={(name) => onChange({ ...property, name })}
           includeCustom={isCustom}
@@ -217,7 +306,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
 
     return (
       <div style={styles.row}>
-        <PropertyNameSelect
+        <PropertyNameSearchSelect
           value={property.name}
           onChange={(name) => onChange({ ...property, name })}
           includeCustom={isCustom}
@@ -253,7 +342,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
   // Fallback: generic text input
   return (
     <div style={styles.row}>
-      <PropertyNameSelect
+      <PropertyNameSearchSelect
         value={property.name}
         onChange={(name) => onChange({ ...property, name })}
         includeCustom={isCustom}
