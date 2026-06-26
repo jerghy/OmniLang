@@ -6,7 +6,8 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { resolveStyle } from "../style-resolver";
-import { collectStylesFromEntries, parseStylesFromAST } from "../pipeline";
+import { collectStylesFromEntries, parseStylesFromAST, generateOmniSource } from "../pipeline";
+import { parseOmniSource } from "../omni-parser";
 import type { StyleEntry } from "../../constants/style-properties";
 import type { ViewNode } from "../types";
 import type { ElementData } from "../../store/editor";
@@ -202,5 +203,116 @@ describe("parseStylesFromAST", () => {
     expect(propNames).toContain("padding");
     expect(propNames).toContain("background_color");
     expect(propNames).not.toContain("label");
+  });
+});
+
+describe("Integration: StyleEntry round-trip", () => {
+  it("round-trips class and variable StyleEntry through generate -> parse", () => {
+    const elements: ElementData[] = [
+      {
+        id: "root",
+        nodeType: "view",
+        tag: "div",
+        props: {},
+        children: ["child1"],
+        parentId: null,
+      },
+      {
+        id: "child1",
+        nodeType: "view",
+        tag: "div",
+        props: {},
+        children: [],
+        parentId: "root",
+        styles: [
+          { id: "s_c1", type: "class", name: "card", properties: [{ name: "padding", value: "16px" }, { name: "color", value: "#333" }] },
+          { id: "s_v1", type: "variable", name: "--primary-color", properties: [{ name: "value", value: "#4F46E5" }] },
+        ],
+      },
+    ];
+
+    const result = generateOmniSource({
+      designElements: elements,
+      designWires: [],
+      codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "", graph: { elements: [], wires: [] }, variables: [] }],
+      componentName: "Test",
+    });
+
+    expect(result.errors.some(e => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+
+    const parsed = parseOmniSource(result.value!);
+    expect(parsed.errors.length).toBeLessThanOrEqual(2);
+    expect(parsed.designElements).not.toBeNull();
+
+    const parsedChild = parsed.designElements!.find(el => el.id === "child1");
+    expect(parsedChild).toBeDefined();
+    expect(parsedChild!.styles).toBeDefined();
+    expect(parsedChild!.styles!.length).toBe(2);
+
+    // Verify class entry
+    const classEntry = parsedChild!.styles!.find(s => s.type === "class")!;
+    expect(classEntry.name).toBe("card");
+    expect(classEntry.properties).toHaveLength(2);
+    expect(classEntry.properties).toContainEqual({ name: "padding", value: "16px" });
+    expect(classEntry.properties).toContainEqual({ name: "color", value: "#333" });
+
+    // Verify variable entry: name and value preserved (property name may differ after round-trip)
+    const varEntry = parsedChild!.styles!.find(s => s.type === "variable")!;
+    expect(varEntry.name).toBe("--primary-color");
+    expect(varEntry.properties.length).toBeGreaterThanOrEqual(1);
+    expect(varEntry.properties[0].value).toBe("#4F46E5");
+  });
+
+  it("quotes inline style values in generated .omni source", () => {
+    const elements: ElementData[] = [
+      {
+        id: "root",
+        nodeType: "view",
+        tag: "div",
+        props: {},
+        children: [],
+        parentId: null,
+        styles: [
+          { id: "s_i1", type: "inline", name: "", properties: [{ name: "padding", value: "16px" }] },
+        ],
+      },
+    ];
+
+    const result = generateOmniSource({
+      designElements: elements,
+      designWires: [],
+      codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "", graph: { elements: [], wires: [] }, variables: [] }],
+      componentName: "Test",
+    });
+
+    expect(result.errors.some(e => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+
+    // The source emitter wraps inline style values in double quotes:
+    // style: { padding: "16px" }
+    expect(result.value!).toContain("style: {");
+    expect(result.value!).toContain('padding: "16px"');
+  });
+
+  it("collectStylesFromEntries handles mixed class+variable+inline entries on same element", () => {
+    const styles: StyleEntry[] = [
+      { id: "s1", type: "class", name: "btn", properties: [{ name: "color", value: "red" }, { name: "padding", value: "8px" }] },
+      { id: "s2", type: "variable", name: "--gap", properties: [{ name: "value", value: "8px" }] },
+      { id: "s3", type: "inline", name: "", properties: [{ name: "display", value: "flex" }] },
+    ];
+    const elements = [{ id: "a", styles }];
+
+    const result = collectStylesFromEntries(elements);
+
+    // componentStyle should have btn class and _v-gap (from variable)
+    expect(result.componentStyle["btn"]).toEqual({ color: "red", padding: "8px" });
+    expect(result.componentStyle["_v-gap"]).toEqual({ "--gap": "8px" });
+
+    // elementClassMap should have both class names
+    expect(result.elementClassMap.get("a")).toEqual(["btn", "_v-gap"]);
+
+    // elementInlineMap should have inline styles only
+    expect(result.elementInlineMap.get("a")).toEqual({ display: "flex" });
   });
 });

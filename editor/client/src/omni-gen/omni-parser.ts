@@ -3,6 +3,7 @@ import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./pipeline";
+import { useComponentRegistry } from "../store/componentRegistry";
 
 type ParserState =
   | "ROOT"
@@ -32,9 +33,17 @@ interface ParseContext {
   braceDepth: number;
   pendingEditFlags: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
+  /** Parsed prop declarations (e.g. `prop title: String = ""`) */
+  props: Array<{ name: string; type: string; default?: unknown }>;
+  /** Parsed event declarations (e.g. `event onAction`) */
+  events: Array<{ name: string }>;
+  /** Parsed component metadata from // @component, // @prop, // @event, // @style comments */
+  componentMeta: Record<string, unknown> | null;
 }
 
 export function parseOmniSource(source: string): ParseResult {
+  const lines = source.split("\n");
+
   const ctx: ParseContext = {
     state: "ROOT",
     stateStack: [],
@@ -54,9 +63,11 @@ export function parseOmniSource(source: string): ParseResult {
     viewParentStack: [],
     braceDepth: 0,
     pendingEditFlags: null,
+    props: [],
+    events: [],
+    componentMeta: null,
   };
 
-  const lines = source.split("\n");
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
@@ -150,12 +161,77 @@ export function parseOmniSource(source: string): ParseResult {
     codeTabs: ctx.codeTabs,
     imports: ctx.imports,
     errors: ctx.errors,
+    componentMeta: ctx.componentMeta,
+    props: ctx.props.length > 0 ? ctx.props : undefined,
+    events: ctx.events.length > 0 ? ctx.events : undefined,
   };
 }
 
 // ── ROOT state handlers ──
 
+const _COMPONENT_META_RE = /^\/\/\s*@component\s+(.+)/;
+const _PROP_META_RE = /^\/\/\s*@prop\s+(.+)/;
+const _EVENT_META_RE = /^\/\/\s*@event\s+(.+)/;
+const _STYLE_META_RE = /^\/\/\s*@style\s+(.+)/;
+
 function parseRootLine(trimmed: string, ctx: ParseContext): void {
+  // Component metadata comments (replaces old *.meta.json)
+  // @component id=... category=... children=... description=...
+  if (trimmed.startsWith("// @component ")) {
+    const m = trimmed.match(/^\/\/\s*@component\s+(.+)/);
+    if (m) {
+      const meta = parseKeyValueAttrs(m[1]);
+      ctx.componentMeta = ctx.componentMeta || {};
+      if (meta.id !== undefined) ctx.componentMeta.id = meta.id;
+      if (meta.category !== undefined) ctx.componentMeta.category = meta.category;
+      if (meta.children !== undefined) ctx.componentMeta.children = meta.children === "true";
+      if (meta.description !== undefined) ctx.componentMeta.description = meta.description;
+    }
+    return;
+  }
+  // @prop name=... editor=... values=...
+  if (trimmed.startsWith("// @prop ")) {
+    const m = trimmed.match(/^\/\/\s*@prop\s+(.+)/);
+    if (m) {
+      const meta = parseKeyValueAttrs(m[1]);
+      if (meta.name) {
+        ctx.componentMeta = ctx.componentMeta || {};
+        ctx.componentMeta.propSchema = ctx.componentMeta.propSchema || ({} as Record<string, unknown>);
+        const schema: Record<string, unknown> = {};
+        if (meta.editor !== undefined) schema.editor = meta.editor;
+        if (meta.values !== undefined) schema.values = String(meta.values).split(",");
+        (ctx.componentMeta.propSchema as Record<string, unknown>)[meta.name] = schema;
+      }
+    }
+    return;
+  }
+  // @event name=... payload=... description=...
+  if (trimmed.startsWith("// @event ")) {
+    const m = trimmed.match(/^\/\/\s*@event\s+(.+)/);
+    if (m) {
+      const meta = parseKeyValueAttrs(m[1]);
+      if (meta.name) {
+        ctx.componentMeta = ctx.componentMeta || {};
+        ctx.componentMeta.eventSchema = ctx.componentMeta.eventSchema || ({} as Record<string, unknown>);
+        const schema: Record<string, unknown> = {};
+        if (meta.payload !== undefined) schema.payload = meta.payload;
+        if (meta.description !== undefined) schema.description = meta.description;
+        (ctx.componentMeta.eventSchema as Record<string, unknown>)[meta.name] = schema;
+      }
+    }
+    return;
+  }
+  // @style <name>
+  if (trimmed.startsWith("// @style ")) {
+    const name = trimmed.slice("// @style ".length).trim();
+    if (name) {
+      ctx.componentMeta = ctx.componentMeta || {};
+      ctx.componentMeta.styleProperties = ctx.componentMeta.styleProperties || [];
+      (ctx.componentMeta.styleProperties as string[]).push(name);
+    }
+    return;
+  }
+
   if (trimmed.startsWith("// @code-tab type=")) {
     const m = trimmed.match(/type=(logic|event)/);
     if (m) {
@@ -192,6 +268,20 @@ function parseRootLine(trimmed: string, ctx: ParseContext): void {
     }
     return;
   }
+}
+
+/**
+ * Parse key=value pairs from a string.
+ * Supports: id=abc123, category=Custom, children=true, description="quoted string"
+ */
+function parseKeyValueAttrs(input: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const regex = /(\w+)=(?:"([^"]*)"|(\S+))/g;
+  let match;
+  while ((match = regex.exec(input)) !== null) {
+    result[match[1]] = match[2] !== undefined ? match[2] : match[3];
+  }
+  return result;
 }
 
 // ── IN_COMPONENT state handlers ──
@@ -232,6 +322,24 @@ function parseComponentLine(trimmed: string, line: string, ctx: ParseContext): v
       ctx.elements.push(codeblockEl(`${ctx.currentComponent}.computed.${m[1]}`, "computed", {
         name: m[1], typeAnnotation: m[2],
       }));
+    }
+    return;
+  }
+
+  // prop (e.g. `prop title: String = ""`)
+  if (trimmed.startsWith("prop ")) {
+    const m = trimmed.match(/prop\s+(\w+):\s*(\w+)(?:\s*=\s*(.+?))?\s*;/);
+    if (m) {
+      ctx.props.push({ name: m[1], type: m[2], default: m[3]?.replace(/^"|"$/g, "") || undefined });
+    }
+    return;
+  }
+
+  // event (e.g. `event onAction`)
+  if (trimmed.startsWith("event ")) {
+    const m = trimmed.match(/event\s+(\w+);/);
+    if (m) {
+      ctx.events.push({ name: m[1] });
     }
     return;
   }
@@ -286,6 +394,18 @@ function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
   if (trimmed.startsWith("<") && !trimmed.startsWith("</")) {
     const indent = line.length - line.trimStart().length;
     const el = parseElementLine(trimmed, ctx);
+
+    // Auto-rename duplicate IDs to avoid parent-child tree corruption
+    if (ctx.elements.some((e) => e.id === el.id)) {
+      console.warn(`[omni-parser] Duplicate element ID "${el.id}" at line — "${trimmed}"; assigning unique ID`);
+      let counter = 1;
+      let newId = `${el.id}__dup${counter}`;
+      while (ctx.elements.some((e) => e.id === newId)) {
+        counter++;
+        newId = `${el.id}__dup${counter}`;
+      }
+      el.id = newId;
+    }
 
     // Parent inference by indent
     while (ctx.viewParentStack.length > 0) {
@@ -354,7 +474,7 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
   const idMatch = trimmed.match(/id="([^"]*)"/);
   const id = idMatch ? idMatch[1] : `${ctx.currentComponent}.${tag}.${ctx.elements.length}`;
 
-  const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$)/);
+  const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$|\/>|>)/);
   const className = classMatch ? classMatch[1] : "";
 
   const events: Record<string, string> = {};
@@ -376,6 +496,12 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
   const textMatch = trimmed.match(/>([^<]*)<\//);
   const textContent = textMatch ? textMatch[1].trim() : "";
 
+  // Detect custom component references: PascalCase tags that match a registry
+  // definition get componentRef set so the canvas can expand them and the
+  // generator can emit proper import statements.
+  const isPascal = /^[A-Z]/.test(tag);
+  const isCustom = isPascal && !!useComponentRegistry.getState().definitions[tag];
+
   return {
     id,
     nodeType: "view",
@@ -383,6 +509,7 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
     props: { ...attrs, ...events, className, ...(textContent ? { label: textContent } : {}) },
     children: [],
     parentId: null,
+    ...(isCustom ? { componentRef: tag } : {}),
   };
 }
 
