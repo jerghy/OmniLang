@@ -47,7 +47,7 @@ function makeResolvedStyle(
 // ── SourceEmitter + AnnotationStrategy integration ──
 
 describe("SourceEmitter annotation integration", () => {
-  it("emits // @code-tab at the top of the file", () => {
+  it("emits // @omni-file at the top of the file", () => {
     const root: ViewNode = makeNode({
       id: "r",
       path: "Comp.r",
@@ -78,11 +78,11 @@ describe("SourceEmitter annotation integration", () => {
     const result = emitter.emitDocument(input, new Map());
     const lines = result.split("\n");
 
-    // @code-tab should be first line
-    expect(lines[0]).toBe("// @code-tab type=logic");
+    // @omni-file should be first line
+    expect(lines[0]).toBe("// @omni-file type=logic");
   });
 
-  it("emits // @code-tab type=event for event tab", () => {
+  it("emits // @omni-file type=event for event tab", () => {
     const root: ViewNode = makeNode({
       id: "r",
       path: "Comp.r",
@@ -112,7 +112,7 @@ describe("SourceEmitter annotation integration", () => {
     const emitter = new SourceEmitter(strategy);
     const result = emitter.emitDocument(input, new Map());
     const lines = result.split("\n");
-    expect(lines[0]).toBe("// @code-tab type=event");
+    expect(lines[0]).toBe("// @omni-file type=event");
   });
 
   it("emits // @edit before each view element tag", () => {

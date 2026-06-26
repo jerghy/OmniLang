@@ -29,7 +29,7 @@ export class SourceEmitter {
   emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string {
     const writer = new CodeWriter();
 
-    // @code-tab
+    // @omni-file
     if (this.annotationStrategy) {
       writer.emit(this.annotationStrategy.beforeFile());
     }
@@ -118,7 +118,7 @@ export class SourceEmitter {
     for (const fn of comp.fns) {
       // Event handler boundary marker (for round-trip tab reconstruction)
       if (input.codeTabType === "event") {
-        w.emit(`// @code-tab type=event label=${fn.name}`);
+        w.emit(`// @omni-file type=event label=${fn.name}`);
       }
       const chain = chains.get(fn.name);
       if (chain) w.emit(formatChainBlock(chain));

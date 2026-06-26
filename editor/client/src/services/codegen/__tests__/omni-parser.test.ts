@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { parseOmniSource } from "../omni-parser";
 
-const SIMPLE_OMNI = `// @code-tab type=logic
+const SIMPLE_OMNI = `// @omni-file type=logic
 import omniview;
 
 component Counter {
@@ -27,15 +27,15 @@ component Counter {
 `;
 
 describe("parseOmniSource", () => {
-  it("parses @code-tab directive", () => {
+  it("parses @omni-file directive", () => {
     const result = parseOmniSource(SIMPLE_OMNI);
     expect(result.errors).toEqual([]);
     expect(result.codeTabs).toHaveLength(1);
     expect(result.codeTabs[0].type).toBe("logic");
   });
 
-  it("parses @code-tab type=event produces event type", () => {
-    const result = parseOmniSource(`// @code-tab type=event
+  it("parses @omni-file type=event produces event type", () => {
+    const result = parseOmniSource(`// @omni-file type=event
 component Test { view { <div/> } }`);
     expect(result.codeTabs).toHaveLength(1);
     expect(result.codeTabs[0].type).toBe("event");

@@ -2,7 +2,7 @@
 // Phase C: Emit custom component definitions as standalone OmniLang source files.
 //
 // Produces per-spec format:
-//   // @code-tab type=logic
+//   // @omni-file type=logic
 //   import omniview;
 //   component MyCard {
 //       prop title: String = "";
@@ -31,7 +31,7 @@ import type { StyleEntry, StyleProperty } from "../../core/types";
  *
  *   src/components/{Name}.omni
  *
- * The output is self-contained: `// @code-tab type=logic`, `import omniview;`,
+ * The output is self-contained: `// @omni-file type=logic`, `import omniview;`,
  * `component { prop / event / view / style }`. No separate `// @component-meta` comment.
  */
 export function emitCustomComponents(
@@ -58,7 +58,7 @@ export function emitCustomComponents(
       const { componentStyle, elementClassMap, elementInlineMap } =
         collectStylesFromEntries(cc.elements, roots);
 
-      // Build annotation strategy for // @code-tab type=logic and // @edit
+      // Build annotation strategy for // @omni-file type=logic and // @edit
       const annData = buildAnnotationData(roots, "logic");
       const annotationStrategy = createAnnotationStrategy(annData);
 

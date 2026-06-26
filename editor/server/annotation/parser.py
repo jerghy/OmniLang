@@ -19,8 +19,8 @@ from editor.server.annotation.types import (
 
 # -- Regex Patterns ----------------------------------------------------------
 
-_CODE_TAB_RE = re.compile(
-    r"^//\s*@code-tab\s+type=(\w+)\s*$"
+_OMNI_FILE_RE = re.compile(
+    r"^//\s*@(?:omni-file|code-tab)\s+type=(\w+)\s*$"
 )
 _EDIT_RE = re.compile(
     r"^//\s*@edit\s*(.*?)\s*$"
@@ -46,7 +46,7 @@ def parse_annotations(source: str, filepath: str = "<input>") -> AnnotationFile:
     lines = source.split("\n")
     errors: list[AnnotationError] = []
 
-    # -- Parse @code-tab (must be first non-blank, non-comment line) ----------
+    # -- Parse @omni-file (must be first non-blank, non-comment line) ----------
     code_tab_type = CodeTabType.LOGIC
     code_tab_line = 0
     for i, line in enumerate(lines):
@@ -55,7 +55,7 @@ def parse_annotations(source: str, filepath: str = "<input>") -> AnnotationFile:
             continue
         if stripped.startswith("//") and not stripped.startswith("// @"):
             continue  # skip non-annotation comments
-        m = _CODE_TAB_RE.match(stripped)
+        m = _OMNI_FILE_RE.match(stripped)
         if m:
             raw_type = m.group(1)
             if raw_type not in {e.value for e in CodeTabType}:
@@ -71,14 +71,14 @@ def parse_annotations(source: str, filepath: str = "<input>") -> AnnotationFile:
         else:
             errors.append(AnnotationError(
                 code=AnnotationErrorCode.MISSING_CODE_TAB,
-                message="File must start with '// @code-tab type=logic|event'",
+                message="File must start with '// @omni-file type=logic|event'",
                 line=i + 1,
             ))
             break
     else:
         errors.append(AnnotationError(
             code=AnnotationErrorCode.MISSING_CODE_TAB,
-            message="File must start with '// @code-tab type=logic|event'",
+            message="File must start with '// @omni-file type=logic|event'",
             line=1,
         ))
 

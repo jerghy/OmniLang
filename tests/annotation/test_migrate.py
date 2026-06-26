@@ -50,7 +50,7 @@ class TestMigrate:
             main_file = project_dir / "src" / "test-project.omni"
             assert main_file.exists()
             content = main_file.read_text()
-            assert "// @code-tab type=logic" in content
+            assert "// @omni-file type=logic" in content
 
     def test_migration_generates_editor_toml(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -24,12 +24,12 @@ function makeNode(overrides: Partial<ViewNode> & { path: string }): ViewNode {
 describe("buildAnnotationData", () => {
   it("produces codeTabDirective for logic tab", () => {
     const data = buildAnnotationData([], "logic");
-    expect(data.codeTabDirective).toBe("// @code-tab type=logic");
+    expect(data.codeTabDirective).toBe("// @omni-file type=logic");
   });
 
   it("produces codeTabDirective for event tab", () => {
     const data = buildAnnotationData([], "event");
-    expect(data.codeTabDirective).toBe("// @code-tab type=event");
+    expect(data.codeTabDirective).toBe("// @omni-file type=event");
   });
 
   it("produces // @edit for a normal node", () => {
@@ -99,7 +99,7 @@ describe("buildAnnotationData", () => {
 
   it("handles empty node list", () => {
     const data = buildAnnotationData([], "logic");
-    expect(data.codeTabDirective).toBe("// @code-tab type=logic");
+    expect(data.codeTabDirective).toBe("// @omni-file type=logic");
     expect(data.editAnnotations.size).toBe(0);
   });
 });
@@ -110,7 +110,7 @@ describe("createAnnotationStrategy", () => {
   it("beforeFile returns codeTabDirective", () => {
     const data = buildAnnotationData([], "event");
     const strategy = createAnnotationStrategy(data);
-    expect(strategy.beforeFile()).toBe("// @code-tab type=event");
+    expect(strategy.beforeFile()).toBe("// @omni-file type=event");
   });
 
   it("beforeViewNode returns annotation for known node path", () => {

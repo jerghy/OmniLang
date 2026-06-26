@@ -11,7 +11,7 @@ import type { ViewNode, AnnotationData, AnnotationStrategy, EditAnnotation } fro
  * - `"// @edit folded"` if `node.isFolded` is true
  * - `"// @edit render=canvas"` if `node.renderMode === "canvas"` (folded takes precedence)
  *
- * The codeTabDirective is set to `// @code-tab type=${tabType}`.
+ * The codeTabDirective is set to `// @omni-file type=${tabType}`.
  */
 export function buildAnnotationData(
   viewNodes: ViewNode[],
@@ -41,7 +41,7 @@ export function buildAnnotationData(
   walk(viewNodes, 0);
 
   return {
-    codeTabDirective: `// @code-tab type=${tabType}`,
+    codeTabDirective: `// @omni-file type=${tabType}`,
     editAnnotations,
   };
 }

@@ -8,12 +8,12 @@ from editor.server.annotation.types import CodeTabType, ViewRenderMode
 
 class TestParseCodeTab:
     def test_parse_logic_tab_first_line(self):
-        source = "// @code-tab type=logic\nimport omniview;\n"
+        source = "// @omni-file type=logic\nimport omniview;\n"
         result = parse_annotations(source, "test.omni")
         assert result.code_tab_type == CodeTabType.LOGIC
 
     def test_parse_event_tab(self):
-        source = "// @code-tab type=event\n\ncomponent Foo {\n}\n"
+        source = "// @omni-file type=event\n\ncomponent Foo {\n}\n"
         result = parse_annotations(source, "test.omni")
         assert result.code_tab_type == CodeTabType.EVENT
 
@@ -23,24 +23,24 @@ class TestParseCodeTab:
             parse_annotations(source, "test.omni")
 
     def test_invalid_code_tab_type_raises(self):
-        source = "// @code-tab type=invalid\n"
+        source = "// @omni-file type=invalid\n"
         with pytest.raises(ValueError, match="INVALID_CODE_TAB_TYPE"):
             parse_annotations(source, "test.omni")
 
     def test_skip_blank_lines_before_code_tab(self):
-        source = "\n\n// @code-tab type=logic\nimport omniview;\n"
+        source = "\n\n// @omni-file type=logic\nimport omniview;\n"
         result = parse_annotations(source, "test.omni")
         assert result.code_tab_type == CodeTabType.LOGIC
 
     def test_skip_comment_before_code_tab(self):
-        source = "// some comment\n// @code-tab type=logic\nimport omniview;\n"
+        source = "// some comment\n// @omni-file type=logic\nimport omniview;\n"
         result = parse_annotations(source, "test.omni")
         assert result.code_tab_type == CodeTabType.LOGIC
 
 
 class TestParseEdit:
     def test_parse_simple_edit(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         // @edit
@@ -55,7 +55,7 @@ component Foo {
         assert not result.view_markers[0].is_folded
 
     def test_parse_folded_edit(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         // @edit folded
@@ -67,7 +67,7 @@ component Foo {
         assert result.view_markers[0].is_folded
 
     def test_parse_render_canvas(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         // @edit render=canvas
@@ -79,7 +79,7 @@ component Foo {
         assert result.view_markers[0].render_mode == ViewRenderMode.CANVAS
 
     def test_parse_nested_edits(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         // @edit
@@ -98,7 +98,7 @@ component Foo {
 
     def test_element_without_edit_parses_ok(self):
         """Parser extracts elements regardless of @edit presence -- validator catches missing @edit."""
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         <div id="box"></div>
@@ -112,7 +112,7 @@ component Foo {
 
 class TestParseChain:
     def test_parse_chain_with_nodes_and_wires(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 import omniview;
 
 // ═══════════════════════════════════════
@@ -135,7 +135,7 @@ pub fn validate(value: String): String {
         assert len(chain.wires) == 2
 
     def test_parse_chain_nodes_have_correct_attrs(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain inc
 //   @node n1  signal  name=count  type=i32  init=0  pos=100,50
@@ -153,7 +153,7 @@ fn inc() { }
         assert node.pos_y == 50
 
     def test_parse_chain_with_fn_node(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain process
 //   @node n1  fn  source="let x=1+2;"  pos=100,50
@@ -166,7 +166,7 @@ pub fn process() { }
         assert fn_node.attrs["source"] == "let x=1+2;"
 
     def test_parse_wire_collapsed_and_group(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  getVariable  name=val  pos=50,50
@@ -181,7 +181,7 @@ fn test() { }
         assert wire.collapse_group_id == "g1"
 
     def test_parse_wire_to_fn_node_no_port(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  compare  op="=="  pos=50,50
@@ -201,7 +201,7 @@ fn test() { }
         assert w1.to_port == ""   # fn node, no port
 
     def test_parse_branch_wires(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain ifdemo
 //   @node n1  getVariable  name=val  pos=50,50
@@ -219,7 +219,7 @@ fn ifdemo() { }
 
     def test_parse_chain_without_separator(self):
         """Chain block that ends at EOF without closing ══ separator."""
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // @chain eofChain
 //   @node n1  add  pos=50,50
 //   @node n2  return  pos=150,50

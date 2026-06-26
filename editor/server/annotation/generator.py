@@ -15,13 +15,13 @@ from editor.server.annotation.types import (
 
 def generate_annotations(ann: AnnotationFile, source: str) -> str:
     """Inject editor annotations into .omni source. Modifies source in-place:
-    1. Insert/replace @code-tab at file top
+    1. Insert/replace @omni-file at file top
     2. Insert @edit before each view <element>
     3. Insert @chain blocks before each fn/action
     """
     lines = source.split("\n")
 
-    # 1. Insert/replace @code-tab
+    # 1. Insert/replace @omni-file
     lines = _insert_code_tab(lines, ann)
 
     # 2. Remove old @edit annotations, then re-insert
@@ -36,11 +36,11 @@ def generate_annotations(ann: AnnotationFile, source: str) -> str:
 
 
 def _insert_code_tab(lines: list[str], ann: AnnotationFile) -> list[str]:
-    """Ensure @code-tab is the first line."""
-    tab_line = f"// @code-tab type={ann.code_tab_type.value}"
+    """Ensure @omni-file is the first line."""
+    tab_line = f"// @omni-file type={ann.code_tab_type.value}"
 
-    # Remove existing @code-tab lines
-    lines = [l for l in lines if not re.match(r"^//\s*@code-tab\s", l.strip())]
+    # Remove existing @omni-file or @code-tab lines
+    lines = [l for l in lines if not re.match(r"^//\s*@(?:omni-file|code-tab)\s", l.strip())]
 
     # Insert as first meaningful line
     insert_at = 0

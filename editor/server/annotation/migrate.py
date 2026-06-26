@@ -35,7 +35,7 @@ def migrate_omni_json(json_path: Path, project_dir: Path) -> None:
     src_dir.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    lines.append("// @code-tab type=logic")
+    lines.append("// @omni-file type=logic")
     lines.append("import omniview;")
     lines.append("")
 

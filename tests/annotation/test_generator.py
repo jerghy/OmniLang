@@ -19,20 +19,20 @@ class TestGenerateCodeTab:
         source = "import omniview;\n\ncomponent Foo { }\n"
         result = generate_annotations(ann, source)
         lines = result.split("\n")
-        assert lines[0] == "// @code-tab type=logic"
+        assert lines[0] == "// @omni-file type=logic"
 
     def test_generate_code_tab_event(self):
         ann = AnnotationFile(filepath="test.omni", code_tab_type=CodeTabType.EVENT)
         result = generate_annotations(ann, "")
-        assert "// @code-tab type=event" in result
+        assert "// @omni-file type=event" in result
 
     def test_generate_code_tab_replaces_old(self):
         ann = AnnotationFile(filepath="test.omni", code_tab_type=CodeTabType.LOGIC)
-        source = "// @code-tab type=event\nimport omniview;\n"
+        source = "// @omni-file type=event\nimport omniview;\n"
         result = generate_annotations(ann, source)
         lines = result.split("\n")
-        assert lines[0] == "// @code-tab type=logic"
-        assert "// @code-tab type=event" not in result
+        assert lines[0] == "// @omni-file type=logic"
+        assert "// @omni-file type=event" not in result
 
 
 class TestGenerateEdit:
@@ -42,7 +42,7 @@ class TestGenerateEdit:
             code_tab_type=CodeTabType.LOGIC,
             view_markers=[ViewMarker(element_id="box", line_number=0)],
         )
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         <div id="box"></div>
@@ -65,7 +65,7 @@ component Foo {
             code_tab_type=CodeTabType.LOGIC,
             view_markers=[ViewMarker(element_id="title", line_number=0, is_folded=True)],
         )
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         <h3 id="title">text</h3>
@@ -81,7 +81,7 @@ component Foo {
             code_tab_type=CodeTabType.LOGIC,
             view_markers=[ViewMarker(element_id="c1", line_number=0, render_mode=ViewRenderMode.CANVAS)],
         )
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Foo {
     view {
         <canvas id="c1"></canvas>
@@ -115,7 +115,7 @@ class TestGenerateChain:
             code_tab_type=CodeTabType.LOGIC,
             chains=[chain],
         )
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 import omniview;
 
 pub fn validate(value: String): String {
@@ -143,7 +143,7 @@ pub fn validate(value: String): String {
             code_tab_type=CodeTabType.LOGIC,
             chains=[chain],
         )
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 fn actualFn() { }
 """
         with pytest.raises(ValueError, match="nonexistentFn"):
@@ -153,7 +153,7 @@ fn actualFn() { }
 class TestRoundTrip:
     def test_roundtrip_preserves_data(self):
         """Parse -> generate -> parse again should produce identical AnnotationFile."""
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 import omniview;
 
 // ═══════════════════════════════════════════════

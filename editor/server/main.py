@@ -792,7 +792,7 @@ class EditorTomlSaveRequest(BaseModel):
 async def api_annotated_save(req: AnnotatedSaveRequest, request: Request):
     """Save .omni source with editor annotations injected.
 
-    Takes source + annotation data -> injects @code-tab, @edit, @chain blocks -> writes .omni file.
+    Takes source + annotation data -> injects @omni-file, @edit, @chain blocks -> writes .omni file.
     """
     project_dir = request.app.state.project_dir
     if not project_dir:

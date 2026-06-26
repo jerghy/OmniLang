@@ -240,13 +240,13 @@ function parseRootLine(trimmed: string, ctx: ParseContext): void {
     return;
   }
 
-  if (trimmed.startsWith("// @code-tab type=")) {
-    const m = trimmed.match(/type=(logic|event)/);
+  if (trimmed.startsWith("// @omni-file type=") || trimmed.startsWith("// @code-tab type=")) {
+    const m = trimmed.match(/@(?:omni-file|code-tab)\s+type=(logic|event)/);
     if (m) {
       ctx.codeTabType = m[1] as "logic" | "event";
       ctx.codeTabs[0].type = ctx.codeTabType;
     } else {
-      ctx.errors.push({ severity: "warning", code: "P001", message: `Invalid @code-tab type value in: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
+      ctx.errors.push({ severity: "warning", code: "P001", message: `Invalid @omni-file type value in: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
     }
     return;
   }

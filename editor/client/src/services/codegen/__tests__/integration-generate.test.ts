@@ -372,7 +372,7 @@ describe("SourceEmitter", () => {
 
   it("emits with annotation strategy", () => {
     const strategy: AnnotationStrategy = {
-      beforeFile: () => "// @code-tab",
+      beforeFile: () => "// @omni-file",
       beforeViewNode: (_node, _depth) => "// @edit",
     };
 
@@ -399,7 +399,7 @@ describe("SourceEmitter", () => {
     };
     const emitter = new SourceEmitter(strategy);
     const result = emitter.emitDocument(input, new Map());
-    expect(result.startsWith("// @code-tab")).toBe(true);
+    expect(result.startsWith("// @omni-file")).toBe(true);
     expect(result).toContain("// @edit");
   });
 
@@ -516,7 +516,7 @@ describe("SourceEmitter", () => {
 // ── Pipeline roundtrip tests ──
 
 describe("Pipeline roundtrip", () => {
-  const COUNTER_FIXTURE = `// @code-tab type=logic
+  const COUNTER_FIXTURE = `// @omni-file type=logic
 import omniview;
 
 component Counter {
@@ -572,7 +572,7 @@ component Counter {
   });
 
   it("generateOmniFiles includes store files when stores exist", () => {
-    const FIXTURE_WITH_STORE = `// @code-tab type=logic
+    const FIXTURE_WITH_STORE = `// @omni-file type=logic
 import omniview;
 
 component Counter {

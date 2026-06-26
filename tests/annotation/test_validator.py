@@ -6,7 +6,7 @@ from editor.server.annotation.parser import parse_annotations
 from editor.server.annotation.validator import validate_annotations
 from editor.server.annotation.types import AnnotationErrorCode
 
-VALID_SOURCE = """// @code-tab type=logic
+VALID_SOURCE = """// @omni-file type=logic
 import omniview;
 
 component Test {
@@ -23,19 +23,19 @@ component Test {
 
 class TestPositionRules:
     def test_P1_code_tab_must_be_first(self):
-        # Parser rejects code before @code-tab; construct AnnotationFile manually
+        # Parser rejects code before @omni-file; construct AnnotationFile manually
         from editor.server.annotation.types import AnnotationFile, CodeTabType
         file = AnnotationFile(
             filepath="test.omni",
             code_tab_type=CodeTabType.LOGIC,
             code_tab_line=2,
-            raw_source="import omniview;\n// @code-tab type=logic\n",
+            raw_source="import omniview;\n// @omni-file type=logic\n",
         )
         errors = validate_annotations(file)
         assert any(e.code == AnnotationErrorCode.CODE_TAB_NOT_FIRST for e in errors)
 
     def test_P4_declaration_between_chain_and_fn(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  add  pos=50,50
@@ -48,7 +48,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.DECLARATION_BETWEEN_CHAIN_AND_FN for e in errors)
 
     def test_P6_nodes_must_come_before_wires(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @wire w1  n1.value -> n2.a
@@ -64,7 +64,7 @@ fn test() { }
 
 class TestIdentityRules:
     def test_I1_duplicate_element_ids(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Test {
     view {
         // @edit
@@ -80,7 +80,7 @@ component Test {
         assert any(e.code == AnnotationErrorCode.DUPLICATE_ELEMENT_ID for e in errors)
 
     def test_I2_duplicate_node_ids(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  getVariable  name=x  pos=50,50
@@ -93,7 +93,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.DUPLICATE_NODE_ID for e in errors)
 
     def test_I3_duplicate_wire_ids(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  getVariable  name=x  pos=50,50
@@ -108,7 +108,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.DUPLICATE_WIRE_ID for e in errors)
 
     def test_I4_chain_name_mismatch_fn(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain wrongName
 //   @node n1  add  pos=50,50
@@ -122,7 +122,7 @@ fn correctName() { }
 
 class TestCompletenessRules:
     def test_C1_missing_required_attr(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  signal  name=count  pos=50,50
@@ -141,7 +141,7 @@ fn test() { }
         ann = AnnotationFile(
             filepath="test.omni",
             code_tab_type=CodeTabType.LOGIC,
-            raw_source="// @code-tab type=logic\n// ══════\n// @chain test\n//   @node n1  add  pos=50,50\n//   @wire w1  n1 ->\n// ══════\nfn test() { }\n",
+            raw_source="// @omni-file type=logic\n// ══════\n// @chain test\n//   @node n1  add  pos=50,50\n//   @wire w1  n1 ->\n// ══════\nfn test() { }\n",
             chains=[Chain(
                 name="test", start_line=3, end_line=7,
                 nodes=[NodeEntry(id="n1", tag="add", pos_x=50, pos_y=50, line_number=4)],
@@ -152,7 +152,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.INCOMPLETE_WIRE for e in errors)
 
     def test_C4_missing_edit_for_element(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 component Test {
     view {
         // @edit
@@ -169,7 +169,7 @@ component Test {
 
 class TestConsistencyRules:
     def test_S1_wire_references_nonexistent_node(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  getVariable  name=x  pos=50,50
@@ -182,7 +182,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.WIRE_TARGET_NOT_FOUND for e in errors)
 
     def test_S4_unknown_node_tag(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  unknownTag  pos=50,50
@@ -194,7 +194,7 @@ fn test() { }
         assert any(e.code == AnnotationErrorCode.UNKNOWN_NODE_TAG for e in errors)
 
     def test_S2_wire_port_invalid(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain test
 //   @node n1  getVariable  name=x  pos=50,50
@@ -215,7 +215,7 @@ fn test() { }
 
         ann = AnnotationFile(
             filepath="test.omni",
-            raw_source="// @code-tab type=invalid\n",
+            raw_source="// @omni-file type=invalid\n",
             code_tab_line=1,
         )
         ann.code_tab_type = _FakeType()  # type: ignore
@@ -240,7 +240,7 @@ class TestFormatRules:
         ann = AnnotationFile(
             filepath="test.omni",
             code_tab_type=CodeTabType.LOGIC,
-            raw_source="// @code-tab type=logic\n// ══════\n// @chain test\n//   @node n1  signal  name=hello world  type=i32  pos=50,50\n// ══════\nfn test() { }\n",
+            raw_source="// @omni-file type=logic\n// ══════\n// @chain test\n//   @node n1  signal  name=hello world  type=i32  pos=50,50\n// ══════\nfn test() { }\n",
         )
         ann.chains = [chain]
         errors = validate_annotations(ann)
@@ -254,7 +254,7 @@ class TestValidationPasses:
         assert len(errors) == 0
 
     def test_full_chain_passes(self):
-        source = """// @code-tab type=logic
+        source = """// @omni-file type=logic
 // ══════
 // @chain validate
 //   @node n1  getVariable  name=value  pos=50,50
