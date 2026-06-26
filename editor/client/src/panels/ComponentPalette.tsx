@@ -216,8 +216,8 @@ export function ComponentPalette() {
                             if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
                               removeComponent(m.component);
                               // Also delete the .omni file on disk
-                              import("../api/client").then(({ api }) => {
-                                api.deleteComponentDefinitions([m.component]).catch(() => {});
+                              import("../services/api").then(({ api }) => {
+                                api.annotation.deleteComponentDefinitions([m.component]).catch(() => {});
                               });
                             }
                           }}

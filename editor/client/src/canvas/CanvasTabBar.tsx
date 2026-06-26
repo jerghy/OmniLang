@@ -4,7 +4,7 @@
 import React, { useState } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
-import { api } from "../api/client";
+import { api } from "../services/api";
 import { parseOmniSource } from "../services/codegen";
 
 interface TabInfo {
@@ -70,7 +70,7 @@ export function CanvasTabBar() {
         if (!registryHasDef) {
           try {
             const filePath = `src/components/${compName}.omni`;
-            const res = await api.readFile(filePath);
+            const res = await api.project.readFile(filePath);
             if (res.content) {
               const parseResult = parseOmniSource(res.content);
               const elements = parseResult.designElements || [];
@@ -100,7 +100,7 @@ export function CanvasTabBar() {
         if (!state.tabStates[tab.key]) {
           const filePath = tab.key.replace("file:", "");
           try {
-            const res = await api.readFile(filePath);
+            const res = await api.project.readFile(filePath);
             if (res.content) {
               const parseResult = parseOmniSource(res.content);
               useEditorStore.setState({

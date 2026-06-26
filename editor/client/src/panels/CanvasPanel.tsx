@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
-import { api } from "../api/client";
+import { api } from "../services/api";
 import { parseOmniSource } from "../services/codegen";
 
 interface OmniFile {
@@ -31,7 +31,7 @@ export function CanvasPanel() {
         if (depth > 3 || scanned.has(dirPath)) return;
         scanned.add(dirPath);
         try {
-          const listing = await api.listDir(dirPath);
+          const listing = await api.project.listDir(dirPath);
           const entries = listing?.entries || [];
           for (const e of entries) {
             if (e.name.endsWith(".omni")) {
@@ -68,7 +68,7 @@ export function CanvasPanel() {
   const handleOpen = useCallback(async (file: OmniFile) => {
     setStatus(`加载 ${file.name}...`);
     try {
-      const result = await api.readFile(file.path);
+      const result = await api.project.readFile(file.path);
       if (!result.content) {
         setStatus(`❌ 文件为空: ${file.name}`);
         return;
@@ -137,7 +137,7 @@ export function CanvasPanel() {
       import("../store/undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
 
       // 加载自定义组件定义（从 src/components/*.omni 解析，metadata 在 // @component / @prop / @event 注释中）
-      api.loadComponentDefinitions().then((res) => {
+      api.annotation.loadComponentDefinitions().then((res) => {
         if (res.definitions && Object.keys(res.definitions).length > 0) {
           const existing = useComponentRegistry.getState().definitions;
           const merged = { ...existing };

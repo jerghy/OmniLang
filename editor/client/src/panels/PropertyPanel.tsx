@@ -9,7 +9,7 @@ import { useCodeGraphStore } from "../codegraph/store";
 import type { EventBinding, ParamBinding, FnParam } from "../codegraph/types";
 import { SetProp } from "../core/commands/SetProp";
 import { uid } from "../core/utils";
-import { compilerCache } from "../omni-compiler-cache";
+import { compilerCache } from "../services/compiler/cache";
 import { COMPONENT_PROTOCOL } from "./ComponentPalette";
 import {
   getUnifiedComponentMeta,

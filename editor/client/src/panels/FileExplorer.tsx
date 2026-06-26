@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useEditorStore } from "../store/editor";
-import { api } from "../api/client";
+import { api } from "../services/api";
 
 export function FileExplorer() {
   const files = useEditorStore((s) => s.files);
@@ -12,7 +12,7 @@ export function FileExplorer() {
 
   const handleClick = useCallback(async (entry: { name: string; path: string; type: string; ext: string }) => {
     if (entry.type === "directory") {
-      const result = await api.listDir(entry.path);
+      const result = await api.project.listDir(entry.path);
       if (result.entries) {
         setCurrentDir([...currentDir, entry.path]);
         useEditorStore.setState(() => ({
@@ -20,7 +20,7 @@ export function FileExplorer() {
         }));
       }
     } else {
-      const result = await api.readFile(entry.path);
+      const result = await api.project.readFile(entry.path);
       if (result.content) {
         openFile(entry.path, result.content);
       }
@@ -32,7 +32,7 @@ export function FileExplorer() {
     const newDir = currentDir.slice(0, -1);
     setCurrentDir(newDir);
     const parentPath = newDir[newDir.length - 1] || ".";
-    const result = await api.listDir(parentPath);
+    const result = await api.project.listDir(parentPath);
     if (result.entries) {
       useEditorStore.setState(() => ({ files: result.entries! }));
     }

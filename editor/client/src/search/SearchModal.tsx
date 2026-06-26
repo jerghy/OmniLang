@@ -6,8 +6,8 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { unifiedSearch, SOURCE_CONFIG } from "./SearchIndex";
-import type { SearchResult, SearchContext, SearchSource } from "./SearchIndex";
+import { unifiedSearch, SOURCE_CONFIG } from "../services/parser/search-index";
+import type { SearchResult, SearchContext, SearchSource } from "../services/parser/search-index";
 
 interface SearchModalProps {
   visible: boolean;

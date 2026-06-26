@@ -1,7 +1,7 @@
 /** 项目欢迎页 — 创建新项目 / 打开已有项目 / 最近项目列表。 */
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../api/client";
+import { api } from "../services/api";
 
 // ── Types ────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ function DirBrowser({ onSelectDir }: { onSelectDir: (absPath: string) => void })
     setLoading(true);
     setError("");
     try {
-      const res = await api.listDirectory(dirPath);
+      const res = await api.project.listDirectory(dirPath);
       if (res.ok && res.entries) {
         const abs = res.current || dirPath;
         setCurrentPath(abs);
@@ -156,7 +156,7 @@ export function ProjectWelcome({ onProjectReady }: ProjectWelcomeProps) {
     setCreating(true);
     setCreateErr("");
     try {
-      const res = await api.createProject(createDir, createName);
+      const res = await api.project.createProject(createDir, createName);
       if (res.ok && res.dir) {
         addRecent(createName, res.dir);
         onProjectReady(res.dir, createName);
@@ -181,7 +181,7 @@ export function ProjectWelcome({ onProjectReady }: ProjectWelcomeProps) {
     setOpening(true);
     setOpenErr("");
     try {
-      const res = await api.setProjectDir(target);
+      const res = await api.project.setProjectDir(target);
       if (res.ok && res.dir) {
         const name = res.dir.replace(/^.*[/\\]/, "") || "未命名项目";
         addRecent(name, res.dir);
@@ -200,7 +200,7 @@ export function ProjectWelcome({ onProjectReady }: ProjectWelcomeProps) {
   const handleRecentClick = async (p: RecentProject) => {
     setOpening(true);
     try {
-      const res = await api.setProjectDir(p.path);
+      const res = await api.project.setProjectDir(p.path);
       if (res.ok && res.dir) {
         addRecent(p.name, res.dir);
         onProjectReady(res.dir, p.name);

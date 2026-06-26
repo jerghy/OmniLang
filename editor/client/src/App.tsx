@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useEditorStore } from "./store/editor";
 import { useUndoStore } from "./store/undo";
-import { api } from "./api/client";
+import { api } from "./services/api";
 import { OmniDriver } from "./driver";
 import { FileExplorer } from "./panels/FileExplorer";
 import { BlockPalette } from "./panels/BlockPalette";
@@ -28,16 +28,20 @@ import { MonacoEditor, type MonacoEditorHandle } from "./editor/MonacoEditor";
 import { CodeEditorPopup } from "./editor/CodeEditorPopup";
 import { SearchModal } from "./search/SearchModal";
 import { collectFocusOrder, focusOverlayStyles } from "./a11y/FocusOrder";
-import type { SearchResult } from "./search/SearchIndex";
+import type { SearchResult } from "./services/parser/search-index";
 import type { CommandContext } from "./core/commands/types";
 import { extractComponentName } from "./core/utils";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./core/commands/CopyPaste";
 import { showToast } from "./notifications/toast";
-import { parseOmniSource, generateOmniSource, validate } from "./services/codegen";
+import { parseOmniSource } from "./services/codegen";
 import type { ElementData, WireData } from "./core/types";
-import type { ComponentDefinition } from "./store/componentRegistry";
+import { compileProject } from "./services/compiler/compiler";
+import { saveProject as saveProjectToServer, saveFileEntry as saveFileEntryToServer, saveComponentDefinitionsToServer, loadComponentDefinitionsFromServer } from "./services/project/project-service";
+import { handleRun as runService, handleStop as stopService } from "./services/runtime/run-service";
+import { handleDebugMessage as debugMessageService } from "./services/runtime/debug-service";
+import { parseAndPopulate } from "./services/parser/source-parser";
 import { ProjectWelcome } from "./panels/ProjectWelcome";
-import { compilerCache } from "./omni-compiler-cache";
+import { compilerCache } from "./services/compiler/cache";
 
 // ═══════════════════════════════════════════════
 // Styles
@@ -54,111 +58,6 @@ const S = {
   statusBar: { height: 24, minHeight: 24, borderTop: "1px solid #e5e7eb", padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, background: "#f9fafb" } as React.CSSProperties,
   modeBtn: (active: boolean) => ({ padding: "3px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: active ? "#4F46E5" : "#F3F4F6", color: active ? "#fff" : "#374151" } as React.CSSProperties),
 };
-
-// ═══════════════════════════════════════════════
-// Custom Component Save/Load Helpers
-// ═══════════════════════════════════════════════
-
-/**
- * Convert registry definitions to omni DSL and save to server.
- * Each component's elements/wires are emitted as proper .omni source
- * with metadata stored as // @component / @prop / @event / @style comments (no more .meta.json).
- */
-async function saveComponentDefinitionsToServer(defs: Record<string, ComponentDefinition>): Promise<void> {
-  const payload: Record<string, { omniSource: string }> = {};
-
-  for (const [name, def] of Object.entries(defs)) {
-    const result = generateOmniSource({
-      designElements: def.elements || [],
-      designWires: def.wires || [],           // BUG FIX: wires were not passed before
-      codeTabs: [],                           // code tabs for chains (empty for custom components)
-      componentName: name,
-      rootOrder: (def.elements || [])
-        .filter((e: any) => !e.parentId)
-        .map((e: any) => e.id),
-      forSave: true,
-      componentMeta: {
-        id: def.id,
-        category: def.category,
-        description: def.description,
-        props: def.props as Record<string, unknown>,
-        events: def.events as Record<string, unknown>,
-        styleProperties: def.styleProperties,
-        children: def.children,
-        createdAt: def.createdAt,
-      },
-    });
-
-    if (result.value) {
-      payload[name] = { omniSource: result.value };
-    }
-  }
-
-  if (Object.keys(payload).length > 0) {
-    await api.saveComponentDefinitions(payload as unknown as Record<string, unknown>);
-  }
-}
-
-/**
- * Load custom component definitions from server.
- * Parses .omni source back to elements/wires; metadata is extracted from
- * // @component / @prop / @event / @style comments in the source (no more .meta.json).
- */
-async function loadComponentDefinitionsFromServer(): Promise<Record<string, unknown>> {
-  const result = await api.loadComponentDefinitions();
-  const merged: Record<string, unknown> = {};
-
-  for (const [name, raw] of Object.entries(result.definitions)) {
-    const data = raw as Record<string, unknown>;
-    const source = data.source as string || "";
-    if (!source) continue;
-
-    const parsed = parseOmniSource(source);
-    const meta = parsed.componentMeta || {};
-
-    // Elements/wires come from parsed view tree
-    const elements = parsed.designElements && parsed.designElements.length > 0
-      ? parsed.designElements
-      : [];
-    const wires = parsed.designWires || [];
-
-    // Props schema from comment metadata (// @prop), fallback to DSL declarations
-    const propSchema: Record<string, unknown> = (meta.propSchema as Record<string, unknown>) || {};
-    const dslProps = parsed.props || [];
-    for (const p of dslProps) {
-      if (!propSchema[p.name]) {
-        propSchema[p.name] = { type: p.type, default: p.default, editor: "text" };
-      }
-    }
-
-    // Events schema from comment metadata (// @event), fallback to DSL declarations
-    const eventSchema: Record<string, unknown> = (meta.eventSchema as Record<string, unknown>) || {};
-    const dslEvents = parsed.events || [];
-    for (const e of dslEvents) {
-      if (!eventSchema[e.name]) {
-        eventSchema[e.name] = { id: e.name, description: "", payload: null };
-      }
-    }
-
-    merged[name] = {
-      id: (meta.id as string) || name,
-      name,
-      category: (meta.category as string) || "Custom",
-      description: (meta.description as string) || "",
-      props: propSchema,
-      events: eventSchema,
-      styleProperties: (meta.styleProperties as string[]) || [],
-      children: (meta.children as boolean) ?? true,
-      elements,
-      wires,
-      createdAt: (meta.createdAt as string) || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      storage: "file",
-    };
-  }
-
-  return merged;
-}
 
 // ═══════════════════════════════════════════════
 // App
@@ -228,9 +127,9 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const proj = await api.getProject();
+      const proj = await api.project.getProject();
       if (proj.dir) setProjectDir(proj.dir);
-      const list = await api.listDir(".");
+      const list = await api.project.listDir(".");
       if (list.entries) loadFiles(list.entries);
       // Show welcome screen instead of auto-creating project
       setShowWelcome(true);
@@ -246,7 +145,7 @@ export default function App() {
     // Load main.omni via annotatedLoad (extracts annotations from .omni comments)
     (async () => {
       try {
-        const loadResult = await api.annotatedLoad("src/main.omni");
+        const loadResult = await api.annotation.annotatedLoad("src/main.omni");
         if (loadResult.success && loadResult.source) {
           useEditorStore.setState({
             activeFileContent: loadResult.source,
@@ -321,7 +220,7 @@ export default function App() {
         } else {
           console.warn('[App] annotatedLoad failed:', loadResult.error);
           // Fallback: try plain read
-          const res = await api.readFile("src/main.omni");
+          const res = await api.project.readFile("src/main.omni");
           if (res.content) {
             useEditorStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
             const parseResult = parseOmniSource(res.content);
@@ -355,7 +254,7 @@ export default function App() {
     // Load editor UI state from .omni-editor.toml
     (async () => {
       try {
-        const tomlResult = await api.loadEditorToml();
+        const tomlResult = await api.annotation.loadEditorToml();
         if (tomlResult.state) {
           const s = tomlResult.state;
           if (s.open_files?.length > 0) {
@@ -435,39 +334,42 @@ export default function App() {
   // ── Compile ─────────────────────────────────
 
   const handleCompile = useCallback(async () => {
-    // ── Generate and validate OmniLang source via omni-gen ──
+    // ── Get editor state ──
     const store = useEditorStore.getState();
     const cg = useCodeGraphStore.getState();
     const codeTabs = cg.toSerializable().tabs;
     const componentName = extractComponentName(store.activeFileContent || "");
 
-    const genResult = generateOmniSource({
-      designElements: store.elements,
-      designWires: store.wires,
+    // ── Compile via compiler service (generate → validate → api.compile) ──
+    const compileResult = await compileProject({
+      elements: store.elements,
+      wires: store.wires,
       codeTabs,
       componentName,
       rootOrder: store.rootOrder,
+      activeFileContent: store.activeFileContent || "",
+      target,
+      isRunning: runStatus.running,
     });
 
-    let content = store.activeFileContent;
-    if (genResult.value) {
-      const validationResult = validate(genResult.value);
-      if (!validationResult.valid) {
-        // Fallback to original content when generated source fails validation
-        setCompileErrors(validationResult.errors);
-        setStatus({ text: "⚠️ 生成的代码验证失败，使用原始内容编译", isError: false });
-        content = store.activeFileContent;
-      } else {
-        // Use generated source for compilation and update editor content
-        content = genResult.value;
-        store.setSourceCode(content);
-      }
+    if (!compileResult) return;
+
+    const { content, compileResponse } = compileResult;
+
+    // Update source code if generation was used and passed validation
+    if (compileResult.generatedSource && compileResult.validationPassed) {
+      store.setSourceCode(content);
     }
-    if (!content) return;
+
+    // Report validation errors if generation failed
+    if (!compileResult.validationPassed && compileResult.validationErrors.length > 0) {
+      setCompileErrors(compileResult.validationErrors);
+      setStatus({ text: "⚠️ 生成的代码验证失败，使用原始内容编译", isError: false });
+    }
+
     setStatus({ text: "编译中...", isError: false });
 
-    const result = await api.compile(content, target, undefined, runStatus.running);
-    const errs = result.errors || [];
+    const errs = compileResponse.errors || [];
     setCompileErrors(errs);
 
     // Parse view tree for code canvas (populate main tab)
@@ -553,8 +455,8 @@ export default function App() {
     else {
       setStatus({ text: `✅ 已编译 — ${new Date().toLocaleTimeString()}${warns ? ` (${warns} 条警告)` : ""}`, isError: false });
       // Phase 1 Runtime Bridge: write compiled files to running Vite server
-      if (runStatus.running && result.files) {
-        api.writeRunFiles(result.files).catch(() => {});
+      if (runStatus.running && compileResponse.files) {
+        api.compile.writeRunFiles(compileResponse.files).catch(() => {});
       }
       // Update canvas preview via client-side WASM compile
       const s = useEditorStore.getState();
@@ -573,264 +475,18 @@ export default function App() {
   // ── Run / Vite DevServer (Phase 1 Runtime Bridge) ──
 
   const handleRun = useCallback(async () => {
-    const content = useEditorStore.getState().activeFileContent;
-    if (!content) { setStatus({ text: "请先打开文件", isError: true }); return; }
-
-    setRunLoading(true);
-    setStatus({ text: "编译并启动运行...", isError: false });
-
-    // 1. Compile (with debug mode enabled for runtime tracking)
-    const result = await api.compile(content, target, undefined, true);
-    const errs = result.errors || [];
-    const hasErrors = errs.some((e: {severity:string}) => e.severity === "error");
-    if (hasErrors) {
-      setCompileErrors(errs);
-      setStatus({ text: "❌ 编译失败 — 无法启动", isError: true });
-      setRunLoading(false);
-      return;
-    }
-
-    // 2. Parse view tree & code blocks for reactive canvas
-    setCompileErrors([]);
-    try {
-      const [vRes, cbRes] = await Promise.all([
-        fetch("/api/parse-view", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({source: content}) }),
-        fetch("/api/parse-codeblocks", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({source: content}) }),
-      ]);
-      const vData = await vRes.json();
-      const cbData = await cbRes.json();
-      // (code element parsing same as handleCompile — no event/action nodes)
-      const codeElements: import("./store/editor").ElementData[] = [];
-      const seenIds = new Set<string>();
-      if (cbData.success && cbData.blocks) {
-        const portDefs: Record<string, Array<{ name: string; direction: "in" | "out"; type: string }>> = {
-          store:    [{ name: "items", direction: "out", type: "any" }],
-          signal:   [{ name: "value", direction: "out", type: "i32" }, { name: "set", direction: "in", type: "i32" }],
-          computed: [{ name: "value", direction: "out", type: "i32" }, { name: "deps", direction: "in", type: "any" }],
-        };
-        for (const b of cbData.blocks) {
-          // Skip action/event blocks — events are bound in design mode
-          if (b.blockType === "action" || b.blockType === "onPress" || b.blockType === "onChange") continue;
-          const parentStore = b.parentStore || "";
-          const id = b.id;
-          if (seenIds.has(id)) continue;
-          seenIds.add(id);
-          codeElements.push({
-            id, nodeType: "codeblock", tag: b.blockType,
-            props: { name: b.name, parentStore, typeAnnotation: b.typeAnnotation },
-            children: [], parentId: parentStore ? `cb-store-${parentStore}` : null,
-            ports: portDefs[b.blockType] || [], isFolded: false,
-          });
-        }
-      }
-      // Build fnToNodeMap: semantic ID → canvas element ID for execution highlighting
-      const newFnToNodeMap: Record<string, string> = {};
-      const componentName = extractComponentName(content);
-      if (cbData.success && cbData.blocks) {
-        for (const block of cbData.blocks) {
-          if (block.blockType === "fn") {
-            const compName = block.parentStore || componentName;
-            newFnToNodeMap[`${compName}.${block.name}`] = block.id;
-          }
-        }
-      }
-      setFnToNodeMap(newFnToNodeMap);
-
-      useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
-      useEditorStore.getState().setSourceCode(content);
-    } catch { /* non-critical */ }
-
-    // 3. Start Vite dev server with compiled files
-    setStatus({ text: "启动开发服务器...", isError: false });
-    const runResult = await api.startRun(result.files || {}, true);
-
-    if (runResult.success && runResult.url) {
-      setRunStatus({ running: true, url: runResult.url });
-      setStatus({ text: `▶ 运行中 — ${runResult.url}`, isError: false });
-      window.open(runResult.url, "_blank");
-    } else {
-      setStatus({ text: `❌ 启动失败: ${runResult.error || "未知错误"}`, isError: true });
-    }
-    setRunLoading(false);
+    await runService(target, setStatus, setCompileErrors, setRunLoading, setRunStatus, setFnToNodeMap);
   }, [target]);
 
   const handleStop = useCallback(async () => {
-    setStatus({ text: "停止开发服务器...", isError: false });
-    await api.stopRun();
-    setRunStatus({ running: false, url: null });
-    setStatus({ text: "⏹ 已停止", isError: false });
-    // Clean up debug state
-    setDebugConnected(false);
-    setDebugStateChanges([]);
-    setActiveNodeIds(new Set());
-    setActiveEdgeIds(new Set());
-    setDebugPaused(false);
-    setFnToNodeMap({});
+    await stopService(setStatus, setRunStatus, setDebugConnected, setDebugStateChanges, setActiveNodeIds, setActiveEdgeIds, setDebugPaused, setFnToNodeMap);
   }, []);
 
   // ── Save: 注解直写 .omni + 编辑器状态 → .omni-editor.toml ──
 
-  /** Save a single file entry: generate .omni source from elements/wires and write to disk. */
-  const saveFileEntry = useCallback(async (
-    entry: { filePath: string; elements: ElementData[]; wires: WireData[]; rootOrder: string[] },
-    codeTabs: any,
-    store: ReturnType<typeof useEditorStore.getState>,
-  ): Promise<boolean> => {
-    const componentName = extractComponentName(store.activeFileContent || store.sourceCode || "");
-
-    const genResult = generateOmniSource({
-      designElements: entry.elements,
-      designWires: entry.wires,
-      codeTabs: codeTabs.tabs,
-      componentName,
-      rootOrder: entry.rootOrder,
-      forSave: true,
-    });
-
-    let content: string;
-    if (genResult.value) {
-      content = genResult.value;
-    } else {
-      content = store.sourceCode || store.activeFileContent || "";
-      if (!content) return false;
-    }
-
-    const writeRes = await api.writeFile(entry.filePath, content);
-    if (!writeRes.ok) {
-      setStatus({ text: `⚠ ${entry.filePath} 写入失败: ${writeRes.error || "未知错误"}`, isError: false });
-      return false;
-    }
-    return true;
-  }, [setStatus]);
-
   const saveProject = useCallback(async (customPath?: string) => {
-    const store = useEditorStore.getState();
-    const filePath = customPath || store.activeFilePath;
-
-    if (!filePath) {
-      setStatus({ text: "请先打开或创建一个 .omni 文件", isError: true });
-      return;
-    }
-
-    setStatus({ text: `保存到 ${filePath} ...`, isError: false });
-    try {
-      const cg = useCodeGraphStore.getState();
-      const codeTabs = cg.toSerializable();
-
-      // ── Collect all file states that need saving ──
-
-      interface FileSaveEntry {
-        filePath: string;
-        elements: ElementData[];
-        wires: WireData[];
-        rootOrder: string[];
-      }
-
-      const entries: FileSaveEntry[] = [];
-      const seenPaths = new Set<string>();
-
-      // 1. Active state: main canvas or active file tab
-      if (store.activeDocId === null || store.activeDocId === "main") {
-        // Main canvas: use activeFilePath (the .omni file that was opened)
-        const mainPath = filePath;
-        if (mainPath && !seenPaths.has(mainPath)) {
-          entries.push({
-            filePath: mainPath,
-            elements: store.elements,
-            wires: store.wires,
-            rootOrder: store.rootOrder,
-          });
-          seenPaths.add(mainPath);
-        }
-      } else if (store.activeDocId.startsWith("file:")) {
-        const path = store.activeDocId.replace("file:", "");
-        if (!seenPaths.has(path)) {
-          entries.push({
-            filePath: path,
-            elements: store.elements,
-            wires: store.wires,
-            rootOrder: store.rootOrder,
-          });
-          seenPaths.add(path);
-        }
-      }
-
-      // 2. Component canvas: main canvas state is in docBackup
-      if (store.activeDocId?.startsWith("comp:") && store.docBackup) {
-        const mainPath = filePath;
-        if (mainPath && !seenPaths.has(mainPath)) {
-          entries.push({
-            filePath: mainPath,
-            elements: store.docBackup.elements,
-            wires: store.docBackup.wires,
-            rootOrder: store.docBackup.elements.filter((e) => !e.parentId).map((e) => e.id),
-          });
-          seenPaths.add(mainPath);
-        }
-      }
-
-      // 3. Other file-based tabs from tabStates
-      for (const [docId, state] of Object.entries(store.tabStates)) {
-        if (docId.startsWith("file:")) {
-          const path = docId.replace("file:", "");
-          if (!seenPaths.has(path)) {
-            entries.push({
-              filePath: path,
-              elements: state.elements,
-              wires: state.wires,
-              rootOrder: state.elements.filter((e) => !e.parentId).map((e) => e.id),
-            });
-            seenPaths.add(path);
-          }
-        }
-      }
-
-      // ── Save each file ──
-
-      let savedCount = 0;
-      let activeContent = "";
-      for (const entry of entries) {
-        const ok = await saveFileEntry(entry, codeTabs, store);
-        if (ok) savedCount++;
-        // Track active file's content so we can update in-memory sourceCode
-        if (entry.filePath === filePath) {
-          const genResult = generateOmniSource({
-            designElements: entry.elements,
-            designWires: entry.wires,
-            codeTabs: codeTabs.tabs,
-            componentName: extractComponentName(store.activeFileContent || store.sourceCode || ""),
-            rootOrder: entry.rootOrder,
-            forSave: true,
-          });
-          if (genResult.value) activeContent = genResult.value;
-        }
-      }
-      if (activeContent) store.setSourceCode(activeContent);
-
-      // 2. Save component definitions (as omni DSL to src/components/*.omni)
-      const { definitions } = useComponentRegistry.getState();
-      saveComponentDefinitionsToServer(definitions).catch(() => {});
-
-      // 3. Save editor UI state to .omni-editor.toml
-      await api.saveEditorToml({
-        active_file: filePath,
-        active_mode: "design",
-        open_files: store.openTabs.length > 0
-          ? store.openTabs
-          : (filePath ? [filePath] : []),
-        left_open: true,
-        right_width: 320,
-        viewports: {},
-      });
-
-      store.markClean();
-      useEditorStore.setState({ projectName: filePath.replace(/^.*[\\/]/, "").replace(/\.omni$/, "") });
-      const fullPath = projectDir ? `${projectDir}/${filePath}` : filePath;
-      setStatus({ text: `✅ 已保存 ${savedCount} 个文件: ${fullPath}`, isError: false });
-    } catch (e) {
-      setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
-    }
-  }, [projectDir, saveFileEntry]);
+    await saveProjectToServer(customPath, (text, isError) => setStatus({ text, isError }));
+  }, []);
 
   // ── Open .omni file dialog ────────────────────
 
@@ -846,7 +502,7 @@ export default function App() {
         if (depth > 3 || scanned.has(dirPath)) return;
         scanned.add(dirPath);
         try {
-          const listing = await api.listDir(dirPath);
+          const listing = await api.project.listDir(dirPath);
           const entries = listing?.entries || [];
           for (const e of entries) {
             if (e.name.endsWith(".omni")) {
@@ -878,7 +534,7 @@ export default function App() {
     setStatus({ text: `加载 ${filePath}...`, isError: false });
     try {
       // Use annotatedLoad: reads .omni source + extract annotations from comments
-      const result = await api.annotatedLoad(filePath);
+      const result = await api.annotation.annotatedLoad(filePath);
       if (!result.success || !result.source) {
         setStatus({ text: `❌ 加载失败: ${result.error}`, isError: true });
         return;
@@ -1064,7 +720,7 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      api.stopRun().catch(() => {});
+      api.compile.stopRun().catch(() => {});
       api.disconnectDebug();
     };
   }, []);
@@ -1072,73 +728,7 @@ export default function App() {
   // ── Debug WebSocket connection (Phase 2) ────────
 
   const handleDebugMessage = useCallback((msg: Record<string, unknown>) => {
-    const msgType = msg.type as string;
-    switch (msgType) {
-      case "state-change":
-        setDebugStateChanges((prev) => {
-          const next = [...prev, {
-            signalId: msg.signalId as string || "",
-            name: msg.name as string || "",
-            value: msg.value,
-            timestamp: msg.timestamp as number || Date.now(),
-          }];
-          return next.length > 200 ? next.slice(-200) : next;
-        });
-        break;
-      case "execution-trace": {
-        const semanticId = msg.nodeId as string;
-        const edgeId = msg.edgeId as string | undefined;
-        // Translate semantic ID ("Component.fnName") → canvas element ID
-        const nodeId = fnToNodeMapRef.current[semanticId] || semanticId;
-        if (nodeId) {
-          setActiveNodeIds((prev) => {
-            const next = new Set(prev);
-            next.add(nodeId);
-            // Auto-clear after 1.5s
-            setTimeout(() => {
-              setActiveNodeIds((p) => {
-                const updated = new Set(p);
-                updated.delete(nodeId);
-                return updated;
-              });
-            }, 1500);
-            return next;
-          });
-        }
-        if (edgeId) {
-          setActiveEdgeIds((prev) => {
-            const next = new Set(prev);
-            next.add(edgeId);
-            setTimeout(() => {
-              setActiveEdgeIds((p) => {
-                const updated = new Set(p);
-                updated.delete(edgeId);
-                return updated;
-              });
-            }, 1500);
-            return next;
-          });
-        }
-        break;
-      }
-      case "runtime-ready":
-        setDebugConnected(true);
-        setDebugStateChanges([]);
-        break;
-      case "paused":
-        setDebugPaused(true);
-        break;
-      case "resumed":
-        setDebugPaused(false);
-        break;
-      case "runtime-disconnected":
-        setDebugConnected(false);
-        setActiveNodeIds(new Set());
-        setActiveEdgeIds(new Set());
-        setDebugPaused(false);
-        setFnToNodeMap({});
-        break;
-    }
+    debugMessageService(msg, setDebugStateChanges, setDebugConnected, setDebugPaused, setActiveNodeIds, setActiveEdgeIds, setFnToNodeMap, fnToNodeMapRef);
   }, []);
 
   // Auto-compile when opening a file (populate canvas)
@@ -1152,23 +742,9 @@ export default function App() {
       // Use a short debounce to avoid double-compile on initial load
       const timer = setTimeout(() => {
         if (currentPath.endsWith('.omni')) {
-          // ── Validate before parse (spec: validate first, if not valid → report error, do not enter Parser) ──
-          const validation = validate(currentContent);
-          if (!validation.valid) {
-            setCompileErrors(validation.errors);
-            setStatus({ text: `❌ 验证失败: ${validation.errors.length} 个错误`, isError: true });
-            return;
-          }
-          // ── Parse `.omni` source to populate design elements and code tabs ──
-          const parseResult = parseOmniSource(currentContent);
-          if (parseResult.designElements) {
-            useEditorStore.setState({
-              elements: parseResult.designElements,
-              wires: parseResult.designWires,
-            });
-            useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
-          }
-          handleCompile();
+          // Validate + parse via source-parser service (spec: validate first, if not valid → report error, do not enter Parser)
+          const result = parseAndPopulate(currentContent, setCompileErrors, setStatus);
+          if (result) handleCompile();
         }
       }, 150);
       return () => clearTimeout(timer);
@@ -1252,7 +828,7 @@ export default function App() {
   const handleSearchSelect = useCallback((result: SearchResult) => {
     switch (result.action.type) {
       case "open-file":
-        api.readFile(result.action.payload).then((r) => {
+        api.project.readFile(result.action.payload).then((r) => {
           if (r.content) useEditorStore.getState().openFile(result.action.payload, r.content);
         });
         break;

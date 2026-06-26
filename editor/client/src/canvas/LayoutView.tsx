@@ -14,7 +14,7 @@ import { uid, extractComponentName } from "../core/utils";
 import { getDefaultProps } from "../core/constants";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
-import { compilerCache } from "../omni-compiler-cache";
+import { compilerCache } from "../services/compiler/cache";
 import { rustCompiler } from "../api/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
 

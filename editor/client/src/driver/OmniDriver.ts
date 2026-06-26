@@ -24,7 +24,7 @@ import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";
 import { getDefaultProps } from "../core/constants";
-import { api } from "../api/client";
+import { api } from "../services/api";
 import { getNodeConfig } from "../canvas/nodeRegistry";
 import { getAllPorts, validateConnection } from "../canvas/connectionValidators";
 import { uid } from "../core/utils";
@@ -940,7 +940,7 @@ class OmniDriver {
     }
 
     const target = (window as any).__OMNI_TARGET__ || "react";
-    const result = await api.compile(content, target);
+    const result = await api.compile.compile(content, target);
 
     // Parse view tree and code blocks
     try {
@@ -1941,7 +1941,7 @@ class OmniDriver {
     const path = this._store().activeFilePath;
     const content = this._store().activeFileContent;
     if (!path || !content) return false;
-    const result = await api.writeFile(path, content);
+    const result = await api.project.writeFile(path, content);
     return result.ok;
   }
 
@@ -1949,19 +1949,19 @@ class OmniDriver {
 
   /** Read a file from the project. */
   async readFile(filePath: string): Promise<string | null> {
-    const result = await api.readFile(filePath);
+    const result = await api.project.readFile(filePath);
     return result.content || null;
   }
 
   /** Write content to a file in the project. */
   async writeFile(filePath: string, content: string): Promise<boolean> {
-    const result = await api.writeFile(filePath, content);
+    const result = await api.project.writeFile(filePath, content);
     return result.ok;
   }
 
   /** Open a file in the editor. */
   async openFile(filePath: string): Promise<void> {
-    const result = await api.readFile(filePath);
+    const result = await api.project.readFile(filePath);
     if (result.content) {
       useEditorStore.getState().openFile(filePath, result.content);
     }
