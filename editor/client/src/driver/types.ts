@@ -2,8 +2,8 @@
  *  Playwright-like API for programmatic editor control.
  *  Exposed as `window.__OMNI__` for AI-driven automation. */
 
-import type { ElementData, WireData } from "../store/editor";
-import type { EventMeta } from "../panels/ComponentPalette";
+import type { ElementData, WireData } from "../core/types";
+import type { EventMeta } from "../ui/panels/ComponentPalette";
 
 // ── Re-export store types ────────────────────────────
 
@@ -112,7 +112,7 @@ export interface ValidationReport {
 
 export interface StateDiff {
   /** Elements that were added */
-  added: import("../store/editor").ElementData[];
+  added: import("../core/types").ElementData[];
   /** IDs of elements that were removed */
   removed: string[];
   /** Elements that were modified, with changed properties */
@@ -121,7 +121,7 @@ export interface StateDiff {
     changes: Record<string, { from: unknown; to: unknown }>;
   }>;
   /** Wires that were added */
-  addedWires: import("../store/editor").WireData[];
+  addedWires: import("../core/types").WireData[];
   /** IDs of wires that were removed */
   removedWires: string[];
 }
@@ -192,7 +192,7 @@ export interface TabExportData {
     label: string;
     icon: string;
     variables: Array<{ name: string; type: string; defaultValue?: unknown; description?: string }>;
-    elements: import("../store/editor").ElementData[];
-    wires: import("../store/editor").WireData[];
+    elements: import("../core/types").ElementData[];
+    wires: import("../core/types").WireData[];
   };
 }

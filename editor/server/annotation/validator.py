@@ -34,17 +34,17 @@ def validate_annotations(file: AnnotationFile) -> list[AnnotationError]:
 def _validate_position_rules(
     file: AnnotationFile, lines: list[str], errors: list[AnnotationError]
 ) -> None:
-    # P1: @code-tab must be first non-blank, non-comment (non-annotation) line
+    # P1: @omni-file must be first non-blank, non-comment (non-annotation) line
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped == "":
             continue
         if stripped.startswith("//") and not stripped.startswith("// @"):
             continue
-        if not stripped.startswith("// @code-tab"):
+        if not (stripped.startswith("// @omni-file") or stripped.startswith("// @code-tab")):
             errors.append(AnnotationError(
                 code=AnnotationErrorCode.CODE_TAB_NOT_FIRST,
-                message=f"@code-tab must be the first directive; found '{stripped[:40]}' at line {i + 1}",
+                message=f"@omni-file must be the first directive; found '{stripped[:40]}' at line {i + 1}",
                 line=i + 1,
             ))
         break
@@ -264,7 +264,7 @@ def _validate_consistency_rules(
     if file.code_tab_type.value not in ("logic", "event"):
         errors.append(AnnotationError(
             code=AnnotationErrorCode.INVALID_CODE_TAB_TYPE,
-            message=f"@code-tab type must be 'logic' or 'event', got '{file.code_tab_type.value}'",
+            message=f"@omni-file type must be 'logic' or 'event', got '{file.code_tab_type.value}'",
             line=file.code_tab_line,
         ))
 

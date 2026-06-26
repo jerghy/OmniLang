@@ -5,7 +5,7 @@
  * 帮助开发者检查键盘导航是否符合预期。
  */
 
-import type { ElementData } from "../store/editor";
+import type { ElementData } from "../core/types";
 
 // ── 可聚焦元素识别 ────────────────────────────────
 

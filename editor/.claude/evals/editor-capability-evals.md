@@ -209,7 +209,7 @@ The Monaco editor integration must provide syntax-aware editing for `.omni` file
 - [ ] omniLangTokens: Provides Monarch tokenizer for OmniLang syntax (keywords: component, view, signal, store, etc.)
 - [ ] omniCompletion: Provides completion provider for OmniLang keywords and component tags
 - [ ] CodeEditorPopup: Shows inline popup for quick code edits (small code blocks)
-- [ ] Syntax highlighting: Highlights keywords (component, view, signal, store, getter, action, @code-tab, @edit)
+- [ ] Syntax highlighting: Highlights keywords (component, view, signal, store, getter, action, @omni-file, @edit)
 - [ ] Error markers: Shows compile error markers on the gutter and inline
 - [ ] Read-only mode: Disables editing for auto-generated code with ReadOnlyBanner
 - [ ] Responsive: Editor resizes with the panel; maintains scroll position on re-render

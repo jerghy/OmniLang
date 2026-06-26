@@ -6,7 +6,7 @@ from editor.server.annotation.parser import parse_annotations
 from editor.server.annotation.generator import generate_annotations
 from editor.server.annotation.validator import validate_annotations
 
-COMPLETE_SOURCE = """// @code-tab type=logic
+COMPLETE_SOURCE = """// @omni-file type=logic
 import omniview;
 
 // ═══════════════════════════════════════════════════════════
