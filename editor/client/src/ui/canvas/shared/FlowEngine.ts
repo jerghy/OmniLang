@@ -1,4 +1,4 @@
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData } from "../../../core/types";
 
 export interface ExecutionStep {
   elementId: string;

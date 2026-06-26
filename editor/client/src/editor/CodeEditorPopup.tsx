@@ -6,7 +6,7 @@ import { MonacoEditor, type MonacoEditorHandle } from "./MonacoEditor";
 import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import { SnippetPanel } from "../panels/SnippetPanel";
-import { TYPE_COLORS } from "../canvas/socketTypes";
+import { TYPE_COLORS } from "../ui/canvas/shared/socketTypes";
 
 interface CodeEditorPopupProps {
   visible: boolean;

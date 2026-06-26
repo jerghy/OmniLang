@@ -6,7 +6,7 @@ import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { uid } from "../core/utils";
-import { getNodeConfig } from "../canvas/nodeRegistry";
+import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
 import { AddElement } from "../core/commands/AddElement";
 import type { CommandContext } from "../core/commands/types";
 

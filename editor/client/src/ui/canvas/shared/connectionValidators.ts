@@ -6,7 +6,7 @@
  *  Note: Event ports (onPress, onChange etc.) are no longer injected here.
  *  Events are bound in Design mode PropertyPanel, not via code graph wires. */
 
-import type { ElementData, PortData, WireData } from "../core/types";
+import type { ElementData, PortData, WireData } from "../../../core/types";
 import { isTypeCompatible, typeMismatchMessage } from "./socketTypes";
 
 // ── Port discovery ────────────────────────────────────────────────

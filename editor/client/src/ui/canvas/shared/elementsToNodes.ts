@@ -2,10 +2,10 @@
  *  Extracted from FlowCanvas.tsx for testability and readability. */
 
 import type { Node } from "@xyflow/react";
-import type { ElementData } from "../core/types";
+import type { ElementData } from "../../../core/types";
 import { getNodeConfig } from "./nodeRegistry";
 import { getAllPorts } from "./connectionValidators";
-import type { BaseNodeData } from "./nodes/BaseNode";
+import type { BaseNodeData } from "../code/nodes/BaseNode";
 
 export interface ElementsToNodesOptions {
   elements: ElementData[];

@@ -6,7 +6,7 @@ import {
   wouldCreateCycle,
   getAllPorts,
 } from "../connectionValidators";
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData } from "../../../../core/types";
 
 function makeEl(overrides: Partial<ElementData> = {}): ElementData {
   return {

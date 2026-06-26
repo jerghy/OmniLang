@@ -1,9 +1,9 @@
 // editor/client/src/canvas/nodes/BaseNode.tsx
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { getNodeConfig } from "../nodeRegistry";
-import { TYPE_COLORS } from "../socketTypes";
-import type { PortData } from "../../core/types";
+import { getNodeConfig } from "../../shared/nodeRegistry";
+import { TYPE_COLORS } from "../../shared/socketTypes";
+import type { PortData } from "../../../../core/types";
 
 export interface BaseNodeData {
   elementId: string;

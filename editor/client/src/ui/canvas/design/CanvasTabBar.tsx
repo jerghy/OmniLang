@@ -2,10 +2,10 @@
  *  替代原来的 ComponentCanvasHeader 独立返回按钮。 */
 
 import React, { useState } from "react";
-import { useEditorStore } from "../store/editor";
-import { useComponentRegistry } from "../store/componentRegistry";
-import { api } from "../services/api";
-import { parseOmniSource } from "../services/codegen";
+import { useEditorStore } from "../../../store/editor";
+import { useComponentRegistry } from "../../../store/componentRegistry";
+import { api } from "../../../services/api";
+import { parseOmniSource } from "../../../services/codegen";
 
 interface TabInfo {
   key: string;          // docId: null for main, "comp:Name", "file:path"

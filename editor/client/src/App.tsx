@@ -15,15 +15,20 @@ import { StatePanel } from "./panels/StatePanel";
 import { FunctionLibrary } from "./panels/FunctionLibrary";
 import { ActivityBar, PanelContainer, DESIGN_PANELS, type PanelId } from "./panels/ActivityBar";
 import { CanvasPanel } from "./panels/CanvasPanel";
-import { FlowCanvas } from "./canvas/FlowCanvas";
-import { LayoutView } from "./canvas/LayoutView";
-import { CanvasTabBar } from "./canvas/CanvasTabBar";
-import { CodeTabBar } from "./canvas/CodeTabBar";
+import { FlowCanvas } from "./ui/canvas/code/FlowCanvas";
+import { LayoutView } from "./ui/canvas/design/LayoutView";
+import { CanvasTabBar } from "./ui/canvas/design/CanvasTabBar";
+import { CodeTabBar } from "./ui/canvas/code/CodeTabBar";
 import { useCodeGraphStore } from "./codegraph/store";
 import { useComponentRegistry } from "./store/componentRegistry";
-import { StateHUD } from "./canvas/StateHUD";
-import { PerfBadge } from "./canvas/PerfBadge";
-import { DebugPanel } from "./canvas/DebugPanel";
+import { StateHUD } from "./ui/canvas/StateHUD";
+import { PerfBadge } from "./ui/canvas/PerfBadge";
+import { DebugPanel } from "./ui/canvas/DebugPanel";
+import { S, btnStyle, iconBtn } from "./ui/shell/theme";
+import { Toolbar } from "./ui/shell/Toolbar";
+import { DesignToolbar } from "./ui/shell/DesignToolbar";
+import { CodeToolbar } from "./ui/shell/CodeToolbar";
+import { StatusBar } from "./ui/shell/StatusBar";
 import { MonacoEditor, type MonacoEditorHandle } from "./editor/MonacoEditor";
 import { CodeEditorPopup } from "./editor/CodeEditorPopup";
 import { SearchModal } from "./search/SearchModal";
@@ -43,21 +48,7 @@ import { parseAndPopulate } from "./services/parser/source-parser";
 import { ProjectWelcome } from "./panels/ProjectWelcome";
 import { compilerCache } from "./services/compiler/cache";
 
-// ═══════════════════════════════════════════════
-// Styles
-// ═══════════════════════════════════════════════
-
-const S = {
-  app: { display: "flex", height: "100vh", fontFamily: "system-ui, sans-serif" } as React.CSSProperties,
-  sidebar: { width: 220, minWidth: 220, flexShrink: 0, borderRight: "1px solid #e5e7eb", overflow: "auto", background: "#f9fafb", display: "flex", flexDirection: "column" } as React.CSSProperties,
-  main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative", zIndex: 1 } as React.CSSProperties,
-  toolbar: { height: 36, minHeight: 36, borderBottom: "1px solid #e5e7eb", padding: "0 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 12, position: "relative", zIndex: 5 } as React.CSSProperties,
-  canvasArea: { flex: 1, overflow: "auto", position: "relative" } as React.CSSProperties,
-  codeArea: { flex: 1, overflow: "hidden", display: "flex" } as React.CSSProperties,
-  inspector: { width: 280, minWidth: 280, flexShrink: 0, borderLeft: "1px solid #e5e7eb", display: "flex", flexDirection: "column", background: "#f9fafb" } as React.CSSProperties,
-  statusBar: { height: 24, minHeight: 24, borderTop: "1px solid #e5e7eb", padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, background: "#f9fafb" } as React.CSSProperties,
-  modeBtn: (active: boolean) => ({ padding: "3px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: active ? "#4F46E5" : "#F3F4F6", color: active ? "#fff" : "#374151" } as React.CSSProperties),
-};
+// Styles moved to ./ui/shell/theme.ts
 
 // ═══════════════════════════════════════════════
 // App
@@ -914,64 +905,30 @@ export default function App() {
             <BlockPalette ctx={ctx} />
           </PanelContainer>
           <main style={S.main}>
-            <div style={S.toolbar}>
-              <button onMouseDown={() => setMode("design")} onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
-              <button onMouseDown={() => setMode("code")} onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
-              <span style={{ width: 8 }} />
-              <button onClick={() => undoUndo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="撤销 (Ctrl+Z)">↩</button>
-              <button onClick={() => undoRedo(ctx)} style={{...btnStyle, padding:"2px 6px"}} title="重做 (Ctrl+Shift+Z)">↪</button>
-              <button onClick={() => saveProject()} style={{...btnStyle, padding:"2px 6px", color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400}} title="保存项目 (Ctrl+S)">💾</button>
-              <select
-                value=""
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v) {
-                    const O = (window as any).__OMNI__;
-                    if (O) O.snippet(v);
-                  }
-                  e.target.value = "";
-                }}
-                style={{...btnStyle, fontSize: 11, padding: "2px 6px"}}
-                title="快速模板"
-              >
-                <option value="" disabled>📋 模板</option>
-                <option value="login-form">登录表单</option>
-                <option value="data-card">数据卡片</option>
-                <option value="crud-table">CRUD 表格</option>
-              </select>
-              {projectDir && <span style={{ color: "#9ca3af", fontSize: 11 }}>{projectDir.split(/[/\\]/).slice(-2).join("/")}</span>}
-              <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 10, color: "#9ca3af" }}>目标:</span>
-              <select value={target} onChange={e => setTarget(e.target.value)} style={{ padding: "2px 6px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4 }}>
-                {["react","omniview","vue","dioxus","flutter","python","javascript","rust","dart"].map(t => <option key={t}>{t}</option>)}
-              </select>
-              <button onClick={() => setShowConnector(!showConnector)}
-                style={{...btnStyle, background: showConnector ? "#EEF2FF" : "#fff", borderColor: showConnector ? "#4F46E5" : "#d1d5db" }}>
-                {showConnector ? "🔌 连接器" : "🔌 连接器"}
-              </button>
-              <button onClick={() => setLayoutTrigger(v => v + 1)}
-                style={{...btnStyle, background: "#fff"}}>
-                📐 自动布局
-              </button>
-              {runStatus.running ? (
-                <>
-                  <a href={runStatus.url || "#"} target="_blank" rel="noreferrer"
-                    style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", textDecoration: "none" }}>
-                    🔗 {runStatus.url?.replace("http://", "") || "运行"}
-                  </a>
-                  <button onClick={handleStop}
-                    style={{...btnStyle, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#DC2626" }}>
-                    ⏹ 停止
-                  </button>
-                </>
-              ) : (
-                <button onClick={handleRun} disabled={runLoading}
-                  style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
-                  {runLoading ? "⏳ 启动中..." : "▶ 运行"}
-                </button>
-              )}
-              <button onClick={handleCompile} style={btnStyle}>编译 (Ctrl+Enter)</button>
-            </div>
+            <Toolbar
+              mode={mode}
+              isDirty={isDirty}
+              projectDir={projectDir}
+              runStatus={runStatus}
+              runLoading={runLoading}
+              onModeChange={setMode}
+              onUndo={() => undoUndo(ctx)}
+              onRedo={() => undoRedo(ctx)}
+              onSave={saveProject}
+              onRun={handleRun}
+              onStop={handleStop}
+              onCompile={handleCompile}
+              compileLabel="编译 (Ctrl+Enter)"
+            >
+              <CodeToolbar
+                target={target}
+                showConnector={showConnector}
+                projectDir={projectDir}
+                onTargetChange={setTarget}
+                onToggleConnector={() => setShowConnector(!showConnector)}
+                onAutoLayout={() => setLayoutTrigger(v => v + 1)}
+              />
+            </Toolbar>
             <CodeTabBar />
             <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
               <div style={S.codeArea}>
@@ -1020,10 +977,13 @@ export default function App() {
                 </aside>
               )}
             </div>
-            <div style={S.statusBar}>
-              <span style={{ color: status.isError ? "#DC2626" : status.text.startsWith("⚠") ? "#D97706" : "#6B7280" }}>{status.text}</span>
-              <span style={{ color: "#9ca3af" }}>{projectName}{isDirty ? " ●" : ""} {projectDir ? `| 📁 ${projectDir}` : ""} {compileErrors.length > 0 && `— ${compileErrors.length} 条错误`}</span>
-            </div>
+            <StatusBar
+              status={status}
+              isDirty={isDirty}
+              projectName={projectName}
+              projectDir={projectDir}
+              compileErrors={compileErrors}
+            />
           </main>
         </>
       ) : (
@@ -1041,75 +1001,36 @@ export default function App() {
             )}
           </PanelContainer>
           <main style={S.main}>
-            <div style={S.toolbar}>
-              {/* Mode toggle */}
-              <button onMouseDown={() => setMode("design")} onClick={() => setMode("design")} style={S.modeBtn(mode === "design")}>🎨 设计</button>
-              <button onMouseDown={() => setMode("code")} onClick={() => setMode("code")} style={S.modeBtn(mode === "code")}>💻 代码</button>
-              <span style={{ width: 8 }} />
-              {/* Undo/Redo */}
-              <button onClick={() => undoUndo(ctx)} style={iconBtn} title="撤销 (Ctrl+Z)">↩</button>
-              <button onClick={() => undoRedo(ctx)} style={iconBtn} title="重做 (Ctrl+Shift+Z)">↪</button>
-              {/* Save */}
-              <button onClick={() => saveProject()} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400}} title="保存项目 (Ctrl+S)">💾</button>
-              <button onClick={() => handleOpenProject()} style={iconBtn} title="打开项目">📂</button>
-              <span style={{ flex: 1 }} />
-              {/* Viewport */}
-              <span style={{ fontSize: 10, color: "#9CA3AF" }}>视口:</span>
-              {(["desktop","tablet","mobile"] as const).map(bp => (
-                <button key={bp} onClick={() => setBreakpoint(bp)}
-                  style={{ padding: "2px 6px", fontSize: 10, border: "1px solid", borderRadius: 3, cursor: "pointer",
-                    background: breakpoint === bp ? "#4F46E5" : "#fff",
-                    color: breakpoint === bp ? "#fff" : "#6B7280",
-                    borderColor: breakpoint === bp ? "#4F46E5" : "#d1d5db" }}>
-                  {{desktop:"🖥",tablet:"📱",mobile:"📱"}[bp]}
-                </button>
-              ))}
-              {/* State preview */}
-              <select value={previewState} onChange={(e) => setPreviewState(e.target.value)}
-                style={{ padding: "2px 4px", fontSize: 10, border: "1px solid #d1d5db", borderRadius: 3, background: "#fff" }}
-                title="Component state preview">
-                <option value="normal">👁</option>
-                <option value="hover">🖱</option>
-                <option value="active">👆</option>
-                <option value="focus">🎯</option>
-                <option value="disabled">🚫</option>
-                <option value="loading">⏳</option>
-              </select>
-              <span style={{ width: 8 }} />
-              {/* Toggle buttons (compact icon-only) */}
-              <button onClick={() => setShowTokens(!showTokens)}
-                style={{...iconBtn, background: showTokens ? "#EEF2FF" : "transparent", borderColor: showTokens ? "#4F46E5" : "transparent" }}
-                title="令牌面板">🎨</button>
-              <button onClick={() => setWireMode(!wireMode)}
-                style={{...iconBtn, background: wireMode ? "#EEF2FF" : "transparent", borderColor: wireMode ? "#4F46E5" : "transparent" }}
-                title="连线模式">🔗</button>
-              <button onClick={() => setShowHUD(!showHUD)}
-                style={{...iconBtn, background: showHUD ? "#EEF2FF" : "transparent", borderColor: showHUD ? "#4F46E5" : "transparent" }}
-                title="状态 HUD">🔍</button>
-              <button onClick={() => setShowFocusOrder(!showFocusOrder)}
-                style={{...iconBtn, background: showFocusOrder ? "#EEF2FF" : "transparent", borderColor: showFocusOrder ? "#4F46E5" : "transparent" }}
-                title="焦点顺序">↹</button>
-              <span style={{ width: 8 }} />
-              {/* Run/Stop/Compile */}
-              {runStatus.running ? (
-                <>
-                  <a href={runStatus.url || "#"} target="_blank" rel="noreferrer"
-                    style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", textDecoration: "none" }}>
-                    🔗 {runStatus.url?.replace("http://", "") || "运行"}
-                  </a>
-                  <button onClick={handleStop}
-                    style={{...btnStyle, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#DC2626" }}>
-                    ⏹ 停止
-                  </button>
-                </>
-              ) : (
-                <button onClick={handleRun} disabled={runLoading}
-                  style={{...btnStyle, background: "#ECFDF5", borderColor: "#10B981", color: "#059669", fontWeight: 600 }}>
-                  {runLoading ? "⏳" : "▶"} 运行
-                </button>
-              )}
-              <button onClick={handleCompile} style={btnStyle}>编译</button>
-            </div>
+            <Toolbar
+              mode={mode}
+              isDirty={isDirty}
+              projectDir={projectDir}
+              runStatus={runStatus}
+              runLoading={runLoading}
+              onModeChange={setMode}
+              onUndo={() => undoUndo(ctx)}
+              onRedo={() => undoRedo(ctx)}
+              onSave={saveProject}
+              onRun={handleRun}
+              onStop={handleStop}
+              onCompile={handleCompile}
+            >
+              <DesignToolbar
+                breakpoint={breakpoint}
+                previewState={previewState}
+                showTokens={showTokens}
+                wireMode={wireMode}
+                showHUD={showHUD}
+                showFocusOrder={showFocusOrder}
+                onBreakpointChange={setBreakpoint}
+                onPreviewStateChange={setPreviewState}
+                onToggleTokens={() => setShowTokens(!showTokens)}
+                onToggleWireMode={() => setWireMode(!wireMode)}
+                onToggleHUD={() => setShowHUD(!showHUD)}
+                onToggleFocusOrder={() => setShowFocusOrder(!showFocusOrder)}
+                onOpenProject={handleOpenProject}
+              />
+            </Toolbar>
             <CanvasTabBar />
             <div style={{ display: "flex", justifyContent: "center", background: "#f0f0f0", flex: 1, overflow: "auto" }}>
               <div style={{
@@ -1124,12 +1045,13 @@ export default function App() {
                 {showFocusOrder && <FocusOrderOverlay />}
               </div>
             </div>
-            <div style={S.statusBar}>
-              <span style={{ color: status.isError ? "#DC2626" : status.text.startsWith("⚠") ? "#D97706" : "#6B7280" }}>{status.text}</span>
-              <span style={{ color: "#9ca3af" }}>{projectName}{isDirty ? " ● 未保存" : ""} {projectDir ? `| 📁 ${projectDir}` : ""}</span>
-              <span style={{ flex: 1 }} />
-              <PerfBadge />
-            </div>
+            <StatusBar
+              status={status}
+              isDirty={isDirty}
+              projectName={projectName}
+              projectDir={projectDir}
+              showPerfBadge
+            />
           </main>
           <aside style={S.inspector}>
             <PropertyPanel
@@ -1214,8 +1136,7 @@ export default function App() {
 // Helpers
 // ═══════════════════════════════════════════════
 
-const btnStyle: React.CSSProperties = { padding: "4px 12px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 4, background: "#fff", cursor: "pointer" };
-const iconBtn: React.CSSProperties = { padding: "2px 6px", fontSize: 13, border: "1px solid transparent", borderRadius: 4, background: "transparent", cursor: "pointer", lineHeight: 1 };
+// btnStyle/iconBtn moved to ./ui/shell/theme.ts
 
 interface TreeNode { id: string; tag: string; props?: Record<string, unknown>; children?: TreeNode[]; testId?: string | null; }
 

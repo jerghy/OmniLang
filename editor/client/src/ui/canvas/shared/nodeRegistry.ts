@@ -1,6 +1,6 @@
 // editor/client/src/canvas/nodeRegistry.ts
 
-import type { PortData } from "../core/types";
+import type { PortData } from "../../../core/types";
 
 export interface NodeTypeConfig {
   tag: string;

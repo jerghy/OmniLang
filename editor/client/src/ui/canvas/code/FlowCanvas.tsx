@@ -15,22 +15,22 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { ElementData, WireData } from "../core/types";
-import { useCodeGraphStore } from "../codegraph/store";
-import { createCodeGraphContext } from "../codegraph/context";
-import { AddWire } from "../core/commands/AddWire";
-import { RemoveWire } from "../core/commands/RemoveWire";
-import { AddElement } from "../core/commands/AddElement";
-import { RemoveElement } from "../core/commands/RemoveElement";
-import { getNodeConfig, type NodeTypeConfig } from "./nodeRegistry";
+import type { ElementData, WireData } from "../../../core/types";
+import { useCodeGraphStore } from "../../../codegraph/store";
+import { createCodeGraphContext } from "../../../codegraph/context";
+import { AddWire } from "../../../core/commands/AddWire";
+import { RemoveWire } from "../../../core/commands/RemoveWire";
+import { AddElement } from "../../../core/commands/AddElement";
+import { RemoveElement } from "../../../core/commands/RemoveElement";
+import { getNodeConfig, type NodeTypeConfig } from "../shared/nodeRegistry";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
-import { DataEdge } from "./edges/DataEdge";
-import { getAllPorts, validateConnection, generateCustomFnPorts } from "./connectionValidators";
-import { NodePalette } from "./NodePalette";
-import { elementsToNodes } from "./elementsToNodes";
-import { wiresToEdges } from "./wiresToEdges";
-import { showToast } from "./toast";
-import { uid } from "../utils/id";
+import { DataEdge } from "../shared/edges/DataEdge";
+import { getAllPorts, validateConnection, generateCustomFnPorts } from "../shared/connectionValidators";
+import { NodePalette } from "../design/NodePalette";
+import { elementsToNodes } from "../shared/elementsToNodes";
+import { wiresToEdges } from "../shared/wiresToEdges";
+import { showToast } from "../../../notifications/toast";
+import { uid } from "../../../utils/id";
 
 // ── Custom node/edge types ──
 

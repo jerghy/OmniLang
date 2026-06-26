@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { useEditorStore } from "../store/editor";
+import { useEditorStore } from "../../store/editor";
 
 interface StateHUDProps {
   elementId: string;

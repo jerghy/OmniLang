@@ -3,19 +3,19 @@
 // Palette -> canvas drops are captured by a transparent overlay on top of the iframe.
 
 import React, { useCallback, useState, useEffect, useRef } from "react";
-import { useEditorStore } from "../store/editor";
-import type { ElementData } from "../core/types";
-import { useUndoStore } from "../store/undo";
-import { useCodeGraphStore } from "../codegraph/store";
-import { AddElement } from "../core/commands/AddElement";
-import { RemoveElement } from "../core/commands/RemoveElement";
-import type { CommandContext } from "../core/commands/types";
-import { uid, extractComponentName } from "../core/utils";
-import { getDefaultProps } from "../core/constants";
-import { useComponentRegistry } from "../store/componentRegistry";
+import { useEditorStore } from "../../../store/editor";
+import type { ElementData } from "../../../core/types";
+import { useUndoStore } from "../../../store/undo";
+import { useCodeGraphStore } from "../../../codegraph/store";
+import { AddElement } from "../../../core/commands/AddElement";
+import { RemoveElement } from "../../../core/commands/RemoveElement";
+import type { CommandContext } from "../../../core/commands/types";
+import { uid, extractComponentName } from "../../../core/utils";
+import { getDefaultProps } from "../../../core/constants";
+import { useComponentRegistry } from "../../../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
-import { compilerCache } from "../services/compiler/cache";
-import { rustCompiler } from "../api/rustCompiler";
+import { compilerCache } from "../../../services/compiler/cache";
+import { rustCompiler } from "../../../api/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
 
 // ============================================================

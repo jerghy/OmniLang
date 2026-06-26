@@ -3,7 +3,7 @@
  *  grouping all registered node types by category. */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { getAllNodeConfigs, CATEGORY_META, type NodeTypeConfig } from "./nodeRegistry";
+import { getAllNodeConfigs, CATEGORY_META, type NodeTypeConfig } from "../shared/nodeRegistry";
 
 export interface NodePaletteProps {
   /** Canvas position where the palette should appear (relative to FlowCanvas container). */

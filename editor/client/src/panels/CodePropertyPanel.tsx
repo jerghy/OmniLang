@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useCodeGraphStore } from "../codegraph/store";
-import { getNodeConfig, getAllNodeConfigs } from "../canvas/nodeRegistry";
+import { getNodeConfig, getAllNodeConfigs } from "../ui/canvas/shared/nodeRegistry";
 import { createCodeGraphContext } from "../codegraph/context";
 import { AddElement } from "../core/commands/AddElement";
 import type { ElementData } from "../core/types";

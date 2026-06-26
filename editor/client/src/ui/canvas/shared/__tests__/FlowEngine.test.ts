@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 import { executeFlow, validateFlow } from "../FlowEngine";
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData } from "../../../../core/types";
 
 function makeEl(overrides: Partial<ElementData> = {}): ElementData {
   return {

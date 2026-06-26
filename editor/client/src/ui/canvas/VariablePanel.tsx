@@ -3,8 +3,8 @@
  *  auto-create a GetVariable node.  Click to highlight its node on the canvas. */
 
 import { useState, useCallback } from "react";
-import { useEditorStore } from "../store/editor";
-import { getNodeConfig } from "./nodeRegistry";
+import { useEditorStore } from "../../store/editor";
+import { getNodeConfig } from "./shared/nodeRegistry";
 
 export interface VariablePanelProps {
   /** Call when user drags a variable to create a GetVariable node on canvas */

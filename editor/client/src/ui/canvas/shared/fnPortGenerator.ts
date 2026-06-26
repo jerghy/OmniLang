@@ -7,7 +7,7 @@
  *  2. OmniLang fn syntax:      `fn name(param: Type) -> Type { ... }`
  */
 
-import type { PortData } from "../core/types";
+import type { PortData } from "../../../core/types";
 
 export interface FnSignature {
   name: string;
