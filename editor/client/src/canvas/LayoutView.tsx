@@ -11,6 +11,7 @@ import { AddElement } from "../core/commands/AddElement";
 import { RemoveElement } from "../core/commands/RemoveElement";
 import type { CommandContext } from "../core/commands/types";
 import { uid } from "../utils/id";
+import { getDefaultProps } from "../core/constants";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
 import { compilerCache } from "../omni-compiler-cache";
@@ -174,11 +175,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
       const tag = e.dataTransfer.getData("application/omni-component");
       if (!tag) return;
 
-      const props: Record<string, unknown> = {};
-      if (tag === "Text") props.label = "Text";
-      else if (tag === "Heading") props.label = "Heading";
-      else if (tag === "Button") props.label = "Button";
-      else if (tag === "Input") props.placeholder = "Input";
+      const props = getDefaultProps(tag);
 
       const isCustom =
         useComponentRegistry.getState().definitions[tag] !== undefined;

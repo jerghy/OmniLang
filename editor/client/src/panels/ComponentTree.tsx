@@ -8,34 +8,17 @@ import { useEditorStore } from "../store/editor";
 import type { ElementData } from "../core/types";
 import { useUndoStore } from "../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
-import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
 import type { CommandContext } from "../core/commands/types";
+import { getDefaultProps } from "../core/constants";
 import { AddElement } from "../core/commands/AddElement";
 import { RemoveElement } from "../core/commands/RemoveElement";
 import { ReorderElement } from "../core/commands/ReorderElement";
 import { MoveElement } from "../core/commands/MoveElement";
 import { copySelection, pasteFromClipboard } from "../core/commands/CopyPaste";
 import { uid } from "../utils/id";
+import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../core/constants";
 
 // ── Constants ───────────────────────────────────────
-
-const CATEGORY_LABELS: Record<string, string> = {
-  Layout: "布局", Typography: "排版", Actions: "操作", Forms: "表单",
-  Data: "数据", Media: "媒体", Feedback: "反馈", Navigation: "导航",
-  Custom: "★ 自定义",
-};
-
-const CATEGORY_ORDER = ["Custom", "Layout", "Typography", "Actions", "Forms", "Data", "Media", "Feedback", "Navigation"];
-
-const COMPONENT_ICONS: Record<string, string> = {
-  Container: "📦", Flex: "↔", Grid: "⊞", Card: "🃏",
-  Text: "📝", Heading: "📰",
-  Button: "🔘", Input: "📋", TextArea: "📄", Select: "📌", Checkbox: "☑",
-  List: "📃", ListItem: "📎",
-  Image: "🖼",
-  Spinner: "⏳", Progress: "📊", Alert: "⚠",
-  Link: "🔗", Form: "📨",
-};
 
 /** OmniLang 组件名 → HTML 元素真名映射 */
 const TAG_TO_HTML: Record<string, string> = {
@@ -569,26 +552,6 @@ function ContextMenu({
   }, [registryVersion]);
 
   // ── Action handlers ───────────────────────────────
-
-  /** 从 COMPONENT_PROTOCOL 读取默认 props，保证元素创建出来就有可见内容 */
-  function getDefaultProps(tag: string): Record<string, unknown> {
-    const meta = COMPONENT_PROTOCOL[tag];
-    if (!meta) return {};
-    const props: Record<string, unknown> = {};
-    for (const [key, schema] of Object.entries(meta.props)) {
-      if (schema.default !== undefined) {
-        props[key] = schema.default;
-      }
-    }
-    // 对缺少默认值的组件补充中文占位内容，确保可见
-    if (tag === "Input" && !props.placeholder) props.placeholder = "输入...";
-    if (tag === "TextArea" && !props.placeholder) props.placeholder = "输入...";
-    if (tag === "Select" && !props.placeholder) props.placeholder = "选择...";
-    if (tag === "Image" && !props.alt) props.alt = "图片";
-    if (tag === "Progress" && props.value === "0") props.value = "50";
-    if (tag === "Alert" && !props.label) props.label = "提示信息";
-    return props;
-  }
 
   // For custom components, check registry and set componentRef
   const registryDefs = useComponentRegistry((s) => s.definitions);

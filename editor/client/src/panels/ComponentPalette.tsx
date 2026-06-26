@@ -7,18 +7,11 @@ import React, { useState, useMemo } from "react";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
 import { useEditorStore } from "../store/editor";
 import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
+import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../core/constants";
 
 // Re-export for backward compatibility
 export { COMPONENT_PROTOCOL };
 export type { EventMeta } from "../data/componentProtocol";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  Layout: "布局", Typography: "排版", Actions: "操作", Forms: "表单",
-  Data: "数据", Media: "媒体", Feedback: "反馈", Navigation: "导航",
-  Custom: "★ 自定义",
-};
-
-const CATEGORY_ORDER = ["Custom", "Layout", "Typography", "Actions", "Forms", "Data", "Media", "Feedback", "Navigation"];
 
 // ═══════════════════════════════════════════════
 // Component
@@ -308,16 +301,3 @@ export function ComponentPalette() {
   );
 }
 
-// ═══════════════════════════════════════════════
-// Component Icons (simple unicode)
-// ═══════════════════════════════════════════════
-
-const COMPONENT_ICONS: Record<string, string> = {
-  Container: "📦", Flex: "↔", Grid: "⊞", Card: "🃏",
-  Text: "📝", Heading: "📰",
-  Button: "🔘", Input: "📋", TextArea: "📄", Select: "📌", Checkbox: "☑",
-  List: "📃", ListItem: "📎",
-  Image: "🖼",
-  Spinner: "⏳", Progress: "📊", Alert: "⚠",
-  Link: "🔗", Form: "📨",
-};

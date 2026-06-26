@@ -23,6 +23,7 @@ import type { ElementData, WireData } from "../core/types";
 import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../panels/ComponentPalette";
+import { getDefaultProps } from "../core/constants";
 import { api } from "../api/client";
 import { getNodeConfig } from "../canvas/nodeRegistry";
 import { getAllPorts, validateConnection } from "../canvas/connectionValidators";
@@ -557,7 +558,8 @@ class OmniDriver {
 
     // Extract inline children from props (Playwright-style: card({ children: [btn, txt] }))
     const inlineChildren: ElementHandle[] = [];
-    const cleanProps: Record<string, unknown> = {};
+    const defaultProps = getDefaultProps(tag);
+    const cleanProps: Record<string, unknown> = { ...defaultProps };
     if (props) {
       for (const [k, v] of Object.entries(props)) {
         if (k === "children" && Array.isArray(v) && v.every((c: unknown) => c instanceof ElementHandle)) {
