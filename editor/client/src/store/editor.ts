@@ -6,7 +6,7 @@
 
 import { create } from "zustand";
 import type { StyleEntry } from "../core/types";
-import { parseOmniSource } from "../omni-gen";
+import { parseOmniSource } from "../services/codegen";
 
 // ── Atom re-exports (preferred imports for refactored consumers) ──
 export { useElementStore } from "../core/state/elements";

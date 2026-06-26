@@ -33,7 +33,7 @@ import type { CommandContext } from "./core/commands/types";
 import { extractComponentName } from "./core/utils";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./core/commands/CopyPaste";
 import { showToast } from "./notifications/toast";
-import { parseOmniSource, generateOmniSource, emitCustomComponents, validate } from "./omni-gen";
+import { parseOmniSource, generateOmniSource, emitCustomComponents, validate } from "./services/codegen";
 import type { ElementData, WireData } from "./core/types";
 import type { ComponentDefinition } from "./store/componentRegistry";
 import { ProjectWelcome } from "./panels/ProjectWelcome";

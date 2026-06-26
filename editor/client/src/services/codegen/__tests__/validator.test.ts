@@ -3,13 +3,13 @@ import { describe, it, expect, vi } from "vitest";
 import { validate } from "../validator";
 
 // Mock rustCompiler — we test the wrapper logic, not the WASM
-vi.mock("../../api/rustCompiler", () => ({
+vi.mock("../../../api/rustCompiler", () => ({
   rustCompiler: {
     compileToIR: vi.fn(),
   },
 }));
 
-import { rustCompiler } from "../../api/rustCompiler";
+import { rustCompiler } from "../../../api/rustCompiler";
 
 describe("validate", () => {
   it("returns valid=true when compileToIR succeeds", () => {

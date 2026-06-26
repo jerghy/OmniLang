@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { api } from "../api/client";
-import { parseOmniSource } from "../omni-gen";
+import { parseOmniSource } from "../services/codegen";
 
 interface OmniFile {
   name: string;

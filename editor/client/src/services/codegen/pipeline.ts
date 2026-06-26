@@ -13,11 +13,11 @@ import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
 import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
-import { uid } from "../core/utils";
-import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../core/types";
-import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../core/types";
-import { useComponentRegistry } from "../store/componentRegistry";
-import type { ComponentDefinition } from "../store/componentRegistry";
+import { uid } from "../../core/utils";
+import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../../core/types";
+import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
+import { useComponentRegistry } from "../../core/state/componentRegistry";
+import type { ComponentDefinition } from "../../core/state/componentRegistry";
 import type {
   StageResult,
   PipelineError,

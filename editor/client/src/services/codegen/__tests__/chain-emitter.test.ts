@@ -1,7 +1,7 @@
 // editor/client/src/omni-gen/__tests__/chain-emitter.test.ts
 import { describe, it, expect } from "vitest";
 import { emitChains } from "../chain-emitter";
-import type { ElementData, WireData, CodeTab } from "../../core/types";
+import type { ElementData, WireData, CodeTab } from "../../../core/types";
 import type { LoweredCode } from "../types";
 
 describe("emitChains", () => {

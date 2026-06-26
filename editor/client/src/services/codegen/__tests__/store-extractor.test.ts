@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractStores } from "../store-extractor";
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData } from "../../../core/types";
 
 describe("extractStores", () => {
   it("groups signals by parentStore", () => {

@@ -3,7 +3,7 @@
 // Maps code graph node tags (literal, add, setVariable, etc.) to OmniLang expression strings.
 // Uses reverse wire adjacency to walk backward from consumer ports building expressions.
 
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData } from "../../core/types";
 import type { LoweredCode } from "./types";
 
 /**

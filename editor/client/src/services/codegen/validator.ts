@@ -1,5 +1,5 @@
 // editor/client/src/omni-gen/validator.ts
-import { rustCompiler } from "../api/rustCompiler";
+import { rustCompiler } from "../../api/rustCompiler";
 import type { ValidationResult } from "./types";
 
 export function validate(source: string): ValidationResult {

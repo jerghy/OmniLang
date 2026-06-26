@@ -1,8 +1,8 @@
 // editor/client/src/omni-gen/types.ts
 // Shared types for the OmniGen pipeline.
 
-import type { ElementData, WireData } from "../core/types";
-import type { CodeTab } from "../core/types";
+import type { ElementData, WireData } from "../../core/types";
+import type { CodeTab } from "../../core/types";
 
 // ── Error types ──
 

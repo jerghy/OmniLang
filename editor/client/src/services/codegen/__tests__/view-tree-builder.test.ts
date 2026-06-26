@@ -1,7 +1,7 @@
 // editor/client/src/omni-gen/__tests__/view-tree-builder.test.ts
 import { describe, it, expect } from "vitest";
 import { buildViewTree } from "../view-tree-builder";
-import type { ElementData } from "../../core/types";
+import type { ElementData } from "../../../core/types";
 
 describe("buildViewTree", () => {
   it("builds nested view tree from flat elements", () => {

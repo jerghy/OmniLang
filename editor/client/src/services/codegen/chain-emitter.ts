@@ -2,8 +2,8 @@
 // Converts code graph elements and wires to @chain/@node/@wire annotation blocks.
 // EmitChains maps each lowered function to a ChainBlock describing its subgraph.
 
-import type { ElementData, WireData } from "../core/types";
-import type { CodeTab } from "../core/types";
+import type { ElementData, WireData } from "../../core/types";
+import type { CodeTab } from "../../core/types";
 import type { ChainBlock, LoweredCode } from "./types";
 
 // ── Node attribute definitions ────────────────────────────────────

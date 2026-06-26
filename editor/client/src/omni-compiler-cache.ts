@@ -3,7 +3,7 @@
 // Wraps the omni-gen pipeline (elements -> .omni source) and the
 // Rust WASM compiler (.omni source -> JS/HTML/CSS) into a single cache.
 
-import { generateOmniSource } from "./omni-gen/pipeline";
+import { generateOmniSource } from "./services/codegen/pipeline";
 import { rustCompiler } from "./api/rustCompiler";
 import type { ElementData, WireData, CodeTab } from "./core/types";
 

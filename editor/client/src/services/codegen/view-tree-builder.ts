@@ -1,5 +1,5 @@
 // editor/client/src/omni-gen/view-tree-builder.ts
-import type { ElementData } from "../core/types";
+import type { ElementData } from "../../core/types";
 import type { ViewNode } from "./types";
 
 const TAG_HTML_MAP = new Set([
