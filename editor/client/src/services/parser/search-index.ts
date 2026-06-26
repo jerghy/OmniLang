@@ -10,7 +10,7 @@
  *   - 连线（连线 ID / 端口名）
  */
 
-import { BUILTIN_SNIPPETS } from "../snippets/builtin";
+import { BUILTIN_SNIPPETS } from "../../snippets/builtin";
 
 // ── Search Index Types (moved inline, was from omniJson/types) ──
 
