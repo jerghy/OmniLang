@@ -20,6 +20,7 @@ import { StyleEntryEditor } from "./StyleEntryEditor";
 import { AddStyleEntry } from "../commands/AddStyleEntry";
 import { RemoveStyleEntry } from "../commands/RemoveStyleEntry";
 import { UpdateStyleEntry } from "../commands/UpdateStyleEntry";
+import { ReorderStyleEntry } from "../commands/ReorderStyleEntry";
 import type { StyleEntry } from "../constants/style-properties";
 import { getComponentEvents, UNIVERSAL_EVENTS } from "../data/componentProtocol";
 
@@ -216,6 +217,14 @@ function ComponentMetaEditor({ componentName }: { componentName: string }) {
 // Helpers
 // ═══════════════════════════════════════════════
 
+/** Immutable reorder of an array: move element at `from` index to `to` index. */
+function reorderArray<T>(arr: readonly T[], from: number, to: number): T[] {
+  const result = [...arr];
+  const [removed] = result.splice(from, 1);
+  result.splice(to, 0, removed);
+  return result;
+}
+
 /** Walk up the element tree to find which component owns an element.
  *  Returns 'App' for top-level elements that are not inside a custom component. */
 function findOwningComponent(elementId: string, elements: ElementData[]): string {
@@ -249,6 +258,8 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
   const activeDocId = useEditorStore((s) => s.activeDocId);
   const undoExec = useUndoStore((s) => s.execute);
   const [expandedStyleId, setExpandedStyleId] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const isEditingComponent = activeDocId?.startsWith("comp:") ?? false;
   const editingCompName = isEditingComponent ? activeDocId!.replace("comp:", "") : null;
@@ -516,13 +527,38 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
 
         return (
           <div key={entry.id}>
-            {/* Collapsed row */}
+            {/* Collapsed row — draggable unless expanded */}
             <div
+              draggable={!isExpanded}
+              onDragStart={(e) => {
+                setDragIndex(index);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", entry.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragIndex !== index) setDropIndex(index);
+              }}
+              onDragEnd={() => {
+                if (dragIndex !== null && dropIndex !== null && dragIndex !== dropIndex) {
+                  const entries = el.styles || [];
+                  const oldIds = entries.map((e: StyleEntry) => e.id);
+                  const newIds = reorderArray(oldIds, dragIndex, dropIndex);
+                  undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
+                }
+                setDragIndex(null);
+                setDropIndex(null);
+              }}
               onClick={() => setExpandedStyleId(isExpanded ? null : entry.id)}
               style={{
-                display: "flex", alignItems: "center", cursor: "pointer",
+                display: "flex", alignItems: "center",
+                cursor: dragIndex === index ? "grabbing" : "grab",
                 padding: "4px 0", color: "#374151", fontSize: 12,
                 userSelect: "none",
+                opacity: dragIndex === index ? 0.4 : 1,
+                borderTop: dropIndex === index ? "2px solid #4F46E5" : "2px solid transparent",
+                transition: "opacity 0.15s, border-color 0.15s",
               }}
             >
               <span style={{ marginRight: 6 }}>{isExpanded ? "▼" : "▶"}</span>
@@ -565,6 +601,22 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
           </div>
         );
       })}
+
+      {/* Bottom drop zone — dropping below the last entry */}
+      {(el.styles?.length ?? 0) > 0 && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            setDropIndex(el.styles!.length);
+          }}
+          style={{
+            height: 4,
+            background: dropIndex === el.styles!.length ? "#4F46E5" : "transparent",
+            transition: "background 0.15s",
+          }}
+        />
+      )}
 
       {/* Instance info for custom components */}
       {el.componentRef && (
