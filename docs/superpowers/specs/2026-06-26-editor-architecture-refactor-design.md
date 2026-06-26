@@ -73,7 +73,7 @@ core/         ← 微内核（types, state atoms, commands, events）
 editor/client/src/
 ├── core/
 │   ├── types/           # 全部共享类型（从各处收敛）
-│   ├── state/           # 按域拆分的 Zustand atoms
+│   ├── state/           # 按域拆分的 Zustand atoms（含 codegraph）
 │   ├── commands/        # 命令模式 (undo/redo)
 │   └── events/          # 事件总线 (mitt)
 │
@@ -143,9 +143,10 @@ editor/server/
 | `state/project.ts` | 项目路径、名称、dirty、sourceCode | ~100 |
 | `state/tabs.ts` | 多画布标签、tabStates、enter/exit 组件画布 | ~200 |
 
-单独保留的 store：
+迁移到 `core/state/` 的其他 store：
 - `store/undo.ts` — undo/redo 栈（93 行，不变）
-- `store/componentRegistry.ts` — 自定义组件注册表（219 行，迁移到 `core/state/`）
+- `store/componentRegistry.ts` — 自定义组件注册表（219 行）
+- `codegraph/store.ts` — 代码图状态（728 行 4 文件 → `core/state/codegraph.ts`，已是合理大小，不拆分）
 
 跨 store 操作（如"删除元素也删除关联连线"）通过 `core/state/index.ts` 的组合函数处理，或订阅事件总线。
 
@@ -299,34 +300,16 @@ function compile(elements: ElementData[], wires: WireData[], ...): CompileResult
 
 ## 5. ui/ 详细设计
 
-### 5.1 PanelPlugin 接口
+### 5.1 面板组织（PanelPlugin 延后）
 
-所有面板实现统一接口：
+当前 19 个面板各具差异（有的用 `ctx`，有的直接读 store，有的有独立内部状态）。
+本次重构**只做文件迁移和目录重组**，不强制统一接口：
 
-```typescript
-// ui/panels/PanelPlugin.ts
-interface PanelPlugin {
-  id: string
-  title: string
-  icon: string
-  category: 'design' | 'code' | 'both'
-  defaultPosition: 'left' | 'right' | 'bottom'
-  component: React.ComponentType<{ ctx: CommandContext; isVisible: boolean }>
-}
-```
+- 所有面板文件迁入 `ui/panels/`
+- `ActivityBar.tsx` 保持现有硬编码的面板引用
+- PanelPlugin 接口 + 注册表动态渲染 → **标记为后续 PR 的可选优化项**，不作为本次重构目标
 
-面板注册表 `ui/panels/registry.ts`：
-
-```typescript
-export const panelRegistry: PanelPlugin[] = [
-  { id: 'components', title: '组件', icon: '🧩', category: 'design', ... },
-  { id: 'tree', title: '组件树', icon: '🌳', category: 'both', ... },
-  { id: 'files', title: '文件', icon: '📁', category: 'code', ... },
-  // ... 所有面板
-]
-```
-
-ActivityBar 从注册表动态渲染，新增面板只需注册，不碰 ActivityBar 代码。
+后续 PR 中可引入 PanelPlugin（约 30 行接口 + 40 行注册表），收益是新增面板时无需修改 ActivityBar。
 
 ### 5.2 巨型文件拆分
 
@@ -522,18 +505,34 @@ server/
 
 **验收标准：** `npm test` 全绿，`npm run build` 成功，UI 不变，`omnic serve` 正常启动。
 
+### Phase 2.5: 安全网 — E2E 关键路径（新增）
+
+> **为什么需要这个 Phase：** 当前测试覆盖率 ~16%，Phase 3 要动的大文件（PropertyPanel 1,362 行、ComponentTree 912 行、FlowCanvas 437 行等）全部没有单元测试。在动它们之前，必须用 E2E 建立安全网。
+
+| # | 步骤 | 风险 |
+|---|------|------|
+| 2.5.1 | E2E: 拖入组件 → 验证属性面板显示正确属性 | 低 |
+| 2.5.2 | E2E: 修改属性 → 验证画布预览更新 | 低 |
+| 2.5.3 | E2E: 连线两个元素 → 验证连线渲染 | 低 |
+| 2.5.4 | E2E: 切换设计/代码模式 → 验证布局完整性 | 低 |
+| 2.5.5 | E2E: 保存项目 → 重新打开 → 验证画布内容恢复 | 低 |
+| 2.5.6 | E2E: 组件树拖拽排序 → 验证顺序持久化 | 低 |
+| 2.5.7 | 运行全部 E2E 测试，建立 baseline | - |
+
+**验收标准：** 新增 6 个 E2E spec 全部通过，Phase 3 的改动有自动化兜底。
+
 ### Phase 3: UI 重组 + features 组装
 
 | # | 步骤 | 风险 |
 |---|------|------|
 | 3.1 | 创建 `ui/shell/`，提取 AppShell, Toolbar（design+code）, StatusBar | 中 |
 | 3.2 | 重组 `ui/canvas/` → design/ + code/ + shared/ | 中 |
-| 3.3 | 重组 `ui/inspector/`，拆分 PropertyPanel.tsx | 高 |
-| 3.4 | 重组 `ui/panels/`，引入 PanelPlugin 接口 + 注册表 | 中 |
+| 3.3 | 重组 `ui/inspector/`，拆分 PropertyPanel.tsx（1,362→~300 行 + 4 sections） | 高 |
+| 3.4 | 迁移所有面板文件到 `ui/panels/`（仅文件迁移，不改接口） | 中 |
 | 3.5 | 迁移 `editor/` + `preview/` + `search/` → `ui/` | 低 |
 | 3.6 | 创建 `features/` 层，提取所有 hooks | 高 |
 | 3.7 | 瘦身 App.tsx → ~80 行纯组装 | 高 |
-| 3.8 | 拆分 ComponentTree.tsx | 中 |
+| 3.8 | 拆分 ComponentTree.tsx（912→~200 行 + TreeNodeRenderer + tree-utils） | 中 |
 | 3.9 | 运行全部测试 + E2E 测试，验证通过 | - |
 
 **验收标准：** `npm test` 全绿，E2E 全部通过，`npm run build` 成功，UI 完全不变。
@@ -545,9 +544,11 @@ server/
 | 风险 | 缓解措施 |
 |------|----------|
 | 重构期间破坏现有功能 | 每步后运行全部测试；Phase 间可暂停、可回滚 |
+| 测试覆盖率仅 ~16%，关键 UI 文件无单元测试 | Phase 2.5 新增 E2E 关键路径测试作为安全网；Phase 3 每步后跑 E2E |
+| Store 拆分导致跨 store 操作遗漏（如 removeElement 同步清理 wires） | `core/state/index.ts` 组合函数集中管理跨 store 逻辑，Phase 1.3 完成后重点验证 |
 | import 路径变更遗漏 | 使用 TypeScript 编译器检查所有引用 |
-| Zustand store 拆分导致订阅失效 | 保持 selector 兼容，渐进迁移 |
-| E2E 测试依赖内部 DOM 结构 | E2E 使用语义化选择器，不依赖 className |
+| Zustand store 拆分导致组件订阅失效 | 保持 selector 签名兼容，渐进迁移 |
+| E2E 测试依赖内部 DOM 结构 | 使用语义化选择器（role、label），不依赖 className |
 | Python 路由移动导致 API 404 | 保持路由路径完全不变，仅改变文件组织 |
 
 ---
