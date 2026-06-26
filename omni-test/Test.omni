@@ -1,0 +1,17 @@
+import omniview;
+
+component Test {
+    view {
+        <div class: wrapper>
+            <h3>Test hex colors</h3>
+        </div>
+    }
+    style {
+        .wrapper {
+            --text-primary: #1e293b;
+            color: #1e293b;
+            --valid-color: #6366f1;
+            background: #ec4899;
+        }
+    }
+}

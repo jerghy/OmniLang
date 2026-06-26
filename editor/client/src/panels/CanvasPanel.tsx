@@ -1,52 +1,58 @@
-/** 画布面板 — 显示 .omni.json 画布文件列表，点击加载为标签页。
- *  底部提供保存当前画布按钮，替代原工具栏中的保存/加载按钮。 */
+/** 画布面板 — 显示 .omni 源文件列表，点击加载到画布编辑。
+ *
+ *  不再使用 .omni.json 项目文件格式，直接读写 .omni 源代码文件。
+ *  .omni 源码是唯一真相源，打开时解析为视觉元素，保存通过主工具栏操作。 */
 
 import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
-import { useCodeGraphStore } from "../codegraph/store";
 import { api } from "../api/client";
+import { parseOmniSource } from "../omni-gen";
 
-interface CanvasFile {
+interface OmniFile {
   name: string;
   path: string;
 }
 
 export function CanvasPanel() {
-  const [canvasFiles, setCanvasFiles] = useState<CanvasFile[]>([]);
+  const [omniFiles, setOmniFiles] = useState<OmniFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  const openProject = useEditorStore((s) => s.openProject);
-  const activeFilePath = useEditorStore((s) => s.projectPath);
-
-  // Scan for .omni.json files
+  // Scan for .omni files (recursive, up to 3 levels deep)
   const scanFiles = useCallback(async () => {
     setLoading(true);
-    setCanvasFiles([]);
+    setOmniFiles([]);
     try {
-      const listing = await api.listDir(".");
-      const entries = listing?.entries || [];
-      let jsonFiles = entries
-        .filter((e: { name: string }) => e.name.endsWith(".omni.json"))
-        .map((e: { name: string; path: string }) => ({ name: e.name, path: e.path || e.name }));
+      const files: OmniFile[] = [];
+      const scanned = new Set<string>();
 
-      // Also scan one level of subdirectories
-      const subdirs = entries.filter((e: { type: string }) => e.type === "directory");
-      for (const dir of subdirs) {
+      const scanDir = async (dirPath: string, depth: number): Promise<void> => {
+        if (depth > 3 || scanned.has(dirPath)) return;
+        scanned.add(dirPath);
         try {
-          const subListing = await api.listDir(dir.name);
-          const subEntries = subListing?.entries || [];
-          for (const se of subEntries) {
-            if (se.name.endsWith(".omni.json")) {
-              jsonFiles.push({ name: `${dir.name}/${se.name}`, path: `${dir.name}/${se.name}` });
+          const listing = await api.listDir(dirPath);
+          const entries = listing?.entries || [];
+          for (const e of entries) {
+            if (e.name.endsWith(".omni")) {
+              const fullPath = dirPath === "." ? e.name : `${dirPath}/${e.name}`;
+              files.push({ name: fullPath, path: fullPath });
             }
           }
-        } catch { /* skip inaccessible subdirs */ }
-      }
-      setCanvasFiles(jsonFiles);
-      if (jsonFiles.length === 0) setStatus("未找到画布文件");
-      else setStatus(`${jsonFiles.length} 个画布文件`);
+          // Recurse into subdirectories
+          if (depth < 3) {
+            for (const d of entries.filter((x: { type: string }) => x.type === "directory")) {
+              const subPath = dirPath === "." ? d.name : `${dirPath}/${d.name}`;
+              await scanDir(subPath, depth + 1);
+            }
+          }
+        } catch { /* skip inaccessible dirs */ }
+      };
+
+      await scanDir(".", 1);
+      setOmniFiles(files);
+      if (files.length === 0) setStatus("未找到 .omni 文件");
+      else setStatus(`${files.length} 个 .omni 文件`);
     } catch {
       setStatus("扫描失败");
     } finally {
@@ -58,79 +64,142 @@ export function CanvasPanel() {
     scanFiles();
   }, [scanFiles]);
 
-  // Open a project file
-  const handleOpen = useCallback(async (file: CanvasFile) => {
+  // Open a .omni source file — main.omni loads to main canvas, others open as tabs
+  const handleOpen = useCallback(async (file: OmniFile) => {
     setStatus(`加载 ${file.name}...`);
     try {
       const result = await api.readFile(file.path);
       if (!result.content) {
-        setStatus(`❌ 文件不存在: ${file.name}`);
+        setStatus(`❌ 文件为空: ${file.name}`);
         return;
       }
-      const data = JSON.parse(result.content);
-      // v2: validate project file (design.elements + code.elements or legacy elements)
-      if (!data.design && !data.elements) {
-        setStatus("❌ 项目文件格式无效 — 缺少 design/code 数据");
+
+      // Parse .omni source into design elements
+      const parsed = parseOmniSource(result.content);
+      const elements = parsed.designElements || [];
+      const wires = parsed.designWires || [];
+
+      // main.omni → 加载到主画布（切回主画布 tab）
+      if (file.name.endsWith("main.omni")) {
+        useEditorStore.setState((prev) => {
+          const newTabStates = { ...prev.tabStates };
+          const cur = prev.activeDocId;
+          if (cur && cur.startsWith("file:")) {
+            newTabStates[cur] = { elements: prev.elements, wires: prev.wires };
+          }
+          return {
+            activeDocId: null,
+            elements,
+            wires,
+            rootOrder: elements.filter((e) => !e.parentId).map((e) => e.id),
+            tabStates: newTabStates,
+            docBackup: null,  // reset backup since main canvas content changed
+            selectedElementIds: [],
+          };
+        });
+        import("../store/undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+        setStatus(`✅ 已加载到主画布: ${file.name}`);
         return;
       }
-      const editorStore = useEditorStore.getState();
-      editorStore.openProject(file.path, data);
-      setStatus(`✅ 已打开项目: ${file.name}`);
+
+      // 其他 .omni 文件 → 新开标签页
+      const tabKey = `file:${file.path}`;
+
+      useEditorStore.setState((prev) => {
+        const newTabStates = { ...prev.tabStates };
+        const cur = prev.activeDocId;
+        if (cur && cur.startsWith("file:")) {
+          newTabStates[cur] = { elements: prev.elements, wires: prev.wires };
+        }
+
+        // Backup main canvas when switching from it
+        const newDocBackup = cur === null && !prev.docBackup
+          ? { elements: prev.elements, wires: prev.wires }
+          : prev.docBackup;
+
+        newTabStates[tabKey] = { elements, wires };
+
+        return {
+          activeDocId: tabKey,
+          elements,
+          wires,
+          rootOrder: elements.filter((e) => !e.parentId).map((e) => e.id),
+          tabStates: newTabStates,
+          docBackup: newDocBackup,
+          openTabs: prev.openTabs.includes(tabKey)
+            ? prev.openTabs
+            : [...prev.openTabs, tabKey],
+          selectedElementIds: [],
+        };
+      });
+
+      // Clear undo stack when switching context
+      import("../store/undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+
+      // 加载自定义组件定义（从 src/components/*.omni 解析，metadata 在 // @component / @prop / @event 注释中）
+      api.loadComponentDefinitions().then((res) => {
+        if (res.definitions && Object.keys(res.definitions).length > 0) {
+          const existing = useComponentRegistry.getState().definitions;
+          const merged = { ...existing };
+          for (const [name, raw] of Object.entries(res.definitions)) {
+            const data = raw as Record<string, unknown>;
+            const source = data.source as string || "";
+            if (!source) continue;
+
+            const parsed = parseOmniSource(source);
+            const meta = parsed.componentMeta || {};
+
+            const elements = parsed.designElements || [];
+            const wires = parsed.designWires || [];
+
+            const propSchema: Record<string, unknown> = (meta.propSchema as Record<string, unknown>) || {};
+            const dslProps = parsed.props || [];
+            for (const p of dslProps) {
+              if (!propSchema[p.name]) {
+                propSchema[p.name] = { type: p.type, default: p.default, editor: "text" };
+              }
+            }
+
+            const eventSchema: Record<string, unknown> = (meta.eventSchema as Record<string, unknown>) || {};
+            const dslEvents = parsed.events || [];
+            for (const e of dslEvents) {
+              if (!eventSchema[e.name]) {
+                eventSchema[e.name] = { id: e.name, description: "", payload: null };
+              }
+            }
+
+            merged[name] = {
+              id: (meta.id as string) || name,
+              name,
+              category: (meta.category as string) || "Custom",
+              description: (meta.description as string) || "",
+              props: propSchema,
+              events: eventSchema,
+              styleProperties: (meta.styleProperties as string[]) || [],
+              children: (meta.children as boolean) ?? true,
+              elements,
+              wires,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              storage: "file",
+            };
+          }
+          useComponentRegistry.setState({ definitions: merged } as any);
+        }
+      }).catch(() => {});
+
+      setStatus(`✅ 已打开: ${file.name}`);
     } catch (e) {
-      setStatus(`❌ 加载失败: ${e instanceof SyntaxError ? "格式错误" : String(e)}`);
+      setStatus(`❌ 加载失败: ${String(e)}`);
     }
   }, []);
-
-  // Save current project
-  const handleSave = useCallback(async () => {
-    const store = useEditorStore.getState();
-    const defaultName = store.projectPath
-      || `${store.projectName}.omni.json`;
-
-    const name = prompt("保存项目为:", defaultName);
-    if (!name) return;
-
-    setStatus(`保存到 ${name}...`);
-    try {
-      const now = new Date().toISOString();
-      const doc: Record<string, unknown> = {
-        schemaVersion: "2.0.0",
-        meta: { projectName: name.replace(".omni.json", ""), omniVersion: "0.6.0", createdAt: now, updatedAt: now },
-        sourceCode: store.sourceCode,
-        design: { elements: store.elements, wires: store.wires },
-        code: (() => {
-          const cg = useCodeGraphStore.getState();
-          const g = cg.getActiveGraph(); return { elements: g.elements, wires: g.wires };
-        })(),
-        components: Object.values(useComponentRegistry.getState().definitions).map((d: any) => ({
-          name: d.name,
-          source: d.source || "embedded",
-          ...(d.source === "embedded" || !d.source ? { definition: d } : {}),
-        })),
-        canvasLayout: { positions: {} },
-        tabState: { openTabs: store.openTabs, activeTab: store.activeDocId || "main" },
-        config: store.config,
-      };
-      const result = await api.saveOmniJson(name, doc);
-      if (result.ok) {
-        store.markClean();
-        useEditorStore.setState({ projectPath: name });
-        setStatus(`✅ 已保存: ${name}`);
-        scanFiles();
-      } else {
-        setStatus(`❌ 保存失败: ${result.error || "未知错误"}`);
-      }
-    } catch (e) {
-      setStatus(`❌ 保存失败: ${String(e)}`);
-    }
-  }, [scanFiles]);
 
   return (
     <div style={{ padding: 8, fontSize: 12, display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 6, gap: 4 }}>
         <span style={{ fontWeight: 600, fontSize: 11, color: "#6B7280", textTransform: "uppercase", flex: 1 }}>
-          📄 画布文件
+          📄 源码文件
         </span>
         <button
           onClick={scanFiles}
@@ -148,12 +217,12 @@ export function CanvasPanel() {
           <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 11, padding: "12px 0" }}>
             ⏳ 扫描中...
           </div>
-        ) : canvasFiles.length === 0 ? (
+        ) : omniFiles.length === 0 ? (
           <div style={{ textAlign: "center", color: "#9CA3AF", fontSize: 11, padding: "12px 0" }}>
-            {status || "未找到 .omni.json 文件"}
+            {status || "未找到 .omni 文件"}
           </div>
         ) : (
-          canvasFiles.map((f) => (
+          omniFiles.map((f) => (
             <div
               key={f.path}
               onClick={() => handleOpen(f)}
@@ -166,7 +235,7 @@ export function CanvasPanel() {
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               title={f.path}
             >
-              <span style={{ fontSize: 14 }}>🔧</span>
+              <span style={{ fontSize: 14 }}>📝</span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {f.name}
               </span>
@@ -183,21 +252,6 @@ export function CanvasPanel() {
         </div>
       )}
 
-      {/* Save button */}
-      <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 8, marginTop: 8 }}>
-        <button
-          onClick={handleSave}
-          style={{
-            width: "100%", padding: "6px 10px", fontSize: 12, fontWeight: 600,
-            border: "1px solid #D1D5DB", borderRadius: 6, background: "#fff",
-            cursor: "pointer", color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#F9FAFB"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
-        >
-          💾 保存当前画布
-        </button>
-      </div>
     </div>
   );
 }

@@ -13,6 +13,9 @@ pub fn tokenize(source: &str) -> Vec<Token> {
 /// Hand-written lexer: character-by-character, no regex.
 pub struct Lexer {
     source: Vec<char>,
+    /// Byte position of each character index (char_index → byte_offset in original str).
+    /// Always one entry longer than `source` so that `byte_pos[source.len()]` is valid.
+    byte_pos: Vec<usize>,
     pos: usize,
     line: u32,
     col: u32,
@@ -20,12 +23,32 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn new(source: &str) -> Self {
+        let chars: Vec<char> = source.chars().collect();
+        // Precompute byte position for each character index.
+        let mut byte_pos = Vec::with_capacity(chars.len() + 1);
+        let mut bp = 0usize;
+        for c in &chars {
+            byte_pos.push(bp);
+            bp += c.len_utf8();
+        }
+        byte_pos.push(bp); // sentinel for one-past-the-end
         Lexer {
-            source: source.chars().collect(),
+            source: chars,
+            byte_pos,
             pos: 0,
             line: 1,
             col: 1,
         }
+    }
+
+    /// Convert a character index (self.pos space) to a byte index in the original &str.
+    fn byte_of(&self, char_idx: usize) -> usize {
+        self.byte_pos.get(char_idx).copied().unwrap_or(self.byte_pos.last().copied().unwrap_or(0))
+    }
+
+    /// Create a token whose span is in byte positions (converted from character indices).
+    fn mk_token(&self, kind: TokenKind, start: usize, end: usize, line: u32, col: u32) -> Token {
+        Token::new(kind, self.byte_of(start), self.byte_of(end), line, col)
     }
 
     pub fn tokenize(&mut self) -> Vec<Token> {
@@ -47,8 +70,8 @@ impl Lexer {
         }
         tokens.push(Token::new(
             TokenKind::Eof,
-            self.pos,
-            self.pos,
+            self.byte_of(self.pos),
+            self.byte_of(self.pos),
             self.line,
             self.col,
         ));
@@ -61,7 +84,7 @@ impl Lexer {
         let col = self.col;
 
         match self.peek() {
-            None => Token::new(TokenKind::Eof, start, self.pos, line, col),
+            None => self.mk_token(TokenKind::Eof, start, self.pos, line, col),
             Some('\'') => self.read_single_quoted_string(),
             Some('"') => self.read_string(),
             Some('`') => self.read_template_string(),
@@ -86,7 +109,7 @@ impl Lexer {
                 self.advance();
                 if self.peek() == Some('>') {
                     self.advance();
-                    Token::new(TokenKind::Arrow, start, self.pos, line, col)
+                    self.mk_token(TokenKind::Arrow, start, self.pos, line, col)
                 } else {
                     self.if_next('=', TokenKind::MinusEq, TokenKind::Minus, start, line, col)
                 }
@@ -114,12 +137,12 @@ impl Lexer {
                 self.advance();
                 if self.peek() == Some('=') {
                     self.advance();
-                    Token::new(TokenKind::EqEq, start, self.pos, line, col)
+                    self.mk_token(TokenKind::EqEq, start, self.pos, line, col)
                 } else if self.peek() == Some('>') {
                     self.advance();
-                    Token::new(TokenKind::FatArrow, start, self.pos, line, col)
+                    self.mk_token(TokenKind::FatArrow, start, self.pos, line, col)
                 } else {
-                    Token::new(TokenKind::Eq, start, self.pos, line, col)
+                    self.mk_token(TokenKind::Eq, start, self.pos, line, col)
                 }
             }
             Some('!') => {
@@ -136,76 +159,82 @@ impl Lexer {
             }
             Some('&') => {
                 self.advance();
-                self.expect('&', TokenKind::AndAnd, "expected &&", start, line, col)
+                if self.peek() == Some('&') {
+                    self.advance();
+                    self.mk_token(TokenKind::AndAnd, start, self.pos, line, col)
+                } else {
+                    // Single & in text content (HTML entity, etc.) — treat as ident char.
+                    self.mk_token(TokenKind::Ident("&".into()), start, self.pos, line, col)
+                }
             }
             Some('|') => {
                 self.advance();
                 if self.peek() == Some('|') {
                     self.advance();
-                    Token::new(TokenKind::OrOr, start, self.pos, line, col)
+                    self.mk_token(TokenKind::OrOr, start, self.pos, line, col)
                 } else {
-                    Token::new(TokenKind::Pipe, start, self.pos, line, col)
+                    self.mk_token(TokenKind::Pipe, start, self.pos, line, col)
                 }
             }
             Some('$') => {
                 self.advance();
-                Token::new(TokenKind::Dollar, start, self.pos, line, col)
+                self.mk_token(TokenKind::Dollar, start, self.pos, line, col)
             }
             Some('#') => {
                 self.advance();
-                Token::new(TokenKind::Hash, start, self.pos, line, col)
+                self.mk_token(TokenKind::Hash, start, self.pos, line, col)
             }
             Some('?') => {
                 self.advance();
                 if self.peek() == Some('.') {
                     self.advance();
-                    Token::new(TokenKind::QuestionDot, start, self.pos, line, col)
+                    self.mk_token(TokenKind::QuestionDot, start, self.pos, line, col)
                 } else if self.peek() == Some('?') {
                     self.advance();
-                    Token::new(TokenKind::QuestionQuestion, start, self.pos, line, col)
+                    self.mk_token(TokenKind::QuestionQuestion, start, self.pos, line, col)
                 } else {
-                    Token::new(TokenKind::QuestionMark, start, self.pos, line, col)
+                    self.mk_token(TokenKind::QuestionMark, start, self.pos, line, col)
                 }
             }
             Some('(') => {
                 self.advance();
-                Token::new(TokenKind::LParen, start, self.pos, line, col)
+                self.mk_token(TokenKind::LParen, start, self.pos, line, col)
             }
             Some(')') => {
                 self.advance();
-                Token::new(TokenKind::RParen, start, self.pos, line, col)
+                self.mk_token(TokenKind::RParen, start, self.pos, line, col)
             }
             Some('{') => {
                 self.advance();
-                Token::new(TokenKind::LBrace, start, self.pos, line, col)
+                self.mk_token(TokenKind::LBrace, start, self.pos, line, col)
             }
             Some('}') => {
                 self.advance();
-                Token::new(TokenKind::RBrace, start, self.pos, line, col)
+                self.mk_token(TokenKind::RBrace, start, self.pos, line, col)
             }
             Some('[') => {
                 self.advance();
-                Token::new(TokenKind::LBracket, start, self.pos, line, col)
+                self.mk_token(TokenKind::LBracket, start, self.pos, line, col)
             }
             Some(']') => {
                 self.advance();
-                Token::new(TokenKind::RBracket, start, self.pos, line, col)
+                self.mk_token(TokenKind::RBracket, start, self.pos, line, col)
             }
             Some(';') => {
                 self.advance();
-                Token::new(TokenKind::Semicolon, start, self.pos, line, col)
+                self.mk_token(TokenKind::Semicolon, start, self.pos, line, col)
             }
             Some(',') => {
                 self.advance();
-                Token::new(TokenKind::Comma, start, self.pos, line, col)
+                self.mk_token(TokenKind::Comma, start, self.pos, line, col)
             }
             Some(':') => {
                 self.advance();
-                Token::new(TokenKind::Colon, start, self.pos, line, col)
+                self.mk_token(TokenKind::Colon, start, self.pos, line, col)
             }
             Some(c) => {
                 self.advance();
-                Token::new(
+                self.mk_token(
                     TokenKind::Error(format!("Unexpected character: '{}'", c)),
                     start,
                     self.pos,
@@ -250,9 +279,9 @@ impl Lexer {
     ) -> Token {
         if self.peek() == Some(expected) {
             self.advance();
-            Token::new(if_match, start, self.pos, line, col)
+            self.mk_token(if_match, start, self.pos, line, col)
         } else {
-            Token::new(if_not, start, self.pos, line, col)
+            self.mk_token(if_not, start, self.pos, line, col)
         }
     }
 
@@ -267,9 +296,9 @@ impl Lexer {
     ) -> Token {
         if self.peek() == Some(expected) {
             self.advance();
-            Token::new(kind, start, self.pos, line, col)
+            self.mk_token(kind, start, self.pos, line, col)
         } else {
-            Token::new(
+            self.mk_token(
                 TokenKind::Error(err_msg.to_string()),
                 start,
                 self.pos,
@@ -284,9 +313,9 @@ impl Lexer {
             self.advance();
             if self.peek() == Some('.') {
                 self.advance();
-                return Token::new(TokenKind::DotDotDot, start, self.pos, line, col);
+                return self.mk_token(TokenKind::DotDotDot, start, self.pos, line, col);
             }
-            Token::new(
+            self.mk_token(
                 TokenKind::Error("expected ...".into()),
                 start,
                 self.pos,
@@ -294,7 +323,7 @@ impl Lexer {
                 col,
             )
         } else {
-            Token::new(TokenKind::Dot, start, self.pos, line, col)
+            self.mk_token(TokenKind::Dot, start, self.pos, line, col)
         }
     }
 
@@ -375,7 +404,7 @@ impl Lexer {
                 }
             }
         }
-        Token::new(TokenKind::StringLiteral(s), start, self.pos, line, col)
+        self.mk_token(TokenKind::StringLiteral(s), start, self.pos, line, col)
     }
 
     fn read_string(&mut self) -> Token {
@@ -458,7 +487,7 @@ impl Lexer {
                 }
             }
         }
-        Token::new(TokenKind::StringLiteral(s), start, self.pos, line, col)
+        self.mk_token(TokenKind::StringLiteral(s), start, self.pos, line, col)
     }
 
     fn read_template_string(&mut self) -> Token {
@@ -492,7 +521,7 @@ impl Lexer {
                 }
             }
         }
-        Token::new(TokenKind::TemplateString(s), start, self.pos, line, col)
+        self.mk_token(TokenKind::TemplateString(s), start, self.pos, line, col)
     }
 
     fn read_number(&mut self) -> Token {
@@ -510,7 +539,7 @@ impl Lexer {
                     while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
                         hex.push(self.advance().unwrap());
                     }
-                    return Token::new(
+                    return self.mk_token(
                         TokenKind::IntLiteral(i64::from_str_radix(&hex, 16).unwrap_or(0)),
                         start,
                         self.pos,
@@ -525,7 +554,7 @@ impl Lexer {
                     while self.peek().is_some_and(|c| ('0'..='7').contains(&c)) {
                         oct.push(self.advance().unwrap());
                     }
-                    return Token::new(
+                    return self.mk_token(
                         TokenKind::IntLiteral(i64::from_str_radix(&oct, 8).unwrap_or(0)),
                         start,
                         self.pos,
@@ -540,7 +569,7 @@ impl Lexer {
                     while self.peek() == Some('0') || self.peek() == Some('1') {
                         bin.push(self.advance().unwrap());
                     }
-                    return Token::new(
+                    return self.mk_token(
                         TokenKind::IntLiteral(i64::from_str_radix(&bin, 2).unwrap_or(0)),
                         start,
                         self.pos,
@@ -592,7 +621,7 @@ impl Lexer {
         }
 
         if is_float {
-            Token::new(
+            self.mk_token(
                 TokenKind::FloatLiteral(num.parse().unwrap_or(0.0)),
                 start,
                 self.pos,
@@ -600,7 +629,7 @@ impl Lexer {
                 col,
             )
         } else {
-            Token::new(
+            self.mk_token(
                 TokenKind::IntLiteral(num.parse().unwrap_or(0)),
                 start,
                 self.pos,
@@ -676,6 +705,7 @@ impl Lexer {
             "getter" => TokenKind::Getter,
             "theme" => TokenKind::Theme,
             "bind" => TokenKind::Bind,
+            "emit" => TokenKind::Emit,
             // Motion keywords (context-sensitive, recognized in @motion blocks)
             "if_mode" => TokenKind::IfMode,
             "drag_constraints" => TokenKind::DragConstraints,
@@ -686,7 +716,7 @@ impl Lexer {
             "drag_velocity_max" => TokenKind::DragVelocityMax,
             _ => TokenKind::Ident(ident),
         };
-        Token::new(kind, start, self.pos, line, col)
+        self.mk_token(kind, start, self.pos, line, col)
     }
 
     fn read_at_keyword(&mut self) -> Token {
@@ -726,8 +756,8 @@ impl Lexer {
             "@animate" => TokenKind::AtAnimate,
             "@in-view" => TokenKind::AtInView,
             "@scroll" => TokenKind::AtScroll,
-            "@drag-horizontal" => TokenKind::AtDragHorizontal,
-            "@drag-vertical" => TokenKind::AtDragVertical,
+            "@drag-horizontal" | "@dragHorizontal" => TokenKind::AtDragHorizontal,
+            "@drag-vertical" | "@dragVertical" => TokenKind::AtDragVertical,
             "@driven-by" => TokenKind::AtDrivenBy,
             "@paused" => TokenKind::AtPaused,
             "@hover-reverse" => TokenKind::AtHoverReverse,
@@ -752,6 +782,6 @@ impl Lexer {
             // Unknown @-prefixed words are event bindings like @onPress, @onChange
             _ => TokenKind::Ident(kw),
         };
-        Token::new(kind, start, self.pos, line, col)
+        self.mk_token(kind, start, self.pos, line, col)
     }
 }

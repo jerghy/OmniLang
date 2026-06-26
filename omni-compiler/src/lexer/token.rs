@@ -48,6 +48,7 @@ pub enum TokenKind {
     Null,
 
     // Keywords (omniview)
+    Emit,
     Component,
     Signal,
     Computed,

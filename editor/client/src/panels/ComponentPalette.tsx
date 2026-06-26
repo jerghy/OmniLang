@@ -200,22 +200,46 @@ export function ComponentPalette() {
 
                     {/* Edit button (custom components only) */}
                     {isCustomComp && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          enterCanvas(m.component);
-                        }}
-                        style={{
-                          padding: "1px 6px", fontSize: 10, border: "none",
-                          background: "transparent", cursor: "pointer", color: "#6B7280",
-                          borderRadius: 3,
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.color = "#4F46E5"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B7280"; }}
-                        title={`编辑 ${m.component}`}
-                      >
-                        ✎
-                      </button>
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            enterCanvas(m.component);
+                          }}
+                          style={{
+                            padding: "1px 6px", fontSize: 10, border: "none",
+                            background: "transparent", cursor: "pointer", color: "#6B7280",
+                            borderRadius: 3,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.color = "#4F46E5"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B7280"; }}
+                          title={`编辑 ${m.component}`}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
+                              removeComponent(m.component);
+                              // Also delete the .omni file on disk
+                              import("../api/client").then(({ api }) => {
+                                api.deleteComponentDefinitions([m.component]).catch(() => {});
+                              });
+                            }
+                          }}
+                          style={{
+                            padding: "1px 6px", fontSize: 10, border: "none",
+                            background: "transparent", cursor: "pointer", color: "#dc2626",
+                            borderRadius: 3, opacity: 0.5,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.opacity = "1"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.5"; }}
+                          title={`删除 ${m.component}`}
+                        >
+                          🗑
+                        </button>
+                      </>
                     )}
                   </div>
                 );

@@ -251,6 +251,13 @@ def cmd_analyse(args):
 
 def _write_standalone_omniview(output_dir: str, body: str, js: str, css: str) -> str:
     """Assemble omniview output into a runnable index.html."""
+    # Workaround: ensure root .app container stays visible after animation init
+    js += """
+requestAnimationFrame(function(){ requestAnimationFrame(function(){
+  var el = document.querySelector('.app');
+  if (el && el.style.opacity === '0') { el.style.removeProperty('opacity'); el.style.removeProperty('transform'); }
+}); });
+"""
     index_path = os.path.join(output_dir, "index.html")
     html = f"""<!DOCTYPE html>
 <html lang="en">

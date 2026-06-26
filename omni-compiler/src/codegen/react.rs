@@ -233,7 +233,8 @@ impl ReactCodegen {
             w.emit("}");
         } else {
             for style in &comp.styles {
-                w.emit(&format!(".{} {{", style.class_name));
+                let prefix = if style.is_tag_selector { "" } else { "." };
+                w.emit(&format!("{}{} {{", prefix, style.class_name));
                 for (prop, value) in &style.properties {
                     let css_val = format_css_value(value);
                     w.emit(&format!("  {}: {};", to_css_prop(prop), css_val));
@@ -1848,6 +1849,7 @@ mod tests {
             class_name: "header".into(),
             properties: props,
             output_mode: "static".into(),
+            is_tag_selector: false,
         };
         let comp = ComponentIR {
             name: "App".into(),

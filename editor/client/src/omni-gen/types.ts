@@ -50,6 +50,10 @@ export interface ComponentPart {
   computeds: Record<string, { type: string; body: string }>;
   storeRefs: string[];
   fns: Array<{ name: string; params: Array<{ name: string; type: string }>; returnType: string; body: string }>;
+  /** Component prop declarations (e.g. `prop title: String = ""`) */
+  props?: Array<{ name: string; type: string; default?: unknown }>;
+  /** Component event declarations (e.g. `event onAction`) */
+  events?: Array<{ name: string }>;
   view: ViewNode | null;
   style: Record<string, Record<string, string>>;
 }
@@ -66,6 +70,30 @@ export interface EmitInput {
   component: ComponentPart;
   themes?: ThemeDef[];
   customComponents?: Array<{ name: string; source: string }>;
+  /** Editor metadata embedded as `// @component`, `// @prop`, `// @event`, `// @style` comments */
+  componentMeta?: ComponentMeta;
+}
+
+/**
+ * Editor-specific component metadata stored as comments in .omni source.
+ * Replaces the old *.meta.json sidecar files.
+ */
+export interface ComponentMeta {
+  id?: string;
+  category?: string;
+  description?: string;
+  children?: boolean;
+  styleProperties?: string[];
+  /** Per-prop editor schema (keyed by prop name) — extends prop DSL declaration */
+  propSchema?: Record<string, {
+    editor?: string;   // "text" | "select" | "checkbox" | "color"
+    values?: string[];  // for enum type
+  }>;
+  /** Per-event editor metadata (keyed by event name) — extends event DSL declaration */
+  eventSchema?: Record<string, {
+    payload?: string;
+    description?: string;
+  }>;
 }
 
 // ── Annotation ──
@@ -152,4 +180,10 @@ export interface ParseResult {
   codeTabs: CodeTab[];
   imports: string[];
   errors: Diagnostic[];
+  /** Component metadata parsed from `// @component`, `// @prop`, `// @event`, `// @style` comments. */
+  componentMeta?: ComponentMeta | null;
+  /** Parsed prop declarations from component body (`prop <name>: <type>;`). */
+  props?: Array<{ name: string; type: string; default?: unknown }>;
+  /** Parsed event declarations from component body (`event <name>;`). */
+  events?: Array<{ name: string }>;
 }

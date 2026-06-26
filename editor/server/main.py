@@ -265,21 +265,6 @@ async def api_compile(req: CompileRequest, request: Request):
     }
 
 
-class CompileFromIRRequest(BaseModel):
-    """POST /api/compile-from-ir 请求体 — 从 IR JSON 编译到目标框架"""
-    ir: dict  # IRProgram dict (Rust WASM output)
-    target: str = "react"
-
-
-@app.post("/api/compile-from-ir")
-async def api_compile_from_ir(req: CompileFromIRRequest):
-    """从 IR JSON 编译到目标框架代码（Deprecated — Rust handles all codegen now）。
-
-    该端点已弃用，因为 Python codegen 已被移除。保留以兼容旧客户端。
-    """
-    return {"success": False, "files": {}, "errors": ["compile-from-ir is deprecated: Rust handles all codegen"]}
-
-
 @app.get("/api/wasm/version")
 async def api_wasm_version():
     """返回 Rust 编译器版本信息（用于检查 WASM 是否可用）。"""
@@ -288,21 +273,6 @@ async def api_wasm_version():
         "rust_available": RustBridge.is_available(),
         "wasm_supported": True,  # Browser feature-check at runtime
     }
-
-
-class GenerateSourceRequest(BaseModel):
-    """POST /api/generate-source 请求体 — 从项目状态生成 .omni 源码"""
-    document: dict  # 完整 .omni.json document
-    componentName: str = "App"
-
-
-@app.post("/api/generate-source")
-async def api_generate_source(req: GenerateSourceRequest):
-    """从编辑器画布状态反向生成 .omni 源码。
-
-    注意：Python 反向 codegen 已移除。Rust 编译器 handle 所有代码生成。
-    """
-    return {"success": False, "source": "", "errors": ["generate-source is deprecated: Rust handles all codegen"]}
 
 
 class FsReadRequest(BaseModel):
@@ -485,6 +455,20 @@ def _serialize_tree(nodes: list) -> list:
     return result
 
 
+def _normalize_path(p: str) -> str:
+    """Normalize a file path, handling POSIX-style paths on Windows (e.g. /d/space/... -> D:/space/...)."""
+    path = Path(p)
+    resolved = path.resolve()
+    # If resolved path doesn't exist and it looks like a POSIX absolute path (/x/...),
+    # try converting the first component to a drive letter
+    if not resolved.exists() and p.startswith("/") and len(p) > 2 and p[2] == "/":
+        drive_letter = p[1].upper()
+        alt = Path(f"{drive_letter}:/{p[3:]}").resolve()
+        if alt.exists():
+            return str(alt)
+    return str(resolved)
+
+
 @app.post("/api/fs/read")
 async def api_fs_read(req: FsReadRequest, request: Request):
     """读取项目文件内容。"""
@@ -568,11 +552,11 @@ class SetProjectDirRequest(BaseModel):
 async def api_project_set_dir(req: SetProjectDirRequest, request: Request):
     """设置项目目录。"""
     try:
-        target = Path(req.dir).expanduser().resolve()
-        if not target.is_dir():
+        target = _normalize_path(req.dir)
+        if not Path(target).is_dir():
             return {"ok": False, "error": "目录不存在"}
-        request.app.state.project_dir = str(target)
-        return {"ok": True, "dir": str(target)}
+        request.app.state.project_dir = target
+        return {"ok": True, "dir": target}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -697,204 +681,13 @@ async def api_parse_native_ports(req: CompileRequest):
         return {"success": False, "ports": [], "error": str(e)}
 
 
-# ═══════════════════════════════════════════════════════
-# M6 API — .omni.json 原生格式 (导出/导入/检测)
-# ═══════════════════════════════════════════════════════
-
-
-class OmniJsonExportRequest(BaseModel):
-    source: str
-    filepath: str = "<input>"
-    target: str = "react"
-    existingCodeElements: list[dict] = []
-    existingCodeWires: list[dict] = []
-
-
-@app.post("/api/omni-json/export")
-async def api_omni_json_export(req: OmniJsonExportRequest):
-    """Regenerate code canvas from .omni source, returning only code canvas data (v2)."""
-    from editor.server.omni_json.exporter import OmniJsonExporter
-    from editor.server.omni_json.serializer import OmniJsonSerializer
-
-    try:
-        exporter = OmniJsonExporter()
-        code_canvas = exporter.regenerate_code_canvas(
-            source=req.source,
-            filepath=req.filepath,
-            target=req.target,
-            existing_code_elements=req.existingCodeElements,
-            existing_code_wires=req.existingCodeWires,
-        )
-        serializer = OmniJsonSerializer()
-        return {"success": True, "codeCanvas": serializer.to_dict(code_canvas)}
-    except Exception as e:
-        return {"success": False, "codeCanvas": None, "error": str(e)}
-
-
-class OmniJsonSaveRequest(BaseModel):
-    filePath: str
-    document: dict
-
-
-@app.post("/api/omni-json/save")
-async def api_omni_json_save(req: OmniJsonSaveRequest, request: Request):
-    """保存 .omni.json 到磁盘（原子写入）(v2)."""
-    from editor.server.omni_json.serializer import OmniJsonSerializer
-
-    project_dir = request.app.state.project_dir
-    if not project_dir:
-        return {"ok": False, "error": "No project directory"}
-
-    file_path = (Path(project_dir) / req.filePath).resolve()
-    if not str(file_path).startswith(str(Path(project_dir).resolve())):
-        return {"ok": False, "error": "Access denied"}
-
-    try:
-        serializer = OmniJsonSerializer()
-        doc = serializer.from_dict(req.document)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        serializer.save(doc, file_path)
-        return {"ok": True, "path": str(file_path.relative_to(project_dir)).replace("\\", "/")}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-class OmniJsonLoadRequest(BaseModel):
-    filePath: str
-
-
-@app.post("/api/omni-json/load")
-async def api_omni_json_load(req: OmniJsonLoadRequest, request: Request):
-    """加载 .omni.json 从磁盘 (v2)."""
-    from editor.server.omni_json.serializer import OmniJsonSerializer
-
-    project_dir = request.app.state.project_dir
-    if not project_dir:
-        return {"success": False, "document": None, "error": "No project directory"}
-
-    file_path = (Path(project_dir) / req.filePath).resolve()
-    if not str(file_path).startswith(str(Path(project_dir).resolve())):
-        return {"success": False, "document": None, "error": "Access denied"}
-
-    if not file_path.exists():
-        return {"success": False, "document": None, "error": "File not found"}
-
-    try:
-        serializer = OmniJsonSerializer()
-        doc = serializer.load(file_path)
-        return {"success": True, "document": serializer.to_dict(doc)}
-    except Exception as e:
-        return {"success": False, "document": None, "error": str(e)}
-
-
-class OmniJsonDetectRequest(BaseModel):
-    source: str
-
-
-@app.post("/api/omni-json/detect-handwritten")
-async def api_detect_handwritten(req: OmniJsonDetectRequest):
-    """检测 .omni 源码是否为手写."""
-    from editor.server.omni_json.exporter import OmniJsonExporter
-
-    exporter = OmniJsonExporter()
-    is_hw = exporter.detect_hand_written(req.source)
-    warnings: list[str] = []
-    if is_hw:
-        warnings.append(
-            "This file was hand-written. Comments and custom formatting "
-            "will be lost when converting to visual mode."
-        )
-        warnings.append(
-            "Only 'omnic build' can compile this file. "
-            "The editor cannot write to it."
-        )
-    return {"isHandWritten": is_hw, "warnings": warnings}
 
 
 # ═══════════════════════════════════════════════════════
-# M6 API — 组件拆分 / 语义合并 (P1)
+# M8 API — 自定义组件定义 (src/components/<Name>.omni, metadata in // @component/@prop/@event comments)
 # ═══════════════════════════════════════════════════════
 
-
-class OmniJsonSplitRequest(BaseModel):
-    filePath: str = "project.omni.json"
-
-
-@app.post("/api/omni-json/split")
-async def api_omni_json_split(req: OmniJsonSplitRequest, request: Request):
-    """将单体 .omni.json 拆分为按组件分文件 (M6.6)."""
-    from editor.server.omni_json.serializer import OmniJsonSerializer
-    from editor.server.omni_json.project import OmniProjectManager
-
-    project_dir = request.app.state.project_dir
-    if not project_dir:
-        return {"ok": False, "error": "No project directory"}
-
-    try:
-        serializer = OmniJsonSerializer()
-        doc_path = Path(project_dir) / req.filePath
-        if not doc_path.exists():
-            return {"ok": False, "error": f"File not found: {req.filePath}"}
-
-        doc = serializer.load(doc_path)
-        manager = OmniProjectManager(project_dir)
-        written = manager.split_document(doc)
-        return {
-            "ok": True,
-            "files": {name: str(p.relative_to(project_dir)).replace("\\", "/")
-                       for name, p in written.items()},
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-class MergeRequest(BaseModel):
-    base: dict
-    local: dict
-    remote: dict
-
-
-@app.post("/api/merge")
-async def api_merge(req: MergeRequest):
-    """3-way 语义合并 .omni.json 文档 (M6.7)."""
-    from editor.server.omni_json.merger import OmniJsonMerger
-
-    try:
-        merger = OmniJsonMerger()
-        result = merger.three_way_merge(req.base, req.local, req.remote)
-        return {"success": result["success"], "merged": result["merged"], "conflicts": result["conflicts"]}
-    except Exception as e:
-        return {"success": False, "merged": None, "conflicts": [], "error": str(e)}
-
-
-@app.post("/api/omni-json/merge")
-async def api_omni_json_merge(request: Request):
-    """从拆分的组件文件重构单体文档 (M6.6)."""
-    from editor.server.omni_json.project import OmniProjectManager
-
-    project_dir = request.app.state.project_dir
-    if not project_dir:
-        return {"success": False, "document": None, "error": "No project directory"}
-
-    try:
-        manager = OmniProjectManager(project_dir)
-        doc = manager.merge_documents()
-        if doc is None:
-            return {"success": False, "document": None, "error": "No manifest found"}
-        from editor.server.omni_json.serializer import OmniJsonSerializer
-        serializer = OmniJsonSerializer()
-        return {"success": True, "document": serializer.to_dict(doc)}
-    except Exception as e:
-        return {"success": False, "document": None, "error": str(e)}
-
-
-# ═══════════════════════════════════════════════════════
-# M8 API — 自定义组件定义 (.omni-components.json)
-# ═══════════════════════════════════════════════════════
-
-import json as _json
-
-_COMPONENTS_FILE = ".omni-components.json"
+_COMPONENTS_DIR = "src/components"
 
 
 class ComponentDefinitionsPayload(BaseModel):
@@ -903,13 +696,28 @@ class ComponentDefinitionsPayload(BaseModel):
 
 @app.post("/api/component-definitions/save")
 async def api_save_component_definitions(req: ComponentDefinitionsPayload, request: Request):
-    """保存自定义组件定义到项目目录下的 .omni-components.json。"""
+    """保存自定义组件定义到 src/components/<Name>.omni，并清理已删除的旧文件。"""
     project_dir = request.app.state.project_dir
     if not project_dir:
         return {"ok": False, "error": "No project directory"}
-    config_path = Path(project_dir) / _COMPONENTS_FILE
+    comp_dir = Path(project_dir) / _COMPONENTS_DIR
     try:
-        config_path.write_text(_json.dumps(req.definitions, indent=2, ensure_ascii=False), encoding="utf-8")
+        comp_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Write all current definitions
+        defined_names: set[str] = set()
+        for name, definition in req.definitions.items():
+            omni_source = definition.get("omniSource") or definition.get("source")
+            if omni_source:
+                defined_names.add(name)
+                omni_path = comp_dir / f"{name}.omni"
+                omni_path.write_text(omni_source, encoding="utf-8")
+
+        # 2. Delete .omni files for components that no longer exist (removed from registry)
+        for f in list(comp_dir.iterdir()):
+            if f.suffix == ".omni" and f.stem not in defined_names:
+                f.unlink()
+
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -917,18 +725,45 @@ async def api_save_component_definitions(req: ComponentDefinitionsPayload, reque
 
 @app.get("/api/component-definitions/load")
 async def api_load_component_definitions(request: Request):
-    """从项目目录加载自定义组件定义。"""
+    """从 src/components/ 目录加载所有自定义组件定义（仅 .omni 文件，metadata 在注释中）。"""
     project_dir = request.app.state.project_dir
     if not project_dir:
         return {"definitions": {}, "error": "No project directory"}
-    config_path = Path(project_dir) / _COMPONENTS_FILE
-    if not config_path.exists():
+    comp_dir = Path(project_dir) / _COMPONENTS_DIR
+    if not comp_dir.exists() or not comp_dir.is_dir():
         return {"definitions": {}}
     try:
-        data = _json.loads(config_path.read_text(encoding="utf-8"))
-        return {"definitions": data}
+        definitions = {}
+        for f in comp_dir.iterdir():
+            if f.suffix == ".omni" and f.stem:
+                source = f.read_text(encoding="utf-8")
+                definitions[f.stem] = {"source": source}
+        return {"definitions": definitions}
     except Exception as e:
         return {"definitions": {}, "error": str(e)}
+
+
+class ComponentDeletePayload(BaseModel):
+    names: list[str]
+
+
+@app.post("/api/component-definitions/delete")
+async def api_delete_component_definitions(req: ComponentDeletePayload, request: Request):
+    """删除 src/components/ 下的自定义组件 .omni 文件。"""
+    project_dir = request.app.state.project_dir
+    if not project_dir:
+        return {"ok": False, "error": "No project directory"}
+    comp_dir = Path(project_dir) / _COMPONENTS_DIR
+    if not comp_dir.exists():
+        return {"ok": True}
+    try:
+        for name in req.names:
+            omni_path = comp_dir / f"{name}.omni"
+            if omni_path.exists():
+                omni_path.unlink()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ═══════════════════════════════════════════════════════
@@ -1199,7 +1034,7 @@ def cmd_serve(args):
         print("Error: --dir is required. Usage: omnic serve --dir ./my-project", file=sys.stderr)
         sys.exit(1)
 
-    project_dir = str(Path(project_dir).resolve())
+    project_dir = _normalize_path(project_dir)
     app.state.project_dir = project_dir
 
     REACT_DIST = Path(__file__).parent.parent / "client" / "dist"

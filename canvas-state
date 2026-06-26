@@ -1,0 +1,53 @@
+- generic [ref=e2]:
+  - region "Notifications alt+T"
+  - generic [ref=e22]:
+    - generic [ref=e23]:
+      - generic "组件面板 (Ctrl+1)" [ref=e24] [cursor=pointer]: 🧩
+      - generic "组件树 (Ctrl+2)" [ref=e25] [cursor=pointer]: 🔀
+      - generic "画布面板 (Ctrl+3)" [ref=e26] [cursor=pointer]: 📄
+    - main [ref=e27]:
+      - generic [ref=e28]:
+        - button "🎨 设计" [ref=e29] [cursor=pointer]
+        - button "💻 代码" [ref=e30] [cursor=pointer]
+        - button "↩" [ref=e31] [cursor=pointer]
+        - button "↪" [ref=e32] [cursor=pointer]
+        - button "💾" [ref=e33] [cursor=pointer]
+        - button "📂" [ref=e34] [cursor=pointer]
+        - generic [ref=e35]: "视口:"
+        - button "🖥" [ref=e36] [cursor=pointer]
+        - button "📱" [ref=e37] [cursor=pointer]
+        - button "📱" [ref=e38] [cursor=pointer]
+        - combobox "Component state preview" [ref=e39]:
+          - option "👁" [selected]
+          - option "🖱"
+          - option "👆"
+          - option "🎯"
+          - option "🚫"
+          - option "⏳"
+        - button "🎨" [ref=e40] [cursor=pointer]
+        - button "🔗" [ref=e41] [cursor=pointer]
+        - button "🔍" [ref=e42] [cursor=pointer]
+        - button "↹" [ref=e43] [cursor=pointer]
+        - button "▶ 运行" [ref=e44] [cursor=pointer]
+        - button "编译" [ref=e45] [cursor=pointer]
+      - generic [ref=e46]:
+        - generic "主画布" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 📄
+          - generic [ref=e50]: 主画布
+        - button "+" [ref=e52] [cursor=pointer]
+      - iframe [ref=e56]:
+        - generic [ref=f2e5]:
+          - generic [ref=f2e6]:
+            - button "按钮" [ref=f2e7]
+            - paragraph [ref=f2e8]: Hello
+          - generic [ref=f2e9]:
+            - textbox "输入..." [ref=f2e10]
+            - heading "Heading" [level=1] [ref=f2e11]
+      - generic [ref=e57]:
+        - generic [ref=e58]: ✅ 已编译 — 21:11:07
+        - generic [ref=e59]: demo1 ● 未保存 | 📁 D:\space\omni\demo1
+        - generic [ref=e60]: — fps
+    - complementary [ref=e61]:
+      - generic [ref=e62]:
+        - generic [ref=e63]: 🔍
+        - generic [ref=e64]: 选择画布元素以编辑属性

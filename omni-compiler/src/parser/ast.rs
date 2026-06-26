@@ -445,7 +445,10 @@ pub enum ViewNode {
     Element(Element),
     IfDirective(IfDirective),
     ForDirective(ForDirective),
-    SlotDirective(Option<String>),
+    SlotDirective {
+        name: Option<String>,
+        default_content: Option<Vec<ViewNode>>,
+    },
     Text(String),
     Interpolation(Expr),
 }
@@ -484,7 +487,7 @@ pub enum ElementProp {
     MotionTrigger(MotionTrigger),
     StatesMap(Vec<(String, StateDef)>),
     AnimateSignal(Expr),
-    PausedOverride(bool),
+    PausedOverride(Expr),
     HoverReverse(String),
     /// @driven-by={signal} — external progress control
     DrivenBy(Expr),
@@ -562,6 +565,7 @@ pub struct ForDirective {
 pub struct StyleRule {
     pub class_name: String,
     pub properties: Vec<(String, StyleValue)>,
+    pub is_tag_selector: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -619,6 +623,8 @@ pub struct KeyframeBody {
     pub path: Option<String>,
     /// Whether to rotate element along the path
     pub path_rotate: Option<bool>,
+    /// Optional callback blocks after keyframe stops
+    pub callbacks: Vec<CallbackSpec>,
 }
 
 #[derive(Debug, Clone)]
@@ -655,6 +661,8 @@ pub enum TimelineItemKind {
     MotionRef(String),
     Stagger(StaggerCall),
     Label(String, Option<Expr>),
+    /// Timeline item position modifier: start: "withPrev" | "overlap(N)" | etc.
+    StartPos(PositionValue),
 }
 
 #[derive(Debug, Clone)]

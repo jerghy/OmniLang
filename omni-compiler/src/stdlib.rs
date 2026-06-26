@@ -1000,12 +1000,13 @@ fn codegen_array_pop(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            format!("({arr}).pop()")
+            // Use comma operator: pop() mutates, slice() returns the modified copy
+            format!("(({arr}).pop(), ({arr}).slice())")
         }
-        Target::Python => format!("({arr}).pop() if {arr} else None"),
-        Target::Rust | Target::Dioxus => format!("({arr}).pop()"),
+        Target::Python => format!("({arr}).pop() or {arr} if len({arr}) > 0 else []"),
+        Target::Rust | Target::Dioxus => format!("{{ let mut _v = {arr}.clone(); _v.pop(); _v }}"),
         Target::Dart | Target::Flutter => {
-            format!("({arr}).isNotEmpty ? ({arr}).removeLast() : null")
+            format!("({arr}).toList()..removeLast()")
         }
     }
 }

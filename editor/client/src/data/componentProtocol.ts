@@ -28,6 +28,79 @@ export interface ComponentProtocolEntry {
   children: boolean;
 }
 
+/**
+ * OmniView 通用事件 — 所有组件都可以使用，无组件类型限制。
+ *
+ * 按 DOM 映射分类：点击 / 输入 / 焦点 / 键盘 / 表单 / 滚动 / 鼠标 / 拖拽 / 触摸 / 滚轮 / 媒体 / 动画 / 切换 / 剪贴板
+ *
+ * 注意：onCopy、onCut、onPaste 等虽然没有被显式列出，但编译器会在兜底规则中
+ * strip "on" prefix 并转小写来匹配 DOM 事件。此处列出最常见的事件作为编辑器的可见选项。
+ */
+export const UNIVERSAL_EVENTS: Record<string, EventMeta> = {
+  // ── 点击 ──
+  onPress: { id: "evt-universal-press-001", description: "点击/按压", payload: "MouseEvent" },
+  onClick: { id: "evt-universal-click-001", description: "点击", payload: "MouseEvent" },
+  onTap: { id: "evt-universal-tap-001", description: "点击(触摸)", payload: "TouchEvent" },
+  onDoubleClick: { id: "evt-universal-dblclick-001", description: "双击", payload: "MouseEvent" },
+  onContextMenu: { id: "evt-universal-contextmenu-001", description: "右键菜单", payload: "MouseEvent" },
+  // ── 输入 ──
+  onChange: { id: "evt-universal-change-001", description: "输入变化", payload: "String" },
+  onInput: { id: "evt-universal-input-001", description: "输入事件", payload: "InputEvent" },
+  // ── 焦点 ──
+  onFocus: { id: "evt-universal-focus-001", description: "获得焦点", payload: "FocusEvent" },
+  onBlur: { id: "evt-universal-blur-001", description: "失去焦点", payload: "FocusEvent" },
+  // ── 键盘 ──
+  onKeyDown: { id: "evt-universal-keydown-001", description: "按键按下", payload: "KeyboardEvent" },
+  onKeyUp: { id: "evt-universal-keyup-001", description: "按键释放", payload: "KeyboardEvent" },
+  // ── 表单 ──
+  onSubmit: { id: "evt-universal-submit-001", description: "表单提交", payload: null },
+  // ── 滚动 ──
+  onScroll: { id: "evt-universal-scroll-001", description: "滚动", payload: "WheelEvent" },
+  // ── 鼠标 ──
+  onMouseEnter: { id: "evt-universal-mouseenter-001", description: "鼠标进入", payload: null },
+  onMouseLeave: { id: "evt-universal-mouseleave-001", description: "鼠标离开", payload: null },
+  onMouseDown: { id: "evt-universal-mousedown-001", description: "鼠标按下", payload: "MouseEvent" },
+  onMouseUp: { id: "evt-universal-mouseup-001", description: "鼠标释放", payload: "MouseEvent" },
+  onMouseMove: { id: "evt-universal-mousemove-001", description: "鼠标移动", payload: "MouseEvent" },
+  // ── 拖拽 ──
+  onDragStart: { id: "evt-universal-dragstart-001", description: "拖拽开始", payload: null },
+  onDragOver: { id: "evt-universal-dragover-001", description: "拖拽悬停", payload: null },
+  onDragEnd: { id: "evt-universal-dragend-001", description: "拖拽结束", payload: null },
+  onDrop: { id: "evt-universal-drop-001", description: "放下", payload: null },
+  // ── 触摸 ──
+  onTouchStart: { id: "evt-universal-touchstart-001", description: "触摸开始", payload: "TouchEvent" },
+  onTouchEnd: { id: "evt-universal-touchend-001", description: "触摸结束", payload: "TouchEvent" },
+  onTouchMove: { id: "evt-universal-touchmove-001", description: "触摸移动", payload: "TouchEvent" },
+  // ── 滚轮 ──
+  onWheel: { id: "evt-universal-wheel-001", description: "滚轮", payload: "WheelEvent" },
+  // ── 媒体（Image / Video / Audio） ──
+  onLoad: { id: "evt-universal-load-001", description: "加载完成", payload: null },
+  onError: { id: "evt-universal-error-001", description: "加载错误", payload: "ErrorEvent" },
+  onPlay: { id: "evt-universal-play-001", description: "播放", payload: null },
+  onPause: { id: "evt-universal-pause-001", description: "暂停", payload: null },
+  onEnded: { id: "evt-universal-ended-001", description: "播放结束", payload: null },
+  // ── 动画 ──
+  onAnimationStart: { id: "evt-universal-animationstart-001", description: "动画开始", payload: null },
+  onAnimationEnd: { id: "evt-universal-animationend-001", description: "动画结束", payload: null },
+  onAnimationIteration: { id: "evt-universal-animationiteration-001", description: "动画迭代", payload: null },
+  onTransitionEnd: { id: "evt-universal-transitionend-001", description: "过渡结束", payload: null },
+  // ── 切换 ──
+  onToggle: { id: "evt-universal-toggle-001", description: "切换", payload: null },
+  // ── 剪贴板 ──
+  onCopy: { id: "evt-universal-copy-001", description: "复制", payload: "ClipboardEvent" },
+  onCut: { id: "evt-universal-cut-001", description: "剪切", payload: "ClipboardEvent" },
+  onPaste: { id: "evt-universal-paste-001", description: "粘贴", payload: "ClipboardEvent" },
+};
+
+/**
+ * 获取组件的完整事件列表 = 通用事件 + 组件特殊事件。
+ * 组件特殊事件会覆盖同名的通用事件定义（例如 Button 的 onPress 使用更具体的 evt-btn-press-001 ID）。
+ */
+export function getComponentEvents(componentName: string): Record<string, EventMeta> {
+  const specialEvents = COMPONENT_PROTOCOL[componentName]?.events ?? {};
+  return { ...UNIVERSAL_EVENTS, ...specialEvents };
+}
+
 export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
   Container: {
     component: "Container", category: "Layout", description: "通用容器",

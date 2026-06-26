@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { useEditorStore, type ElementData } from "../store/editor";
 import { useUndoStore } from "../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../store/componentRegistry";
+import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
 import type { CommandContext } from "../commands/types";
 import { AddElement } from "../commands/AddElement";
 import { RemoveElement } from "../commands/RemoveElement";
@@ -35,11 +36,39 @@ const COMPONENT_ICONS: Record<string, string> = {
   Link: "🔗", Form: "📨",
 };
 
+/** OmniLang 组件名 → HTML 元素真名映射 */
+const TAG_TO_HTML: Record<string, string> = {
+  Container: "div", Flex: "div", Grid: "div", Card: "div",
+  Text: "p", Heading: "h1",
+  Button: "button", Input: "input", TextArea: "textarea",
+  Select: "select", Checkbox: "input[checkbox]",
+  List: "ul", ListItem: "li",
+  Image: "img", Spinner: "div", Progress: "progress",
+  Alert: "div", Link: "a", Form: "form",
+};
+
+/** 根据 tag + props 推导 HTML 元素真名（处理动态 tagByProp 如 Heading level → h2） */
+function resolveHtmlTag(tag: string, props: Record<string, unknown>): string {
+  const base = TAG_TO_HTML[tag];
+  if (!base) return tag;
+  // Heading: level="2" → h2
+  if (tag === "Heading" && props.level) return `h${props.level}`;
+  return base;
+}
+
+/** 从 props 中提取元素的可读标识文字 */
+function getDisplayLabel(props: Record<string, unknown>): string {
+  const p = props as Record<string, unknown>;
+  return String(p.label ?? p.placeholder ?? p.alt ?? p.href ?? "");
+}
+
 // ── Types ───────────────────────────────────────────
 
 interface TreeNode {
   id: string;
   tag: string;
+  htmlTag: string;
+  displayLabel: string;
   componentRef?: string;
   children: TreeNode[];
 }
@@ -95,6 +124,8 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     const buildNode = (el: ElementData): TreeNode => ({
       id: el.id,
       tag: el.tag,
+      htmlTag: resolveHtmlTag(el.tag, el.props as Record<string, unknown>),
+      displayLabel: getDisplayLabel(el.props as Record<string, unknown>),
       componentRef: el.componentRef,
       children: childrenOf(el.id).map(buildNode),
     });
@@ -407,7 +438,7 @@ function TreeNodeView({
           {COMPONENT_ICONS[node.tag] || "▪"}
         </span>
 
-        {/* Label */}
+        {/* Label — 显示 HTML 真名 + 标识文字 */}
         <span
           style={{
             flex: 1,
@@ -416,7 +447,12 @@ function TreeNodeView({
             whiteSpace: "nowrap",
           }}
         >
-          {node.tag}
+          <span style={{ color: "#8B5CF6", fontWeight: 500 }}>&lt;{node.htmlTag}&gt;</span>
+          {node.displayLabel && (
+            <span style={{ color: "#6B7280", marginLeft: 4 }}>
+              "{node.displayLabel}"
+            </span>
+          )}
         </span>
 
         {/* Custom component badge */}
@@ -533,21 +569,46 @@ function ContextMenu({
 
   // ── Action handlers ───────────────────────────────
 
+  /** 从 COMPONENT_PROTOCOL 读取默认 props，保证元素创建出来就有可见内容 */
+  function getDefaultProps(tag: string): Record<string, unknown> {
+    const meta = COMPONENT_PROTOCOL[tag];
+    if (!meta) return {};
+    const props: Record<string, unknown> = {};
+    for (const [key, schema] of Object.entries(meta.props)) {
+      if (schema.default !== undefined) {
+        props[key] = schema.default;
+      }
+    }
+    // 对缺少默认值的组件补充中文占位内容，确保可见
+    if (tag === "Input" && !props.placeholder) props.placeholder = "输入...";
+    if (tag === "TextArea" && !props.placeholder) props.placeholder = "输入...";
+    if (tag === "Select" && !props.placeholder) props.placeholder = "选择...";
+    if (tag === "Image" && !props.alt) props.alt = "图片";
+    if (tag === "Progress" && props.value === "0") props.value = "50";
+    if (tag === "Alert" && !props.label) props.label = "提示信息";
+    return props;
+  }
+
+  // For custom components, check registry and set componentRef
+  const registryDefs = useComponentRegistry((s) => s.definitions);
+
   const handleAddChild = useCallback(
     (parentId: string, tag: string) => {
+      const isCustom = registryDefs[tag] !== undefined;
       const el: ElementData = {
-        id: uid(),
+        id: uid(tag),
         nodeType: "view",
         tag,
-        props: {},
+        props: getDefaultProps(tag),
         children: [],
         parentId,
+        ...(isCustom ? { componentRef: tag } : {}),
       };
       const cmd = new AddElement(el);
       undoExec(cmd, ctx);
       onClose();
     },
-    [undoExec, ctx, onClose],
+    [undoExec, ctx, onClose, registryDefs],
   );
 
   const handleCopy = useCallback(() => {

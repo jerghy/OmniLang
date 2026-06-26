@@ -67,12 +67,22 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
       return;
     }
 
+    // Determine the correct component name: use the component name when on
+    // a component canvas, otherwise extract from source or default to "App".
+    let componentName = "App";
+    if (store.activeDocId?.startsWith("comp:")) {
+      componentName = store.activeDocId.replace("comp:", "");
+    } else if (store.activeFileContent) {
+      const match = store.activeFileContent.match(/component\s+(\w+)\s*\{/);
+      if (match) componentName = match[1];
+    }
+
     const output = compilerCache.compileProject(
       {
         designElements: store.elements,
         designWires: store.wires,
         codeTabs,
-        componentName: "App",
+        componentName,
         rootOrder: store.rootOrder,
       },
       true, // editorMode — inject bridge code for postMessage selection
@@ -80,6 +90,11 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
 
     if (output) {
       setSrcdoc(output.srcdoc);
+      // 仅当项目中已有未保存修改（用户做了视觉编辑）时才更新 sourceCode
+      // 初始加载时 isDirty==false，不会误触，避免页面显示"未保存"状态
+      if (output.omniSource && store.isDirty && output.omniSource !== store.sourceCode) {
+        useEditorStore.getState().setSourceCode(output.omniSource);
+      }
     }
   }, [hideCodeBlocks]);
 
@@ -90,8 +105,19 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
   }, [recompile, wasmReady]);
 
   // -- Subscribe to store changes and debounce recompilation --
+  // Only recompile when elements, wires, or rootOrder actually change to
+  // avoid triggering needless iframe reloads on every UI interaction.
   useEffect(() => {
-    const unsub = useEditorStore.subscribe(() => {
+    let prevKey = "";
+    const unsub = useEditorStore.subscribe((state) => {
+      // Compute a lightweight key: join element IDs, wire IDs, rootOrder, compVersion,
+      // and activeDocId to force recompile on tab/canvas switch.
+      const elKey = state.elements.map((e) => `${e.id}:${e.tag}:${e.parentId}:${e.componentRef || ''}:${JSON.stringify(e.styles)}`).join('|');
+      const wireKey = state.wires.map((w) => `${w.id}:${w.fromId}->${w.toId}`).join('|');
+      const key = `${elKey}|${wireKey}|${state.rootOrder.join(',')}|${state.compVersion}|${state.activeDocId || 'main'}`;
+      if (key === prevKey) return; // No meaningful change → skip recompile
+      prevKey = key;
+
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(recompile, 300);
     });
@@ -156,7 +182,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
       const isCustom =
         useComponentRegistry.getState().definitions[tag] !== undefined;
       const el: ElementData = {
-        id: uid(),
+        id: uid(tag),
         nodeType: "view",
         tag,
         props,

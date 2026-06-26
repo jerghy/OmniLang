@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { StyleEntry } from "../constants/style-properties";
+import { parseOmniSource } from "../omni-gen";
 
 // ── Data Types (R2 upgraded schema) ─────────────────
 
@@ -71,6 +72,10 @@ interface EditorState {
   activeMode: "design" | "code";
 
   selectedElementIds: string[];
+  /** Monotonically increasing version counter; bumped when custom component definitions
+   *  are saved on exit from a component canvas. LayoutView includes this in its
+   *  recompile-change-detection key so that the preview refreshes with the new definition. */
+  compVersion: number;
 
   // ── Project management ──
   projectPath: string | null;       // .omni.json file path
@@ -104,6 +109,8 @@ interface EditorState {
   setEventBindings: (id: string, eventName: string, binding: { fnName: string; paramBindings: Record<string, { sourceType: string; value: string; expectedType: string }> }) => void;
   removeEventBindings: (id: string, eventName: string) => void;
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
+  /** 重命名元素 ID（自动更新子元素的 parentId 引用） */
+  setElementId: (oldId: string, newId: string) => void;
 
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
 
@@ -123,8 +130,12 @@ interface EditorState {
   // ── Project management ──
   /** Create a new empty project. */
   newProject: () => void;
-  /** Load an existing .omni.json project. */
-  openProject: (path: string, document: Record<string, unknown>) => void;
+  /**
+   * 打开项目文件。
+   * - `.omni` 文件：传入源码字符串，解析出视觉元素
+   * - `.omni.json` 文件（旧格式）：传入解析后的 JSON 文档对象
+   */
+  openProject: (path: string, sourceOrDocument: string | Record<string, unknown>) => void;
   /** Mark project as dirty (unsaved changes). */
   markDirty: () => void;
   /** Mark project as clean (saved). */
@@ -143,8 +154,11 @@ interface EditorState {
   tabStates: Record<string, { elements: ElementData[]; wires: WireData[] }>;
   switchTab: (docId: string | null) => void;
   closeTab: (docId: string) => void;
-  /** Open a .omni.json file as project (replaces current project). */
+  /** 打开 .omni.json 文件作为项目（替换当前项目）。 */
   openFileTab: (path: string, name: string, elements: ElementData[], wires: WireData[], customComponents?: unknown[]) => void;
+
+  /** 内部：打开 .omni 源码文件，解析为视觉元素 */
+  _openOmniFile: (path: string, source: string) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -159,6 +173,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   rootOrder: [],
   activeMode: "design",
   selectedElementIds: [],
+  compVersion: 0,
 
   // ── Project management ──
   projectPath: null,
@@ -301,6 +316,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
     })),
 
+  setElementId: (oldId, newId) =>
+    set((s) => {
+      if (s.elements.some((e) => e.id === newId)) return s; // 防止重复
+      const updatedElements = s.elements.map((e) => {
+        if (e.id === oldId) return { ...e, id: newId };
+        // 更新子元素的 parentId 引用
+        if (e.parentId === oldId) return { ...e, parentId: newId };
+        return e;
+      });
+      return {
+        elements: updatedElements,
+        rootOrder: s.rootOrder.map((id) => (id === oldId ? newId : id)),
+        wires: s.wires.map((w) => ({
+          ...w,
+          fromId: w.fromId === oldId ? newId : w.fromId,
+          toId: w.toId === oldId ? newId : w.toId,
+        })),
+        isDirty: true,
+      };
+    }),
+
   setElementsAndWires: (elements, wires) =>
     set({ elements, wires, selectedElementIds: [] }),
 
@@ -321,7 +357,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const newToIdx = order.indexOf(targetSiblingId);
         const insertIdx = position === "before" ? newToIdx : newToIdx + 1;
         order.splice(insertIdx, 0, elementId);
-        return { rootOrder: order, isDirty: true };
+        // Also reorder the flat elements array to match, so save/load round-trip
+        // preserves order even without explicit rootOrder serialization.
+        const elements = [...s.elements];
+        const [movedEl] = elements.splice(fromIdx, 1);
+        elements.splice(insertIdx, 0, movedEl);
+        return { rootOrder: order, elements, isDirty: true };
       }
 
       // Container-level reorder: use parent.children
@@ -452,9 +493,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       openTabs: [],
       tabStates: {},
       selectedElementIds: [],
+      compVersion: 0,
     }),
 
-  openProject: (path, document) => {
+  openProject: (path, sourceOrDocument) => {
+    // .omni 源码字符串 → 解析为视觉元素
+    if (typeof sourceOrDocument === "string") {
+      return useEditorStore.getState()._openOmniFile(path, sourceOrDocument);
+    }
+
+    // .omni.json 旧格式 → 从 document 提取数据
+    const document = sourceOrDocument;
     const doc = document as Record<string, unknown>;
     const meta = (doc.meta || doc.meta || {}) as Record<string, unknown>;
     const design = (doc.design || {}) as Record<string, unknown>;
@@ -494,9 +543,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       path.replace(/^.*[\\/]/, "").replace(".omni.json", "") ||
       "未命名项目";
 
-    const rootOrder = designElements
-      .filter((e) => !e.parentId)
-      .map((e) => e.id);
+    // Use persisted rootOrder if available (from save), else reconstruct from array order (backward compat)
+    const rootOrder = (
+      (design.rootOrder as string[])?.length
+        ? (design.rootOrder as string[])
+        : designElements.filter((e) => !e.parentId).map((e) => e.id)
+    );
 
     return set({
       projectPath: path,
@@ -528,6 +580,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSourceCode: (code) =>
     set({ sourceCode: code, isDirty: true }),
 
+  // ── .omni 源码文件解析 ──
+
+  _openOmniFile: (path, source) => {
+    // 使用客户端解析器从 .omni 源码提取视觉元素
+    let designElements: ElementData[] = [];
+    try {
+      const parsed = parseOmniSource(source);
+      if (parsed.designElements) {
+        designElements = parsed.designElements;
+      }
+    } catch (e) {
+      console.warn("[editor] Failed to parse .omni source:", e);
+      // 解析失败时使用空元素列表，画布可通过编译自动恢复
+    }
+
+    const projectName = path.replace(/^.*[/\\]/, "").replace(/\.omni$/, "");
+
+    return set({
+      projectPath: path,
+      projectName,
+      sourceCode: source,
+      isDirty: false,
+      elements: designElements,
+      wires: [],
+      rootOrder: designElements.filter((e) => !e.parentId).map((e) => e.id),
+      config: { target: "react", autoSave: false },
+      activeDocId: null,
+      docBackup: null,
+      openTabs: ["main"],
+      tabStates: {},
+      selectedElementIds: [],
+    });
+  },
+
   // ── Multi-Canvas Support ──
   activeDocId: null,
   docBackup: null,
@@ -552,6 +638,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         openTabs: newOpenTabs,
         tabStates: newTabStates,
         selectedElementIds: [],
+        rootOrder: (compDef.elements || []).filter((e) => !e.parentId).map((e) => e.id),
       };
     }),
 
@@ -567,6 +654,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         docBackup: null,
         activeDocId: null,
         selectedElementIds: [],
+        rootOrder: (s.docBackup?.elements || []).filter((e) => !e.parentId).map((e) => e.id),
+        compVersion: s.compVersion + 1,
       };
     }),
 
@@ -579,8 +668,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (s.activeDocId === docId) return s;
       const newTabStates = { ...s.tabStates };
       const currentKey = s.activeDocId;
+      let leavingComponentFile = false;
       if (currentKey && currentKey.startsWith("file:")) {
         newTabStates[currentKey] = { elements: s.elements, wires: s.wires };
+        // If this file tab corresponds to a custom component (src/components/XXX.omni),
+        // also sync the edits back to the component registry so the main canvas
+        // expands the latest definition on recompile.
+        const filePath = currentKey.replace("file:", "");
+        const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
+        if (compMatch) {
+          const compName = compMatch[1];
+          const registry = useComponentRegistry.getState();
+          if (registry.definitions[compName]) {
+            registry.saveCanvas(compName, s.elements, s.wires);
+            leavingComponentFile = true;
+          }
+        }
       } else if (currentKey && currentKey.startsWith("comp:")) {
         const compName = currentKey.replace("comp:", "");
         useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
@@ -620,13 +723,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
 
+      // Bump compVersion when leaving a component canvas or component file tab
+      // so LayoutView triggers recompile with the updated definition
+      const shouldBump = currentKey?.startsWith("comp:") || leavingComponentFile;
+
+      // Recompute rootOrder from the restored elements to stay in sync
+      const newRootOrder = newElements
+        .filter((e) => !e.parentId)
+        .map((e) => e.id);
+
       return {
         elements: newElements,
         wires: newWires,
+        rootOrder: newRootOrder,
         activeDocId: docId,
         docBackup: newDocBackup,
         tabStates: newTabStates,
         selectedElementIds: [],
+        compVersion: shouldBump ? s.compVersion + 1 : s.compVersion,
+        // Sync activeFilePath when switching to a file tab so saveProject
+        // writes to the correct file path instead of the previous tab's path
+        activeFilePath: docId?.startsWith("file:")
+          ? docId.replace("file:", "")
+          : s.activeFilePath,
       };
     }),
 
@@ -637,13 +756,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       delete newTabStates[docId];
 
       if (s.activeDocId === docId) {
+        let closingCompFile = false;
         if (docId.startsWith("comp:")) {
           const compName = docId.replace("comp:", "");
           useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
         } else if (docId.startsWith("file:")) {
           newTabStates[docId] = { elements: s.elements, wires: s.wires };
+          // Sync component file edits back to the registry before closing
+          const filePath = docId.replace("file:", "");
+          const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
+          if (compMatch) {
+            const compName = compMatch[1];
+            const registry = useComponentRegistry.getState();
+            if (registry.definitions[compName]) {
+              registry.saveCanvas(compName, s.elements, s.wires);
+              closingCompFile = true;
+            }
+          }
         }
         import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+        const wasDirty = closingCompFile;
         return {
           elements: s.docBackup?.elements || [],
           wires: s.docBackup?.wires || [],
@@ -652,6 +784,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           openTabs: newOpenTabs,
           tabStates: newTabStates,
           selectedElementIds: [],
+          compVersion: wasDirty ? s.compVersion + 1 : s.compVersion,
         };
       }
 

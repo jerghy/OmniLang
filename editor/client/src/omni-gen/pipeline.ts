@@ -17,6 +17,8 @@ import type { StyleEntry, StyleProperty } from "../constants/style-properties";
 import { variableToClassName, classNameToVariable, STYLE_PROPERTY_NAMES } from "../constants/style-properties";
 import type { ElementData, WireData } from "../store/editor";
 import type { CodeTab } from "../codegraph/types";
+import { useComponentRegistry } from "../store/componentRegistry";
+import type { ComponentDefinition } from "../store/componentRegistry";
 import type {
   StageResult,
   PipelineError,
@@ -25,6 +27,88 @@ import type {
   StoreDef,
   ChainBlock,
 } from "./types";
+
+// ── Custom Component Expansion ─────────────────────────────────────
+
+/**
+ * Expand custom component references in the elements array.
+ *
+ * For each element with `componentRef`, look up the component definition
+ * from the registry and clone its internal elements as children of the
+ * referencing element. Handles recursive expansion (custom components
+ * used inside custom components).
+ *
+ * Uses deterministic IDs (based on instance element ID) to ensure the
+ * generated omniLang source is stable across recompiles, so the compilerCache
+ * can hit correctly and the preview iframe doesn't reload unnecessarily.
+ */
+function expandCustomComponents(elements: ElementData[]): ElementData[] {
+  const registry = useComponentRegistry.getState().definitions;
+
+  const hasRefs = elements.some((el) => el.componentRef);
+  if (!hasRefs) return elements;
+
+  // Build element map (shallow clone so we can safely update children arrays)
+  const elementMap = new Map<string, ElementData>();
+  for (const el of elements) {
+    elementMap.set(el.id, { ...el });
+  }
+
+  const expandedRefs = new Set<string>();
+
+  // Keep expanding until no new componentRefs are found (handles nesting)
+  let foundNew = true;
+  while (foundNew) {
+    foundNew = false;
+    for (const [id, el] of [...elementMap]) {
+      if (!el.componentRef || expandedRefs.has(id)) continue;
+      expandedRefs.add(id);
+
+      const def: ComponentDefinition | undefined = registry[el.componentRef];
+      if (!def || def.elements.length === 0) continue;
+
+      // Map old definition element IDs -> deterministic IDs based on instance element ID
+      const idMap = new Map<string, string>();
+      let idx = 0;
+      for (const defEl of def.elements) {
+        idMap.set(defEl.id, `${el.id}__${idx++}`);
+      }
+
+      // Clone definition elements with remapped IDs and parent references
+      const rootIds: string[] = [];
+      for (const defEl of def.elements) {
+        const newId = idMap.get(defEl.id)!;
+        const isRoot = defEl.parentId === null;
+
+        const cloned: ElementData = {
+          ...defEl,
+          id: newId,
+          parentId: isRoot
+            ? el.id
+            : idMap.get(defEl.parentId) || defEl.parentId,
+          children: defEl.children.map((cid) => idMap.get(cid) || cid),
+        };
+
+        elementMap.set(newId, cloned);
+        foundNew = true;
+        if (isRoot) rootIds.push(newId);
+      }
+
+      // Append definition root IDs to the referencing element's children
+      const updatedContainer = { ...elementMap.get(id)! };
+      let changed = false;
+      for (const rootId of rootIds) {
+        if (!updatedContainer.children.includes(rootId)) {
+          updatedContainer.children = [...updatedContainer.children, rootId];
+          changed = true;
+        }
+      }
+      if (changed) elementMap.set(id, updatedContainer);
+    }
+  }
+
+  return [...elementMap.values()];
+}
 
 // ── runPhase helper ─────────────────────────────────────────────────
 
@@ -184,6 +268,13 @@ export function parseStylesFromAST(
     }
 
     el.styles = styles;
+
+    // Cleanup: remove old props.style and props.className when StyleEntry
+    // has been set, to avoid duplicate style/class attributes in emitted source
+    if (styles.length > 0 && (el.props?.style || el.props?.className)) {
+      const { style: _oldStyle, className: _oldClass, ...restProps } = el.props;
+      el.props = restProps;
+    }
   }
 }
 
@@ -195,19 +286,40 @@ export function generateOmniSource(options: {
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
+  forSave?: boolean;  // true: keep <MyCard> tags + generate imports; false (default): expand inline
 }): StageResult<string> {
   const allErrors: PipelineError[] = [];
+
+  // ── Custom component handling ──
+  // Two strategies:
+  //   1. "expand" (default) — for preview/compile. Inline custom component internals
+  //      so the WASM/Rust compiler can render them in a single-source context.
+  //   2. "import" (forSave) — for saving to disk. Keep <MyCard> tags in the view tree
+  //      and generate `import { MyCard } from "./components/MyCard"` statements.
+  //      The custom component definitions are stored separately in src/components/*.omni.
+  const shouldExpand = !options.forSave;
+  const expandedElements = shouldExpand
+    ? expandCustomComponents(options.designElements)
+    : options.designElements;
 
   // ── Phase A: Build view tree, analyze wires, collect imports ──
 
   const a1 = runPhase("A", "view-tree-builder", () =>
-    buildViewTree(options.designElements, options.componentName, options.rootOrder),
+    buildViewTree(expandedElements, options.componentName, options.rootOrder),
   );
   allErrors.push(...a1.errors);
-  const { roots, pascalCaseTags } = a1.value ?? {
+  let { roots, pascalCaseTags } = a1.value ?? {
     roots: [] as ViewNode[],
     pascalCaseTags: [] as string[],
   };
+  const registryDefs = useComponentRegistry.getState().definitions;
+  if (shouldExpand) {
+    // For preview/compile: custom components were expanded inline, so filter them
+    // out of pascalCaseTags — no imports needed.
+    pascalCaseTags = pascalCaseTags.filter((tag) => !(tag in registryDefs));
+  }
+  // For save: keep custom component tags in pascalCaseTags so collectImports
+  // generates `import { MyCard } from "./components/MyCard"`.
 
   const a2 = runPhase("A", "wire-analyzer", () =>
     analyzeWires(options.designElements, options.designWires),
@@ -307,7 +419,7 @@ export function generateOmniSource(options: {
   // error check below short-circuit the pipeline with null value.
   const { componentStyle, elementClassMap, elementInlineMap } = c1.errors.length > 0
     ? { componentStyle: {}, elementClassMap: new Map<string, string[]>(), elementInlineMap: new Map<string, Record<string, string>>() }
-    : collectStylesFromEntries(options.designElements, roots);
+    : collectStylesFromEntries(expandedElements, roots);
 
   // Build component-level signals from standaloneSignals (signals not in a store)
   const componentSignals: Record<
@@ -324,7 +436,7 @@ export function generateOmniSource(options: {
     componentComputeds[c.name] = { type: c.type, body: c.body };
   }
 
-  // Build annotation data and strategy
+  // Build annotation data and strategy (for both preview and save modes)
   const c2 = runPhase("C", "annotation-data", () => {
     const annData = buildAnnotationData(
       roots,
@@ -334,6 +446,13 @@ export function generateOmniSource(options: {
   });
   allErrors.push(...c2.errors);
   const annotationStrategy = c2.value;
+
+  // Determine view wrapper ID — must NOT conflict with any user element ID
+  let viewWrapperId = `${options.componentName}.view`;
+  if (options.designElements.some((el) => el.id === viewWrapperId)) {
+    // Append a suffix to avoid duplicate ID that would corrupt the parse tree
+    viewWrapperId = `${options.componentName}.view-wrapper`;
+  }
 
   // Assemble the full EmitInput
   const emitInput: EmitInput = {
@@ -347,8 +466,8 @@ export function generateOmniSource(options: {
       storeRefs: [...bindings.storeRefs.keys()],
       fns: lowered.functions,
       view: roots.length > 0 ? {
-        id: `${options.componentName}.view`,
-        path: `${options.componentName}.view`,
+        id: viewWrapperId,
+        path: viewWrapperId,
         tag: "div",
         props: {},
         children: roots,

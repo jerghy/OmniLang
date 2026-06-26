@@ -643,6 +643,8 @@ pub fn compile_multi_to_target(
                     existing.type_aliases.extend(mod_ir.type_aliases.clone());
                     existing.imports.extend(mod_ir.imports.clone());
                     existing.exports.extend(mod_ir.exports.clone());
+                    existing.motions.extend(mod_ir.motions.clone());
+                    existing.timelines.extend(mod_ir.timelines.clone());
                 })
                 .or_insert(mod_ir);
         }

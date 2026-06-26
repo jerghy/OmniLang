@@ -65,32 +65,7 @@ class ApiClient {
     return res.json();
   }
 
-  // M6: .omni.json helpers
-  async exportOmniJson(source: string, filepath = "<input>", target = "react"): Promise<{ success: boolean; document: Record<string, unknown> | null; error?: string }> {
-    return this.post("/api/omni-json/export", {
-      body: JSON.stringify({ source, filepath, target }),
-    });
-  }
-
-  async loadOmniJson(filePath: string): Promise<{ success: boolean; document: Record<string, unknown> | null; error?: string }> {
-    return this.post("/api/omni-json/load", {
-      body: JSON.stringify({ filePath }),
-    });
-  }
-
-  async saveOmniJson(filePath: string, document: Record<string, unknown>): Promise<{ ok: boolean; path?: string; error?: string }> {
-    return this.post("/api/omni-json/save", {
-      body: JSON.stringify({ filePath, document }),
-    });
-  }
-
-  async detectHandWritten(source: string): Promise<{ isHandWritten: boolean; warnings: string[] }> {
-    return this.post("/api/omni-json/detect-handwritten", {
-      body: JSON.stringify({ source }),
-    });
-  }
-
-  // M8: Custom component definitions
+  // ── Custom component definitions ──
   async saveComponentDefinitions(definitions: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
     return this.post("/api/component-definitions/save", {
       body: JSON.stringify({ definitions }),
@@ -100,6 +75,12 @@ class ApiClient {
   async loadComponentDefinitions(): Promise<{ definitions: Record<string, unknown>; error?: string }> {
     const res = await fetch("/api/component-definitions/load");
     return res.json();
+  }
+
+  async deleteComponentDefinitions(names: string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.post("/api/component-definitions/delete", {
+      body: JSON.stringify({ names }),
+    });
   }
 
   // ── Run / Vite DevServer (Phase 1 Runtime Bridge) ──

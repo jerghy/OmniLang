@@ -683,7 +683,7 @@ impl SemanticAnalyzer {
             ViewNode::ForDirective(dir) => {
                 self.resolve_for_directive_refs(dir);
             }
-            ViewNode::SlotDirective(_) | ViewNode::Text(_) => {}
+            ViewNode::SlotDirective { .. } | ViewNode::Text(_) => {}
         }
     }
 
@@ -1343,7 +1343,8 @@ impl SemanticAnalyzer {
                                 }
                             }
                         }
-                        TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) => {}
+                        TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _)
+                        | TimelineItemKind::StartPos(_) => {}
                     }
                 }
 
@@ -1424,19 +1425,10 @@ impl SemanticAnalyzer {
                         &motion.span,
                     ));
                 }
-                PlaybackProp::DelayChildren(_) => {
-                    self.diagnostics.push(Diagnostic::error(
-                        "E0006",
-                        &format!("@motion '{}': 'delayChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
-                        &motion.span,
-                    ));
-                }
-                PlaybackProp::StaggerChildren(_) => {
-                    self.diagnostics.push(Diagnostic::error(
-                        "E0006",
-                        &format!("@motion '{}': 'staggerChildren' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
-                        &motion.span,
-                    ));
+                PlaybackProp::DelayChildren(_) | PlaybackProp::StaggerChildren(_) => {
+                    // These ARE valid on @motion definitions — they configure
+                    // how the motion distributes animations among child elements.
+                    // The runtime processes them via playback_to_config.
                 }
                 _ => {}
             }
@@ -1891,7 +1883,7 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-                TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) => {}
+                TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) | TimelineItemKind::StartPos(_) => {}
             }
         }
     }
@@ -2005,7 +1997,7 @@ impl SemanticAnalyzer {
                         );
                     }
                 }
-                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective(_) => {}
+                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {}
             }
         }
     }

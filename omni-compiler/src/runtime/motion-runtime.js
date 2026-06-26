@@ -328,6 +328,12 @@ function resolveEasing(easing) {
     // Default
     return EASINGS.easeOut;
   }
+  // Handle SpringSolver instance: return a placeholder function.
+  // The AnimationPlayer._runJSAnimation() detects SpringSolver via _easingName
+  // and creates a duration-aware wrapper at play time, so we just mark it here.
+  if (easing && typeof easing === 'object' && typeof easing.solve === 'function') {
+    return function springPlaceholder(t) { return t; };
+  }
   return EASINGS.easeOut;
 }
 
@@ -485,7 +491,9 @@ class AnimationPlayer {
     this._startTime = performance.now();
 
     // Try WAAPI first for compatible easings
-    const isSpringLike = /spring|bounce|elastic|back/i.test(this._easingName);
+    // Check if easing is a SpringSolver instance (object, not string)
+    const isSpringSolver = this._easingName && typeof this._easingName === 'object' && typeof this._easingName.solve === 'function';
+    const isSpringLike = isSpringSolver || /spring|bounce|elastic|back/i.test(String(this._easingName));
     if (!isSpringLike && isWAAPICompatible(this._easingName)) {
       this._runWAAPI();
     } else {
@@ -771,7 +779,12 @@ class AnimationPlayer {
     const to = this._to;
     const over = this._over;
     const delay = this._delay;
-    const easing = this._easing;
+    // If easing is a SpringSolver object, create a duration-aware wrapper
+    const easing = this._easingName && typeof this._easingName === 'object' && typeof this._easingName.solve === 'function'
+      ? (function(solver, dur) {
+          return function(t) { return solver.solve(0, 1, t * (dur / 1000)); };
+        })(this._easingName, this._over)
+      : this._easing;
     let startTime = performance.now();
     const fromCache = {};
 
@@ -1102,6 +1115,8 @@ const PIXEL_PROPS = new Set([
 
 // Global animation registry
 window.__omni_animations = new Map();
+// Timeline labels dictionary (label name → delay offset)
+window.__omni_timeline_labels = new Map();
 
 // Create animation from motion IR config
 function __omni_createAnimation(nid, motionConfig) {
@@ -1116,6 +1131,20 @@ function __omni_createAnimation(nid, motionConfig) {
 // Get animation handle for ref API
 function __omni_getAnimation(nid, trigger) {
   return __omni_animations.get(nid + '_' + (trigger || 'default'));
+}
+
+// Play @enter animations for all child elements within a parent node.
+// Used when an @if branch becomes visible, to replay animations that
+// were skipped during mount because the element was hidden.
+function playBranchEnters(parent) {
+  if (!parent) return;
+  var children = parent.querySelectorAll('[data-nid]');
+  children.forEach(function(child) {
+    var nid = child.dataset.nid;
+    if (!nid) return;
+    var player = __omni_animations.get(nid + '_enter');
+    if (player) player.play();
+  });
 }
 
 // Trigger all animations matching a condition
@@ -1200,6 +1229,7 @@ window.__omni_removeAnimation = __omni_removeAnimation;
 window.__omni_reducedMotion = __omni_reducedMotion;
 window.__omni_inview_observers = __omni_inview_observers;
 window.__omni_parseScrollTrigger = __omni_parseScrollTrigger;
+window.playBranchEnters = playBranchEnters;
 
 // FLIP animation for @for list reordering
 window.__omni_flip_state = new Map();

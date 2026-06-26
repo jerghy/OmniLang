@@ -58,6 +58,7 @@ impl<'a> Parser<'a> {
             TokenKind::Print | TokenKind::Println => self.parse_print_stmt(),
             TokenKind::Throw => self.parse_throw_stmt(),
             TokenKind::Try => self.parse_try_catch_stmt(),
+            TokenKind::Emit => self.parse_emit_stmt(),
             TokenKind::LBrace => {
                 let block = self.parse_block()?;
                 let span = block.span.clone();
@@ -377,6 +378,32 @@ impl<'a> Parser<'a> {
 
     // ── Helpers ────────────────────────────────────────
 
+    fn parse_emit_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let span = self.peek_span();
+        self.advance(); // 'emit'
+        let name = self.expect_ident("expected event name after 'emit'")?;
+        self.expect_token(TokenKind::LParen, "expected '(' after event name")?;
+        let mut args = Vec::new();
+        if self.peek_kind() != TokenKind::RParen {
+            args.push(self.parse_expr()?);
+            while self.peek_kind() == TokenKind::Comma {
+                self.advance();
+                args.push(self.parse_expr()?);
+            }
+        }
+        self.expect_token(TokenKind::RParen, "expected ')'")?;
+        if self.peek_kind() == TokenKind::Semicolon {
+            self.advance();
+        }
+        Ok(Stmt::EventEmit {
+            name,
+            args,
+            span,
+        })
+    }
+
+    // ── Helpers ────────────────────────────────────────
+
     pub(crate) fn expect_token(
         &mut self,
         expected: TokenKind,
@@ -463,6 +490,7 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<String> {
         TokenKind::Theme => Some("theme".into()),
         TokenKind::Component => Some("component".into()),
         TokenKind::Bind => Some("bind".into()),
+        TokenKind::Emit => Some("emit".into()),
         // om nilang keywords
         TokenKind::Fn => Some("fn".into()),
         TokenKind::Const => Some("const".into()),
@@ -502,6 +530,7 @@ pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<String> {
         TokenKind::Continue => Some("continue".into()),
         TokenKind::As => Some("as".into()),
         TokenKind::Pub => Some("pub".into()),
+        TokenKind::IfMode => Some("if_mode".into()),
         _ => None,
     }
 }

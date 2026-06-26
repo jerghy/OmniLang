@@ -1,0 +1,187 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  SlotDefaultDemo.omni — @slot 默认回退内容                        ║
+// ║                                                                  ║
+// ║  编译器支持插槽带默认回退内容语法：                                 ║
+// ║    @slot name { 默认内容 }                                        ║
+// ║                                                                  ║
+// ║  当前 learn-omniview 中所有 @slot 实例都是空的：                   ║
+// ║    - NotificationsPanel: @slot header / @slot / @slot footer      ║
+// ║    - Modal: @slot header / @slot body / @slot footer              ║
+// ║    - ComponentSpecialsDemo: @slot(header) / @slot(body)           ║
+// ║                                                                  ║
+// ║  本组件演示插槽的 3 种形态：                                       ║
+// ║    1. 无默认值的空插槽 @slot name                                 ║
+// ║    2. 带默认回退内容的插槽 @slot name { 回退内容 }                  ║
+// ║    3. 匿名插槽带默认回退 @slot { 回退内容 }                        ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// ── SlotPanel: 接收插槽的组件 ──────────────────────────
+component SlotPanel {
+    view {
+        <div class: slot-panel>
+            <div class: slot-section>
+                <span class: section-label>header slot:</span>
+                <!-- 带默认回退内容的插槽 -->
+                @slot header {
+                    <span class: default-text>Default Header (来自 @slot header 的回退)</span>
+                }
+            </div>
+
+            <div class: slot-section main>
+                <span class: section-label>main slot:</span>
+                <!-- 匿名插槽带默认回退 -->
+                @slot {
+                    <p class: default-text>Default Body — 这是 @slot 匿名插槽的默认回退内容</p>
+                }
+            </div>
+
+            <div class: slot-section>
+                <span class: section-label>footer slot:</span>
+                <!-- 不带默认值的插槽（保持空） -->
+                @slot footer
+            </div>
+        </div>
+    }
+    style {
+        .slot-panel { background: white; border: 1px solid #d4d4d8; border-radius: 10px; padding: 14px; }
+        .slot-section { margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; }
+        .slot-section.main { background: #f0f9ff; border-color: #bae6fd; }
+        .section-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .default-text { font-size: 13px; color: #64748b; font-style: italic; margin: 0; }
+    }
+}
+
+// ── 主演示组件 ──────────────────────────────────────
+component SlotDefaultDemo {
+    signal useCustomContent: bool = false;
+
+    fn toggleContent() { useCustomContent = !useCustomContent; }
+
+    view {
+        <div class: wrapper>
+            <h3 class: section-title>@slot Default Content (回退内容)</h3>
+            <p class: subtitle>
+                演示 <code>@slot name &#123; 回退内容 &#125;</code> 语法 + 对比有/无自定义内容
+            </p>
+
+            <!-- 演示区 1: 使用默认回退（无自定义插槽内容） -->
+            <div class: demo-card>
+                <h4 class: demo-label>① Using Default Slot Content</h4>
+                <p class: demo-desc>
+                    消费者<strong>没有</strong>提供插槽内容 →
+                    组件显示 <code>@slot header &#123; ... &#125;</code> 中定义的默认回退。
+                </p>
+                <div class: demo-box>
+                    <!-- 没有传入插槽内容，使用默认回退 -->
+                    <SlotPanel />
+                </div>
+            </div>
+
+            <!-- 演示区 2: 提供自定义插槽内容（覆盖默认回退） -->
+            <div class: demo-card>
+                <h4 class: demo-label>② Overriding Default with Custom Content</h4>
+                <p class: demo-desc>
+                    消费者<strong>提供</strong>插槽内容 → 默认回退被覆盖。
+                    <code>footer</code> 插槽没有默认值，若未提供则保持空白。
+                </p>
+                <div class: demo-box>
+                    <SlotPanel>
+                        <!-- 覆盖 header 插槽 -->
+                        @slot header {
+                            <div class: custom-header>
+                                <span class: custom-icon>★</span>
+                                <span>Custom Header — 覆盖了默认回退</span>
+                            </div>
+                        }
+                        <!-- 覆盖匿名插槽 -->
+                        @slot {
+                            <div class: custom-body>
+                                <p>Custom Body Content</p>
+                                <p class: custom-note>@slot 默认回退已被消费者替代</p>
+                            </div>
+                        }
+                        <!-- 不提供 footer → footer 为空（无默认值） -->
+                    </SlotPanel>
+                </div>
+            </div>
+
+            <!-- 演示区 3: 条件切换 -->
+            <div class: demo-card>
+                <h4 class: demo-label>③ Toggle: With / Without Custom Content</h4>
+                <p class: demo-desc>
+                    点击按钮在有/无自定义插槽内容之间切换，
+                    观察默认回退的出现和消失。
+                </p>
+                <button class: toggle-btn @onPress={toggleContent}>
+                    {if useCustomContent { "Reset to Defaults" } else { "Provide Custom Content" }}
+                </button>
+                <div class: demo-box toggle-area>
+                    @if useCustomContent {
+                        <SlotPanel>
+                            @slot header {
+                                <div class: custom-header alt>
+                                    <span class: custom-icon>✦</span>
+                                    <span>Custom Header (alt)</span>
+                                </div>
+                            }
+                            @slot {
+                                <p class: custom-body alt>Custom body — 回退已被覆盖</p>
+                            }
+                            @slot footer {
+                                <div class: custom-footer>
+                                    <span>提供了 footer 插槽</span>
+                                </div>
+                            }
+                        </SlotPanel>
+                    } @else {
+                        <SlotPanel />
+                    }
+                </div>
+            </div>
+
+            <!-- 技术说明 -->
+            <div class: tech-note>
+                <h4 class: note-title>💡 @slot 默认内容语义</h4>
+                <ul class: note-list>
+                    <li>如果消费者<strong>没有</strong>为命名的 <code>@slot</code> 提供内容，显示 <code>&#123; 回退内容 &#125;</code></li>
+                    <li>如果消费者<strong>有</strong>提供内容，默认回退被完全替换</li>
+                    <li>不带默认值的 <code>@slot name</code>（无 <code>{}</code> 体）在无内容时渲染空白</li>
+                    <li>匿名插槽 <code>@slot { 回退 }</code> 同样支持默认回退</li>
+                    <li>回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）</li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .wrapper { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; margin: 16px 0; }
+        .section-title { font-size: 18px; color: #1e293b; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
+        code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        .demo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+        .demo-label { font-size: 14px; font-weight: 600; color: #1e293b; margin: 0 0 4px 0; }
+        .demo-desc { font-size: 12px; color: #64748b; margin: 0 0 10px 0; line-height: 1.5; }
+        .demo-box { margin-top: 10px; }
+
+        .toggle-btn { padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .toggle-btn:hover { background: #4f46e5; }
+        .toggle-area { margin-top: 12px; }
+
+        // Custom content styles
+        .custom-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #e0e7ff; border-radius: 6px; font-size: 13px; color: #3730a3; font-weight: 600; }
+        .custom-header.alt { background: #fce7f3; color: #9d174d; }
+        .custom-icon { font-size: 16px; }
+        .custom-body { padding: 10px; background: #dbeafe; border-radius: 6px; font-size: 13px; color: #1e40af; margin: 0; }
+        .custom-body.alt { background: #d1fae5; color: #065f46; }
+        .custom-note { font-size: 11px; color: #3b82f6; margin: 4px 0 0 0; }
+        .custom-footer { padding: 8px 12px; background: #f3e8ff; border-radius: 6px; font-size: 12px; color: #6b21a8; }
+
+        .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; margin-top: 12px; }
+        .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
+        .note-list { margin: 0; padding-left: 18px; }
+        .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
+    }
+}

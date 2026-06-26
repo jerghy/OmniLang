@@ -34,9 +34,14 @@ import omniview;
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ── 供 MotionRef 引用 ─────────────────────────────────────
+// NOTE: set { opacity: 0 } removed — 编译器将 set 编译为 document.querySelector("[data-nid]")
+// 选中页面第一个 data-nid 元素，导致整页闪白效果。
+// NOTE: refMotion 的 scale: 1.3 → 1.0 — 编译器将 MotionRef 编译为
+// document.querySelectorAll("[data-nid]").forEach(...) 应用到所有元素。
+// 暂时改为 scale: 1.0 避免整页放大，等编译器修好再改回。
 @motion refMotion {
     from { scale: 1, opacity: 0.5 }
-    to   { scale: 1.3, opacity: 1 }
+    to   { scale: 1.0, opacity: 1 }
     over 400 ease power2Out
 }
 
@@ -74,7 +79,6 @@ import omniview;
 
 // ── 时间线：then + with + MotionRef ─────────────────────
 @timeline connectorDemo {
-    set { opacity: 0 }
     label phase1
     box1 { from { x: -20 opacity: 0 } to { x: 0 opacity: 1 } over 300 ease power2Out }
     then

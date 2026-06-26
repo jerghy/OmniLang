@@ -40,8 +40,7 @@ export function FileExplorer() {
 
   const dirs = files.filter((f) => f.type === "directory");
   const omniFiles = files.filter((f) => f.type === "file" && (f as any).ext === ".omni");
-  const omniJsonFiles = files.filter((f) => f.type === "file" && (f as any).name?.endsWith(".omni.json"));
-  const otherFiles = files.filter((f) => f.type === "file" && (f as any).ext !== ".omni" && !(f as any).name?.endsWith(".omni.json"));
+  const otherFiles = files.filter((f) => f.type === "file" && (f as any).ext !== ".omni");
 
   return (
     <div style={{ padding: 8, fontSize: 13, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -120,29 +119,6 @@ export function FileExplorer() {
           </>
         )}
 
-        {omniJsonFiles.length > 0 && (
-          <>
-            <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", textTransform: "uppercase", padding: "0 6px", marginBottom: 2 }}>
-              .omni.json
-            </div>
-            {omniJsonFiles.map((f) => (
-              <div
-                key={f.path}
-                onClick={() => handleClick(f as any)}
-                style={{
-                  padding: "3px 6px", cursor: "pointer", borderRadius: 4, fontSize: 12,
-                  background: f.path === activePath ? "#EEF2FF" : "transparent",
-                  color: f.path === activePath ? "#4F46E5" : "#374151",
-                  fontWeight: f.path === activePath ? 600 : 400,
-                }}
-                onMouseEnter={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "#F3F4F6"; }}
-                onMouseLeave={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "transparent"; }}
-              >
-                🔧 {f.name}
-              </div>
-            ))}
-          </>
-        )}
       </div>
     </div>
   );

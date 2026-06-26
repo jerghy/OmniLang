@@ -505,6 +505,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
             };
             undoExec(new AddStyleEntry(el.id, entry), ctx);
             setExpandedStyleId(entry.id);
+            debouncedRecompile();
           }}
           style={{
             background: "none", border: "1px solid #d1d5db", borderRadius: 4,
@@ -531,6 +532,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
             const oldIds = entries.map((e: StyleEntry) => e.id);
             const newIds = reorderArray(oldIds, dragIndex, toIndex);
             undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
+            debouncedRecompile();
           }
           setDragIndex(null);
           setDropIndex(null);
@@ -578,6 +580,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
                   e.stopPropagation();
                   undoExec(new RemoveStyleEntry(el.id, entry, index), ctx);
                   if (isExpanded) setExpandedStyleId(null);
+                  debouncedRecompile();
                 }}
                 style={{
                   background: "none", border: "none", color: "#DC2626",
@@ -604,6 +607,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
                     new UpdateStyleEntry(el.id, entry.id, oldEntry, newEntry),
                     ctx,
                   );
+                  debouncedRecompile();
                 }}
                 onClose={() => setExpandedStyleId(null)}
               />
@@ -625,17 +629,7 @@ export function PropertyPanel({ ctx, onNavigateToCode }: PropertyPanelProps) {
             const len = el.styles!.length;
             if (dropIndex === len) setDropIndex(null);
           }}
-          onDrop={() => {
-            const len = el.styles!.length;
-            if (dragIndex !== null && dragIndex !== len) {
-              const entries = el.styles || [];
-              const oldIds = entries.map((e: StyleEntry) => e.id);
-              const newIds = reorderArray(oldIds, dragIndex, len);
-              undoExec(new ReorderStyleEntry(el.id, oldIds, newIds), ctx);
-            }
-            setDragIndex(null);
-            setDropIndex(null);
-          }}
+          onDrop={() => { handleDropAt(el.styles!.length); }}
           style={{
             height: 4,
             background: dropIndex === el.styles!.length ? "#4F46E5" : "transparent",

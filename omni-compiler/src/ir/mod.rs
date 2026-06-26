@@ -339,9 +339,9 @@ pub struct ElementIR {
     /// States map: states: { visible: { ... }, hidden: { ... } }
     #[serde(default)]
     pub states: Option<StatesIR>,
-    /// Paused override for animations
+    /// Paused override for animations (runtime expression)
     #[serde(default)]
-    pub paused_override: Option<bool>,
+    pub paused_override: Option<ExprIR>,
     /// Driven-by expression for animation
     #[serde(default)]
     pub driven_by: Option<ExprIR>,
@@ -413,6 +413,8 @@ pub struct StyleRuleIR {
     pub class_name: String,
     pub properties: HashMap<String, ExprIR>,
     pub output_mode: String,
+    #[serde(default)]
+    pub is_tag_selector: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -551,6 +553,9 @@ pub struct KeyframeIR {
     /// Whether to rotate element along the path
     #[serde(default)]
     pub path_rotate: Option<bool>,
+    /// Callback blocks (onStart, onUpdate, onComplete, onRepeat, onInterrupt)
+    #[serde(default)]
+    pub callbacks: Vec<(CallbackKindIR, ExprIR)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -756,6 +761,7 @@ pub enum InterruptValue {
     Compose,
     Cancel,
     Finish,
+    Replace,
 }
 
 /// Value type for when condition.
@@ -849,6 +855,18 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
             exports.push(lower_logic::lower_export(exp));
         }
 
+        let motions: Vec<MotionIntent> = module
+            .motions
+            .iter()
+            .map(|m| lower_motion_def(m, &variant_map))
+            .collect();
+
+        let timelines: Vec<TimelineIntent> = module
+            .timelines
+            .iter()
+            .map(|t| lower_timeline_def(t, &variant_map))
+            .collect();
+
         let module_ir = ModuleIR {
             name: module_name.clone(),
             functions,
@@ -860,6 +878,8 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
             themes: Vec::new(),
             imports,
             exports,
+            motions,
+            timelines,
         };
 
         modules.insert(module_name.clone(), module_ir);
@@ -1086,6 +1106,7 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
                 class_name: s.class_name.clone(),
                 properties,
                 output_mode: "css".into(),
+                is_tag_selector: s.is_tag_selector,
             }
         })
         .collect();
@@ -1246,7 +1267,7 @@ fn lower_view_node(
             let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
             let mut states_map: Option<HashMap<String, StateTweenIR>> = None;
             let mut animate_signal: Option<ExprIR> = None;
-            let mut paused_override: Option<bool> = None;
+            let mut paused_override: Option<ExprIR> = None;
             let mut hover_reverse: Option<String> = None;
             let mut driven_by: Option<ExprIR> = None;
             let mut in_view_once: Option<ExprIR> = None;
@@ -1431,9 +1452,9 @@ fn lower_view_node(
                     ElementProp::AnimateSignal(expr) => {
                         animate_signal = Some(lower_expr(expr, variant_map));
                     }
-                    // Paused override: @paused={true}
-                    ElementProp::PausedOverride(b) => {
-                        paused_override = Some(*b);
+                    // Paused override: @paused={expr}
+                    ElementProp::PausedOverride(expr) => {
+                        paused_override = Some(lower_expr(expr, variant_map));
                     }
                     // Hover reverse animation name
                     ElementProp::HoverReverse(s) => {
@@ -1759,7 +1780,7 @@ fn lower_view_node(
                     .and_then(|nodes| lower_body(nodes.as_slice())),
             }))
         }
-        ViewNode::SlotDirective(name) => ViewTree::Slot(name.clone()),
+        ViewNode::SlotDirective { name, default_content: _ } => ViewTree::Slot(name.clone()),
     }
 }
 
@@ -2502,6 +2523,27 @@ fn lower_keyframe_body(
     let over = lower_expr(&kf.over, variant_map);
     let ease = kf.ease.as_ref().map(|e| lower_easing(e));
     let playback = lower_playback_props(&kf.playback, variant_map);
+    let callbacks: Vec<(CallbackKindIR, ExprIR)> = kf
+        .callbacks
+        .iter()
+        .map(|cs| match cs {
+            crate::parser::ast::CallbackSpec::OnStart(e) => {
+                (CallbackKindIR::OnStart, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnUpdate(e) => {
+                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnComplete(e) => {
+                (CallbackKindIR::OnComplete, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnRepeat(e) => {
+                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map))
+            }
+            crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
+                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map))
+            }
+        })
+        .collect();
     KeyframeIR {
         stops,
         over,
@@ -2510,6 +2552,7 @@ fn lower_keyframe_body(
         playback,
         path: kf.path.clone(),
         path_rotate: kf.path_rotate,
+        callbacks,
     }
 }
 
@@ -2528,18 +2571,84 @@ fn lower_timeline_items(
     items: &[crate::parser::ast::TimelineItem],
     variant_map: &HashMap<String, String>,
 ) -> Vec<TimelineItemIR> {
-    items
-        .iter()
-        .map(|item| {
-            let connector = lower_connector(&item.connector);
-            let kind = lower_timeline_item_kind(&item.kind, variant_map);
-            TimelineItemIR { kind, connector }
-        })
-        .collect()
+    let mut result: Vec<TimelineItemIR> = Vec::new();
+
+    // StartPos modifiers come AFTER the items they modify in the AST
+    // (e.g., from { ... } to { ... } over 300 ... start: "withPrev").
+    // We need to apply them to the PREVIOUS To-direction item.
+    // Strategy: collect pending StartPos values and retroactively apply
+    // them to the last Direction item in the result.
+
+    for item in items {
+        match &item.kind {
+            crate::parser::ast::TimelineItemKind::StartPos(pos) => {
+                let formatted = format_position_value(pos);
+                // Apply start mode to the most recent From+To Direction pair.
+                // AST order: From-Dir, To-Dir, [Label...], StartPos.
+                // We scan backward past labels/staggers and update up to 2
+                // consecutive Direction items that don't already have a start.
+                let mut applied = 0;
+                for ir_item in result.iter_mut().rev() {
+                    match &mut ir_item.kind {
+                        TimelineItemKindIR::Direction { ref mut start, .. } if start.is_none() => {
+                            *start = Some(formatted.clone());
+                            applied += 1;
+                            if applied >= 2 {
+                                break; // Updated the pair
+                            }
+                        }
+                        TimelineItemKindIR::Label(..) => {
+                            continue; // Skip labels
+                        }
+                        _ => break, // Stop at non-Direction, non-Label items
+                    }
+                }
+                if applied == 0 {
+                    // No preceding Direction — emit as label
+                    result.push(TimelineItemIR {
+                        kind: TimelineItemKindIR::Label("__start_pos__".into(), None),
+                        connector: lower_connector(&item.connector),
+                    });
+                }
+            }
+            crate::parser::ast::TimelineItemKind::Direction(di) => {
+                result.push(TimelineItemIR {
+                    kind: TimelineItemKindIR::Direction {
+                        dir: match di.direction {
+                            crate::parser::ast::Direction::To => DirectionIR::To,
+                            crate::parser::ast::Direction::FromTo => DirectionIR::FromTo,
+                        },
+                        properties: di
+                            .properties
+                            .iter()
+                            .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                            .collect(),
+                        over: lower_expr(&di.over, variant_map),
+                        ease: di.ease.as_ref().map(|e| lower_easing(e)),
+                        delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
+                        color_space: di.color_space.clone(),
+                        start: di.start.as_ref().map(|pv| format_position_value(pv)),
+                        path: di.path.clone(),
+                        path_rotate: di.path_rotate,
+                    },
+                    connector: lower_connector(&item.connector),
+                });
+            }
+            _ => {
+                let kind = lower_timeline_item_kind_simple(&item.kind, variant_map);
+                result.push(TimelineItemIR {
+                    kind,
+                    connector: lower_connector(&item.connector),
+                });
+            }
+        }
+    }
+
+    result
 }
 
-/// Lower a single timeline item kind.
-fn lower_timeline_item_kind(
+/// Lower a single timeline item kind (without StartPos handling).
+fn lower_timeline_item_kind_simple(
     kind: &crate::parser::ast::TimelineItemKind,
     variant_map: &HashMap<String, String>,
 ) -> TimelineItemKindIR {
@@ -2586,6 +2695,9 @@ fn lower_timeline_item_kind(
             name.clone(),
             cb.as_ref().map(|e| lower_expr(e, variant_map)),
         ),
+        crate::parser::ast::TimelineItemKind::StartPos(_pos) => {
+            TimelineItemKindIR::Label("__start_pos__".into(), None)
+        }
     }
 }
 
@@ -2718,7 +2830,7 @@ fn lower_playback_props(
                     crate::parser::ast::InterruptValue::Stop => InterruptValue::Cancel,
                     crate::parser::ast::InterruptValue::Complete => InterruptValue::Finish,
                     crate::parser::ast::InterruptValue::Queue => InterruptValue::Compose,
-                    crate::parser::ast::InterruptValue::Replace => InterruptValue::Cancel,
+                    crate::parser::ast::InterruptValue::Replace => InterruptValue::Replace,
                 });
             }
             crate::parser::ast::PlaybackProp::RespectReducedMotion(b) => {
@@ -2749,7 +2861,9 @@ fn lower_playback_props(
 fn lower_motion_expr(expr: &Expr, _variant_map: &HashMap<String, String>) -> MotionExprIR {
     match expr {
         Expr::VarRef(name, _) => MotionExprIR::Ref(name.clone()),
-        _ => MotionExprIR::Ref(format!("{:?}", expr)),
+        // For non-identifier expressions (literal numbers, null placeholders, etc.),
+        // return an empty ref which the codegen handles by skipping motion ref emission.
+        _ => MotionExprIR::Ref(String::new()),
     }
 }
 

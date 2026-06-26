@@ -1,11 +1,10 @@
 /**
  * Read-only indicator — compact floating button at bottom-left.
- * Shown when a hand-written .omni file is opened.
- * Click to convert to visual project mode.
+ * Shown as info-only now; hand-written .omni files can be edited
+ * directly since annotations live inline in the source.
  */
 
-import React, { useState } from "react";
-import { api } from "../api/client";
+import React from "react";
 
 interface ReadOnlyBannerProps {
   warnings: string[];
@@ -13,39 +12,8 @@ interface ReadOnlyBannerProps {
   onConverted?: () => void;
 }
 
-export function ReadOnlyBanner({ warnings, source, onConverted }: ReadOnlyBannerProps): React.ReactElement {
-  const [converting, setConverting] = useState(false);
-  const [error, setError] = useState("");
-  const [expanded, setExpanded] = useState(false);
-
-  const handleConvert = async () => {
-    setConverting(true);
-    setError("");
-    try {
-      const resp = await api.post("/api/omni-json/export", {
-        body: JSON.stringify({
-          source,
-          filepath: "main.omni",
-          target: "react",
-        }),
-      });
-      if (resp.success && resp.document) {
-        await api.post("/api/omni-json/save", {
-          body: JSON.stringify({
-            filePath: "project.omni.json",
-            document: resp.document,
-          }),
-        });
-        onConverted?.();
-      } else {
-        setError((resp as any).error || "Conversion failed");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setConverting(false);
-    }
-  };
+export function ReadOnlyBanner({ warnings }: ReadOnlyBannerProps): React.ReactElement {
+  const [expanded, setExpanded] = React.useState(false);
 
   return (
     <div

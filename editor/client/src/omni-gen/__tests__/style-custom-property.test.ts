@@ -363,4 +363,68 @@ describe("Integration: StyleEntry codegen and round-trip", () => {
     const el = parsed.designElements?.find(e => e.props.className === "foo");
     expect(el).toBeDefined();
   });
+
+  it("round-trips inline StyleEntry through generate -> parse", () => {
+    const elements: ElementData[] = [
+      {
+        id: "root",
+        nodeType: "view",
+        tag: "div",
+        props: {},
+        children: [],
+        parentId: null,
+        styles: [
+          { id: "s_i1", type: "inline", name: "", properties: [{ name: "padding", value: "16px" }, { name: "color", value: "#333" }] },
+        ],
+      },
+    ];
+
+    const result = generateOmniSource({
+      designElements: elements,
+      designWires: [],
+      codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "", graph: { elements: [], wires: [] }, variables: [] }],
+      componentName: "Test",
+    });
+
+    expect(result.errors.some(e => e.severity === "fatal")).toBe(false);
+    expect(result.value).not.toBeNull();
+
+    const parsed = parseOmniSource(result.value!);
+    const hardErrors = parsed.errors.filter(e => e.severity === "error");
+    expect(hardErrors).toHaveLength(0);
+    expect(parsed.designElements).not.toBeNull();
+
+    const parsedEl = parsed.designElements!.find(el => el.id === "root");
+    expect(parsedEl).toBeDefined();
+
+    // Inline styles are parsed back into the element's styles array
+    const inlineEntry = parsedEl!.styles?.find(s => s.type === "inline");
+    expect(inlineEntry).toBeDefined();
+    expect(inlineEntry!.properties).toContainEqual({ name: "padding", value: "16px" });
+    expect(inlineEntry!.properties).toContainEqual({ name: "color", value: "#333" });
+  });
+
+  it("backward compatible: old props-based styles become inline StyleEntry", () => {
+    // Old-format .omni source without style {} block — style keys in props
+    const src = [
+      "component Test {",
+      "    view {",
+      '        <div id="root" padding="16px" color="#333" label="Submit"/>',
+      "    }",
+      "}",
+    ].join("\n");
+
+    const parsed = parseOmniSource(src);
+    const el = parsed.designElements?.find(e => e.id === "root");
+    expect(el).toBeDefined();
+    expect(el!.styles).toBeDefined();
+    expect(el!.styles!.length).toBeGreaterThanOrEqual(1);
+    // padding and color are style keys → should be in inline StyleEntry
+    const inlineProps = el!.styles!.filter(s => s.type === "inline").flatMap(s => s.properties);
+    const propNames = inlineProps.map(p => p.name);
+    expect(propNames).toContain("padding");
+    expect(propNames).toContain("color");
+    // label is NOT a style key → should NOT appear in styles
+    expect(propNames).not.toContain("label");
+  });
 });

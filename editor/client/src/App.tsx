@@ -20,8 +20,6 @@ import { LayoutView } from "./canvas/LayoutView";
 import { CanvasTabBar } from "./canvas/CanvasTabBar";
 import { CodeTabBar } from "./canvas/CodeTabBar";
 import { useCodeGraphStore } from "./codegraph/store";
-import { createMainTab } from "./codegraph/types";
-import { migrateOldCodeGraph } from "./codegraph/migration";
 import { useComponentRegistry } from "./store/componentRegistry";
 import { StateHUD } from "./canvas/StateHUD";
 import { PerfBadge } from "./canvas/PerfBadge";
@@ -34,7 +32,9 @@ import type { SearchResult } from "./search/SearchIndex";
 import type { CommandContext } from "./commands/types";
 import { copySelection, pasteFromClipboard, cutSelection, duplicateSelection } from "./commands/CopyPaste";
 import { showToast } from "./notifications/toast";
-import { parseOmniSource, generateOmniSource, generateOmniFiles, validate } from "./omni-gen";
+import { parseOmniSource, generateOmniSource, emitCustomComponents, validate } from "./omni-gen";
+import type { ElementData, WireData } from "./store/editor";
+import type { ComponentDefinition } from "./store/componentRegistry";
 import { ProjectWelcome } from "./panels/ProjectWelcome";
 import { compilerCache } from "./omni-compiler-cache";
 
@@ -53,6 +53,107 @@ const S = {
   statusBar: { height: 24, minHeight: 24, borderTop: "1px solid #e5e7eb", padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, background: "#f9fafb" } as React.CSSProperties,
   modeBtn: (active: boolean) => ({ padding: "3px 14px", fontSize: 12, border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600, background: active ? "#4F46E5" : "#F3F4F6", color: active ? "#fff" : "#374151" } as React.CSSProperties),
 };
+
+// ═══════════════════════════════════════════════
+// Custom Component Save/Load Helpers
+// ═══════════════════════════════════════════════
+
+/**
+ * Convert registry definitions to omni DSL and save to server.
+ * Each component's elements/wires are emitted as proper .omni source
+ * with metadata stored as // @component / @prop / @event / @style comments (no more .meta.json).
+ */
+async function saveComponentDefinitionsToServer(defs: Record<string, ComponentDefinition>): Promise<void> {
+  const components: Array<{ name: string; elements: ElementData[]; meta?: Record<string, unknown> }> = [];
+
+  for (const [name, def] of Object.entries(defs)) {
+    components.push({
+      name,
+      elements: def.elements || [],
+      meta: {
+        id: def.id,
+        props: def.props,
+        events: def.events,
+        styleProperties: def.styleProperties,
+        category: def.category,
+        description: def.description,
+        children: def.children,
+      },
+    });
+  }
+
+  const result = emitCustomComponents(components);
+  if (!result.value) return;
+
+  const payload: Record<string, { omniSource: string }> = {};
+  for (const [name] of Object.entries(defs)) {
+    const omniSource = result.value[`src/components/${name}.omni`] || "";
+    if (omniSource) payload[name] = { omniSource };
+  }
+
+  await api.saveComponentDefinitions(payload as unknown as Record<string, unknown>);
+}
+
+/**
+ * Load custom component definitions from server.
+ * Parses .omni source back to elements/wires; metadata is extracted from
+ * // @component / @prop / @event / @style comments in the source (no more .meta.json).
+ */
+async function loadComponentDefinitionsFromServer(): Promise<Record<string, unknown>> {
+  const result = await api.loadComponentDefinitions();
+  const merged: Record<string, unknown> = {};
+
+  for (const [name, raw] of Object.entries(result.definitions)) {
+    const data = raw as Record<string, unknown>;
+    const source = data.source as string || "";
+    if (!source) continue;
+
+    const parsed = parseOmniSource(source);
+    const meta = parsed.componentMeta || {};
+
+    // Elements/wires come from parsed view tree
+    const elements = parsed.designElements && parsed.designElements.length > 0
+      ? parsed.designElements
+      : [];
+    const wires = parsed.designWires || [];
+
+    // Props schema from comment metadata (// @prop), fallback to DSL declarations
+    const propSchema: Record<string, unknown> = (meta.propSchema as Record<string, unknown>) || {};
+    const dslProps = parsed.props || [];
+    for (const p of dslProps) {
+      if (!propSchema[p.name]) {
+        propSchema[p.name] = { type: p.type, default: p.default, editor: "text" };
+      }
+    }
+
+    // Events schema from comment metadata (// @event), fallback to DSL declarations
+    const eventSchema: Record<string, unknown> = (meta.eventSchema as Record<string, unknown>) || {};
+    const dslEvents = parsed.events || [];
+    for (const e of dslEvents) {
+      if (!eventSchema[e.name]) {
+        eventSchema[e.name] = { id: e.name, description: "", payload: null };
+      }
+    }
+
+    merged[name] = {
+      id: (meta.id as string) || name,
+      name,
+      category: (meta.category as string) || "Custom",
+      description: (meta.description as string) || "",
+      props: propSchema,
+      events: eventSchema,
+      styleProperties: (meta.styleProperties as string[]) || [],
+      children: (meta.children as boolean) ?? true,
+      elements,
+      wires,
+      createdAt: (meta.createdAt as string) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      storage: "file",
+    };
+  }
+
+  return merged;
+}
 
 // ═══════════════════════════════════════════════
 // App
@@ -137,15 +238,18 @@ export default function App() {
     useEditorStore.getState().newProject();
     useEditorStore.setState({ projectName: name, projectPath: dir });
 
-    // Load main.omni from the project directory
+    // Load main.omni via annotatedLoad (extracts annotations from .omni comments)
     (async () => {
       try {
-        const res = await api.readFile("src/main.omni");
-        if (res.content) {
-          // Store the source for the editor to reference
-          useEditorStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
-          // Parse into design elements
-          const parseResult = parseOmniSource(res.content);
+        const loadResult = await api.annotatedLoad("src/main.omni");
+        if (loadResult.success && loadResult.source) {
+          useEditorStore.setState({
+            activeFileContent: loadResult.source,
+            activeFilePath: "src/main.omni",
+          });
+
+          // Parse .omni source into design elements
+          const parseResult = parseOmniSource(loadResult.source);
           if (parseResult.designElements) {
             const rootOrder = parseResult.designElements
               .filter((e: ElementData) => !e.parentId)
@@ -159,12 +263,101 @@ export default function App() {
               useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
             }
           }
-          // Compile is handled automatically by LayoutView's store subscription
-          // when WASM becomes ready. No need to trigger here.
+
+          // Restore view markers (folded state, render mode)
+          if (loadResult.annotations?.viewMarkers) {
+            const markers = loadResult.annotations.viewMarkers;
+            useEditorStore.setState((prev) => ({
+              elements: prev.elements.map((el) => {
+                const marker = markers.find((m: any) => m.elementId === el.id);
+                if (marker) {
+                  return {
+                    ...el,
+                    isFolded: marker.isFolded ?? el.isFolded,
+                    renderMode: marker.renderMode || el.renderMode,
+                  };
+                }
+                return el;
+              }),
+            }));
+          }
+
+          // Restore code graph chains if available
+          if (loadResult.annotations?.chains?.length) {
+            const chains = loadResult.annotations.chains;
+            const codeElements: any[] = [];
+            const codeWires: any[] = [];
+            for (const chain of chains) {
+              for (const node of chain.nodes || []) {
+                codeElements.push({
+                  id: node.id,
+                  tag: node.tag,
+                  props: node.attrs || {},
+                  position: { x: node.posX, y: node.posY },
+                  nodeType: "codeblock",
+                  children: [],
+                  parentId: null,
+                });
+              }
+              for (const wire of chain.wires || []) {
+                codeWires.push({
+                  id: wire.id,
+                  fromId: wire.fromId,
+                  fromPort: wire.fromPort,
+                  toId: wire.toId,
+                  toPort: wire.toPort,
+                });
+              }
+            }
+            if (codeElements.length > 0) {
+              useCodeGraphStore.getState().setElementsAndWires(codeElements, codeWires);
+            }
+          }
+        } else {
+          console.warn('[App] annotatedLoad failed:', loadResult.error);
+          // Fallback: try plain read
+          const res = await api.readFile("src/main.omni");
+          if (res.content) {
+            useEditorStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
+            const parseResult = parseOmniSource(res.content);
+            if (parseResult.designElements) {
+              const rootOrder = parseResult.designElements
+                .filter((e: ElementData) => !e.parentId)
+                .map((e: ElementData) => e.id);
+              useEditorStore.setState({ elements: parseResult.designElements, wires: parseResult.designWires || [], rootOrder });
+            }
+          }
         }
       } catch (e) {
         console.warn('[App] Failed to load main.omni:', e);
       }
+    })();
+
+    // Load custom component definitions from src/components/*.omni
+    (async () => {
+      try {
+        const merged = await loadComponentDefinitionsFromServer();
+        if (Object.keys(merged).length > 0) {
+          const { useComponentRegistry } = await import("./store/componentRegistry");
+          useComponentRegistry.setState({ definitions: merged } as any);
+          console.log(`[App] Loaded ${Object.keys(merged).length} custom component definitions`);
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load component definitions:', e);
+      }
+    })();
+
+    // Load editor UI state from .omni-editor.toml
+    (async () => {
+      try {
+        const tomlResult = await api.loadEditorToml();
+        if (tomlResult.state) {
+          const s = tomlResult.state;
+          if (s.open_files?.length > 0) {
+            useEditorStore.setState({ openTabs: s.open_files });
+          }
+        }
+      } catch { /* non-critical */ }
     })();
 
     setShowWelcome(false);
@@ -180,18 +373,17 @@ export default function App() {
   // This App-level subscription is intentionally omitted to avoid race conditions
   // with WASM initialization. LayoutView's subscription waits for wasmReady.
 
-  // Auto-save component definitions when registry changes
+  // Auto-save component definitions (as omni DSL) when registry changes
   useEffect(() => {
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     const unsub = useComponentRegistry.subscribe((state) => {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        if (Object.keys(state.definitions).length > 0) {
-          api.saveComponentDefinitions(state.definitions as Record<string, unknown>).catch(() => {
-            // Best-effort auto-save; failures are non-critical
-          });
-        }
+        // Always save, even when empty — server cleanup deletes orphaned .omni files
+        saveComponentDefinitionsToServer(state.definitions).catch(() => {
+          // Best-effort auto-save; failures are non-critical
+        });
       }, 2000);
     });
     return () => {
@@ -474,167 +666,209 @@ export default function App() {
     setFnToNodeMap({});
   }, []);
 
-  // ── v2: Project save/load ────────────────────
+  // ── Save: 注解直写 .omni + 编辑器状态 → .omni-editor.toml ──
+
+  /** Save a single file entry: generate .omni source from elements/wires and write to disk. */
+  const saveFileEntry = useCallback(async (
+    entry: { filePath: string; elements: ElementData[]; wires: WireData[]; rootOrder: string[] },
+    codeTabs: any,
+    store: ReturnType<typeof useEditorStore.getState>,
+  ): Promise<boolean> => {
+    const compMatch = (store.activeFileContent || store.sourceCode || "").match(/component\s+(\w+)\s*\{/);
+    const componentName = compMatch ? compMatch[1] : "App";
+
+    const genResult = generateOmniSource({
+      designElements: entry.elements,
+      designWires: entry.wires,
+      codeTabs: codeTabs.tabs,
+      componentName,
+      rootOrder: entry.rootOrder,
+      forSave: true,
+    });
+
+    let content: string;
+    if (genResult.value) {
+      content = genResult.value;
+    } else {
+      content = store.sourceCode || store.activeFileContent || "";
+      if (!content) return false;
+    }
+
+    const writeRes = await api.writeFile(entry.filePath, content);
+    if (!writeRes.ok) {
+      setStatus({ text: `⚠ ${entry.filePath} 写入失败: ${writeRes.error || "未知错误"}`, isError: false });
+      return false;
+    }
+    return true;
+  }, [setStatus]);
 
   const saveProject = useCallback(async (customPath?: string) => {
     const store = useEditorStore.getState();
-    let projectPath = customPath || store.projectPath;
+    const filePath = customPath || store.activeFilePath;
 
-    if (!projectPath) {
-      // Prompt for filename
-      const name = prompt("保存项目为:", `${store.projectName}.omni.json`);
-      if (!name) return;
-      projectPath = name.endsWith(".omni.json") ? name : `${name}.omni.json`;
+    if (!filePath) {
+      setStatus({ text: "请先打开或创建一个 .omni 文件", isError: true });
+      return;
     }
 
-    setStatus({ text: `保存项目到 ${projectPath} ...`, isError: false });
+    setStatus({ text: `保存到 ${filePath} ...`, isError: false });
     try {
-      const now = new Date().toISOString();
-      const doc: Record<string, unknown> = {
-        schemaVersion: "2.0.0",
-        meta: {
-          projectName: store.projectName,
-          omniVersion: "0.6.0",
-          createdAt: now,
-          updatedAt: now,
-        },
-        sourceCode: store.sourceCode,
-        design: {
-          elements: store.elements,
-          wires: store.wires,
-        },
-        code: {
-          elements: useCodeGraphStore.getState().getActiveGraph().elements,
-          wires: useCodeGraphStore.getState().getActiveGraph().wires,
-        },
-        codeTabs: useCodeGraphStore.getState().toSerializable(),
-        components: (() => {
-          const defs = useComponentRegistry.getState().definitions;
-          return Object.values(defs).map((d: any) => ({
-            name: d.name,
-            source: d.source || "embedded",
-            ...(d.source === "embedded" || !d.source ? {
-              definition: {
-                id: d.id,
-                name: d.name,
-                category: d.category,
-                description: d.description,
-                props: d.props,
-                events: d.events,
-                styleProperties: d.styleProperties,
-                children: d.children,
-                elements: d.elements,
-                wires: d.wires,
-                createdAt: d.createdAt,
-                updatedAt: d.updatedAt,
-                storage: d.storage,
-              },
-            } : {}),
-          }));
-        })(),
-        canvasLayout: { positions: {} },
-        tabState: {
-          openTabs: store.openTabs,
-          activeTab: store.activeDocId || "main",
-        },
-        config: store.config,
-      };
+      const cg = useCodeGraphStore.getState();
+      const codeTabs = cg.toSerializable();
 
-      await api.saveOmniJson(projectPath, doc);
-      // Also save component definitions for external references
-      const externalDefs: Record<string, unknown> = {};
-      const { definitions } = useComponentRegistry.getState();
-      for (const [name, def] of Object.entries(definitions)) {
-        if ((def as any).source && (def as any).source !== "embedded") {
-          externalDefs[name] = def;
+      // ── Collect all file states that need saving ──
+
+      interface FileSaveEntry {
+        filePath: string;
+        elements: ElementData[];
+        wires: WireData[];
+        rootOrder: string[];
+      }
+
+      const entries: FileSaveEntry[] = [];
+      const seenPaths = new Set<string>();
+
+      // 1. Active state: main canvas or active file tab
+      if (store.activeDocId === null || store.activeDocId === "main") {
+        // Main canvas: use activeFilePath (the .omni file that was opened)
+        const mainPath = filePath;
+        if (mainPath && !seenPaths.has(mainPath)) {
+          entries.push({
+            filePath: mainPath,
+            elements: store.elements,
+            wires: store.wires,
+            rootOrder: store.rootOrder,
+          });
+          seenPaths.add(mainPath);
+        }
+      } else if (store.activeDocId.startsWith("file:")) {
+        const path = store.activeDocId.replace("file:", "");
+        if (!seenPaths.has(path)) {
+          entries.push({
+            filePath: path,
+            elements: store.elements,
+            wires: store.wires,
+            rootOrder: store.rootOrder,
+          });
+          seenPaths.add(path);
         }
       }
-      if (Object.keys(externalDefs).length > 0) {
-        api.saveComponentDefinitions(externalDefs).catch(() => {});
+
+      // 2. Component canvas: main canvas state is in docBackup
+      if (store.activeDocId?.startsWith("comp:") && store.docBackup) {
+        const mainPath = filePath;
+        if (mainPath && !seenPaths.has(mainPath)) {
+          entries.push({
+            filePath: mainPath,
+            elements: store.docBackup.elements,
+            wires: store.docBackup.wires,
+            rootOrder: store.docBackup.elements.filter((e) => !e.parentId).map((e) => e.id),
+          });
+          seenPaths.add(mainPath);
+        }
       }
 
-      store.markClean();
-      const name = projectPath.replace(/^.*[\\/]/, "").replace(".omni.json", "");
-      useEditorStore.setState({ projectPath, projectName: name });
-      const fullPath = projectDir ? `${projectDir}/${projectPath}` : projectPath;
+      // 3. Other file-based tabs from tabStates
+      for (const [docId, state] of Object.entries(store.tabStates)) {
+        if (docId.startsWith("file:")) {
+          const path = docId.replace("file:", "");
+          if (!seenPaths.has(path)) {
+            entries.push({
+              filePath: path,
+              elements: state.elements,
+              wires: state.wires,
+              rootOrder: state.elements.filter((e) => !e.parentId).map((e) => e.id),
+            });
+            seenPaths.add(path);
+          }
+        }
+      }
 
-      // ── Generate OmniLang source files via omni-gen ──
-      const _cg = useCodeGraphStore.getState();
-      const _genFilesResult = generateOmniFiles({
-        designElements: useEditorStore.getState().elements,
-        designWires: useEditorStore.getState().wires,
-        codeTabs: _cg.toSerializable().tabs,
-        componentName: projectName || "App",
+      // ── Save each file ──
+
+      let savedCount = 0;
+      let activeContent = "";
+      for (const entry of entries) {
+        const ok = await saveFileEntry(entry, codeTabs, store);
+        if (ok) savedCount++;
+        // Track active file's content so we can update in-memory sourceCode
+        if (entry.filePath === filePath) {
+          const genResult = generateOmniSource({
+            designElements: entry.elements,
+            designWires: entry.wires,
+            codeTabs: codeTabs.tabs,
+            componentName: (store.activeFileContent || store.sourceCode || "").match(/component\s+(\w+)\s*\{/)?.[1] || "App",
+            rootOrder: entry.rootOrder,
+            forSave: true,
+          });
+          if (genResult.value) activeContent = genResult.value;
+        }
+      }
+      if (activeContent) store.setSourceCode(activeContent);
+
+      // 2. Save component definitions (as omni DSL to src/components/*.omni)
+      const { definitions } = useComponentRegistry.getState();
+      saveComponentDefinitionsToServer(definitions).catch(() => {});
+
+      // 3. Save editor UI state to .omni-editor.toml
+      await api.saveEditorToml({
+        active_file: filePath,
+        active_mode: "design",
+        open_files: store.openTabs.length > 0
+          ? store.openTabs
+          : (filePath ? [filePath] : []),
+        left_open: true,
+        right_width: 320,
+        viewports: {},
       });
 
-      if (_genFilesResult.value) {
-        // Validate all files first, then write
-        const _validFiles: Record<string, string> = {};
-        let _allValid = true;
-        for (const [_filePath, _source] of Object.entries(_genFilesResult.value)) {
-          const _vResult = validate(_source);
-          if (_vResult.valid) {
-            _validFiles[_filePath] = _source;
-          } else {
-            _allValid = false;
-            setStatus({ text: `❌ 验证失败: ${_filePath}`, isError: true });
-            break;
-          }
-        }
-        if (_allValid && Object.keys(_validFiles).length > 0) {
-          try {
-            await Promise.all(
-              Object.entries(_validFiles).map(([fp, src]) => api.writeFile(fp, src))
-            );
-          } catch (_e) {
-            setStatus({ text: "❌ 生成文件写入失败", isError: true });
-            return;
-          }
-        }
-      } else if (_genFilesResult.errors.length > 0) {
-        // Non-fatal generation errors — warn but don't block save
-        const _fatal = _genFilesResult.errors.some(e => e.severity === "fatal");
-        if (_fatal) {
-          setStatus({ text: "❌ 代码文件生成失败", isError: true });
-        }
-      }
-
-      setStatus({ text: `✅ 已保存: ${fullPath}`, isError: false });
+      store.markClean();
+      useEditorStore.setState({ projectName: filePath.replace(/^.*[\\/]/, "").replace(/\.omni$/, "") });
+      const fullPath = projectDir ? `${projectDir}/${filePath}` : filePath;
+      setStatus({ text: `✅ 已保存 ${savedCount} 个文件: ${fullPath}`, isError: false });
     } catch (e) {
       setStatus({ text: `❌ 保存失败: ${String(e)}`, isError: true });
     }
-  }, []);
+  }, [projectDir, saveFileEntry]);
 
-  // ── Open project ─────────────────────────────
+  // ── Open .omni file dialog ────────────────────
 
   const [openDialog, setOpenDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
 
   const handleOpenProject = useCallback(async () => {
-    setStatus({ text: "扫描项目文件...", isError: false });
+    setStatus({ text: "扫描 .omni 文件...", isError: false });
     try {
-      const listing = await api.listDir(".");
-      const entries = listing?.entries || [];
-      let jsonFiles = entries
-        .filter((e: { name: string }) => e.name.endsWith(".omni.json"))
-        .map((e: { name: string }) => e.name);
-      // Scan one level of subdirs
-      const subdirs = entries.filter((e: { type: string }) => e.type === "directory");
-      for (const dir of subdirs) {
+      const omniFiles: string[] = [];
+      const scanned = new Set<string>();
+
+      const scanDir = async (dirPath: string, depth: number): Promise<void> => {
+        if (depth > 3 || scanned.has(dirPath)) return;
+        scanned.add(dirPath);
         try {
-          const subListing = await api.listDir(dir.name);
-          const subEntries = subListing?.entries || [];
-          for (const se of subEntries) {
-            if (se.name.endsWith(".omni.json")) {
-              jsonFiles.push(`${dir.name}/${se.name}`);
+          const listing = await api.listDir(dirPath);
+          const entries = listing?.entries || [];
+          for (const e of entries) {
+            if (e.name.endsWith(".omni")) {
+              const fullPath = dirPath === "." ? e.name : `${dirPath}/${e.name}`;
+              omniFiles.push(fullPath);
+            }
+          }
+          if (depth < 3) {
+            for (const d of entries.filter((x: { type: string }) => x.type === "directory")) {
+              const subPath = dirPath === "." ? d.name : `${dirPath}/${d.name}`;
+              await scanDir(subPath, depth + 1);
             }
           }
         } catch { /* skip */ }
-      }
-      if (jsonFiles.length === 0) {
-        setStatus({ text: "未找到项目文件 (.omni.json)", isError: true });
+      };
+
+      await scanDir(".", 1);
+
+      if (omniFiles.length === 0) {
+        setStatus({ text: "未找到 .omni 文件", isError: true });
         return;
       }
-      setOpenDialog({ visible: true, files: jsonFiles });
+      setOpenDialog({ visible: true, files: omniFiles });
     } catch { setStatus({ text: "扫描失败", isError: true }); }
   }, []);
 
@@ -642,41 +876,77 @@ export default function App() {
     setOpenDialog({ visible: false, files: [] });
     setStatus({ text: `加载 ${filePath}...`, isError: false });
     try {
-      const result = await api.readFile(filePath);
-      if (!result.content) { setStatus({ text: `❌ 文件不存在: ${filePath}`, isError: true }); return; }
-      const data = JSON.parse(result.content);
-      const store = useEditorStore.getState();
-      store.openProject(filePath, data);
+      // Use annotatedLoad: reads .omni source + extract annotations from comments
+      const result = await api.annotatedLoad(filePath);
+      if (!result.success || !result.source) {
+        setStatus({ text: `❌ 加载失败: ${result.error}`, isError: true });
+        return;
+      }
 
-      // Restore code tabs from saved data (backward compat + new format)
-      const codeTabs = data.codeTabs as Record<string, unknown> | undefined;
-      if (codeTabs && Array.isArray(codeTabs.tabs)) {
-        useCodeGraphStore.getState().loadFromData(
-          codeTabs.tabs as any,
-          codeTabs.activeTab as string | undefined,
-        );
-      } else {
-        // Backward compat: migrate old code.elements/code.wires → new format
-        const code = (data.code || {}) as Record<string, unknown>;
-        const oldElements = (code.elements || []) as any[];
-        const oldWires = (code.wires || []) as any[];
-        const migrated = migrateOldCodeGraph(oldElements, oldWires);
-        useCodeGraphStore.getState().reset();
-        useCodeGraphStore.getState().setElementsAndWires(migrated.elements, migrated.wires);
-        if (migrated.droppedElements > 0 || migrated.droppedWires > 0) {
-          setStatus({
-            text: `✅ 已打开项目: ${filePath} (已迁移 ${migrated.droppedElements} 个旧节点)`,
-            isError: false,
-          });
-          return; // skip the normal status set below
+      const store = useEditorStore.getState();
+      store.newProject();
+      useEditorStore.setState({
+        activeFileContent: result.source,
+        activeFilePath: filePath,
+        projectPath: projectDir || filePath,
+        projectName: filePath.replace(/^.*[\\/]/, "").replace(/\.omni$/, ""),
+      });
+
+      // Parse .omni source into design elements
+      const parseResult = parseOmniSource(result.source);
+      if (parseResult.designElements) {
+        const rootOrder = parseResult.designElements
+          .filter((e: ElementData) => !e.parentId)
+          .map((e: ElementData) => e.id);
+        useEditorStore.setState({
+          elements: parseResult.designElements,
+          wires: parseResult.designWires || [],
+          rootOrder,
+        });
+      }
+
+      // Restore code graph from annotation chains
+      if (result.annotations?.chains?.length) {
+        const chains = result.annotations.chains;
+        const codeElements: any[] = [];
+        const codeWires: any[] = [];
+        for (const chain of chains) {
+          for (const node of chain.nodes || []) {
+            codeElements.push({
+              id: node.id, tag: node.tag, props: node.attrs || {},
+              position: { x: node.posX, y: node.posY },
+              nodeType: "codeblock", children: [], parentId: null,
+            });
+          }
+          for (const wire of chain.wires || []) {
+            codeWires.push({
+              id: wire.id, fromId: wire.fromId, fromPort: wire.fromPort,
+              toId: wire.toId, toPort: wire.toPort,
+            });
+          }
+        }
+        if (codeElements.length > 0) {
+          useCodeGraphStore.getState().setElementsAndWires(codeElements, codeWires);
         }
       }
 
-      setStatus({ text: `✅ 已打开项目: ${filePath}`, isError: false });
+      // Load custom component definitions from src/components/*.omni
+      loadComponentDefinitionsFromServer().then((merged) => {
+        if (Object.keys(merged).length > 0) {
+          import("./store/componentRegistry").then((m) => {
+            const existing = m.useComponentRegistry.getState().definitions;
+            m.useComponentRegistry.setState({
+              definitions: { ...existing, ...merged },
+            });
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+
+      setStatus({ text: `✅ 已打开: ${filePath}`, isError: false });
     } catch (e) {
-      setStatus({ text: `❌ 加载失败: ${e instanceof SyntaxError ? "格式错误" : String(e)}`, isError: true });
+      setStatus({ text: `❌ 加载失败: ${String(e)}`, isError: true });
     }
-  }, []);
+  }, [projectDir]); // end openProjectFile
 
   // ── Keyboard ────────────────────────────────
 
@@ -788,20 +1058,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleCompile, undoUndo, undoRedo, target, runStatus.running]);
 
-  // ── Cleanup: stop Vite on page close + unsaved changes prompt ──
+  // ── Cleanup: stop Vite on page close ──
+  // NOTE: beforeunload 确认对话框已移除（测试时影响刷新流程），需要时可加回
 
   useEffect(() => {
-    const onUnload = (e: BeforeUnloadEvent) => {
+    return () => {
       api.stopRun().catch(() => {});
       api.disconnectDebug();
-      if (useEditorStore.getState().isDirty) {
-        e.preventDefault();
-        e.returnValue = "您有未保存的更改。";
-      }
-    };
-    window.addEventListener("beforeunload", onUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onUnload);
     };
   }, []);
 
@@ -1330,8 +1593,8 @@ export default function App() {
           onClick={() => setOpenDialog({ visible: false, files: [] })}>
           <div style={{ background: "#fff", borderRadius: 12, padding: "24px 28px", minWidth: 420, maxHeight: "70vh", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>📂 打开项目</div>
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>选择 .omni.json 项目文件</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>📂 打开 .omni 文件</div>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>选择一个 .omni 源文件打开</div>
             <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
               {openDialog.files.map((f, i) => (
                 <div key={f} onClick={() => openProjectFile(f)}

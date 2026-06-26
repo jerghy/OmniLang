@@ -59,8 +59,6 @@ const PROPERTY_CATEGORIES: { label: string; props: string[] }[] = [
   },
 ];
 
-const ALL_PROPERTY_NAMES = PROPERTY_CATEGORIES.flatMap((c) => c.props);
-
 function parseValueAndUnit(raw: string): { num: string; unit: string } {
   const match = raw.match(/^(-?[\d.]+)\s*(.*)$/);
   if (match) return { num: match[1], unit: match[2] || "" };
@@ -302,6 +300,7 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
   // Numeric + unit properties
   if (unitGroup) {
     const { num, unit } = parseValueAndUnit(property.value);
+    const effectiveUnit = unit || unitGroup.default;
     const units = [...unitGroup.common, ...(unitGroup.advanced || [])];
 
     return (
@@ -315,14 +314,14 @@ export function StylePropertyEditor({ property, onChange, onDelete }: Props) {
           type="text"
           value={num}
           onChange={(e) => {
-            const newVal = e.target.value + (unit || "");
+            const newVal = e.target.value + effectiveUnit;
             onChange({ ...property, value: newVal });
           }}
           style={{ ...styles.input, width: 60, flex: "none" }}
           placeholder={unitGroup.default}
         />
         <select
-          value={unit}
+          value={effectiveUnit}
           onChange={(e) => {
             const newUnit = e.target.value;
             const newVal = newUnit === "" ? num : num + newUnit;

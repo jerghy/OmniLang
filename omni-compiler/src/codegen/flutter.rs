@@ -1265,6 +1265,19 @@ fn comp_has_spring_motion(comp: &ComponentIR) -> bool {
     })
 }
 
+/// Check if any motion in the component uses path animation (needs dart:ui import).
+fn comp_has_path_motion(comp: &ComponentIR) -> bool {
+    comp.motions.iter().any(|m| motion_has_path(m))
+}
+
+/// Check if a single motion uses path animation.
+fn motion_has_path(motion: &MotionIntent) -> bool {
+    match &motion.body {
+        MotionBodyIR::Keyframe(kf) => kf.path.is_some(),
+        _ => false,
+    }
+}
+
 /// Extract the "to" properties from a keyframe to determine what properties are animated.
 fn extract_keyframe_properties(kf: &KeyframeIR) -> Vec<String> {
     let mut props: Vec<String> = Vec::new();

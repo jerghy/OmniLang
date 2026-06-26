@@ -18,6 +18,8 @@ export interface CompileProjectInput {
 
 export interface CompileProjectOutput {
   srcdoc: string;
+  /** 本次编译生成的 .omni 源码（从 elements 转换而来） */
+  omniSource?: string;
   errors?: string[];
 }
 
@@ -93,7 +95,7 @@ class OmniCompilerCache {
       result.files.css,
       result.files.html,
     );
-    const output: CompileProjectOutput = { srcdoc };
+    const output: CompileProjectOutput = { srcdoc, omniSource: source };
     this.cache.set(source, { output, timestamp: Date.now() });
     this.lastOutput = output; // Save successful output for stale fallback
     return output;

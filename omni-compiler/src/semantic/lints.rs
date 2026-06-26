@@ -874,7 +874,7 @@ pub mod rules {
                     }
                 }
             }
-            ViewNode::SlotDirective(_) => {}
+            ViewNode::SlotDirective { .. } => {}
         }
     }
 }

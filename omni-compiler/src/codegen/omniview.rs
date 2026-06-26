@@ -68,6 +68,8 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         editor_mode,
         comp_mount_js: String::new(),
         component_js: HashMap::new(),
+        enter_trigger_nids: Vec::new(),
+        motion_names: std::collections::HashSet::new(),
     };
 
     gen.emit_js_header();
@@ -83,6 +85,25 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     for func in ir.all_functions() {
         gen.js.push_str(&format!("\n// pub fn {}\n", func.name));
         gen.emit_function(func);
+    }
+
+    // Emit module-level motion definitions (@motion blocks defined outside any component).
+    // These must be emitted before component-level motions because they're referenced by
+    // component view triggers like @enter={motionName}.
+    for module in ir.modules.values() {
+        if !module.motions.is_empty() {
+            gen.js.push_str(&format!("\n/// ── Module Motion Definitions: {} ──\n\n", module.name));
+            for motion in &module.motions {
+                gen.motion_names.insert(motion.name.clone());
+                gen.emit_motion_js(motion);
+            }
+        }
+        if !module.timelines.is_empty() {
+            gen.js.push_str(&format!("\n/// ── Module Timeline Definitions: {} ──\n\n", module.name));
+            for timeline in &module.timelines {
+                gen.emit_timeline_js(timeline);
+            }
+        }
     }
 
     // Build component map for view inlining
@@ -171,6 +192,8 @@ struct OmniViewGenerator {
     global_renames: std::collections::HashMap<String, String>,
     /// Cache of all component IRs for view inlining (keyed by component name)
     component_map: std::collections::HashMap<String, ComponentIR>,
+    /// Set of known motion names — used to detect @click={motionName} patterns
+    motion_names: std::collections::HashSet<String>,
     /// Whether we're currently emitting the root component's view
     emitting_root_view: bool,
     /// Current component name prefix for scoping function names
@@ -199,6 +222,9 @@ struct OmniViewGenerator {
     /// Per-component JS deltas for hot-replace (keyed by component name).
     /// Captured at the end of each `generate_component()` call.
     component_js: HashMap<String, String>,
+    /// (nid, motion_name, trigger_kind) pairs for replay on signal change.
+    /// trigger_kind is "enter" or "timeline" — used to build correct replay code.
+    enter_trigger_nids: Vec<(String, String, String)>,
 }
 
 impl OmniViewGenerator {
@@ -417,6 +443,8 @@ function __omni_bindText(nid) {
         self.name_renames.clear();
         self.signal_names.clear();
         self.comp_mount_js.clear();
+        // Clear @enter replay tracking for this component
+        self.enter_trigger_nids.clear();
 
         // Editor mode: wrap component in a factory IIFE so it can be hot-replaced
         // via __omni_replaceComponent in the editor bridge.
@@ -534,8 +562,10 @@ function __omni_bindText(nid) {
             self.js
                 .push_str(&format!("\n/// ── Motion Definitions: {} ──\n\n", name));
             for motion in &comp.motions {
+                self.motion_names.insert(motion.name.clone());
                 self.emit_motion_js(motion);
             }
+        } else {
         }
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
@@ -543,6 +573,7 @@ function __omni_bindText(nid) {
             self.js
                 .push_str(&format!("\n/// ── Timeline Definitions: {} ──\n\n", name));
             for timeline in &comp.timelines {
+                self.motion_names.insert(timeline.name.clone());
                 self.emit_timeline_js(timeline);
             }
         }
@@ -644,6 +675,45 @@ function __omni_bindText(nid) {
             }
             self.signal_names = saved_signal_names;
             self.current_component = saved_component;
+        }
+
+        // @enter replay effect — watches ALL component signals and replays @enter animations
+        // when any signal changes. This enables "Play All Animations" buttons to work.
+        if !self.enter_trigger_nids.is_empty() && is_root {
+            // Collect all signal names from ALL components for dependency tracking
+            let mut all_sig_reads: Vec<String> = Vec::new();
+            for (cname, ccomp) in ir.all_components() {
+                for state in &ccomp.states {
+                    let prefixed = format!("{}_{}", cname, state.name);
+                    all_sig_reads.push(format!("{}.value;", prefixed));
+                }
+            }
+            let all_sig_reads_str = all_sig_reads.join(" ");
+            // Build replay function calls for each @enter trigger
+            let mut replay_fns: Vec<String> = Vec::new();
+            for (nid, motion, trigger_kind) in &self.enter_trigger_nids {
+                // Timeline triggers auto-play via internal setTimeouts — no explicit play() call needed.
+                // @enter triggers need explicit play().
+                let play_call = if trigger_kind == "timeline" {
+                    String::new()
+                } else {
+                    " if (el.offsetParent !== null) p.play();".into()
+                };
+                replay_fns.push(format!(
+                    "(function() {{ var el = __omni_el(\"{nid}\"); if (el) {{ var _old = __omni_animations.get(\"{nid}_{kind}\"); if (_old) _old.kill(); var p = __omni_motion_{motion}(el, {{trigger: \"{kind}\"}}); __omni_animations.set(\"{nid}_{kind}\", p);{play} }} }})()",
+                    nid = nid, motion = motion, kind = trigger_kind, play = play_call
+                ));
+            }
+            let replay_fns_str = replay_fns.join("; ");
+            self.mount_js.push_str(&format!(
+                "// @enter replay (watches all signals)\n__omni_effect(function __omni_enter_replay() {{\n\
+                 \x20 {all_sig_reads}\n\
+                 \x20 {replay_fns}\n\
+                 }});\n",
+                all_sig_reads = all_sig_reads_str,
+                replay_fns = replay_fns_str,
+            ));
+            self.enter_trigger_nids.clear();
         }
 
         if self.editor_mode {
@@ -1205,8 +1275,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     // Emit placeholder span + deferred _effect() binding
                     let nid = self.next_nid("interp");
                     let js_expr = self.expr_to_js(expr);
-                    let value_access = if self.signal_names.contains(&js_expr) {
-                        format!("{}.value", js_expr)
+                    // Strip trailing () for signal/computed name lookup
+                    let js_expr_base = js_expr.trim_end_matches("()");
+                    let value_access = if self.signal_names.contains(js_expr_base) {
+                        format!("{}.value", js_expr_base)
                     } else {
                         js_expr
                     };
@@ -1327,7 +1399,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             self.js.push_str("__omni_effect(() => {\n");
             self.js
                 .push_str(&format!("  const _nids = {};\n", nid_array));
-            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = (id === nid) ? \"block\" : \"none\"; }); };\n");
+            self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { window.playBranchEnters(e); } } }); };\n");
         }
 
         // For each branch, build the if/else if chain
@@ -1758,12 +1830,22 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         match handler.kind.as_str() {
                             "fn_ref" => {
                                 if let Some(ref fn_name) = handler.r#ref {
-                                    let prefixed =
-                                        format!("{}_{}", self.current_component, fn_name);
-                                    self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                                        nid, js_event, pd, prefixed
-                                    ));
+                                    if self.motion_names.contains(fn_name.as_str()) {
+                                        // Motion reference: create AnimationPlayer and play on event
+                                        self.js.push_str(&format!(
+                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                                            nid = nid,
+                                            js_event = js_event,
+                                            motion = fn_name,
+                                        ));
+                                    } else {
+                                        let prefixed =
+                                            format!("{}_{}", self.current_component, fn_name);
+                                        self.js.push_str(&format!(
+                                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                                            nid, js_event, pd, prefixed
+                                        ));
+                                    }
                                 }
                             }
                             "store_action" => {
@@ -2072,11 +2154,21 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
-                            let prefixed = format!("{}_{}", self.current_component, fn_name);
-                            self.js.push_str(&format!(
-                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                                nid, js_event, pd, prefixed
-                            ));
+                            if self.motion_names.contains(fn_name.as_str()) {
+                                // Motion reference: create AnimationPlayer and play on event
+                                self.js.push_str(&format!(
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                                    nid = nid,
+                                    js_event = js_event,
+                                    motion = fn_name,
+                                ));
+                            } else {
+                                let prefixed = format!("{}_{}", self.current_component, fn_name);
+                                self.js.push_str(&format!(
+                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
+                                    nid, js_event, pd, prefixed
+                                ));
+                            }
                         }
                     }
                     "store_action" => {
@@ -2171,13 +2263,84 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             }
         }
 
-        // Self-closing tags
+        // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
+        // IMPORTANT: MUST be before the void element return below, otherwise void
+        // elements like <input> never get their motion triggers emitted!
+        if !el.motion_triggers.is_empty() {
+            self.emit_motion_triggers_for_element(&nid, &el);
+        }
+
+        // @driven-by — external progress control for animations on this element
+        if let Some(ref driven_by_expr) = el.driven_by {
+            let driven_js = self.expr_to_js(driven_by_expr);
+            // When driven-by is set, the animation progress is bound to the signal value.
+            // We seek ALL animations on this element whenever the signal changes.
+            // The signal is auto-tracked by __omni_effect.
+            self.mount_js.push_str(&format!(
+                "// @driven-by binding\n\
+                 __omni_effect(() => {{\n\
+                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
+                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 player.seek(progress);\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }});\n",
+                nid = nid,
+                driven = driven_js
+            ));
+        }
+
+        // @paused override — per-element pause override for all animations
+        if let Some(paused) = &el.paused_override {
+            let paused_js = self.expr_to_js(paused);
+            self.mount_js.push_str(&format!(
+                "// @paused override\n\
+                 (function() {{\n\
+                 \x20 var _paused = Boolean({paused});\n\
+                 \x20 __omni_animations.forEach((player, key) => {{\n\
+                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
+                 \x20\x20\x20 if (_paused) {{ player.pause(); }} else {{ player.resume(); }}\n\
+                 \x20\x20 }}\n\
+                 \x20 }});\n\
+                 }})();\n",
+                nid = nid,
+                paused = paused_js
+            ));
+        }
+
+        // states: — multi-state animation map (reserved or custom signal-driven)
+        if let Some(ref states_ir) = el.states {
+            self.emit_states_js(&nid, states_ir);
+        }
+
+        // Self-closing tags (after motion/driven-by/states emit so animations are set up)
         let void_tags = [
             "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
             "track", "wbr",
         ];
         if void_tags.contains(&html_tag.as_str()) {
-            return format!("{}<{}{} />\n", pad, html_tag, attrs);
+            out.push_str(&format!("{}<{}{} />\n", pad, html_tag, attrs));
+            // Emit any interpolation _effect() calls
+            for effect in &interp_effects {
+                self.js.push_str(effect);
+            }
+            // Class map dynamic bindings
+            if !el.class_map_bindings.is_empty() {
+                for (class_name, expr) in &el.class_map_bindings {
+                    let js_expr = self.expr_to_js(expr);
+                    let js_access = if self.signal_names.contains(&js_expr) {
+                        format!("{}.value", js_expr)
+                    } else {
+                        js_expr
+                    };
+                    self.js.push_str(&format!(
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!{}); }});\n",
+                        nid, class_name, js_access
+                    ));
+                }
+            }
+            return out;
         }
 
         out.push_str(&format!("{}<{}{}>\n", pad, html_tag, attrs));
@@ -2210,53 +2373,6 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     nid, class_name, js_access
                 ));
             }
-        }
-
-        // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
-        if !el.motion_triggers.is_empty() {
-            self.emit_motion_triggers_for_element(&nid, &el);
-        }
-
-        // @driven-by — external progress control for animations on this element
-        if let Some(ref driven_by_expr) = el.driven_by {
-            let driven_js = self.expr_to_js(driven_by_expr);
-            // When driven-by is set, the animation progress is bound to the signal value.
-            // We seek ALL animations on this element whenever the signal changes.
-            // The signal is auto-tracked by __omni_effect.
-            self.mount_js.push_str(&format!(
-                "// @driven-by binding\n\
-                 __omni_effect(() => {{\n\
-                 \x20 const progress = Math.max(0, Math.min(1, Number({driven})));\n\
-                 \x20 __omni_animations.forEach((player, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 player.seek(progress);\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
-                 }});\n",
-                nid = nid,
-                driven = driven_js
-            ));
-        }
-
-        // @paused override — per-element pause override for all animations
-        if let Some(paused) = el.paused_override {
-            self.mount_js.push_str(&format!(
-                "// @paused override\n\
-                 (function() {{\n\
-                 \x20 __omni_animations.forEach((player, key) => {{\n\
-                 \x20\x20 if (key.startsWith(\"{nid}_\")) {{\n\
-                 \x20\x20\x20 if ({paused}) {{ player.pause(); }} else {{ player.resume(); }}\n\
-                 \x20\x20 }}\n\
-                 \x20 }});\n\
-                 }})();\n",
-                nid = nid,
-                paused = if paused { "true" } else { "false" }
-            ));
-        }
-
-        // states: — multi-state animation map (reserved or custom signal-driven)
-        if let Some(ref states_ir) = el.states {
-            self.emit_states_js(&nid, states_ir);
         }
 
         // Record source map entry
@@ -2380,6 +2496,26 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             }
         }
 
+        // Callback blocks (onStart, onUpdate, onComplete, onRepeat, onInterrupt)
+        if !kf.callbacks.is_empty() {
+            let callbacks: Vec<String> = kf
+                .callbacks
+                .iter()
+                .map(|(kind, expr)| {
+                    let name = match kind {
+                        CallbackKindIR::OnStart => "onStart",
+                        CallbackKindIR::OnUpdate => "onUpdate",
+                        CallbackKindIR::OnComplete => "onComplete",
+                        CallbackKindIR::OnRepeat => "onRepeat",
+                        CallbackKindIR::OnInterrupt => "onInterrupt",
+                    };
+                    let body_js = self.expr_to_js(expr);
+                    format!("\"{}\": function() {{ {} }}", name, body_js)
+                })
+                .collect();
+            parts.push(format!("\"callbacks\": {{{}}}", callbacks.join(", ")));
+        }
+
         parts.join(", ")
     }
 
@@ -2461,11 +2597,12 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 intensity: _,
                 direction,
             } => {
-                let dir = direction.as_deref().unwrap_or("out");
+                // The parser stores the full name ("backIn"), also support short form ("in")
+                let dir = direction.as_deref().unwrap_or("backOut");
                 let name = match dir {
-                    "in" => "backIn",
-                    "out" => "backOut",
-                    "inOut" => "backInOut",
+                    "backIn" | "in" => "backIn",
+                    "backOut" | "out" => "backOut",
+                    "backInOut" | "inOut" => "backInOut",
                     _ => "backOut",
                 };
                 format!("\"{}\"", name)
@@ -2475,11 +2612,12 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 period: _,
                 direction,
             } => {
-                let dir = direction.as_deref().unwrap_or("out");
+                // The parser stores the full name ("elasticIn"), also support short form ("in")
+                let dir = direction.as_deref().unwrap_or("elasticOut");
                 let name = match dir {
-                    "in" => "elasticIn",
-                    "out" => "elasticOut",
-                    "inOut" => "elasticInOut",
+                    "elasticIn" | "in" => "elasticIn",
+                    "elasticOut" | "out" => "elasticOut",
+                    "elasticInOut" | "inOut" => "elasticInOut",
                     _ => "elasticOut",
                 };
                 format!("\"{}\"", name)
@@ -2578,6 +2716,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 InterruptValue::Compose => "compose",
                 InterruptValue::Cancel => "cancel",
                 InterruptValue::Finish => "finish",
+                InterruptValue::Replace => "replace",
             };
             parts.push(format!("\"interrupt\": \"{}\"", int_str));
         }
@@ -2589,6 +2728,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
     ///   - Reserved names (idle, hover, pressed): auto-bind mouse/touch events
     ///   - Custom names (loading, success, error): driven by `on: {signal}` via __omni_effect
     fn emit_states_js(&mut self, nid: &str, states_ir: &StatesIR) {
+        let nid_safe = nid.replace('-', "_");
         let state_names: Vec<&str> = states_ir.states.keys().map(|s| s.as_str()).collect();
         let is_reserved = state_names
             .iter()
@@ -2604,7 +2744,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                  \x20 let _state = \"idle\";\n\
                  \x20 function _transition(state) {{\n\
                  \x20\x20 if (state === _state) return;\n\
-                 \x20\x20 const targets = __omni_states_{nid}[state];\n\
+                 \x20\x20 const targets = __omni_states_{nid_safe}[state];\n\
                  \x20\x20 if (!targets) return;\n\
                  \x20\x20 const from = {{}};\n\
                  \x20\x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
@@ -2620,7 +2760,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                  \x20 el.addEventListener(\"mousedown\", () => _transition(\"pressed\"));\n\
                  \x20 el.addEventListener(\"mouseup\", () => _transition(\"hover\"));\n\
                  }})();\n",
-                nid = nid
+                nid = nid,
+	                nid_safe = nid_safe
             ));
         } else if let Some(ref signal_expr) = states_ir.signal {
             // Custom states driven by signal value
@@ -2636,7 +2777,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                  \x20 const el = __omni_el(\"{nid}\");\n\
                  \x20 if (!el) return;\n\
                  \x20 const stateVal = String({sig});\n\
-                 \x20 const targets = __omni_states_{nid}[stateVal];\n\
+                 \x20 const targets = __omni_states_{nid_safe}[stateVal];\n\
                  \x20 if (!targets) return;\n\
                  \x20 const from = {{}};\n\
                  \x20 for (const k of Object.keys(targets.to)) from[k] = getComputedStyle(el).getPropertyValue(k);\n\
@@ -2647,13 +2788,14 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                  \x20 }});\n\
                  }});\n",
                 nid = nid,
-                sig = signal_access
+                sig = signal_access,
+                nid_safe = nid_safe
             ));
         }
 
         // Emit the state targets lookup table
         self.js
-            .push_str(&format!("var __omni_states_{nid} = {{\n", nid = nid));
+            .push_str(&format!("var __omni_states_{nid_safe} = {{\n", nid_safe = nid_safe));
         for (state_name, tween) in &states_ir.states {
             let over_ms = tween
                 .over
@@ -2710,6 +2852,9 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 match trigger.kind {
                     TriggerKind::Enter => {
                         // @enter: create animation and play immediately (in mount JS)
+                        // Also register for replay when component signals change
+                        // (supports "Play All Animations" buttons).
+                        self.enter_trigger_nids.push((nid.to_string(), motion_name.clone(), "enter".into()));
                         self.mount_js.push_str(&format!(
                             "// @enter trigger\n\
                              (function() {{\n\
@@ -2718,7 +2863,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                              \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
                              \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
                              \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 player.play();\n\
+                             \x20\x20 if (el.offsetParent !== null) player.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -3014,6 +3159,44 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                             velocity_max = velocity_max_val,
                         ));
                     }
+                    TriggerKind::Animate => {
+                        // @animate: auto-play on mount (continuous animation like spinning)
+                        self.mount_js.push_str(&format!(
+                            "// @animate trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20\x20 player.play();\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
+                    TriggerKind::Timeline => {
+                        // @timeline: create and play timeline orchestrator on mount.
+                        // Register for replay when component signals change
+                        // (supports "重新触发" buttons).
+                        self.enter_trigger_nids.push((nid.to_string(), motion_name.clone(), "timeline".into()));
+                        self.mount_js.push_str(&format!(
+                            "// @timeline trigger\n\
+                             (function() {{\n\
+                             \x20 const el = __omni_el(\"{nid}\");\n\
+                             \x20 if (el) {{\n\
+                             \x20\x20 const config = {{ trigger: \"{trigger}\" }};\n\
+                             \x20\x20 const player = __omni_motion_{motion}(el, config);\n\
+                             \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
+                             \x20 }}\n\
+                             }})();\n",
+                            nid = nid,
+                            trigger = trigger_str,
+                            motion = motion_name
+                        ));
+                    }
                     _ => {
                         // Other triggers: create animation, don't auto-play
                         self.js.push_str(&format!(
@@ -3044,7 +3227,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                              \x20\x20 const config = {{ trigger: \"{trigger}\", {config} }};\n\
                              \x20\x20 const player = new AnimationPlayer(el, config);\n\
                              \x20\x20 __omni_animations.set(\"{nid}_{trigger}\", player);\n\
-                             \x20\x20 player.play();\n\
+                             \x20\x20 if (el.offsetParent !== null) player.play();\n\
                              \x20 }}\n\
                              }})();\n",
                             nid = nid,
@@ -3301,12 +3484,34 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
     fn emit_timeline_js(&mut self, timeline: &TimelineIntent) {
         // Timeline items use element IDs to reference elements across the component tree.
         // Each item schedules an animation with setTimeout at the computed delay offset.
-        // This is emitted as part of the deferred JS to ensure DOM is ready.
+        // Timeline emits a __omni_motion_{name} function into self.js so it can be
+        // referenced by @timeline={name} element triggers (which expect a motion function).
+        // The function is also called immediately on mount via mount_js.
+        //
+        // BUG FIX (2026-06-25): Timeline element queries are now scoped to the container
+        // element's children instead of using page-wide `document.querySelector("[data-nid]")`
+        // which caused cross-contamination between timelines and killed other animations
+        // (e.g., @animate autoSpin was killed by refMotion targeting all page elements).
+        let saved_len = self.mount_js.len();
         self.mount_js
             .push_str(&format!("/// ── @timeline {} ──\n", timeline.name));
 
         let mut cursor_delay = 0.0;
+        let mut prev_item_start = 0.0;
+        // Track the base timing before the current Direction pair (from+to).
+        // Start modes should be computed relative to this base, not relative
+        // to the running cursor which changes between From and To items.
+        let mut pair_base_cursor = 0.0;
+        let mut pair_base_prev_start = 0.0;
+        // The From item's actual computed delay — used so the To item
+        // starts at `from_delay + 0.3` (the from-half over duration).
+        let mut pair_from_delay = 0.0;
+        // When true, the NEXT Direction item should use pair_base timing
+        // instead of computing the start mode again.
+        let mut use_pair_base = false;
         let mut labels: Vec<(String, f64)> = Vec::new();
+        // Track child index for mapping timeline items to container children
+        let mut child_idx: usize = 0;
 
         for (i, item) in timeline.items.iter().enumerate() {
             let item_label = format!("tl_{}_item_{}", timeline.name, i);
@@ -3319,7 +3524,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     ease,
                     delay,
                     color_space: _,
-                    start,
+                    ref start,
                     ref path,
                     ref path_rotate,
                 } => {
@@ -3349,8 +3554,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         }
                     };
 
-                    // Override cursor_delay if this item has explicit delay
-                    let item_delay = delay
+                    // Compute item_delay based on start: position mode
+                    let base_delay = delay
                         .as_ref()
                         .and_then(|d| {
                             if let ExprIR::LiteralExpr { value } = d {
@@ -3358,8 +3563,78 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                             } else {
                                 None
                             }
-                        })
-                        .unwrap_or(cursor_delay);
+                        });
+
+                    // Use pair_base values when processing the second Direction (To)
+                    // in a from+to pair. The start mode was already applied to the
+                    // From item, and To should use the same base timing + 0.3 offset.
+                    let (ref_cursor, ref_prev_start) = if use_pair_base {
+                        (pair_base_cursor, pair_base_prev_start)
+                    } else {
+                        (cursor_delay, prev_item_start)
+                    };
+
+                    // Extract numeric value from string like "150ms" or "150", stripping "ms" suffix.
+                    let parse_ms = |s: &str| -> f64 {
+                        let trimmed = s.trim_end_matches("ms").trim();
+                        trimmed.parse::<f64>().unwrap_or(0.0)
+                    };
+
+                    let has_explicit_start = start.is_some();
+                    let item_delay = if let Some(d) = base_delay {
+                        d
+                    } else if use_pair_base && has_explicit_start {
+                        // This is a To item that got a start mode from merging.
+                        // It should start 0.3s after the From item's delay.
+                        pair_from_delay + 0.3
+                    } else if let Some(ref start_mode) = start {
+                        let st = start_mode.as_str();
+                        if st == "with-prev" || st == "withPrev" {
+                            ref_prev_start
+                        } else if st.starts_with("overlap(") {
+                            // Extract N from "overlap(N)" — start N ms before previous ends
+                            let inner = st.trim_start_matches("overlap(").trim_end_matches(')');
+                            let n = parse_ms(inner);
+                            (ref_cursor - n).max(0.0)
+                        } else if st.starts_with("after-prev(") || st.starts_with("afterPrev(") {
+                            let inner = st
+                                .trim_start_matches("after-prev(")
+                                .trim_start_matches("afterPrev(")
+                                .trim_end_matches(')');
+                            let n = parse_ms(inner);
+                            ref_cursor + n
+                        } else if st.starts_with("with-offset(") || st.starts_with("withOffset(") {
+                            let inner = st
+                                .trim_start_matches("with-offset(")
+                                .trim_start_matches("withOffset(")
+                                .trim_end_matches(')');
+                            let n = parse_ms(inner);
+                            ref_prev_start + n
+                        } else if st.starts_with("absolute(") {
+                            let inner = st.trim_start_matches("absolute(").trim_end_matches(')');
+                            parse_ms(inner)
+                        } else {
+                            ref_cursor // "after" or unknown
+                        }
+                    } else {
+                        if use_pair_base {
+                            // To item in a pair: start 0.3s after the From item's delay
+                            pair_from_delay + 0.3
+                        } else {
+                            cursor_delay // default: "after"
+                        }
+                    };
+
+                    // Save the From item's actual delay for the To item to use
+                    if !use_pair_base {
+                        pair_base_cursor = cursor_delay;
+                        pair_base_prev_start = prev_item_start;
+                        pair_from_delay = item_delay;
+                        use_pair_base = true;
+                    } else {
+                        // We just processed the To item — reset for next pair
+                        use_pair_base = false;
+                    }
 
                     // Over duration
                     let over_ms = if let ExprIR::LiteralExpr { value } = over {
@@ -3367,12 +3642,6 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     } else {
                         300.0
                     };
-
-                    // Reference element by ID attribute
-                    let element_ref = start.as_deref().unwrap_or_else(|| {
-                        // Use generic element query — will be refined in practice
-                        "[data-nid]"
-                    });
 
                     // Path animation support
                     let path_config = path.as_ref().map(|p| {
@@ -3383,9 +3652,13 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         path_parts.join(",\n\x20\x20\x20\x20")
                     }).unwrap_or_default();
 
+                    // Use child index to target the correct element within the container
+                    let ci = child_idx;
+                    child_idx += 1;
+
                     self.mount_js.push_str(&format!(
-                        "setTimeout(function() {{\n\
-                         \x20 const el = document.querySelector(\"{sel}\");\n\
+                        "__timeouts.push(setTimeout(function() {{\n\
+                         \x20 const el = __children[{ci}];\n\
                          \x20 if (el) {{\n\
                          \x20\x20 const config = {{\n\
                          \x20\x20\x20 {from}\
@@ -3397,8 +3670,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                          \x20\x20 __omni_animations.set(\"{label}\", player);\n\
                          \x20\x20 player.play();\n\
                          \x20 }}\n\
-                         }}, {delay});\n",
-                        sel = element_ref,
+                         }}, {delay}));\n",
+                        ci = ci,
                         from = if from_props.is_empty() {
                             String::new()
                         } else {
@@ -3418,17 +3691,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         path = path_config,
                         delay = item_delay,
                         label = item_label,
-                        path_field = if let Some(p) = path {
-                            let escaped = p.replace('"', "\\\"");
-                            format!("\"path\": \"{}\",\n\"pathRotate\": {},\n",
-                                escaped,
-                                path_rotate.unwrap_or(false)
-                            )
-                        } else {
-                            String::new()
-                        },
                     ));
 
+                    // Track prev_item_start for next item's start mode calculation
+                    prev_item_start = item_delay;
                     // Advance cursor by over + delay for next chained item
                     cursor_delay = item_delay + over_ms;
                 }
@@ -3438,27 +3704,35 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         .iter()
                         .map(|(k, v)| format!("\"{}\": {}", k, self.expr_to_js(v)))
                         .collect();
+                    let ci = child_idx;
+                    child_idx += 1;
                     self.mount_js.push_str(&format!(
-                        "setTimeout(function() {{\n\
-                         \x20 document.querySelector(\"[data-nid]\").style.cssText = Object.entries({{{props}}}).map(([k,v]) => k + ':' + v).join(';');\n\
-                         }}, {delay});\n",
+                        "__timeouts.push(setTimeout(function() {{\n\
+                         \x20 const el = __children[{ci}];\n\
+                         \x20 if (el) el.style.cssText = Object.entries({{{props}}}).map(([k,v]) => k + ':' + v).join(';');\n\
+                         }}, {delay}));\n",
+                        ci = ci,
                         props = props_str.join(", "),
                         delay = cursor_delay
                     ));
+                    // Track start time for next item's start mode calculation
+                    prev_item_start = cursor_delay;
                 }
                 TimelineItemKindIR::MotionRef(motion_name) => {
-                    // Reference a named @motion on a set of elements
+                    // Reference a named @motion on elements within the container
                     self.mount_js.push_str(&format!(
-                        "setTimeout(function() {{\n\
-                         \x20 document.querySelectorAll(\"[data-nid]\").forEach(function(el) {{\n\
-                         \x20\x20 const player = __omni_motion_{motion}(el, {{}});\n\
-                         \x20\x20 __omni_animations.set(el.getAttribute('data-nid') + '_{motion}', player);\n\
+                        "__timeouts.push(setTimeout(function() {{\n\
+                         \x20 if (!el) return;\n\
+                         \x20 el.querySelectorAll(\"[data-nid]\").forEach(function(child) {{\n\
+                         \x20\x20 const player = __omni_motion_{motion}(child, {{}});\n\
+                         \x20\x20 __omni_animations.set(child.getAttribute('data-nid') + '_{motion}', player);\n\
                          \x20\x20 player.play();\n\
                          \x20 }});\n\
-                         }}, {delay});\n",
+                         }}, {delay}));\n",
                         motion = motion_name,
                         delay = cursor_delay
                     ));
+                    prev_item_start = cursor_delay;
                 }
                 TimelineItemKindIR::Stagger(motion_expr, timing, _direction) => {
                     let motion_name = match &**motion_expr {
@@ -3473,20 +3747,22 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     };
                     if !motion_name.is_empty() {
                         self.mount_js.push_str(&format!(
-                            "setTimeout(function() {{\n\
-                             \x20 document.querySelectorAll(\"[data-nid]\").forEach(function(el, idx) {{\n\
-                             \x20\x20 setTimeout(function() {{\n\
-                             \x20\x20\x20 const player = __omni_motion_{motion}(el, {{}});\n\
-                             \x20\x20\x20 __omni_animations.set(el.getAttribute('data-nid') + '_{motion}', player);\n\
+                            "__timeouts.push(setTimeout(function() {{\n\
+                             \x20 if (!el) return;\n\
+                             \x20 el.querySelectorAll(\"[data-nid]\").forEach(function(child, idx) {{\n\
+                             \x20\x20 __timeouts.push(setTimeout(function() {{\n\
+                             \x20\x20\x20 const player = __omni_motion_{motion}(child, {{}});\n\
+                             \x20\x20\x20 __omni_animations.set(child.getAttribute('data-nid') + '_{motion}', player);\n\
                              \x20\x20\x20 player.play();\n\
-                             \x20\x20 }}, idx * {stagger});\n\
+                             \x20\x20 }}, idx * {stagger}));\n\
                              \x20 }});\n\
-                             }}, {delay});\n",
+                             }}, {delay}));\n",
                             motion = motion_name,
                             stagger = stagger_delay,
                             delay = cursor_delay
                         ));
                     }
+                    prev_item_start = cursor_delay;
                 }
                 TimelineItemKindIR::Label(ref name, ref on_enter) => {
                     // Label: record position for labels dictionary
@@ -3495,10 +3771,12 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     if let Some(ref expr) = on_enter {
                         let callback_js = self.expr_to_js(expr);
                         self.mount_js.push_str(&format!(
-                            "setTimeout(function() {{ {} }}, {});\n",
+                            "__timeouts.push(setTimeout(function() {{ {} }}, {}));\n",
                             callback_js, cursor_delay
                         ));
                     }
+                    // Note: do NOT update prev_item_start here — labels don't represent
+                    // timeline items that participate in start: mode calculations.
                 }
             }
 
@@ -3529,6 +3807,36 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 .push_str(&format!("__omni_timeline_labels.set(\"{}\", {{{}}});\n",
                     timeline.name, labels_str.join(", ")));
         }
+
+        // Wrap timeline items in a __omni_motion_{name} function so it can be
+        // called by @timeline={name} element triggers. The function takes an
+        // (el, config) signature to match the motion trigger contract.
+        // The function now scopes element queries to the container's data-nid children
+        // and returns a handle so the trigger code can track it in __omni_animations.
+        let timeline_js = self.mount_js.split_off(saved_len);
+        self.js.push_str(&format!(
+            "function __omni_motion_{name}(el, config) {{\n\
+             \x20 var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];\n\
+             \x20 var __childIdx = 0;\n\
+             \x20 var __timeouts = [];\n{content}\
+             \x20 return {{\n\
+             \x20\x20 name: \"{name}\",\n\
+             \x20\x20 type: \"timeline\",\n\
+             \x20\x20 kill: function() {{\n\
+             \x20\x20\x20 __timeouts.forEach(function(t) {{ clearTimeout(t); }});\n\
+             \x20\x20\x20 // Also cancel any running WAAPI animations on children\n\
+             \x20\x20\x20 if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {{\n\
+             \x20\x20\x20\x20 c.getAnimations().forEach(function(a) {{ a.cancel(); }});\n\
+             \x20\x20\x20 }});\n\
+             \x20\x20 }}\n\
+             \x20 }};\n\
+             }};\n",
+            name = timeline.name,
+            content = timeline_js
+        ));
+        // Also call immediately on mount (restore mount_js callback)
+        self.mount_js
+            .push_str(&format!("__omni_motion_{}(null, {{}});\n", timeline.name));
     }
 
     // ══════════════════════════════════════════════════════
@@ -3883,9 +4191,14 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
     // ══════════════════════════════════════════════════════
 
     fn emit_style(&mut self, style: &StyleRuleIR) {
+        let selector_prefix = if style.is_tag_selector {
+            String::new()
+        } else {
+            ".".to_string()
+        };
         self.css.push_str(&format!(
-            "[data-component=\"{}\"] .{} {{\n",
-            self.current_component, style.class_name
+            "[data-component=\"{}\"] {}{} {{\n",
+            self.current_component, selector_prefix, style.class_name
         ));
         for (prop, value) in &style.properties {
             let css_val = self.expr_to_css(value);

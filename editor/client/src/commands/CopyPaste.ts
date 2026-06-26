@@ -95,7 +95,7 @@ export function pasteFromClipboard(
   // 1. 生成新 ID 映射
   const idMap = new Map<string, string>();
   for (const el of srcElements) {
-    idMap.set(el.id, uid());
+    idMap.set(el.id, uid(el.tag));
   }
 
   // 2. 映射元素
@@ -126,7 +126,7 @@ export function pasteFromClipboard(
       if (!newFromId || !newToId) return null;
       return {
         ...w,
-        id: uid(),
+        id: uid("wire"),
         fromId: newFromId,
         toId: newToId,
       };

@@ -33,6 +33,9 @@ interface ParseContext {
   braceDepth: number;
   pendingEditFlags: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
+  /** Whether a style { } block was encountered in source. When false, parsedStyleRules
+   *  being empty means no style block existed (backward compat), not an empty block. */
+  hasStyleBlock: boolean;
   /** Parsed prop declarations (e.g. `prop title: String = ""`) */
   props: Array<{ name: string; type: string; default?: unknown }>;
   /** Parsed event declarations (e.g. `event onAction`) */
@@ -66,6 +69,7 @@ export function parseOmniSource(source: string): ParseResult {
     props: [],
     events: [],
     componentMeta: null,
+    hasStyleBlock: false,
   };
 
 
@@ -106,8 +110,12 @@ export function parseOmniSource(source: string): ParseResult {
   // Flush any remaining chain elements
   flushChain(ctx);
 
-  // Parse styles from the captured AST (style blocks + view tree)
-  if (ctx.parsedStyleRules.length > 0 && ctx.elements.length > 0) {
+  // Parse styles from the captured AST (style blocks + view tree).
+  // Always run when elements exist — handles:
+  // - style { } blocks → class/variable StyleEntry
+  // - inline style: { } attributes → inline StyleEntry
+  // - backward compat: no style block → extract style keys from element props
+  if (ctx.elements.length > 0) {
     // Build a view tree node from element parent/child relationships
     function buildViewTreeFromElements(el: ElementData): any {
       // Parse style prop string into inline_style object
@@ -148,7 +156,8 @@ export function parseOmniSource(source: string): ParseResult {
     if (rootElements.length > 0) {
       const elementMap = new Map(ctx.elements.map((e: ElementData) => [e.id, e]));
       const componentNode = {
-        style: ctx.parsedStyleRules,
+        // Pass undefined when no style block existed (backward compat), empty array when it did
+        style: ctx.hasStyleBlock ? ctx.parsedStyleRules : undefined,
         view: buildViewTreeFromElements(rootElements[0]),
       };
       parseStylesFromAST(componentNode, elementMap);
@@ -359,6 +368,7 @@ function parseComponentLine(trimmed: string, line: string, ctx: ParseContext): v
 
   // style
   if (trimmed === "style {") {
+    ctx.hasStyleBlock = true;
     pushState(ctx, "IN_STYLE");
     return;
   }
@@ -496,6 +506,23 @@ function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
     if (attrMatch[1] !== "id" && attrMatch[1] !== "class") {
       attrs[attrMatch[1]] = attrMatch[2];
     }
+  }
+
+  // Parse style: { key: val, ... } attribute — store as "style" prop so
+  // buildViewTreeFromElements can reconstruct inline_style for parseStylesFromAST.
+  const styleAttrMatch = trimmed.match(/style:\s*\{([^}]*)\}/);
+  if (styleAttrMatch) {
+    const styleContent = styleAttrMatch[1].trim();
+    // Rebuild as brace-wrapped, semicolon-separated string that buildViewTreeFromElements expects.
+    // Strip surrounding double-quotes from values (source-emitter wraps in "")
+    // e.g. 'padding: "16px", color: "#333"' → '{ padding: 16px; color: #333 }'
+    const semiStyle = styleContent
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => part.replace(/:\s*"([^"]*)"/g, ': $1'))
+      .join("; ");
+    attrs["style"] = `{ ${semiStyle} }`;
   }
 
   const textMatch = trimmed.match(/>([^<]*)<\//);

@@ -4,6 +4,8 @@
 import React, { useState } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
+import { api } from "../api/client";
+import { parseOmniSource } from "../omni-gen";
 
 interface TabInfo {
   key: string;          // docId: null for main, "comp:Name", "file:path"
@@ -39,7 +41,7 @@ export function CanvasTabBar() {
   // File tabs (from openTabs)
   for (const tabKey of openTabs) {
     if (tabKey.startsWith("file:")) {
-      const fileName = tabKey.replace("file:", "").replace(/^.*[\\/]/, "").replace(".omni.json", "");
+      const fileName = tabKey.replace("file:", "").replace(/^.*[\\/]/, "").replace(/\.omni(\.json)?$/, "");
       tabs.push({ key: tabKey, label: fileName, icon: "🔧", closable: true });
     }
   }
@@ -47,7 +49,7 @@ export function CanvasTabBar() {
   // Determine active tab key for highlighting
   const activeKey = activeDocId || "main";
 
-  const handleTabClick = (tab: TabInfo) => {
+  const handleTabClick = async (tab: TabInfo) => {
     if (tab.key === "main") {
       if (activeDocId !== null) {
         // If in component canvas with activeDocId, use exitComponentCanvas
@@ -60,6 +62,30 @@ export function CanvasTabBar() {
     } else if (tab.key.startsWith("comp:")) {
       const compName = tab.key.replace("comp:", "");
       if (activeDocId !== tab.key) {
+        // If the definition isn't in the registry yet (e.g., race condition on
+        // project load where .omni-editor.toml restores openTabs before component
+        // definitions finish loading), load it from disk first, populate the
+        // registry, then proceed.
+        const registryHasDef = useComponentRegistry.getState().definitions[compName];
+        if (!registryHasDef) {
+          try {
+            const filePath = `src/components/${compName}.omni`;
+            const res = await api.readFile(filePath);
+            if (res.content) {
+              const parseResult = parseOmniSource(res.content);
+              const elements = parseResult.designElements || [];
+              const wires = parseResult.designWires || [];
+              // Populate the registry so future tab switches work too
+              const registry = useComponentRegistry.getState();
+              if (!registry.definitions[compName]) {
+                registry.defineComponent(compName, {});
+              }
+              registry.saveCanvas(compName, elements, wires);
+            }
+          } catch (e) {
+            console.error(`[CanvasTabBar] Failed to load component "${compName}" from disk:`, e);
+          }
+        }
         // If we're already in component mode, switchTab; otherwise enterComponentCanvas
         if (activeDocId?.startsWith("comp:") || activeDocId?.startsWith("file:")) {
           switchTab(tab.key);
@@ -69,6 +95,28 @@ export function CanvasTabBar() {
       }
     } else if (tab.key.startsWith("file:")) {
       if (activeDocId !== tab.key) {
+        // Load file content from API if not yet cached in tabStates
+        const state = useEditorStore.getState();
+        if (!state.tabStates[tab.key]) {
+          const filePath = tab.key.replace("file:", "");
+          try {
+            const res = await api.readFile(filePath);
+            if (res.content) {
+              const parseResult = parseOmniSource(res.content);
+              useEditorStore.setState({
+                tabStates: {
+                  ...useEditorStore.getState().tabStates,
+                  [tab.key]: {
+                    elements: parseResult.designElements || [],
+                    wires: parseResult.designWires || [],
+                  },
+                },
+              });
+            }
+          } catch (e) {
+            console.error('[CanvasTabBar] Failed to load file tab:', e);
+          }
+        }
         switchTab(tab.key);
       }
     }

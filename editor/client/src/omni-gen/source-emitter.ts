@@ -87,10 +87,25 @@ export class SourceEmitter {
 
   private emitComponent(input: EmitInput, w: CodeWriter, chains: Map<string, ChainBlock>): void {
     const comp = input.component;
+
+    // Emit component metadata comments (replaces old *.meta.json)
+    this.emitComponentMeta(input.componentMeta, w);
+
     w.emit(`component ${comp.name} {`);
     w.indent();
 
     for (const sr of comp.storeRefs) w.emit(`@store ${sr};`);
+
+    // Props (e.g. `prop title: String = ""`)
+    for (const prop of comp.props || []) {
+      const def = prop.default !== undefined ? ` = ${JSON.stringify(prop.default)}` : "";
+      w.emit(`prop ${prop.name}: ${prop.type}${def};`);
+    }
+    // Events (e.g. `event onAction`)
+    for (const evt of comp.events || []) {
+      w.emit(`event ${evt.name};`);
+    }
+
     for (const [name, sig] of Object.entries(comp.signals)) {
       const def = sig.default !== undefined ? ` = ${JSON.stringify(sig.default)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
@@ -141,6 +156,47 @@ export class SourceEmitter {
     w.emit(`}`);
   }
 
+  // ── Component metadata comments ──
+
+  private emitComponentMeta(meta: EmitInput["componentMeta"], w: CodeWriter): void {
+    if (!meta) return;
+
+    // @component: id, category, children, description
+    const parts: string[] = [];
+    if (meta.id) parts.push(`id=${meta.id}`);
+    if (meta.category) parts.push(`category=${meta.category}`);
+    if (meta.children !== undefined) parts.push(`children=${meta.children}`);
+    if (meta.description) parts.push(`description="${meta.description}"`);
+    if (parts.length > 0) w.emit(`// @component ${parts.join(" ")}`);
+
+    // @prop: per-prop editor schema (extends `prop <name>: <type>;` in DSL)
+    if (meta.propSchema) {
+      for (const [name, p] of Object.entries(meta.propSchema)) {
+        const propParts: string[] = [`name=${name}`];
+        if (p.editor) propParts.push(`editor=${p.editor}`);
+        if (p.values && p.values.length > 0) propParts.push(`values=${p.values.join(",")}`);
+        w.emit(`// @prop ${propParts.join(" ")}`);
+      }
+    }
+
+    // @event: per-event editor metadata (extends `event <name>;` in DSL)
+    if (meta.eventSchema) {
+      for (const [name, e] of Object.entries(meta.eventSchema)) {
+        const evtParts: string[] = [`name=${name}`];
+        if (e.payload) evtParts.push(`payload=${e.payload}`);
+        if (e.description) evtParts.push(`description="${e.description}"`);
+        w.emit(`// @event ${evtParts.join(" ")}`);
+      }
+    }
+
+    // @style: each style property
+    if (meta.styleProperties) {
+      for (const sp of meta.styleProperties) {
+        w.emit(`// @style ${sp}`);
+      }
+    }
+  }
+
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
     // Annotation
     if (this.annotationStrategy) {
@@ -163,6 +219,8 @@ export class SourceEmitter {
     parts.push(` class: ${fullClassName}`);
 
     for (const [attr, val] of Object.entries(style.htmlAttrs)) {
+      // Skip className — already emitted via class: above
+      if (attr === "className" || attr === "style") continue;
       parts.push(` ${attr}="${escapeAttr(val)}"`);
     }
 
@@ -170,8 +228,9 @@ export class SourceEmitter {
     const inlineStyles = this.elementInlineMap?.get(node.id);
     if (inlineStyles && Object.keys(inlineStyles).length > 0) {
       const styleStr = Object.entries(inlineStyles)
-        .map(([k, v]) => `${k}: ${v};`)
-        .join(" ");
+        .filter(([, v]) => v !== "" && v !== undefined && v !== null)
+        .map(([k, v]) => `${k}: "${v}"`)
+        .join(", ");
       parts.push(` style: { ${styleStr} }`);
     }
 

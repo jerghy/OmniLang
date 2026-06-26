@@ -1,38 +1,20 @@
 /**
- * Search index loader — loads precomputed index from .omni.json on project open,
- * falls back to in-memory dynamic search when .omni.json is not available.
+ * Search index loader — loads precomputed index from project files,
+ * falls back to in-memory dynamic search when not available.
  */
 
-import type { SearchIndexSnapshot } from '../omniJson/types';
-import { api } from '../api/client';
+import type { SearchIndexSnapshot } from './SearchIndex';
 
 let _cachedIndex: SearchIndexSnapshot | null = null;
 let _cachedIndexPath: string = '';
 
 /**
- * Load the search index from a .omni.json file.
+ * Load the search index from a project file.
  * Returns the index snapshot, or null if not available.
  */
-export async function loadSearchIndex(filePath: string = 'project.omni.json'): Promise<SearchIndexSnapshot | null> {
-  // Return cached if same path
-  if (_cachedIndex && _cachedIndexPath === filePath) {
-    return _cachedIndex;
-  }
-
-  try {
-    const resp = await api.post('/api/omni-json/load', {
-      body: JSON.stringify({ filePath }),
-    });
-    const doc = resp.document as Record<string, unknown> | undefined;
-    if (resp.success && doc?.searchIndex) {
-      _cachedIndex = doc.searchIndex as SearchIndexSnapshot;
-      _cachedIndexPath = filePath;
-      return _cachedIndex;
-    }
-  } catch {
-    // Fall through to null
-  }
-
+export async function loadSearchIndex(_filePath: string = ''): Promise<SearchIndexSnapshot | null> {
+  // Dynamic search is the primary path now — .omni is the source of truth
+  // Precomputed index is no longer stored.
   return null;
 }
 

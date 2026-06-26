@@ -85,4 +85,8 @@ pub struct ModuleIR {
     pub imports: Vec<ImportIR>,
     #[serde(default)]
     pub exports: Vec<ExportIR>,
+    #[serde(default)]
+    pub motions: Vec<super::MotionIntent>,
+    #[serde(default)]
+    pub timelines: Vec<super::TimelineIntent>,
 }

@@ -19,8 +19,10 @@ import omniview;
 // ║  - Elements animate in correct stagger order (0.05s gap).  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+// NOTE: set { opacity: 0 } was removed because the compiler compiles it to
+// document.querySelector("[data-nid]") which selects the FIRST data-nid element
+// in the entire page, causing a full-page flash/zoom effect.
 @timeline pageEnter {
-    set { opacity: 0 }
     label intro
     stagger(0.05)
     header { from { y: -20 opacity: 0 } to { y: 0 opacity: 1 } over 300 ease easeOut }

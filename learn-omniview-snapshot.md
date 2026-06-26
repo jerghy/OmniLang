@@ -1,0 +1,349 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e10]:
+    - banner [ref=e11]:
+      - heading "Dashboard" [level=2] [ref=e12]
+      - paragraph [ref=e13]: Overview of 42 items · Updated just now
+      - button "Refresh" [ref=e14] [cursor=pointer]
+    - generic [ref=e15]:
+      - heading "Statistics" [level=3] [ref=e16]
+      - generic [ref=e18]:
+        - heading "统计面板" [level=3] [ref=e19]
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e22]: "42"
+            - text: 总事项
+          - generic [ref=e23]:
+            - generic [ref=e24]: 有
+            - text: 状态
+        - generic [ref=e25]: 已添加 42 个事项
+      - generic [ref=e27]:
+        - heading "StatsDashboard Demo" [level=3] [ref=e28]
+        - generic [ref=e29]:
+          - paragraph [ref=e30]: "MAX_ITEMS: 10"
+          - paragraph [ref=e31]: prefixed consts declared
+        - generic [ref=e32]:
+          - paragraph [ref=e33]: "Counter: 0 ( even )"
+          - generic [ref=e34]:
+            - button "+5" [ref=e35] [cursor=pointer]
+            - button "-3" [ref=e36] [cursor=pointer]
+            - button "x2" [ref=e37] [cursor=pointer]
+            - button "/2" [ref=e38] [cursor=pointer]
+            - button "mod3" [ref=e39] [cursor=pointer]
+        - paragraph [ref=e41]: math_abs(counter) = 0 | math_sqrt(counter) = 0
+        - generic [ref=e42]:
+          - paragraph [ref=e43]: "Random: 0 | Ceil*100 = 0 | Floor*100 = 0"
+          - button "Roll Dice" [ref=e44] [cursor=pointer]
+        - paragraph [ref=e46]: "First value: 10"
+        - button "Trigger unmount" [ref=e49] [cursor=pointer]
+    - generic [ref=e50]:
+      - heading "Interactions" [level=3] [ref=e51]
+      - generic [ref=e52]:
+        - generic [ref=e55]:
+          - heading "计数器演示" [level=3] [ref=e56]
+          - paragraph [ref=e57]: "0"
+          - paragraph [ref=e58]: 翻倍： 0 | 偶数
+          - generic [ref=e59]:
+            - button "-" [ref=e60] [cursor=pointer]
+            - generic [ref=e61]: 步长 1
+            - button "+" [ref=e62] [cursor=pointer]
+          - generic [ref=e63]:
+            - button "步长1" [ref=e64] [cursor=pointer]
+            - button "步长5" [ref=e65] [cursor=pointer]
+            - button "步长10" [ref=e66] [cursor=pointer]
+            - button "重置" [ref=e67] [cursor=pointer]
+        - generic [ref=e70]:
+          - heading "FeatureCard Demo" [level=3] [ref=e71]
+          - textbox "Click" [ref=e72]: idle
+          - generic [ref=e74]: Idle
+          - paragraph [ref=e75]: "X: 0 | Focus: 0"
+          - button "Reset" [ref=e76] [cursor=pointer]
+  - generic [ref=e78]:
+    - banner [ref=e79]:
+      - heading "Todo List" [level=2] [ref=e80]
+      - paragraph [ref=e81]: "0 tasks · Filter: all"
+      - generic [ref=e82]: Loaded × 1
+    - generic [ref=e85]:
+      - generic [ref=e86]:
+        - textbox "Filter todos..." [ref=e87]
+        - button "X" [ref=e88] [cursor=pointer]
+      - generic [ref=e89]:
+        - paragraph [ref=e90]: Showing all 0 items
+        - button "Sort ASC" [ref=e91] [cursor=pointer]
+        - button "Sync" [ref=e92] [cursor=pointer]
+      - generic [ref=e93]:
+        - paragraph [ref=e94]: "Store: 0 items | Filter: all | Changes: 0"
+        - paragraph [ref=e95]: "Last:"
+        - paragraph [ref=e96]: "Filtered frameworks: 5 / 5"
+    - generic [ref=e99]:
+      - heading "待办列表 0" [level=2] [ref=e100]:
+        - text: 待办列表
+        - generic [ref=e101]: "0"
+      - generic [ref=e103]:
+        - generic [ref=e104]:
+          - textbox "输入待办事项" [ref=e105]
+          - button "添加" [ref=e106] [cursor=pointer]
+          - button "清空" [ref=e107] [cursor=pointer]
+        - paragraph [ref=e108]: 已输入 0 字符
+      - paragraph [ref=e114]: 还没有待办事项，在上方添加吧
+    - contentinfo [ref=e115]:
+      - button "Clear All" [ref=e116] [cursor=pointer]
+      - button "Sync Reminders" [ref=e117] [cursor=pointer]
+      - generic [ref=e118]: "Last:"
+  - generic [ref=e120]:
+    - generic [ref=e121] [cursor=pointer]:
+      - heading "Features ( 14 items)" [level=3] [ref=e122]
+      - generic [ref=e123]: ^
+    - generic [ref=e127]:
+      - generic [ref=e129]: "Store: 全局状态管理"
+      - generic [ref=e131]: "Component: 组件声明与组合"
+      - generic [ref=e133]: "Signal: 响应式信号"
+      - generic [ref=e135]: "Computed: 计算属性"
+      - generic [ref=e137]: "Prop: 外部属性传递"
+      - generic [ref=e139]: "Event: 自定义事件通信"
+      - generic [ref=e141]: "bind:value: 双向绑定"
+      - generic [ref=e143]: "if else: 条件渲染"
+      - generic [ref=e145]: "for empty: 列表渲染加空状态"
+      - generic [ref=e147]: "onPress: 事件处理加内联回调"
+      - generic [ref=e149]: "mount effect: 生命周期"
+      - generic [ref=e151]: "style: 作用域CSS样式"
+      - generic [ref=e153]: "pub fn: 公开工具函数"
+      - generic [ref=e155]: "import export: 跨文件模块"
+  - generic [ref=e157]:
+    - banner [ref=e158]:
+      - heading "Settings" [level=2] [ref=e159]
+      - paragraph [ref=e160]: Customize your experience
+    - generic [ref=e161]:
+      - heading "Appearance" [level=3] [ref=e162]
+      - generic [ref=e164]:
+        - generic [ref=e165]:
+          - generic [ref=e167]: Light
+          - paragraph [ref=e168]: Toggled 0 times
+        - button "Light Mode" [ref=e169] [cursor=pointer]
+        - generic [ref=e170]:
+          - paragraph [ref=e171]: "Current palette:"
+          - generic [ref=e172]:
+            - generic [ref=e173]: BG
+            - generic [ref=e174]: TX
+            - generic [ref=e175]: PR
+            - generic [ref=e176]: BD
+            - generic [ref=e177]: MU
+        - generic [ref=e178]:
+          - button "Light" [ref=e179] [cursor=pointer]
+          - button "Dark" [ref=e180] [cursor=pointer]
+    - generic [ref=e181]:
+      - heading "Theme Colors" [level=3] [ref=e182]
+      - generic [ref=e184]:
+        - generic [ref=e188]: primary
+        - generic [ref=e192]: primaryLight
+        - generic [ref=e196]: success
+        - generic [ref=e200]: warning
+        - generic [ref=e204]: danger
+        - generic [ref=e208]: bgLight
+        - generic [ref=e212]: textLight
+        - generic [ref=e216]: bgDark
+        - generic [ref=e220]: textDark
+    - generic [ref=e222] [cursor=pointer]:
+      - heading "About" [level=3] [ref=e223]
+      - generic [ref=e224]: v
+    - contentinfo [ref=e225]:
+      - generic [ref=e226]: "Current: Light mode | Toggles: 0"
+  - generic [ref=e227]:
+    - generic [ref=e228]:
+      - button "基础交互" [ref=e229] [cursor=pointer]
+      - button "编译器新特性" [ref=e230] [cursor=pointer]
+      - button "运动动画" [ref=e231] [cursor=pointer]
+      - button "CSS 特性" [ref=e232] [cursor=pointer]
+      - button "事件/表单" [ref=e233] [cursor=pointer]
+      - button "语言特性" [ref=e234] [cursor=pointer]
+    - generic [ref=e238]:
+      - generic [ref=e239]:
+        - generic [ref=e242]:
+          - heading "ValidationInput Demo" [level=3] [ref=e243]
+          - paragraph [ref=e244]: Enter text
+          - generic [ref=e245]:
+            - textbox "Enter text to validate..." [ref=e246]
+            - button "Validate" [ref=e247] [cursor=pointer]
+            - button "Clear" [ref=e248] [cursor=pointer]
+          - generic [ref=e249]:
+            - paragraph [ref=e250]: "Status: Waiting for input"
+            - paragraph [ref=e251]: "-"
+            - paragraph [ref=e252]: "Chars: 0 | EvenPos: 0"
+          - generic [ref=e253]:
+            - 'heading "Phase 4: 表达式与控制流" [level=4] [ref=e254]'
+            - paragraph [ref=e255]: See lib/transform.omni and StatsDashboard.omni for Phase 4 features
+        - generic [ref=e258]:
+          - heading "Timer Demo" [level=3] [ref=e259]
+          - paragraph [ref=e260]: "Count: 0 / 10"
+          - paragraph [ref=e261]: "Interval: 1000 ms | Status: Stopped"
+          - generic [ref=e262]:
+            - button "Start" [ref=e263] [cursor=pointer]
+            - button "Stop" [ref=e264] [cursor=pointer]
+            - button "Tick" [ref=e265] [cursor=pointer]
+            - button "Reset" [ref=e266] [cursor=pointer]
+          - generic [ref=e267]:
+            - button "Faster" [ref=e268] [cursor=pointer]
+            - button "Slower" [ref=e269] [cursor=pointer]
+      - generic [ref=e270]:
+        - generic [ref=e273]:
+          - button "Open Modal" [ref=e274] [cursor=pointer]
+          - paragraph [ref=e275]:
+            - text: "Status:"
+            - text: "| Hover: false"
+        - generic [ref=e278]:
+          - generic [ref=e279]:
+            - button "Home" [ref=e280] [cursor=pointer]
+            - button "About" [ref=e281] [cursor=pointer]
+            - button "Settings" [ref=e282] [cursor=pointer]
+          - generic [ref=e285]:
+            - heading "Home Tab" [level=3] [ref=e286]
+            - generic [ref=e288]: "Custom tags: Card, Button, Flex, Text"
+            - paragraph [ref=e289]: "class: map syntax demo on buttons above"
+      - generic [ref=e292]:
+        - generic [ref=e293]:
+          - img "dot" [ref=e294]
+          - heading "DataTable Demo" [level=2] [ref=e295]
+          - separator [ref=e296]
+        - generic [ref=e297]:
+          - paragraph [ref=e298]:
+            - text: "Scroll count: 0"
+            - text: "Sort: ASC"
+          - button "Toggle Sort" [ref=e299] [cursor=pointer]
+          - button "Scroll +1" [ref=e300] [cursor=pointer]
+        - generic [ref=e301]:
+          - generic [ref=e302]:
+            - generic [ref=e303]:
+              - text: 1 Alpha
+              - generic [ref=e304]: Active
+              - generic [ref=e305]: "95"
+            - generic [ref=e306]:
+              - text: 2 Bravo
+              - generic [ref=e307]: Active
+              - generic [ref=e308]: "87"
+            - generic [ref=e309]:
+              - text: 3 Charlie
+              - generic [ref=e310]: Inactive
+              - generic [ref=e311]: "72"
+            - generic [ref=e312]:
+              - text: 4 Delta
+              - generic [ref=e313]: Active
+              - generic [ref=e314]: "91"
+            - generic [ref=e315]:
+              - text: 5 Echo
+              - generic [ref=e316]: Active
+              - generic [ref=e317]: "84"
+            - generic [ref=e318]:
+              - text: 6 Foxtrot
+              - generic [ref=e319]: Inactive
+              - generic [ref=e320]: "66"
+            - generic [ref=e321]:
+              - text: 7 Golf
+              - generic [ref=e322]: Active
+              - generic [ref=e323]: "78"
+            - generic [ref=e324]:
+              - text: 8 Hotel
+              - generic [ref=e325]: Active
+              - generic [ref=e326]: "93"
+            - generic [ref=e327]:
+              - text: 9 India
+              - generic [ref=e328]: Inactive
+              - generic [ref=e329]: "59"
+            - generic [ref=e330]:
+              - text: 10 Juliet
+              - generic [ref=e331]: Active
+              - generic [ref=e332]: "88"
+          - table [ref=e333]:
+            - rowgroup [ref=e334]:
+              - row "ID Name Status Score" [ref=e335]:
+                - columnheader "ID" [ref=e336]
+                - columnheader "Name" [ref=e337]
+                - columnheader "Status" [ref=e338]
+                - columnheader "Score" [ref=e339]
+            - rowgroup [ref=e340]:
+              - row "No data" [ref=e341]:
+                - cell "No data" [ref=e342]
+        - generic [ref=e343]:
+          - heading "Summary" [level=3] [ref=e344]
+          - list [ref=e345]:
+            - listitem [ref=e346]:
+              - img "dot" [ref=e347]
+              - text: "Total items:"
+              - generic [ref=e348]: "10"
+            - listitem [ref=e349]:
+              - img "dot" [ref=e350]
+              - text: "Active items:"
+              - generic [ref=e351]: "7"
+            - listitem [ref=e352]:
+              - img "dot" [ref=e353]
+              - text: "Scroll events:"
+              - generic [ref=e354]: "0"
+        - generic [ref=e355]:
+          - heading "Map and Closure Demo" [level=3] [ref=e356]
+          - list [ref=e357]:
+            - listitem [ref=e358]:
+              - img "dot" [ref=e359]
+              - text: "Grade for 95:"
+              - generic [ref=e360]: A
+            - listitem [ref=e361]:
+              - img "dot" [ref=e362]
+              - text: "Grade for 72:"
+              - generic [ref=e363]: C
+            - listitem [ref=e364]:
+              - img "dot" [ref=e365]
+              - text: "Grade for 59:"
+              - generic [ref=e366]: F
+            - listitem [ref=e367]:
+              - img "dot" [ref=e368]
+              - text: "Adj total (s+5):"
+              - generic [ref=e369]: "863"
+        - separator [ref=e370]
+        - generic [ref=e371]:
+          - img "dot" [ref=e372]
+          - paragraph [ref=e373]: DataTable Phase 4 Demo
+      - generic [ref=e376]:
+        - heading "FormPage Demo" [level=2] [ref=e377]
+        - generic [ref=e378]:
+          - generic [ref=e379]:
+            - generic [ref=e380]: Name
+            - textbox "Full name input" [ref=e381]:
+              - /placeholder: Your name
+          - generic [ref=e382]:
+            - generic [ref=e383]: Email
+            - textbox "Email address input" [ref=e384]:
+              - /placeholder: your@email.com
+          - generic [ref=e385]:
+            - generic [ref=e386]: Message
+            - textbox "Message input" [ref=e387]:
+              - /placeholder: Your message (optional)
+          - generic [ref=e388]:
+            - generic [ref=e389]: Disabled field
+            - textbox "Disabled input" [disabled] [ref=e390]:
+              - /placeholder: This field is disabled
+          - generic [ref=e391]:
+            - generic [ref=e392]: Readonly field
+            - textbox "Read-only input" [ref=e393]
+          - generic [ref=e394]:
+            - paragraph [ref=e395]: "Scrollable area (scroll count: 0 )"
+            - paragraph [ref=e396]: "Line 1: Scroll to trigger @onScroll"
+            - paragraph [ref=e397]: "Line 2: More content below"
+            - paragraph [ref=e398]: "Line 3: Keep scrolling"
+            - paragraph [ref=e399]: "Line 4: Almost there"
+            - paragraph [ref=e400]: "Line 5: Bottom reached"
+          - paragraph [ref=e402]: Fill in the form
+          - generic [ref=e403]:
+            - button "Submit form" [ref=e404] [cursor=pointer]: Submit
+            - button "Reset form" [ref=e405] [cursor=pointer]: Reset
+          - button "Conditional submit button" [ref=e407] [cursor=pointer]: Form incomplete
+      - generic [ref=e410]:
+        - generic [ref=e411]:
+          - heading "Notifications" [level=3] [ref=e412]
+          - generic [ref=e413]:
+            - button "Add" [ref=e414] [cursor=pointer]
+            - button "Remove" [ref=e415] [cursor=pointer]
+            - button "Clear" [ref=e416] [cursor=pointer]
+        - paragraph [ref=e420]: No notifications
+        - paragraph [ref=e422]: "Total: 0"
+    - contentinfo [ref=e423]:
+      - paragraph [ref=e424]: OmniView 教学项目 · 68+ 源文件 · omnic run

@@ -11,7 +11,25 @@
  */
 
 import { BUILTIN_SNIPPETS } from "../snippets/builtin";
-import type { SearchIndexEntry, SearchIndexSnapshot } from "../omniJson/types";
+
+// ── Search Index Types (moved inline, was from omniJson/types) ──
+
+export interface SearchIndexEntry {
+  id: string;
+  source: string;
+  title: string;
+  subtitle: string;
+  keywords: string[];
+  icon: string;
+  actionType: string;
+  actionPayload: string;
+}
+
+export interface SearchIndexSnapshot {
+  entries: SearchIndexEntry[];
+  version: number;
+  lastBuilt: string;
+}
 
 // ── Types ─────────────────────────────────────────
 

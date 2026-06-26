@@ -19,7 +19,18 @@ export function buildViewTree(
 
   for (const el of elements) {
     if (el.nodeType !== "view") continue;
-    byId.set(el.id, el);
+    // Prefer root elements (no parentId) over children with same ID,
+    // and keep the first entry, not the last, to avoid parent-child confusion
+    if (byId.has(el.id)) {
+      const existing = byId.get(el.id)!;
+      // Existing is already root-ish; prefer new one only if existing has parent
+      if (existing.parentId !== null && el.parentId === null) {
+        byId.set(el.id, el);
+      }
+      // Otherwise keep the existing one
+    } else {
+      byId.set(el.id, el);
+    }
   }
 
   function buildNode(el: ElementData, currentPath: string): ViewNode {

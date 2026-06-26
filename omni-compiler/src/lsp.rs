@@ -1295,7 +1295,7 @@ fn find_call_in_view_node(node: &ViewNode, source: &str, line: u32, col: u32) ->
             }
             None
         }
-        ViewNode::Text(_) | ViewNode::SlotDirective(_) => None,
+        ViewNode::Text(_) | ViewNode::SlotDirective { .. } => None,
     }
 }
 

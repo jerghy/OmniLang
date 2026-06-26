@@ -131,6 +131,27 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
+                TokenKind::Const => {
+                    // Parse and discard module-level const declarations.
+                    // const values (e.g., theme constants) are handled via imports.
+                    self.advance();
+                    if self.peek_kind() == TokenKind::Dollar {
+                        self.advance();
+                        self.expect_ident("expected identifier after $")?;
+                    } else {
+                        self.expect_ident("expected constant name")?;
+                    }
+                    self.expect_token(TokenKind::Eq, "expected '='")?;
+                    // Consume the value expression (literal or array)
+                    if self.peek_kind() == TokenKind::LBracket {
+                        self.parse_expr()?;
+                    } else {
+                        self.advance();
+                    }
+                    if self.peek_kind() == TokenKind::Semicolon {
+                        self.advance();
+                    }
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
@@ -360,7 +381,8 @@ impl<'a> Parser<'a> {
                     styles.append(&mut rules);
                 }
                 TokenKind::AtMotion => {
-                    motions.push(self.parse_motion_def()?);
+                    let motion = self.parse_motion_def()?;
+                    motions.push(motion);
                 }
                 TokenKind::AtTimeline => {
                     timelines.push(self.parse_timeline_def()?);
@@ -623,9 +645,15 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.advance(); // 'action'
         let name = self.expect_ident("expected action name")?;
-        self.expect_token(TokenKind::LParen, "expected '('")?;
-        let params = self.parse_params()?;
-        self.expect_token(TokenKind::RParen, "expected ')'")?;
+        // Parentheses are optional for actions with no parameters
+        let params = if self.peek_kind() == TokenKind::LParen {
+            self.advance();
+            let p = self.parse_params()?;
+            self.expect_token(TokenKind::RParen, "expected ')'")?;
+            p
+        } else {
+            Vec::new()
+        };
 
         let return_type = if self.peek_kind() == TokenKind::Colon {
             self.advance();
@@ -1108,12 +1136,27 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_motion_body(&mut self) -> Result<MotionBody, ParseError> {
+        // Check percentage tokens FIRST (e.g., "0%") before trying ident-based matching.
+        // IntLiteral/FloatLiteral are not idents, so peek_ident_value() returns None for them.
+        let is_percentage = matches!(self.peek_kind(), TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_));
+        if is_percentage {
+            let mut body = self.parse_keyframe_body()?;
+            body.callbacks = self.parse_optional_callbacks()?;
+            return Ok(MotionBody::Keyframe(body));
+        }
+
         // First token determines mode.
         let first = self
             .peek_ident_value()
             .ok_or_else(|| self.error("expected motion body"))?;
+
         match first.as_str() {
-            "from" | "to" => self.parse_keyframe_body(),
+            "from" | "to" => {
+                let mut body = self.parse_keyframe_body()?;
+                // Check for optional callback blocks after keyframe stops
+                body.callbacks = self.parse_optional_callbacks()?;
+                Ok(MotionBody::Keyframe(body))
+            }
             "set" | "stagger" | "label" => self.parse_timeline_body(),
             "onStart" | "onUpdate" | "onComplete" | "onRepeat" | "onInterrupt" => {
                 self.parse_callback_body()
@@ -1122,22 +1165,96 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parse optional callback blocks (onStart { } onComplete { } etc.) after keyframe body.
+    /// Returns empty vec if no callbacks present.
+    fn parse_optional_callbacks(&mut self) -> Result<Vec<CallbackSpec>, ParseError> {
+        let mut callbacks = Vec::new();
+        loop {
+            match self.peek_ident_value() {
+                Some(ref s) if s == "onStart" => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    let expr = body.trailing_expr.unwrap_or_else(|| {
+                        Box::new(Expr::Literal(
+                            Literal::Null,
+                            Span { start: 0, end: 0, line: 0, col: 0 },
+                        ))
+                    });
+                    callbacks.push(CallbackSpec::OnStart(*expr));
+                }
+                Some(ref s) if s == "onUpdate" => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    let expr = body.trailing_expr.unwrap_or_else(|| {
+                        Box::new(Expr::Literal(
+                            Literal::Null,
+                            Span { start: 0, end: 0, line: 0, col: 0 },
+                        ))
+                    });
+                    callbacks.push(CallbackSpec::OnUpdate(*expr));
+                }
+                Some(ref s) if s == "onComplete" => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    let expr = body.trailing_expr.unwrap_or_else(|| {
+                        Box::new(Expr::Literal(
+                            Literal::Null,
+                            Span { start: 0, end: 0, line: 0, col: 0 },
+                        ))
+                    });
+                    callbacks.push(CallbackSpec::OnComplete(*expr));
+                }
+                Some(ref s) if s == "onRepeat" => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    let expr = body.trailing_expr.unwrap_or_else(|| {
+                        Box::new(Expr::Literal(
+                            Literal::Null,
+                            Span { start: 0, end: 0, line: 0, col: 0 },
+                        ))
+                    });
+                    callbacks.push(CallbackSpec::OnRepeat(*expr));
+                }
+                Some(ref s) if s == "onInterrupt" => {
+                    self.advance();
+                    let body = self.parse_block()?;
+                    let expr = body.trailing_expr.unwrap_or_else(|| {
+                        Box::new(Expr::Literal(
+                            Literal::Null,
+                            Span { start: 0, end: 0, line: 0, col: 0 },
+                        ))
+                    });
+                    callbacks.push(CallbackSpec::OnInterrupt(*expr));
+                }
+                _ => break,
+            }
+        }
+        Ok(callbacks)
+    }
+
     /// Parse keyframe body: from { ... } to { ... } with optional over/ease/playback
-    fn parse_keyframe_body(&mut self) -> Result<MotionBody, ParseError> {
+    fn parse_keyframe_body(&mut self) -> Result<KeyframeBody, ParseError> {
         let mut stops = Vec::new();
 
         // Parse first stop
         stops.push(self.parse_keyframe_stop()?);
 
-        // Parse remaining stops while they start with "to" or percentage
-        while let Some(ident) = self.peek_ident_value() {
-            if ident == "to" || ident == "from" {
-                stops.push(self.parse_keyframe_stop()?);
-            } else if ident.chars().all(|c| c.is_ascii_digit() || c == '.') {
-                // Percentage stop: "50" means 50%
-                stops.push(self.parse_keyframe_stop()?);
-            } else {
-                break;
+        // Parse remaining stops while they start with "to", "from", or percentage
+        loop {
+            let is_percentage = matches!(self.peek_kind(), TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_));
+            match self.peek_ident_value() {
+                Some(ref s) if s == "to" || s == "from" => {
+                    stops.push(self.parse_keyframe_stop()?);
+                }
+                Some(ref s) if s.chars().all(|c| c.is_ascii_digit() || c == '.') => {
+                    // Percentage stop: "50" means 50%
+                    stops.push(self.parse_keyframe_stop()?);
+                }
+                _ if is_percentage => {
+                    // IntLiteral/FloatLiteral percentage: e.g., "25", "75.5"
+                    stops.push(self.parse_keyframe_stop()?);
+                }
+                _ => break,
             }
         }
 
@@ -1190,7 +1307,31 @@ impl<'a> Parser<'a> {
 
         let playback = self.parse_playback_props()?;
 
-        Ok(MotionBody::Keyframe(KeyframeBody {
+        // Second pass for path/pathRotate — they may appear after playback props
+        loop {
+            match self.peek_ident_value() {
+                Some(ref s) if s == "path" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':'")?;
+                    path = Some(self.expect_string("expected path string")?);
+                }
+                Some(ref s) if s == "pathRotate" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':'")?;
+                    path_rotate = Some(match self.peek_kind() {
+                        TokenKind::True => { self.advance(); true }
+                        TokenKind::False => { self.advance(); false }
+                        _ => return Err(self.error("expected bool for pathRotate")),
+                    });
+                }
+                _ => break,
+            }
+            if self.peek_kind() == TokenKind::Comma {
+                self.advance();
+            }
+        }
+
+        Ok(KeyframeBody {
             stops,
             over,
             ease,
@@ -1198,7 +1339,8 @@ impl<'a> Parser<'a> {
             playback,
             path,
             path_rotate,
-        }))
+            callbacks: Vec::new(),
+        })
     }
 
     /// Parse a single keyframe stop: "from { ... }", "to { ... }", or "50% { ... }"
@@ -1217,13 +1359,36 @@ impl<'a> Parser<'a> {
                 self.advance();
                 StopPosition::Percent(val)
             }
-            _ => return Err(self.error("expected 'from', 'to', or percentage")),
+            _ => {
+                // Also accept IntLiteral/FloatLiteral for percentage (e.g., "0%", "50%")
+                match self.peek_kind() {
+                    TokenKind::IntLiteral(n) => {
+                        let val = n as f64;
+                        self.advance();
+                        // Consume optional % token after number (e.g., "0%")
+                        while self.peek_kind() == TokenKind::Percent {
+                            self.advance();
+                        }
+                        StopPosition::Percent(val)
+                    }
+                    TokenKind::FloatLiteral(f) => {
+                        let val = f;
+                        self.advance();
+                        // Consume optional % token after number
+                        while self.peek_kind() == TokenKind::Percent {
+                            self.advance();
+                        }
+                        StopPosition::Percent(val)
+                    }
+                    _ => return Err(self.error("expected 'from', 'to', or percentage")),
+                }
+            }
         };
 
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let mut properties = Vec::new();
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-            let key = self.expect_ident("expected property name")?;
+            let key = self.parse_css_property_name("expected property name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let value = self.parse_expr()?;
             properties.push((key, value));
@@ -1265,7 +1430,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                     *ease = Some(self.parse_easing()?);
                 }
-                Some(ref s) if s == "color_space" => {
+                Some(ref s) if s == "color_space" || s == "colorSpace" => {
                     self.advance();
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
@@ -1281,24 +1446,8 @@ impl<'a> Parser<'a> {
 
     /// Parse timeline body: sequence of items with connectors
     pub(crate) fn parse_timeline_body(&mut self) -> Result<MotionBody, ParseError> {
-        let mut items = Vec::new();
-        let mut connector = Connector::None;
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-            let kind = self.parse_timeline_item()?;
-
-            items.push(TimelineItem {
-                kind,
-                connector: connector.clone(),
-            });
-
-            // Parse connector between items
-            if self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-                connector = self.parse_connector()?;
-            }
-        }
-
+        let items = self.parse_timeline_items_with_expansion()?;
         let playback = self.parse_playback_props()?;
-
         Ok(MotionBody::Timeline(TimelineBody { items, playback }))
     }
 
@@ -1312,23 +1461,48 @@ impl<'a> Parser<'a> {
             }
             Some(ref s) if s == "label" => {
                 self.advance();
-                self.expect_token(TokenKind::LParen, "expected '('")?;
-                let label_name = self.expect_ident("expected label name")?;
-                let position = if self.peek_kind() == TokenKind::Comma {
+                // Support label(name), label name, and label "name"
+                if self.peek_kind() == TokenKind::LParen {
+                    // label(name) — parens form
                     self.advance();
-                    Some(self.parse_expr()?)
+                    let label_name = if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
+                        let t = self.advance();
+                        if let TokenKind::StringLiteral(s) = &t.kind {
+                            s.clone()
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        self.expect_ident("expected label name")?
+                    };
+                    let position = if self.peek_kind() == TokenKind::Comma {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    self.expect_token(TokenKind::RParen, "expected ')'")?;
+                    Ok(TimelineItemKind::Label(label_name, position))
+                } else if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
+                    // label "name" — string literal form
+                    let t = self.advance();
+                    if let TokenKind::StringLiteral(s) = &t.kind {
+                        Ok(TimelineItemKind::Label(s.clone(), None))
+                    } else {
+                        unreachable!()
+                    }
                 } else {
-                    None
-                };
-                self.expect_token(TokenKind::RParen, "expected ')'")?;
-                Ok(TimelineItemKind::Label(label_name, position))
+                    // label name — bare ident form
+                    let label_name = self.expect_ident("expected label name")?;
+                    Ok(TimelineItemKind::Label(label_name, None))
+                }
             }
             Some(ref s) if s == "set" => {
                 self.advance();
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut properties = Vec::new();
                 while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-                    let key = self.expect_ident("expected property name")?;
+                    let key = self.parse_css_property_name("expected property name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let value = self.parse_expr()?;
                     properties.push((key, value));
@@ -1339,14 +1513,22 @@ impl<'a> Parser<'a> {
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 Ok(TimelineItemKind::SetBlock(properties))
             }
-            Some(ref s) if s == "from" => {
-                // Direction item starting with "from"
+            Some(ref s) if s == "from" || s == "to" => {
+                // Direction item starting with "from" or "to"
                 let dir = self.parse_direction_item()?;
                 Ok(TimelineItemKind::Direction(dir))
+            }
+            // start: "withPrev" | "overlap(N)" | etc. — position modifier for previous item
+            Some(ref s) if s == "start" && self.tokens.get(self.pos + 1).map_or(false, |t| t.kind == TokenKind::Colon) => {
+                self.advance(); // consume 'start'
+                self.advance(); // consume ':'
+                let pos = self.parse_position_value()?;
+                Ok(TimelineItemKind::StartPos(pos))
             }
             _ => {
                 // Motion reference or direction item
                 let elem_or_motion = self.expect_ident("expected motion reference or 'from'")?;
+
                 // Check if next token is a motion name (ident) or direction keyword
                 match self.peek_ident_value() {
                     Some(ref s) if s == "from" || s == "to" => {
@@ -1500,37 +1682,100 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse position value for start:
+    /// Supports both string literal and bare ident syntax:
+    ///   start: "withPrev" — string literal (preferred in source)
+    ///   start: with(id)   — bare ident with parens (legacy)
     fn parse_position_value(&mut self) -> Result<PositionValue, ParseError> {
-        match self.peek_ident_value() {
-            Some(ref s) if s == "after" => {
+        // Check for string literal first — this is the primary syntax used in source:
+        //   start: "withPrev", start: "overlap(150)", etc.
+        if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
+            let raw = self.expect_string("expected position string")?;
+            return Ok(parse_position_string(&raw));
+        }
+        // Fall back to bare identifier syntax (legacy: with(id), after, etc.)
+        let id = self.peek_ident_value();
+        match id.as_deref() {
+            Some("after") => {
                 self.advance();
+                // Check for afterPrev syntax: after(id)
                 if self.peek_kind() == TokenKind::LParen {
                     self.advance();
-                    let id = self.expect_ident("expected element id")?;
+                    let id_str = self.expect_ident("expected element id")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
-                    Ok(PositionValue::AfterPrev(id))
+                    Ok(PositionValue::AfterPrev(id_str))
                 } else {
                     Ok(PositionValue::After)
                 }
             }
-            Some(ref s) if s == "with" => {
+            Some("with") => {
                 self.advance();
-                self.expect_token(TokenKind::LParen, "expected '('")?;
-                let _id = self.expect_ident("expected element id")?;
-                self.expect_token(TokenKind::RParen, "expected ')'")?;
+                // Check for with(prev) syntax
+                if self.peek_kind() == TokenKind::LParen {
+                    self.advance();
+                    let _id = self.expect_ident("expected element id")?;
+                    self.expect_token(TokenKind::RParen, "expected ')'")?;
+                }
                 Ok(PositionValue::WithPrev)
             }
             _ => {
-                // Raw expression (percentage, duration)
+                // Fallback: try to parse raw expression
                 let _expr = self.parse_expr()?;
-                // Try to interpret as Overlap or Absolute
-                // For now, store as After with offset
-                Ok(PositionValue::Absolute(
-                    // Very basic: try to parse as a string or number
-                    "0ms".into(),
-                ))
+                Ok(PositionValue::Absolute("0ms".into()))
             }
         }
+    }
+
+    /// Collect timeline items from current position to RBrace/Eof, handling ident { ... } expansion.
+    /// NOTE: callers must call parse_playback_props() after this if needed.
+    fn parse_timeline_items_with_expansion(
+        &mut self,
+    ) -> Result<Vec<TimelineItem>, ParseError> {
+        let mut items = Vec::new();
+        let mut connector = Connector::None;
+        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            let kind = self.parse_timeline_item()?;
+
+            // Handle: ident { from { ... } to { ... } over ... }
+            // Expand into multiple timeline items; parse_direction_item handles its own timing.
+            if matches!(kind, TimelineItemKind::MotionRef(_))
+                && self.peek_kind() == TokenKind::LBrace
+            {
+                self.advance(); // consume '{'
+                // Parse from { ... } direction item (handles its own timing internally)
+                let dir1 = self.parse_direction_item()?;
+                items.push(TimelineItem {
+                    kind: TimelineItemKind::Direction(dir1),
+                    connector: connector.clone(),
+                });
+
+                // Check for to { ... } — second direction item (handles its own timing)
+                let has_to = self.peek_ident_value().map_or(false, |s| s == "to" || s == "from");
+                if has_to {
+                    let dir2 = self.parse_direction_item()?;
+                    items.push(TimelineItem {
+                        kind: TimelineItemKind::Direction(dir2),
+                        connector: Connector::Then,
+                    });
+                }
+
+                self.expect_token(
+                    TokenKind::RBrace,
+                    "expected '}' after timeline item block",
+                )?;
+            } else {
+                items.push(TimelineItem {
+                    kind,
+                    connector: connector.clone(),
+                });
+            }
+
+            // Parse connector between items (only if we're not at end of block)
+            if self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                connector = self.parse_connector()?;
+            }
+        }
+
+        Ok(items)
     }
 
     /// Parse @timeline NAME { body }
@@ -1540,18 +1785,7 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected timeline name")?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
-        let mut items = Vec::new();
-        let mut connector = Connector::None;
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-            let item = self.parse_timeline_item()?;
-
-            items.push(TimelineItem {
-                kind: item,
-                connector: connector.clone(),
-            });
-
-            connector = self.parse_connector()?;
-        }
+        let items = self.parse_timeline_items_with_expansion()?;
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         Ok(TimelineDef {
@@ -1811,4 +2045,30 @@ impl<'a> Parser<'a> {
         }
         Ok(props)
     }
+}
+
+/// Parse a position value string (from `start: "..."` syntax).
+fn parse_position_string(raw: &str) -> PositionValue {
+    match raw {
+        "withPrev" => return PositionValue::WithPrev,
+        "after" => return PositionValue::After,
+        _ => {}
+    }
+    if raw.starts_with("overlap(") && raw.ends_with(')') {
+        let n = raw.trim_start_matches("overlap(").trim_end_matches(')').to_string();
+        return PositionValue::Overlap(n);
+    }
+    if raw.starts_with("afterPrev(") && raw.ends_with(')') {
+        let n = raw.trim_start_matches("afterPrev(").trim_end_matches(')').to_string();
+        return PositionValue::AfterPrev(n);
+    }
+    if raw.starts_with("withOffset(") && raw.ends_with(')') {
+        let n = raw.trim_start_matches("withOffset(").trim_end_matches(')').to_string();
+        return PositionValue::WithOffset(n);
+    }
+    if raw.starts_with("absolute(") && raw.ends_with(')') {
+        let n = raw.trim_start_matches("absolute(").trim_end_matches(')').to_string();
+        return PositionValue::Absolute(n);
+    }
+    PositionValue::Absolute(raw.to_string())
 }

@@ -9,8 +9,8 @@
 import omniview;
 import { array_push } from "std/array";
 
-// ── 子组件：事件来源 ───────────────────────────────────────
-component EmitChild {
+// ── EmitEventChild：事件来源子组件 ─────────────────────────
+component EmitEventChild {
     prop label: String = "Child";
     event onAction: String;
     event onOptionalAck: String?;
@@ -93,13 +93,13 @@ component EmitEventDemo {
             <p class: subtitle>event 声明 · @onAction 绑定 · 可选事件 event? · 父→子→父回调链</p>
 
             <div class: event-grid>
-                <EmitChild
+                <EmitEventChild
                     label="Sender A"
                     @onAction={onChildAction}
                     @onOptionalAck={onOptionalAck}
                     @onCount={onChildCount}
                 />
-                <EmitChild
+                <EmitEventChild
                     label="Sender B"
                     @onAction={onChildAction}
                     @onCount={onChildCount}

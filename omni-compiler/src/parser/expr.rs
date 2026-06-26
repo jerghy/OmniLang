@@ -729,6 +729,11 @@ impl<'a> Parser<'a> {
         match expr {
             Expr::Literal(Literal::Float(f), _) => Ok(f),
             Expr::Literal(Literal::Int(i), _) => Ok(i as f64),
+            Expr::UnaryOp { op: UnaryOpKind::Neg, operand, .. } => match *operand {
+                Expr::Literal(Literal::Float(f), _) => Ok(-f),
+                Expr::Literal(Literal::Int(i), _) => Ok(-(i as f64)),
+                _ => Err(self.error("expected number")),
+            },
             _ => Err(self.error("expected number")),
         }
     }
@@ -888,6 +893,21 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_stagger_call(&mut self) -> Result<StaggerCall, ParseError> {
         self.expect_token(TokenKind::LParen, "expected '('")?;
         let motion = self.parse_motion_expr()?;
+
+        // Support shorthand: stagger(0.05) — single numeric arg means amount
+        if self.peek_kind() == TokenKind::RParen {
+            let timing = StaggerTiming::Amount(motion);
+            self.advance(); // consume ')'
+            return Ok(StaggerCall {
+                motion: Box::new(Expr::Literal(
+                    Literal::Null,
+                    Span { start: 0, end: 0, line: 0, col: 0 },
+                )),
+                timing,
+                from: StaggerDirection::Start,
+            });
+        }
+
         self.expect_token(TokenKind::Comma, "expected ','")?;
         let timing = match self.expect_ident("expected 'each' or 'amount'")?.as_str() {
             "each" => {

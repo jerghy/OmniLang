@@ -27,6 +27,12 @@ export const useUndoStore = create<UndoState>((set, get) => ({
 
   execute: (cmd, ctx) => {
     cmd.execute(ctx);
+    // 命令可能通过 ctx.getElement() 直接修改了 store 中的对象
+    // （如样式类命令），需要强制触发 editor store 重新渲染
+    useEditorStore.setState((s) => ({
+      elements: [...s.elements],
+      isDirty: true,
+    }));
     set((s) => ({
       undoStack: [...s.undoStack.slice(-199), cmd],
       redoStack: [], // 新操作清空 redo 栈
@@ -40,6 +46,10 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (undoStack.length === 0) return;
     const cmd = undoStack[undoStack.length - 1];
     cmd.undo(ctx);
+    useEditorStore.setState((s) => ({
+      elements: [...s.elements],
+      isDirty: true,
+    }));
     set({
       undoStack: undoStack.slice(0, -1),
       redoStack: [...get().redoStack.slice(-199), cmd],
@@ -52,6 +62,10 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (redoStack.length === 0) return;
     const cmd = redoStack[redoStack.length - 1];
     cmd.execute(ctx);
+    useEditorStore.setState((s) => ({
+      elements: [...s.elements],
+      isDirty: true,
+    }));
     set({
       redoStack: redoStack.slice(0, -1),
       undoStack: [...get().undoStack.slice(-199), cmd],

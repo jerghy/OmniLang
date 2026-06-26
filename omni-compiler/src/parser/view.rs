@@ -49,7 +49,6 @@ impl<'a> Parser<'a> {
             TokenKind::AtSlot => {
                 self.advance();
                 let name = if self.peek_kind() == TokenKind::LParen {
-                    // @slot(name) syntax
                     self.advance();
                     let n = self.expect_ident("expected slot name")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
@@ -57,14 +56,29 @@ impl<'a> Parser<'a> {
                 } else if matches!(self.peek_kind(), TokenKind::Ident(_))
                     || keyword_as_ident_name(&self.peek_kind()).is_some()
                 {
-                    // @slot name syntax (without parens)
                     let n = self.expect_ident("expected slot name")?;
                     Some(n)
                 } else {
-                    // @slot — default/unnamed slot
                     None
                 };
-                Ok(ViewNode::SlotDirective(name))
+                // Parse optional default content body: @slot name { ... }
+                let default_content = if self.peek_kind() == TokenKind::LBrace {
+                    self.advance(); // consume '{'
+                    let mut children = Vec::new();
+                    while self.peek_kind() != TokenKind::RBrace
+                        && self.peek_kind() != TokenKind::Eof
+                    {
+                        children.push(self.parse_view_node()?);
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    Some(children)
+                } else {
+                    None
+                };
+                Ok(ViewNode::SlotDirective {
+                    name,
+                    default_content,
+                })
             }
             TokenKind::StringLiteral(s) => {
                 let text = s.clone();
@@ -124,12 +138,20 @@ impl<'a> Parser<'a> {
         }
 
         // Reconstruct text from source using byte spans (preserves whitespace).
-        // Guard against tests passing empty source — spans then index past end.
+        // Use char-safe boundaries for non-ASCII content.
         let text = if start_span.start < self.source.len()
             && end_span.end <= self.source.len()
             && start_span.start <= end_span.end
         {
-            self.source[start_span.start..end_span.end].to_string()
+            let start = self.source.char_indices()
+                .find(|&(i, _)| i >= start_span.start)
+                .map(|(i, _)| i)
+                .unwrap_or(start_span.start);
+            let end = self.source[start..].char_indices()
+                .find(|&(i, _)| i + start >= end_span.end)
+                .map(|(i, c)| i + start + c.len_utf8())
+                .unwrap_or(end_span.end);
+            self.source[start..end].to_string()
         } else {
             String::new()
         };
@@ -355,19 +377,21 @@ impl<'a> Parser<'a> {
                     self.advance();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
                     self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let val = match self.parse_expr()? {
-                        Expr::Literal(Literal::Bool(b), _) => b,
-                        _ => true, // non-literal (e.g., signal ref): default to true
-                    };
+                    let expr = self.parse_expr()?;
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    props.push(ElementProp::PausedOverride(val));
+                    props.push(ElementProp::PausedOverride(expr));
                 }
                 TokenKind::AtHoverReverse => {
                     self.advance();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
-                    self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                    let mode = self.expect_ident("expected hover reverse mode")?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    let mode = if self.peek_kind() == TokenKind::LBrace {
+                        self.advance();
+                        let m = self.expect_ident("expected hover reverse mode")?;
+                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                        m
+                    } else {
+                        self.expect_string("expected string value")?
+                    };
                     props.push(ElementProp::HoverReverse(mode));
                 }
                 TokenKind::AtInViewOnce
@@ -456,6 +480,23 @@ impl<'a> Parser<'a> {
                         span: t.span,
                     });
                 }
+            }
+        }
+
+        // Auto-close void HTML elements (input, br, hr, img, etc.)
+        let void_tags = [
+            "area", "base", "br", "col", "embed", "hr", "img", "input",
+            "link", "meta", "param", "source", "track", "wbr",
+        ];
+        if !self_closing && void_tags.contains(&tag.as_str()) {
+            self_closing = true;
+            // If source has <input></input> with explicit closing tag,
+            // consume the orphaned </tagname> that follows.
+            if self.check_closing_tag(&tag) {
+                self.advance(); // '<'
+                self.advance(); // '/'
+                self.expect_ident("expected closing tag")?;
+                self.expect_token(TokenKind::Gt, "expected '>'")?;
             }
         }
 
@@ -845,6 +886,32 @@ impl<'a> Parser<'a> {
                                 }
                             }
                         }
+                        // Check for dynamic class expression: class: name { expr }
+                        if self.peek_kind() == TokenKind::LBrace {
+                            // Parse class: name(s) { conditional_expr }
+                            // e.g., class: tab-btn {if activeDemo == "position" { "active" } else { "" }}
+                            // Combine static names with dynamic expression result
+                            let span = self.peek_span();
+                            let static_part = Expr::Literal(
+                                Literal::String(classes.join(" ")),
+                                span.clone(),
+                            );
+                            self.advance(); // consume '{'
+                            let dyn_expr = self.parse_expr()?;
+                            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                            let combined = Expr::BinaryOp {
+                                left: Box::new(static_part),
+                                op: BinaryOpKind::Add,
+                                right: Box::new(dyn_expr),
+                                span: span.clone(),
+                            };
+                            // Emit as a Static className prop so codegen handles it naturally
+                            return Ok(ElementProp::Static {
+                                name: "className".into(),
+                                value: combined,
+                            });
+                        }
+
                         Ok(ElementProp::Class {
                             value: ClassValue::StyleRef(classes.join(" ")),
                         })
@@ -1134,7 +1201,7 @@ impl<'a> Parser<'a> {
     /// Parse a CSS property name, supporting CSS custom properties (`--name`).
     /// For `--` prefixed names, consumes the `--` prefix then reads ident parts
     /// separated by hyphens. For regular names, uses expect_ident.
-    fn parse_css_property_name(&mut self, msg: &str) -> Result<String, ParseError> {
+    pub(crate) fn parse_css_property_name(&mut self, msg: &str) -> Result<String, ParseError> {
         if self.peek_kind() == TokenKind::Minus
             && self
                 .tokens
@@ -1154,7 +1221,14 @@ impl<'a> Parser<'a> {
                         name.push('-');
                         self.advance();
                     }
-                    _ => break,
+                    ref kind => {
+                        if let Some(kw) = keyword_as_ident_name(kind) {
+                            name.push_str(&kw);
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
                 }
             }
             Ok(name)
@@ -1180,6 +1254,8 @@ impl<'a> Parser<'a> {
         let mut rules = Vec::new();
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
             // Each rule: .className { prop: value; ... }
+            // or: tag { prop: value; ... }
+            let is_tag_selector = self.peek_kind() != TokenKind::Dot;
             if self.peek_kind() == TokenKind::Dot {
                 self.advance(); // consume '.'
             }
@@ -1196,7 +1272,25 @@ impl<'a> Parser<'a> {
                 let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
                 class_name = format!("{}:{}", class_name, pseudo);
             }
-            // Skip unsupported compound selector parts (e.g., "input:checked + span")
+            // Handle compound class selectors: .var-card.alt, .btn.active.dark, etc.
+            while self.peek_kind() == TokenKind::Dot {
+                self.advance(); // consume '.'
+                let extra = self.expect_ident("expected class name after '.'")?;
+                class_name = format!("{}.{}", class_name, extra);
+                // Handle hyphenated names in compound part: .var-card.deep-dark
+                while self.peek_kind() == TokenKind::Minus {
+                    self.advance(); // consume '-'
+                    let next = self.expect_ident("expected identifier after '-'")?;
+                    class_name = format!("{}-{}", class_name, next);
+                }
+                // Handle pseudo-classes on compound part: .var-card.alt:hover
+                while self.peek_kind() == TokenKind::Colon {
+                    self.advance(); // consume ':'
+                    let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+                    class_name = format!("{}:{}", class_name, pseudo);
+                }
+            }
+            // Skip unsupported remaining selector parts (e.g., "input:checked + span")
             // until we find the opening brace
             while self.peek_kind() != TokenKind::LBrace
                 && self.peek_kind() != TokenKind::RBrace
@@ -1222,13 +1316,11 @@ impl<'a> Parser<'a> {
                         TokenKind::FloatLiteral(n) => try_consume_dimension(self, *n),
                         TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
                         TokenKind::Hash => {
-                            // Hex color: #fff, #333, #0f0f23, #e4e4e7
                             let mut hex = String::from("#");
                             let next_t = self.advance();
                             match &next_t.kind {
                                 TokenKind::IntLiteral(n) => {
                                     hex.push_str(&n.to_string());
-                                    // Check for `#0` + `f0f23` pattern
                                     if matches!(self.peek_kind(), TokenKind::Ident(_)) {
                                         let ident_t = self.advance();
                                         if let TokenKind::Ident(s) = &ident_t.kind {
@@ -1236,8 +1328,27 @@ impl<'a> Parser<'a> {
                                         }
                                     }
                                 }
-                                TokenKind::Ident(s) => {
-                                    hex.push_str(s);
+                                TokenKind::Ident(s) => { hex.push_str(s); }
+                                TokenKind::FloatLiteral(_) => {
+                                    // Clamp to valid UTF-8 char boundaries.
+                                    // The tokenizer may produce byte positions in the
+                                    // middle of multi-byte characters; walk backward from
+                                    // the token start and forward from the token end to
+                                    // find valid char boundaries.
+                                    let raw_start = (0..=next_t.span.start).rev()
+                                        .find(|&i| self.source.is_char_boundary(i))
+                                        .unwrap_or(next_t.span.start);
+                                    let raw_end = (next_t.span.end..self.source.len())
+                                        .find(|&i| self.source.is_char_boundary(i))
+                                        .unwrap_or(next_t.span.end);
+                                    let raw = &self.source[raw_start..raw_end];
+                                    hex.push_str(raw);
+                                    if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                        let ident_t = self.advance();
+                                        if let TokenKind::Ident(s) = &ident_t.kind {
+                                            hex.push_str(s);
+                                        }
+                                    }
                                 }
                                 _ => {
                                     return Err(ParseError {
@@ -1337,8 +1448,16 @@ impl<'a> Parser<'a> {
                                             }
                                         }
                                     }
-                                    TokenKind::Ident(s) => {
-                                        hex.push_str(s);
+                                    TokenKind::Ident(s) => { hex.push_str(s); }
+                                    TokenKind::FloatLiteral(_) => {
+                                        let raw = &self.source[next_t.span.start..next_t.span.end];
+                                        hex.push_str(raw);
+                                        if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                            let ident_t = self.advance();
+                                            if let TokenKind::Ident(s) = &ident_t.kind {
+                                                hex.push_str(s);
+                                            }
+                                        }
                                     }
                                     _ => {
                                         break;
@@ -1369,6 +1488,7 @@ impl<'a> Parser<'a> {
             rules.push(StyleRule {
                 class_name,
                 properties,
+                is_tag_selector,
             });
         }
 
@@ -1379,6 +1499,7 @@ impl<'a> Parser<'a> {
     /// Parse a single style rule (legacy syntax): `style .className { ... }`
     pub fn parse_style_rule(&mut self) -> Result<StyleRule, ParseError> {
         self.advance(); // 'style'
+        let is_tag_selector = self.peek_kind() != TokenKind::Dot;
         if self.peek_kind() == TokenKind::Dot {
             self.advance(); // consume '.'
         }
@@ -1482,6 +1603,7 @@ impl<'a> Parser<'a> {
         Ok(StyleRule {
             class_name,
             properties,
+            is_tag_selector,
         })
     }
 
@@ -1652,6 +1774,21 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::Dollar
             | TokenKind::Hash
             | TokenKind::StringLiteral(_)
+            // @-keyword tokens that may appear in text content
+            | TokenKind::AtEnter | TokenKind::AtLeave | TokenKind::AtHover
+            | TokenKind::AtUnhover | TokenKind::AtPress | TokenKind::AtFocus
+            | TokenKind::AtAnimate | TokenKind::AtInView
+            | TokenKind::AtDrivenBy | TokenKind::AtPaused | TokenKind::AtHoverReverse
+            | TokenKind::AtTimeline | TokenKind::AtHero | TokenKind::AtHeroTransition
+            | TokenKind::AtInViewOnce | TokenKind::AtInViewRepeat
+            | TokenKind::AtInViewThreshold
+            | TokenKind::AtScroll | TokenKind::AtScrollStart
+            | TokenKind::AtScrollEnd | TokenKind::AtScrollScrub
+            | TokenKind::AtDragHorizontal | TokenKind::AtDragVertical
+            | TokenKind::AtStore | TokenKind::AtMotion | TokenKind::AtNative
+            | TokenKind::AtFallback | TokenKind::AtError | TokenKind::AtMount
+            | TokenKind::AtUnmount | TokenKind::AtEffect
+            | TokenKind::IfMode
             | TokenKind::Percent
             // Assignment and comparison operators
             | TokenKind::Eq
@@ -1661,9 +1798,10 @@ fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::LtEq | TokenKind::GtEq
             | TokenKind::AndAnd | TokenKind::OrOr
             | TokenKind::Arrow | TokenKind::FatArrow
-            | TokenKind::DotDotDot | TokenKind::QuestionDot
+            | TokenKind::DotDotDot | TokenKind::QuestionDot | TokenKind::QuestionQuestion
             | TokenKind::At
             | TokenKind::LBracket | TokenKind::RBracket
+            | TokenKind::Semicolon
             | TokenKind::TemplateString(_)
     ) || is_keyword_attr_name(kind)
         || keyword_as_ident_name(kind).is_some()
@@ -1701,6 +1839,8 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::Hash => "#".into(),
         TokenKind::Dollar => "$".into(),
         TokenKind::Percent => "%".into(),
+        TokenKind::IfMode => "if_mode".into(),
+        TokenKind::Semicolon => ";".into(),
         TokenKind::Eq => "=".into(),
         TokenKind::PlusEq => "+=".into(),
         TokenKind::MinusEq => "-=".into(),
@@ -1717,7 +1857,10 @@ fn token_text(kind: &TokenKind) -> String {
         TokenKind::FatArrow => "=>".into(),
         TokenKind::DotDotDot => "...".into(),
         TokenKind::QuestionDot => "?.".into(),
+        TokenKind::QuestionQuestion => "??".into(),
         TokenKind::At => "@".into(),
+        TokenKind::AtDragHorizontal => "@dragHorizontal".into(),
+        TokenKind::AtDragVertical => "@dragVertical".into(),
         TokenKind::LBracket => "[".into(),
         TokenKind::RBracket => "]".into(),
         TokenKind::TemplateString(s) => format!("`{}`", s),
