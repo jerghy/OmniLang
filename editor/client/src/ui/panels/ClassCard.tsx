@@ -23,6 +23,7 @@ interface Props {
 export function ClassCard({ styleClass, onChange, onDelete, availableSignals, availableCssVars }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [previewTag, setPreviewTag] = useState("div");
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleNameChange = (name: string) => {
     onChange({ ...styleClass, name });
@@ -59,9 +60,10 @@ export function ClassCard({ styleClass, onChange, onDelete, availableSignals, av
           display: "flex", alignItems: "center", gap: 8,
           padding: "6px 10px", cursor: "pointer", borderRadius: 4,
           fontSize: 13, color: "#374151",
+          background: isHovered ? "#F3F4F6" : "transparent",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         <span style={{ fontSize: 10, color: "#9CA3AF" }}>▶</span>
         <span style={{ fontWeight: 500 }}>.{styleClass.name || "unnamed"}</span>
