@@ -80,53 +80,7 @@ editor/client/src/
 
 ---
 
-### Task 0: 前置清理 — constants/style-properties.ts + 死代码删除
-
-**Files:**
-- Modify: `editor/client/src/constants/style-properties.ts`
-- Delete: `editor/client/src/core/commands/__tests__/style-commands.test.ts` (old, will be rewritten later)
-
-**Interfaces:**
-- Removes: duplicate `StyleProperty` and `StyleEntry` interfaces (now in `core/types/style.ts`)
-- Keeps: `UnitGroup`, `PROPERTY_UNIT_MAP`, `DROPDOWN_PROPERTIES`, helpers (`isColorProperty`, `isCustomProperty`, `getUnitGroup`, `getDropdownOptions`, `variableToClassName`, `classNameToVariable`)
-
-- [ ] **Step 1: 清理 constants/style-properties.ts**
-
-文件顶部删掉重复的类型定义块：
-
-删除以下行（第 2-67 行左右）：
-```typescript
-export interface StyleProperty { ... }
-export interface StyleEntry { ... }
-export const STYLE_PROPERTY_NAMES = new Set([...]);
-export interface UnitGroup { ... }
-```
-
-替换为一个 import：
-```typescript
-import type { StyleProperty, StyleEntry } from "../core/types/style";
-```
-
-保留 `PROPERTY_UNIT_MAP`、`DROPDOWN_PROPERTIES` 及其 helper 函数（`isColorProperty`, `getUnitGroup`, `getDropdownOptions`, `isCustomProperty`）。
-删除 `variableToClassName` / `classNameToVariable`（已移至 `core/types/style.ts`）。
-
-- [ ] **Step 2: 删除旧的 style-commands 测试文件**
-
-```bash
-rm editor/client/src/core/commands/__tests__/style-commands.test.ts
-```
-
-将在 Task 4 中重写。
-
-- [ ] **Step 3: 提交**
-
-```bash
-git add editor/client/src/constants/style-properties.ts
-git rm editor/client/src/core/commands/__tests__/style-commands.test.ts
-git commit -m "chore: clean up duplicate type definitions in style-properties.ts"
-```
-
---- 重写类型定义
+### Task 1: 重写类型定义 + constants 清理
 
 **Files:**
 - Rewrite: `editor/client/src/core/types/style.ts`
@@ -226,11 +180,29 @@ cd editor/client && npx tsc --noEmit --pretty false 2>&1 | head -50
 
 预期：大量类型错误（因为所有使用旧 `styles` / `StyleEntry` 的地方现在会报错）。记录错误数量和文件列表，为后续任务提供清理清单。
 
-- [ ] **Step 4: 提交**
+- [ ] **Step 5: 清理 `constants/style-properties.ts`**
+
+删除文件顶部的重复类型定义（`StyleProperty`, `StyleEntry`, `STYLE_PROPERTY_NAMES`, `UnitGroup`）。
+
+替换为：
+```typescript
+import type { StyleProperty } from "../core/types/style";
+```
+
+同时删除 `variableToClassName` 和 `classNameToVariable`（已移至 `core/types/style.ts`）。
+
+- [ ] **Step 6: 删除旧的 style-commands 测试文件**
 
 ```bash
-git add editor/client/src/core/types/style.ts editor/client/src/core/types/element.ts
-git commit -m "feat: rewrite style types — StyleValueSegment, StyleRegistry, ElementStyle"
+rm editor/client/src/core/commands/__tests__/style-commands.test.ts
+```
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add editor/client/src/core/types/style.ts editor/client/src/core/types/element.ts editor/client/src/constants/style-properties.ts
+git rm editor/client/src/core/commands/__tests__/style-commands.test.ts
+git commit -m "feat: rewrite style types — StyleValueSegment, StyleRegistry, ElementStyle; clean constants"
 ```
 
 ---
@@ -274,7 +246,6 @@ interface StyleRegistryState {
 
   // ── Queries ──
   getRegistry: (componentName: string) => StyleRegistry;
-  getActiveRegistry: () => StyleRegistry;
 }
 
 export const useStyleRegistryStore = create<StyleRegistryState>((set, get) => ({
@@ -420,15 +391,6 @@ export const useStyleRegistryStore = create<StyleRegistryState>((set, get) => ({
   }),
 
   getRegistry: (componentName) => {
-    return get().registries[componentName] ?? { variables: [], classes: [] };
-  },
-
-  getActiveRegistry: () => {
-    const { useTabStore } = require("../../store/editor");
-    const activeDocId = useTabStore.getState().activeDocId;
-    const componentName = activeDocId?.startsWith("comp:")
-      ? activeDocId.replace("comp:", "")
-      : "App";
     return get().registries[componentName] ?? { variables: [], classes: [] };
   },
 }));
@@ -597,11 +559,13 @@ git commit -m "feat: add useStyleRegistryStore atom store, remove styleOperation
 同时更新 import（在文件顶部）：
 
 ```typescript
-import type { StyleProperty, StyleRegistry, ElementStyle } from "../core/types/style";
+import type { StyleProperty, StyleRegistry } from "../core/types/style";
 import { useStyleRegistryStore } from "../core/state/styleRegistry";
 ```
 
 删除 `import type { StyleEntry } from "../core/types";`。
+
+在 `EditorState` interface 下方的 implementation 区域，所有 `(e as any).style` 已改为使用 `ElementData.style` 类型（Task 1 更新了 ElementData 的 style 字段）。
 
 - [ ] **Step 2: 在 create() 函数中新增实现**
 
@@ -610,9 +574,13 @@ import { useStyleRegistryStore } from "../core/state/styleRegistry";
 替换为：
 
 ```typescript
-    // ── Style Registry (pass-through to atom store) ──
+    // ── Style Registry (compute active registry locally) ──
     get styleRegistry(): StyleRegistry {
-      return useStyleRegistryStore.getState().getActiveRegistry();
+      const activeDocId = get().activeDocId;
+      const componentName = activeDocId?.startsWith("comp:")
+        ? activeDocId.replace("comp:", "")
+        : "App";
+      return useStyleRegistryStore.getState().getRegistry(componentName);
     },
 
     // ── Element style mutations ──
@@ -2505,13 +2473,98 @@ function compileSegments(segments: StyleValueSegment[]): string {
 }
 ```
 
-- [ ] **Step 2: 适配 pipeline.ts 中的 parseStylesFromAST**
+- [ ] **Step 2: 适配 pipeline.ts — 更新 generateOmniSource 调用 collectStylesFromEntries**
 
-将 `parseStylesFromAST` 适配为从 AST style block 构建 StyleRegistry + element StyleReferences，而不是旧的 StyleEntry[]。
+找到 `generateOmniSource` 函数中调用 `collectStylesFromEntries` 的地方（约第 348 行），改为传入 `styleRegistry`：
 
-- [ ] **Step 3: 适配 source-emitter.ts**
+```typescript
+// Before:
+const { componentStyle, elementClassMap, elementInlineMap } = ...
+  ? { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() }
+  : collectStylesFromEntries(expandedElements, roots);
 
-inline style 输出现在需要区分 signal segments（不加引号）和 text segments（加引号）。
+// After:
+const activeRegistry = useStyleRegistryStore.getState().getRegistry(options.componentName);
+const { componentStyle, elementClassMap, elementInlineMap } = ...
+  ? { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() }
+  : collectStylesFromEntries(expandedElements, activeRegistry, roots);
+```
+
+添加 import:
+```typescript
+import { useStyleRegistryStore } from "../../core/state/styleRegistry";
+```
+
+- [ ] **Step 3: 适配 parseStylesFromAST — 重建 StyleRegistry + ElementStyle**
+
+`parseStylesFromAST` 现在需要两件事：
+1. 从 AST `style { }` block 构建 StyleRegistry（写入 `useStyleRegistryStore`）
+2. 从 view node 的 `class:` / `style:` 构建 ElementStyle
+
+```typescript
+// 在 parseStylesFromAST 中替换旧的 StyleEntry[] 构建逻辑：
+// 旧：el.styles = [StyleEntry, ...] 
+// 新：
+const classRefs: string[] = [];
+const inlineProperties: StyleProperty[] = [];
+
+// Parse class: attribute → classRefs
+if (classAttr && typeof classAttr === "string") {
+  classRefs.push(...classAttr.split(/\s+/));
+}
+
+// Parse inline_style → inlineProperties
+if (inlineStyle && typeof inlineStyle === "object") {
+  for (const [name, value] of Object.entries(inlineStyle)) {
+    inlineProperties.push({
+      id: generateId(),
+      name,
+      segments: [{ type: "text" as const, value: String(value) }],
+    });
+  }
+}
+
+el.style = { classRefs, inlineProperties };
+
+// Parse style { } block → StyleRegistry
+for (const rule of styleBlock) {
+  const className: string = rule.class_name;
+  const varName = classNameToVariable(className);
+  const properties: StyleProperty[] = Object.entries(rule.properties).map(
+    ([name, valueExpr]: [string, any]) => ({
+      id: generateId(),
+      name,
+      segments: [{ type: "text" as const, value: exprToString(valueExpr) }],
+    })
+  );
+  if (varName) {
+    store.addVariable(componentName, { id: generateId(), name: varName, segments: properties[0]?.segments ?? [] });
+  } else {
+    store.addClass(componentName, { id: generateId(), name: className, properties });
+  }
+}
+```
+
+- [ ] **Step 3b: 适配 source-emitter.ts — inline 中区分信号和文本**
+
+在 `emitViewNode` 中（约第 228 行），inline styles 的输出逻辑改为：
+
+```typescript
+const inlineStyles = this.elementInlineMap?.get(node.id);
+if (inlineStyles && Object.keys(inlineStyles).length > 0) {
+  const styleStr = Object.entries(inlineStyles)
+    .filter(([, v]) => v !== "" && v !== undefined && v !== null)
+    .map(([k, v]) => {
+      // v is already the compiled Segments string from collectStylesFromEntries.
+      // Signals appear bare, text appears quoted, expressions use +.
+      return `${k}: ${v}`;
+    })
+    .join(", ");
+  parts.push(` style: { ${styleStr} }`);
+}
+```
+
+`compileSegments` 的返回值已经处理了引号（纯 text segment → `"val"`，signal → `name`），source-emitter 直接使用即可。
 
 - [ ] **Step 4: 提交**
 
