@@ -1,14 +1,20 @@
 // editor/client/src/omni-gen/omni-parser.ts
-import type { ElementData, WireData, CodeTab } from "../../core/types";
+// Recursive-descent parser for OmniLang sources.
+// Transforms a token stream into a ParseResult identical to the legacy parser.
+
+import type { ElementData, WireData } from "../store/editor";
+import type { CodeTab } from "../codegraph/types";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./pipeline";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { Logger } from "../utils/logger";
+import { tokenize } from "./omni-tokenizer";
+import { TokenStream } from "./token-stream";
+import type { Token, TokenKind } from "./omni-tokenizer";
 
 const log = new Logger({ prefix: "omni-parser" });
 
-/** Module-level WeakMap to track view indent levels without polluting ElementData. */
-const viewIndentMap = new WeakMap<ElementData, number>();
+// ── Types ──
 
 type ParserState =
   | "ROOT"
@@ -22,6 +28,7 @@ type ParserState =
 interface ParseContext {
   state: ParserState;
   stateStack: ParserState[];
+  braceDepth: number;
   braceDepthStack: number[];
   elements: ElementData[];
   wires: WireData[];
@@ -35,254 +42,1294 @@ interface ParseContext {
   chainElements: ElementData[];
   chainWires: WireData[];
   viewParentStack: string[];
-  braceDepth: number;
   pendingEditFlags: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
-  /** Whether a style { } block was encountered in source. When false, parsedStyleRules
-   *  being empty means no style block existed (backward compat), not an empty block. */
   hasStyleBlock: boolean;
-  /** Parsed prop declarations (e.g. `prop title: String = ""`) */
   props: Array<{ name: string; type: string; default?: unknown }>;
-  /** Parsed event declarations (e.g. `event onAction`) */
   events: Array<{ name: string }>;
-  /** Parsed component metadata from // @component, // @prop, // @event, // @style comments */
   componentMeta: Record<string, unknown> | null;
 }
 
+// ── Public API ──
+
 export function parseOmniSource(source: string): ParseResult {
-  const lines = source.split("\n");
+  const tokens = tokenize(source);
+  const stream = new TokenStream(tokens);
+  const parser = new Parser(stream);
+  return parser.parse();
+}
 
-  const ctx: ParseContext = {
-    state: "ROOT",
-    stateStack: [],
-    braceDepthStack: [],
-    elements: [],
-    wires: [],
-    codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "📄", graph: { elements: [], wires: [] }, variables: [] }],
-    imports: [],
-    errors: [],
-    codeTabType: "logic",
-    currentComponent: "",
-    currentStore: "",
-    parsedStyleRules: [],
-    chainName: "",
-    chainElements: [],
-    chainWires: [],
-    viewParentStack: [],
-    braceDepth: 0,
-    pendingEditFlags: null,
-    props: [],
-    events: [],
-    componentMeta: null,
-    hasStyleBlock: false,
-  };
+// ── Parser ──
 
+class Parser {
+  private stream: TokenStream;
+  private ctx: ParseContext;
 
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    const trimmed = line.trim();
+  constructor(stream: TokenStream) {
+    this.stream = stream;
+    this.ctx = this.createContext();
+  }
 
-    if (trimmed === "") continue;
+  private createContext(): ParseContext {
+    return {
+      state: "ROOT",
+      stateStack: [],
+      braceDepth: 0,
+      braceDepthStack: [],
+      elements: [],
+      wires: [],
+      codeTabs: [
+        {
+          id: "main",
+          type: "logic",
+          label: "Main",
+          icon: "📄",
+          graph: { elements: [], wires: [] },
+          variables: [],
+        },
+      ],
+      imports: [],
+      errors: [],
+      codeTabType: "logic",
+      currentComponent: "",
+      currentStore: "",
+      parsedStyleRules: [],
+      chainName: "",
+      chainElements: [],
+      chainWires: [],
+      viewParentStack: [],
+      braceDepth: 0,
+      pendingEditFlags: null,
+      props: [],
+      events: [],
+      componentMeta: null,
+      hasStyleBlock: false,
+    };
+  }
 
-    switch (ctx.state) {
-      case "ROOT":
-        parseRootLine(trimmed, ctx);
+  // ── Public entry ──
+
+  parse(): ParseResult {
+    this.parseFile();
+    this.finalize();
+    return this.buildResult();
+  }
+
+  // ── Top-level ──
+
+  private parseFile(): void {
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+
+      if (this.stream.isEof()) break;
+
+      const tok = this.stream.peek();
+
+      switch (tok.kind) {
+        case "COMMENT_LINE":
+          this.parseCommentDirective();
+          break;
+        case "IDENTIFIER":
+          this.parseRootIdentifier();
+          break;
+        case "EOF":
+          return;
+        default:
+          // Skip unexpected tokens at root
+          this.stream.consume();
+          break;
+      }
+    }
+  }
+
+  // ── Comment directives (ROOT) ──
+
+  private parseCommentDirective(): void {
+    const tok = this.stream.consume();
+    const text = tok.text.trim();
+
+    // @code-tab directive
+    if (text.startsWith("// @code-tab type=")) {
+      const m = text.match(/type=(logic|event)/);
+      if (m) {
+        this.ctx.codeTabType = m[1] as "logic" | "event";
+        this.ctx.codeTabs[0].type = this.ctx.codeTabType;
+      } else {
+        this.pushError(
+          "warning", "P001",
+          `Invalid @code-tab type value in: "${text}"`,
+          tok,
+        );
+      }
+      return;
+    }
+
+    // Component metadata comments
+    if (text.startsWith("// @component ")) {
+      const m = text.match(/\/\/\s*@component\s+(.+)/);
+      if (m) {
+        const meta = parseKeyValueAttrs(m[1]);
+        this.ctx.componentMeta = this.ctx.componentMeta || {};
+        if (meta.id !== undefined) this.ctx.componentMeta.id = meta.id;
+        if (meta.category !== undefined) this.ctx.componentMeta.category = meta.category;
+        if (meta.children !== undefined) this.ctx.componentMeta.children = meta.children === "true";
+        if (meta.description !== undefined) this.ctx.componentMeta.description = meta.description;
+      }
+      return;
+    }
+
+    if (text.startsWith("// @prop ")) {
+      const m = text.match(/\/\/\s*@prop\s+(.+)/);
+      if (m) {
+        const meta = parseKeyValueAttrs(m[1]);
+        if (meta.name) {
+          this.ctx.componentMeta = this.ctx.componentMeta || {};
+          this.ctx.componentMeta.propSchema = this.ctx.componentMeta.propSchema || ({} as Record<string, unknown>);
+          const schema: Record<string, unknown> = {};
+          if (meta.editor !== undefined) schema.editor = meta.editor;
+          if (meta.values !== undefined) schema.values = String(meta.values).split(",");
+          (this.ctx.componentMeta.propSchema as Record<string, unknown>)[meta.name] = schema;
+        }
+      }
+      return;
+    }
+
+    if (text.startsWith("// @event ")) {
+      const m = text.match(/\/\/\s*@event\s+(.+)/);
+      if (m) {
+        const meta = parseKeyValueAttrs(m[1]);
+        if (meta.name) {
+          this.ctx.componentMeta = this.ctx.componentMeta || {};
+          this.ctx.componentMeta.eventSchema = this.ctx.componentMeta.eventSchema || ({} as Record<string, unknown>);
+          const schema: Record<string, unknown> = {};
+          if (meta.payload !== undefined) schema.payload = meta.payload;
+          if (meta.description !== undefined) schema.description = meta.description;
+          (this.ctx.componentMeta.eventSchema as Record<string, unknown>)[meta.name] = schema;
+        }
+      }
+      return;
+    }
+
+    if (text.startsWith("// @style ")) {
+      const name = text.slice("// @style ".length).trim();
+      if (name) {
+        this.ctx.componentMeta = this.ctx.componentMeta || {};
+        this.ctx.componentMeta.styleProperties = this.ctx.componentMeta.styleProperties || [];
+        (this.ctx.componentMeta.styleProperties as string[]).push(name);
+      }
+      return;
+    }
+
+    // Chain-related comments are handled in IN_CHAIN state or IN_COMPONENT state
+    // Ignore other comments at root level
+  }
+
+  // ── Root-level identifiers (import, component, store) ──
+
+  private parseRootIdentifier(): void {
+    const kw = this.stream.peek().text;
+
+    if (kw === "import") {
+      // Consume the rest of this line as an import statement
+      this.stream.consume(); // "import"
+      let parts = "import";
+      while (
+        !this.stream.isEof() &&
+        this.stream.peek().kind !== "SEMICOLON" &&
+        this.stream.peek().kind !== "NEWLINE" &&
+        this.stream.peek().kind !== "EOF"
+      ) {
+        parts += this.stream.consume().text;
+      }
+      if (this.stream.peek().kind === "SEMICOLON") {
+        parts += this.stream.consume().text; // consume ";"
+      }
+      this.ctx.imports.push(parts);
+      return;
+    }
+
+    if (kw === "component") {
+      this.stream.consume(); // "component"
+      const nameTok = this.stream.expect("IDENTIFIER");
+      if (nameTok.kind === "EOF") {
+        this.pushError("error", "P002", "Invalid component declaration: missing name", nameTok);
+        return;
+      }
+      this.ctx.currentComponent = nameTok.text;
+      this.stream.expect("BRACE_OPEN");
+      this.pushState("IN_COMPONENT");
+      return;
+    }
+
+    if (kw === "store") {
+      this.stream.consume(); // "store"
+      const nameTok = this.stream.expect("IDENTIFIER");
+      if (nameTok.kind === "EOF") {
+        this.pushError("error", "P003", "Invalid store declaration: missing name", nameTok);
+        return;
+      }
+      this.ctx.currentStore = nameTok.text;
+      this.stream.expect("BRACE_OPEN");
+      this.pushState("IN_STORE");
+      return;
+    }
+
+    // Unknown identifier at root — skip
+    this.stream.consume();
+  }
+
+  // ── IN_COMPONENT ──
+
+  private parseComponentBody(): void {
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+
+      if (this.stream.isEof()) break;
+
+      const tok = this.stream.peek();
+
+      // Close component
+      if (tok.kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        this.popState();
+        return;
+      }
+
+      // Handle various component-level constructs
+      switch (tok.kind) {
+        case "COMMENT_LINE":
+          this.parseComponentComment();
+          break;
+        case "IDENTIFIER":
+          this.parseComponentKeyword();
+          break;
+        case "@":
+          this.parseAtStore();
+          break;
+        default:
+          // Skip unknown tokens
+          this.stream.consume();
+          break;
+      }
+    }
+  }
+
+  private parseComponentComment(): void {
+    const tok = this.stream.consume();
+    const text = tok.text.trim();
+
+    // @chain
+    if (text.startsWith("// @chain ")) {
+      const m = text.match(/\/\/\s*@chain\s+(\w+)/);
+      if (m) {
+        this.flushChain();
+        this.ctx.chainName = m[1];
+        this.ctx.chainElements = [];
+        this.ctx.chainWires = [];
+        this.pushState("IN_CHAIN");
+      }
+      return;
+    }
+
+    // Other comments in component body are ignored (same as old parser)
+  }
+
+  private parseComponentKeyword(): void {
+    const kw = this.stream.peek().text;
+
+    switch (kw) {
+      case "signal":
+        this.parseSignal();
         break;
-      case "IN_COMPONENT":
-        parseComponentLine(trimmed, line, ctx);
+      case "computed":
+        this.parseComputed();
         break;
-      case "IN_VIEW":
-        parseViewLine(trimmed, line, ctx);
+      case "prop":
+        this.parsePropDeclaration();
         break;
-      case "IN_FN":
-        parseFnBodyLine(trimmed, ctx);
+      case "event":
+        this.parseEventDeclaration();
         break;
-      case "IN_STORE":
-        parseStoreLine(trimmed, ctx);
+      case "fn":
+        this.parseFn();
         break;
-      case "IN_STYLE":
-        parseStyleBlockLine(trimmed, ctx);
+      case "view":
+        this.parseView();
         break;
-      case "IN_CHAIN":
-        parseChainLine(trimmed, ctx);
+      case "style":
+        this.parseStyleBlock();
         break;
       default:
-        ctx.errors.push({ severity: "warning", code: "P099", message: `Unhandled parser state: ${ctx.state}`, line: 0, col: 0, end_line: 0, end_col: 0 });
+        // Unknown keyword — skip token
+        this.stream.consume();
         break;
     }
   }
 
-  // Flush any remaining chain elements
-  flushChain(ctx);
+  private parseAtStore(): void {
+    this.stream.consume(); // @
+    const kw = this.stream.peek()?.text;
+    if (kw === "store") {
+      this.stream.consume(); // "store"
+      const nameTok = this.stream.expect("IDENTIFIER");
+      this.stream.expect("SEMICOLON");
+      this.ctx.elements.push(
+        this.codeblockEl(
+          `${this.ctx.currentComponent}.store.${nameTok.text}`,
+          "store",
+          { name: nameTok.text },
+        ),
+      );
+    }
+  }
 
-  // Parse styles from the captured AST (style blocks + view tree).
-  // Always run when elements exist — handles:
-  // - style { } blocks → class/variable StyleClass
-  // - inline style: { } attributes → inline ElementStyle
-  // - backward compat: no style block → extract style keys from element props
-  if (ctx.elements.length > 0) {
-    // Build a view tree node from element parent/child relationships
-    function buildViewTreeFromElements(el: ElementData): any {
-      // Parse style prop string into inline_style object
-      let inline_style: Record<string, string> | null = null;
-      const styleStr = el.props.style as string | undefined;
-      if (styleStr && typeof styleStr === "string") {
-        // Remove surrounding braces, split on ";", extract key:value pairs
-        const cleaned = styleStr.replace(/^\s*\{\s*/, "").replace(/\s*\}\s*$/, "");
-        if (cleaned.length > 0) {
-          const pairs: Record<string, string> = {};
-          for (const part of cleaned.split(";")) {
-            const trimmed = part.trim();
-            if (trimmed.length === 0) continue;
-            const colonIdx = trimmed.indexOf(":");
-            if (colonIdx > 0) {
-              pairs[trimmed.slice(0, colonIdx).trim()] = trimmed.slice(colonIdx + 1).trim();
+  // ── Signal ──
+
+  private parseSignal(): void {
+    this.stream.consume(); // "signal"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    this.stream.expect("COLON");
+    const typeTok = this.stream.expect("IDENTIFIER");
+    // Optional = default
+    if (this.stream.peek().kind === "EQUALS") {
+      // Skip default value expression
+      this.stream.consume();
+      this.skipUntilSemicolon();
+    }
+    this.stream.expect("SEMICOLON");
+
+    this.ctx.elements.push(
+      this.codeblockEl(
+        `${this.ctx.currentComponent}.signal.${nameTok.text}`,
+        "signal",
+        { name: nameTok.text, typeAnnotation: typeTok.text },
+      ),
+    );
+  }
+
+  // ── Computed ──
+
+  private parseComputed(): void {
+    this.stream.consume(); // "computed"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    this.stream.expect("COLON");
+    const typeTok = this.stream.expect("IDENTIFIER");
+    this.stream.expect("EQUALS");
+    // Skip the body expression until ;
+    this.skipUntilSemicolon();
+    this.stream.expect("SEMICOLON");
+
+    this.ctx.elements.push(
+      this.codeblockEl(
+        `${this.ctx.currentComponent}.computed.${nameTok.text}`,
+        "computed",
+        { name: nameTok.text, typeAnnotation: typeTok.text },
+      ),
+    );
+  }
+
+  // ── Prop declaration ──
+
+  private parsePropDeclaration(): void {
+    this.stream.consume(); // "prop"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    this.stream.expect("COLON");
+    const typeTok = this.stream.expect("IDENTIFIER");
+    let defaultVal: string | undefined;
+    if (this.stream.peek().kind === "EQUALS") {
+      this.stream.consume();
+      // Read the default value (could be a string or identifier)
+      const defTok = this.stream.peek();
+      if (defTok.kind === "STRING") {
+        defaultVal = this.stream.consume().text.slice(1, -1);
+      } else {
+        defaultVal = this.stream.consume().text;
+      }
+    }
+    this.stream.expect("SEMICOLON");
+
+    this.ctx.props.push({
+      name: nameTok.text,
+      type: typeTok.text,
+      default: defaultVal || undefined,
+    });
+  }
+
+  // ── Event declaration ──
+
+  private parseEventDeclaration(): void {
+    this.stream.consume(); // "event"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    this.stream.expect("SEMICOLON");
+    this.ctx.events.push({ name: nameTok.text });
+  }
+
+  // ── Fn body (skip by brace counting) ──
+
+  private parseFn(): void {
+    this.stream.consume(); // "fn"
+    // Skip fn signature tokens until the opening BRACE_OPEN that starts the body
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") {
+        this.stream.consume();
+        break;
+      }
+      this.stream.consume();
+    }
+    this.pushState("IN_FN");
+  }
+
+  private parseFnBody(): void {
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const tok = this.stream.consume();
+      if (tok.kind === "BRACE_OPEN") depth++;
+      else if (tok.kind === "BRACE_CLOSE") depth--;
+    }
+    this.popState();
+  }
+
+  // ── Store body (skip by brace counting) ──
+
+  private parseStoreBody(): void {
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const tok = this.stream.consume();
+      if (tok.kind === "BRACE_OPEN") depth++;
+      else if (tok.kind === "BRACE_CLOSE") depth--;
+    }
+    this.popState();
+  }
+
+  // ── View body ──
+
+  private parseView(): void {
+    this.stream.consume(); // "view"
+    this.stream.expect("BRACE_OPEN");
+    this.ctx.viewParentStack = [];
+    this.pushState("IN_VIEW");
+  }
+
+  private parseViewBody(): void {
+    this.stream.skipNewlines();
+
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+
+      // End of view block
+      if (tok.kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        this.popState();
+        return;
+      }
+
+      // Closing tag
+      if (tok.kind === "ANGLE_OPEN" && this.stream.peek(1)?.kind === "SLASH") {
+        this.stream.consume(); // ANGLE_OPEN
+        this.stream.consume(); // SLASH
+        this.stream.consume(); // IDENTIFIER (tag name)
+        // Consume optional ANGLE_CLOSE
+        if (this.stream.peek().kind === "ANGLE_CLOSE") {
+          this.stream.consume();
+        }
+        if (this.ctx.viewParentStack.length > 0) {
+          this.ctx.viewParentStack.pop();
+        }
+        this.stream.skipNewlines();
+        continue;
+      }
+
+      // Opening tag
+      if (tok.kind === "ANGLE_OPEN") {
+        this.parseViewElement();
+        this.stream.skipNewlines();
+        continue;
+      }
+
+      // Comments in view
+      if (tok.kind === "COMMENT_LINE") {
+        this.parseViewComment();
+        this.stream.skipNewlines();
+        continue;
+      }
+
+      // Text content on its own line
+      if (tok.kind === "IDENTIFIER" || tok.kind === "TEXT" || tok.kind === "STRING") {
+        this.parseViewTextContent();
+        this.stream.skipNewlines();
+        continue;
+      }
+
+      // Skip any other unexpected tokens
+      this.stream.consume();
+      this.stream.skipNewlines();
+    }
+  }
+
+  private parseViewComment(): void {
+    const tok = this.stream.consume();
+    const text = tok.text.trim();
+
+    // @edit annotation
+    if (text.startsWith("// @edit")) {
+      this.ctx.pendingEditFlags = text.slice("// @edit".length).trim() || null;
+    }
+    // Other view comments are ignored (old parser behavior)
+  }
+
+  private parseViewTextContent(): void {
+    // Collect all textual tokens on this line as text content
+    let text = "";
+    while (
+      !this.stream.isEof() &&
+      this.stream.peek().kind !== "NEWLINE" &&
+      this.stream.peek().kind !== "BRACE_CLOSE" &&
+      this.stream.peek().kind !== "ANGLE_OPEN"
+    ) {
+      text += this.stream.consume().text;
+    }
+    text = text.trim();
+
+    if (text && !text.startsWith("//") && !text.startsWith("<")) {
+      // Attach as label prop to the current parent element
+      const parentId =
+        this.ctx.viewParentStack.length > 0
+          ? this.ctx.viewParentStack[this.ctx.viewParentStack.length - 1]
+          : null;
+      if (parentId) {
+        const parent = this.ctx.elements.find((e) => e.id === parentId);
+        if (parent && !parent.props.label) {
+          parent.props.label = text;
+        }
+      }
+    }
+  }
+
+  // ── View element ──
+
+  private parseViewElement(): void {
+    const indent = this.stream.currentIndent(); // col of first token on this line
+
+    this.stream.consume(); // ANGLE_OPEN (<)
+    const tagTok = this.stream.expect("IDENTIFIER");
+    const tag = tagTok.text;
+
+    // Parse attributes
+    const attrs = this.parseViewAttributes();
+
+    // Generate element ID
+    const id = attrs.id !== null
+      ? attrs.id
+      : `${this.ctx.currentComponent}.${tag}.${this.ctx.elements.length}`;
+
+    // Check for duplicate IDs
+    const el = this.createElement(id, tag, attrs, indent);
+
+    // @edit flags
+    if (this.ctx.pendingEditFlags) {
+      if (this.ctx.pendingEditFlags.includes("folded")) el.isFolded = true;
+      if (this.ctx.pendingEditFlags.includes("render=canvas")) el.renderMode = "canvas";
+      this.ctx.pendingEditFlags = null;
+    }
+
+    this.ctx.elements.push(el);
+
+    // If not self-closing, push to parent stack and check for same-line text content + closing tag
+    if (!attrs.isSelfClosing) {
+      this.ctx.viewParentStack.push(el.id);
+
+      // Check for text content between > and </ on same line
+      let textTokens: string[] = [];
+      while (
+        !this.stream.isEof() &&
+        this.stream.peek().kind !== "NEWLINE" &&
+        this.stream.peek().kind !== "BRACE_CLOSE"
+      ) {
+        if (
+          this.stream.peek().kind === "ANGLE_OPEN" &&
+          this.stream.peek(1)?.kind === "SLASH"
+        ) {
+          // Closing tag </tagname> on same line — consume it and pop parent
+          this.stream.consume(); // ANGLE_OPEN
+          this.stream.consume(); // SLASH
+          this.stream.consume(); // IDENTIFIER
+          if (this.stream.peek().kind === "ANGLE_CLOSE") {
+            this.stream.consume();
+          }
+          this.ctx.viewParentStack.pop();
+
+          // Set text content if we collected any
+          const textContent = textTokens.join("").trim();
+          if (textContent && !el.props.label) {
+            el.props.label = textContent;
+          }
+          return;
+        }
+        // Collect token as text content
+        textTokens.push(this.stream.consume().text);
+      }
+
+      // If no closing tag on same line, set text content from any collected text
+      const textContent = textTokens.join("").trim();
+      if (textContent && !el.props.label) {
+        el.props.label = textContent;
+      }
+    }
+  }
+
+  /**
+   * Parse view element attributes from the token stream.
+   * Handles:
+   *   id="value"
+   *   class: name1 name2
+   *   @event={handler}
+   *   style: { key: val, ... }
+   *   name="value"
+   *   bind:name={value}
+   * Also detects self-closing tags.
+   */
+  private parseViewAttributes(): ViewElementAttrs {
+    const result: ViewElementAttrs = {
+      id: null,
+      className: "",
+      attrs: {},
+      events: {},
+      styleStr: "",
+      isSelfClosing: false,
+    };
+
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+
+      // End of tag
+      if (tok.kind === "ANGLE_CLOSE") {
+        this.stream.consume();
+        break;
+      }
+
+      if (tok.kind === "SELF_CLOSING") {
+        this.stream.consume();
+        result.isSelfClosing = true;
+        break;
+      }
+
+      // Event binding: @name={handler}
+      if (tok.kind === "AT") {
+        this.stream.consume();
+        const eventName = this.stream.expect("IDENTIFIER").text;
+        this.stream.expect("EQUALS");
+        this.stream.expect("BRACE_OPEN");
+        const handlerName = this.stream.expect("IDENTIFIER").text;
+        this.stream.expect("BRACE_CLOSE");
+        result.events[eventName] = handlerName;
+        continue;
+      }
+
+      // Identifier-based attributes
+      if (tok.kind === "IDENTIFIER") {
+        const attrName = this.stream.consume().text;
+
+        // bind: prefix
+        if (attrName === "bind") {
+          this.stream.expect("COLON");
+          const bindName = this.stream.expect("IDENTIFIER").text;
+          this.stream.expect("EQUALS");
+          this.stream.expect("BRACE_OPEN");
+          const bindValue = this.stream.expect("IDENTIFIER").text;
+          this.stream.expect("BRACE_CLOSE");
+          result.attrs[`bind:${bindName}`] = bindValue;
+          continue;
+        }
+
+        // There must be EQUALS or COLON after the attribute name
+        const next = this.stream.peek();
+        if (next.kind === "EQUALS") {
+          this.stream.consume();
+
+          // Check if this is an identifier-value (non-string) or string
+          const valTok = this.stream.peek();
+
+          // Stop at end of tag tokens
+          if (valTok.kind === "ANGLE_CLOSE" || valTok.kind === "SELF_CLOSING") {
+            break;
+          }
+
+          if (valTok.kind === "BRACE_OPEN") {
+            // {value} binding syntax
+            this.stream.consume();
+            const v = this.stream.expect("IDENTIFIER").text;
+            this.stream.expect("BRACE_CLOSE");
+            if (attrName === "id") {
+              result.id = v;
+            } else if (attrName !== "class") {
+              result.attrs[attrName] = v;
             }
+            continue;
           }
-          if (Object.keys(pairs).length > 0) {
-            inline_style = pairs;
+
+          if (valTok.kind === "STRING") {
+            const strVal = this.stream.consume().text.slice(1, -1); // strip quotes
+            if (attrName === "id") {
+              result.id = strVal;
+            } else if (attrName !== "class") {
+              result.attrs[attrName] = strVal;
+            }
+            continue;
           }
+
+          // Fallback: consume tokens as value
+          let value = "";
+          while (
+            !this.stream.isEof() &&
+            this.stream.peek().kind !== "ANGLE_CLOSE" &&
+            this.stream.peek().kind !== "SELF_CLOSING" &&
+            this.stream.peek().kind !== "NEWLINE"
+          ) {
+            value += this.stream.consume().text;
+          }
+          if (attrName === "id") {
+            result.id = value;
+          } else if (attrName !== "class") {
+            result.attrs[attrName] = value;
+          }
+          continue;
+        }
+
+        if (next.kind === "COLON") {
+          this.stream.consume();
+
+          // style: { ... }
+          if (attrName === "style") {
+            result.styleStr = this.parseStyleAttribute();
+            continue;
+          }
+
+          // class: name1 name2 ...
+          if (attrName === "class") {
+            result.className = this.parseClassName();
+            continue;
+          }
+
+          // Other colon-prefixed attributes (e.g. bind: is handled above, but
+          // there could be others like `prop: value` syntax)
+          let value = "";
+          while (
+            !this.stream.isEof() &&
+            this.stream.peek().kind !== "ANGLE_CLOSE" &&
+            this.stream.peek().kind !== "SELF_CLOSING" &&
+            this.stream.peek().kind !== "NEWLINE" &&
+            this.stream.peek().kind !== "AT" &&
+            !(this.stream.peek().kind === "IDENTIFIER" && isAttrBound(this.stream.peek(1)))
+          ) {
+            value += this.stream.consume().text;
+          }
+          result.attrs[`${attrName}:`] = value.trim();
+          continue;
         }
       }
 
-      return {
-        id: el.id,
-        props: { ...el.props, class: (el.props.className as string) || "" },
-        inline_style,
-        children: (el.children || [])
-          .map((cid: string) => ctx.elements.find((e: ElementData) => e.id === cid))
-          .filter((c: ElementData | undefined): c is ElementData => c !== undefined)
-          .map(buildViewTreeFromElements),
-      };
+      // Unknown token — stop
+      break;
     }
-    const rootElements = ctx.elements.filter(
-      (e: ElementData) => e.nodeType === "view" && !e.parentId,
-    );
-    if (rootElements.length > 0) {
-      const elementMap = new Map(ctx.elements.map((e: ElementData) => [e.id, e]));
-      const componentNode = {
-        // Pass undefined when no style block existed (backward compat), empty array when it did
-        style: ctx.hasStyleBlock ? ctx.parsedStyleRules : undefined,
-        view: buildViewTreeFromElements(rootElements[0]),
-      };
-      parseStylesFromAST(componentNode, elementMap);
-    }
+
+    return result;
   }
 
-  return {
-    designElements: ctx.elements.length > 0 ? ctx.elements : null,
-    designWires: ctx.wires,
-    codeTabs: ctx.codeTabs,
-    imports: ctx.imports,
-    errors: ctx.errors,
-    componentMeta: ctx.componentMeta,
-    props: ctx.props.length > 0 ? ctx.props : undefined,
-    events: ctx.events.length > 0 ? ctx.events : undefined,
-  };
-}
-
-// ── ROOT state handlers ──
-
-const _COMPONENT_META_RE = /^\/\/\s*@component\s+(.+)/;
-const _PROP_META_RE = /^\/\/\s*@prop\s+(.+)/;
-const _EVENT_META_RE = /^\/\/\s*@event\s+(.+)/;
-const _STYLE_META_RE = /^\/\/\s*@style\s+(.+)/;
-
-function parseRootLine(trimmed: string, ctx: ParseContext): void {
-  // Component metadata comments (replaces old *.meta.json)
-  // @component id=... category=... children=... description=...
-  if (trimmed.startsWith("// @component ")) {
-    const m = trimmed.match(/^\/\/\s*@component\s+(.+)/);
-    if (m) {
-      const meta = parseKeyValueAttrs(m[1]);
-      ctx.componentMeta = ctx.componentMeta || {};
-      if (meta.id !== undefined) ctx.componentMeta.id = meta.id;
-      if (meta.category !== undefined) ctx.componentMeta.category = meta.category;
-      if (meta.children !== undefined) ctx.componentMeta.children = meta.children === "true";
-      if (meta.description !== undefined) ctx.componentMeta.description = meta.description;
+  /**
+   * Parse a `style: { key: val, key2: "val2" }` attribute.
+   * Returns the reconstructed style string in the format the old parser used:
+   * "{ key: val; key2: val2 }" (comma → semicolon, quotes stripped).
+   */
+  private parseStyleAttribute(): string {
+    this.stream.expect("BRACE_OPEN");
+    const styleTokens: Token[] = [];
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const t = this.stream.consume();
+      if (t.kind === "BRACE_OPEN") depth++;
+      else if (t.kind === "BRACE_CLOSE") depth--;
+      if (depth > 0) styleTokens.push(t);
     }
-    return;
+
+    // Reconstruct style content from tokens
+    const styleContent = styleTokens.map((t) => t.text).join("").trim();
+
+    // Same conversion as the old parser: comma → semicolon, strip quotes from values
+    const semiStyle = styleContent
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => part.replace(/:\s*"([^"]*)"/g, ": $1"))
+      .join("; ");
+
+    return `{ ${semiStyle} }`;
   }
-  // @prop name=... editor=... values=...
-  if (trimmed.startsWith("// @prop ")) {
-    const m = trimmed.match(/^\/\/\s*@prop\s+(.+)/);
-    if (m) {
-      const meta = parseKeyValueAttrs(m[1]);
-      if (meta.name) {
-        ctx.componentMeta = ctx.componentMeta || {};
-        ctx.componentMeta.propSchema = ctx.componentMeta.propSchema || ({} as Record<string, unknown>);
-        const schema: Record<string, unknown> = {};
-        if (meta.editor !== undefined) schema.editor = meta.editor;
-        if (meta.values !== undefined) schema.values = String(meta.values).split(",");
-        (ctx.componentMeta.propSchema as Record<string, unknown>)[meta.name] = schema;
+
+  /**
+   * Parse class names after `class:` — collects identifier fragments
+   * joined by hyphens and spaces.
+   */
+  private parseClassName(): string {
+    const classes: string[] = [];
+
+    while (!this.stream.isEof()) {
+      // Skip any stray whitespace text
+      while (this.stream.peek()?.kind === "TEXT" && /^\s+$/.test(this.stream.peek()!.text)) {
+        this.stream.consume();
+      }
+
+      const t = this.stream.peek();
+
+      if (t.kind === "IDENTIFIER") {
+        // Stop if this identifier is the start of another attribute
+        if (isAttrBound(this.stream.peek(1))) {
+          break;
+        }
+
+        // Start a class name
+        let name = this.stream.consume().text;
+
+        // Handle hyphenated continuation: my-class
+        while (
+          this.stream.peek()?.kind === "TEXT" &&
+          this.stream.peek()?.text === "-"
+        ) {
+          this.stream.consume(); // consume "-"
+          if (this.stream.peek()?.kind === "IDENTIFIER") {
+            name += "-" + this.stream.consume().text;
+          } else {
+            break;
+          }
+        }
+
+        classes.push(name);
+      } else if (t.kind === "TEXT" && t.text === "-") {
+        // Stray hyphen — skip
+        this.stream.consume();
+      } else {
+        // End of class list — stop at end-of-tag tokens
+        break;
       }
     }
-    return;
-  }
-  // @event name=... payload=... description=...
-  if (trimmed.startsWith("// @event ")) {
-    const m = trimmed.match(/^\/\/\s*@event\s+(.+)/);
-    if (m) {
-      const meta = parseKeyValueAttrs(m[1]);
-      if (meta.name) {
-        ctx.componentMeta = ctx.componentMeta || {};
-        ctx.componentMeta.eventSchema = ctx.componentMeta.eventSchema || ({} as Record<string, unknown>);
-        const schema: Record<string, unknown> = {};
-        if (meta.payload !== undefined) schema.payload = meta.payload;
-        if (meta.description !== undefined) schema.description = meta.description;
-        (ctx.componentMeta.eventSchema as Record<string, unknown>)[meta.name] = schema;
-      }
-    }
-    return;
-  }
-  // @style <name>
-  if (trimmed.startsWith("// @style ")) {
-    const name = trimmed.slice("// @style ".length).trim();
-    if (name) {
-      ctx.componentMeta = ctx.componentMeta || {};
-      ctx.componentMeta.styleProperties = ctx.componentMeta.styleProperties || [];
-      (ctx.componentMeta.styleProperties as string[]).push(name);
-    }
-    return;
+
+    return classes.join(" ");
   }
 
-  if (trimmed.startsWith("// @omni-file type=") || trimmed.startsWith("// @code-tab type=")) {
-    const m = trimmed.match(/@(?:omni-file|code-tab)\s+type=(logic|event)/);
-    if (m) {
-      ctx.codeTabType = m[1] as "logic" | "event";
-      ctx.codeTabs[0].type = ctx.codeTabType;
-    } else {
-      ctx.errors.push({ severity: "warning", code: "P001", message: `Invalid @omni-file type value in: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
-    }
-    return;
+  // ── Style block ──
+
+  private parseStyleBlock(): void {
+    this.stream.consume(); // "style"
+    this.stream.expect("BRACE_OPEN");
+    this.ctx.hasStyleBlock = true;
+    this.pushState("IN_STYLE");
   }
-  if (trimmed.startsWith("import ")) {
-    ctx.imports.push(trimmed);
-    return;
-  }
-  if (trimmed.startsWith("component ")) {
-    const m = trimmed.match(/^component\s+(\w+)/);
-    if (m) {
-      ctx.currentComponent = m[1];
-      ctx.braceDepth = 1;
-      pushState(ctx, "IN_COMPONENT");
-    } else {
-      ctx.errors.push({ severity: "error", code: "P002", message: `Invalid component declaration: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
+
+  private parseStyleBlockBody(): void {
+    this.stream.skipNewlines();
+
+    while (!this.stream.isEof()) {
+      // Collect ALL tokens on this line until NEWLINE or EOF.
+      // CSS rules like `.card { ... }` have their own BRACE_CLOSE on the same line.
+      // The style block's closing `}` will appear on its own line (after a NEWLINE).
+      const lineTokens: Token[] = [];
+      while (
+        !this.stream.isEof() &&
+        this.stream.peek().kind !== "NEWLINE"
+      ) {
+        lineTokens.push(this.stream.consume());
+      }
+
+      // If the line is just a BRACE_CLOSE, it's the end of the style block
+      if (
+        lineTokens.length === 1 &&
+        lineTokens[0].kind === "BRACE_CLOSE"
+      ) {
+        this.popState();
+        return;
+      }
+
+      // Reconstruct the line from tokens and try to match a CSS rule
+      const line = lineTokens.map((t) => t.text).join("");
+
+      // Use the same regex as the old parser to extract CSS rules
+      const ruleMatch = line.match(/^\.([\w-]+)\s*\{\s*(.*?)\s*\}$/);
+      if (ruleMatch) {
+        const className = ruleMatch[1];
+        const propsStr = ruleMatch[2];
+        const properties: Record<string, string> = {};
+        for (const pair of propsStr.split(";").filter((s) => s.trim().length > 0)) {
+          const colonIdx = pair.indexOf(":");
+          if (colonIdx > 0) {
+            properties[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
+          }
+        }
+        this.ctx.parsedStyleRules.push({ class_name: className, properties });
+      }
+
+      this.stream.skipNewlines();
     }
-    return;
   }
-  if (trimmed.startsWith("store ")) {
-    const m = trimmed.match(/^store\s+(\w+)/);
-    if (m) {
-      ctx.currentStore = m[1];
-      ctx.braceDepth = 1;
-      pushState(ctx, "IN_STORE");
-    } else {
-      ctx.errors.push({ severity: "error", code: "P003", message: `Invalid store declaration: "${trimmed}"`, line: 0, col: 0, end_line: 0, end_col: 0 });
+
+  // ── Chain block ──
+
+  private parseChainBody(): void {
+    this.stream.skipNewlines();
+
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+
+      // Chain separator or end of file
+      if (tok.kind === "EOF") break;
+
+      if (tok.kind === "COMMENT_LINE") {
+        const text = tok.text.trimStart();
+
+        // Chain separator
+        if (text.startsWith("// ═")) {
+          this.flushChain();
+          this.stream.consume();
+          this.popState();
+          return;
+        }
+
+        // @node
+        if (text.startsWith("//   @node ") || text.startsWith("// @node ")) {
+          this.stream.consume();
+          const parts = text.replace(/^\/\/\s*/, "").trim().split(/\s+/);
+          const nodeId = parts[1];
+          const nodeTag = parts[2];
+          const attrs: Record<string, string> = {};
+          let posX = 0, posY = 0;
+          for (let i = 3; i < parts.length; i++) {
+            if (parts[i].startsWith("pos=")) {
+              const coords = parts[i].slice(4).split(",");
+              posX = parseInt(coords[0]) || 0;
+              posY = parseInt(coords[1]) || 0;
+            } else if (parts[i].includes("=")) {
+              const [k, v] = parts[i].split("=");
+              attrs[k] = v;
+            }
+          }
+          this.ctx.chainElements.push({
+            id: nodeId,
+            nodeType: "codeblock",
+            tag: nodeTag,
+            props: attrs,
+            position: { x: posX, y: posY },
+            children: [],
+            parentId: null,
+          });
+          this.stream.skipNewlines();
+          continue;
+        }
+
+        // @wire
+        if (text.startsWith("//   @wire ") || text.startsWith("// @wire ")) {
+          this.stream.consume();
+          const wireMatch = text.match(/@wire\s+(\S+)\s+(\S+)\s*->\s*(\S+)/);
+          if (wireMatch) {
+            const [, wireId, from, to] = wireMatch;
+            const [fromId, fromPort = ""] = from.includes(".") ? from.split(".") : [from, ""];
+            const [toId, toPort = ""] = to.includes(".") ? to.split(".") : [to, ""];
+            this.ctx.chainWires.push({ id: wireId, fromId, fromPort, toId, toPort });
+          }
+          this.stream.skipNewlines();
+          continue;
+        }
+
+        // Other comment in chain — skip (old parser ignores)
+        this.stream.consume();
+        this.stream.skipNewlines();
+        continue;
+      }
+
+      // Non-comment tokens in chain — skip
+      this.stream.consume();
+      this.stream.skipNewlines();
     }
-    return;
+  }
+
+  // ── State machine helpers ──
+
+  private pushState(state: ParserState): void {
+    this.ctx.stateStack.push(this.ctx.state);
+    this.ctx.braceDepthStack.push(this.ctx.braceDepth);
+    this.ctx.state = state;
+    // Entering a new block: initial brace depth is 1 (the opening { was just consumed)
+    this.ctx.braceDepth = 1;
+
+    // Immediately start parsing the new state's body
+    switch (state) {
+      case "IN_COMPONENT":
+        this.parseComponentBody();
+        break;
+      case "IN_VIEW":
+        this.parseViewBody();
+        break;
+      case "IN_FN":
+        this.parseFnBody();
+        break;
+      case "IN_STORE":
+        this.parseStoreBody();
+        break;
+      case "IN_STYLE":
+        this.parseStyleBlockBody();
+        break;
+      case "IN_CHAIN":
+        this.parseChainBody();
+        break;
+    }
+  }
+
+  private popState(): void {
+    this.ctx.state = this.ctx.stateStack.pop() || "ROOT";
+    this.ctx.braceDepth = this.ctx.braceDepthStack.pop() || 0;
+  }
+
+  // ── Helpers ──
+
+  private skipUntilSemicolon(): void {
+    while (
+      !this.stream.isEof() &&
+      this.stream.peek().kind !== "SEMICOLON" &&
+      this.stream.peek().kind !== "NEWLINE"
+    ) {
+      this.stream.consume();
+    }
+  }
+
+  private pushError(
+    severity: string,
+    code: string,
+    message: string,
+    tok: Token,
+  ): void {
+    this.ctx.errors.push({
+      severity,
+      code,
+      message,
+      line: tok.line,
+      col: tok.col,
+      end_line: tok.line,
+      end_col: tok.col + tok.text.length,
+    });
+  }
+
+  /**
+   * Create an ElementData for a view element with parent inference by indent.
+   */
+  private createElement(
+    id: string,
+    tag: string,
+    attrs: ViewElementAttrs,
+    indent: number,
+  ): ElementData {
+    // Auto-rename duplicate IDs
+    let finalId = id;
+    if (this.ctx.elements.some((e) => e.id === finalId)) {
+      log.warn(`Duplicate element ID "${finalId}"; assigning unique ID`);
+      let counter = 1;
+      let newId = `${finalId}__dup${counter}`;
+      while (this.ctx.elements.some((e) => e.id === newId)) {
+        counter++;
+        newId = `${finalId}__dup${counter}`;
+      }
+      finalId = newId;
+    }
+
+    // Parent inference by indent (same as old parser)
+    while (this.ctx.viewParentStack.length > 0) {
+      const parentId =
+        this.ctx.viewParentStack[this.ctx.viewParentStack.length - 1];
+      const parent = this.ctx.elements.find((e) => e.id === parentId);
+      if (
+        parent &&
+        this.getElementIndent(parent) !== undefined &&
+        this.getElementIndent(parent)! >= indent
+      ) {
+        this.ctx.viewParentStack.pop();
+      } else {
+        break;
+      }
+    }
+
+    const parentId =
+      this.ctx.viewParentStack.length > 0
+        ? this.ctx.viewParentStack[this.ctx.viewParentStack.length - 1]
+        : null;
+
+    // Detect custom component references
+    const isPascal = /^[A-Z]/.test(tag);
+    const isCustom =
+      isPascal && !!useComponentRegistry.getState().definitions[tag];
+
+    const el: ElementData = {
+      id: finalId,
+      nodeType: "view",
+      tag,
+      props: {
+        ...attrs.attrs,
+        ...attrs.events,
+        ...(attrs.className ? { className: attrs.className } : {}),
+      },
+      children: [],
+      parentId,
+      ...(isCustom ? { componentRef: tag } : {}),
+    };
+
+    // Set parent/child relationships
+    if (parentId) {
+      const parent = this.ctx.elements.find((e) => e.id === parentId);
+      if (parent) parent.children.push(finalId);
+    }
+
+    // Store indent on the element (for parent inference)
+    this.setElementIndent(el, indent);
+
+    // Handle inline style if present
+    if (attrs.styleStr) {
+      el.props.style = attrs.styleStr;
+    }
+
+    return el;
+  }
+
+  // ── Element indent tracking (replaces old WeakMap) ──
+
+  private indentMap = new Map<string, number>();
+
+  private getElementIndent(el: ElementData): number | undefined {
+    return this.indentMap.get(el.id);
+  }
+
+  private setElementIndent(el: ElementData, indent: number): void {
+    this.indentMap.set(el.id, indent);
+  }
+
+  // ── Chain flush ──
+
+  private flushChain(): void {
+    if (this.ctx.chainElements.length === 0) return;
+    const tab =
+      this.ctx.codeTabs.find((t) => t.id === "main") || this.ctx.codeTabs[0];
+    for (const el of this.ctx.chainElements) tab.graph.elements.push(el);
+    for (const w of this.ctx.chainWires) tab.graph.wires.push(w);
+    this.ctx.chainElements = [];
+    this.ctx.chainWires = [];
+  }
+
+  // ── Codeblock element factory ──
+
+  private codeblockEl(
+    id: string,
+    tag: string,
+    props: Record<string, unknown>,
+  ): ElementData {
+    return {
+      id,
+      nodeType: "codeblock",
+      tag,
+      props: props as Record<string, unknown>,
+      children: [],
+      parentId: null,
+    };
+  }
+
+  // ── Finalization (post-processing) ──
+
+  private finalize(): void {
+    this.flushChain();
+
+    // Parse styles from captured AST (style blocks + view tree).
+    // Same logic as the old parser.
+    if (this.ctx.elements.length > 0) {
+      function buildViewTreeFromElements(
+        el: ElementData,
+        elements: ElementData[],
+      ): any {
+        let inline_style: Record<string, string> | null = null;
+        const styleStr = el.props.style as string | undefined;
+        if (styleStr && typeof styleStr === "string") {
+          const cleaned = styleStr
+            .replace(/^\s*\{\s*/, "")
+            .replace(/\s*\}\s*$/, "");
+          if (cleaned.length > 0) {
+            const pairs: Record<string, string> = {};
+            for (const part of cleaned.split(";")) {
+              const t = part.trim();
+              if (t.length === 0) continue;
+              const colonIdx = t.indexOf(":");
+              if (colonIdx > 0) {
+                pairs[t.slice(0, colonIdx).trim()] = t.slice(colonIdx + 1).trim();
+              }
+            }
+            if (Object.keys(pairs).length > 0) {
+              inline_style = pairs;
+            }
+          }
+        }
+
+        return {
+          id: el.id,
+          props: { ...el.props, class: (el.props.className as string) || "" },
+          inline_style,
+          children: (el.children || [])
+            .map((cid: string) =>
+              elements.find((e: ElementData) => e.id === cid),
+            )
+            .filter((c: ElementData | undefined): c is ElementData => c !== undefined)
+            .map((c: ElementData) => buildViewTreeFromElements(c, elements)),
+        };
+      }
+
+      const rootElements = this.ctx.elements.filter(
+        (e: ElementData) => e.nodeType === "view" && !e.parentId,
+      );
+      if (rootElements.length > 0) {
+        const elementMap = new Map(
+          this.ctx.elements.map((e: ElementData) => [e.id, e]),
+        );
+        const componentNode = {
+          style: this.ctx.hasStyleBlock
+            ? this.ctx.parsedStyleRules
+            : undefined,
+          view: buildViewTreeFromElements(rootElements[0], this.ctx.elements),
+        };
+        parseStylesFromAST(componentNode, elementMap);
+      }
+    }
+  }
+
+  // ── Build result ──
+
+  private buildResult(): ParseResult {
+    return {
+      designElements:
+        this.ctx.elements.length > 0 ? this.ctx.elements : null,
+      designWires: this.ctx.wires,
+      codeTabs: this.ctx.codeTabs,
+      imports: this.ctx.imports,
+      errors: this.ctx.errors,
+      componentMeta: this.ctx.componentMeta,
+      props: this.ctx.props.length > 0 ? this.ctx.props : undefined,
+      events: this.ctx.events.length > 0 ? this.ctx.events : undefined,
+    };
   }
 }
+
+// ── Parsed attribute shape ──
+
+interface ViewElementAttrs {
+  id: string | null;
+  className: string;
+  attrs: Record<string, string>;
+  events: Record<string, string>;
+  styleStr: string;
+  isSelfClosing: boolean;
+}
+
+// ── Utility functions ──
 
 /**
  * Parse key=value pairs from a string.
@@ -298,381 +1345,10 @@ function parseKeyValueAttrs(input: string): Record<string, string> {
   return result;
 }
 
-// ── IN_COMPONENT state handlers ──
-
-function parseComponentLine(trimmed: string, line: string, ctx: ParseContext): void {
-  // Track brace depth
-  if (trimmed === "}") {
-    ctx.braceDepth--;
-    if (ctx.braceDepth <= 0) {
-      popState(ctx);
-      return;
-    }
-  }
-  if (trimmed.endsWith("{")) ctx.braceDepth++;
-
-  // @store
-  if (trimmed.startsWith("@store ")) {
-    const m = trimmed.match(/@store\s+(\w+)/);
-    if (m) ctx.elements.push(codeblockEl(`${ctx.currentComponent}.store.${m[1]}`, "store", { name: m[1] }));
-    return;
-  }
-
-  // signal
-  if (trimmed.startsWith("signal ")) {
-    const m = trimmed.match(/signal\s+(\w+):\s*(\w+)\s*=\s*(.+);/);
-    if (m) {
-      ctx.elements.push(codeblockEl(`${ctx.currentComponent}.signal.${m[1]}`, "signal", {
-        name: m[1], typeAnnotation: m[2],
-      }));
-    }
-    return;
-  }
-
-  // computed
-  if (trimmed.startsWith("computed ")) {
-    const m = trimmed.match(/computed\s+(\w+):\s*(\w+)\s*=\s*(.+);/);
-    if (m) {
-      ctx.elements.push(codeblockEl(`${ctx.currentComponent}.computed.${m[1]}`, "computed", {
-        name: m[1], typeAnnotation: m[2],
-      }));
-    }
-    return;
-  }
-
-  // prop (e.g. `prop title: String = ""`)
-  if (trimmed.startsWith("prop ")) {
-    const m = trimmed.match(/prop\s+(\w+):\s*(\w+)(?:\s*=\s*(.+?))?\s*;/);
-    if (m) {
-      ctx.props.push({ name: m[1], type: m[2], default: m[3]?.replace(/^"|"$/g, "") || undefined });
-    }
-    return;
-  }
-
-  // event (e.g. `event onAction`)
-  if (trimmed.startsWith("event ")) {
-    const m = trimmed.match(/event\s+(\w+);/);
-    if (m) {
-      ctx.events.push({ name: m[1] });
-    }
-    return;
-  }
-
-  // fn
-  if (trimmed.startsWith("fn ")) {
-    pushState(ctx, "IN_FN");
-    return;
-  }
-
-  // view
-  if (trimmed === "view {") {
-    pushState(ctx, "IN_VIEW");
-    ctx.viewParentStack = [];
-    return;
-  }
-
-  // style
-  if (trimmed === "style {") {
-    ctx.hasStyleBlock = true;
-    pushState(ctx, "IN_STYLE");
-    return;
-  }
-
-  // @chain
-  if (trimmed.startsWith("// @chain ")) {
-    const m = trimmed.match(/\/\/\s*@chain\s+(\w+)/);
-    if (m) {
-      ctx.chainName = m[1];
-      ctx.chainElements = [];
-      ctx.chainWires = [];
-      pushState(ctx, "IN_CHAIN");
-    }
-    return;
-  }
-}
-
-// ── IN_VIEW state handlers ──
-
-function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
-  if (trimmed === "}") {
-    popState(ctx);
-    return;
-  }
-
-  // @edit annotation
-  if (trimmed.startsWith("// @edit")) {
-    ctx.pendingEditFlags = trimmed.slice("// @edit".length).trim() || null;
-    return;
-  }
-
-  // Opening tag
-  if (trimmed.startsWith("<") && !trimmed.startsWith("</")) {
-    const indent = line.length - line.trimStart().length;
-    const el = parseElementLine(trimmed, ctx);
-
-    // Auto-rename duplicate IDs to avoid parent-child tree corruption
-    if (ctx.elements.some((e) => e.id === el.id)) {
-      log.warn(`Duplicate element ID "${el.id}" at line — "${trimmed}"; assigning unique ID`);
-      let counter = 1;
-      let newId = `${el.id}__dup${counter}`;
-      while (ctx.elements.some((e) => e.id === newId)) {
-        counter++;
-        newId = `${el.id}__dup${counter}`;
-      }
-      el.id = newId;
-    }
-
-    // Parent inference by indent
-    while (ctx.viewParentStack.length > 0) {
-      const parentId = ctx.viewParentStack[ctx.viewParentStack.length - 1];
-      const parent = ctx.elements.find(e => e.id === parentId);
-      if (parent && viewIndentMap.get(parent) !== undefined && viewIndentMap.get(parent)! >= indent) {
-        ctx.viewParentStack.pop();
-      } else {
-        break;
-      }
-    }
-
-    const parentId = ctx.viewParentStack.length > 0 ? ctx.viewParentStack[ctx.viewParentStack.length - 1] : null;
-    el.parentId = parentId;
-    viewIndentMap.set(el, indent);
-
-    if (parentId) {
-      const parent = ctx.elements.find(e => e.id === parentId);
-      if (parent) parent.children.push(el.id);
-    }
-
-    // @edit flags
-    if (ctx.pendingEditFlags) {
-      if (ctx.pendingEditFlags.includes("folded")) el.isFolded = true;
-      if (ctx.pendingEditFlags.includes("render=canvas")) el.renderMode = "canvas";
-      ctx.pendingEditFlags = null;
-    }
-
-    ctx.elements.push(el);
-
-    // Not self-closing → push to parent stack
-    if (!trimmed.endsWith("/>")) {
-      ctx.viewParentStack.push(el.id);
-    }
-    return;
-  }
-
-  // Closing tag
-  if (trimmed.startsWith("</")) {
-    if (ctx.viewParentStack.length > 0) ctx.viewParentStack.pop();
-    return;
-  }
-
-  // Text content between tags (e.g., "Hello" between <p> and </p>)
-  if (trimmed && !trimmed.startsWith("//")) {
-    const text = trimmed.trim();
-    if (text && !text.startsWith("<")) {
-      // Attach as label prop to the current parent element
-      const parentId = ctx.viewParentStack.length > 0
-        ? ctx.viewParentStack[ctx.viewParentStack.length - 1]
-        : null;
-      if (parentId) {
-        const parent = ctx.elements.find(e => e.id === parentId);
-        if (parent && !parent.props.label) {
-          parent.props.label = text;
-        }
-      }
-    }
-  }
-}
-
-function parseElementLine(trimmed: string, ctx: ParseContext): ElementData {
-  const tagMatch = trimmed.match(/^<(\w+)/);
-  const tag = tagMatch ? tagMatch[1] : "div";
-
-  const idMatch = trimmed.match(/id="([^"]*)"/);
-  const id = idMatch ? idMatch[1] : `${ctx.currentComponent}.${tag}.${ctx.elements.length}`;
-
-  // Captures one or more [\w-] class names after "class:", separated by whitespace.
-  // Lookahead terminates on:
-  //   - whitespace + known attribute prefix (key=, @, bind:, style:, >, //)
-  //   - end-of-string
-  //   - /> or > immediately (no trailing space, e.g. <div class: foo>)
-  const classMatch = trimmed.match(/class:\s*([\w-]+(?:\s+[\w-]+)*?)(?=\s+(?:[\w-]+\s*=|@|bind:|style:|>|\/{2})|$|\/>|>)/);
-  const className = classMatch ? classMatch[1] : "";
-
-  const events: Record<string, string> = {};
-  const eventRegex = /@(\w+)={(\w+)}/g;
-  let evtMatch;
-  while ((evtMatch = eventRegex.exec(trimmed)) !== null) {
-    events[evtMatch[1]] = evtMatch[2];
-  }
-
-  const attrs: Record<string, string> = {};
-  const attrRegex = /\b(\w+)="([^"]*)"/g;
-  let attrMatch;
-  while ((attrMatch = attrRegex.exec(trimmed)) !== null) {
-    if (attrMatch[1] !== "id" && attrMatch[1] !== "class") {
-      attrs[attrMatch[1]] = attrMatch[2];
-    }
-  }
-
-  // Parse style: { key: val, ... } attribute — store as "style" prop so
-  // buildViewTreeFromElements can reconstruct inline_style for parseStylesFromAST.
-  const styleAttrMatch = trimmed.match(/style:\s*\{([^}]*)\}/);
-  if (styleAttrMatch) {
-    const styleContent = styleAttrMatch[1].trim();
-    // Rebuild as brace-wrapped, semicolon-separated string that buildViewTreeFromElements expects.
-    // Strip surrounding double-quotes from values (source-emitter wraps in "")
-    // e.g. 'padding: "16px", color: "#333"' → '{ padding: 16px; color: #333 }'
-    const semiStyle = styleContent
-      .split(",")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => part.replace(/:\s*"([^"]*)"/g, ': $1'))
-      .join("; ");
-    attrs["style"] = `{ ${semiStyle} }`;
-  }
-
-  const textMatch = trimmed.match(/>([^<]*)<\//);
-  const textContent = textMatch ? textMatch[1].trim() : "";
-
-  // Detect custom component references: PascalCase tags that match a registry
-  // definition get componentRef set so the canvas can expand them and the
-  // generator can emit proper import statements.
-  const isPascal = /^[A-Z]/.test(tag);
-  const isCustom = isPascal && !!useComponentRegistry.getState().definitions[tag];
-
-  return {
-    id,
-    nodeType: "view",
-    tag,
-    props: { ...attrs, ...events, className, ...(textContent ? { label: textContent } : {}) },
-    children: [],
-    parentId: null,
-    ...(isCustom ? { componentRef: tag } : {}),
-  };
-}
-
-// ── IN_FN — skip function body ──
-
-function parseFnBodyLine(trimmed: string, ctx: ParseContext): void {
-  if (trimmed === "{" || trimmed.endsWith("{")) ctx.braceDepth++;
-  if (trimmed === "}") {
-    ctx.braceDepth--;
-    if (ctx.braceDepth <= 0) popState(ctx);
-  }
-}
-
-// ── IN_STORE — skip store body (tracks braces only) ──
-
-function parseStoreLine(trimmed: string, ctx: ParseContext): void {
-  if (trimmed === "{" || trimmed.endsWith("{")) ctx.braceDepth++;
-  if (trimmed === "}") {
-    ctx.braceDepth--;
-    if (ctx.braceDepth <= 0) popState(ctx);
-  }
-}
-
-// ── IN_STYLE — parse style block ──
-
-function parseStyleBlockLine(trimmed: string, ctx: ParseContext): void {
-  // Track brace depth for the style block itself
-  if (trimmed === "{" || trimmed.endsWith("{")) {
-    ctx.braceDepth++;
-    return;
-  }
-  if (trimmed === "}") {
-    ctx.braceDepth--;
-    if (ctx.braceDepth <= 0) {
-      popState(ctx);
-    }
-    return;
-  }
-
-  // Parse CSS rule: ".class-name { prop: value; prop2: value2; }"
-  const ruleMatch = trimmed.match(/^\.([\w-]+)\s*\{\s*(.*?)\s*\}$/);
-  if (ruleMatch) {
-    const className = ruleMatch[1];
-    const propsStr = ruleMatch[2];
-    const properties: Record<string, string> = {};
-    for (const pair of propsStr.split(";").filter(s => s.trim().length > 0)) {
-      const colonIdx = pair.indexOf(":");
-      if (colonIdx > 0) {
-        properties[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
-      }
-    }
-    ctx.parsedStyleRules.push({ class_name: className, properties });
-  }
-}
-
-// ── IN_CHAIN — parse @node / @wire ──
-
-function parseChainLine(trimmed: string, ctx: ParseContext): void {
-  if (trimmed.startsWith("// ═")) {
-    flushChain(ctx);
-    popState(ctx);
-    return;
-  }
-
-  if (trimmed.startsWith("//   @node ")) {
-    const parts = trimmed.slice(3).trim().split(/\s+/); // skip "//"
-    const id = parts[1];
-    const tag = parts[2];
-    const attrs: Record<string, string> = {};
-    let posX = 0, posY = 0;
-    for (let i = 3; i < parts.length; i++) {
-      if (parts[i].startsWith("pos=")) {
-        const coords = parts[i].slice(4).split(",");
-        posX = parseInt(coords[0]) || 0;
-        posY = parseInt(coords[1]) || 0;
-      } else if (parts[i].includes("=")) {
-        const [k, v] = parts[i].split("=");
-        attrs[k] = v;
-      }
-    }
-    ctx.chainElements.push({
-      id, nodeType: "codeblock", tag,
-      props: attrs,
-      position: { x: posX, y: posY },
-      children: [], parentId: null,
-    });
-    return;
-  }
-
-  if (trimmed.startsWith("//   @wire ")) {
-    const wireMatch = trimmed.match(/@wire\s+(\S+)\s+(\S+)\s*->\s*(\S+)/);
-    if (wireMatch) {
-      const [, wireId, from, to] = wireMatch;
-      const [fromId, fromPort = ""] = from.includes(".") ? from.split(".") : [from];
-      const [toId, toPort = ""] = to.includes(".") ? to.split(".") : [to];
-      ctx.chainWires.push({ id: wireId, fromId, fromPort, toId, toPort });
-    }
-  }
-}
-
-function flushChain(ctx: ParseContext): void {
-  if (ctx.chainElements.length === 0) return;
-  const tab = ctx.codeTabs.find(t => t.id === "main") || ctx.codeTabs[0];
-  for (const el of ctx.chainElements) tab.graph.elements.push(el);
-  for (const w of ctx.chainWires) tab.graph.wires.push(w);
-  ctx.chainElements = [];
-  ctx.chainWires = [];
-}
-
-// ── Helpers ──
-
-function pushState(ctx: ParseContext, state: ParserState): void {
-  ctx.stateStack.push(ctx.state);
-  ctx.braceDepthStack.push(ctx.braceDepth);
-  ctx.state = state;
-  ctx.braceDepth = 1;
-}
-
-function popState(ctx: ParseContext): void {
-  ctx.state = ctx.stateStack.pop() || "ROOT";
-  ctx.braceDepth = ctx.braceDepthStack.pop() || 0;
-}
-
-function codeblockEl(id: string, tag: string, props: Record<string, unknown>): ElementData {
-  return {
-    id, nodeType: "codeblock", tag, props: props as Record<string, unknown>,
-    children: [], parentId: null,
-  };
+/**
+ * Check if a token looks like the start of a next attribute binding
+ * (attribute + EQUALS or COLON on the very next token).
+ */
+function isAttrBound(next: Token): boolean {
+  return next?.kind === "EQUALS" || next?.kind === "COLON";
 }
