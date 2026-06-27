@@ -6,7 +6,8 @@
  */
 
 import { create } from "zustand";
-import type { StyleEntry } from "../core/types";
+import type { StyleProperty, StyleRegistry } from "../core/types/style";
+import { useStyleRegistryStore } from "../core/state/styleRegistry";
 import { parseOmniSource } from "../services/codegen";
 
 // ── Atom re-exports (preferred imports for refactored consumers) ──
@@ -90,11 +91,16 @@ interface EditorState {
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
 
   // ── Style management ──
-  addStyleEntry: (elementId: string, entry: StyleEntry) => void;
-  removeStyleEntry: (elementId: string, entryId: string) => void;
-  updateStyleEntry: (elementId: string, entryId: string, patch: Partial<StyleEntry>) => void;
-  reorderStyleEntries: (elementId: string, entryIds: string[]) => void;
-  getStyles: (elementId: string) => StyleEntry[];
+  styleRegistry: StyleRegistry;
+
+  // ── Element style (per-element references) ──
+  setElementClassRefs: (elementId: string, classRefs: string[]) => void;
+  addElementClassRef: (elementId: string, className: string) => void;
+  removeElementClassRef: (elementId: string, className: string) => void;
+  setElementInlineStyles: (elementId: string, properties: StyleProperty[]) => void;
+  addElementInlineProperty: (elementId: string, property: StyleProperty) => void;
+  removeElementInlineProperty: (elementId: string, propertyId: string) => void;
+  updateElementInlineProperty: (elementId: string, propertyId: string, patch: Partial<StyleProperty>) => void;
 
   // ── Active mode switching ──
   setActiveMode: (mode: "design" | "code") => void;
@@ -386,50 +392,101 @@ export const useEditorStore = create<EditorState>((set, get) => {
       syncToAtoms();
     },
 
-    // ── Style management ──
-    addStyleEntry: (elementId, entry) => {
-      set((s) => ({
-        elements: s.elements.map((e) => e.id === elementId ? { ...e, styles: [...(e.styles || []), entry] } : e),
-        isDirty: true,
-      }));
-      syncToAtoms();
+    // ── Style Registry (compute active registry locally) ──
+    get styleRegistry(): StyleRegistry {
+      const activeDocId = get().activeDocId;
+      const componentName = activeDocId?.startsWith("comp:")
+        ? activeDocId.replace("comp:", "")
+        : "App";
+      return useStyleRegistryStore.getState().getRegistry(componentName);
     },
 
-    removeStyleEntry: (elementId, entryId) => {
-      set((s) => ({
-        elements: s.elements.map((e) =>
-          e.id === elementId ? { ...e, styles: (e.styles || []).filter((st) => st.id !== entryId) } : e
-        ),
-        isDirty: true,
-      }));
-      syncToAtoms();
-    },
+    // ── Element style mutations ──
 
-    updateStyleEntry: (elementId, entryId, patch) => {
+    setElementClassRefs: (elementId, classRefs) => {
       set((s) => ({
         elements: s.elements.map((e) =>
           e.id === elementId
-            ? { ...e, styles: (e.styles || []).map((st) => st.id === entryId ? { ...st, ...patch } : st) }
+            ? { ...e, style: { ...e.style, classRefs } }
             : e
         ),
         isDirty: true,
       }));
-      syncToAtoms();
     },
 
-    reorderStyleEntries: (elementId, entryIds) => {
-      set((s) => {
-        const el = s.elements.find((e) => e.id === elementId);
-        if (!el?.styles) return { elements: s.elements };
-        const byId = new Map(el.styles.map((st) => [st.id, st]));
-        if (!entryIds.every((id) => byId.has(id))) return { elements: s.elements };
-        const reordered = entryIds.map((id) => byId.get(id)!);
-        return { elements: s.elements.map((e) => e.id === elementId ? { ...e, styles: reordered } : e), isDirty: true };
-      });
-      syncToAtoms();
+    addElementClassRef: (elementId, className) => {
+      set((s) => ({
+        elements: s.elements.map((e) => {
+          if (e.id !== elementId) return e;
+          const current = (e as any).style?.classRefs ?? [];
+          return { ...e, style: { ...(e as any).style, classRefs: [...current, className] } };
+        }),
+        isDirty: true,
+      }));
     },
 
-    getStyles: (elementId) => get().elements.find((e) => e.id === elementId)?.styles || [],
+    removeElementClassRef: (elementId, className) => {
+      set((s) => ({
+        elements: s.elements.map((e) => {
+          if (e.id !== elementId) return e;
+          const current = (e as any).style?.classRefs ?? [];
+          return { ...e, style: { ...(e as any).style, classRefs: current.filter((c: string) => c !== className) } };
+        }),
+        isDirty: true,
+      }));
+    },
+
+    setElementInlineStyles: (elementId, properties) => {
+      set((s) => ({
+        elements: s.elements.map((e) =>
+          e.id === elementId
+            ? { ...e, style: { ...(e as any).style, inlineProperties: properties } }
+            : e
+        ),
+        isDirty: true,
+      }));
+    },
+
+    addElementInlineProperty: (elementId, property) => {
+      set((s) => ({
+        elements: s.elements.map((e) => {
+          if (e.id !== elementId) return e;
+          const current = (e as any).style?.inlineProperties ?? [];
+          return { ...e, style: { ...(e as any).style, inlineProperties: [...current, property] } };
+        }),
+        isDirty: true,
+      }));
+    },
+
+    removeElementInlineProperty: (elementId, propertyId) => {
+      set((s) => ({
+        elements: s.elements.map((e) => {
+          if (e.id !== elementId) return e;
+          const current = (e as any).style?.inlineProperties ?? [];
+          return { ...e, style: { ...(e as any).style, inlineProperties: current.filter((p: any) => p.id !== propertyId) } };
+        }),
+        isDirty: true,
+      }));
+    },
+
+    updateElementInlineProperty: (elementId, propertyId, patch) => {
+      set((s) => ({
+        elements: s.elements.map((e) => {
+          if (e.id !== elementId) return e;
+          const current = (e as any).style?.inlineProperties ?? [];
+          return {
+            ...e,
+            style: {
+              ...(e as any).style,
+              inlineProperties: current.map((p: any) =>
+                p.id === propertyId ? { ...p, ...patch } : p
+              ),
+            },
+          };
+        }),
+        isDirty: true,
+      }));
+    },
 
     // ── Active mode ──
     setActiveMode: (mode) => { set({ activeMode: mode }); syncToAtoms(); },
