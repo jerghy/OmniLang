@@ -254,8 +254,8 @@ describe("SourceEmitter annotation integration", () => {
     let innerEditLine = -1;
     for (let i = 0; i < lines.length - 1; i++) {
       if (lines[i].trim() === "// @edit") {
-        if (lines[i + 1].includes('id="Comp.outer"')) outerEditLine = i;
-        if (lines[i + 1].includes('id="Comp.outer.inner.0"')) innerEditLine = i;
+        if (lines[i + 1].includes('id="outer"')) outerEditLine = i;
+        if (lines[i + 1].includes('id="inner"')) innerEditLine = i;
       }
     }
     expect(outerEditLine).toBeGreaterThan(-1);

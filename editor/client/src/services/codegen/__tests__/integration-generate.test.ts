@@ -213,9 +213,9 @@ describe("SourceEmitter", () => {
     const emitter = new SourceEmitter();
     const result = emitter.emitDocument(input, new Map());
     expect(result).toContain("view {");
-    expect(result).toContain('<div id="App"');
+    expect(result).toContain('<div id="root"');
     expect(result).toContain("class: container");
-    expect(result).toContain('<button id="App.button.0"');
+    expect(result).toContain('<button id="btn"');
     expect(result).toContain("class: btn");
     expect(result).toContain('type="submit"');
     expect(result).toContain("@click={handleClick}");

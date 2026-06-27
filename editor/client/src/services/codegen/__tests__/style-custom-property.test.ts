@@ -295,9 +295,12 @@ describe("Integration: StyleEntry codegen and round-trip", () => {
     const parsedChild = parsed.designElements!.find(el => el.id === "child1");
     expect(parsedChild).toBeDefined();
     expect(parsedChild!.style?.classRefs).toBeDefined();
-    expect(parsedChild!.style!.classRefs!.length).toBe(2);
+    expect(parsedChild!.style!.classRefs!.length).toBe(3);
     expect(parsedChild!.style!.classRefs).toContain("card");
     expect(parsedChild!.style!.classRefs).toContain("_v-primary-color");
+    // The source emitter adds the view element's cssClassName (from resolvedStyle)
+    // to the class: attribute alongside the user-defined classRefs
+    expect(parsedChild!.style!.classRefs).toContain("Test_div_0");
   });
 
   it("quotes inline style values in generated .omni source", () => {
@@ -376,7 +379,8 @@ describe("Integration: StyleEntry codegen and round-trip", () => {
       "}",
     ].join("\n");
     const parsed = parseOmniSource(src);
-    const el = parsed.designElements?.find(e => e.props.className === "foo");
+    // parseStylesFromAST migrates className from props to style.classRefs
+    const el = parsed.designElements?.find(e => e.style?.classRefs?.includes("foo"));
     expect(el).toBeDefined();
   });
 
@@ -390,7 +394,7 @@ describe("Integration: StyleEntry codegen and round-trip", () => {
       "}",
     ].join("\n");
     const parsed = parseOmniSource(src);
-    const el = parsed.designElements?.find(e => e.props.className === "foo bar baz");
+    const el = parsed.designElements?.find(e => e.style?.classRefs?.includes("foo"));
     expect(el).toBeDefined();
   });
 
@@ -404,7 +408,7 @@ describe("Integration: StyleEntry codegen and round-trip", () => {
       "}",
     ].join("\n");
     const parsed = parseOmniSource(src);
-    const el = parsed.designElements?.find(e => e.props.className === "foo");
+    const el = parsed.designElements?.find(e => e.style?.classRefs?.includes("foo"));
     expect(el).toBeDefined();
   });
 

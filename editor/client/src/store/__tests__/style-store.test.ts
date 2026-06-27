@@ -1,20 +1,25 @@
-/** Style store methods 单元测试。*/
+/**
+ * Tests for the new element-level style API on useEditorStore.
+ *
+ * Style registry operations (addClass, addVariable, etc.) live on
+ * useStyleRegistryStore and are tested in style-registry.test.ts.
+ * Here we test per-element classRef / inlineProperty mutations.
+ */
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { useEditorStore } from "../editor";
-import type { StyleEntry } from "../../core/types";
+import type { StyleProperty } from "../../core/types";
 
-function makeEntry(overrides: Partial<StyleEntry> = {}): StyleEntry {
+function makeProperty(overrides: Partial<StyleProperty> = {}): StyleProperty {
   return {
-    id: "s1",
-    type: "class",
-    name: "card-style",
-    properties: [{ name: "padding", value: "16px" }],
+    id: "p1",
+    name: "padding",
+    segments: [{ type: "text", value: "16px" }],
     ...overrides,
   };
 }
 
-describe("Style store methods", () => {
+describe("Element style mutations on editor store", () => {
   beforeEach(() => {
     useEditorStore.setState({
       elements: [],
@@ -23,99 +28,128 @@ describe("Style store methods", () => {
     });
   });
 
-  it("addStyleEntry adds an entry to element.styles", () => {
+  // ── classRef methods ──
+
+  it("setElementClassRefs sets classRefs on an element", () => {
     useEditorStore.getState().addElement({
       id: "a",
-      tag: "Button",
+      tag: "div",
       props: {},
       children: [],
       parentId: null,
-      nodeType: "view" as const,
+      nodeType: "view",
     });
 
-    const entry = makeEntry();
-    useEditorStore.getState().addStyleEntry("a", entry);
+    useEditorStore.getState().setElementClassRefs("a", ["card", "_v-gap"]);
 
     const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
-    expect(updated?.styles).toHaveLength(1);
-    expect(updated?.styles?.[0].name).toBe("card-style");
+    expect(updated?.style?.classRefs).toEqual(["card", "_v-gap"]);
   });
 
-  it("removeStyleEntry removes entry by id", () => {
-    const entry = makeEntry();
+  it("addElementClassRef adds a single class ref", () => {
     useEditorStore.getState().addElement({
       id: "a",
-      tag: "Button",
+      tag: "div",
       props: {},
       children: [],
       parentId: null,
-      nodeType: "view" as const,
-      styles: [entry],
+      nodeType: "view",
+      style: { classRefs: ["card"], inlineProperties: [] },
     });
 
-    useEditorStore.getState().removeStyleEntry("a", "s1");
+    useEditorStore.getState().addElementClassRef("a", "_v-gap");
 
     const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
-    expect(updated?.styles).toHaveLength(0);
+    expect(updated?.style?.classRefs).toContain("_v-gap");
+    expect(updated?.style?.classRefs).toHaveLength(2);
   });
 
-  it("reorderStyleEntries reorders entries", () => {
-    const e1 = makeEntry({ id: "s1", name: "first" });
-    const e2 = makeEntry({ id: "s2", name: "second" });
-    const el = { id: "a", tag: "Button", props: {}, children: [], parentId: null, nodeType: "view" as const, styles: [e1, e2] };
-    useEditorStore.setState({ elements: [el] });
-
-    useEditorStore.getState().reorderStyleEntries("a", ["s2", "s1"]);
-
-    const updated = useEditorStore.getState().elements.find(e => e.id === "a");
-    expect(updated?.styles?.[0].id).toBe("s2");
-    expect(updated?.styles?.[1].id).toBe("s1");
-  });
-
-  it("reorderStyleEntries ignores stale IDs", () => {
-    const e1 = makeEntry({ id: "s1", name: "first" });
-    const el = { id: "a", tag: "Button", props: {}, children: [], parentId: null, nodeType: "view" as const, styles: [e1] };
-    useEditorStore.setState({ elements: [el] });
-
-    // Pass a stale ID that doesn't exist
-    useEditorStore.getState().reorderStyleEntries("a", ["s2", "s1"]);
-
-    // Should not have changed
-    const updated = useEditorStore.getState().elements.find(e => e.id === "a");
-    expect(updated?.styles).toHaveLength(1);
-    expect(updated?.styles?.[0].id).toBe("s1");
-  });
-
-  it("getStyles returns styles for element", () => {
-    const entry = makeEntry();
-    const el = { id: "a", tag: "Button", props: {}, children: [], parentId: null, nodeType: "view" as const, styles: [entry] };
-    useEditorStore.setState({ elements: [el] });
-
-    const styles = useEditorStore.getState().getStyles("a");
-    expect(styles).toHaveLength(1);
-    expect(styles[0].name).toBe("card-style");
-  });
-
-  it("getStyles returns empty array for non-existent element", () => {
-    const styles = useEditorStore.getState().getStyles("nonexistent");
-    expect(styles).toEqual([]);
-  });
-
-  it("updateStyleEntry updates a specific entry", () => {
-    const entry = makeEntry();
+  it("removeElementClassRef removes a single class ref", () => {
     useEditorStore.getState().addElement({
       id: "a",
-      tag: "Button",
+      tag: "div",
       props: {},
       children: [],
       parentId: null,
-      nodeType: "view" as const,
-      styles: [entry],
+      nodeType: "view",
+      style: { classRefs: ["card", "_v-gap"], inlineProperties: [] },
     });
 
-    useEditorStore.getState().updateStyleEntry("a", "s1", { name: "new-name" });
+    useEditorStore.getState().removeElementClassRef("a", "card");
 
     const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
-    expect(updated?.styles?.[0].name).toBe("new-name");
+    expect(updated?.style?.classRefs).toEqual(["_v-gap"]);
+  });
+
+  // ── inline property methods ──
+
+  it("setElementInlineStyles sets inline properties", () => {
+    const props = [makeProperty()];
+    useEditorStore.getState().addElement({
+      id: "a",
+      tag: "div",
+      props: {},
+      children: [],
+      parentId: null,
+      nodeType: "view",
+    });
+
+    useEditorStore.getState().setElementInlineStyles("a", props);
+
+    const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
+    expect(updated?.style?.inlineProperties).toHaveLength(1);
+    expect(updated?.style?.inlineProperties[0].name).toBe("padding");
+  });
+
+  it("addElementInlineProperty adds a property", () => {
+    useEditorStore.getState().addElement({
+      id: "a",
+      tag: "div",
+      props: {},
+      children: [],
+      parentId: null,
+      nodeType: "view",
+      style: { classRefs: [], inlineProperties: [] },
+    });
+
+    useEditorStore.getState().addElementInlineProperty("a", makeProperty({ id: "p1" }));
+
+    const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
+    expect(updated?.style?.inlineProperties).toHaveLength(1);
+    expect(updated?.style?.inlineProperties[0].id).toBe("p1");
+  });
+
+  it("removeElementInlineProperty removes a property by id", () => {
+    useEditorStore.getState().addElement({
+      id: "a",
+      tag: "div",
+      props: {},
+      children: [],
+      parentId: null,
+      nodeType: "view",
+      style: { classRefs: [], inlineProperties: [makeProperty({ id: "p1" })] },
+    });
+
+    useEditorStore.getState().removeElementInlineProperty("a", "p1");
+
+    const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
+    expect(updated?.style?.inlineProperties).toHaveLength(0);
+  });
+
+  it("updateElementInlineProperty patches a property", () => {
+    useEditorStore.getState().addElement({
+      id: "a",
+      tag: "div",
+      props: {},
+      children: [],
+      parentId: null,
+      nodeType: "view",
+      style: { classRefs: [], inlineProperties: [makeProperty({ id: "p1", name: "padding", segments: [{ type: "text", value: "16px" }] })] },
+    });
+
+    useEditorStore.getState().updateElementInlineProperty("a", "p1", { name: "margin" });
+
+    const updated = useEditorStore.getState().elements.find((e) => e.id === "a");
+    expect(updated?.style?.inlineProperties[0].name).toBe("margin");
   });
 });
