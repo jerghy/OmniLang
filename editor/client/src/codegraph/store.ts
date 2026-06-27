@@ -20,7 +20,7 @@ import {
   createMainTab,
   newTabId,
 } from "./types";
-import type { Command } from "../commands/types";
+import type { Command } from "../core/commands/types";
 import { Logger } from "../utils/logger";
 
 const log = new Logger({ prefix: "codegraph" });
@@ -300,7 +300,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
     }),
 
   selectAll: () =>
-    set((s) => ({
+    set(() => ({
       selectedElementIds: get().getActiveGraph().elements.map((e) => e.id),
     })),
 
@@ -481,7 +481,7 @@ const _undoStore = {
 // ── selectedElementIds (tracked in store for React re-renders) ──
 
 // We extend the interface above — Zustand merges automatically
-interface CodeEditorState {
+export interface CodeEditorState {
   selectedElementIds: string[];
 }
 

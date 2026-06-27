@@ -301,7 +301,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
     }),
 
   selectAll: () =>
-    set((s) => ({
+    set(() => ({
       selectedElementIds: get().getActiveGraph().elements.map((e) => e.id),
     })),
 
@@ -482,12 +482,12 @@ const _undoStore = {
 // ── selectedElementIds (tracked in store for React re-renders) ──
 
 // We extend the interface above — Zustand merges automatically
-interface CodeEditorState {
+export interface CodeEditorState {
   selectedElementIds: string[];
 }
 
 // ── Expose for E2E tests ──
 
 if (typeof window !== "undefined") {
-  (window as any).__CODE_GRAPH_STORE__ = useCodeGraphStore;
+  window.__CODE_GRAPH_STORE__ = useCodeGraphStore;
 }

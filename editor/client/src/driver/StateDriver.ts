@@ -159,6 +159,9 @@ export class StateDriver {
       getProp: (id, p) => store.getProp(id, p) ?? null,
       addWire: (w) => store.addWire(w),
       removeWire: (id) => store.removeWire(id),
+      setElementsAndWires: () => {},
+      reorderElement: () => {},
+      moveElement: () => {},
     });
   }
 
@@ -175,6 +178,9 @@ export class StateDriver {
       getProp: (id, p) => store.getProp(id, p) ?? null,
       addWire: (w) => store.addWire(w),
       removeWire: (id) => store.removeWire(id),
+      setElementsAndWires: () => {},
+      reorderElement: () => {},
+      moveElement: () => {},
     });
   }
 

@@ -3,7 +3,7 @@
  * falls back to in-memory dynamic search when not available.
  */
 
-import type { SearchIndexSnapshot } from './SearchIndex';
+import type { SearchIndexSnapshot } from './search-index';
 
 let _cachedIndex: SearchIndexSnapshot | null = null;
 let _cachedIndexPath: string = '';

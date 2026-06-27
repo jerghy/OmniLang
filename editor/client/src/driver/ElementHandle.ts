@@ -4,7 +4,7 @@
 
 import { Logger } from "../utils/logger";
 import { getDesignStore, getAllPorts } from "./store";
-import { COMPONENT_PROTOCOL } from "../panels/ComponentPalette";
+import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
 import type { ElementData } from "../store/editor";
 import type {
   PortDescriptor,
@@ -243,9 +243,9 @@ export class ElementHandle {
   addParam(name: string, type: string, defaultValue?: unknown): this {
     const d = this._require();
     if (d.tag !== "customFn") throw new Error("addParam is only available on customFn nodes");
-    const config = d.config || {};
+    const config = (d.config || {}) as Record<string, unknown>;
     const params = [...((config.fnParams as FnParam[]) || []), { name, type, default: defaultValue }];
-    const newConfig = { ...config, fnParams: params };
+    const newConfig = { ...config, fnParams: params } as Record<string, unknown>;
     getDesignStore().setProp(this.id, "config", newConfig);
     const inPorts = params.map((p) => ({
       name: p.name, direction: "in" as const, portType: "data" as const,

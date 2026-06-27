@@ -163,7 +163,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       const elState = useElementStore.getState();
       const wireState = useWireStore.getState();
 
-      let wasDirty = false;
+      const wasDirty = false;
 
       if (docId.startsWith("file:")) {
         newTabStates[docId] = { elements: elState.elements, wires: wireState.wires };

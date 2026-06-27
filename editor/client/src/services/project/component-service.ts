@@ -30,11 +30,10 @@ export async function saveComponentDefinitionsToServer(
         id: def.id,
         category: def.category,
         description: def.description,
-        props: def.props as Record<string, unknown>,
-        events: def.events as Record<string, unknown>,
+        propSchema: def.props as Record<string, { editor?: string; values?: string[] }>,
+        eventSchema: def.events as Record<string, { payload?: string; description?: string }>,
         styleProperties: def.styleProperties,
         children: def.children,
-        createdAt: def.createdAt,
       },
     });
 
@@ -112,7 +111,7 @@ export async function loadComponentDefinitionsFromServer(): Promise<
       children: (meta.children as boolean) ?? true,
       elements,
       wires,
-      createdAt: (meta.createdAt as string) || new Date().toISOString(),
+      createdAt: ((meta as Record<string, unknown>).createdAt as string) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       storage: "file",
     };

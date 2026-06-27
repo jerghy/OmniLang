@@ -42,7 +42,7 @@ export class SourceEmitter {
 
     // stores
     for (const store of input.stores) {
-      this.emitStore(store, writer, chains);
+      this.emitStore(store, writer);
       writer.blank();
     }
 
@@ -63,7 +63,7 @@ export class SourceEmitter {
     return writer.toString();
   }
 
-  private emitStore(store: EmitInput["stores"][0], w: CodeWriter, chains: Map<string, ChainBlock>): void {
+  private emitStore(store: EmitInput["stores"][0], w: CodeWriter): void {
     w.emit(`store ${store.name} {`);
     w.indent();
     for (const [name, sig] of Object.entries(store.signals)) {

@@ -6,6 +6,7 @@
  *  remain here. */
 
 import type { ElementData, WireData } from "../core/types";
+import type { CodeGraph, CodeTab } from "../core/types";
 import { uid } from "../core/utils";
 
 // ── Re-exports from core/types (migrated types) ──

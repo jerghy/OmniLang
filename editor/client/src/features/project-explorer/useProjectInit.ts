@@ -5,7 +5,8 @@ import { parseOmniSource } from "../../services/codegen";
 import { api } from "../../services/api";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../../services/project/component-service";
 import { useComponentRegistry } from "../../store/componentRegistry";
-import type { ElementData } from "../../core/types";
+import type { ElementData, WireData } from "../../core/types";
+import type { ComponentDefinition } from "../../core/state/componentRegistry";
 
 export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Initial load
@@ -69,42 +70,46 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 rootOrder,
               });
               if (parseResult.codeTabs?.length) {
-                (useCodeGraphStore.getState() as any).loadFromData(parseResult.codeTabs);
+                useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
               }
             }
 
-            if ((loadResult as any).annotations?.viewMarkers) {
-              const markers = (loadResult as any).annotations.viewMarkers;
-              useEditorStore.setState((prev) => ({
-                elements: prev.elements.map((el) => {
-                  const marker = markers.find((m: any) => m.elementId === el.id);
-                  if (marker) {
-                    return {
-                      ...el,
-                      isFolded: marker.isFolded ?? el.isFolded,
-                      renderMode: marker.renderMode || el.renderMode,
-                    };
-                  }
-                  return el;
-                }),
-              }));
+            if (loadResult.annotations && typeof loadResult.annotations === "object" && "viewMarkers" in loadResult.annotations) {
+              const annotations = loadResult.annotations as Record<string, unknown>;
+              const markers = annotations.viewMarkers as Array<{ elementId: string; isFolded?: boolean; renderMode?: string }> | undefined;
+              if (markers) {
+                useEditorStore.setState((prev) => ({
+                  elements: prev.elements.map((el) => {
+                    const marker = markers.find((m) => m.elementId === el.id);
+                    if (marker) {
+                      return {
+                        ...el,
+                        isFolded: marker.isFolded ?? el.isFolded,
+                        renderMode: marker.renderMode || el.renderMode,
+                      } as ElementData;
+                    }
+                    return el;
+                  }),
+                }));
+              }
             }
 
-            if ((loadResult as any)?.annotations?.chains?.length) {
-              const chains = (loadResult as any).annotations.chains;
-              const codeElements: any[] = [];
-              const codeWires: any[] = [];
-              for (const chain of chains) {
+            if (loadResult.annotations && typeof loadResult.annotations === "object" && "chains" in loadResult.annotations) {
+              const annotations = loadResult.annotations as Record<string, unknown>;
+              const chains = annotations.chains as Array<{ nodes?: Array<{ id: string; tag: string; attrs?: Record<string, unknown>; posX?: number; posY?: number }>; wires?: Array<{ id: string; fromId: string; fromPort: string; toId: string; toPort: string }> }> | undefined;
+              const codeElements: ElementData[] = [];
+              const codeWires: WireData[] = [];
+              for (const chain of chains ?? []) {
                 for (const node of chain.nodes || []) {
                   codeElements.push({
                     id: node.id,
                     tag: node.tag,
                     props: node.attrs || {},
-                    position: { x: node.posX, y: node.posY },
-                    nodeType: "codeblock",
+                    position: { x: node.posX ?? 0, y: node.posY ?? 0 },
+                    nodeType: "codeblock" as const,
                     children: [],
                     parentId: null,
-                  });
+                  } as ElementData);
                 }
                 for (const wire of chain.wires || []) {
                   codeWires.push({
@@ -113,11 +118,11 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                     fromPort: wire.fromPort,
                     toId: wire.toId,
                     toPort: wire.toPort,
-                  });
+                  } as WireData);
                 }
               }
               if (codeElements.length > 0) {
-                (useCodeGraphStore.getState() as any).setElementsAndWires(codeElements, codeWires);
+                useCodeGraphStore.getState().setElementsAndWires(codeElements, codeWires);
               }
             }
           } else {
@@ -146,7 +151,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
         try {
           const merged = await loadComponentDefinitionsFromServer();
           if (Object.keys(merged).length > 0) {
-            useComponentRegistry.setState({ definitions: merged } as any);
+            useComponentRegistry.setState({ definitions: merged as Record<string, ComponentDefinition> });
           }
         } catch (e) {
           console.warn("[App] Failed to load component definitions:", e);
@@ -155,8 +160,8 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
 
       (async () => {
         try {
-          const tomlResult: any = await api.annotation.loadEditorToml();
-          if (tomlResult?.state?.open_files?.length > 0) {
+          const tomlResult = await api.annotation.loadEditorToml();
+          if (tomlResult.state?.open_files?.length) {
             useEditorStore.setState({ openTabs: tomlResult.state.open_files });
           }
         } catch {

@@ -61,7 +61,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
           id: newId,
           parentId: isRoot
             ? el.id
-            : idMap.get(defEl.parentId) || defEl.parentId,
+            : idMap.get(defEl.parentId ?? "") || defEl.parentId,
           children: defEl.children.map((cid) => idMap.get(cid) || cid),
         };
 

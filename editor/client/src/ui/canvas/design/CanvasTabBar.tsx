@@ -2,11 +2,11 @@
  *  替代原来的 ComponentCanvasHeader 独立返回按钮。 */
 
 import React, { useState, useRef, useEffect } from "react";
-import { useEditorStore } from "../store/editor";
-import { useComponentRegistry } from "../store/componentRegistry";
-import { api } from "../api/client";
-import { parseOmniSource } from "../omni-gen";
-import { Logger } from "../utils/logger";
+import { useEditorStore } from "../../../store/editor";
+import { useComponentRegistry } from "../../../store/componentRegistry";
+import { api } from "../../../services/api";
+import { parseOmniSource } from "../../../services/codegen";
+import { Logger } from "../../../utils/logger";
 
 const log = new Logger({ prefix: "CanvasTabBar" });
 
@@ -24,7 +24,6 @@ export function CanvasTabBar() {
   const closeTab = useEditorStore((s) => s.closeTab);
   const enterCanvas = useEditorStore((s) => s.enterComponentCanvas);
   const defineComponent = useComponentRegistry((s) => s.defineComponent);
-  const definitions = useComponentRegistry((s) => s.definitions);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const createTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

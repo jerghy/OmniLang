@@ -10,7 +10,6 @@ import type { ViewNode } from "../types";
 function makeNode(overrides: Partial<ViewNode> & { path: string }): ViewNode {
   return {
     id: overrides.id || overrides.path.replace(/[^a-zA-Z0-9]/g, "_"),
-    path: overrides.path,
     tag: overrides.tag || "div",
     props: overrides.props || {},
     children: overrides.children || [],

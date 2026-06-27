@@ -4,10 +4,11 @@
  *  .omni 源码是唯一真相源，打开时解析为视觉元素，保存通过主工具栏操作。 */
 
 import { useState, useEffect, useCallback } from "react";
-import { useEditorStore } from "../store/editor";
-import { useComponentRegistry, type ComponentDefinition } from "../store/componentRegistry";
-import { api } from "../api/client";
-import { parseOmniSource } from "../omni-gen";
+import { useEditorStore } from "../../store/editor";
+import { useComponentRegistry, type ComponentDefinition } from "../../store/componentRegistry";
+import { api } from "../../services/api";
+import { parseOmniSource } from "../../services/codegen";
+import type { PropSchema, EventSchema } from "../../store/componentRegistry";
 
 interface OmniFile {
   name: string;
@@ -61,6 +62,7 @@ export function CanvasPanel() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- scan for .omni files on mount
     scanFiles();
   }, [scanFiles]);
 
@@ -137,7 +139,7 @@ export function CanvasPanel() {
       import("../../store/undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
 
       // 加载自定义组件定义（从 src/components/*.omni 解析，metadata 在 // @component / @prop / @event 注释中）
-      api.annotation.loadComponentDefinitions().then((res) => {
+      api.annotation.loadComponentDefinitions().then((res: { definitions: Record<string, unknown>; error?: string }) => {
         if (res.definitions && Object.keys(res.definitions).length > 0) {
           const existing = useComponentRegistry.getState().definitions;
           const merged = { ...existing };
@@ -152,19 +154,19 @@ export function CanvasPanel() {
             const elements = parsed.designElements || [];
             const wires = parsed.designWires || [];
 
-            const propSchema: Record<string, unknown> = (meta.propSchema as Record<string, unknown>) || {};
+            const propSchema: Record<string, PropSchema> = (meta.propSchema as Record<string, PropSchema>) || {};
             const dslProps = parsed.props || [];
             for (const p of dslProps) {
               if (!propSchema[p.name]) {
-                propSchema[p.name] = { type: p.type, default: p.default, editor: "text" };
+                propSchema[p.name] = { type: p.type, default: p.default, editor: "text" } as PropSchema;
               }
             }
 
-            const eventSchema: Record<string, unknown> = (meta.eventSchema as Record<string, unknown>) || {};
+            const eventSchema: Record<string, EventSchema> = (meta.eventSchema as Record<string, EventSchema>) || {};
             const dslEvents = parsed.events || [];
             for (const e of dslEvents) {
               if (!eventSchema[e.name]) {
-                eventSchema[e.name] = { id: e.name, description: "", payload: null };
+                eventSchema[e.name] = { id: e.name, description: "", payload: null } as EventSchema;
               }
             }
 

@@ -2,7 +2,7 @@
  *  Pure data flow architecture: no flow edges, no event nodes.
  *  Events are bound in Design mode PropertyPanel. */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -11,6 +11,8 @@ import {
   useNodesState,
   useEdgesState,
   type Connection,
+  type Node,
+  type Edge,
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -25,6 +27,7 @@ import { RemoveElement } from "../../../core/commands/RemoveElement";
 import { getNodeConfig, type NodeTypeConfig } from "../shared/nodeRegistry";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { DataEdge } from "../shared/edges/DataEdge";
+import type { BaseNodeData } from "./nodes/BaseNode";
 import { getAllPorts, validateConnection, generateCustomFnPorts } from "../shared/connectionValidators";
 import { NodePalette } from "../design/NodePalette";
 import { elementsToNodes } from "../shared/elementsToNodes";
@@ -73,7 +76,6 @@ interface FlowCanvasProps {
 export function FlowCanvas({
   highlightedWireId = null,
   onNodeDoubleClick,
-  layoutTrigger = 0,
   activeNodeIds,
   activeEdgeIds,
 }: FlowCanvasProps) {
@@ -81,17 +83,18 @@ export function FlowCanvas({
   const activeTabId = useCodeGraphStore((s) => s.activeTabId);
   const selectedElementIds = useCodeGraphStore((s) => s.selectedElementIds);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
-  const elements = activeTab?.graph.elements || [];
-  const wires = activeTab?.graph.wires || [];
+  const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) || tabs[0], [tabs, activeTabId]);
+  const elements = useMemo(() => activeTab?.graph.elements || [], [activeTab]);
+  const wires = useMemo(() => activeTab?.graph.wires || [], [activeTab]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
   const onNodeDoubleClickRef = useRef(onNodeDoubleClick);
+  // eslint-disable-next-line react-hooks/refs -- keep ref in sync with latest callback prop
   onNodeDoubleClickRef.current = onNodeDoubleClick;
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<BaseNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // ── Convert elements → React Flow nodes ──
@@ -104,6 +107,7 @@ export function FlowCanvas({
       activeNodeIds,
     });
     setNodes(newNodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setNodes is a useState setter (stable)
   }, [elements, wires, selectedElementIds, activeNodeIds]);
 
   // ── Convert wires → React Flow edges ──
@@ -116,6 +120,7 @@ export function FlowCanvas({
       activeEdgeIds,
     });
     setEdges(newEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setEdges is a useState setter (stable)
   }, [wires, elements, highlightedWireId, activeEdgeIds]);
 
   // ── Connection handler ──
@@ -146,7 +151,7 @@ export function FlowCanvas({
       // Log warnings
       for (const issue of issues) {
         if (issue.severity === "warning") {
-          showToast(issue.message, "warning");
+          showToast(issue.message, "info");
         }
       }
 
@@ -219,7 +224,7 @@ export function FlowCanvas({
 
   // ── Node drag stop → persist position ──
 
-  const handleNodeDragStop = useCallback((_event: React.MouseEvent, node: { id: string; position: { x: number; y: number } }) => {
+  const handleNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, node: Node<BaseNodeData>) => {
     useCodeGraphStore.getState().setElementPosition(node.id, {
       x: node.position.x,
       y: node.position.y,

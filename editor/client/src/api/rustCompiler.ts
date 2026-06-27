@@ -76,9 +76,12 @@ class RustCompiler {
       } catch (_fetchErr) {
         // Fallback: use initSync + readFileSync (works in test/Node environments
         // where fetch() is unavailable or fails)
-        const { readFileSync } = await import('node:fs');
-        const { resolve, dirname } = await import('node:path');
-        const { fileURLToPath } = await import('node:url');
+        const nodeFs = 'node:fs' as string;
+        const nodePath = 'node:path' as string;
+        const nodeUrl = 'node:url' as string;
+        const { readFileSync } = await import(nodeFs) as { readFileSync: (path: string) => Uint8Array };
+        const { resolve, dirname } = await import(nodePath) as { resolve: (...args: string[]) => string; dirname: (path: string) => string };
+        const { fileURLToPath } = await import(nodeUrl) as { fileURLToPath: (url: string) => string };
 
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);

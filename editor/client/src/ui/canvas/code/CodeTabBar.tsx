@@ -6,8 +6,6 @@ import React, { useState } from "react";
 import { useCodeGraphStore } from "../../../codegraph/store";
 import type { CodeTab, CodeTabType } from "../../../core/types";
 
-import { newTabId } from "../../../codegraph/types";
-
 // ── Tab Creation Dialog ──
 
 function NewTabDialog({ onClose }: { onClose: () => void }) {
@@ -162,7 +160,7 @@ export function CodeTabBar() {
           color: isActive ? "#1F2937" : "#6B7280",
           fontWeight: isActive ? 600 : 400,
           transition: "background 0.1s",
-          height: 32, alignItems: "center",
+          height: 32,
         }}
         onMouseEnter={(e) => {
           if (!isActive) e.currentTarget.style.background = "#E5E7EB";

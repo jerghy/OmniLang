@@ -1,6 +1,6 @@
 /** Event section — event bindings UI with EventBindingDialog. */
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { ElementData } from "../../../core/types";
 import type { EventBinding, ParamBinding, FnParam } from "../../../codegraph/types";
 import { useCodeGraphStore } from "../../../codegraph/store";
@@ -35,7 +35,7 @@ interface EventSectionProps {
   onNavigateToCode?: (wireId: string) => void;
 }
 
-export function EventSection({ element: el, meta, allEvents, ctx, onRecompile, onNavigateToCode }: EventSectionProps) {
+export function EventSection({ element: el, meta, allEvents, ctx, onRecompile }: EventSectionProps) {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
 

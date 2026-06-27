@@ -84,7 +84,7 @@ interface ComponentRegistryState {
   renameComponent: (oldName: string, newName: string) => void;
 }
 
-export const useComponentRegistry = create<ComponentRegistryState>((set, get) => ({
+export const useComponentRegistry = create<ComponentRegistryState>((set) => ({
   definitions: {},
 
   defineComponent: (name, meta) => {
@@ -149,7 +149,7 @@ export const useComponentRegistry = create<ComponentRegistryState>((set, get) =>
       // Update all instance references in the element store
       const elStore = useElementStore.getState();
       if (elStore?.elements) {
-        const updatedElements = elStore.elements.map((el: any) =>
+        const updatedElements = elStore.elements.map((el: ElementData) =>
           el.componentRef === oldName ? { ...el, componentRef: newName, tag: newName } : el
         );
         useElementStore.setState({ elements: updatedElements });
@@ -214,5 +214,5 @@ export function getUnifiedComponentMeta(): Record<string, ComponentMeta> {
 
 // Expose registry for E2E tests
 if (typeof window !== "undefined") {
-  (window as any).__COMPONENT_REGISTRY__ = useComponentRegistry;
+  window.__COMPONENT_REGISTRY__ = useComponentRegistry;
 }

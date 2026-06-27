@@ -4,6 +4,11 @@
 import { create } from "zustand";
 import type { CssVariable, StyleClass, StyleProperty, StyleRegistry } from "../types/style";
 
+/** Stable sentinel used when a component has no registry yet.
+ *  Do NOT inline `?? { variables: [], classes: [] }` — that creates a new reference
+ *  on every call, which triggers React 18's useSyncExternalStore infinite loop detection. */
+const NO_REGISTRY: StyleRegistry = Object.freeze({ variables: [], classes: [] });
+
 interface StyleRegistryState {
   registries: Record<string, StyleRegistry>;
 
@@ -186,6 +191,6 @@ export const useStyleRegistryStore = create<StyleRegistryState>((set, get) => ({
   }),
 
   getRegistry: (componentName) => {
-    return get().registries[componentName] ?? { variables: [], classes: [] };
+    return get().registries[componentName] ?? NO_REGISTRY;
   },
 }));

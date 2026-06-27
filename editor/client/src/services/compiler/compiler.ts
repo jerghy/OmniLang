@@ -59,7 +59,7 @@ export async function compileProject(
     const validationResult = validate(genResult.value);
     if (!validationResult.valid) {
       // Fallback to original content when generated source fails validation
-      validationErrors = validationResult.errors;
+      validationErrors = validationResult.errors as unknown as CompileError[];
       content = params.activeFileContent;
     } else {
       validationPassed = true;

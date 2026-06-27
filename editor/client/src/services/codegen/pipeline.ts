@@ -15,8 +15,8 @@ import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { uid } from "../../core/utils";
-import { classNameToVariable } from "../../core/types";
-import type { StyleProperty, StyleValueSegment, ElementData, WireData, CodeTab } from "../../core/types";
+import { classNameToVariable, variableToClassName } from "../../core/types";
+import type { StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
 import { useComponentRegistry } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
@@ -67,7 +67,7 @@ function generateId(): string {
   return uid("s");
 }
 
-function findViewNode(view: any, elId: string): any | null {
+function findViewNode(view: ViewNode | null | undefined, elId: string): ViewNode | null {
   if (!view) return null;
   if (view.id === elId) return view;
   for (const child of view.children || []) {
@@ -77,12 +77,15 @@ function findViewNode(view: any, elId: string): any | null {
   return null;
 }
 
-function exprToString(expr: any): string {
+function exprToString(expr: unknown): string {
   if (!expr) return "";
   if (typeof expr === "string") return expr;
   if (typeof expr === "number") return String(expr);
-  if (expr.value !== undefined) return String(expr.value);
-  if (expr.literal !== undefined) return String(expr.literal);
+  if (typeof expr === "object" && expr !== null) {
+    const e = expr as Record<string, unknown>;
+    if (e.value !== undefined) return String(e.value);
+    if (e.literal !== undefined) return String(e.literal);
+  }
   return String(expr);
 }
 
@@ -98,11 +101,22 @@ function exprToString(expr: any): string {
  *   - Backward compatibility: old files without style { } blocks
  *     → extracts known style property keys from element props as inlineProperties
  */
+interface StyleRule {
+  class_name: string;
+  properties: Record<string, string>;
+}
+
+interface ComponentAST {
+  name?: string;
+  style?: StyleRule[];
+  view?: ViewNode;
+}
+
 export function parseStylesFromAST(
-  componentNode: any,
+  componentNode: ComponentAST | undefined | null,
   viewElements: Map<string, ElementData>,
 ): void {
-  const componentName = componentNode?.name ?? "unknown";
+  const componentName = componentNode?.name ?? "App";
   const store = useStyleRegistryStore.getState();
 
   // 1. Parse style { } blocks → populate StyleRegistry
@@ -112,7 +126,7 @@ export function parseStylesFromAST(
     for (const rule of styleBlock) {
       const className: string = rule.class_name;
       const properties: StyleProperty[] = Object.entries(rule.properties).map(
-        ([name, valueExpr]: [string, any]) => ({
+        ([name, valueExpr]: [string, string]) => ({
           id: generateId(),
           name,
           segments: [{ type: "text" as const, value: exprToString(valueExpr) }],
@@ -144,9 +158,33 @@ export function parseStylesFromAST(
 
     if (viewNode) {
       // Parse class: attribute → classRefs
+      // The class: attribute includes BOTH auto-generated path classes (e.g. "demo1_h1_0")
+      // from the style resolver AND user-defined classes from the registry.
+      // Only recover user-defined classes (they match the registry) and discard
+      // auto-generated path classes that would appear as garbled names in the UI.
       const classAttr = viewNode.props?.["class"];
       if (classAttr && typeof classAttr === "string") {
-        classRefs.push(...classAttr.split(/\s+/));
+        const allClasses = classAttr.split(/\s+/);
+        if (hasStyleBlock && store.getRegistry(componentName).classes.length > 0) {
+          // Recover classRefs from the class: attribute.  The attribute includes
+          // BOTH auto-generated path classes (e.g. "Test_div_0") from the style
+          // resolver AND user-defined classes from the registry.
+          const registry = store.getRegistry(componentName);
+          const registryNames = new Set(registry.classes.map((c) => c.name));
+          for (const v of registry.variables) {
+            registryNames.add(variableToClassName(v.name));
+          }
+          const compEscaped = componentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const autoGenRe = new RegExp(`^${compEscaped}_[a-z]+(_\\d+)?$`);
+          for (const c of allClasses) {
+            // Keep classes that are in the registry (user-defined) OR are
+            // auto-generated path classes needed for round-trip fidelity.
+            if (registryNames.has(c) || autoGenRe.test(c)) classRefs.push(c);
+          }
+        } else {
+          // No style block or empty registry — keep all classes (backward compat)
+          classRefs.push(...allClasses);
+        }
       }
 
       // Parse inline_style → inlineProperties
@@ -197,6 +235,7 @@ type GenerateOmniSourceOptions = {
   componentName: string;
   rootOrder?: string[];
   forSave?: boolean;
+  componentMeta?: ComponentMeta;
 };
 
 // ── Default Factory Functions ───────────────────────────────────────
@@ -279,7 +318,8 @@ function runPhaseA(
   );
   errors.push(...a1.errors);
   const viewTreeResult = a1.value ?? defaultViewTreeResult();
-  let { roots, pascalCaseTags } = viewTreeResult;
+  const { roots } = viewTreeResult;
+  let { pascalCaseTags } = viewTreeResult;
 
   const registryDefs = useComponentRegistry.getState().definitions;
   if (shouldExpand) {
@@ -307,7 +347,7 @@ function runPhaseB(
   const errors: PipelineError[] = [];
 
   const b1 = runPhase("B", "store-extractor", () =>
-    extractStores(options.designElements, options.designWires),
+    extractStores(options.designElements),
   );
   errors.push(...b1.errors);
   const storeResult = b1.value ?? defaultStoreExtractResult();
@@ -361,9 +401,10 @@ function runPhaseC(
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
+  const registry = useStyleRegistryStore.getState().getRegistry(options.componentName);
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
-    : collectStylesFromEntries(expandedElements, phaseA.roots);
+    : collectStylesFromEntries(expandedElements, registry, phaseA.roots);
 
   const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
 
@@ -446,8 +487,8 @@ function buildComponentPart(
 
 // ── Helper: Build ComponentMeta ─────────────────────────────────────
 
-function buildComponentMeta(_options: GenerateOmniSourceOptions): ComponentMeta | undefined {
-  return undefined;
+function buildComponentMeta(options: GenerateOmniSourceOptions): ComponentMeta | undefined {
+  return options.componentMeta;
 }
 
 // ── generateOmniSource ──────────────────────────────────────────────
@@ -528,7 +569,7 @@ export function generateOmniFiles(options: {
 
   // Re-extract stores (fast — just iterates elements)
   const storeResult = runPhase("B", "store-extractor", () =>
-    extractStores(options.designElements, options.designWires),
+    extractStores(options.designElements),
   );
   allErrors.push(...storeResult.errors);
 

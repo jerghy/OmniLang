@@ -18,6 +18,8 @@ function makeMockCtx(): CommandContext {
     addWire: vi.fn(),
     removeWire: vi.fn(),
     setElementsAndWires: vi.fn(),
+    reorderElement: vi.fn(),
+    moveElement: vi.fn(),
   };
 }
 

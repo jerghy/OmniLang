@@ -1,11 +1,11 @@
 // editor/client/src/canvas/nodes/BaseNode.tsx
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { getNodeConfig } from "../../shared/nodeRegistry";
 import { TYPE_COLORS } from "../../shared/socketTypes";
 import type { PortData } from "../../../../core/types";
 
-export interface BaseNodeData {
+export interface BaseNodeData extends Record<string, unknown> {
   elementId: string;
   tag: string;
   label: string;
@@ -20,8 +20,8 @@ export interface BaseNodeData {
  * Pure data-flow: all ports are data-type, no flow handles.
  * Port colors are determined by data type (from TYPE_COLORS).
  */
-export function BaseNode({ id, data, selected }: NodeProps<BaseNodeData>) {
-  const nodeData = data;
+export function BaseNode({ id: _id, data, selected }: NodeProps<Node<BaseNodeData>>) {
+  const nodeData = data as BaseNodeData;
   const config = getNodeConfig(nodeData.tag);
   const valueStr = nodeData.outputValue !== undefined
     ? ` → ${JSON.stringify(nodeData.outputValue)}`

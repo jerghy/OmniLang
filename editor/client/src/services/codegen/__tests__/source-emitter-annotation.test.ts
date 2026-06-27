@@ -12,7 +12,6 @@ function makeNode(overrides: Partial<ViewNode> & { tag: string }): ViewNode {
   return {
     id: overrides.id || "n1",
     path: overrides.path || "TestComp.n1",
-    tag: overrides.tag,
     props: overrides.props || {},
     children: overrides.children || [],
     kind: overrides.kind || "element",

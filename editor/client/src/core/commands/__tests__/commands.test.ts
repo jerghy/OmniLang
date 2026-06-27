@@ -1,7 +1,7 @@
 /** 各 Command 类的 execute/undo 单元测试。*/
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { CommandContext, Command } from "../types";
+import { describe, it, expect } from "vitest";
+import type { CommandContext } from "../types";
 import type { ElementData, WireData } from "../../types";
 import { AddElement } from "../AddElement";
 import { RemoveElement } from "../RemoveElement";
@@ -68,6 +68,8 @@ function makeCtx(elements: ElementData[] = [], wires: WireData[] = []): CommandC
       ctxWires.length = 0;
       ctxWires.push(...ws);
     },
+    reorderElement: (_elementId: string, _targetSiblingId: string, _position: "before" | "after") => {},
+    moveElement: (_elementId: string, _newParentId: string | null, _targetSiblingId: string | null, _position: "before" | "after") => {},
   };
 }
 

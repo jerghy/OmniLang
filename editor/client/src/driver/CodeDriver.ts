@@ -1,12 +1,12 @@
 /** CodeDriver — code tab management, custom functions, event bindings.
  *  Extracted from OmniDriver god class. */
 
-import { Logger } from "../utils/logger";
-import { getDesignStore, getCodeGraphStore, isCodeMode, nextId, ensureHelp } from "./store";
+import { getDesignStore, getCodeGraphStore, nextId, ensureHelp } from "./store";
 import { useCodeGraphStore, type CodeEditorState } from "../codegraph/store";
 import type { StoreApi } from "zustand";
 import { ElementHandle } from "./ElementHandle";
 import type { ElementData, WireData } from "../store/editor";
+import type { CodeTab, CodeTabVariable } from "../codegraph/types";
 import type {
   EventBindingRecord,
   FnParam,
@@ -16,8 +16,6 @@ import type {
   FunctionSignature,
   TabExportData,
 } from "./types";
-
-const log = new Logger({ prefix: "OmniDriver" });
 
 // ═══════════════════════════════════════════════════════
 // CodeDriver
@@ -114,7 +112,7 @@ export class CodeDriver {
   listTabs(): TabInfo[] {
     const store = this._codeStore();
     if (!store) return [];
-    return store.tabs.map((t: any) => ({
+    return store.tabs.map((t: CodeTab) => ({
       id: t.id, type: t.type, label: t.label, icon: t.icon,
       variableCount: t.variables.length, elementCount: t.graph.elements.length,
     }));
@@ -134,7 +132,7 @@ export class CodeDriver {
   getTab(tabId: string): TabInfo | null {
     const store = this._codeStore();
     if (!store) return null;
-    const tab = store.tabs.find((t: any) => t.id === tabId);
+    const tab = store.tabs.find((t: CodeTab) => t.id === tabId);
     if (!tab) return null;
     return { id: tab.id, type: tab.type, label: tab.label, icon: tab.icon,
       variableCount: tab.variables.length, elementCount: tab.graph.elements.length };
@@ -144,13 +142,13 @@ export class CodeDriver {
   cloneTab(tabId: string, newLabel?: string): { id: string } | null {
     const store = this._codeStore();
     if (!store) return null;
-    const srcTab = store.tabs.find((t: any) => t.id === tabId);
+    const srcTab = store.tabs.find((t: CodeTab) => t.id === tabId);
     if (!srcTab) return null;
     const idMap = new Map<string, string>();
     const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const cloneElements = srcTab.graph.elements.map((el: ElementData) => {
       const newElId = newId(); idMap.set(el.id, newElId);
-      return { ...el, id: newElId, children: [], parentId: null };
+      return { ...el, id: newElId, children: [] as string[], parentId: null as string | null };
     });
     for (let i = 0; i < cloneElements.length; i++) {
       const orig = srcTab.graph.elements[i];
@@ -164,11 +162,11 @@ export class CodeDriver {
       fromId: idMap.get(w.fromId) || w.fromId,
       toId: idMap.get(w.toId) || w.toId,
     }));
-    const cloneVars = srcTab.variables.map((v: any) => ({ ...v }));
+    const cloneVars = srcTab.variables.map((v: CodeTabVariable) => ({ ...v }));
     const id = store.addTab(srcTab.type, newLabel || `${srcTab.label} (Copy)`, {
       icon: srcTab.icon, initialGraph: { elements: cloneElements, wires: cloneWires },
     });
-    const tabState = store.tabs.find((t: any) => t.id === id);
+    const tabState = store.tabs.find((t: CodeTab) => t.id === id);
     if (tabState) { for (const v of cloneVars) store.defineVariable(v); }
     return { id };
   }
@@ -177,7 +175,7 @@ export class CodeDriver {
   exportTab(tabId: string): string | null {
     const store = this._codeStore();
     if (!store) return null;
-    const tab = store.tabs.find((t: any) => t.id === tabId);
+    const tab = store.tabs.find((t: CodeTab) => t.id === tabId);
     if (!tab) return null;
     return JSON.stringify({
       version: "2.0", exportedAt: new Date().toISOString(),
@@ -225,9 +223,10 @@ export class CodeDriver {
   getVariables(tabId: string): Array<{ name: string; type: string; defaultValue?: unknown; description?: string }> {
     const store = this._codeStore();
     if (!store) return [];
-    const tab = store.tabs.find((t: any) => t.id === tabId);
-    return tab?.variables.map((v: any) => ({
-      name: v.name, type: v.type, defaultValue: v.defaultValue, description: v.description,
+    const tab = store.tabs.find((t: CodeTab) => t.id === tabId);
+    return tab?.variables.map((v: CodeTabVariable) => ({
+      name: v.name, type: v.type, defaultValue: v.defaultValue,
+      description: (v as { description?: string }).description,
     })) || [];
   }
 
@@ -235,7 +234,7 @@ export class CodeDriver {
   getTabElements(tabId: string): ElementData[] {
     const store = this._codeStore();
     if (!store) return [];
-    const tab = store.tabs.find((t: any) => t.id === tabId);
+    const tab = store.tabs.find((t: CodeTab) => t.id === tabId);
     return tab?.graph.elements || [];
   }
 
@@ -243,7 +242,7 @@ export class CodeDriver {
   getTabWires(tabId: string): WireData[] {
     const store = this._codeStore();
     if (!store) return [];
-    const tab = store.tabs.find((t: any) => t.id === tabId);
+    const tab = store.tabs.find((t: CodeTab) => t.id === tabId);
     return tab?.graph.wires || [];
   }
 

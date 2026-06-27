@@ -31,7 +31,7 @@ export default function App() {
   const [status, setStatus] = useState<{ text: string; isError: boolean }>({ text: "就绪", isError: false });
   const [target, setTarget] = useState("react");
   const [showSearch, setShowSearch] = useState(false);
-  const [showConflict, setShowConflict] = useState(false);
+  const [_showConflict, setShowConflict] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const [wireMode, setWireMode] = useState(false);
   const [showSnippets, setShowSnippets] = useState(true);
@@ -64,7 +64,6 @@ export default function App() {
   const setElementSource = useEditorStore((s) => s.setElementSource);
 
   // ── Undo / Redo ──
-  const undoExec = useUndoStore((s) => s.execute);
   const undoUndo = useUndoStore((s) => s.undo);
   const undoRedo = useUndoStore((s) => s.redo);
 
@@ -81,7 +80,7 @@ export default function App() {
   useDesignKeyboard(ctx, {
     mode,
     setShowSearch: (v: boolean) => setShowSearch(v),
-    setActivePanel: (fn: (prev: string | null) => string | null) => setActivePanel(fn as any),
+    setActivePanel: (fn: (prev: string | null) => string | null) => setActivePanel((prev: PanelId) => fn(prev) as PanelId),
     setShowHUD: (v: boolean) => setShowHUD(v),
     setShowConflict: (v: boolean) => setShowConflict(v),
   });
@@ -92,11 +91,11 @@ export default function App() {
     searchProject: () => setShowSearch(true),
   });
   useDebugSession(runStatus.running,
-    setDebugConnected as (v: boolean) => void,
-    setDebugStateChanges as any,
-    setActiveNodeIds as any,
-    setActiveEdgeIds as any,
-    setDebugPaused as (v: boolean) => void,
+    setDebugConnected,
+    setDebugStateChanges,
+    setActiveNodeIds,
+    setActiveEdgeIds,
+    setDebugPaused,
     setFnToNodeMap, fnToNodeMap);
   useAutoCompile(handleCompile, setCompileErrors as (errors: unknown[]) => void, setStatus);
 
@@ -183,20 +182,21 @@ export default function App() {
     setHighlightedWireId(wireId);
   }, []);
 
-  // ── OmniDriver init ──
+  // ── OmniDriver init (intentionally runs once; mode/target would cause reimport) ──
   useEffect(() => {
     import("../driver").then(({ OmniDriver }) => {
       const omni = new OmniDriver();
-      (window as any).__OMNI__ = omni;
+      window.__OMNI__ = omni;
     }).catch(() => {});
-    (window as any).__OMNI_MODE__ = mode;
-    (window as any).__OMNI_TARGET__ = target;
+    window.__OMNI_MODE__ = mode;
+    window.__OMNI_TARGET__ = target;
     const onModeChange = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.mode) setMode(detail.mode);
     };
     window.addEventListener("omni-mode-change", onModeChange);
     return () => window.removeEventListener("omni-mode-change", onModeChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time driver init; mode/target are set on window for other consumers
   }, []);
 
   // ── Watch WS connection ──

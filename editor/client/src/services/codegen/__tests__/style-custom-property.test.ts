@@ -123,7 +123,7 @@ describe("collectStylesFromEntries", () => {
     const registry: StyleRegistry = { classes: [], variables: [] };
     const elements = [{
       id: "a",
-      style: { classRefs: [], inlineProperties: [{ id: "p1", name: "padding", segments: [{ type: "text", value: "8px" }] }] },
+      style: { classRefs: [] as string[], inlineProperties: [{ name: "padding", segments: [{ type: "text" as const, value: "8px" }] }] },
     }];
     const result = collectStylesFromEntries(elements, registry);
     expect(result.elementInlineMap.get("a")).toEqual({ padding: '"8px"' });
@@ -156,11 +156,11 @@ describe("collectStylesFromEntries", () => {
         id: "b",
         style: {
           classRefs: ["_v-gap"],
-          inlineProperties: [{ id: "p3", name: "display", segments: [{ type: "text", value: "flex" }] }],
+          inlineProperties: [{ name: "display", segments: [{ type: "text", value: "flex" }] }],
         },
       },
     ];
-    const result = collectStylesFromEntries(elements, registry);
+    const result = collectStylesFromEntries(elements as Parameters<typeof collectStylesFromEntries>[0], registry);
     expect(result.componentStyle["btn"]).toEqual({ color: '"red"' });
     expect(result.componentStyle["_v-gap"]).toEqual({ "--gap": '"8px"' });
     expect(result.elementClassMap.get("a")).toEqual(["btn"]);
@@ -170,8 +170,23 @@ describe("collectStylesFromEntries", () => {
 });
 
 describe("parseStylesFromAST", () => {
+  interface StyleClass {
+    class_name: string;
+    properties: Record<string, { value: string }>;
+  }
+  interface ComponentAST {
+    name: string;
+    style?: StyleClass[];
+    view?: {
+      id: string;
+      props: Record<string, unknown>;
+      inline_style: Record<string, string> | null;
+      children: unknown[];
+    };
+  }
+
   it("restores class type from style { } block", () => {
-    const componentAST: any = {
+    const componentAST: ComponentAST = {
       name: "test",
       style: [
         { class_name: "card", properties: { padding: { value: "16px" }, color: { value: "#333" } } },
@@ -180,7 +195,7 @@ describe("parseStylesFromAST", () => {
     const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, nodeType: "view", tag: "div", children: [], parentId: null }]]);
     componentAST.view = { id: "a", props: { class: "card" }, inline_style: null, children: [] };
 
-    parseStylesFromAST(componentAST, elements);
+    parseStylesFromAST(componentAST as Parameters<typeof parseStylesFromAST>[0], elements);
     const el = elements.get("a")!;
     expect(el.style?.classRefs).toContain("card");
     const registry = useStyleRegistryStore.getState().getRegistry("test");
@@ -190,7 +205,7 @@ describe("parseStylesFromAST", () => {
   });
 
   it("restores variable type from _v- prefixed class", () => {
-    const componentAST: any = {
+    const componentAST: ComponentAST = {
       name: "test",
       style: [
         { class_name: "_v-primary-color", properties: { "--primary-color": { value: "#4F46E5" } } },
@@ -199,7 +214,7 @@ describe("parseStylesFromAST", () => {
     const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, nodeType: "view", tag: "div", children: [], parentId: null }]]);
     componentAST.view = { id: "a", props: { class: "_v-primary-color" }, inline_style: null, children: [] };
 
-    parseStylesFromAST(componentAST, elements);
+    parseStylesFromAST(componentAST as Parameters<typeof parseStylesFromAST>[0], elements);
     const el = elements.get("a")!;
     expect(el.style?.classRefs).toContain("_v-primary-color");
     const registry = useStyleRegistryStore.getState().getRegistry("test");
@@ -208,11 +223,11 @@ describe("parseStylesFromAST", () => {
   });
 
   it("restores inline type from style: attribute", () => {
-    const componentAST: any = { name: "test", style: [] };
+    const componentAST: ComponentAST = { name: "test", style: [] };
     const elements = new Map<string, ElementData>([["a", { id: "a", props: {}, nodeType: "view", tag: "div", children: [], parentId: null }]]);
     componentAST.view = { id: "a", props: {}, inline_style: { padding: "8px" }, children: [] };
 
-    parseStylesFromAST(componentAST, elements);
+    parseStylesFromAST(componentAST as Parameters<typeof parseStylesFromAST>[0], elements);
     const el = elements.get("a")!;
     expect(el.style?.inlineProperties).toHaveLength(1);
     expect(el.style?.inlineProperties[0]).toEqual({
@@ -223,11 +238,11 @@ describe("parseStylesFromAST", () => {
   });
 
   it("backward compat: props style keys → inline properties when no style block", () => {
-    const componentAST: any = { name: "test", style: undefined };
+    const componentAST: ComponentAST = { name: "test", style: undefined };
     const elements = new Map<string, ElementData>([["a", { id: "a", props: { padding: "16px", label: "Submit", background_color: "#eee" }, nodeType: "view", tag: "div", children: [], parentId: null }]]);
     componentAST.view = { id: "a", props: {}, inline_style: null, children: [] };
 
-    parseStylesFromAST(componentAST, elements);
+    parseStylesFromAST(componentAST as Parameters<typeof parseStylesFromAST>[0], elements);
     const el = elements.get("a")!;
     expect(el.style?.inlineProperties.length).toBeGreaterThan(0);
     const propNames = el.style!.inlineProperties.map(p => p.name);
@@ -355,11 +370,11 @@ describe("Integration: StyleClass codegen and round-trip", () => {
       id: "a",
       style: {
         classRefs: ["btn", "_v-gap"],
-        inlineProperties: [{ id: "p3", name: "display", segments: [{ type: "text", value: "flex" }] }],
+        inlineProperties: [{ name: "display", segments: [{ type: "text", value: "flex" }] }],
       },
     }];
 
-    const result = collectStylesFromEntries(elements, registry);
+    const result = collectStylesFromEntries(elements as Parameters<typeof collectStylesFromEntries>[0], registry);
 
     expect(result.componentStyle["btn"]).toEqual({ color: '"red"', padding: '"8px"' });
     expect(result.componentStyle["_v-gap"]).toEqual({ "--gap": '"8px"' });

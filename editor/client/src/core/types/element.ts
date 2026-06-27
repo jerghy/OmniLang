@@ -29,7 +29,7 @@ export interface ElementData {
   source?: string;
   outputValue?: unknown;
   position?: { x: number; y: number };
-  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code";
+  nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code" | "function" | "ui";
   config?: Record<string, unknown>;
   flowOrder?: number;
   componentRef?: string;

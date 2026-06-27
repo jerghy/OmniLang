@@ -1,0 +1,9 @@
+# Eval Run History — editor/client
+# Format: ISO8601 | SHA | pass=N fail=N | summary
+2026-06-27T18:18:10+08:00 | c64a5486 | pass=5 fail=0 | Baseline: 196 tests, 18 suites, 0 as-any, 0 console.log, no oversized files
+2026-06-27T18:19:32+08:00 | c64a5486 | pass=4 fail=1 | C1|tsc -b (372 errors, pre-existing allowed up to 3)|FAIL|372 errors
+2026-06-27T18:21:31+08:00 | c64a5486 | pass=4 warn=0 fail=0 | C2-5|vitest run (? tests passed)|PASS|? tests R2|No 'as any' in source|PASS| R3|No console.log in source|PASS| R4|All files < 800 lines|PASS|  
+2026-06-27T18:22:00+08:00 | c64a5486 | pass=4 warn=0 fail=1 | C1|Type errors: 3720 (↑3348 from baseline)|FAIL|3720 errors C2-5|vitest run (196 tests passed)|PASS|196 tests R2|No 'as any' in source|PASS| R3|No console.log in source|PASS| R4|All files < 800 lines|PASS|  
+2026-06-27T18:22:35+08:00 | c64a5486 | pass=4 warn=1 fail=0 | C1|Type errors: 372 (no change)|WARN|372 errors C2-5|vitest run (196 tests passed)|PASS|196 tests R2|No 'as any' in source|PASS| R3|No console.log in source|PASS| R4|All files < 800 lines|PASS|  
+2026-06-27T19:23:53+08:00 | c64a5486 | pass=4 warn=0 fail=1 | C1|Type errors: 1 (↓371 from baseline)|PASS|1 errors C2-5|vitest run (196 tests passed)|PASS|196 tests R2|Found 'as any' bypasses|FAIL|5 instances R3|No console.log in source|PASS| R4|All files < 800 lines|PASS|  
+2026-06-27T19:25:06+08:00 | c64a5486 | pass=5 warn=0 fail=0 | C1|Type errors: 1 (↓371 from baseline)|PASS|1 errors C2-5|vitest run (196 tests passed)|PASS|196 tests R2|No 'as any' in source|PASS| R3|No console.log in source|PASS| R4|All files < 800 lines|PASS|  
