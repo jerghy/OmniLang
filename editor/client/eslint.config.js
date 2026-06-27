@@ -18,5 +18,16 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      'no-console': ['warn', {
+        allow: ['warn', 'error'],
+      }],
+    },
+  },
+  {
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/__tests__/**', '**/*.config.{ts,js}', 'vite-env.d.ts', '**/*.d.ts'],
+    rules: {
+      'no-console': 'off',
+    },
   },
 ])
