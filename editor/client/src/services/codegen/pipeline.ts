@@ -26,6 +26,11 @@ import type {
   ViewNode,
   StoreDef,
   ChainBlock,
+  BindingResult,
+  LoweredCode,
+  ComponentPart,
+  ComponentMeta,
+  AnnotationStrategy,
 } from "./types";
 
 // ── runPhase helper ─────────────────────────────────────────────────
@@ -183,133 +188,135 @@ export function parseStylesFromAST(
   }
 }
 
-// ── generateOmniSource ──────────────────────────────────────────────
+// ── Options type ────────────────────────────────────────────────────
 
-export function generateOmniSource(options: {
+type GenerateOmniSourceOptions = {
   designElements: ElementData[];
   designWires: WireData[];
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
-  forSave?: boolean;  // true: keep <MyCard> tags + generate imports; false (default): expand inline
-  componentMeta?: {
-    id?: string;
-    category?: string;
-    description?: string;
-    props?: Record<string, unknown>;
-    events?: Record<string, unknown>;
-    styleProperties?: string[];
-    children?: boolean;
-    propSchema?: Record<string, { editor?: string; values?: string[] }>;
-    eventSchema?: Record<string, { payload?: string | null; description?: string }>;
-    createdAt?: string;
+  forSave?: boolean;
+};
+
+// ── Default Factory Functions ───────────────────────────────────────
+
+function defaultViewTreeResult(): { roots: ViewNode[]; pascalCaseTags: string[] } {
+  return { roots: [], pascalCaseTags: [] };
+}
+
+function defaultBindingResult(): BindingResult {
+  return {
+    signalBindings: new Map(),
+    storeRefs: new Map(),
+    computedDeps: new Map(),
+    unwiredProps: [],
   };
-}): StageResult<string> {
-  const allErrors: PipelineError[] = [];
+}
 
-  // ── Custom component handling ──
-  // Two strategies:
-  //   1. "expand" (default) — for preview/compile. Inline custom component internals
-  //      so the WASM/Rust compiler can render them in a single-source context.
-  //   2. "import" (forSave) — for saving to disk. Keep <MyCard> tags in the view tree
-  //      and generate `import { MyCard } from "./components/MyCard"` statements.
-  //      The custom component definitions are stored separately in src/components/*.omni.
+interface StoreExtractResult {
+  stores: StoreDef[];
+  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneComputeds: Array<{ name: string; type: string; body: string }>;
+}
+
+function defaultStoreExtractResult(): StoreExtractResult {
+  return { stores: [], standaloneSignals: [], standaloneComputeds: [] };
+}
+
+function defaultLoweredCode(): LoweredCode {
+  return {
+    expressions: new Map(),
+    functions: [],
+    actions: [],
+    getters: [],
+  };
+}
+
+interface StyleCollection {
+  componentStyle: Record<string, Record<string, string>>;
+  elementClassMap: Map<string, string[]>;
+  elementInlineMap: Map<string, Record<string, string>>;
+}
+
+function defaultStyleCollection(): StyleCollection {
+  return { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() };
+}
+
+// ── Phase Context Types ─────────────────────────────────────────────
+
+interface PhaseAContext {
+  roots: ViewNode[];
+  pascalCaseTags: string[];
+  bindings: BindingResult;
+  imports: string[];
+}
+
+interface PhaseBContext {
+  stores: StoreDef[];
+  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneComputeds: Array<{ name: string; type: string; body: string }>;
+  lowered: LoweredCode;
+  allChains: Map<string, ChainBlock>;
+}
+
+interface PhaseCContext {
+  annotationStrategy: AnnotationStrategy | null;
+  styleCollection: StyleCollection;
+}
+
+// ── Phase Functions ─────────────────────────────────────────────────
+
+function runPhaseA(
+  options: GenerateOmniSourceOptions,
+  expandedElements: ElementData[],
+): { ctx: PhaseAContext; errors: PipelineError[] } {
+  const errors: PipelineError[] = [];
   const shouldExpand = !options.forSave;
-  const expandedElements = shouldExpand
-    ? expandCustomComponents(options.designElements)
-    : options.designElements;
-
-  // ── Phase A: Build view tree, analyze wires, collect imports ──
 
   const a1 = runPhase("A", "view-tree-builder", () =>
     buildViewTree(expandedElements, options.componentName, options.rootOrder),
   );
-  allErrors.push(...a1.errors);
-  let { roots, pascalCaseTags } = a1.value ?? {
-    roots: [] as ViewNode[],
-    pascalCaseTags: [] as string[],
-  };
+  errors.push(...a1.errors);
+  const viewTreeResult = a1.value ?? defaultViewTreeResult();
+  let { roots, pascalCaseTags } = viewTreeResult;
+
   const registryDefs = useComponentRegistry.getState().definitions;
   if (shouldExpand) {
-    // For preview/compile: custom components were expanded inline, so filter them
-    // out of pascalCaseTags — no imports needed.
     pascalCaseTags = pascalCaseTags.filter((tag) => !(tag in registryDefs));
   }
-  // For save: keep custom component tags in pascalCaseTags so collectImports
-  // generates `import { MyCard } from "./components/MyCard"`.
 
   const a2 = runPhase("A", "wire-analyzer", () =>
     analyzeWires(options.designElements, options.designWires),
   );
-  allErrors.push(...a2.errors);
-  const bindings = a2.value ?? {
-    signalBindings: new Map<
-      string,
-      Array<{ elementId: string; propName: string }>
-    >(),
-    storeRefs: new Map<string, string[]>(),
-    computedDeps: new Map<string, string[]>(),
-    unwiredProps: [] as Array<{
-      elementId: string;
-      tag: string;
-      propName: string;
-    }>,
-  };
+  errors.push(...a2.errors);
+  const bindings = a2.value ?? defaultBindingResult();
 
   const a3 = runPhase("A", "import-collector", () =>
-    collectImports(
-      pascalCaseTags,
-      [...bindings.storeRefs.keys()],
-      options.codeTabs,
-    ),
+    collectImports(pascalCaseTags, [...bindings.storeRefs.keys()], options.codeTabs),
   );
-  allErrors.push(...a3.errors);
+  errors.push(...a3.errors);
   const imports = a3.value ?? [];
 
-  // ── Phase B: StoreExtractor + ExpressionLowering + ChainEmitter ──
+  return { ctx: { roots, pascalCaseTags, bindings, imports }, errors };
+}
+
+function runPhaseB(
+  options: GenerateOmniSourceOptions,
+): { ctx: PhaseBContext; errors: PipelineError[] } {
+  const errors: PipelineError[] = [];
 
   const b1 = runPhase("B", "store-extractor", () =>
     extractStores(options.designElements, options.designWires),
   );
-  allErrors.push(...b1.errors);
-  const { stores, standaloneSignals, standaloneComputeds } = b1.value ?? {
-    stores: [] as StoreDef[],
-    standaloneSignals: [] as Array<{
-      name: string;
-      type: string;
-      default?: unknown;
-    }>,
-    standaloneComputeds: [] as Array<{ name: string; type: string; body: string }>,
-  };
+  errors.push(...b1.errors);
+  const storeResult = b1.value ?? defaultStoreExtractResult();
 
   const b2 = runPhase("B", "expression-lowering", () =>
     lowerCode(options.designElements, options.designWires),
   );
-  allErrors.push(...b2.errors);
-  const lowered = b2.value ?? {
-    expressions: new Map<string, string>(),
-    functions: [] as Array<{
-      name: string;
-      params: Array<{ name: string; type: string }>;
-      returnType: string;
-      body: string;
-    }>,
-    actions: [] as Array<{
-      storeName: string;
-      name: string;
-      params: Array<{ name: string; type: string }>;
-      body: string;
-    }>,
-    getters: [] as Array<{
-      name: string;
-      returnType: string;
-      body: string;
-      deps: string[];
-    }>,
-  };
-
-  const mainTab =
-    options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
+  errors.push(...b2.errors);
+  const lowered = b2.value ?? defaultLoweredCode();
 
   // Merge chains from all tabs (main + event tabs)
   const allChains = new Map<string, ChainBlock>();
@@ -318,161 +325,174 @@ export function generateOmniSource(options: {
     const tabChains = runPhase("B", "chain-emitter", () =>
       emitChains(tab, lowered.functions),
     );
-    allErrors.push(...tabChains.errors);
+    errors.push(...tabChains.errors);
     if (tabChains.value) {
       for (const [k, v] of tabChains.value) allChains.set(k, v);
     }
   }
 
-  // ── Phase C: Apply styles, build annotations, emit source ──
+  return {
+    ctx: {
+      stores: storeResult.stores,
+      standaloneSignals: storeResult.standaloneSignals,
+      standaloneComputeds: storeResult.standaloneComputeds,
+      lowered,
+      allChains,
+    },
+    errors,
+  };
+}
+
+function runPhaseC(
+  options: GenerateOmniSourceOptions,
+  phaseA: PhaseAContext,
+): { ctx: PhaseCContext; errors: PipelineError[] } {
+  const errors: PipelineError[] = [];
+  const shouldExpand = !options.forSave;
+  const expandedElements = shouldExpand
+    ? expandCustomComponents(options.designElements)
+    : options.designElements;
 
   const c1 = runPhase("C", "style-resolver", () => {
-    applyStyles(roots);
+    applyStyles(phaseA.roots);
   });
-  allErrors.push(...c1.errors);
+  errors.push(...c1.errors);
 
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
-  const activeRegistry = useStyleRegistryStore.getState().getRegistry(options.componentName);
-  const { componentStyle, elementClassMap, elementInlineMap } = c1.errors.length > 0
-    ? { componentStyle: {}, elementClassMap: new Map<string, string[]>(), elementInlineMap: new Map<string, Record<string, string>>() }
-    : collectStylesFromEntries(expandedElements, activeRegistry, roots);
+  const styleCollection = c1.errors.length > 0
+    ? defaultStyleCollection()
+    : collectStylesFromEntries(expandedElements, phaseA.roots);
 
+  const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
+
+  const c2 = runPhase("C", "annotation-data", () => {
+    const annData = buildAnnotationData(
+      phaseA.roots,
+      (mainTab.type as "logic" | "event") ?? "logic",
+    );
+    return createAnnotationStrategy(annData);
+  });
+  errors.push(...c2.errors);
+
+  return {
+    ctx: {
+      annotationStrategy: c2.value,
+      styleCollection,
+    },
+    errors,
+  };
+}
+
+// ── Helper: View Wrapper ID ─────────────────────────────────────────
+
+function computeViewWrapperId(options: GenerateOmniSourceOptions): string {
+  let viewWrapperId = `${options.componentName}.view`;
+  if (options.designElements.some((el) => el.id === viewWrapperId)) {
+    viewWrapperId = `${options.componentName}.view-wrapper`;
+  }
+  return viewWrapperId;
+}
+
+// ── Helper: Build ComponentPart ─────────────────────────────────────
+
+function buildComponentPart(
+  options: GenerateOmniSourceOptions,
+  phaseA: PhaseAContext,
+  phaseB: PhaseBContext,
+  viewWrapperId: string,
+  phaseC: PhaseCContext,
+): ComponentPart {
   // Build component-level signals from standaloneSignals (signals not in a store)
-  const componentSignals: Record<
-    string,
-    { type: string; default?: unknown }
-  > = {};
-  for (const s of standaloneSignals) {
+  const componentSignals: Record<string, { type: string; default?: unknown }> = {};
+  for (const s of phaseB.standaloneSignals) {
     componentSignals[s.name] = { type: s.type, default: s.default };
   }
 
   // Build component-level computeds from standaloneComputeds
   const componentComputeds: Record<string, { type: string; body: string }> = {};
-  for (const c of standaloneComputeds) {
+  for (const c of phaseB.standaloneComputeds) {
     componentComputeds[c.name] = { type: c.type, body: c.body };
   }
 
-  // Build annotation data and strategy (for both preview and save modes)
-  const c2 = runPhase("C", "annotation-data", () => {
-    const annData = buildAnnotationData(
-      roots,
-      (mainTab.type as "logic" | "event") ?? "logic",
-    );
-    return createAnnotationStrategy(annData);
-  });
-  allErrors.push(...c2.errors);
-  const annotationStrategy = c2.value;
+  return {
+    name: options.componentName,
+    signals: componentSignals,
+    computeds: componentComputeds,
+    storeRefs: [...phaseA.bindings.storeRefs.keys()],
+    fns: phaseB.lowered.functions,
+    view: phaseA.roots.length > 0 ? {
+      id: viewWrapperId,
+      path: viewWrapperId,
+      tag: "div",
+      props: {},
+      children: phaseA.roots,
+      kind: "element" as const,
+      resolvedStyle: {
+        htmlTag: "div",
+        cssClassName: `${options.componentName.toLowerCase()}_view`,
+        contentText: undefined,
+        htmlAttrs: {},
+        eventBindings: {},
+        bindings: {},
+        cssRules: {},
+        usedClassNames: [],
+      },
+    } : null,
+    style: phaseC.styleCollection.componentStyle,
+  };
+}
 
-  // Determine view wrapper ID — must NOT conflict with any user element ID
-  let viewWrapperId = `${options.componentName}.view`;
-  if (options.designElements.some((el) => el.id === viewWrapperId)) {
-    // Append a suffix to avoid duplicate ID that would corrupt the parse tree
-    viewWrapperId = `${options.componentName}.view-wrapper`;
-  }
+// ── Helper: Build ComponentMeta ─────────────────────────────────────
 
-  // ── Custom component metadata conversion ──
-  // When componentMeta is provided, extract DSL prop/event declarations and
-  // convert to EmitInput.componentMeta format for // @component / @prop / @event / @style comments.
+function buildComponentMeta(_options: GenerateOmniSourceOptions): ComponentMeta | undefined {
+  return undefined;
+}
 
-  let componentProps: EmitInput["component"]["props"];
-  let componentEvents: EmitInput["component"]["events"];
-  let emitComponentMeta: EmitInput["componentMeta"];
+// ── generateOmniSource ──────────────────────────────────────────────
 
-  if (options.componentMeta) {
-    const meta = options.componentMeta;
-    const rawProps = meta.props as Record<string, Record<string, unknown>> | undefined;
-    const rawEvents = meta.events as Record<string, Record<string, unknown>> | undefined;
+export function generateOmniSource(options: GenerateOmniSourceOptions): StageResult<string> {
+  const shouldExpand = !options.forSave;
+  const expandedElements = shouldExpand
+    ? expandCustomComponents(options.designElements)
+    : options.designElements;
 
-    // DSL prop declarations (e.g. `prop title: String = ""`)
-    componentProps = rawProps
-      ? Object.entries(rawProps).map(([name, schema]) => ({
-          name,
-          type: (schema.type as string) || "String",
-          default: schema.default,
-        }))
-      : undefined;
+  const phaseA = runPhaseA(options, expandedElements);
+  const phaseB = runPhaseB(options);
+  const phaseC = runPhaseC(options, phaseA.ctx);
 
-    // DSL event declarations (e.g. `event onAction`)
-    componentEvents = rawEvents
-      ? Object.keys(rawEvents).map((name) => ({ name }))
-      : undefined;
+  const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
+  const viewWrapperId = computeViewWrapperId(options);
+  const componentPart = buildComponentPart(options, phaseA.ctx, phaseB.ctx, viewWrapperId, phaseC.ctx);
+  const emitComponentMeta = buildComponentMeta(options);
 
-    // Editor metadata comments (replaces old *.meta.json sidecar)
-    emitComponentMeta = {
-      id: (meta.id as string) || options.componentName,
-      category: (meta.category as string) || "Custom",
-      description: (meta.description as string) || "",
-      children: (meta.children as boolean) ?? true,
-      styleProperties: (meta.styleProperties as string[]) || [],
-      propSchema: rawProps
-        ? Object.fromEntries(
-            Object.entries(rawProps).map(([name, p]) => [
-              name,
-              { editor: p.editor as string, values: p.values as string[] },
-            ])
-          )
-        : undefined,
-      eventSchema: rawEvents
-        ? Object.fromEntries(
-            Object.entries(rawEvents).map(([name, e]) => [
-              name,
-              { payload: e.payload as string, description: e.description as string },
-            ])
-          )
-        : undefined,
-    };
-  }
-
-  // Assemble the full EmitInput
   const emitInput: EmitInput = {
     codeTabType: (mainTab.type as "logic" | "event") ?? "logic",
-    imports,
-    stores,
-    component: {
-      name: options.componentName,
-      signals: componentSignals,
-      computeds: componentComputeds,
-      storeRefs: [...bindings.storeRefs.keys()],
-      fns: lowered.functions,
-      props: componentProps,
-      events: componentEvents,
-      view: roots.length > 0 ? {
-        id: viewWrapperId,
-        path: viewWrapperId,
-        tag: "div",
-        props: {},
-        children: roots,
-        kind: "element" as const,
-        resolvedStyle: {
-          htmlTag: "div",
-          cssClassName: `${options.componentName.toLowerCase()}_view`,
-          contentText: undefined,
-          htmlAttrs: {},
-          eventBindings: {},
-          bindings: {},
-          cssRules: {},
-          usedClassNames: [],
-        },
-      } : null,
-      style: componentStyle,
-    },
+    imports: phaseA.ctx.imports,
+    stores: phaseB.ctx.stores,
+    component: componentPart,
     componentMeta: emitComponentMeta,
   };
 
-  // Emit the source document
   const c3 = runPhase("C", "source-emitter", () => {
-    const emitter = new SourceEmitter(annotationStrategy, elementClassMap, elementInlineMap);
-    return emitter.emitDocument(emitInput, allChains);
+    const emitter = new SourceEmitter(
+      phaseC.ctx.annotationStrategy ?? undefined,
+      phaseC.ctx.styleCollection.elementClassMap,
+      phaseC.ctx.styleCollection.elementInlineMap,
+    );
+    return emitter.emitDocument(emitInput, phaseB.ctx.allChains);
   });
-  allErrors.push(...c3.errors);
 
-  // If any fatal error occurred, return null value
-  const hasFatal = allErrors.some((e) => e.severity === "fatal");
+  const allErrors = [
+    ...phaseA.errors,
+    ...phaseB.errors,
+    ...phaseC.errors,
+    ...c3.errors,
+  ];
 
   return {
-    value: hasFatal || c3.value === null ? null : c3.value,
+    value: allErrors.some((e) => e.severity === "fatal") || c3.value === null ? null : c3.value,
     errors: allErrors,
   };
 }
