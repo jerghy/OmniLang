@@ -10,6 +10,7 @@ import { ClassCard } from "./ClassCard";
 import { AddCssVariable } from "../../core/commands/AddCssVariable";
 import { RemoveCssVariable } from "../../core/commands/RemoveCssVariable";
 import { UpdateCssVariable } from "../../core/commands/UpdateCssVariable";
+import { UpdateStyleClass } from "../../core/commands/UpdateStyleClass";
 import { AddStyleClass } from "../../core/commands/AddStyleClass";
 import { RemoveStyleClass } from "../../core/commands/RemoveStyleClass";
 import type { CommandContext } from "../../core/commands/types";
@@ -63,9 +64,7 @@ export function StyleDesignModal({ componentName, ctx, onClose }: Props) {
   const handleChangeClass = (updated: StyleClass) => {
     const existing = registry.classes.find((c) => c.id === updated.id);
     if (existing) {
-      const store = useStyleRegistryStore.getState();
-      store.removeClass(componentName, updated.id);
-      store.addClass(componentName, updated);
+      undoExec(new UpdateStyleClass(componentName, existing, updated), ctx);
     }
   };
 

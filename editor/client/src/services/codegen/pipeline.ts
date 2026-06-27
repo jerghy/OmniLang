@@ -55,7 +55,7 @@ function runPhase<T>(
 }
 
 // ── parseStylesFromAST ─────────────────────────────────────────────
-// Reconstruct StyleEntry[] from a component AST node (view tree + style blocks).
+// Reconstruct ElementStyle (class refs + inline properties) from a component AST node (view tree + style blocks).
 // Called when loading .omni files to populate element styles before storing.
 
 function generateId(): string {

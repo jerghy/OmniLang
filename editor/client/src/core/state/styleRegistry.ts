@@ -15,6 +15,7 @@ interface StyleRegistryState {
   // ── Class operations ──
   addClass: (componentName: string, styleClass: StyleClass) => void;
   removeClass: (componentName: string, classId: string) => void;
+  replaceClass: (componentName: string, styleClass: StyleClass) => void;
   renameClass: (componentName: string, classId: string, newName: string) => void;
 
   // ── Property operations ──
@@ -88,6 +89,22 @@ export const useStyleRegistryStore = create<StyleRegistryState>((set, get) => ({
         [componentName]: {
           ...reg,
           classes: reg.classes.filter((c) => c.id !== classId),
+        },
+      },
+    };
+  }),
+
+  replaceClass: (componentName, styleClass) => set((s) => {
+    const reg = s.registries[componentName];
+    if (!reg) return {};
+    return {
+      registries: {
+        ...s.registries,
+        [componentName]: {
+          ...reg,
+          classes: reg.classes.map((c) =>
+            c.id === styleClass.id ? styleClass : c
+          ),
         },
       },
     };

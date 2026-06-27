@@ -237,7 +237,7 @@ describe("parseStylesFromAST", () => {
   });
 });
 
-describe("Integration: StyleEntry codegen and round-trip", () => {
+describe("Integration: StyleClass codegen and round-trip", () => {
   it("round-trips class and variable through generate -> parse", () => {
     // Populate the registry with class and variable definitions
     useStyleRegistryStore.getState().addClass("Test", {

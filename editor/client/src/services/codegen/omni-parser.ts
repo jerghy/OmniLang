@@ -111,8 +111,8 @@ export function parseOmniSource(source: string): ParseResult {
 
   // Parse styles from the captured AST (style blocks + view tree).
   // Always run when elements exist — handles:
-  // - style { } blocks → class/variable StyleEntry
-  // - inline style: { } attributes → inline StyleEntry
+  // - style { } blocks → class/variable StyleClass
+  // - inline style: { } attributes → inline ElementStyle
   // - backward compat: no style block → extract style keys from element props
   if (ctx.elements.length > 0) {
     // Build a view tree node from element parent/child relationships

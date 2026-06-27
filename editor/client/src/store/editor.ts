@@ -418,8 +418,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) => {
           if (e.id !== elementId) return e;
-          const current = (e as any).style?.classRefs ?? [];
-          return { ...e, style: { ...(e as any).style, classRefs: [...current, className] } };
+          const es = e.style ?? { classRefs: [], inlineProperties: [] };
+          return { ...e, style: { ...es, classRefs: [...es.classRefs, className] } };
         }),
         isDirty: true,
       }));
@@ -429,8 +429,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) => {
           if (e.id !== elementId) return e;
-          const current = (e as any).style?.classRefs ?? [];
-          return { ...e, style: { ...(e as any).style, classRefs: current.filter((c: string) => c !== className) } };
+          const es = e.style ?? { classRefs: [], inlineProperties: [] };
+          return { ...e, style: { ...es, classRefs: es.classRefs.filter((c) => c !== className) } };
         }),
         isDirty: true,
       }));
@@ -440,7 +440,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) =>
           e.id === elementId
-            ? { ...e, style: { ...(e as any).style, inlineProperties: properties } }
+            ? { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), inlineProperties: properties } }
             : e
         ),
         isDirty: true,
@@ -451,8 +451,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) => {
           if (e.id !== elementId) return e;
-          const current = (e as any).style?.inlineProperties ?? [];
-          return { ...e, style: { ...(e as any).style, inlineProperties: [...current, property] } };
+          const es = e.style ?? { classRefs: [], inlineProperties: [] };
+          return { ...e, style: { ...es, inlineProperties: [...es.inlineProperties, property] } };
         }),
         isDirty: true,
       }));
@@ -462,8 +462,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) => {
           if (e.id !== elementId) return e;
-          const current = (e as any).style?.inlineProperties ?? [];
-          return { ...e, style: { ...(e as any).style, inlineProperties: current.filter((p: any) => p.id !== propertyId) } };
+          const es = e.style ?? { classRefs: [], inlineProperties: [] };
+          return { ...e, style: { ...es, inlineProperties: es.inlineProperties.filter((p) => p.id !== propertyId) } };
         }),
         isDirty: true,
       }));
@@ -473,12 +473,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set((s) => ({
         elements: s.elements.map((e) => {
           if (e.id !== elementId) return e;
-          const current = (e as any).style?.inlineProperties ?? [];
+          const es = e.style ?? { classRefs: [], inlineProperties: [] };
           return {
             ...e,
             style: {
-              ...(e as any).style,
-              inlineProperties: current.map((p: any) =>
+              ...es,
+              inlineProperties: es.inlineProperties.map((p) =>
                 p.id === propertyId ? { ...p, ...patch } : p
               ),
             },

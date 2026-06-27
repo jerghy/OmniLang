@@ -211,7 +211,7 @@ export class SourceEmitter {
     parts.push(`<${style.htmlTag}`);
     parts.push(` id="${node.id}"`);
 
-    // Base class name from resolved style + extra classes from StyleEntry[]
+    // Base class name from resolved style + extra classes from element classRefs
     const extraClasses = this.elementClassMap?.get(node.id);
     const fullClassName = extraClasses?.length
       ? `${style.cssClassName} ${extraClasses.join(" ")}`
