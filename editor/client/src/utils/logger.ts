@@ -12,8 +12,12 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   error: 3,
 };
 
-const GLOBAL_MIN_LEVEL: LogLevel =
-  (import.meta.env.VITE_LOG_LEVEL as LogLevel) || "warn";
+function isValidLogLevel(value: unknown): value is LogLevel {
+  return typeof value === "string" && value in LEVEL_RANK;
+}
+
+const envLevel = import.meta.env.VITE_LOG_LEVEL;
+const GLOBAL_MIN_LEVEL: LogLevel = isValidLogLevel(envLevel) ? envLevel : "warn";
 
 export class Logger {
   private prefix: string;
