@@ -23,10 +23,6 @@ beforeEach(() => {
   useStyleRegistryStore.setState({ registries: {} });
 });
 
-beforeAll(async () => {
-  await rustCompiler.init();
-});
-
 describe("WASM -- CSS custom properties", () => {
   it("parses --custom-property in style block", () => {
     const src = [
