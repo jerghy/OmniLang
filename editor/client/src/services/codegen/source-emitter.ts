@@ -224,12 +224,13 @@ export class SourceEmitter {
       parts.push(` ${attr}="${escapeAttr(val)}"`);
     }
 
-    // Inline styles from StyleEntry[]
+    // Inline styles — values are already compiled segment strings from
+    // collectStylesFromEntries (text segments quoted, signals bare, var-refs as var()).
     const inlineStyles = this.elementInlineMap?.get(node.id);
     if (inlineStyles && Object.keys(inlineStyles).length > 0) {
       const styleStr = Object.entries(inlineStyles)
         .filter(([, v]) => v !== "" && v !== undefined && v !== null)
-        .map(([k, v]) => `${k}: "${v}"`)
+        .map(([k, v]) => `${k}: ${v}`)
         .join(", ");
       parts.push(` style: { ${styleStr} }`);
     }

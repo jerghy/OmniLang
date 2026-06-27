@@ -1,11 +1,11 @@
 // editor/client/src/services/codegen/collect-styles.ts
-// Collect and merge style data from design-element StyleEntry[] entries and
+// Collect and merge style data from StyleRegistry + ElementStyle entries and
 // ViewNode resolvedStyle trees into the componentStyle map, elementClassMap,
 // and elementInlineMap consumed by SourceEmitter.
 
 import { resolveStyle } from "./style-resolver";
 import { variableToClassName } from "../../core/types";
-import type { StyleEntry } from "../../core/types";
+import type { StyleRegistry, StyleValueSegment } from "../../core/types";
 import type { ViewNode } from "./types";
 
 // ── applyStyles ───────────────────────────────────────────────────────
@@ -27,8 +27,8 @@ export function applyStyles(roots: ViewNode[]): void {
 // ── collectStylesFromEntries ──────────────────────────────────────────
 
 /**
- * Build the final style maps from ElementData StyleEntry[] and an optional
- * ViewNode tree.
+ * Build the final style maps from ElementData (with ElementStyle) and a
+ * StyleRegistry (canonical source of class/variable definitions).
  *
  * Returns three data structures consumed by SourceEmitter:
  *   - componentStyle:   class name → { property: value } (for the style {} block)
@@ -36,7 +36,8 @@ export function applyStyles(roots: ViewNode[]): void {
  *   - elementInlineMap: element ID → { property: value } (for inline style: on view nodes)
  */
 export function collectStylesFromEntries(
-  elements: Array<{ id: string; styles?: StyleEntry[] }>,
+  elements: Array<{ id: string; style?: { classRefs?: string[]; inlineProperties?: Array<{ name: string; segments: StyleValueSegment[] }> } }>,
+  styleRegistry: StyleRegistry,
   roots?: ViewNode[],
 ): {
   componentStyle: Record<string, Record<string, string>>;
@@ -47,60 +48,38 @@ export function collectStylesFromEntries(
   const elementClassMap = new Map<string, string[]>();
   const elementInlineMap = new Map<string, Record<string, string>>();
 
-  // Phase 1: Process StyleEntry[] from design elements (new style-panel path)
+  // Phase 1: Build componentStyle from StyleRegistry
+  for (const cls of styleRegistry.classes) {
+    const rules: Record<string, string> = {};
+    for (const prop of cls.properties) {
+      rules[prop.name] = compileSegments(prop.segments);
+    }
+    componentStyle[cls.name] = { ...(componentStyle[cls.name] ?? {}), ...rules };
+  }
+
+  for (const v of styleRegistry.variables) {
+    const className = variableToClassName(v.name);
+    const rules = { [v.name]: compileSegments(v.segments) };
+    componentStyle[className] = { ...(componentStyle[className] ?? {}), ...rules };
+  }
+
+  // Phase 2: Element classRefs → elementClassMap, inlineProperties → elementInlineMap
   for (const el of elements) {
-    if (!el.styles?.length) continue;
-    const classNames: string[] = [];
-    const inlineStyles: Record<string, string> = {};
-
-    for (const entry of el.styles) {
-      switch (entry.type) {
-        case "class": {
-          const rules: Record<string, string> = {};
-          for (const prop of entry.properties) {
-            rules[prop.name] = prop.value;
-          }
-          // Issue 2: merge instead of overwrite on class name collision
-          if (componentStyle[entry.name]) {
-            componentStyle[entry.name] = { ...componentStyle[entry.name], ...rules };
-          } else {
-            componentStyle[entry.name] = rules;
-          }
-          classNames.push(entry.name);
-          break;
-        }
-        case "variable": {
-          const varName = entry.name;
-          const className = variableToClassName(varName);
-          const rules = { [varName]: entry.properties[0]?.value ?? "" };
-          // Issue 2: merge instead of overwrite on class name collision
-          if (componentStyle[className]) {
-            componentStyle[className] = { ...componentStyle[className], ...rules };
-          } else {
-            componentStyle[className] = rules;
-          }
-          classNames.push(className);
-          break;
-        }
-        case "inline": {
-          for (const prop of entry.properties) {
-            inlineStyles[prop.name] = prop.value;
-          }
-          break;
-        }
+    const classRefs = el.style?.classRefs ?? [];
+    if (classRefs.length > 0) {
+      elementClassMap.set(el.id, [...new Set(classRefs)]);
+    }
+    const inlineProps = el.style?.inlineProperties ?? [];
+    if (inlineProps.length > 0) {
+      const inlineMap: Record<string, string> = {};
+      for (const prop of inlineProps) {
+        inlineMap[prop.name] = compileSegments(prop.segments);
       }
-    }
-
-    // Issue 3: deduplicate class names before storing
-    if (classNames.length > 0) {
-      elementClassMap.set(el.id, [...new Set(classNames)]);
-    }
-    if (Object.keys(inlineStyles).length > 0) {
-      elementInlineMap.set(el.id, inlineStyles);
+      elementInlineMap.set(el.id, inlineMap);
     }
   }
 
-  // Phase 2: Merge resolvedStyle.cssRules from ViewNode tree (Issue 1).
+  // Phase 3: Merge resolvedStyle.cssRules from ViewNode tree.
   // applyStyles(roots) computed resolvedStyle on each ViewNode with cssRules from
   // snake_case props (e.g. background_color -> background).  Make sure those rules
   // end up in componentStyle under the correct class name so they appear in the
@@ -120,6 +99,33 @@ export function collectStylesFromEntries(
   }
 
   return { componentStyle, elementClassMap, elementInlineMap };
+}
+
+// ── compileSegments ──────────────────────────────────────────────────
+
+/**
+ * Compile StyleValueSegment[] into an OmniLang expression string.
+ *
+ * - text segments are wrapped in double quotes
+ * - signal segments appear bare (they resolve at runtime)
+ * - var-ref segments produce var(--name)
+ * - multiple segments are joined with ` + `
+ */
+export function compileSegments(segments: StyleValueSegment[]): string {
+  if (segments.length === 0) return "";
+  if (segments.length === 1) {
+    const s = segments[0];
+    if (s.type === "text") return `"${s.value}"`;
+    if (s.type === "signal") return s.name;
+    if (s.type === "var-ref") return `var(${s.name})`;
+    return "";
+  }
+  return segments.map((s) => {
+    if (s.type === "text") return `"${s.value}"`;
+    if (s.type === "signal") return s.name;
+    if (s.type === "var-ref") return `var(${s.name})`;
+    return "";
+  }).join(" + ");
 }
 
 // ── walkViewNodes ──────────────────────────────────────────────────────

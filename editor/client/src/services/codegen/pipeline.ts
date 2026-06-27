@@ -15,9 +15,10 @@ import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { uid } from "../../core/utils";
-import { classNameToVariable, STYLE_PROPERTY_NAMES } from "../../core/types";
-import type { StyleEntry, StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
+import { classNameToVariable } from "../../core/types";
+import type { StyleProperty, StyleValueSegment, ElementData, WireData, CodeTab } from "../../core/types";
 import { useComponentRegistry } from "../../core/state/componentRegistry";
+import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
   StageResult,
   PipelineError,
@@ -81,47 +82,48 @@ function exprToString(expr: any): string {
 }
 
 /**
- * Parse style { } blocks from a component AST and populate StyleEntry[]
- * on the given view elements.
+ * Parse style { } blocks from a component AST and populate ElementStyle
+ * (classRefs + inlineProperties) on the given view elements via el.style.
  *
- * Also handles:
- *   - class: attributes on view nodes → matching class/variable StyleEntry
- *   - inline_style on view nodes → inline StyleEntry
+ * Also populates the StyleRegistry (useStyleRegistryStore) from style { } blocks.
+ *
+ * Handles:
+ *   - class: attributes on view nodes → classRefs
+ *   - inline_style on view nodes → inlineProperties
  *   - Backward compatibility: old files without style { } blocks
- *     → extracts known style property keys from element props
+ *     → extracts known style property keys from element props as inlineProperties
  */
 export function parseStylesFromAST(
   componentNode: any,
   viewElements: Map<string, ElementData>,
 ): void {
-  // 1. Parse style { } blocks → class/variable StyleEntry map by class name
-  const styleClassMap = new Map<string, StyleEntry>();
+  const componentName = componentNode?.name ?? "unknown";
+  const store = useStyleRegistryStore.getState();
+
+  // 1. Parse style { } blocks → populate StyleRegistry
   const styleBlock = componentNode?.style;
-  // styleBlock being an array (even empty) means an explicit style {} block in source.
-  // undefined means no style block at all (old-format file), triggering backward compat.
   const hasStyleBlock = Array.isArray(styleBlock);
   if (hasStyleBlock) {
     for (const rule of styleBlock) {
       const className: string = rule.class_name;
       const properties: StyleProperty[] = Object.entries(rule.properties).map(
         ([name, valueExpr]: [string, any]) => ({
+          id: generateId(),
           name,
-          value: exprToString(valueExpr),
+          segments: [{ type: "text" as const, value: exprToString(valueExpr) }],
         })
       );
 
       const varName = classNameToVariable(className);
       if (varName) {
-        styleClassMap.set(className, {
+        store.addVariable(componentName, {
           id: generateId(),
-          type: "variable",
           name: varName,
-          properties: properties.length > 0 ? properties : [{ name: "value", value: "" }],
+          segments: properties[0]?.segments ?? [],
         });
       } else {
-        styleClassMap.set(className, {
+        store.addClass(componentName, {
           id: generateId(),
-          type: "class",
           name: className,
           properties,
         });
@@ -129,65 +131,52 @@ export function parseStylesFromAST(
     }
   }
 
-  // 2. Walk view elements → map class: and style: to StyleEntry[]
+  // 2. Walk view elements → map class: and style: to ElementStyle
   for (const [elId, el] of viewElements) {
-    const styles: StyleEntry[] = [];
+    const classRefs: string[] = [];
+    const inlineProperties: StyleProperty[] = [];
     const viewNode = findViewNode(componentNode?.view, elId);
 
     if (viewNode) {
-      // Parse class: attribute → find matching StyleEntries
+      // Parse class: attribute → classRefs
       const classAttr = viewNode.props?.["class"];
       if (classAttr && typeof classAttr === "string") {
-        const classNames = classAttr.split(/\s+/);
-        for (const cn of classNames) {
-          const entry = styleClassMap.get(cn);
-          if (entry) {
-            styles.push({ ...entry, id: generateId() });
-          }
-        }
+        classRefs.push(...classAttr.split(/\s+/));
       }
 
-      // Parse style: attribute → inline StyleEntry
+      // Parse inline_style → inlineProperties
       const inlineStyle = viewNode.inline_style;
       if (inlineStyle && typeof inlineStyle === "object") {
-        const properties: StyleProperty[] = Object.entries(inlineStyle).map(
-          ([name, value]) => ({ name, value: String(value) })
-        );
-        if (properties.length > 0) {
-          styles.push({
+        for (const [name, value] of Object.entries(inlineStyle)) {
+          inlineProperties.push({
             id: generateId(),
-            type: "inline",
-            name: "",
-            properties,
+            name,
+            segments: [{ type: "text" as const, value: String(value) }],
           });
         }
       }
     }
 
     // 3. Backward compatibility: no style { } block and no class:/style: attributes
-    //    → extract style keys from el.props and create inline StyleEntry
-    if (styles.length === 0 && !hasStyleBlock) {
-      const styleProps: StyleProperty[] = [];
+    //    → extract known style keys from el.props and create inline properties
+    if (classRefs.length === 0 && inlineProperties.length === 0 && !hasStyleBlock) {
       for (const key of Object.keys(el.props)) {
-        if (STYLE_PROPERTY_NAMES.has(key)) {
-          styleProps.push({ name: key, value: String(el.props[key]) });
+        // Common CSS property names that might appear as element props in old files
+        if (/^(background|color|padding|margin|border|radius|width|height|display|flex|gap|font|text|align|justify)/i.test(key)) {
+          inlineProperties.push({
+            id: generateId(),
+            name: key,
+            segments: [{ type: "text" as const, value: String(el.props[key]) }],
+          });
         }
-      }
-      if (styleProps.length > 0) {
-        styles.push({
-          id: generateId(),
-          type: "inline",
-          name: "",
-          properties: styleProps,
-        });
       }
     }
 
-    el.styles = styles;
+    el.style = { classRefs, inlineProperties };
 
-    // Cleanup: remove old props.style and props.className when StyleEntry
+    // Cleanup: remove old props.style and props.className when style
     // has been set, to avoid duplicate style/class attributes in emitted source
-    if (styles.length > 0 && (el.props?.style || el.props?.className)) {
+    if ((classRefs.length > 0 || inlineProperties.length > 0) && (el.props?.style || el.props?.className)) {
       const { style: _oldStyle, className: _oldClass, ...restProps } = el.props;
       el.props = restProps;
     }
@@ -345,9 +334,10 @@ export function generateOmniSource(options: {
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
+  const activeRegistry = useStyleRegistryStore.getState().getRegistry(options.componentName);
   const { componentStyle, elementClassMap, elementInlineMap } = c1.errors.length > 0
     ? { componentStyle: {}, elementClassMap: new Map<string, string[]>(), elementInlineMap: new Map<string, Record<string, string>>() }
-    : collectStylesFromEntries(expandedElements, roots);
+    : collectStylesFromEntries(expandedElements, activeRegistry, roots);
 
   // Build component-level signals from standaloneSignals (signals not in a store)
   const componentSignals: Record<
