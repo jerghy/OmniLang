@@ -9,6 +9,7 @@ import { PropertyPanel } from "../../ui/panels/PropertyPanel";
 import { ActivityBar, PanelContainer, DESIGN_PANELS, type PanelId } from "../../ui/panels/ActivityBar";
 import { Toolbar } from "../../ui/shell/Toolbar";
 import { DesignToolbar } from "../../ui/shell/DesignToolbar";
+import { StyleDesignModal } from "../../ui/panels/StyleDesignModal";
 import { StatusBar } from "../../ui/shell/StatusBar";
 import { S } from "../../ui/shell/theme";
 import { LayoutView } from "../../ui/canvas/design/LayoutView";
@@ -82,6 +83,7 @@ export function DesignModeLayout({
   selectedId,
   handleNavigateToCode,
 }: DesignModeLayoutProps) {
+  const [showStyleModal, setShowStyleModal] = useState(false);
   return (
     <>
       <ActivityBar
@@ -113,6 +115,7 @@ export function DesignModeLayout({
           onRun={toolbarProps.onRun}
           onStop={toolbarProps.onStop}
           onCompile={toolbarProps.onCompile}
+          onOpenCssStyles={() => setShowStyleModal(true)}
         >
           <DesignToolbar
             breakpoint={breakpoint}
@@ -169,6 +172,13 @@ export function DesignModeLayout({
           onNavigateToCode={(wireId) => handleNavigateToCode(wireId)}
         />
       </aside>
+      {showStyleModal && (
+        <StyleDesignModal
+          componentName="App"
+          ctx={ctx}
+          onClose={() => setShowStyleModal(false)}
+        />
+      )}
     </>
   );
 }

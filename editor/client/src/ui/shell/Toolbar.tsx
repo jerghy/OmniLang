@@ -19,6 +19,7 @@ export interface ToolbarProps {
   onStop: () => void;
   onCompile: () => void;
   compileLabel?: string;
+  onOpenCssStyles?: () => void;
   children?: React.ReactNode;
 }
 
@@ -35,6 +36,7 @@ export function Toolbar({
   onStop,
   onCompile,
   compileLabel = "编译",
+  onOpenCssStyles = () => {},
   children,
 }: ToolbarProps) {
   return (
@@ -48,6 +50,8 @@ export function Toolbar({
       <button onClick={onRedo} style={iconBtn} title="重做 (Ctrl+Shift+Z)">↪</button>
       {/* Save */}
       <button onClick={onSave} style={{...iconBtn, color: isDirty ? "#DC2626" : "#6B7280", fontWeight: isDirty ? 700 : 400 as React.CSSProperties['fontWeight']}} title="保存项目 (Ctrl+S)">💾</button>
+      <span style={{ width: 12 }} />
+      <button onClick={onOpenCssStyles} style={{...btnStyle, color: "#6366F1", fontWeight: 600, fontSize: 12}} title="CSS 样式设计">🎨 CSS 样式</button>
       {children}
       {/* Run/Stop/Compile */}
       {runStatus.running ? (
