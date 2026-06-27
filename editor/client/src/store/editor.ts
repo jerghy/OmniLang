@@ -13,7 +13,6 @@ import { parseOmniSource } from "../services/codegen";
 export { useElementStore } from "../core/state/elements";
 export { useWireStore } from "../core/state/wires";
 export { useSelectionStore } from "../core/state/selection";
-export { styleOperations } from "../core/state/styles";
 export { useProjectStore } from "../core/state/project";
 export { useTabStore } from "../core/state/tabs";
 
@@ -22,7 +21,6 @@ export type { ElementData, WireData, PortData, ProjectConfig } from "../core/typ
 
 // ── Atom imports (canonical state owners) ──
 import { useElementStore, useWireStore, useSelectionStore, useProjectStore, useTabStore } from "../core/state";
-import { styleOperations } from "../core/state/styles";
 
 // ── Data Types (re-exported from core/types) ────────
 export type { ElementData as _ElementData, WireData as _WireData, PortData, ProjectConfig } from "../core/types";

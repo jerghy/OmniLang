@@ -4,9 +4,9 @@
 export { useElementStore } from "./elements";
 export { useWireStore } from "./wires";
 export { useSelectionStore } from "./selection";
-export { styleOperations } from "./styles";
 export { useProjectStore } from "./project";
 export { useTabStore } from "./tabs";
+export { useStyleRegistryStore } from "./styleRegistry";
 
 // Migrated stores
 export { useUndoStore } from "./undo";
