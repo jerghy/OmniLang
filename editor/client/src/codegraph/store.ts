@@ -488,5 +488,5 @@ interface CodeEditorState {
 // ── Expose for E2E tests ──
 
 if (typeof window !== "undefined") {
-  (window as any).__CODE_GRAPH_STORE__ = useCodeGraphStore;
+  window.__CODE_GRAPH_STORE__ = useCodeGraphStore;
 }

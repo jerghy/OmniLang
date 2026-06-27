@@ -1,6 +1,7 @@
 /** Global type declaration for window.__OMNI__.
  *  Provides type-safe access to OmniDriver in Playwright tests and browser scripts. */
 
+import type { StoreApi } from "zustand";
 import type {
   PortDescriptor,
   ElementQuery,
@@ -19,7 +20,9 @@ import type {
   FunctionSignature,
   TabExportData,
 } from "./types";
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData, EditorState } from "../store/editor";
+import type { CodeEditorState } from "../codegraph/store";
+import type { ComponentRegistryState } from "../store/componentRegistry";
 
 interface ElementHandle {
   readonly id: string;
@@ -195,6 +198,11 @@ interface StateDiff {
 declare global {
   interface Window {
     __OMNI__: OmniDriver;
+    __OMNI_MODE__: "design" | "code";
+    __OMNI_TARGET__: string;
+    __CODE_GRAPH_STORE__: StoreApi<CodeEditorState>;
+    __COMPONENT_REGISTRY__: StoreApi<ComponentRegistryState>;
+    __ZUSTAND_EDITOR_STORE__: StoreApi<EditorState>;
   }
 }
 

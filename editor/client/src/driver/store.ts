@@ -19,7 +19,7 @@ export function getDesignStore() {
 
 /** Check if we are in code mode. */
 export function isCodeMode(): boolean {
-  return ((window as any).__OMNI_MODE__ || "design") === "code";
+  return (window.__OMNI_MODE__ || "design") === "code";
 }
 
 /** Access the code graph store for tab/graph operations. */

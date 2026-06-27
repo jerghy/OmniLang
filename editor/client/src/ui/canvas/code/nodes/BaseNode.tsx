@@ -20,8 +20,8 @@ export interface BaseNodeData {
  * Pure data-flow: all ports are data-type, no flow handles.
  * Port colors are determined by data type (from TYPE_COLORS).
  */
-export function BaseNode({ id, data, selected }: NodeProps) {
-  const nodeData = data as unknown as BaseNodeData;
+export function BaseNode({ id, data, selected }: NodeProps<BaseNodeData>) {
+  const nodeData = data;
   const config = getNodeConfig(nodeData.tag);
   const valueStr = nodeData.outputValue !== undefined
     ? ` → ${JSON.stringify(nodeData.outputValue)}`

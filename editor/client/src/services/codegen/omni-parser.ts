@@ -7,6 +7,9 @@ import { Logger } from "../utils/logger";
 
 const log = new Logger({ prefix: "omni-parser" });
 
+/** Module-level WeakMap to track view indent levels without polluting ElementData. */
+const viewIndentMap = new WeakMap<ElementData, number>();
+
 type ParserState =
   | "ROOT"
   | "IN_COMPONENT"
@@ -423,7 +426,7 @@ function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
     while (ctx.viewParentStack.length > 0) {
       const parentId = ctx.viewParentStack[ctx.viewParentStack.length - 1];
       const parent = ctx.elements.find(e => e.id === parentId);
-      if (parent && (parent as any)._viewIndent !== undefined && (parent as any)._viewIndent >= indent) {
+      if (parent && viewIndentMap.get(parent) !== undefined && viewIndentMap.get(parent)! >= indent) {
         ctx.viewParentStack.pop();
       } else {
         break;
@@ -432,7 +435,7 @@ function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
 
     const parentId = ctx.viewParentStack.length > 0 ? ctx.viewParentStack[ctx.viewParentStack.length - 1] : null;
     el.parentId = parentId;
-    (el as any)._viewIndent = indent;
+    viewIndentMap.set(el, indent);
 
     if (parentId) {
       const parent = ctx.elements.find(e => e.id === parentId);

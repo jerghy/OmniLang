@@ -21,7 +21,7 @@ export class StateDriver {
   getState(): EditorSnapshot {
     const s = getDesignStore();
     return {
-      mode: (window as any).__OMNI_MODE__ || "design",
+      mode: window.__OMNI_MODE__ || "design",
       elements: s.elements,
       wires: s.wires,
       selectedElementIds: s.selectedElementIds,
@@ -50,7 +50,7 @@ export class StateDriver {
 
   /** Get the current editor mode. */
   getMode(): "design" | "code" {
-    return (window as any).__OMNI_MODE__ || "design";
+    return window.__OMNI_MODE__ || "design";
   }
 
   /** Get the preview URL (after deploy). */

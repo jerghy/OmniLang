@@ -346,8 +346,8 @@ class OmniDriver {
       };
     }
 
-    const target = (window as any).__OMNI_TARGET__ || "react";
-    const result = await api.compile.compile(content, target);
+    const target = window.__OMNI_TARGET__ || "react";
+    const result = await api.compile(content, target);
 
     // Parse view tree and code blocks
     try {

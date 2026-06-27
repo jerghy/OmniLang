@@ -30,7 +30,7 @@ export type { ElementData as _ElementData, WireData as _WireData, PortData, Proj
 
 // ── Store ──────────────────────────────────────────
 
-interface EditorState {
+export interface EditorState {
   projectDir: string | null;
   previewUrl: string | null;
   files: { name: string; path: string; type: "file" | "directory" }[];
@@ -905,72 +905,44 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const newTabStates = { ...s.tabStates };
         delete newTabStates[docId];
 
-        if (s.activeDocId === docId) {
-          let closingCompFile = false;
-          if (docId.startsWith("comp:")) {
-            const compName = docId.replace("comp:", "");
-            useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
-          } else if (docId.startsWith("file:")) {
-            newTabStates[docId] = { elements: s.elements, wires: s.wires };
-            const filePath = docId.replace("file:", "");
-            const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
-            if (compMatch) {
-              const compName = compMatch[1];
-              const registry = useComponentRegistry.getState();
-              if (registry.definitions[compName]) {
-                registry.saveCanvas(compName, s.elements, s.wires);
-                closingCompFile = true;
-              }
+  /** @deprecated Use openProject() for .omni.json files instead. */
+  openFileTab: (path, name, elements, wires, customComponents) =>
+    set((s) => {
+      const tabKey = `file:${path}`;
+      if (s.openTabs.includes(tabKey)) return s;
+      const newTabStates = {
+        ...s.tabStates,
+        [tabKey]: { elements, wires },
+      };
+      if (customComponents && Array.isArray(customComponents) && customComponents.length > 0) {
+        try {
+          const componentDefs = customComponents as Array<Record<string, unknown>>;
+          const defs: Record<string, Record<string, unknown>> = {};
+          for (const cc of componentDefs) {
+            const entryName = cc.name;
+            if (typeof entryName === "string") {
+              defs[entryName] = cc;
             }
           }
-          import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
-          const wasDirty = closingCompFile;
-          return {
-            elements: s.docBackup?.elements || [],
-            wires: s.docBackup?.wires || [],
-            docBackup: null,
-            activeDocId: null,
-            openTabs: newOpenTabs,
-            tabStates: newTabStates,
-            selectedElementIds: [],
-            compVersion: wasDirty ? s.compVersion + 1 : s.compVersion,
-          };
-        }
-
-        return { openTabs: newOpenTabs, tabStates: newTabStates };
-      });
-      syncToAtoms();
-    },
-
-    /** @deprecated Use openProject() for .omni.json files instead. */
-    openFileTab: (path, _name, elements, wires, customComponents) => {
-      set((s) => {
-        const tabKey = `file:${path}`;
-        if (s.openTabs.includes(tabKey)) return {};
-        const newTabStates = { ...s.tabStates, [tabKey]: { elements, wires } };
-        if (customComponents && Array.isArray(customComponents) && customComponents.length > 0) {
-          try {
-            const defs: Record<string, unknown> = {};
-            for (const cc of customComponents) {
-              if ((cc as Record<string, unknown>).name) defs[(cc as Record<string, unknown>).name as string] = cc;
-            }
-            if (Object.keys(defs).length > 0) {
-              import("./componentRegistry").then((m) => {
-                m.useComponentRegistry.setState({ definitions: defs as any });
-              }).catch(() => {});
-            }
-          } catch { /* non-critical */ }
-        }
-        return { openTabs: [...s.openTabs, tabKey], tabStates: newTabStates };
-      });
-      syncToAtoms();
-    },
-  };
-});
+          if (Object.keys(defs).length > 0) {
+            import("./componentRegistry").then((m) => {
+              m.useComponentRegistry.setState({
+                definitions: defs as Record<string, import("./componentRegistry").ComponentDefinition>,
+              });
+            }).catch(() => {});
+          }
+        } catch { /* non-critical */ }
+      }
+      return {
+        openTabs: [...s.openTabs, tabKey],
+        tabStates: newTabStates,
+      };
+    }),
+}));
 
 import { useComponentRegistry } from "./componentRegistry";
 
 // Expose store for E2E tests (Playwright page.evaluate)
 if (typeof window !== "undefined") {
-  (window as any).__ZUSTAND_EDITOR_STORE__ = useEditorStore;
+  window.__ZUSTAND_EDITOR_STORE__ = useEditorStore;
 }

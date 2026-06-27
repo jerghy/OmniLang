@@ -96,11 +96,14 @@ export class CanvasDriver {
     const cleanProps: Record<string, unknown> = {};
     if (props) {
       for (const [k, v] of Object.entries(props)) {
-        if (k === "children" && Array.isArray(v) && v.every((c: unknown) => c instanceof ElementHandle)) {
-          inlineChildren.push(...(v as unknown as ElementHandle[]));
-        } else {
-          cleanProps[k] = v;
+        if (k === "children" && Array.isArray(v)) {
+          const handles = v.filter((c): c is ElementHandle => c instanceof ElementHandle);
+          if (handles.length === v.length) {
+            inlineChildren.push(...handles);
+            continue;
+          }
         }
+        cleanProps[k] = v;
       }
     }
 
@@ -306,7 +309,7 @@ export class CanvasDriver {
 
   /** Switch between design and code mode. */
   switchMode(mode: "design" | "code"): void {
-    (window as any).__OMNI_MODE__ = mode;
+    window.__OMNI_MODE__ = mode;
     // Dispatch a custom event for App.tsx to pick up
     window.dispatchEvent(
       new CustomEvent("omni-mode-change", { detail: { mode } }),

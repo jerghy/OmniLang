@@ -3,7 +3,8 @@
 
 import { Logger } from "../utils/logger";
 import { getDesignStore, getCodeGraphStore, isCodeMode, nextId, ensureHelp } from "./store";
-import { useCodeGraphStore } from "../codegraph/store";
+import { useCodeGraphStore, type CodeEditorState } from "../codegraph/store";
+import type { StoreApi } from "zustand";
 import { ElementHandle } from "./ElementHandle";
 import type { ElementData, WireData } from "../store/editor";
 import type {
@@ -24,8 +25,8 @@ const log = new Logger({ prefix: "OmniDriver" });
 
 export class CodeDriver {
   /** @internal Access the code graph store, trying global singleton first. */
-  private _codeStore(): any {
-    const global = (window as any).__CODE_GRAPH_STORE__;
+  private _codeStore(): ReturnType<StoreApi<CodeEditorState>["getState"]> | null {
+    const global = window.__CODE_GRAPH_STORE__;
     if (global?.getState) return global.getState();
     try { return useCodeGraphStore.getState(); } catch { return null; }
   }
@@ -41,7 +42,7 @@ export class CodeDriver {
       const bindings = handle.getEventBindings();
       for (const b of bindings) {
         let tabId = "";
-        const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+        const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
         if (codeStore?.tabs) {
           for (const tab of codeStore.tabs) {
             const hasFn = tab.graph.elements.some(
@@ -66,7 +67,7 @@ export class CodeDriver {
     _eventName: string,
   ): Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string }> {
     const result: Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string }> = [];
-    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
     if (!codeStore?.tabs) return result;
     for (const tab of codeStore.tabs) {
       if (tabId !== "*" && tab.id !== tabId) continue;
@@ -355,7 +356,7 @@ export class CodeDriver {
       }
     }
     // Search code graph store (code mode tabs)
-    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
     if (codeStore?.tabs) {
       for (const tab of codeStore.tabs) {
         for (const el of tab.graph.elements) {
@@ -388,7 +389,7 @@ export class CodeDriver {
       }
     }
     // Search code graph store
-    const codeStore = (window as any).__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
     if (codeStore?.tabs) {
       for (const tab of codeStore.tabs) {
         for (const el of tab.graph.elements) {

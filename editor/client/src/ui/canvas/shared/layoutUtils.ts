@@ -119,15 +119,17 @@ function layoutWithDagre(
   dagre.layout(g);
 
   const result: LayoutResult = {};
+  interface DagreNode { width: number; height: number; x: number; y: number; }
   for (const el of elements) {
     const node = g.node(el.id);
     if (node) {
       // dagre returns CENTER coordinates; convert to top-left for Rete
-      const nw = (node as any).width as number ?? CB_WIDTH;
-      const nh = (node as any).height as number ?? CB_HEIGHT;
+      const dagreNode = node as DagreNode;
+      const nw = dagreNode.width ?? CB_WIDTH;
+      const nh = dagreNode.height ?? CB_HEIGHT;
       result[el.id] = {
-        x: node.x - nw / 2,
-        y: node.y - nh / 2,
+        x: dagreNode.x - nw / 2,
+        y: dagreNode.y - nh / 2,
       };
     }
   }

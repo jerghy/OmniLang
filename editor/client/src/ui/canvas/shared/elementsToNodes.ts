@@ -15,10 +15,10 @@ export interface ElementsToNodesOptions {
   activeNodeIds?: Set<string>;
 }
 
-export function elementsToNodes(opts: ElementsToNodesOptions): Node[] {
+export function elementsToNodes(opts: ElementsToNodesOptions): Node<BaseNodeData>[] {
   const { elements, wires, selectedElementIds, activeNodeIds } = opts;
 
-  const nodes: Node[] = [];
+  const nodes: Node<BaseNodeData>[] = [];
   const type = "codeblock"; // all nodes are codeblock type now (no viewEvent)
 
   for (const el of elements) {
@@ -56,7 +56,7 @@ export function elementsToNodes(opts: ElementsToNodesOptions): Node[] {
       id: el.id,
       type,
       position: pos,
-      data: nodeData as unknown as Record<string, unknown>,
+      data: nodeData,
       selected: selectedElementIds.includes(el.id),
       style: Object.keys(style).length > 0 ? style : undefined,
     });

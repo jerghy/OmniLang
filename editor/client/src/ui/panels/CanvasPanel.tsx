@@ -4,10 +4,10 @@
  *  .omni 源码是唯一真相源，打开时解析为视觉元素，保存通过主工具栏操作。 */
 
 import { useState, useEffect, useCallback } from "react";
-import { useEditorStore } from "../../store/editor";
-import { useComponentRegistry } from "../../store/componentRegistry";
-import { api } from "../../services/api";
-import { parseOmniSource } from "../../services/codegen";
+import { useEditorStore } from "../store/editor";
+import { useComponentRegistry, type ComponentDefinition } from "../store/componentRegistry";
+import { api } from "../api/client";
+import { parseOmniSource } from "../omni-gen";
 
 interface OmniFile {
   name: string;
@@ -184,7 +184,9 @@ export function CanvasPanel() {
               storage: "file",
             };
           }
-          useComponentRegistry.setState({ definitions: merged } as any);
+          useComponentRegistry.setState({
+            definitions: merged as Record<string, ComponentDefinition>,
+          });
         }
       }).catch(() => {});
 
