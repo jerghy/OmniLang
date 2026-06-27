@@ -1,7 +1,7 @@
 // core/types/element.ts
 // Shared element and port type definitions.
 
-import type { StyleEntry } from "./style";
+import type { ElementStyle } from "./style";
 
 export interface PortData {
   name: string;
@@ -18,7 +18,7 @@ export interface ElementData {
   nodeType: "view" | "codeblock" | "group";
   tag: string;
   props: Record<string, unknown>;
-  styles?: StyleEntry[];
+  style?: ElementStyle;
   children: string[];
   parentId: string | null;
   ports?: PortData[];
