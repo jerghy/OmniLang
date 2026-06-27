@@ -16,7 +16,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@monaco-editor/react": "^4.7.0",
-    "@tigerabrodioss/fude": "^0.1.4",
     "@types/dagre": "^0.7.54",
     "@xyflow/react": "^12.11.0",
     "dagre": "^0.8.5",

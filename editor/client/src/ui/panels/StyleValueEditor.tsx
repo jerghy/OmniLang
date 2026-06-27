@@ -1,5 +1,5 @@
 // ui/panels/StyleValueEditor.tsx
-// Wraps @tigerabrodioss/fude for OmniLang style value editing.
+// OmniLang style value editing.
 // Supports three segment types: text, signal (@ trigger), var-ref (var( trigger).
 
 import React from "react";
@@ -19,9 +19,7 @@ interface Props {
 }
 
 // Minimal single-line text input with chip rendering for signals/var-refs.
-// Phase 2 is intentionally lightweight — fude library integration can be
-// deepened in a follow-up if needed. The important thing is that the
-// segment[] ↔ visual chips data flow is correct.
+// Phase 2 is intentionally lightweight — can be deepened in a follow-up if needed.
 
 export function StyleValueEditor({
   segments,
@@ -34,6 +32,8 @@ export function StyleValueEditor({
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [suggestionType, setSuggestionType] = React.useState<"signal" | "var-ref" | null>(null);
   const [filterText, setFilterText] = React.useState("");
+  const [hoveredIndex, setHoveredIndex] = React.useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = React.useState<number | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Keep text in sync when segments change externally
@@ -50,6 +50,7 @@ export function StyleValueEditor({
       setFilterText(atMatch[1]);
       setSuggestionType("signal");
       setShowSuggestions(true);
+      setHighlightedIndex(null);
       return;
     }
 
@@ -59,10 +60,12 @@ export function StyleValueEditor({
       setFilterText(varMatch[1]);
       setSuggestionType("var-ref");
       setShowSuggestions(true);
+      setHighlightedIndex(null);
       return;
     }
 
     setShowSuggestions(false);
+    setHighlightedIndex(null);
 
     // If no special trigger, treat as plain text
     if (!rawValue.includes("@") && !rawValue.includes("var(")) {
@@ -81,6 +84,7 @@ export function StyleValueEditor({
 
     onChange(newSegments);
     setShowSuggestions(false);
+    setHighlightedIndex(null);
     inputRef.current?.focus();
   };
 
@@ -95,7 +99,26 @@ export function StyleValueEditor({
 
     onChange(newSegments);
     setShowSuggestions(false);
+    setHighlightedIndex(null);
     inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions) return;
+    if (e.key === "Escape") { setShowSuggestions(false); setHighlightedIndex(null); return; }
+    const items = suggestionType === "signal" ? filteredSignals : filteredVars;
+    if (items.length === 0) return;
+    const currentIdx = highlightedIndex ?? -1;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex(Math.min(currentIdx + 1, items.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex(Math.max(currentIdx - 1, 0));
+    } else if (e.key === "Enter" && currentIdx >= 0) {
+      if (suggestionType === "signal") insertSignal(filteredSignals[currentIdx]);
+      else insertVarRef(filteredVars[currentIdx]);
+    }
   };
 
   const filteredSignals = availableSignals.filter((s) =>
@@ -157,6 +180,7 @@ export function StyleValueEditor({
           type="text"
           value={text}
           onChange={(e) => handleInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           style={{
             background: "#fff", color: "#374151", border: "1px solid #d1d5db",
@@ -174,30 +198,39 @@ export function StyleValueEditor({
           boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 200,
           overflow: "auto", minWidth: 200,
         }}>
-          {suggestionType === "signal" && filteredSignals.map((s) => (
+          {suggestionType === "signal" && filteredSignals.map((s, idx) => (
             <div
               key={s.name}
               onClick={() => insertSignal(s)}
               style={{
                 padding: "6px 10px", cursor: "pointer", fontSize: 12,
-                background: "transparent",
+                background: highlightedIndex === idx
+                  ? "#E5E7EB"
+                  : hoveredIndex === s.name
+                    ? "#F3F4F6"
+                    : "transparent",
               }}
-              onMouseEnter={(e) => { (e.target as HTMLElement).style.background = "#F3F4F6"; }}
-              onMouseLeave={(e) => { (e.target as HTMLElement).style.background = "transparent"; }}
+              onMouseEnter={() => setHoveredIndex(s.name)}
+              onMouseLeave={() => setHoveredIndex(null)}
             >
               <span style={{ color: "#1E40AF", fontWeight: 500 }}>@{s.label}</span>
               <span style={{ color: "#9CA3AF", marginLeft: 8, fontSize: 10 }}>{s.name}</span>
             </div>
           ))}
-          {suggestionType === "var-ref" && filteredVars.map((v) => (
+          {suggestionType === "var-ref" && filteredVars.map((v, idx) => (
             <div
               key={v}
               onClick={() => insertVarRef(v)}
               style={{
                 padding: "6px 10px", cursor: "pointer", fontSize: 12,
+                background: highlightedIndex === idx
+                  ? "#E5E7EB"
+                  : hoveredIndex === v
+                    ? "#F3F4F6"
+                    : "transparent",
               }}
-              onMouseEnter={(e) => { (e.target as HTMLElement).style.background = "#F3F4F6"; }}
-              onMouseLeave={(e) => { (e.target as HTMLElement).style.background = "transparent"; }}
+              onMouseEnter={() => setHoveredIndex(v)}
+              onMouseLeave={() => setHoveredIndex(null)}
             >
               <span style={{ color: "#065F46", fontWeight: 500 }}>{v}</span>
             </div>
