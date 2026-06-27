@@ -1,4 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "CanvasPreview" });
 
 export interface NidEntry {
   elementId: string;
@@ -62,8 +65,8 @@ export function CanvasPreview({
         }
         case 'omni-signal-changed':
         case 'omni-event-fired':
-          // Debug messages — log to console for now
-          console.debug('[CanvasPreview]', e.data.type, e.data);
+          // Debug messages — log via Logger
+          log.debug(e.data.type, e.data);
           break;
       }
     };

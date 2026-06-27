@@ -2,10 +2,13 @@
  *  替代原来的 ComponentCanvasHeader 独立返回按钮。 */
 
 import React, { useState } from "react";
-import { useEditorStore } from "../../../store/editor";
-import { useComponentRegistry } from "../../../store/componentRegistry";
-import { api } from "../../../services/api";
-import { parseOmniSource } from "../../../services/codegen";
+import { useEditorStore } from "../store/editor";
+import { useComponentRegistry } from "../store/componentRegistry";
+import { api } from "../api/client";
+import { parseOmniSource } from "../omni-gen";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "CanvasTabBar" });
 
 interface TabInfo {
   key: string;          // docId: null for main, "comp:Name", "file:path"
@@ -83,7 +86,7 @@ export function CanvasTabBar() {
               registry.saveCanvas(compName, elements, wires);
             }
           } catch (e) {
-            console.error(`[CanvasTabBar] Failed to load component "${compName}" from disk:`, e);
+            log.error(`Failed to load component "${compName}" from disk:`, e);
           }
         }
         // If we're already in component mode, switchTab; otherwise enterComponentCanvas
@@ -114,7 +117,7 @@ export function CanvasTabBar() {
               });
             }
           } catch (e) {
-            console.error('[CanvasTabBar] Failed to load file tab:', e);
+            log.error('Failed to load file tab:', e);
           }
         }
         switchTab(tab.key);

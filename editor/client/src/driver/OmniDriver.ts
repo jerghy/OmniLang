@@ -18,8 +18,8 @@
  *  ```
  */
 
-import { useEditorStore } from "../store/editor";
-import type { ElementData, WireData } from "../core/types";
+import { Logger } from "../utils/logger";
+import { useEditorStore, type ElementData, type WireData } from "../store/editor";
 import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
 import { COMPONENT_PROTOCOL, type EventMeta } from "../ui/panels/ComponentPalette";
@@ -43,6 +43,8 @@ import type {
   StateDiff,
   EventBindingOptions,
 } from "./types";
+
+const log = new Logger({ prefix: "OmniDriver" });
 
 // ═══════════════════════════════════════════════════════
 // ElementHandle
@@ -72,8 +74,8 @@ class ElementHandle {
     const d = this._require();
     // Warn if setting a prop that doesn't exist yet (might be intentional or a typo)
     if (!(prop in (d.props as object)) && prop !== "children") {
-      console.warn(
-        `[OmniDriver] setProp: "${prop}" is not an existing property on <${d.tag}>. ` +
+      log.warn(
+        `setProp: "${prop}" is not an existing property on <${d.tag}>. ` +
         `Existing props: ${Object.keys(d.props as object).join(", ") || "(none)"}. ` +
         `This may be intentional for new props, or could be a typo.`,
       );
@@ -233,7 +235,7 @@ class ElementHandle {
     const d = this._require();
     const currentVal = (d.props as Record<string, unknown>)[eventName];
     if (currentVal === undefined) {
-      console.warn(`[OmniDriver] unbindEvent: "${eventName}" is not bound on <${d.tag}>`);
+      log.warn(`unbindEvent: "${eventName}" is not bound on <${d.tag}>`);
       return this;
     }
     this._driver._store().setProp(d.id, eventName, undefined as unknown);
@@ -416,8 +418,8 @@ class OmniDriver {
 
   private _ensureHelp(): void {
     if (!this._helpShown) {
-      console.log(
-        "[OmniDriver] 💡 首次使用？调用 O.help() 查看完整 API 参考、端口结构和事件 UUID 表",
+      log.info(
+        "💡 首次使用？调用 O.help() 查看完整 API 参考、端口结构和事件 UUID 表",
       );
       this._helpShown = true;
     }
@@ -688,8 +690,8 @@ class OmniDriver {
    *  Auto-detects when parentId is mistakenly passed as props (common agent mistake). */
   text(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
     if (typeof props === "string") {
-      console.warn(
-        `[OmniDriver] text() 第2个参数应为 props 对象，收到了字符串 "${props}"。` +
+      log.warn(
+        `text() 第2个参数应为 props 对象，收到了字符串 "${props}"。` +
         `你可能把 parentId 传到了 props 位置。已自动修复。正确调用: O.text("${label}", {}, "${props}")`,
       );
       // Auto-recover: treat the string as parentId
@@ -729,8 +731,8 @@ class OmniDriver {
    *  Auto-detects when parentId is mistakenly passed as alt (common agent mistake). */
   image(src: string, alt = "", parentId?: string | null): ElementHandle {
     if (alt && alt.startsWith("el-") && !parentId) {
-      console.warn(
-        `[OmniDriver] image() 第2个参数 alt="${alt}" 看起来像元素 ID。` +
+      log.warn(
+        `image() 第2个参数 alt="${alt}" 看起来像元素 ID。` +
         `你可能把 parentId 传到了 alt 位置。正确调用: O.image("${src}", "", "${alt}")`,
       );
     }
@@ -854,14 +856,18 @@ class OmniDriver {
     // Log all issues
     for (const issue of issues) {
       const level = issue.severity === "error" ? "error" : "warn";
-      console[level](`[OmniDriver] connect: ${issue.code} — ${issue.message}`);
+      if (level === "error") {
+        log.error(`connect: ${issue.code} — ${issue.message}`);
+      } else {
+        log.warn(`connect: ${issue.code} — ${issue.message}`);
+      }
     }
 
     // Block connection on errors (portType mismatch, type incompat, duplicate)
     const errors = issues.filter((i) => i.severity === "error");
     if (errors.length > 0) {
-      console.error(
-        `[OmniDriver] connect: Connection blocked (${errors.length} error(s)). ` +
+      log.error(
+        `connect: Connection blocked (${errors.length} error(s)). ` +
         `Wire NOT created: ${fromId}.${fromPort} → ${toId}.${toPort}`,
       );
       return new WireHandle(id, this);
@@ -1140,7 +1146,7 @@ class OmniDriver {
   importState(json: string): void {
     const data = JSON.parse(json);
     if (!data.elements || !data.wires) {
-      console.warn("[OmniDriver] importState: invalid state JSON — expected { elements, wires }");
+      log.warn("importState: invalid state JSON — expected { elements, wires }");
       return;
     }
     useEditorStore.setState({
@@ -1769,7 +1775,7 @@ class OmniDriver {
   highlight(elementId: string): void {
     const el = this._store().elements.find((e) => e.id === elementId);
     if (!el) {
-      console.warn(`[OmniDriver] highlight: element "${elementId}" not found`);
+      log.warn(`highlight: element "${elementId}" not found`);
       return;
     }
     window.dispatchEvent(
@@ -1785,7 +1791,7 @@ class OmniDriver {
       .elements.filter((e) => e.tag === tag)
       .map((e) => e.id);
     if (ids.length === 0) {
-      console.warn(`[OmniDriver] highlightAll: no elements with tag "${tag}" found`);
+      log.warn(`highlightAll: no elements with tag "${tag}" found`);
       return;
     }
     window.dispatchEvent(
@@ -1907,7 +1913,7 @@ class OmniDriver {
       this.importState(snapshotToken);
       return true;
     } catch (e) {
-      console.warn("[OmniDriver] restoreSnapshot: failed to restore — invalid snapshot token", e);
+      log.warn("restoreSnapshot: failed to restore — invalid snapshot token", e);
       return false;
     }
   }

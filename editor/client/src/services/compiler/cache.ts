@@ -3,9 +3,13 @@
 // Wraps the omni-gen pipeline (elements -> .omni source) and the
 // Rust WASM compiler (.omni source -> JS/HTML/CSS) into a single cache.
 
-import { generateOmniSource } from "../codegen/pipeline";
-import { rustCompiler } from "../../api/rustCompiler";
-import type { ElementData, WireData, CodeTab } from "../../core/types";
+import { generateOmniSource } from "./omni-gen/pipeline";
+import { rustCompiler } from "./api/rustCompiler";
+import type { ElementData, WireData } from "./store/editor";
+import type { CodeTab } from "./codegraph/types";
+import { Logger } from "./utils/logger";
+
+const log = new Logger({ prefix: "OmniCompilerCache" });
 
 export interface CompileProjectInput {
   designElements: ElementData[];
@@ -61,7 +65,7 @@ class OmniCompilerCache {
           : ["No OmniLang source generated"];
       // Return stale output if available, otherwise show error
       if (this.lastOutput) {
-        console.warn('[OmniCompilerCache] Source generation failed, returning stale output');
+        log.warn('Source generation failed, returning stale output');
         return this.lastOutput;
       }
       return this.errorResult(msgs);
@@ -81,7 +85,7 @@ class OmniCompilerCache {
         result.errors?.map((e) => e.message) ?? ["WASM compilation failed"];
       // Return stale output if available, otherwise show error
       if (this.lastOutput) {
-        console.warn('[OmniCompilerCache] WASM compilation failed, returning stale output');
+        log.warn('WASM compilation failed, returning stale output');
         return this.lastOutput;
       }
       // Do NOT cache error results — transient failures should be retried

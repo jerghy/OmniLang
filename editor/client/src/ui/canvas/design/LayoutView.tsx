@@ -17,6 +17,9 @@ import { CanvasPreview } from "./CanvasPreview";
 import { compilerCache } from "../../../services/compiler/cache";
 import { rustCompiler } from "../../../api/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "LayoutView" });
 
 // ============================================================
 // Component
@@ -45,7 +48,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     initAttempted.current = true;
     rustCompiler.init().then(() => {
       setWasmReady(true);
-      console.log('[LayoutView] WASM compiler ready');
+      log.info('WASM compiler ready');
     });
   }, []);
 

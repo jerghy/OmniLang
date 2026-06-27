@@ -1,6 +1,10 @@
 // Rust WASM compiler loader for the OmniLang editor.
 // Loads the WASM-compiled omni-compiler and exposes compile_to_ir / compile_to_omniview.
 
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "RustCompiler" });
+
 type CompileResult = {
   success: boolean;
   ir?: IRProgram;
@@ -94,11 +98,11 @@ class RustCompiler {
       };
       this.ready = true;
 
-      console.log(
-        `[RustCompiler] Loaded omni-compiler v${this.wasm.version()}`,
+      log.info(
+        `Loaded omni-compiler v${this.wasm.version()}`,
       );
     } catch (err) {
-      console.warn('[RustCompiler] WASM not available, using Python fallback:', err);
+      log.warn('WASM not available, using Python fallback:', err);
       this.ready = false;
     }
   }

@@ -9,6 +9,9 @@
  */
 
 import { useState } from "react";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "ConnectorPanel" });
 
 interface EndpointForm {
   method: string;
@@ -55,7 +58,7 @@ export function ConnectorPanel({ onInsertCode }: ConnectorPanelProps) {
         setResultCode(data.code);
       }
     } catch (e) {
-      console.error("Connector generate failed:", e);
+      log.error("generate failed:", e);
     } finally {
       setGenerating(false);
     }

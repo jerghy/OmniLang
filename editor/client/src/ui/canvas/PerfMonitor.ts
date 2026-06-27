@@ -12,6 +12,10 @@
  *   - 200 components + 300 wires < 50ms property edit latency
  */
 
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "Perf" });
+
 interface PerfSample {
   timestamp: number;
   frameTime: number;   // ms
@@ -89,7 +93,7 @@ class PerfMonitorImpl {
     const duration = performance.now() - start;
     // Only log slow operations (>16ms — one frame budget)
     if (duration > 16) {
-      console.debug(`[Perf] ${label}: ${duration.toFixed(1)}ms`);
+      log.debug(`${label}: ${duration.toFixed(1)}ms`);
     }
     return result;
   }

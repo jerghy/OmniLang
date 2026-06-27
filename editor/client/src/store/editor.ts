@@ -6,9 +6,11 @@
  */
 
 import { create } from "zustand";
-import type { StyleProperty, StyleRegistry } from "../core/types/style";
-import { useStyleRegistryStore } from "../core/state/styleRegistry";
-import { parseOmniSource } from "../services/codegen";
+import type { StyleEntry } from "../constants/style-properties";
+import { parseOmniSource } from "../omni-gen";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "editor" });
 
 // ── Atom re-exports (preferred imports for refactored consumers) ──
 export { useElementStore } from "../core/state/elements";
@@ -502,10 +504,180 @@ export const useEditorStore = create<EditorState>((set, get) => {
       syncToAtoms();
     },
 
-    openProject: (path, sourceOrDocument) => {
-      let result: any;
-      if (typeof sourceOrDocument === "string") {
-        result = get()._openOmniFile(path, sourceOrDocument);
+    // Use persisted rootOrder if available (from save), else reconstruct from array order (backward compat)
+    const rootOrder = (
+      (design.rootOrder as string[])?.length
+        ? (design.rootOrder as string[])
+        : designElements.filter((e) => !e.parentId).map((e) => e.id)
+    );
+
+    return set({
+      projectPath: path,
+      projectName,
+      sourceCode: (doc.sourceCode as string) || "",
+      isDirty: false,
+      elements: designElements,
+      wires: designWires,
+      rootOrder,
+      config: {
+        target: (config.target as string) || "react",
+        autoSave: (config.autoSave as boolean) || false,
+      },
+      activeDocId: null,
+      docBackup: null,
+      openTabs: (tabState.openTabs as string[]) || ["main"],
+      tabStates: {},
+      selectedElementIds: [],
+      // Switch to the active tab from saved state
+    });
+  },
+
+  markDirty: () => set({ isDirty: true }),
+  markClean: () => set({ isDirty: false }),
+
+  setConfig: (patch) =>
+    set((s) => ({ config: { ...s.config, ...patch }, isDirty: true })),
+
+  setSourceCode: (code) =>
+    set({ sourceCode: code, isDirty: true }),
+
+  // ── .omni 源码文件解析 ──
+
+  _openOmniFile: (path, source) => {
+    // 使用客户端解析器从 .omni 源码提取视觉元素
+    let designElements: ElementData[] = [];
+    try {
+      const parsed = parseOmniSource(source);
+      if (parsed.designElements) {
+        designElements = parsed.designElements;
+      }
+    } catch (e) {
+      log.warn("Failed to parse .omni source:", e);
+      // 解析失败时使用空元素列表，画布可通过编译自动恢复
+    }
+
+    const projectName = path.replace(/^.*[/\\]/, "").replace(/\.omni$/, "");
+
+    return set({
+      projectPath: path,
+      projectName,
+      sourceCode: source,
+      isDirty: false,
+      elements: designElements,
+      wires: [],
+      rootOrder: designElements.filter((e) => !e.parentId).map((e) => e.id),
+      config: { target: "react", autoSave: false },
+      activeDocId: null,
+      docBackup: null,
+      openTabs: ["main"],
+      tabStates: {},
+      selectedElementIds: [],
+    });
+  },
+
+  // ── Multi-Canvas Support ──
+  activeDocId: null,
+  docBackup: null,
+
+  enterComponentCanvas: (componentName) =>
+    set((s) => {
+      const backup = { elements: s.elements, wires: s.wires };
+      const compDef = useComponentRegistry.getState().definitions[componentName];
+      if (!compDef) return s;
+      const newTabStates = { ...s.tabStates };
+      if (s.activeDocId && s.activeDocId.startsWith("file:")) {
+        newTabStates[s.activeDocId] = { elements: s.elements, wires: s.wires };
+      }
+      import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+      const tabKey = `comp:${componentName}`;
+      const newOpenTabs = s.openTabs.includes(tabKey) ? s.openTabs : [...s.openTabs, tabKey];
+      return {
+        docBackup: backup,
+        elements: compDef.elements,
+        wires: compDef.wires,
+        activeDocId: tabKey,
+        openTabs: newOpenTabs,
+        tabStates: newTabStates,
+        selectedElementIds: [],
+        rootOrder: (compDef.elements || []).filter((e) => !e.parentId).map((e) => e.id),
+      };
+    }),
+
+  exitComponentCanvas: () =>
+    set((s) => {
+      if (!s.activeDocId || !s.activeDocId.startsWith("comp:")) return s;
+      const compName = s.activeDocId.replace("comp:", "");
+      useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
+      import("./undo").then((m) => m.useUndoStore.getState().clear()).catch(() => {});
+      return {
+        elements: s.docBackup?.elements || [],
+        wires: s.docBackup?.wires || [],
+        docBackup: null,
+        activeDocId: null,
+        selectedElementIds: [],
+        rootOrder: (s.docBackup?.elements || []).filter((e) => !e.parentId).map((e) => e.id),
+        compVersion: s.compVersion + 1,
+      };
+    }),
+
+  // ── Tab System ──
+  openTabs: [],
+  tabStates: {},
+
+  switchTab: (docId) =>
+    set((s) => {
+      if (s.activeDocId === docId) return s;
+      const newTabStates = { ...s.tabStates };
+      const currentKey = s.activeDocId;
+      let leavingComponentFile = false;
+      if (currentKey && currentKey.startsWith("file:")) {
+        newTabStates[currentKey] = { elements: s.elements, wires: s.wires };
+        // If this file tab corresponds to a custom component (src/components/XXX.omni),
+        // also sync the edits back to the component registry so the main canvas
+        // expands the latest definition on recompile.
+        const filePath = currentKey.replace("file:", "");
+        const compMatch = filePath.match(/src[/\\]components[/\\](.+)\.omni$/);
+        if (compMatch) {
+          const compName = compMatch[1];
+          const registry = useComponentRegistry.getState();
+          if (registry.definitions[compName]) {
+            registry.saveCanvas(compName, s.elements, s.wires);
+            leavingComponentFile = true;
+          }
+        }
+      } else if (currentKey && currentKey.startsWith("comp:")) {
+        const compName = currentKey.replace("comp:", "");
+        useComponentRegistry.getState().saveCanvas(compName, s.elements, s.wires);
+      }
+
+      let newElements: ElementData[];
+      let newWires: WireData[];
+      let newDocBackup = s.docBackup;
+
+      if (docId === null) {
+        newElements = s.docBackup?.elements || [];
+        newWires = s.docBackup?.wires || [];
+        newDocBackup = null;
+      } else if (docId.startsWith("comp:")) {
+        const compName = docId.replace("comp:", "");
+        const compDef = useComponentRegistry.getState().definitions[compName];
+        if (!compDef) return s;
+        newDocBackup = s.activeDocId === null
+          ? { elements: s.elements, wires: s.wires }
+          : s.docBackup;
+        newElements = compDef.elements;
+        newWires = compDef.wires;
+      } else if (docId.startsWith("file:")) {
+        const cached = newTabStates[docId];
+        if (cached) {
+          newElements = cached.elements;
+          newWires = cached.wires;
+        } else {
+          return s;
+        }
+        if (s.activeDocId === null) {
+          newDocBackup = { elements: s.elements, wires: s.wires };
+        }
       } else {
         // .omni.json 旧格式 → 从 document 提取数据
         const document = sourceOrDocument;

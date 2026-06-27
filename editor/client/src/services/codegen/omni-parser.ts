@@ -2,7 +2,10 @@
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./pipeline";
-import { useComponentRegistry } from "../../core/state/componentRegistry";
+import { useComponentRegistry } from "../store/componentRegistry";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "omni-parser" });
 
 type ParserState =
   | "ROOT"
@@ -406,7 +409,7 @@ function parseViewLine(trimmed: string, line: string, ctx: ParseContext): void {
 
     // Auto-rename duplicate IDs to avoid parent-child tree corruption
     if (ctx.elements.some((e) => e.id === el.id)) {
-      console.warn(`[omni-parser] Duplicate element ID "${el.id}" at line — "${trimmed}"; assigning unique ID`);
+      log.warn(`Duplicate element ID "${el.id}" at line — "${trimmed}"; assigning unique ID`);
       let counter = 1;
       let newId = `${el.id}__dup${counter}`;
       while (ctx.elements.some((e) => e.id === newId)) {

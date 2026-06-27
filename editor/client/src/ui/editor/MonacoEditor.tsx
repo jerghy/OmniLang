@@ -11,6 +11,9 @@ import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import { OMNILANG_LANGUAGE_ID, conf, language } from "./omniLangTokens";
 import { createCompletionProvider } from "./omniCompletion";
+import { Logger } from "../utils/logger";
+
+const log = new Logger({ prefix: "MonacoEditor" });
 
 export interface MonacoEditorHandle {
   /** Insert text at current cursor position (supports snippet placeholders $1, $2) */
@@ -197,7 +200,7 @@ class ErrorCatcher extends React.Component<ErrorCatcherProps, ErrorCatcherState>
   }
 
   componentDidCatch(error: Error) {
-    console.warn("Monaco editor failed to load, falling back to textarea:", error.message);
+    log.warn("editor failed to load, falling back to textarea:", error.message);
     this.props.onError();
   }
 
