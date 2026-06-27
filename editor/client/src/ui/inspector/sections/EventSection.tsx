@@ -121,7 +121,16 @@ function EventBindingDialog({ events, specialEventNames, initialEvent, selectedE
   onClose: () => void;
 }) {
   const tabs = useCodeGraphStore((s) => s.tabs);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedEventName, setSelectedEventName] = useState<string>(initialEvent || events[0]?.[0] || "");
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   const [selectedFn, setSelectedFn] = useState("");
   const [selectedTab, setSelectedTab] = useState("");
   const [paramBindings, setParamBindings] = useState<Record<string, ParamBinding>>({});
@@ -259,7 +268,7 @@ function EventBindingDialog({ events, specialEventNames, initialEvent, selectedE
     }));
 
     // On next tick, select the newly created node in the code graph
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       useCodeGraphStore.getState().selectElement(newFnId);
     }, 50);
   };

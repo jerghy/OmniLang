@@ -1,7 +1,7 @@
 /** 画布标签栏 — 管理主画布、组件画布和文件画布的标签页切换。
  *  替代原来的 ComponentCanvasHeader 独立返回按钮。 */
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "../store/editor";
 import { useComponentRegistry } from "../store/componentRegistry";
 import { api } from "../api/client";
@@ -27,6 +27,13 @@ export function CanvasTabBar() {
   const definitions = useComponentRegistry((s) => s.definitions);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const createTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (createTimerRef.current) clearTimeout(createTimerRef.current);
+    };
+  }, []);
 
   // Build tab list
   const tabs: TabInfo[] = [
@@ -144,7 +151,7 @@ export function CanvasTabBar() {
       storage: "config",
     });
     setShowCreateDialog(false);
-    setTimeout(() => enterCanvas(name.trim()), 50);
+    createTimerRef.current = setTimeout(() => enterCanvas(name.trim()), 50);
   };
 
   return (
