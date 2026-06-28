@@ -1,6 +1,0 @@
-// Template string test fixture
-fn main() {
-    let name: String = "World";
-    let msg: String = `Hello, ${name}!`;
-    println(msg);
-}

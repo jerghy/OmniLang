@@ -1,6 +1,0 @@
-fn test(x: i32) {
-    x = 5;
-}
-fn main() {
-    test(1);
-}

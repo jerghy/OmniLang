@@ -1,6 +1,0 @@
-// F0102: Unnecessary allocation
-fn main() {
-    let s1: String = "hello";
-    let s2: String = s1;
-    println(s2);
-}

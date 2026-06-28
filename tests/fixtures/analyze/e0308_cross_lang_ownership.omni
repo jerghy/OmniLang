@@ -1,6 +1,0 @@
-// E0308: Cross-language ownership
-fn main() {
-    let s: String = "hello";
-    let s2: String = s;
-    println(s);
-}

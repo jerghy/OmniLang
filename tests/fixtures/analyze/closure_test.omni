@@ -1,9 +1,0 @@
-// Closure test fixture
-fn main() {
-    let x: i32 = 10;
-    let add_x = |y: i32| -> i32 {
-        return x + y;
-    };
-    let result: i32 = add_x(5);
-    println(result.to_string());
-}

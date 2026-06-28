@@ -1,6 +1,0 @@
-// E0108: Method not found
-fn main() {
-    let s: String = "hello";
-    let len: i32 = s.len();
-    println(len.to_string());
-}

@@ -1,8 +1,0 @@
-import omniview;
-
-component NullishDemo {
-    signal inputName: String = "test";
-    computed displayName: String = inputName ?? "Anonymous";
-    view { <div>{displayName}</div> }
-    style { .d {} }
-}

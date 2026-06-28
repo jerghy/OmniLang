@@ -1,7 +1,0 @@
-fn make_greeting(name: String) -> String {
-    return "Hello, " + name;
-}
-fn main() {
-    let msg: String = make_greeting("Bob");
-    println(msg);
-}

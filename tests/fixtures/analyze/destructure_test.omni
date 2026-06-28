@@ -1,8 +1,0 @@
-// Destructuring test fixture
-fn main() {
-    let pair: Array<i32> = [1, 2];
-    let a: i32 = pair.get(0);
-    let b: i32 = pair.get(1);
-    println(a.to_string());
-    println(b.to_string());
-}

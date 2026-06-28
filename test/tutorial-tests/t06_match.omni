@@ -1,9 +1,0 @@
-fn main() {
-    let x: i32 = 2;
-    let msg: String = match x {
-        1 => "one",
-        2 => "two",
-        _ => "other",
-    };
-    println(msg);
-}

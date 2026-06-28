@@ -1,9 +1,0 @@
-// E0101: Type mismatch
-fn greet(name: String) -> String {
-    return "Hello, " + name;
-}
-
-fn main() {
-    let msg: String = greet("World");
-    println(msg);
-}

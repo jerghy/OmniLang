@@ -1,7 +1,0 @@
-[project]
-name = "test"
-version = "0.1.0"
-[source]
-dir = "src"
-[output]
-dir = "build"

@@ -1,8 +1,0 @@
-// E0106: Dead match arm (wildcard shadows previous arm)
-fn main() {
-    let x: i32 = 5;
-    match x {
-        1 => { println("one"); },
-        _ => { println("other"); },
-    }
-}

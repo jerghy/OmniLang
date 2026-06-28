@@ -1,9 +1,0 @@
-// E0206: Missing error handling
-fn risky() -> i32 {
-    return 42;
-}
-
-fn main() {
-    let value: i32 = risky();
-    println(value.to_string());
-}

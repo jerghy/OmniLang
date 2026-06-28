@@ -1,6 +1,0 @@
-// S0108: Backslash path in import
-import { helper } from ".\\helpers\\utils";
-
-fn main() {
-    println("hello");
-}

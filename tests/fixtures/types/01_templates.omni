@@ -1,8 +1,0 @@
-fn main() {
-    let name: String = "World";
-    let msg: String = `Hello, ${name}!`;
-    println(msg);
-    let x: i32 = 42;
-    let msg2: String = `The answer is ${x.to_string()}.`;
-    println(msg2);
-}

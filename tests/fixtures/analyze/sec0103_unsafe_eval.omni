@@ -1,5 +1,0 @@
-// SEC0103: Unsafe eval usage
-fn main() {
-    let code: String = "1 + 2";
-    println("code: " + code);
-}

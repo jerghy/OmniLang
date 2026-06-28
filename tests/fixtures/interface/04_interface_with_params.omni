@@ -1,9 +1,0 @@
-// Interface with parameterized methods
-interface Transformer {
-    fn transform(input: String) -> String;
-    fn transform_batch(inputs: Array<String>) -> Array<String>;
-}
-
-fn main() {
-    println("ok");
-}

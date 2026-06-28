@@ -1,6 +1,0 @@
-// S0109: Redundant type annotation (type is obvious from literal)
-fn main() {
-    let x: i32 = 42;
-    let y: i32 = x + 1;
-    println(y.to_string());
-}

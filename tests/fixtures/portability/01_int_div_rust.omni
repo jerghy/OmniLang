@@ -1,7 +1,0 @@
-// Integer division semantics differ between Rust (truncate) and JS (float)
-fn main() {
-    let a: i32 = 7;
-    let b: i32 = 3;
-    let result: i32 = a / b;
-    println(result.to_string());
-}

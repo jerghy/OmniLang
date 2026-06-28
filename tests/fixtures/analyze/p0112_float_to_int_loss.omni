@@ -1,6 +1,0 @@
-// P0112: Float to int precision loss
-fn main() {
-    let a: f64 = 3.999;
-    let b: f64 = a + 3.0;
-    println(b.to_string());
-}

@@ -1,6 +1,0 @@
-fn main() {
-    let arr: Array<i32> = [1, 2];
-    for item in arr {
-        item = 3;
-    }
-}

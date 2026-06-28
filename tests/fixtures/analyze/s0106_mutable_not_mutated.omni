@@ -1,5 +1,0 @@
-// S0106: Mutable variable never mutated
-fn main() {
-    let mut x: i32 = 42;
-    println(x.to_string());
-}

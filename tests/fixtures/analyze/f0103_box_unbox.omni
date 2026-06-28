@@ -1,6 +1,0 @@
-// F0103: Boxing/unboxing overhead
-fn main() {
-    let x: i32 = 42;
-    let y: i32 = x;
-    println(y.to_string());
-}

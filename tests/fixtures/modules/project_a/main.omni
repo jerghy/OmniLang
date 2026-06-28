@@ -1,8 +1,0 @@
-fn helper() -> String {
-    return "helper";
-}
-
-fn main() {
-    let msg: String = helper();
-    println(msg);
-}

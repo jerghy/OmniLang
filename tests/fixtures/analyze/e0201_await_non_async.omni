@@ -1,9 +1,0 @@
-// E0201: Await in non-async function
-fn fetch() -> String {
-    return "data";
-}
-
-fn main() {
-    let x: String = fetch();
-    println(x);
-}

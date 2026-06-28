@@ -1,7 +1,0 @@
-class Counter {
-    value: i32 = 0;
-}
-
-fn main() {
-    println("ok");
-}

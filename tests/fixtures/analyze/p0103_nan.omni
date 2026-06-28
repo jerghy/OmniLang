@@ -1,7 +1,0 @@
-// P0103: NaN portability
-fn main() {
-    let a: f64 = 0.0;
-    let b: f64 = 0.0;
-    let result: f64 = a / b;
-    println(result.to_string());
-}

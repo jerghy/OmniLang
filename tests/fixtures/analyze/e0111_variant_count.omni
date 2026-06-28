@@ -1,6 +1,0 @@
-// E0111: Variant count / large enum
-type Color = Red { } | Green { } | Blue { } | Yellow { } | Cyan { } | Magenta { }
-
-fn main() {
-    println("ok");
-}

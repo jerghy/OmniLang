@@ -1,7 +1,0 @@
-// Division by zero behavior differs (panic vs Infinity vs NaN)
-fn main() {
-    let a: i32 = 10;
-    let b: i32 = 0;
-    let c: i32 = a / b;
-    println(c.to_string());
-}

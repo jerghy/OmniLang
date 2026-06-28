@@ -1,5 +1,0 @@
-fn main() {
-    let score: i32 = 85;
-    let grade: String = if score >= 60 { "pass" } else { "fail" };
-    println(grade);
-}

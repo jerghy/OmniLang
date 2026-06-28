@@ -1,9 +1,0 @@
-// E0203: Unhandled await result
-async fn compute() -> i32 {
-    return 42;
-}
-
-async fn main() {
-    let value: i32 = await compute();
-    println(value.to_string());
-}

@@ -1,4 +1,0 @@
-// P0108: Platform-specific API
-fn main() {
-    println("cross-platform code");
-}

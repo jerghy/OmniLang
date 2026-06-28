@@ -1,8 +1,0 @@
-// P0101: Integer division portability rule
-// Integer division behavior differs across languages (truncate vs floor)
-fn main() {
-    let a: i32 = 10;
-    let b: i32 = 3;
-    let c: i32 = a / b;
-    println(c.to_string());
-}
