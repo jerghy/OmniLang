@@ -1823,7 +1823,7 @@ impl SemanticAnalyzer {
                                 &motion.span,
                             ));
                         }
-                        Literal::Int(i) if *i < 0 || *i > 1 => {
+                        Literal::Int(i) if *i > 1 => {
                             self.diagnostics.push(Diagnostic::warning(
                                 "W0001",
                                 &format!(

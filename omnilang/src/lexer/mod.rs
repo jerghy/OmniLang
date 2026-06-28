@@ -540,7 +540,7 @@ impl Lexer {
                         hex.push(self.advance().unwrap());
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(i64::from_str_radix(&hex, 16).unwrap_or(0)),
+                        TokenKind::IntLiteral(u64::from_str_radix(&hex, 16).unwrap_or(0)),
                         start,
                         self.pos,
                         line,
@@ -555,7 +555,7 @@ impl Lexer {
                         oct.push(self.advance().unwrap());
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(i64::from_str_radix(&oct, 8).unwrap_or(0)),
+                        TokenKind::IntLiteral(u64::from_str_radix(&oct, 8).unwrap_or(0)),
                         start,
                         self.pos,
                         line,
@@ -570,7 +570,7 @@ impl Lexer {
                         bin.push(self.advance().unwrap());
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(i64::from_str_radix(&bin, 2).unwrap_or(0)),
+                        TokenKind::IntLiteral(u64::from_str_radix(&bin, 2).unwrap_or(0)),
                         start,
                         self.pos,
                         line,

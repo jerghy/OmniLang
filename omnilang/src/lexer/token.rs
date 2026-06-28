@@ -108,7 +108,7 @@ pub enum TokenKind {
     Bind,
 
     // Literals
-    IntLiteral(i64),
+    IntLiteral(u64),
     FloatLiteral(f64),
     StringLiteral(String),
     TemplateString(String),

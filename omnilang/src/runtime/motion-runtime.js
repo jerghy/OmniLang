@@ -719,9 +719,22 @@ class AnimationPlayer {
     const keyframes = {};
     const cssProps = this._toCSSProperties(this._to);
 
+    // Convert _from (Omni property names) to CSS properties for initial state
+    const hasFrom = this._from && Object.keys(this._from).length > 0;
+    const fromCSS = hasFrom ? this._toCSSProperties(this._from) : {};
+
     // Build keyframe at progress 1
     for (const [prop, value] of Object.entries(cssProps)) {
-      keyframes[prop] = [this._getCurrentCSSValue(prop), value];
+      // Use _from value for the initial keyframe when available (e.g., @enter animations)
+      const initial = fromCSS[prop] != null ? fromCSS[prop] : this._getCurrentCSSValue(prop);
+      keyframes[prop] = [initial, value];
+    }
+
+    // If _from is explicitly set, apply from values as inline styles as well
+    // so that the WAAPI keyframe starts from the correct visual state and so
+    // that the "to" state interpolates from the expected origin.
+    if (hasFrom) {
+      this._applyProperties(0, this._from, this._from);
     }
 
     // If there are no animatable properties, fire callback and exit
@@ -912,11 +925,15 @@ class AnimationPlayer {
   }
 
   _getCurrentCSSValue(propName) {
-    if (!this.el) return '0';
+    if (!this.el) return propName === 'transform' ? 'none' : '0';
     const val = this.el.style[propName];
     if (val && val !== '') return val;
     const computed = getComputedStyle(this.el);
-    return computed[propName] || '0';
+    const v = computed[propName];
+    if (v && v !== '') return v;
+    // For transform, 'none' is the correct zero value, not '0'
+    if (propName === 'transform') return 'none';
+    return '0';
   }
 
   _toCSSProperties(props) {

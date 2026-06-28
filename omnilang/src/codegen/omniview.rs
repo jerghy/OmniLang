@@ -1446,13 +1446,17 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
     ///
     /// Strategy:
     ///   - Generate a `<template>` element containing one item's HTML.
-    ///   - Generate a container div.
+    ///   - Generate a `<template>` container marker (valid in any HTML context,
+    ///     unlike `<div>` which is invalid inside `<tbody>`, `<tr>`, etc.).
+    ///   - Runtime inserts cloned items between the source template and the marker.
+    ///   - Empty state uses a `<template>` that gets cloned when data is empty.
     ///   - Generate a JS _effect() that iterates the data and clones the template.
     fn emit_list_rendering_html(&mut self, list: &ListRenderingIntent, indent: usize) -> String {
         let pad = "  ".repeat(indent);
         let nid = self.next_nid("for");
         let template_nid = format!("{}-tpl", nid);
         let container_nid = format!("{}-ctr", nid);
+        let empty_nid = format!("{}-empty", nid);
         let item_var = &list.item_binding.name;
         let iterable_js = self.expr_to_js(&list.iterable);
 
@@ -1471,19 +1475,24 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             "{}<template data-nid=\"{}\">\n{}</template>\n",
             pad, template_nid, item_html
         ));
-        out.push_str(&format!("{}<div data-nid=\"{}\">\n", pad, container_nid));
 
-        // Empty state placeholder
-        if list.empty_body.is_some() {
-            let empty_nid = format!("{}-empty", nid);
-            out.push_str(&format!("{}  <div data-nid=\"{}\">\n", pad, empty_nid));
-            if let Some(ref empty_body) = list.empty_body {
-                out.push_str(&self.view_to_html(empty_body, indent + 2));
-            }
-            out.push_str(&format!("{}  </div>\n", pad));
+        // Container marker: <template> element used as insertion point.
+        // The template tag is valid inside <tbody>, <tr>, etc. (unlike <div>).
+        out.push_str(&format!(
+            "{}<template data-nid=\"{}\" data-for-container></template>\n",
+            pad, container_nid
+        ));
+
+        // Empty state template (cloned into parent when data is empty)
+        if let Some(ref empty_body) = list.empty_body {
+            self.in_for_template = true;
+            let empty_html = self.view_to_html(empty_body, indent + 1);
+            self.in_for_template = false;
+            out.push_str(&format!(
+                "{}<template data-nid=\"{}\">\n{}</template>\n",
+                pad, empty_nid, empty_html
+            ));
         }
-
-        out.push_str(&format!("{}</div>\n", pad));
 
         // Generate the reactive JS _effect()
         self.js.push_str(&format!(
@@ -1500,210 +1509,187 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             container_nid
         ));
         self.js.push_str("  if (!tpl || !ctr) return;\n");
+        self.js.push_str("  const parent = tpl.parentNode;\n");
+        self.js.push_str("  if (!parent) return;\n");
 
         // Re-render loop
         // If key_expr is present, use key-based identity tracking for enter/leave animations.
         // Otherwise, clear and re-render all items.
         let has_key = list.key_expr.is_some();
+
+        // Clear existing rendered items (elements between tpl template and container marker)
+        self.js.push_str("  // Clear existing rendered items\n");
+        self.js.push_str("  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+        self.js.push_str("    parent.removeChild(tpl.nextElementSibling);\n");
+        self.js.push_str("  }\n");
+
+        // Key-based map
         if has_key {
             let key_js = self.expr_to_js(list.key_expr.as_ref().unwrap());
-            self.js.push_str("  // Key-based identity tracking\n");
-            self.js.push_str(&format!("  const keyFn = (item) => {{ try {{ return String({key_js}); }} catch(e) {{ return null; }} }};\n", key_js = key_js));
-            self.js
-                .push_str("  ctr._forKeys = ctr._forKeys || new Map();\n");
-            self.js
-                .push_str("  const oldKeys = new Set(ctr._forKeys.keys());\n");
+            self.js.push_str("  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());\n");
+            self.js.push_str("  const keyFn = (item) => { try { return String(");
+            self.js.push_str(&key_js);
+            self.js.push_str("); } catch(e) { return null; } };\n");
+            self.js.push_str("  const oldKeys = new Set(_forKeys.keys());\n");
             self.js.push_str("  const newKeys = new Set();\n");
-        } else {
-            self.js.push_str("  // Clear existing rendered items\n");
-            self.js.push_str(
-                "  ctr.querySelectorAll('[data-for-item]').forEach(el => el.remove());\n",
-            );
         }
 
-        // Handle empty state
+        // Handle empty state: clone empty template and insert before container marker
         if list.empty_body.is_some() {
-            let empty_nid = format!("{}-empty", nid);
+            self.js.push_str("  if (!data || data.length === 0) {\n");
+            self.js.push_str("    // Clone empty state template and insert before container marker\n");
             self.js.push_str(&format!(
-                "  const emptyEl = __omni_el(\"{}\");\n",
+                "    const emptyEl = __omni_el(\"{}\");\n",
                 empty_nid
             ));
-            self.js.push_str("  if (!data || data.length === 0) {\n");
-            self.js
-                .push_str("    if (emptyEl) emptyEl.style.display = \"block\";\n");
+            self.js.push_str("    if (emptyEl && emptyEl.content && emptyEl.content.firstElementChild) {\n");
+            self.js.push_str("      const emptyClone = emptyEl.content.firstElementChild.cloneNode(true);\n");
+            self.js.push_str("      emptyClone.setAttribute('data-for-empty', 'true');\n");
+            self.js.push_str("      parent.insertBefore(emptyClone, ctr);\n");
+            self.js.push_str("    }\n");
             self.js.push_str("    return;\n");
             self.js.push_str("  }\n");
-            self.js
-                .push_str("  if (emptyEl) emptyEl.style.display = \"none\";\n");
         } else {
-            self.js
-                .push_str("  if (!data || data.length === 0) return;\n");
+            self.js.push_str("  if (!data || data.length === 0) return;\n");
         }
 
         // FLIP: record element positions before re-render (for @for with key)
         if has_key {
-            self.js.push_str(&format!(
-                "  __omni_flip_before('[data-nid=\"{}\"]');\n",
-                container_nid
-            ));
+            self.js.push_str("  // __omni_flip_before for FLIP animations\n");
         }
 
         // Iterate and clone
         self.js
             .push_str(&format!("  data.forEach(({}, _idx) => {{\n", item_var));
 
+        // Helper: clone template content, unwrapping <fragment> wrapper if present.
+        // Returns a Node (Element or DocumentFragment). When <fragment> is encountered,
+        // children are cloned into a DocumentFragment so they render correctly inside
+        // table-like parents (<tbody>, <tr>, etc.).
+        self.js.push_str("    var __root = tpl.content.firstElementChild;\n");
+        self.js.push_str("    var __cloneItem = function() {\n");
+        self.js.push_str("      if (!__root) return null;\n");
+        self.js.push_str("      if (__root.tagName === 'FRAGMENT') {\n");
+        self.js.push_str("        var __f = document.createDocumentFragment();\n");
+        self.js.push_str("        for (var __i = 0; __i < __root.children.length; __i++) __f.appendChild(__root.children[__i].cloneNode(true));\n");
+        self.js.push_str("        return __f;\n");
+        self.js.push_str("      }\n");
+        self.js.push_str("      return __root.cloneNode(true);\n");
+        self.js.push_str("    };\n");
+
+        self.js.push_str("    var clone = null;\n");
         if has_key {
             self.js.push_str("    const _key = keyFn(item);\n");
-            self.js
-                .push_str("    if (_key != null) newKeys.add(_key);\n");
-            self.js
-                .push_str("    // Reuse existing element if key matches\n");
-            self.js
-                .push_str("    let clone = _key != null ? ctr._forKeys.get(_key) : null;\n");
+            self.js.push_str("    if (_key != null) newKeys.add(_key);\n");
+            self.js.push_str("    clone = _key != null ? _forKeys.get(_key) : null;\n");
             self.js.push_str("    const isNew = !clone;\n");
             self.js.push_str("    if (isNew) {\n");
-            self.js
-                .push_str("      clone = tpl.content.firstElementChild.cloneNode(true);\n");
-            self.js.push_str("      if (_key != null) { ctr._forKeys.set(_key, clone); clone.setAttribute('data-for-key', _key); }\n");
+            self.js.push_str("      clone = __cloneItem();\n");
+            self.js.push_str("      if (clone && _key != null) { _forKeys.set(_key, clone); if (clone.nodeType === 1) clone.setAttribute('data-for-key', _key); }\n");
             self.js.push_str("    }\n");
         } else {
-            self.js
-                .push_str("    const clone = tpl.content.firstElementChild.cloneNode(true);\n");
+            self.js.push_str("    clone = __cloneItem();\n");
         }
-        self.js
-            .push_str("    clone.setAttribute('data-for-item', _idx);\n");
+        self.js.push_str("    if (!clone) return;\n");
+        self.js.push_str("    // Mark first element with data-for-item\n");
+        self.js.push_str("    if (clone.nodeType === 11) { if (clone.firstElementChild) clone.firstElementChild.setAttribute('data-for-item', _idx); }\n");
+        self.js.push_str("    else { clone.setAttribute('data-for-item', _idx); }\n");
+
+        // Bind text interpolation markers
         self.js.push_str("    // Bind text interpolation markers\n");
-        self.js
-            .push_str("    clone.querySelectorAll('[data-bind-text]').forEach(el => {\n");
-        self.js
-            .push_str("      const expr = el.getAttribute('data-bind-text');\n");
+        self.js.push_str("    clone.querySelectorAll('[data-bind-text]').forEach(el => {\n");
+        self.js.push_str("      const expr = el.getAttribute('data-bind-text');\n");
         self.js.push_str("      if (expr) {\n");
         self.js.push_str("        try {\n");
-        // eval() runs in the enclosing closure scope (IIFE), so signals like
-        // TodoItem_checked are accessible — unlike new Function() which is global-scope only.
-        self.js.push_str(
-            "          // eval() runs in the enclosing IIFE scope — all signals are accessible\n",
-        );
-        self.js
-            .push_str("          el.textContent = String(eval(expr));\n");
-        self.js
-            .push_str("        } catch(e) { el.textContent = ''; }\n");
+        self.js.push_str("          // eval() runs in the enclosing IIFE scope — all signals are accessible\n");
+        self.js.push_str("          el.textContent = String(eval(expr));\n");
+        self.js.push_str("        } catch(e) { el.textContent = ''; }\n");
         self.js.push_str("      }\n");
         self.js.push_str("    });\n");
-        // Also interpolate data-* attributes that contain {item} patterns.
-        // This allows component props like data-text=\"{item}\" to receive the
-        // actual item value instead of the literal template string.
-        self.js
-            .push_str("    // Bind data-* attribute interpolation\n");
+
+        // Bind class expressions (data-class-* attributes set when in_for_template)
+        self.js.push_str("    // Bind dynamic class expressions\n");
+        self.js.push_str("    clone.querySelectorAll('[data-class-expr]').forEach(el => {\n");
+        self.js.push_str("      const expr = el.getAttribute('data-class-expr');\n");
+        self.js.push_str("      if (expr) {\n");
+        self.js.push_str("        try {\n");
+        self.js.push_str("          const classMap = JSON.parse(expr);\n");
+        self.js.push_str("          for (const cls in classMap) {\n");
+        self.js.push_str("            try { el.classList.toggle(cls, !!eval(classMap[cls])); } catch(e) {}\n");
+        self.js.push_str("          }\n");
+        self.js.push_str("        } catch(e) {}\n");
+        self.js.push_str("      }\n");
+        self.js.push_str("    });\n");
+
+        // Bind data-* attribute interpolation
+        self.js.push_str("    // Bind data-* attribute interpolation\n");
         self.js.push_str("    clone.querySelectorAll('[data-text],[data-value],[data-label],[data-key]').forEach(el => {\n");
-        self.js
-            .push_str("      Array.from(el.attributes).forEach(attr => {\n");
-        self.js
-            .push_str("        if (attr.name.startsWith('data-') && attr.value.includes('{')) {\n");
+        self.js.push_str("      Array.from(el.attributes).forEach(attr => {\n");
+        self.js.push_str("        if (attr.name.startsWith('data-') && attr.value.includes('{')) {\n");
         self.js.push_str("          try {\n");
-        self.js.push_str(
-            "            // Convert {item} patterns to ${item} for JS template literals\n",
-        );
-        self.js.push_str(
-            "            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n",
-        );
-        self.js.push_str(&format!(
-            "            const resolved = eval('`' + jsTemplate + '`');\n",
-        ));
-        self.js
-            .push_str("            el.setAttribute(attr.name, resolved);\n");
-        self.js
-            .push_str("          } catch(e) { /* keep original */ }\n");
+        self.js.push_str("            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n");
+        self.js.push_str("            const resolved = eval('`' + jsTemplate + '`');\n");
+        self.js.push_str("            el.setAttribute(attr.name, resolved);\n");
+        self.js.push_str("          } catch(e) { /* keep original */ }\n");
         self.js.push_str("        }\n");
         self.js.push_str("      });\n");
         self.js.push_str("    });\n");
+
         if has_key {
-            self.js
-                .push_str("    if (isNew) { ctr.appendChild(clone); }\n");
+            self.js.push_str("    if (isNew) { parent.insertBefore(clone, ctr); }\n");
         } else {
-            self.js.push_str("    ctr.appendChild(clone);\n");
+            self.js.push_str("    parent.insertBefore(clone, ctr);\n");
         }
         self.js.push_str("  });\n");
 
         // Key-based cleanup: remove items whose keys disappeared
         if has_key {
-            self.js
-                .push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
+            self.js.push_str("  // Remove items whose keys disappeared (play @leave then remove)\n");
             self.js.push_str("  oldKeys.forEach(key => {\n");
             self.js.push_str("    if (!newKeys.has(key)) {\n");
-            self.js
-                .push_str("      const el = ctr._forKeys.get(key);\n");
+            self.js.push_str("      const el = _forKeys.get(key);\n");
             self.js.push_str("      if (el) {\n");
-            self.js
-                .push_str("        const leavingNid = el.getAttribute('data-nid');\n");
+            self.js.push_str("        const leavingNid = el.getAttribute('data-nid');\n");
             self.js.push_str("        if (leavingNid) {\n");
-            self.js
-                .push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
+            self.js.push_str("          const player = __omni_getAnimation(leavingNid, 'leave');\n");
             self.js.push_str("          if (player) {\n");
-            self.js.push_str("            player.play().then(() => { el.remove(); ctr._forKeys.delete(key); });\n");
+            self.js.push_str("            player.play().then(() => { el.remove(); _forKeys.delete(key); });\n");
             self.js.push_str("          } else {\n");
-            self.js
-                .push_str("            el.remove(); ctr._forKeys.delete(key);\n");
+            self.js.push_str("            el.remove(); _forKeys.delete(key);\n");
             self.js.push_str("          }\n");
             self.js.push_str("        } else {\n");
-            self.js
-                .push_str("          el.remove(); ctr._forKeys.delete(key);\n");
+            self.js.push_str("          el.remove(); _forKeys.delete(key);\n");
             self.js.push_str("        }\n");
             self.js.push_str("      }\n");
             self.js.push_str("    }\n");
             self.js.push_str("  });\n");
         }
-        // FLIP: animate elements to new positions
-        if has_key {
-            self.js.push_str(&format!(
-                "  __omni_flip_after('[data-nid=\"{}\"]');\n",
-                container_nid
-            ));
-        }
 
-        // Attach delegated event listeners on the container for @for item events.
-        // Elements inside the template have data-event-* attributes (e.g.
-        // data-event-click="fn:handlerName") that we read via event bubbling.
-        self.js
-            .push_str("  if (!ctr.dataset.forEventsAttached) {\n");
-        self.js
-            .push_str("    ctr.dataset.forEventsAttached = 'true';\n");
+        // Attach delegated event listeners on the parent for @for item events.
+        // (Items are siblings of ctr, so events bubble to parent.)
+        self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
+        self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
         self.js.push_str("    const _forHandle = (e) => {\n");
-        self.js
-            .push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
+        self.js.push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
         self.js.push_str("      if (!t) return;\n");
-        self.js
-            .push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
+        self.js.push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
         self.js.push_str("      if (!attr) return;\n");
-        self.js
-            .push_str("      if (e.type === 'submit') e.preventDefault();\n");
+        self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
         self.js.push_str("      if (attr.startsWith('fn:')) {\n");
-        self.js
-            .push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
-        self.js
-            .push_str("        if (typeof fn === 'function') fn(e.detail);\n");
-        self.js
-            .push_str("      } else if (attr.startsWith('store:')) {\n");
-        self.js
-            .push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
-        self.js
-            .push_str("        if (typeof fn === 'function') fn();\n");
+        self.js.push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
+        self.js.push_str("        if (typeof fn === 'function') fn(e.detail);\n");
+        self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
+        self.js.push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
+        self.js.push_str("        if (typeof fn === 'function') fn();\n");
         self.js.push_str("      }\n");
         self.js.push_str("    };\n");
-        self.js
-            .push_str("    ctr.addEventListener('click', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('submit', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('input', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('change', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('focus', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('blur', _forHandle);\n");
-        self.js
-            .push_str("    ctr.addEventListener('keydown', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('click', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('submit', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('input', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('change', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('focus', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('blur', _forHandle);\n");
+        self.js.push_str("    parent.addEventListener('keydown', _forHandle);\n");
         self.js.push_str("  }\n");
 
         self.js.push_str("});\n");
@@ -2383,6 +2369,18 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             self.emit_states_js(&nid, states_ir);
         }
 
+        // Class map dynamic bindings for @for templates: add data-class-expr attr
+        if self.in_for_template && !el.class_map_bindings.is_empty() {
+            let mut class_map = serde_json::Map::new();
+            for (class_name, expr) in &el.class_map_bindings {
+                let js_expr = self.expr_to_js(expr);
+                class_map.insert(class_name.clone(), serde_json::Value::String(js_expr));
+            }
+            if let Ok(json) = serde_json::to_string(&class_map) {
+                attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+            }
+        }
+
         // Self-closing tags (after motion/driven-by/states emit so animations are set up)
         let void_tags = [
             "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
@@ -2396,31 +2394,59 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
             }
             // Class map dynamic bindings
             if !el.class_map_bindings.is_empty() {
-                for (class_name, expr) in &el.class_map_bindings {
-                    let js_expr = self.expr_to_js(expr);
-                    let js_access = if self.signal_names.contains(&js_expr) {
-                        format!("{}.value", js_expr)
-                    } else {
-                        js_expr
-                    };
-                    self.js.push_str(&format!(
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!{}); }});\n",
-                        nid, class_name, js_access
-                    ));
+                if self.in_for_template {
+                    // Inside @for template: store class expressions as JSON data attribute
+                    // so the runtime can eval them per-item in the forEach scope.
+                    let mut class_map = serde_json::Map::new();
+                    for (class_name, expr) in &el.class_map_bindings {
+                        let js_expr = self.expr_to_js(expr);
+                        class_map.insert(
+                            class_name.clone(),
+                            serde_json::Value::String(js_expr),
+                        );
+                    }
+                    if let Ok(json) = serde_json::to_string(&class_map) {
+                        attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+                    }
+                } else {
+                    for (class_name, expr) in &el.class_map_bindings {
+                        let js_expr = self.expr_to_js(expr);
+                        let js_access = if self.signal_names.contains(&js_expr) {
+                            format!("{}.value", js_expr)
+                        } else {
+                            js_expr
+                        };
+                        self.js.push_str(&format!(
+                            "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
+                            nid, class_name, js_access
+                        ));
+                    }
                 }
             }
             return out;
         }
 
-        out.push_str(&format!("{}<{}{}>\n", pad, html_tag, attrs));
+        // For <fragment> wrapper inside @for template: emit children without wrapper.
+        // The <fragment> custom element would strip <tr>/<td> children when parsed
+        // by the browser inside a table context (<tbody>, <template> within <tbody>).
+        if self.in_for_template && html_tag == "fragment" {
+            for child in &el.children {
+                let child_html = self.view_to_html(child, indent + 1);
+                out.push_str(&child_html);
+            }
+            // Fragment attrs like data-class-expr are handled via data-* on inner elements
+            // Skip the closing tag since we didn't emit an opening tag.
+        } else {
+            out.push_str(&format!("{}<{}{}>\n", pad, html_tag, attrs));
 
-        // Children
-        for child in &el.children {
-            let child_html = self.view_to_html(child, indent + 1);
-            out.push_str(&child_html);
+            // Children
+            for child in &el.children {
+                let child_html = self.view_to_html(child, indent + 1);
+                out.push_str(&child_html);
+            }
+
+            out.push_str(&format!("{}</{}>\n", pad, html_tag));
         }
-
-        out.push_str(&format!("{}</{}>\n", pad, html_tag));
 
         // Emit any interpolation _effect() calls
         for effect in &interp_effects {
@@ -2429,7 +2455,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
 
         // Class map dynamic bindings: for each dynamic class, emit an effect
         // that toggles it reactively via classList.toggle().
-        if !el.class_map_bindings.is_empty() {
+        // When inside @for template, this is handled by data-class-expr attrs instead.
+        if !self.in_for_template && !el.class_map_bindings.is_empty() {
             for (class_name, expr) in &el.class_map_bindings {
                 let js_expr = self.expr_to_js(expr);
                 let js_access = if self.signal_names.contains(&js_expr) {
@@ -2438,7 +2465,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     js_expr
                 };
                 self.js.push_str(&format!(
-                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!{}); }});\n",
+                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
                     nid, class_name, js_access
                 ));
             }
@@ -2792,6 +2819,26 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         parts
     }
 
+    /// Check if a property is a CSS transform property.
+    fn is_transform_prop(key: &str) -> bool {
+        matches!(
+            key,
+            "x" | "y" | "scale" | "scaleX" | "scaleY"
+                | "rotate" | "rotateX" | "rotateY" | "rotateZ"
+        )
+    }
+
+    /// Format a transform property value into a CSS transform function string.
+    fn format_transform_value(key: &str, value_js: &str) -> String {
+        match key {
+            "x" => format!("translateX({}px)", value_js),
+            "y" => format!("translateY({}px)", value_js),
+            "scale" | "scaleX" | "scaleY" => format!("{}({})", key, value_js),
+            "rotate" | "rotateX" | "rotateY" | "rotateZ" => format!("{}({}deg)", key, value_js),
+            _ => format!("{}({})", key, value_js),
+        }
+    }
+
     /// Emit JS for states: { ... } multi-state animation on an element.
     /// Two modes:
     ///   - Reserved names (idle, hover, pressed): auto-bind mouse/touch events
@@ -2830,7 +2877,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                  \x20 el.addEventListener(\"mouseup\", () => _transition(\"hover\"));\n\
                  }})();\n",
                 nid = nid,
-	                nid_safe = nid_safe
+                nid_safe = nid_safe
             ));
         } else if let Some(ref signal_expr) = states_ir.signal {
             // Custom states driven by signal value
@@ -2863,6 +2910,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         }
 
         // Emit the state targets lookup table
+        // Transform properties (x, y, scale, rotate, etc.) must be composed into
+        // a single CSS `transform` string for WAAPI compatibility.
         self.js
             .push_str(&format!("var __omni_states_{nid_safe} = {{\n", nid_safe = nid_safe));
         for (state_name, tween) in &states_ir.states {
@@ -2874,15 +2923,28 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 .ease
                 .as_ref()
                 .map_or("\"ease-out\"".to_string(), |e| self.easing_to_js(e));
-            let props: Vec<String> = tween
-                .properties
-                .iter()
-                .map(|(k, v)| format!("\"{}\": \"{}\"", k, self.expr_to_js(v)))
-                .collect();
+            // Separate transform and non-transform properties
+            let mut transform_parts: Vec<String> = Vec::new();
+            let mut non_transform: Vec<String> = Vec::new();
+            for (k, v) in &tween.properties {
+                let v_js = self.expr_to_js(v);
+                if Self::is_transform_prop(k) {
+                    transform_parts.push(Self::format_transform_value(k, &v_js));
+                } else {
+                    non_transform.push(format!("\"{}\": \"{}\"", k, v_js));
+                }
+            }
+            let mut all_props = non_transform;
+            if !transform_parts.is_empty() {
+                all_props.push(format!(
+                    "\"transform\": \"{}\"",
+                    transform_parts.join(" ")
+                ));
+            }
             self.js.push_str(&format!(
                 "  \"{name}\": {{ to: {{ {props} }}, over: {over}, ease: {ease} }},\n",
                 name = state_name,
-                props = props.join(", "),
+                props = all_props.join(", "),
                 over = over_ms,
                 ease = ease_str
             ));

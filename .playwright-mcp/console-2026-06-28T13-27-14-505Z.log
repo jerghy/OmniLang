@@ -1,0 +1,18 @@
+[      22ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      26ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/dot.png:0
+[      29ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/large.jpg:0
+[      36ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/dot.png:0
+[      61ms] [LOG] Total items: 0 @ http://localhost:5174/index.js:11287
+[      61ms] [LOG] AddTodo mounted @ http://localhost:5174/index.js:11290
+[      68ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp4:0
+[      69ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      70ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0
+[      98ms] [LOG] Total items: 0 @ http://localhost:5174/:21068
+[      98ms] [LOG] AddTodo mounted @ http://localhost:5174/:21071
+[     106ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/dot.png:0
+[     106ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/large.jpg:0
+[     106ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp4:0
+[     107ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     109ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0
+[     113ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp4:0
+[     115ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0

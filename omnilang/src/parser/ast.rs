@@ -146,7 +146,7 @@ pub enum Expr {
 
 #[derive(Debug, Clone)]
 pub enum Literal {
-    Int(i64),
+    Int(u64),
     Float(f64),
     String(String),
     Bool(bool),
