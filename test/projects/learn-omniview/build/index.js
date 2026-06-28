@@ -1530,8 +1530,8 @@ function NotificationStore_clearAll() {
 const TodoStore_lastAction = __omni_signal("TodoStore_lastAction", "");
 const TodoStore_items = __omni_signal("TodoStore_items", []);
 const TodoStore_filter = __omni_signal("TodoStore_filter", "all");
-const TodoStore_filterStatus = __omni_computed("TodoStore_filterStatus", () => (TodoStore_filter.value));
 const TodoStore_hasItems = __omni_computed("TodoStore_hasItems", () => (!(TodoStore_items.value).length === 0));
+const TodoStore_filterStatus = __omni_computed("TodoStore_filterStatus", () => (TodoStore_filter.value));
 const TodoStore_totalCount = __omni_computed("TodoStore_totalCount", () => ((TodoStore_items.value).length));
 function TodoStore_load() {
   let raw = localStorage.getItem("todo-items");
@@ -1613,15 +1613,15 @@ function TodoStore_clear() {
 }
 
 
-const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
 const ThemeStore_toggleCount = __omni_signal("ThemeStore_toggleCount", 0);
-const ThemeStore_currentBorder = __omni_computed("ThemeStore_currentBorder", () => (ThemeStore_mode.value === "dark" ? "#4b5563" : "#d4d4d8"));
-const ThemeStore_currentBg = __omni_computed("ThemeStore_currentBg", () => (ThemeStore_mode.value === "dark" ? "#111827" : "#ffffff"));
-const ThemeStore_nextLabel = __omni_computed("ThemeStore_nextLabel", () => (ThemeStore_mode.value === "dark" ? "Light" : "Dark"));
+const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
 const ThemeStore_currentMuted = __omni_computed("ThemeStore_currentMuted", () => (ThemeStore_mode.value === "dark" ? "#1f2937" : "#f9fafb"));
-const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "dark" ? "Dark" : "Light"));
-const ThemeStore_currentText = __omni_computed("ThemeStore_currentText", () => (ThemeStore_mode.value === "dark" ? "#f9fafb" : "#111827"));
+const ThemeStore_nextLabel = __omni_computed("ThemeStore_nextLabel", () => (ThemeStore_mode.value === "dark" ? "Light" : "Dark"));
+const ThemeStore_currentBorder = __omni_computed("ThemeStore_currentBorder", () => (ThemeStore_mode.value === "dark" ? "#4b5563" : "#d4d4d8"));
 const ThemeStore_currentPrimary = __omni_computed("ThemeStore_currentPrimary", () => (ThemeStore_mode.value === "dark" ? "#a5b4fc" : "#6366f1"));
+const ThemeStore_currentText = __omni_computed("ThemeStore_currentText", () => (ThemeStore_mode.value === "dark" ? "#f9fafb" : "#111827"));
+const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "dark" ? "Dark" : "Light"));
+const ThemeStore_currentBg = __omni_computed("ThemeStore_currentBg", () => (ThemeStore_mode.value === "dark" ? "#111827" : "#ffffff"));
 function ThemeStore_load() {
   let raw = localStorage.getItem("theme-mode");
   if (raw !== null) {
@@ -1650,121 +1650,51 @@ function ThemeStore_setMode(newMode) {
 
 
 
-// pub fn url_decode_demo
-function url_decode_demo(encoded) {
-  return encode_url_decode(encoded);
+// pub fn demo_u8
+function demo_u8() {
+  return 255;
 }
 
 
-// pub fn url_encode_demo
-function url_encode_demo(url) {
-  return encode_url_encode(url);
+// pub fn demo_contains
+function demo_contains(arr, item) {
+  return (arr).includes(item);
 }
 
 
-// pub fn demo_parallel
-async function demo_parallel() {
-  let a = async_spawn(task_a());
-  let b = async_spawn(task_b());
-  return await async_all([a, b]);
-}
-
-
-// pub fn validate_email
-function validate_email(email) {
-  return regex_match(email, "^[\\w.]+@[\\w]+\\.[a-z]+$");
-}
-
-
-// pub fn encode_summary
-function encode_summary() {
-  let b64Ok = base64_roundtrip("test");
-  let hexOk = hex_roundtrip("OmniLang");
-  let urlEnc = url_encode_demo("hello world");
-  return "base64=" + String(b64Ok) + " hex=" + String(hexOk) + " url_enc=" + urlEnc;
-}
-
-
-// pub fn error_message
-function error_message(result) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return ""; } if (_v._variant === "Err") {  const error = _v.error;  return error; } if (_v._variant === "Loading") {  return "still loading..."; }; throw new Error('match: no arm matched'); })();
-}
-
-
-// pub fn demo_i64
-function demo_i64() {
-  return 9223372036854775807;
-}
-
-
-// pub fn count_consonants
-function count_consonants(text) {
-  let count = 0;
-  let i = 0;
-  while (i < (text || []).length) {
-  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
-  i = i + 1;
-  continue;
+// pub fn try_catch_divide
+function try_catch_divide(a, b) {
+  try {
+  let result = safe_divide(a, b);
+  return "result: " + String(result);
+  } catch (err) {
+  return "error: " + err;
   }
-  count = count + 1;
-  i = i + 1;
-  }
-  return count;
 }
 
 
-// pub fn demo_substring
-function demo_substring(text, start, end) {
-  return (text).substring(start, end);
+// pub fn regex_demo_summary
+function regex_demo_summary() {
+  let emailTest = test_regex_match();
+  let searchResult = test_regex_search();
+  let replaceResult = test_regex_replace();
+  let emailValid = validate_email("user@example.com");
+  let nums = extract_numbers("abc 123 def 456");
+  return "match=" + String(emailTest) + " search_count=" + String((searchResult || []).length) + " replace=" + replaceResult + " valid_email=" + String(emailValid) + " nums=" + String((nums || []).length);
 }
 
 
-// pub fn base64_roundtrip
-function base64_roundtrip(original) {
-  let encoded = encode_base64_encode(original);
-  let decoded = encode_base64_decode(encoded);
+// pub fn timestamp_to_string
+function timestamp_to_string(ts) {
+  return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
+}
+
+
+// pub fn hex_roundtrip
+function hex_roundtrip(original) {
+  let encoded = encode_hex_encode(original);
+  let decoded = encode_hex_decode(encoded);
   return decoded === original;
-}
-
-
-// pub fn demo_split_join
-function demo_split_join(text, sep) {
-  let parts = (text).split(sep);
-  return (parts).join(" | ");
-}
-
-
-// pub fn demo_math_min_max
-function demo_math_min_max(a, b) {
-  let result = {};
-  result = "min";
-  result = "max";
-  return result;
-}
-
-
-// pub fn octal_small
-function octal_small() {
-  return 8;
-}
-
-
-// pub fn get_time_parts
-function get_time_parts() {
-  let now = datetime_now();
-  let parts = {};
-  parts = "hour";
-  parts = "minute";
-  parts = "second";
-  return parts;
-}
-
-
-// pub fn demo_race
-async function demo_race() {
-  let a = async_spawn(slow_task());
-  let b = async_spawn(fast_task());
-  return await async_race([a, b]);
 }
 
 
@@ -1774,156 +1704,72 @@ function multiline_greeting() {
 }
 
 
-// pub fn format_result
-function format_result(result) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Valid") {  const message = _v.message;  return "通过: " + message; } if (_v._variant === "Invalid") {  const errors = _v.errors;  return "失败: 发现 " + (errors || []).length + " 个错误"; } if (_v._variant === "Pending") {  return "验证中..."; }; throw new Error('match: no arm matched'); })();
+// pub fn json_fragment
+function json_fragment() {
+  return "{\"key\": \"value\"}";
 }
 
 
-// pub fn physics_summary
-function physics_summary() {
-  let charge = -electron_charge();
-  let molecules = avogadro_approx();
-  return "e⁻ = " + String(charge) + " | NA = " + String(molecules);
-}
-
-
-// pub fn numbered_list
-function numbered_list() {
-  return "1.\n2.\n3.\n4.";
-}
-
-
-// pub fn demo_i8
-function demo_i8() {
-  return 127;
-}
-
-
-// pub fn emoji_smile
-function emoji_smile() {
-  return "Smile: 😀";
-}
-
-
-// pub fn find_first_vowel
-function find_first_vowel(text) {
+// pub fn find_index
+function find_index(values, target) {
   let i = 0;
-  while (i < (text || []).length) {
-  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
+  while (i < (values || []).length) {
+  if ((values || [])[i] === target) {
   break;
   }
   i = i + 1;
   }
-  if (i < (text || []).length) {
+  if (i < (values || []).length) {
   return i;
   }
   return -1;
 }
 
 
-// pub fn demo_pow
-function demo_pow(base, exp) {
-  return Math.pow(base, exp);
+// pub fn extract_numbers
+function extract_numbers(text) {
+  return regex_search(text, "\\d+");
 }
 
 
-// pub fn indented_block
-function indented_block() {
-  return "\tLine 1\n\tLine 2";
-}
-
-
-// pub fn demo_u8
-function demo_u8() {
-  return 255;
-}
-
-
-// pub fn tabular_data
-function tabular_data() {
-  return "Name\tAge\tCity";
-}
-
-
-// pub fn demo_find
-function demo_find(arr, target) {
-  return (arr).find(((s) => s === target));
-}
-
-
-// pub fn emoji_rocket
-function emoji_rocket() {
-  return "Rocket: 🚀";
-}
-
-
-// pub fn octal_perms
-function octal_perms() {
-  return 493;
-}
-
-
-// pub fn filter_positive
-function filter_positive(nums) {
-  let result = [];
-  for (const n of nums) {
-  if (n <= 0) {
-  continue;
+// pub fn safe_divide
+function safe_divide(a, b) {
+  if (b === 0.0) {
+  throw "division by zero";
   }
-  result = n;
+  return a / b;
+}
+
+
+// pub fn math_summary
+function math_summary() {
+  let mm = demo_math_min_max(3.0, 7.0);
+  let trig = demo_trig(0.5);
+  let constants = demo_constants();
+  return "min=" + String((mm || [])["min"]) + " max=" + String((mm || [])["max"]) + " sin=" + String((trig || [])["sin"]) + " pi=" + String((constants || [])["pi"]) + " clamp=" + String(demo_clamp(5.0, 1.0, 10.0)) + " pow=" + String(demo_pow(2.0, 8.0)) + " round=" + String(Math.round(3.7));
+}
+
+
+// pub fn find_max_index
+function find_max_index(values) {
+  let max_idx = 0;
+  let i = 1;
+  while (i < (values || []).length) {
+  if ((values || [])[i] > (values || [])[max_idx]) {
+  max_idx = i;
   }
-  return result;
-}
-
-
-// pub fn demo_constants
-function demo_constants() {
-  let result = {};
-  result = "pi";
-  result = "e";
-  return result;
-}
-
-
-// pub fn parse_config
-function parse_config(raw) {
-  let map = {};
-  if (raw !== "") {
-  map = "parsed";
-  map = "length";
+  i = i + 1;
   }
-  return map;
+  return max_idx;
 }
 
 
-// pub fn complex_parse
-function complex_parse(key, raw) {
-  let config = parse_config(raw);
-  try {
-  let value = get_or_throw(config, key);
-  return "found: " + value;
-  } catch (err) {
-  return "not found: " + err;
-  } finally {
-  console.log("parse complete for key=" + key);
+// pub fn get_or_throw
+function get_or_throw(map, key) {
+  if (map.contains(key)) {
+  return (map || [])[key];
   }
-}
-
-
-// pub fn hex_color_code
-function hex_color_code() {
-  return 6699;
-}
-
-
-// pub fn abs_diff
-function abs_diff(a, b) {
-  let diff = a - b;
-  if (diff < 0) {
-  return -diff;
-  }
-  return diff;
+  throw "key not found: " + key;
 }
 
 
@@ -1943,50 +1789,118 @@ function count_non_empty(items) {
 }
 
 
+// pub fn demo_ends_with
+function demo_ends_with(text, suffix) {
+  return (text).endsWith(suffix);
+}
+
+
+// pub fn demo_println_vs_print
+function demo_println_vs_print() {
+  console.log("line 1");
+  console.log("inline ");
+  console.log("inline 2");
+  return 0;
+}
+
+
+// pub fn windows_path
+function windows_path() {
+  return "C:\\Users\\Admin\\Docs";
+}
+
+
+// pub fn demo_void
+function demo_void() {
+return console.log("void function called");
+}
+
+
+// pub fn count_valid
+function count_valid(values, min_len) {
+  let count = 0;
+  for (const value of values) {
+  if (value === "") {
+  continue;
+  }
+  if ((value || []).length < min_len) {
+  continue;
+  }
+  count = count + 1;
+  }
+  return count;
+}
+
+
+// pub fn calculate_average
+function calculate_average(values) {
+  let sum = 0.0;
+  let count = 0;
+  let i = 0;
+  while (i < (values || []).length) {
+  sum = sum + (values || [])[i];
+  count = count + 1;
+  i = i + 1;
+  }
+  if (count !== 0) {
+  return sum / count;
+  }
+  return 0.0;
+}
+
+
+// pub fn status_message
+function status_message(ok) {
+  if (ok) {
+  return "✅ Success";
+  }
+  return "❌ Failed";
+}
+
+
+// pub fn test_regex_search
+function test_regex_search() {
+  return regex_search("apple banana cherry apple", "apple");
+}
+
+
+// pub fn get_time_parts
+function get_time_parts() {
+  let now = datetime_now();
+  let parts = {};
+  parts = "hour";
+  parts = "minute";
+  parts = "second";
+  return parts;
+}
+
+
+// pub fn format_result
+function format_result(result) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Valid") {  const message = _v.message;  return "通过: " + message; } if (_v._variant === "Invalid") {  const errors = _v.errors;  return "失败: 发现 " + (errors || []).length + " 个错误"; } if (_v._variant === "Pending") {  return "验证中..."; }; throw new Error('match: no arm matched'); })();
+}
+
+
 // pub fn demo_f32
 function demo_f32() {
   return 3.14;
 }
 
 
-// pub fn binary_mask
-function binary_mask() {
-  return 240;
+// pub fn url_decode_demo
+function url_decode_demo(encoded) {
+  return encode_url_decode(encoded);
 }
 
 
-// pub fn electron_charge
-function electron_charge() {
-  return 1.6e-19;
-}
-
-
-// pub fn hex_roundtrip
-function hex_roundtrip(original) {
-  let encoded = encode_hex_encode(original);
-  let decoded = encode_hex_decode(encoded);
-  return decoded === original;
-}
-
-
-// pub fn demo_u16
-function demo_u16() {
-  return 65535;
-}
-
-
-// pub fn math_summary
-function math_summary() {
-  let mm = demo_math_min_max(3.0, 7.0);
-  let trig = demo_trig(0.5);
-  let constants = demo_constants();
-  return "min=" + String((mm || [])["min"]) + " max=" + String((mm || [])["max"]) + " sin=" + String((trig || [])["sin"]) + " pi=" + String((constants || [])["pi"]) + " clamp=" + String(demo_clamp(5.0, 1.0, 10.0)) + " pow=" + String(demo_pow(2.0, 8.0)) + " round=" + String(Math.round(3.7));
-}
-
-
-// pub fn million
-function million() {
-  return 1000000.0;
+// pub fn validate_length
+function validate_length(values, min_len) {
+  for (const value of values) {
+  if ((value || []).length < min_len) {
+  return "错误: 长度不足";
+  }
+  }
+  return "通过";
 }
 
 
@@ -1996,33 +1910,32 @@ function demo_isize() {
 }
 
 
-// pub fn demo_replace
-function demo_replace(text, from, to) {
-  return (text).replaceAll(from, to);
+// pub fn filter_positive
+function filter_positive(nums) {
+  let result = [];
+  for (const n of nums) {
+  if (n <= 0) {
+  continue;
+  }
+  result = n;
+  }
+  return result;
 }
 
 
-// pub fn binary_flags
-function binary_flags() {
-  return 170;
-}
-
-
-// pub fn json_fragment
-function json_fragment() {
-  return "{\"key\": \"value\"}";
-}
-
-
-// pub fn demo_remove
-function demo_remove(arr, idx) {
-  return ((arr).splice(idx, 1), (arr).slice());
-}
-
-
-// pub fn demo_void
-function demo_void() {
-return console.log("void function called");
+// pub fn count_consonants
+function count_consonants(text) {
+  let count = 0;
+  let i = 0;
+  while (i < (text || []).length) {
+  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
+  i = i + 1;
+  continue;
+  }
+  count = count + 1;
+  i = i + 1;
+  }
+  return count;
 }
 
 
@@ -2034,21 +1947,14 @@ function demo_print_concat() {
 }
 
 
-// pub fn demo_random_in_range
-function demo_random_in_range(min, max) {
-  return math_random_int(min, max);
-}
-
-
-// pub fn ok_result
-function ok_result(data) {
-  return {"_variant": "Ok", "data": data};
-}
-
-
-// pub fn timestamp_to_string
-function timestamp_to_string(ts) {
-  return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
+// pub fn find_first_match
+function find_first_match(values, min_len) {
+  for (const value of values) {
+  if ((value || []).length >= min_len) {
+  return value;
+  }
+  }
+  return "";
 }
 
 
@@ -2070,9 +1976,58 @@ function classify_range(value) {
 }
 
 
-// pub fn demo_map
-function demo_map(arr) {
-  return (arr).map(((x) => x * 2));
+// pub fn fetch_demo
+async function fetch_demo(url) {
+  if (url === "") {
+  return {"_variant": "Err", "error": "url is empty"};
+  }
+  let raw = await fetch(url).then(r => r.text());
+  return {"_variant": "Ok", "data": raw};
+}
+
+
+// pub fn demo_logs
+function demo_logs(x) {
+  let result = {};
+  result = "log";
+  result = "log2";
+  result = "log10";
+  return result;
+}
+
+
+// pub fn validate_all
+function validate_all(items, min_len) {
+  let errors = [];
+  for (const item of TodoStore_items.value) {
+  if (item === "") {
+  errors = "发现空字符串";
+  }
+  if ((item || []).length < min_len) {
+  errors = "长度不足: " + item;
+  }
+  }
+  return errors;
+}
+
+
+// pub fn type_system_summary
+function type_system_summary() {
+  return "i8=" + String(demo_i8()) + " i16=" + String(demo_i16()) + " u8=" + String(demo_u8()) + " u16=" + String(demo_u16()) + " u32=" + String(demo_u32()) + " f32=" + String(demo_f32()) + " isize=" + String(demo_isize()) + " usize=" + String(demo_usize());
+}
+
+
+// pub fn all_extractors
+function all_extractors() {
+  let now = datetime_now();
+  let result = {};
+  result = "year";
+  result = "month";
+  result = "day";
+  result = "hour";
+  result = "minute";
+  result = "second";
+  return result;
 }
 
 
@@ -2086,29 +2041,297 @@ function safe_get(map, key) {
 }
 
 
-// pub fn format_card
-function format_card(name, title) {
-  return "┌──────────────────────┐\n\tName:\t" + name + "\n\tTitle:\t" + title + "\n└──────────────────────┘";
+// pub fn binary_mask
+function binary_mask() {
+  return 240;
 }
 
 
-// pub fn safe_divide
-function safe_divide(a, b) {
-  if (b === 0.0) {
-  throw "division by zero";
+// pub fn hex_demo
+function hex_demo() {
+  return encode_hex_encode("Hello OmniLang");
+}
+
+
+// pub fn base64_roundtrip
+function base64_roundtrip(original) {
+  let encoded = encode_base64_encode(original);
+  let decoded = encode_base64_decode(encoded);
+  return decoded === original;
+}
+
+
+// pub fn url_encode_demo
+function url_encode_demo(url) {
+  return encode_url_encode(url);
+}
+
+
+// pub fn try_catch_finally_divide
+function try_catch_finally_divide(a, b) {
+  let status = "";
+  try {
+  let result = safe_divide(a, b);
+  status = "ok";
+  return "result: " + String(result);
+  } catch (err) {
+  status = "failed";
+  return "error: " + err;
+  } finally {
+  console.log("finally: division attempted, status=" + status);
   }
-  return a / b;
 }
 
 
-// pub fn validate_length
-function validate_length(values, min_len) {
-  for (const value of values) {
-  if ((value || []).length < min_len) {
-  return "错误: 长度不足";
+// pub fn emoji_fire
+function emoji_fire() {
+  return "Fire: 🔥";
+}
+
+
+// pub fn demo_usize
+function demo_usize() {
+  return 100;
+}
+
+
+// pub fn demo_random_in_range
+function demo_random_in_range(min, max) {
+  return math_random_int(min, max);
+}
+
+
+// pub fn color_from_hex
+function color_from_hex() {
+  let r = 255;
+  let g = 128;
+  let b = 64;
+  return "rgb(" + String(r) + "," + String(g) + "," + String(b) + ")";
+}
+
+
+// pub fn encode_summary
+function encode_summary() {
+  let b64Ok = base64_roundtrip("test");
+  let hexOk = hex_roundtrip("OmniLang");
+  let urlEnc = url_encode_demo("hello world");
+  return "base64=" + String(b64Ok) + " hex=" + String(hexOk) + " url_enc=" + urlEnc;
+}
+
+
+// pub fn demo_i64
+function demo_i64() {
+  return 9223372036854775807;
+}
+
+
+// pub fn avogadro_approx
+function avogadro_approx() {
+  return 6.022e+23;
+}
+
+
+// pub fn find_first_vowel
+function find_first_vowel(text) {
+  let i = 0;
+  while (i < (text || []).length) {
+  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
+  break;
+  }
+  i = i + 1;
+  }
+  if (i < (text || []).length) {
+  return i;
+  }
+  return -1;
+}
+
+
+// pub fn demo_split_join
+function demo_split_join(text, sep) {
+  let parts = (text).split(sep);
+  return (parts).join(" | ");
+}
+
+
+// pub fn demo_i8
+function demo_i8() {
+  return 127;
+}
+
+
+// pub fn needs_attention
+function needs_attention(percentage, count) {
+  if (percentage > 90.0 || count <= 0) {
+  return true;
+  }
+  if (percentage < 10.0 && count !== 0) {
+  return true;
+  }
+  return false;
+}
+
+
+// pub fn parse_config
+function parse_config(raw) {
+  let map = {};
+  if (raw !== "") {
+  map = "parsed";
+  map = "length";
+  }
+  return map;
+}
+
+
+// pub fn demo_clamp
+function demo_clamp(val, min, max) {
+  return math_clamp(val, min, max);
+}
+
+
+// pub fn demo_sleep_and_return
+async function demo_sleep_and_return() {
+  await async_sleep(10);
+  return "slept 10ms";
+}
+
+
+// pub fn error_message
+function error_message(result) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return ""; } if (_v._variant === "Err") {  const error = _v.error;  return error; } if (_v._variant === "Loading") {  return "still loading..."; }; throw new Error('match: no arm matched'); })();
+}
+
+
+// pub fn err_result
+function err_result(error) {
+  return {"_variant": "Err", "error": error};
+}
+
+
+// pub fn demo_find
+function demo_find(arr, target) {
+  return (arr).find(((s) => s === target));
+}
+
+
+// pub fn demo_trig
+function demo_trig(angle) {
+  let result = {};
+  result = "sin";
+  result = "cos";
+  result = "tan";
+  return result;
+}
+
+
+// pub fn demo_timeout
+async function demo_timeout() {
+  let task = async_spawn(slow_task());
+  return await async_timeout(task, 50);
+}
+
+
+// pub fn demo_u32
+function demo_u32() {
+  return 4294967295;
+}
+
+
+// pub fn demo_replace
+function demo_replace(text, from, to) {
+  return (text).replaceAll(from, to);
+}
+
+
+// pub fn demo_math_min_max
+function demo_math_min_max(a, b) {
+  let result = {};
+  result = "min";
+  result = "max";
+  return result;
+}
+
+
+// pub fn numbered_list
+function numbered_list() {
+  return "1.\n2.\n3.\n4.";
+}
+
+
+// pub fn has_errors
+function has_errors(items) {
+  for (const item of TodoStore_items.value) {
+  if (item === "") {
+  return true;
+  }
+  if ((item || []).length > 100) {
+  return true;
+  }
+  }
+  return false;
+}
+
+
+// pub fn demo_u16
+function demo_u16() {
+  return 65535;
+}
+
+
+// pub fn octal_small
+function octal_small() {
+  return 8;
+}
+
+
+// pub fn now_formatted
+function now_formatted() {
+  let now = datetime_now();
+  return datetime_format(now, "%Y-%m-%d %H:%M:%S");
+}
+
+
+// pub fn sum_until_negative
+function sum_until_negative(nums) {
+  let sum = 0;
+  let i = 0;
+  while (i < (nums || []).length) {
+  if ((nums || [])[i] < 0) {
+  break;
+  }
+  sum = sum + (nums || [])[i];
+  i = i + 1;
+  }
+  return sum;
+}
+
+
+// pub fn emoji_rocket
+function emoji_rocket() {
+  return "Rocket: 🚀";
+}
+
+
+// pub fn million
+function million() {
+  return 1000000.0;
+}
+
+
+// pub fn validate_not_empty
+function validate_not_empty(fields) {
+  for (const field of fields) {
+  if (field === "") {
+  return "错误: 发现空字段";
   }
   }
   return "通过";
+}
+
+
+// pub fn tabular_data
+function tabular_data() {
+  return "Name\tAge\tCity";
 }
 
 
@@ -2129,154 +2352,82 @@ function find_first_long(values, min_len) {
 }
 
 
-// pub fn demo_trig
-function demo_trig(angle) {
+// pub fn format_card
+function format_card(name, title) {
+  return "┌──────────────────────┐\n\tName:\t" + name + "\n\tTitle:\t" + title + "\n└──────────────────────┘";
+}
+
+
+// pub fn japanese_hello
+function japanese_hello() {
+  return "こんにちは";
+}
+
+
+// pub fn negate
+function negate(x) {
+  return -x;
+}
+
+
+// pub fn binary_flags
+function binary_flags() {
+  return 170;
+}
+
+
+// pub fn demo_remove
+function demo_remove(arr, idx) {
+  return ((arr).splice(idx, 1), (arr).slice());
+}
+
+
+// pub fn demo_constants
+function demo_constants() {
   let result = {};
-  result = "sin";
-  result = "cos";
-  result = "tan";
+  result = "pi";
+  result = "e";
   return result;
 }
 
 
-// pub fn demo_clamp
-function demo_clamp(val, min, max) {
-  return math_clamp(val, min, max);
+// pub fn demo_map
+function demo_map(arr) {
+  return (arr).map(((x) => x * 2));
 }
 
 
-// pub fn is_in_range
-function is_in_range(value, min, max) {
-  return value >= min && value <= max;
+// pub fn demo_concat
+function demo_concat(a, b) {
+  return (a) + (b);
 }
 
 
-// pub fn now_formatted
-function now_formatted() {
-  let now = datetime_now();
-  return datetime_format(now, "%Y-%m-%d %H:%M:%S");
-}
-
-
-// pub fn demo_contains
-function demo_contains(arr, item) {
-  return (arr).includes(item);
-}
-
-
-// pub fn type_system_summary
-function type_system_summary() {
-  return "i8=" + String(demo_i8()) + " i16=" + String(demo_i16()) + " u8=" + String(demo_u8()) + " u16=" + String(demo_u16()) + " u32=" + String(demo_u32()) + " f32=" + String(demo_f32()) + " isize=" + String(demo_isize()) + " usize=" + String(demo_usize());
-}
-
-
-// pub fn sum_until_negative
-function sum_until_negative(nums) {
-  let sum = 0;
-  let i = 0;
-  while (i < (nums || []).length) {
-  if ((nums || [])[i] < 0) {
-  break;
+// pub fn abs_diff
+function abs_diff(a, b) {
+  let diff = a - b;
+  if (diff < 0) {
+  return -diff;
   }
-  sum = sum + (nums || [])[i];
-  i = i + 1;
-  }
-  return sum;
+  return diff;
 }
 
 
-// pub fn validate_all
-function validate_all(items, min_len) {
-  let errors = [];
-  for (const item of TodoStore_items.value) {
-  if (item === "") {
-  errors = "发现空字符串";
-  }
-  if ((item || []).length < min_len) {
-  errors = "长度不足: " + item;
-  }
-  }
-  return errors;
+// pub fn indented_block
+function indented_block() {
+  return "\tLine 1\n\tLine 2";
 }
 
 
-// pub fn all_extractors
-function all_extractors() {
-  let now = datetime_now();
-  let result = {};
-  result = "year";
-  result = "month";
-  result = "day";
-  result = "hour";
-  result = "minute";
-  result = "second";
-  return result;
+// pub fn test_regex_replace
+function test_regex_replace() {
+  return regex_replace("Hello 2024 World 2024", "\\d{4}", "2025");
 }
 
 
-// pub fn validate_not_empty
-function validate_not_empty(fields) {
-  for (const field of fields) {
-  if (field === "") {
-  return "错误: 发现空字段";
-  }
-  }
-  return "通过";
-}
-
-
-// pub fn hex_demo
-function hex_demo() {
-  return encode_hex_encode("Hello OmniLang");
-}
-
-
-// pub fn has_errors
-function has_errors(items) {
-  for (const item of TodoStore_items.value) {
-  if (item === "") {
-  return true;
-  }
-  if ((item || []).length > 100) {
-  return true;
-  }
-  }
-  return false;
-}
-
-
-// pub fn regex_demo_summary
-function regex_demo_summary() {
-  let emailTest = test_regex_match();
-  let searchResult = test_regex_search();
-  let replaceResult = test_regex_replace();
-  let emailValid = validate_email("user@example.com");
-  let nums = extract_numbers("abc 123 def 456");
-  return "match=" + String(emailTest) + " search_count=" + String((searchResult || []).length) + " replace=" + replaceResult + " valid_email=" + String(emailValid) + " nums=" + String((nums || []).length);
-}
-
-
-// pub fn demo_sleep_and_return
-async function demo_sleep_and_return() {
-  await async_sleep(10);
-  return "slept 10ms";
-}
-
-
-// pub fn find_first_match
-function find_first_match(values, min_len) {
-  for (const value of values) {
-  if ((value || []).length >= min_len) {
-  return value;
-  }
-  }
-  return "";
-}
-
-
-// pub fn demo_i16
-function demo_i16() {
-  return 32767;
+// pub fn unwrap_or_default
+function unwrap_or_default(result, default_) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return data; } if (_v._variant === "Err") {  return default_; } if (_v._variant === "Loading") {  return default_; }; throw new Error('match: no arm matched'); })();
 }
 
 
@@ -2291,32 +2442,23 @@ function get_date_parts() {
 }
 
 
-// pub fn japanese_hello
-function japanese_hello() {
-  return "こんにちは";
+// pub fn hex_color_code
+function hex_color_code() {
+  return 6699;
 }
 
 
-// pub fn sanitize_input
-function sanitize_input(text) {
-  let cleaned = regex_replace(text, "<[^>]+>", "");
-  return regex_replace(cleaned, "\\s+", " ");
-}
-
-
-// pub fn find_index
-function find_index(values, target) {
-  let i = 0;
-  while (i < (values || []).length) {
-  if ((values || [])[i] === target) {
-  break;
+// pub fn complex_parse
+function complex_parse(key, raw) {
+  let config = parse_config(raw);
+  try {
+  let value = get_or_throw(config, key);
+  return "found: " + value;
+  } catch (err) {
+  return "not found: " + err;
+  } finally {
+  console.log("parse complete for key=" + key);
   }
-  i = i + 1;
-  }
-  if (i < (values || []).length) {
-  return i;
-  }
-  return -1;
 }
 
 
@@ -2326,18 +2468,15 @@ function loading_result() {
 }
 
 
-// pub fn err_result
-function err_result(error) {
-  return {"_variant": "Err", "error": error};
+// pub fn validate_email
+function validate_email(email) {
+  return regex_match(email, "^[\\w.]+@[\\w]+\\.[a-z]+$");
 }
 
 
-// pub fn get_or_throw
-function get_or_throw(map, key) {
-  if (map.contains(key)) {
-  return (map || [])[key];
-  }
-  throw "key not found: " + key;
+// pub fn demo_pow
+function demo_pow(base, exp) {
+  return Math.pow(base, exp);
 }
 
 
@@ -2350,42 +2489,33 @@ function format_count(n) {
 }
 
 
-// pub fn demo_timeout
-async function demo_timeout() {
-  let task = async_spawn(slow_task());
-  return await async_timeout(task, 50);
+// pub fn demo_substring
+function demo_substring(text, start, end) {
+  return (text).substring(start, end);
 }
 
 
-// pub fn test_regex_replace
-function test_regex_replace() {
-  return regex_replace("Hello 2024 World 2024", "\\d{4}", "2025");
+// pub fn demo_u64
+function demo_u64() {
+  return 0;
 }
 
 
-// pub fn test_regex_search
-function test_regex_search() {
-  return regex_search("apple banana cherry apple", "apple");
+// pub fn demo_i16
+function demo_i16() {
+  return 32767;
 }
 
 
-// pub fn emoji_fire
-function emoji_fire() {
-  return "Fire: 🔥";
+// pub fn is_in_range
+function is_in_range(value, min, max) {
+  return value >= min && value <= max;
 }
 
 
-// pub fn find_max_index
-function find_max_index(values) {
-  let max_idx = 0;
-  let i = 1;
-  while (i < (values || []).length) {
-  if ((values || [])[i] > (values || [])[max_idx]) {
-  max_idx = i;
-  }
-  i = i + 1;
-  }
-  return max_idx;
+// pub fn octal_perms
+function octal_perms() {
+  return 493;
 }
 
 
@@ -2398,124 +2528,9 @@ function demo_case(text) {
 }
 
 
-// pub fn count_valid
-function count_valid(values, min_len) {
-  let count = 0;
-  for (const value of values) {
-  if (value === "") {
-  continue;
-  }
-  if ((value || []).length < min_len) {
-  continue;
-  }
-  count = count + 1;
-  }
-  return count;
-}
-
-
-// pub fn demo_concat
-function demo_concat(a, b) {
-  return (a) + (b);
-}
-
-
-// pub fn demo_ends_with
-function demo_ends_with(text, suffix) {
-  return (text).endsWith(suffix);
-}
-
-
-// pub fn negate
-function negate(x) {
-  return -x;
-}
-
-
-// pub fn color_from_hex
-function color_from_hex() {
-  let r = 255;
-  let g = 128;
-  let b = 64;
-  return "rgb(" + String(r) + "," + String(g) + "," + String(b) + ")";
-}
-
-
-// pub fn demo_u32
-function demo_u32() {
-  return 4294967295;
-}
-
-
-// pub fn demo_usize
-function demo_usize() {
-  return 100;
-}
-
-
-// pub fn try_catch_finally_divide
-function try_catch_finally_divide(a, b) {
-  let status = "";
-  try {
-  let result = safe_divide(a, b);
-  status = "ok";
-  return "result: " + String(result);
-  } catch (err) {
-  status = "failed";
-  return "error: " + err;
-  } finally {
-  console.log("finally: division attempted, status=" + status);
-  }
-}
-
-
-// pub fn needs_attention
-function needs_attention(percentage, count) {
-  if (percentage > 90.0 || count <= 0) {
-  return true;
-  }
-  if (percentage < 10.0 && count !== 0) {
-  return true;
-  }
-  return false;
-}
-
-
-// pub fn status_message
-function status_message(ok) {
-  if (ok) {
-  return "✅ Success";
-  }
-  return "❌ Failed";
-}
-
-
-// pub fn test_regex_match
-function test_regex_match() {
-  return regex_match("hello@example.com", "^[\\w.]+@[\\w]+\\.[a-z]+$");
-}
-
-
-// pub fn extract_numbers
-function extract_numbers(text) {
-  return regex_search(text, "\\d+");
-}
-
-
-// pub fn avogadro_approx
-function avogadro_approx() {
-  return 6.022e+23;
-}
-
-
-// pub fn try_catch_divide
-function try_catch_divide(a, b) {
-  try {
-  let result = safe_divide(a, b);
-  return "result: " + String(result);
-  } catch (err) {
-  return "error: " + err;
-  }
+// pub fn ok_result
+function ok_result(data) {
+  return {"_variant": "Ok", "data": data};
 }
 
 
@@ -2525,42 +2540,24 @@ function quoted_value() {
 }
 
 
-// pub fn demo_logs
-function demo_logs(x) {
-  let result = {};
-  result = "log";
-  result = "log2";
-  result = "log10";
-  return result;
+// pub fn electron_charge
+function electron_charge() {
+  return 1.6e-19;
 }
 
 
-// pub fn windows_path
-function windows_path() {
-  return "C:\\Users\\Admin\\Docs";
+// pub fn demo_parallel
+async function demo_parallel() {
+  let a = async_spawn(task_a());
+  let b = async_spawn(task_b());
+  return await async_all([a, b]);
 }
 
 
-// pub fn unwrap_or_default
-function unwrap_or_default(result, default_) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return data; } if (_v._variant === "Err") {  return default_; } if (_v._variant === "Loading") {  return default_; }; throw new Error('match: no arm matched'); })();
-}
-
-
-// pub fn calculate_average
-function calculate_average(values) {
-  let sum = 0.0;
-  let count = 0;
-  let i = 0;
-  while (i < (values || []).length) {
-  sum = sum + (values || [])[i];
-  count = count + 1;
-  i = i + 1;
-  }
-  if (count !== 0) {
-  return sum / count;
-  }
-  return 0.0;
+// pub fn sanitize_input
+function sanitize_input(text) {
+  let cleaned = regex_replace(text, "<[^>]+>", "");
+  return regex_replace(cleaned, "\\s+", " ");
 }
 
 
@@ -2570,110 +2567,89 @@ function hex_max() {
 }
 
 
-// pub fn demo_println_vs_print
-function demo_println_vs_print() {
-  console.log("line 1");
-  console.log("inline ");
-  console.log("inline 2");
-  return 0;
+// pub fn emoji_smile
+function emoji_smile() {
+  return "Smile: 😀";
 }
 
 
-// pub fn fetch_demo
-async function fetch_demo(url) {
-  if (url === "") {
-  return {"_variant": "Err", "error": "url is empty"};
-  }
-  let raw = await fetch(url).then(r => r.text());
-  return {"_variant": "Ok", "data": raw};
+// pub fn physics_summary
+function physics_summary() {
+  let charge = -electron_charge();
+  let molecules = avogadro_approx();
+  return "e⁻ = " + String(charge) + " | NA = " + String(molecules);
 }
 
 
-// pub fn demo_u64
-function demo_u64() {
-  return 0;
+// pub fn test_regex_match
+function test_regex_match() {
+  return regex_match("hello@example.com", "^[\\w.]+@[\\w]+\\.[a-z]+$");
+}
+
+
+// pub fn demo_race
+async function demo_race() {
+  let a = async_spawn(slow_task());
+  let b = async_spawn(fast_task());
+  return await async_race([a, b]);
 }
 
 
 /// ── Module Motion Definitions: input.omni ──
 
-const __omni_motion_dirReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 0.3}, "to": {"opacity": 1, "x": 160}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
+const __omni_motion_fillDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
 };
-const __omni_motion_dirAltReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
+const __omni_motion_delayedEntrance = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
 };
-const __omni_motion_fillBackwards = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
+const __omni_motion_slowSpin = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
 };
-const __omni_motion_fillBoth = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.8, "opacity": 0}, "to": {"opacity": 1, "scale": 1.2}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
+const __omni_motion_interruptDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
 };
-const __omni_motion_intStop = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
+const __omni_motion_accessibleAnim = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
 };
-const __omni_motion_intComplete = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
+const __omni_motion_staggeredList = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
 };
-const __omni_motion_intReplace = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
+const __omni_motion_pathAnim = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
 };
-const __omni_motion_scaleXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_multiStopColor = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.5, "opacity": 0, "background": "#ff0000"}, "to": {"background": "#0000ff", "scale": 1, "opacity": 1}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
 };
-const __omni_motion_scaleYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_callbackOnly = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
 };
-const __omni_motion_rotateXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
+const __omni_motion_pulseAccent = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"--accent-h": 221}, "to": {"--accent-h": 350}, "over": 600, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
 };
-const __omni_motion_rotateYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateZDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_blurDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_brightnessDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_bgColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"backgroundColor": "#6366f1", "borderRadius": 4}, "to": {"borderRadius": 24, "backgroundColor": "#f97316"}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_textColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"borderColor": "#d4d4d8", "color": "#1f2937"}, "to": {"color": "#dc2626", "borderColor": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_widthDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_heightDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_spacingDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"margin": 4, "padding": 8}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
+const __omni_motion_heroMove = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.8, "opacity": 0, "x": -100}, "to": {"opacity": 1, "scale": 1, "x": 0}, "over": 500, "easing": "power3Out"}, overrides || {}));
 };
 const __omni_motion_fadeSlideOut = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 1}, "to": {"opacity": 0, "x": 30}, "over": 300, "easing": "easeOut"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 1, "x": 0}, "to": {"x": 30, "opacity": 0}, "over": 300, "easing": "easeOut"}, overrides || {}));
 };
 const __omni_motion_fadeEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 10, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 400, "easing": "power2Out"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
 };
 const __omni_motion_scaleGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.08, "boxShadow": "0 0 0 4px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 4px rgba(99,102,241,0.4)", "scale": 1.08}, "over": 200, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_fadeInUp = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "easeOut"}, overrides || {}));
+const __omni_motion_refMotion = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.5, "scale": 1}, "to": {"opacity": 1, "scale": 1.0}, "over": 400, "easing": "power2Out"}, overrides || {}));
 };
-const __omni_motion_scalePress = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
+const __omni_motion_staggerStart = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
 };
-const __omni_motion_listItem = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 300, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_staggerEnd = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
 };
-const __omni_motion_pulse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
+const __omni_motion_staggerEdges = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
 };
 const __omni_motion_unbounce = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 150, "easing": "easeOut"}, overrides || {}));
@@ -2688,10 +2664,31 @@ const __omni_motion_slideInView = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 30}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
 };
 const __omni_motion_scrollFade = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.95, "opacity": 0.3}, "to": {"opacity": 1, "scale": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "scale": 0.95}, "to": {"opacity": 1, "scale": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
 };
 const __omni_motion_dragSlide = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 100}, "over": 300, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_dirReverse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"x": 160, "opacity": 1}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
+};
+const __omni_motion_dirAltReverse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
+};
+const __omni_motion_fillBackwards = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
+};
+const __omni_motion_fillBoth = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8}, "to": {"scale": 1.2, "opacity": 1}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
+};
+const __omni_motion_intStop = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
+};
+const __omni_motion_intComplete = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
+};
+const __omni_motion_intReplace = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
 };
 const __omni_motion_power1InMove = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1In"}, overrides || {}));
@@ -2760,7 +2757,7 @@ const __omni_motion_elasticCustomMove = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1500, "easing": "elasticOut"}, overrides || {}));
 };
 const __omni_motion_springDefault = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"x": 180, "opacity": 1}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 0.3}, "to": {"x": 180, "opacity": 1}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
 };
 const __omni_motion_springBouncy = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1000, "easing": new SpringSolver(120, 8, 1, 2)}, overrides || {}));
@@ -2774,323 +2771,66 @@ const __omni_motion_cubicCustom = function(el, overrides) {
 const __omni_motion_stepsDemo = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "steps(6,end)"}, overrides || {}));
 };
-const __omni_motion_heroMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8, "x": -100}, "to": {"scale": 1, "x": 0, "opacity": 1}, "over": 500, "easing": "power3Out"}, overrides || {}));
-};
 const __omni_motion_trackedEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": -20, "scale": 0.8, "opacity": 0}, "to": {"scale": 1, "opacity": 1, "y": 0}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": -20, "scale": 0.8}, "to": {"scale": 1, "opacity": 1, "y": 0}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
 };
 const __omni_motion_pulseWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.7, "scale": 1}, "to": {"scale": 1.1, "opacity": 1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1, "opacity": 0.7}, "to": {"opacity": 1, "scale": 1.1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
 };
 const __omni_motion_interruptWithCallback = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "rotate": 0}, "to": {"x": 40, "rotate": 15}, "over": 300, "easing": "power1Out", "interrupt": "replace", "callbacks": {"onStart": function() { null }, "onInterrupt": function() { null }, "onComplete": function() { null }}}, overrides || {}));
 };
-const __omni_motion_refMotion = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.5, "scale": 1}, "to": {"opacity": 1, "scale": 1.0}, "over": 400, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_scaleXDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
 };
-const __omni_motion_staggerStart = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
+const __omni_motion_scaleYDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
 };
-const __omni_motion_staggerEnd = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
+const __omni_motion_rotateXDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
 };
-const __omni_motion_staggerEdges = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
+const __omni_motion_rotateYDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
 };
-const __omni_motion_fillDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"x": 0, "opacity": 1}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
+const __omni_motion_rotateZDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
 };
-const __omni_motion_delayedEntrance = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
+const __omni_motion_blurDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_slowSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
+const __omni_motion_brightnessDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_interruptDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
+const __omni_motion_bgColorDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"backgroundColor": "#6366f1", "borderRadius": 4}, "to": {"borderRadius": 24, "backgroundColor": "#f97316"}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
 };
-const __omni_motion_accessibleAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
+const __omni_motion_textColorDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"borderColor": "#d4d4d8", "color": "#1f2937"}, "to": {"borderColor": "#dc2626", "color": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
 };
-const __omni_motion_staggeredList = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
+const __omni_motion_widthDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_pathAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
+const __omni_motion_heightDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
 };
-const __omni_motion_multiStopColor = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.5, "background": "#ff0000", "opacity": 0}, "to": {"scale": 1, "background": "#0000ff", "opacity": 1}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
+const __omni_motion_spacingDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"padding": 8, "margin": 4}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
 };
-const __omni_motion_callbackOnly = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
+const __omni_motion_fadeInUp = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_pulseAccent = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"--accent-h": 221}, "to": {"--accent-h": 350}, "over": 600, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
+const __omni_motion_scalePress = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_listItem = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 300, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_pulse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
 };
 
 /// ── Module Timeline Definitions: input.omni ──
 
-function __omni_motion_positionDemo(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline positionDemo ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"x": 0, "opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"scale": 0.5},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "scale": 1},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"x": -20},
-    "to": {"opacity": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_5", player);
-   player.play();
-  }
-}, 300.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"x": 0, "opacity": 1},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_6", player);
-   player.play();
-  }
-}, 300.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[5];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 10},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_8", player);
-   player.play();
-  }
-}, 450.6));
-__timeouts.push(setTimeout(function() {
-  const el = __children[6];
-  if (el) {
-   const config = {
-        "to": {"y": 0, "opacity": 1},
-    "over": 300,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_9", player);
-   player.play();
-  }
-}, 450.90000000000003));
-__timeouts.push(setTimeout(function() {
-  const el = __children[7];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"rotate": -10},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_11", player);
-   player.play();
-  }
-}, 950.9000000000001));
-__timeouts.push(setTimeout(function() {
-  const el = __children[8];
-  if (el) {
-   const config = {
-        "to": {"rotate": 0, "opacity": 1},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_12", player);
-   player.play();
-  }
-}, 951.2));
-__timeouts.push(setTimeout(function() {
-  const el = __children[9];
-  if (el) {
-   const config = {
-    "from": {"scale": 0.8},
-    "to": {"opacity": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_14", player);
-   player.play();
-  }
-}, 1051.2));
-__timeouts.push(setTimeout(function() {
-  const el = __children[10];
-  if (el) {
-   const config = {
-        "to": {"scale": 1, "opacity": 1},
-    "over": 250,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_15", player);
-   player.play();
-  }
-}, 1051.5));
-__timeouts.push(setTimeout(function() {
-  const el = __children[11];
-  if (el) {
-   const config = {
-    "from": {"y": -10, "x": 20},
-    "to": {"opacity": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_17", player);
-   player.play();
-  }
-}, 1200));
-__timeouts.push(setTimeout(function() {
-  const el = __children[12];
-  if (el) {
-   const config = {
-        "to": {"y": 0, "x": 0, "opacity": 1},
-    "over": 400,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_positionDemo_item_18", player);
-   player.play();
-  }
-}, 1200.3));
-__omni_timeline_labels.set("positionDemo", {"A-start": 0, "B-withPrev": 300.3, "C-after": 600.6, "D-overlap": 750.9000000000001, "E-afterPrev": 1151.2, "F-withOffset": 1301.5, "G-absolute": 1600.3});
-  return {
-   name: "positionDemo",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_simpleThenWith(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline simpleThenWith ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"x": -20},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"x": 0, "opacity": 1},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"x": 20},
-    "to": {"opacity": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_5", player);
-   player.play();
-  }
-}, 200.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"x": 0, "opacity": 1},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_simpleThenWith_item_6", player);
-   player.play();
-  }
-}, 200.60000000000002));
-__omni_timeline_labels.set("simpleThenWith", {"start": 0, "then-item": 200.3, "with-item": 400.6});
-  return {
-   name: "simpleThenWith",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
 function __omni_motion_pageEnter(el, config) {
   var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
   var __childIdx = 0;
@@ -3100,8 +2840,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[0];
   if (el) {
    const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -20},
+    "from": {"y": -20},
+    "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3153,8 +2893,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[4];
   if (el) {
    const config = {
-    "from": {"y": 20},
-    "to": {"opacity": 0},
+    "from": {"opacity": 0},
+    "to": {"y": 20},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3167,7 +2907,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[5];
   if (el) {
    const config = {
-        "to": {"y": 0, "opacity": 1},
+        "to": {"opacity": 1, "y": 0},
     "over": 300,
     "easing": "easeOut"
    };
@@ -3189,6 +2929,266 @@ __omni_timeline_labels.set("pageEnter", {"intro": 0, "outro": 600});
    }
   };
 };
+function __omni_motion_positionDemo(el, config) {
+  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
+  var __childIdx = 0;
+  var __timeouts = [];
+/// ── @timeline positionDemo ──
+__timeouts.push(setTimeout(function() {
+  const el = __children[0];
+  if (el) el.style.cssText = Object.entries({"x": 0, "opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[1];
+  if (el) {
+   const config = {
+    "from": {"opacity": 0},
+    "to": {"scale": 0.5},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_2", player);
+   player.play();
+  }
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[2];
+  if (el) {
+   const config = {
+        "to": {"opacity": 1, "scale": 1},
+    "over": 300,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_3", player);
+   player.play();
+  }
+}, 0.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[3];
+  if (el) {
+   const config = {
+    "from": {"opacity": 0},
+    "to": {"x": -20},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_5", player);
+   player.play();
+  }
+}, 300.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[4];
+  if (el) {
+   const config = {
+        "to": {"opacity": 1, "x": 0},
+    "over": 300,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_6", player);
+   player.play();
+  }
+}, 300.6));
+__timeouts.push(setTimeout(function() {
+  const el = __children[5];
+  if (el) {
+   const config = {
+    "from": {"opacity": 0},
+    "to": {"y": 10},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_8", player);
+   player.play();
+  }
+}, 450.6));
+__timeouts.push(setTimeout(function() {
+  const el = __children[6];
+  if (el) {
+   const config = {
+        "to": {"y": 0, "opacity": 1},
+    "over": 300,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_9", player);
+   player.play();
+  }
+}, 450.90000000000003));
+__timeouts.push(setTimeout(function() {
+  const el = __children[7];
+  if (el) {
+   const config = {
+    "from": {"rotate": -10},
+    "to": {"opacity": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_11", player);
+   player.play();
+  }
+}, 950.9000000000001));
+__timeouts.push(setTimeout(function() {
+  const el = __children[8];
+  if (el) {
+   const config = {
+        "to": {"rotate": 0, "opacity": 1},
+    "over": 200,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_12", player);
+   player.play();
+  }
+}, 951.2));
+__timeouts.push(setTimeout(function() {
+  const el = __children[9];
+  if (el) {
+   const config = {
+    "from": {"scale": 0.8},
+    "to": {"opacity": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_14", player);
+   player.play();
+  }
+}, 1051.2));
+__timeouts.push(setTimeout(function() {
+  const el = __children[10];
+  if (el) {
+   const config = {
+        "to": {"opacity": 1, "scale": 1},
+    "over": 250,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_15", player);
+   player.play();
+  }
+}, 1051.5));
+__timeouts.push(setTimeout(function() {
+  const el = __children[11];
+  if (el) {
+   const config = {
+    "from": {"x": 20, "opacity": 0},
+    "to": {"y": -10},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_17", player);
+   player.play();
+  }
+}, 1200));
+__timeouts.push(setTimeout(function() {
+  const el = __children[12];
+  if (el) {
+   const config = {
+        "to": {"x": 0, "y": 0, "opacity": 1},
+    "over": 400,
+    "easing": "power2Out"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_positionDemo_item_18", player);
+   player.play();
+  }
+}, 1200.3));
+__omni_timeline_labels.set("positionDemo", {"A-start": 0, "B-withPrev": 300.3, "C-after": 600.6, "D-overlap": 750.9000000000001, "E-afterPrev": 1151.2, "F-withOffset": 1301.5, "G-absolute": 1600.3});
+  return {
+   name: "positionDemo",
+   type: "timeline",
+   kill: function() {
+    __timeouts.forEach(function(t) { clearTimeout(t); });
+    // Also cancel any running WAAPI animations on children
+    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
+     c.getAnimations().forEach(function(a) { a.cancel(); });
+    });
+   }
+  };
+};
+function __omni_motion_simpleThenWith(el, config) {
+  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
+  var __childIdx = 0;
+  var __timeouts = [];
+/// ── @timeline simpleThenWith ──
+__timeouts.push(setTimeout(function() {
+  const el = __children[0];
+  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[1];
+  if (el) {
+   const config = {
+    "from": {"x": -20},
+    "to": {"opacity": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_simpleThenWith_item_2", player);
+   player.play();
+  }
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[2];
+  if (el) {
+   const config = {
+        "to": {"x": 0, "opacity": 1},
+    "over": 200,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_simpleThenWith_item_3", player);
+   player.play();
+  }
+}, 0.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[3];
+  if (el) {
+   const config = {
+    "from": {"opacity": 0},
+    "to": {"x": 20},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_simpleThenWith_item_5", player);
+   player.play();
+  }
+}, 200.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[4];
+  if (el) {
+   const config = {
+        "to": {"x": 0, "opacity": 1},
+    "over": 200,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_simpleThenWith_item_6", player);
+   player.play();
+  }
+}, 200.60000000000002));
+__omni_timeline_labels.set("simpleThenWith", {"start": 0, "then-item": 200.3, "with-item": 400.6});
+  return {
+   name: "simpleThenWith",
+   type: "timeline",
+   kill: function() {
+    __timeouts.forEach(function(t) { clearTimeout(t); });
+    // Also cancel any running WAAPI animations on children
+    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
+     c.getAnimations().forEach(function(a) { a.cancel(); });
+    });
+   }
+  };
+};
 function __omni_motion_connectorDemo(el, config) {
   var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
   var __childIdx = 0;
@@ -3198,8 +3198,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[0];
   if (el) {
    const config = {
-    "from": {"x": -20},
-    "to": {"opacity": 0},
+    "from": {"opacity": 0},
+    "to": {"x": -20},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3212,7 +3212,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[1];
   if (el) {
    const config = {
-        "to": {"x": 0, "opacity": 1},
+        "to": {"opacity": 1, "x": 0},
     "over": 300,
     "easing": "power2Out"
    };
@@ -3239,7 +3239,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[3];
   if (el) {
    const config = {
-        "to": {"opacity": 1, "x": 0},
+        "to": {"x": 0, "opacity": 1},
     "over": 300,
     "easing": "power2Out"
    };
@@ -3260,8 +3260,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[4];
   if (el) {
    const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 20},
+    "from": {"y": 20},
+    "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3274,7 +3274,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[5];
   if (el) {
    const config = {
-        "to": {"y": 0, "opacity": 1},
+        "to": {"opacity": 1, "y": 0},
     "over": 300,
     "easing": "power2Out"
    };
@@ -3324,59 +3324,307 @@ __omni_timeline_labels.set("connectorDemo", {"phase1": 0, "outro": 900.9});
   };
 };
 
-/// ── Component: ValidationInput ──
+/// ── Component: SettingsPage ──
 
-const ValidationInput_input = __omni_signal("ValidationInput_input", "");
-const ValidationInput_result = __omni_signal("ValidationInput_result", "");
-const ValidationInput_isProcessing = __omni_signal("ValidationInput_isProcessing", false);
-function ValidationInput_getDefaultMessage() {
-  let prefix = "Enter";
-  let suffix = "text";
-  return prefix + " " + suffix;
+const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
+const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
+function SettingsPage_toggleAbout() {
+  SettingsPage_aboutExpanded.set(!SettingsPage_aboutExpanded.value);
 }
 
-function ValidationInput_countEvenPositions(text) {
-  let count = 0;
-  let i = 0;
-  while (i < (text || []).length) {
-  if (i % 2 === 0) {
-  count = count + 1;
+
+
+/// ── Component: TodoItem ──
+
+const TodoItem_checked = __omni_signal("TodoItem_checked", false);
+const TodoItem_index = __omni_signal("TodoItem_index", 0);
+function TodoItem_onDelete(...args) {
+  const el = document.querySelector('[data-component="TodoItem"]');
+  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: false }));
+}
+function TodoItem_toggle() {
+  TodoItem_checked.set(!TodoItem_checked.value);
+}
+
+function TodoItem_handleDelete() {
+  TodoItem_onDelete(TodoItem_index.value);
+}
+
+
+
+/// ── Component: FeatureList ──
+
+const FeatureList_isOpen = __omni_signal("FeatureList_isOpen", true);
+const FeatureList_features = __omni_signal("FeatureList_features", ["Store: 全局状态管理", "Component: 组件声明与组合", "Signal: 响应式信号", "Computed: 计算属性", "Prop: 外部属性传递", "Event: 自定义事件通信", "bind:value: 双向绑定", "if else: 条件渲染", "for empty: 列表渲染加空状态", "onPress: 事件处理加内联回调", "mount effect: 生命周期", "style: 作用域CSS样式", "pub fn: 公开工具函数", "import export: 跨文件模块"]);
+function FeatureList_toggle() {
+  FeatureList_isOpen.set(!FeatureList_isOpen.value);
+}
+
+
+
+/// ── Component: SlotContainer ──
+
+function SlotContainer_onClose(...args) {
+  const el = document.querySelector('[data-component="SlotContainer"]');
+  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args[0], bubbles: false }));
+}
+
+
+/// ── Component: Dashboard ──
+
+const Dashboard_totalItems = __omni_signal("Dashboard_totalItems", 42);
+const Dashboard_lastUpdated = __omni_signal("Dashboard_lastUpdated", "just now");
+function Dashboard_refresh() {
+  Dashboard_totalItems.set(Dashboard_totalItems.value + 1);
+  Dashboard_lastUpdated.set("updated");
+}
+
+
+
+/// ── Component: PlaybackAdvancedDemo ──
+
+const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
+function PlaybackAdvancedDemo_toggleDirFill() {
+  PlaybackAdvancedDemo_playDirFill.set(!PlaybackAdvancedDemo_playDirFill.value);
+}
+
+
+
+/// ── Component: TimelinePositionDemo ──
+
+const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
+const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
+function TimelinePositionDemo_switchDemo(name) {
+  TimelinePositionDemo_activeDemo.set(name);
+}
+
+function TimelinePositionDemo_replayCount() {
+  TimelinePositionDemo_playCount.set(TimelinePositionDemo_playCount.value + 1);
+}
+
+
+
+/// ── Component: EventsDemo ──
+
+const EventsDemo_eventLog = __omni_signal("EventsDemo_eventLog", []);
+const EventsDemo_dragStatus = __omni_signal("EventsDemo_dragStatus", "idle");
+const EventsDemo_wheelCount = __omni_signal("EventsDemo_wheelCount", 0);
+const EventsDemo_mediaStatus = __omni_signal("EventsDemo_mediaStatus", "stopped");
+const EventsDemo_animStatus = __omni_signal("EventsDemo_animStatus", "idle");
+const EventsDemo_toggleCount = __omni_signal("EventsDemo_toggleCount", 0);
+function EventsDemo_addLog(msg) {
+  EventsDemo_eventLog.value.push(msg); EventsDemo_eventLog.set(EventsDemo_eventLog.value.slice());
+}
+
+
+
+/// ── Component: ViewAttributesDemo ──
+
+const ViewAttributesDemo_isChecked = __omni_signal("ViewAttributesDemo_isChecked", false);
+const ViewAttributesDemo_richText = __omni_signal("ViewAttributesDemo_richText", "");
+
+
+/// ── Component: MotionDemo ──
+
+const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
+const MotionDemo_isOpen = __omni_signal("MotionDemo_isOpen", false);
+function MotionDemo_toggleModal() {
+  MotionDemo_isOpen.set(!MotionDemo_isOpen.value);
+}
+
+function MotionDemo_addItem() {
+  MotionDemo_count.set(MotionDemo_count.value + 1);
+}
+
+function MotionDemo_removeItem() {
+  MotionDemo_count.set(MotionDemo_count.value - 1);
+}
+
+
+
+/// ── Component: Header ──
+
+
+
+/// ── Component: ComponentSpecialsDemo ──
+
+const ComponentSpecialsDemo_showPanel = __omni_signal("ComponentSpecialsDemo_showPanel", false);
+const ComponentSpecialsDemo_slotVisible = __omni_signal("ComponentSpecialsDemo_slotVisible", false);
+const ComponentSpecialsDemo_progressPct = __omni_signal("ComponentSpecialsDemo_progressPct", 0);
+const ComponentSpecialsDemo_counter = __omni_signal("ComponentSpecialsDemo_counter", 0);
+function ComponentSpecialsDemo_toggle() {
+  ComponentSpecialsDemo_showPanel.set(!ComponentSpecialsDemo_showPanel.value);
+}
+
+function ComponentSpecialsDemo_openSlot() {
+  ComponentSpecialsDemo_slotVisible.set(true);
+}
+
+function ComponentSpecialsDemo_closeSlot() {
+  ComponentSpecialsDemo_slotVisible.set(false);
+}
+
+function ComponentSpecialsDemo_advancePct() {
+  ComponentSpecialsDemo_progressPct.set(ComponentSpecialsDemo_progressPct.value + 10);
+  if (ComponentSpecialsDemo_progressPct.value > 100) {
+  ComponentSpecialsDemo_progressPct.set(0);
   }
+}
+
+function ComponentSpecialsDemo_increment() {
+  ComponentSpecialsDemo_counter.set(ComponentSpecialsDemo_counter.value + 1);
+}
+
+
+
+/// ── Component: DataTable ──
+
+const DataTable_scrollCount = __omni_signal("DataTable_scrollCount", 0);
+const DataTable_rows = __omni_signal("DataTable_rows", []);
+const DataTable_sortAsc = __omni_signal("DataTable_sortAsc", true);
+function DataTable_initRows() {
+  DataTable_rows.set([{"id": 1, "name": "Alpha", "status": "Active", "score": 95}, {"id": 2, "name": "Bravo", "status": "Active", "score": 87}, {"id": 3, "name": "Charlie", "status": "Inactive", "score": 72}, {"id": 4, "name": "Delta", "status": "Active", "score": 91}, {"id": 5, "name": "Echo", "status": "Active", "score": 84}, {"id": 6, "name": "Foxtrot", "status": "Inactive", "score": 66}, {"id": 7, "name": "Golf", "status": "Active", "score": 78}, {"id": 8, "name": "Hotel", "status": "Active", "score": 93}, {"id": 9, "name": "India", "status": "Inactive", "score": 59}, {"id": 10, "name": "Juliet", "status": "Active", "score": 88}]);
+}
+
+function DataTable_handleScroll() {
+  DataTable_scrollCount.set(DataTable_scrollCount.value + 1);
+}
+
+function DataTable_toggleSort() {
+  DataTable_sortAsc.set(!DataTable_sortAsc.value);
+  DataTable_rows.set(([...DataTable_rows.value]).sort(((a, b) => a.name)));
+}
+
+function DataTable_getSortIcon() {
+  if (DataTable_sortAsc.value) {
+  return "ASC";
+  }
+  return "DESC";
+}
+
+function DataTable_getActiveRows() {
+  return (DataTable_rows.value).filter(((r) => r.status === "Active"));
+}
+
+function DataTable_getStatusClass(status) {
+  if (status === "Active") {
+  return "badge active";
+  }
+  return "badge inactive";
+}
+
+function DataTable_getScoreColor(score) {
+  if (score >= 90) {
+  return "#16a34a";
+  }
+  if (score >= 75) {
+  return "#6366f1";
+  }
+  return "#dc2626";
+}
+
+function DataTable_getGradeConfig() {
+  return {"60": "D", "70": "C", "80": "B", "90": "A"};
+}
+
+function DataTable_getGradeForScore(score) {
+  let cfg = DataTable_getGradeConfig();
+  if (score >= 90) {
+  return (cfg || [])["90"];
+  }
+  if (score >= 80) {
+  return (cfg || [])["80"];
+  }
+  if (score >= 70) {
+  return (cfg || [])["70"];
+  }
+  if (score >= 60) {
+  return (cfg || [])["60"];
+  }
+  return "F";
+}
+
+function DataTable_getBonusTotal() {
+  let bonus = ((s) => s + 5);
+  let total = 0;
+  let i = 0;
+  while (i < (DataTable_rows.value).length) {
+  total = total + bonus((DataTable_rows.value || [])[i].score);
   i = i + 1;
   }
-  return count;
+  return total;
 }
 
-function ValidationInput_getStatusLabel() {
-  return ValidationInput_result.value === "" ? "Waiting for input" : "Result ready";
+
+
+/// ── Component: EasingFunctionsDemo ──
+
+const EasingFunctionsDemo_playAll = __omni_signal("EasingFunctionsDemo_playAll", false);
+function EasingFunctionsDemo_toggleAll() {
+  EasingFunctionsDemo_playAll.set(!EasingFunctionsDemo_playAll.value);
 }
 
-function ValidationInput_handleValidate() {
-  ValidationInput_isProcessing.set(true);
-  ValidationInput_result.set(ValidationInput_validate(ValidationInput_input.value));
-  ValidationInput_isProcessing.set(false);
+
+
+/// ── Component: EmitEventChild ──
+
+const EmitEventChild_clickCount = __omni_signal("EmitEventChild_clickCount", 0);
+const EmitEventChild_label = __omni_signal("EmitEventChild_label", "Child");
+function EmitEventChild_onAction(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args[0], bubbles: false }));
+}
+function EmitEventChild_onOptionalAck(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args[0], bubbles: false }));
+}
+function EmitEventChild_onCount(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: false }));
+}
+function EmitEventChild_doAction() {
+  EmitEventChild_clickCount.set(EmitEventChild_clickCount.value + 1);
+  EmitEventChild_onAction(EmitEventChild_label.value + " #" + String(EmitEventChild_clickCount.value));
+  if (EmitEventChild_onOptionalAck !== null) {
+  EmitEventChild_onOptionalAck("ack for " + String(EmitEventChild_clickCount.value));
+  }
 }
 
-function ValidationInput_handleClear() {
-  ValidationInput_input.set("");
-  ValidationInput_result.set("");
+function EmitEventChild_incrementParent() {
+  EmitEventChild_onCount(EmitEventChild_clickCount.value);
 }
 
-function ValidationInput_validate(text) {
-  let trimmed = (text).trim();
-  if (trimmed === "") {
-  return "Input cannot be empty";
+
+
+/// ── Component: DataSubmit ──
+
+const DataSubmit_title = __omni_signal("DataSubmit_title", "");
+const DataSubmit_body = __omni_signal("DataSubmit_body", "");
+const DataSubmit_submitStatus = __omni_signal("DataSubmit_submitStatus", "idle");
+const DataSubmit_responseText = __omni_signal("DataSubmit_responseText", "");
+function DataSubmit_reset() {
+  DataSubmit_title.set("");
+  DataSubmit_body.set("");
+  DataSubmit_submitStatus.set("idle");
+  DataSubmit_responseText.set("");
+}
+
+async function DataSubmit_submitForm() {
+  if (DataSubmit_title.value === "") {
+  DataSubmit_submitStatus.set("error");
+  DataSubmit_responseText.set("Title is required");
+  return undefined;
   }
-  if ((trimmed).length < 3) {
-  return "Need at least 3 characters";
+  DataSubmit_submitStatus.set("loading");
+  let payload = JSON.stringify(DataSubmit_title.value + ":::" + DataSubmit_body.value);
+  let raw = await fetch("https://jsonplaceholder.typicode.com/posts", { method: 'POST', body: payload }).then(r => r.text());
+  if (raw === "") {
+  DataSubmit_submitStatus.set("error");
+  DataSubmit_responseText.set("No response from server");
+  return undefined;
   }
-  if ((trimmed).length > 50) {
-  return "Cannot exceed 50 characters";
-  }
-  if ((trimmed).includes("@")) {
-  return "Email pattern not allowed in generic validation";
-  }
-  return "OK Validation passed";
+  DataSubmit_responseText.set(raw);
+  DataSubmit_submitStatus.set("success");
 }
 
 
@@ -3432,94 +3680,62 @@ function InlineStoreDemo_clear() {
 
 
 
-/// ── Component: TodoItem ──
+/// ── Component: Modal ──
 
-const TodoItem_checked = __omni_signal("TodoItem_checked", false);
-const TodoItem_index = __omni_signal("TodoItem_index", 0);
-function TodoItem_onDelete(...args) {
-  const el = document.querySelector('[data-component="TodoItem"]');
-  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: false }));
-}
-function TodoItem_toggle() {
-  TodoItem_checked.set(!TodoItem_checked.value);
+const Modal_isOpen = __omni_signal("Modal_isOpen", false);
+const Modal_isHovering = __omni_signal("Modal_isHovering", false);
+const Modal_lastAction = __omni_signal("Modal_lastAction", "");
+function Modal_open() {
+  Modal_isOpen.set(true);
+  Modal_lastAction.set("opened");
 }
 
-function TodoItem_handleDelete() {
-  TodoItem_onDelete(TodoItem_index.value);
+function Modal_close() {
+  Modal_isOpen.set(false);
+  Modal_lastAction.set("closed");
 }
 
-
-
-/// ── Component: FeatureList ──
-
-const FeatureList_isOpen = __omni_signal("FeatureList_isOpen", true);
-const FeatureList_features = __omni_signal("FeatureList_features", ["Store: 全局状态管理", "Component: 组件声明与组合", "Signal: 响应式信号", "Computed: 计算属性", "Prop: 外部属性传递", "Event: 自定义事件通信", "bind:value: 双向绑定", "if else: 条件渲染", "for empty: 列表渲染加空状态", "onPress: 事件处理加内联回调", "mount effect: 生命周期", "style: 作用域CSS样式", "pub fn: 公开工具函数", "import export: 跨文件模块"]);
-function FeatureList_toggle() {
-  FeatureList_isOpen.set(!FeatureList_isOpen.value);
+function Modal_handleKeyDown() {
+  Modal_close();
 }
 
-
-
-/// ── Component: StringLiteralsDemo ──
-
-const StringLiteralsDemo_backtickResult = __omni_signal("StringLiteralsDemo_backtickResult", "Hello \"OmniView\" world");
-const StringLiteralsDemo_singleQuoteResult = __omni_signal("StringLiteralsDemo_singleQuoteResult", "Single-quoted text with \"double\" inside");
-const StringLiteralsDemo_mixed = __omni_signal("StringLiteralsDemo_mixed", "Backtick with 'single' and \"double\" quotes");
-const StringLiteralsDemo_userName = __omni_signal("StringLiteralsDemo_userName", "OmniView");
-const StringLiteralsDemo_version = __omni_signal("StringLiteralsDemo_version", 1.0);
-const StringLiteralsDemo_interpolated = __omni_signal("StringLiteralsDemo_interpolated", "Hello ${userName}, current version is ${version}");
-function StringLiteralsDemo_buildGreeting(name, age) {
-  return "User ${name} is ${age} years old";
+function Modal_handleMouseEnter() {
+  Modal_isHovering.set(true);
 }
 
-function StringLiteralsDemo_updateTemplate() {
-  StringLiteralsDemo_userName.set("User" + String(StringLiteralsDemo_version.value));
-  StringLiteralsDemo_interpolated.set("Hello ${userName}, v${version}");
+function Modal_handleMouseLeave() {
+  Modal_isHovering.set(false);
 }
 
-
-
-/// ── Component: EmitKeywordDemo ──
-
-const EmitKeywordDemo_emitLog = __omni_signal("EmitKeywordDemo_emitLog", []);
-const EmitKeywordDemo_funcLog = __omni_signal("EmitKeywordDemo_funcLog", []);
-function EmitKeywordDemo_onEmitReceived(val) {
-  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_emitLog.value || []);
-  EmitKeywordDemo_emitLog.set(newLog);
+function Modal_handleOverlayClick() {
+  Modal_close();
 }
 
-function EmitKeywordDemo_onFuncReceived(val) {
-  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_funcLog.value || []);
-  EmitKeywordDemo_funcLog.set(newLog);
+function Modal_getOverlayClass() {
+  if (Modal_isOpen.value) {
+  return "overlay visible";
+  }
+  return "overlay hidden";
 }
 
-function EmitKeywordDemo_recordEmit(val) {
-  EmitKeywordDemo_emitLog.set(EmitKeywordDemo_emitLog.value.concat([val]));
-}
-
-function EmitKeywordDemo_recordFunc(val) {
-  EmitKeywordDemo_funcLog.set(EmitKeywordDemo_funcLog.value.concat([val]));
+function Modal_getModalClass() {
+  if (Modal_isHovering.value) {
+  return "modal-content hover";
+  }
+  return "modal-content";
 }
 
 
 
-/// ── Component: Counter ──
+/// ── Component: Constants ──
 
-const Counter_count = __omni_signal("Counter_count", 0);
-const Counter_step = __omni_signal("Counter_step", 1);
-const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
-const Counter_label = __omni_computed("Counter_label", () => (Counter_count.value % 2 === 0 ? "偶数" : "奇数"));
-function Counter_inc() {
-  Counter_count.set(Counter_count.value + Counter_step.value);
-}
+const Constants_APP_NAME = __omni_signal("Constants_APP_NAME", "OmniView Learn");
+const Constants_APP_VERSION = __omni_signal("Constants_APP_VERSION", "1.0.0");
+const Constants_logoUrl = __omni_signal("Constants_logoUrl", "/assets/omnilang-logo.png");
+const Constants_apiBase = __omni_signal("Constants_apiBase", "https://api.omnilang.dev/v1");
 
-function Counter_dec() {
-  Counter_count.set(Counter_count.value - Counter_step.value);
-}
 
-function Counter_reset() {
-  Counter_count.set(0);
-}
+/// ── Component: StaggerAndTimelineDemo ──
 
 
 
@@ -3580,270 +3796,13 @@ window.__omni_unmount_Timer = () => {
 };
 
 
-/// ── Component: TodoPage ──
+/// ── Component: AnimPropertiesDemo ──
 
-const TodoPage_pageLoadCount = __omni_signal("TodoPage_pageLoadCount", 0);
-
-
-/// ── Component: EventsDemo ──
-
-const EventsDemo_eventLog = __omni_signal("EventsDemo_eventLog", []);
-const EventsDemo_dragStatus = __omni_signal("EventsDemo_dragStatus", "idle");
-const EventsDemo_wheelCount = __omni_signal("EventsDemo_wheelCount", 0);
-const EventsDemo_mediaStatus = __omni_signal("EventsDemo_mediaStatus", "stopped");
-const EventsDemo_animStatus = __omni_signal("EventsDemo_animStatus", "idle");
-const EventsDemo_toggleCount = __omni_signal("EventsDemo_toggleCount", 0);
-function EventsDemo_addLog(msg) {
-  EventsDemo_eventLog.value.push(msg); EventsDemo_eventLog.set(EventsDemo_eventLog.value.slice());
+const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
+function AnimPropertiesDemo_toggleAll() {
+  AnimPropertiesDemo_playAll.set(!AnimPropertiesDemo_playAll.value);
 }
 
-
-
-/// ── Component: EventShorthand ──
-
-const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
-const EventShorthand_count = __omni_signal("EventShorthand_count", 0);
-function EventShorthand_greet(name) {
-  EventShorthand_msg.set("Hello " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
-}
-
-function EventShorthand_farewell(name) {
-  EventShorthand_msg.set("Goodbye " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
-}
-
-function EventShorthand_reset() {
-  EventShorthand_msg.set("Click a button");
-  EventShorthand_count.set(0);
-}
-
-
-
-/// ── Component: SettingsPage ──
-
-const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
-const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
-function SettingsPage_toggleAbout() {
-  SettingsPage_aboutExpanded.set(!SettingsPage_aboutExpanded.value);
-}
-
-
-
-/// ── Component: TimelinePositionDemo ──
-
-const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
-const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
-function TimelinePositionDemo_switchDemo(name) {
-  TimelinePositionDemo_activeDemo.set(name);
-}
-
-function TimelinePositionDemo_replayCount() {
-  TimelinePositionDemo_playCount.set(TimelinePositionDemo_playCount.value + 1);
-}
-
-
-
-/// ── Component: EmitEventDemo ──
-
-const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
-const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
-function EmitEventDemo_onChildAction(msg) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + 1);
-  ((EmitEventDemo_messages.value).push(String(EmitEventDemo_totalCount.value) + ": " + msg), (EmitEventDemo_messages.value).slice());
-}
-
-function EmitEventDemo_onOptionalAck(msg) {
-  ((EmitEventDemo_messages.value).push("[ACK] " + msg), (EmitEventDemo_messages.value).slice());
-}
-
-function EmitEventDemo_onChildCount(n) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + n);
-  ((EmitEventDemo_messages.value).push("[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)), (EmitEventDemo_messages.value).slice());
-}
-
-function EmitEventDemo_clearLog() {
-  EmitEventDemo_messages.set([]);
-  EmitEventDemo_totalCount.set(0);
-}
-
-
-
-/// ── Component: TodoList ──
-
-const TodoList_items = __omni_signal("TodoList_items", []);
-function TodoList_onDelete(...args) {
-  const el = document.querySelector('[data-component="TodoList"]');
-  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: false }));
-}
-function TodoList_onAdd(...args) {
-  const el = document.querySelector('[data-component="TodoList"]');
-  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
-}
-function TodoList_handleDelete(index) {
-  TodoList_onDelete(index);
-}
-
-function TodoList_handleAdd(text) {
-  TodoList_onAdd(text);
-}
-
-
-
-/// ── Component: DataFetching ──
-
-const DataFetching_status = __omni_signal("DataFetching_status", "idle");
-const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
-const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
-const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
-const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
-function DataFetching_reset() {
-  DataFetching_status.set("idle");
-  DataFetching_resultText.set("");
-  DataFetching_errorMsg.set("");
-}
-
-async function DataFetching_loadData() {
-  DataFetching_status.set("loading");
-  let raw = await fetch(DataFetching_url.value).then(r => r.text());
-  if (raw === "") {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set("Empty response from server");
-  console.error(DataFetching_errorMsg.value);
-  return undefined;
-  }
-  let parsed = JSON.parse(raw);
-  DataFetching_resultText.set(JSON.stringify(parsed));
-  DataFetching_status.set("success");
-  console.log("Fetch completed");
-}
-
-async function DataFetching_loadViaApi() {
-  DataFetching_status.set("loading");
-  let result = await fetch_demo(DataFetching_url.value);
-  let msg = error_message(result);
-  if (msg === "") {
-  DataFetching_status.set("success");
-  DataFetching_resultText.set("api.omni fetch_demo OK");
-  console.log("Fetch completed");
-  } else {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set(msg);
-  console.error(msg);
-  }
-}
-
-
-
-/// ── Component: OptionalChainDemo ──
-
-const OptionalChainDemo_user = __omni_signal("OptionalChainDemo_user", "Alice");
-const OptionalChainDemo_showDetails = __omni_signal("OptionalChainDemo_showDetails", false);
-const OptionalChainDemo_nameLen = __omni_computed("OptionalChainDemo_nameLen", () => (null ?? 0));
-const OptionalChainDemo_displayName = __omni_computed("OptionalChainDemo_displayName", () => (OptionalChainDemo_user.value ?? "Guest"));
-function OptionalChainDemo_clearUser() {
-  OptionalChainDemo_user.set(null);
-}
-
-function OptionalChainDemo_setUser() {
-  OptionalChainDemo_user.set("Bob");
-}
-
-function OptionalChainDemo_toggle() {
-  OptionalChainDemo_showDetails.set(!OptionalChainDemo_showDetails.value);
-}
-
-
-
-/// ── Component: EasingFunctionsDemo ──
-
-const EasingFunctionsDemo_playAll = __omni_signal("EasingFunctionsDemo_playAll", false);
-function EasingFunctionsDemo_toggleAll() {
-  EasingFunctionsDemo_playAll.set(!EasingFunctionsDemo_playAll.value);
-}
-
-
-
-/// ── Component: StylePseudoDemo ──
-
-const StylePseudoDemo_clicked = __omni_signal("StylePseudoDemo_clicked", 0);
-function StylePseudoDemo_increment() {
-  StylePseudoDemo_clicked.set(StylePseudoDemo_clicked.value + 1);
-}
-
-
-
-/// ── Component: NullishDemo ──
-
-const NullishDemo_inputName = __omni_signal("NullishDemo_inputName", "test");
-const NullishDemo_displayName = __omni_computed("NullishDemo_displayName", () => (NullishDemo_inputName.value ?? "Anonymous"));
-
-
-/// ── Component: Dashboard ──
-
-const Dashboard_totalItems = __omni_signal("Dashboard_totalItems", 42);
-const Dashboard_lastUpdated = __omni_signal("Dashboard_lastUpdated", "just now");
-function Dashboard_refresh() {
-  Dashboard_totalItems.set(Dashboard_totalItems.value + 1);
-  Dashboard_lastUpdated.set("updated");
-}
-
-
-
-/// ── Component: StatsDashboard ──
-
-const StatsDashboard_MAX_ITEMS = __omni_signal("StatsDashboard_MAX_ITEMS", 10);
-const StatsDashboard_$iconUrl = __omni_signal("StatsDashboard_$iconUrl", "/assets/icon.png");
-const StatsDashboard_$apiBase = __omni_signal("StatsDashboard_$apiBase", "https://api.example.com");
-const StatsDashboard_counter = __omni_signal("StatsDashboard_counter", 0);
-const StatsDashboard_removed = __omni_signal("StatsDashboard_removed", false);
-const StatsDashboard_randomValue = __omni_signal("StatsDashboard_randomValue", 0.0);
-function StatsDashboard_addFive() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value + 5);
-}
-
-function StatsDashboard_subThree() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value - 3);
-}
-
-function StatsDashboard_double() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value * 2);
-}
-
-function StatsDashboard_halve() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value / 2);
-}
-
-function StatsDashboard_modThree() {
-  let x = StatsDashboard_counter.value;
-  x %= 3;
-  StatsDashboard_counter.set(x);
-}
-
-function StatsDashboard_getModStatus() {
-  if (StatsDashboard_counter.value % 2 === 0) {
-  return "even";
-  }
-  return "odd";
-}
-
-function StatsDashboard_getFirst() {
-  let arr = [10, 20, 30, 40, 50];
-  return (arr || [])[0];
-}
-
-function StatsDashboard_removeContainer() {
-  StatsDashboard_removed.set(true);
-}
-
-function StatsDashboard_rollDice() {
-  StatsDashboard_randomValue.set(Math.random());
-}
-
-// @unmount StatsDashboard
-window.__omni_unmount_StatsDashboard = () => {
-  console.log("StatsDashboard unmounting, counter: " + String(StatsDashboard_counter.value));
-};
 
 
 /// ── Component: TypeSystemDemo ──
@@ -3855,32 +3814,204 @@ function TypeSystemDemo_loadSummary() {
 
 
 
-/// ── Component: HeroTransitionDemo ──
+/// ── Component: ComputedFnFormDemo ──
 
-const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
-const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
-function HeroTransitionDemo_toggle() {
-  HeroTransitionDemo_isExpanded.set(!HeroTransitionDemo_isExpanded.value);
+const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
+const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
+const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
+const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
+const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => (null));
+function ComputedFnFormDemo_clearLast() {
+  ComputedFnFormDemo_lastName.set("");
 }
 
-function HeroTransitionDemo_advance() {
-  if (HeroTransitionDemo_progress.value < 1.0) {
-  HeroTransitionDemo_progress.set(HeroTransitionDemo_progress.value + 0.1);
+function ComputedFnFormDemo_setLast() {
+  ComputedFnFormDemo_lastName.set("San");
+  ComputedFnFormDemo_counter.set(ComputedFnFormDemo_counter.value + 1);
+}
+
+
+
+/// ── Component: TodoPage ──
+
+const TodoPage_pageLoadCount = __omni_signal("TodoPage_pageLoadCount", 0);
+
+
+/// ── Component: SlotPanel ──
+
+
+
+/// ── Component: CssVarsDemo ──
+
+const CssVarsDemo_accentColor = __omni_signal("CssVarsDemo_accentColor", "#6366f1");
+const CssVarsDemo_accentHue = __omni_signal("CssVarsDemo_accentHue", 221);
+const CssVarsDemo_themeMode = __omni_signal("CssVarsDemo_themeMode", "light");
+function CssVarsDemo_cycleAccent() {
+  if (CssVarsDemo_accentColor.value === "#6366f1") {
+  CssVarsDemo_accentColor.set("#ec4899");
+  } else if (CssVarsDemo_accentColor.value === "#ec4899") {
+  CssVarsDemo_accentColor.set("#14b8a6");
+  } else {
+  CssVarsDemo_accentColor.set("#6366f1");
+  }
+}
+
+function CssVarsDemo_toggleMode() {
+  if (CssVarsDemo_themeMode.value === "light") {
+  CssVarsDemo_themeMode.set("dark");
+  } else {
+  CssVarsDemo_themeMode.set("light");
   }
 }
 
 
 
-/// ── Component: App ──
+/// ── Component: TimelineMotionDemo ──
 
-const App_completionRate = __omni_signal("App_completionRate", 42.0);
-const App_activeTab = __omni_signal("App_activeTab", "home");
-function App_switchTab(tab) {
-  App_activeTab.set(tab);
+
+
+/// ── Component: Counter ──
+
+const Counter_count = __omni_signal("Counter_count", 0);
+const Counter_step = __omni_signal("Counter_step", 1);
+const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
+const Counter_label = __omni_computed("Counter_label", () => (Counter_count.value % 2 === 0 ? "偶数" : "奇数"));
+function Counter_inc() {
+  Counter_count.set(Counter_count.value + Counter_step.value);
 }
 
-function App_isActive(tab) {
-  return App_activeTab.value === tab;
+function Counter_dec() {
+  Counter_count.set(Counter_count.value - Counter_step.value);
+}
+
+function Counter_reset() {
+  Counter_count.set(0);
+}
+
+
+
+/// ── Component: ThemeCssVarsDemo ──
+
+const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
+const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
+function ThemeCssVarsDemo_toggleScale() {
+  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
+  ThemeCssVarsDemo_boxScale.set(1.05);
+  } else {
+  ThemeCssVarsDemo_boxScale.set(1.0);
+  }
+}
+
+function ThemeCssVarsDemo_toggleBorder() {
+  if (ThemeCssVarsDemo_borderWidth.value === 2) {
+  ThemeCssVarsDemo_borderWidth.set(4);
+  } else {
+  ThemeCssVarsDemo_borderWidth.set(2);
+  }
+}
+
+
+
+/// ── Component: ValidationInput ──
+
+const ValidationInput_input = __omni_signal("ValidationInput_input", "");
+const ValidationInput_result = __omni_signal("ValidationInput_result", "");
+const ValidationInput_isProcessing = __omni_signal("ValidationInput_isProcessing", false);
+function ValidationInput_getDefaultMessage() {
+  let prefix = "Enter";
+  let suffix = "text";
+  return prefix + " " + suffix;
+}
+
+function ValidationInput_countEvenPositions(text) {
+  let count = 0;
+  let i = 0;
+  while (i < (text || []).length) {
+  if (i % 2 === 0) {
+  count = count + 1;
+  }
+  i = i + 1;
+  }
+  return count;
+}
+
+function ValidationInput_getStatusLabel() {
+  return ValidationInput_result.value === "" ? "Waiting for input" : "Result ready";
+}
+
+function ValidationInput_handleValidate() {
+  ValidationInput_isProcessing.set(true);
+  ValidationInput_result.set(ValidationInput_validate(ValidationInput_input.value));
+  ValidationInput_isProcessing.set(false);
+}
+
+function ValidationInput_handleClear() {
+  ValidationInput_input.set("");
+  ValidationInput_result.set("");
+}
+
+function ValidationInput_validate(text) {
+  let trimmed = (text).trim();
+  if (trimmed === "") {
+  return "Input cannot be empty";
+  }
+  if ((trimmed).length < 3) {
+  return "Need at least 3 characters";
+  }
+  if ((trimmed).length > 50) {
+  return "Cannot exceed 50 characters";
+  }
+  if ((trimmed).includes("@")) {
+  return "Email pattern not allowed in generic validation";
+  }
+  return "OK Validation passed";
+}
+
+
+
+/// ── Component: TabPanel ──
+
+const TabPanel_activeTab = __omni_signal("TabPanel_activeTab", "home");
+const TabPanel_activeStyle = __omni_computed("TabPanel_activeStyle", () => (TabPanel_activeTab.value === "home" ? "#6366f1" : TabPanel_activeTab.value === "about" ? "#10b981" : "#f59e0b"));
+function TabPanel_switchTo(tab) {
+  TabPanel_activeTab.set(tab);
+}
+
+function TabPanel_isActive(tab) {
+  return TabPanel_activeTab.value === tab;
+}
+
+function TabPanel_getBtnBg(tab) {
+  if (TabPanel_isActive(tab)) {
+  return "#6366f1";
+  }
+  return "#f3f4f6";
+}
+
+function TabPanel_getBtnColor(tab) {
+  if (TabPanel_isActive(tab)) {
+  return "white";
+  }
+  return "#374151";
+}
+
+
+
+/// ── Component: AddTodo ──
+
+const AddTodo_input = __omni_signal("AddTodo_input", "");
+const AddTodo_hint = __omni_computed("AddTodo_hint", () => (AddTodo_input.value === "" ? "输入待办事项" : "已输入 " + String((AddTodo_input.value || []).length) + " 字符"));
+function AddTodo_onAdd(...args) {
+  const el = document.querySelector('[data-component="AddTodo"]');
+  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
+}
+function AddTodo_handleAdd() {
+  if (AddTodo_input.value !== "") {
+  AddTodo_onAdd(AddTodo_input.value);
+  AddTodo_input.set("");
+  } else {
+  console.warn("Input is empty");
+  }
 }
 
 
@@ -3995,91 +4126,6 @@ function FormPage_isFormValid() {
 
 
 
-/// ── Component: ComponentSpecialsDemo ──
-
-const ComponentSpecialsDemo_showPanel = __omni_signal("ComponentSpecialsDemo_showPanel", false);
-const ComponentSpecialsDemo_slotVisible = __omni_signal("ComponentSpecialsDemo_slotVisible", false);
-const ComponentSpecialsDemo_progressPct = __omni_signal("ComponentSpecialsDemo_progressPct", 0);
-const ComponentSpecialsDemo_counter = __omni_signal("ComponentSpecialsDemo_counter", 0);
-function ComponentSpecialsDemo_toggle() {
-  ComponentSpecialsDemo_showPanel.set(!ComponentSpecialsDemo_showPanel.value);
-}
-
-function ComponentSpecialsDemo_openSlot() {
-  ComponentSpecialsDemo_slotVisible.set(true);
-}
-
-function ComponentSpecialsDemo_closeSlot() {
-  ComponentSpecialsDemo_slotVisible.set(false);
-}
-
-function ComponentSpecialsDemo_advancePct() {
-  ComponentSpecialsDemo_progressPct.set(ComponentSpecialsDemo_progressPct.value + 10);
-  if (ComponentSpecialsDemo_progressPct.value > 100) {
-  ComponentSpecialsDemo_progressPct.set(0);
-  }
-}
-
-function ComponentSpecialsDemo_increment() {
-  ComponentSpecialsDemo_counter.set(ComponentSpecialsDemo_counter.value + 1);
-}
-
-
-
-/// ── Component: MotionDemo ──
-
-const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
-const MotionDemo_isOpen = __omni_signal("MotionDemo_isOpen", false);
-function MotionDemo_toggleModal() {
-  MotionDemo_isOpen.set(!MotionDemo_isOpen.value);
-}
-
-function MotionDemo_addItem() {
-  MotionDemo_count.set(MotionDemo_count.value + 1);
-}
-
-function MotionDemo_removeItem() {
-  MotionDemo_count.set(MotionDemo_count.value - 1);
-}
-
-
-
-/// ── Component: CssUnitsDemo ──
-
-
-
-/// ── Component: MotionPlaybackDemo ──
-
-const MotionPlaybackDemo_play = __omni_signal("MotionPlaybackDemo_play", false);
-function MotionPlaybackDemo_trigger() {
-  MotionPlaybackDemo_play.set(!MotionPlaybackDemo_play.value);
-}
-
-
-
-/// ── Component: StatsPanel ──
-
-const StatsPanel_total = __omni_signal("StatsPanel_total", 0);
-
-
-/// ── Component: ComputedFnFormDemo ──
-
-const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
-const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
-const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
-const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
-const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => (null));
-function ComputedFnFormDemo_clearLast() {
-  ComputedFnFormDemo_lastName.set("");
-}
-
-function ComputedFnFormDemo_setLast() {
-  ComputedFnFormDemo_lastName.set("San");
-  ComputedFnFormDemo_counter.set(ComputedFnFormDemo_counter.value + 1);
-}
-
-
-
 /// ── Component: FilterBar ──
 
 const FilterBar_searchText = __omni_signal("FilterBar_searchText", "");
@@ -4096,6 +4142,95 @@ function FilterBar_handleSortToggle() {
   }
 }
 
+
+
+/// ── Component: StylePseudoDemo ──
+
+const StylePseudoDemo_clicked = __omni_signal("StylePseudoDemo_clicked", 0);
+function StylePseudoDemo_increment() {
+  StylePseudoDemo_clicked.set(StylePseudoDemo_clicked.value + 1);
+}
+
+
+
+/// ── Component: App ──
+
+const App_completionRate = __omni_signal("App_completionRate", 42.0);
+const App_activeTab = __omni_signal("App_activeTab", "home");
+function App_switchTab(tab) {
+  App_activeTab.set(tab);
+}
+
+function App_isActive(tab) {
+  return App_activeTab.value === tab;
+}
+
+
+
+/// ── Component: MotionTriggersDemo ──
+
+const MotionTriggersDemo_isHovered = __omni_signal("MotionTriggersDemo_isHovered", false);
+const MotionTriggersDemo_isFocused = __omni_signal("MotionTriggersDemo_isFocused", false);
+const MotionTriggersDemo_dragX = __omni_signal("MotionTriggersDemo_dragX", 0);
+
+
+/// ── Component: FeatureCard ──
+
+const FeatureCard_status = __omni_signal("FeatureCard_status", "idle");
+const FeatureCard_focusCount = __omni_signal("FeatureCard_focusCount", 0);
+function FeatureCard_getOriginX() {
+  let p = {"x": 0, "y": 0};
+  return p.x;
+}
+
+function FeatureCard_getStats() {
+  return {"name": "demo", "count": FeatureCard_focusCount.value, "percentage": 75.5, "active": true};
+}
+
+function FeatureCard_handleFocus() {
+  FeatureCard_focusCount.set(FeatureCard_focusCount.value + 1);
+  FeatureCard_status.set("focused");
+}
+
+function FeatureCard_handleBlur() {
+  FeatureCard_status.set("blurred");
+}
+
+function FeatureCard_reset() {
+  FeatureCard_focusCount.set(0);
+  FeatureCard_status.set("idle");
+}
+
+
+
+/// ── Component: EmitEventDemo ──
+
+const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
+const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
+function EmitEventDemo_onChildAction(msg) {
+  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + 1);
+  ((EmitEventDemo_messages.value).push(String(EmitEventDemo_totalCount.value) + ": " + msg), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_onOptionalAck(msg) {
+  ((EmitEventDemo_messages.value).push("[ACK] " + msg), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_onChildCount(n) {
+  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + n);
+  ((EmitEventDemo_messages.value).push("[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_clearLog() {
+  EmitEventDemo_messages.set([]);
+  EmitEventDemo_totalCount.set(0);
+}
+
+
+
+/// ── Component: NotificationsPanel ──
+
+const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeVisible", false);
 
 
 /// ── Component: UserSettings ──
@@ -4118,21 +4253,103 @@ function UserSettings_clearSettings() {
 
 
 
-/// ── Component: AddTodo ──
+/// ── Component: StatsPanel ──
 
-const AddTodo_input = __omni_signal("AddTodo_input", "");
-const AddTodo_hint = __omni_computed("AddTodo_hint", () => (AddTodo_input.value === "" ? "输入待办事项" : "已输入 " + String((AddTodo_input.value || []).length) + " 字符"));
-function AddTodo_onAdd(...args) {
-  const el = document.querySelector('[data-component="AddTodo"]');
-  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
+const StatsPanel_total = __omni_signal("StatsPanel_total", 0);
+
+
+/// ── Component: HeroTransitionDemo ──
+
+const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
+const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
+function HeroTransitionDemo_toggle() {
+  HeroTransitionDemo_isExpanded.set(!HeroTransitionDemo_isExpanded.value);
 }
-function AddTodo_handleAdd() {
-  if (AddTodo_input.value !== "") {
-  AddTodo_onAdd(AddTodo_input.value);
-  AddTodo_input.set("");
-  } else {
-  console.warn("Input is empty");
+
+function HeroTransitionDemo_advance() {
+  if (HeroTransitionDemo_progress.value < 1.0) {
+  HeroTransitionDemo_progress.set(HeroTransitionDemo_progress.value + 0.1);
   }
+}
+
+
+
+/// ── Component: SlotDefaultDemo ──
+
+const SlotDefaultDemo_useCustomContent = __omni_signal("SlotDefaultDemo_useCustomContent", false);
+function SlotDefaultDemo_toggleContent() {
+  SlotDefaultDemo_useCustomContent.set(!SlotDefaultDemo_useCustomContent.value);
+}
+
+
+
+/// ── Component: ThemeSwitcher ──
+
+const ThemeSwitcher_isHovered = __omni_signal("ThemeSwitcher_isHovered", false);
+const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", () => (ThemeSwitcher_isHovered.value ? "Switch to " + ThemeStore_nextLabel.value : ThemeStore_modeLabel.value + " Mode"));
+
+
+/// ── Component: StatsDashboard ──
+
+const StatsDashboard_MAX_ITEMS = __omni_signal("StatsDashboard_MAX_ITEMS", 10);
+const StatsDashboard_$iconUrl = __omni_signal("StatsDashboard_$iconUrl", "/assets/icon.png");
+const StatsDashboard_$apiBase = __omni_signal("StatsDashboard_$apiBase", "https://api.example.com");
+const StatsDashboard_counter = __omni_signal("StatsDashboard_counter", 0);
+const StatsDashboard_removed = __omni_signal("StatsDashboard_removed", false);
+const StatsDashboard_randomValue = __omni_signal("StatsDashboard_randomValue", 0.0);
+function StatsDashboard_addFive() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value + 5);
+}
+
+function StatsDashboard_subThree() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value - 3);
+}
+
+function StatsDashboard_double() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value * 2);
+}
+
+function StatsDashboard_halve() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value / 2);
+}
+
+function StatsDashboard_modThree() {
+  let x = StatsDashboard_counter.value;
+  x %= 3;
+  StatsDashboard_counter.set(x);
+}
+
+function StatsDashboard_getModStatus() {
+  if (StatsDashboard_counter.value % 2 === 0) {
+  return "even";
+  }
+  return "odd";
+}
+
+function StatsDashboard_getFirst() {
+  let arr = [10, 20, 30, 40, 50];
+  return (arr || [])[0];
+}
+
+function StatsDashboard_removeContainer() {
+  StatsDashboard_removed.set(true);
+}
+
+function StatsDashboard_rollDice() {
+  StatsDashboard_randomValue.set(Math.random());
+}
+
+// @unmount StatsDashboard
+window.__omni_unmount_StatsDashboard = () => {
+  console.log("StatsDashboard unmounting, counter: " + String(StatsDashboard_counter.value));
+};
+
+
+/// ── Component: MotionPlaybackDemo ──
+
+const MotionPlaybackDemo_play = __omni_signal("MotionPlaybackDemo_play", false);
+function MotionPlaybackDemo_trigger() {
+  MotionPlaybackDemo_play.set(!MotionPlaybackDemo_play.value);
 }
 
 
@@ -4169,112 +4386,74 @@ function FormControlsDemo_handleLinkClick() {
 
 
 
-/// ── Component: EmitEventChild ──
+/// ── Component: EventShorthand ──
 
-const EmitEventChild_clickCount = __omni_signal("EmitEventChild_clickCount", 0);
-const EmitEventChild_label = __omni_signal("EmitEventChild_label", "Child");
-function EmitEventChild_onAction(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args[0], bubbles: false }));
+const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
+const EventShorthand_count = __omni_signal("EventShorthand_count", 0);
+function EventShorthand_greet(name) {
+  EventShorthand_msg.set("Hello " + name + "!");
+  EventShorthand_count.set(EventShorthand_count.value + 1);
 }
-function EmitEventChild_onOptionalAck(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args[0], bubbles: false }));
+
+function EventShorthand_farewell(name) {
+  EventShorthand_msg.set("Goodbye " + name + "!");
+  EventShorthand_count.set(EventShorthand_count.value + 1);
 }
-function EmitEventChild_onCount(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: false }));
+
+function EventShorthand_reset() {
+  EventShorthand_msg.set("Click a button");
+  EventShorthand_count.set(0);
 }
-function EmitEventChild_doAction() {
-  EmitEventChild_clickCount.set(EmitEventChild_clickCount.value + 1);
-  EmitEventChild_onAction(EmitEventChild_label.value + " #" + String(EmitEventChild_clickCount.value));
-  if (EmitEventChild_onOptionalAck !== null) {
-  EmitEventChild_onOptionalAck("ack for " + String(EmitEventChild_clickCount.value));
+
+
+
+/// ── Component: NullishDemo ──
+
+const NullishDemo_inputName = __omni_signal("NullishDemo_inputName", "test");
+const NullishDemo_displayName = __omni_computed("NullishDemo_displayName", () => (NullishDemo_inputName.value ?? "Anonymous"));
+
+
+/// ── Component: DataFetching ──
+
+const DataFetching_status = __omni_signal("DataFetching_status", "idle");
+const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
+const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
+const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
+const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
+function DataFetching_reset() {
+  DataFetching_status.set("idle");
+  DataFetching_resultText.set("");
+  DataFetching_errorMsg.set("");
+}
+
+async function DataFetching_loadData() {
+  DataFetching_status.set("loading");
+  let raw = await fetch(DataFetching_url.value).then(r => r.text());
+  if (raw === "") {
+  DataFetching_status.set("error");
+  DataFetching_errorMsg.set("Empty response from server");
+  console.error(DataFetching_errorMsg.value);
+  return undefined;
   }
+  let parsed = JSON.parse(raw);
+  DataFetching_resultText.set(JSON.stringify(parsed));
+  DataFetching_status.set("success");
+  console.log("Fetch completed");
 }
 
-function EmitEventChild_incrementParent() {
-  EmitEventChild_onCount(EmitEventChild_clickCount.value);
-}
-
-
-
-/// ── Component: DataTable ──
-
-const DataTable_scrollCount = __omni_signal("DataTable_scrollCount", 0);
-const DataTable_rows = __omni_signal("DataTable_rows", []);
-const DataTable_sortAsc = __omni_signal("DataTable_sortAsc", true);
-function DataTable_initRows() {
-  DataTable_rows.set([{"id": 1, "name": "Alpha", "status": "Active", "score": 95}, {"id": 2, "name": "Bravo", "status": "Active", "score": 87}, {"id": 3, "name": "Charlie", "status": "Inactive", "score": 72}, {"id": 4, "name": "Delta", "status": "Active", "score": 91}, {"id": 5, "name": "Echo", "status": "Active", "score": 84}, {"id": 6, "name": "Foxtrot", "status": "Inactive", "score": 66}, {"id": 7, "name": "Golf", "status": "Active", "score": 78}, {"id": 8, "name": "Hotel", "status": "Active", "score": 93}, {"id": 9, "name": "India", "status": "Inactive", "score": 59}, {"id": 10, "name": "Juliet", "status": "Active", "score": 88}]);
-}
-
-function DataTable_handleScroll() {
-  DataTable_scrollCount.set(DataTable_scrollCount.value + 1);
-}
-
-function DataTable_toggleSort() {
-  DataTable_sortAsc.set(!DataTable_sortAsc.value);
-  DataTable_rows.set(([...DataTable_rows.value]).sort(((a, b) => a.name)));
-}
-
-function DataTable_getSortIcon() {
-  if (DataTable_sortAsc.value) {
-  return "ASC";
+async function DataFetching_loadViaApi() {
+  DataFetching_status.set("loading");
+  let result = await fetch_demo(DataFetching_url.value);
+  let msg = error_message(result);
+  if (msg === "") {
+  DataFetching_status.set("success");
+  DataFetching_resultText.set("api.omni fetch_demo OK");
+  console.log("Fetch completed");
+  } else {
+  DataFetching_status.set("error");
+  DataFetching_errorMsg.set(msg);
+  console.error(msg);
   }
-  return "DESC";
-}
-
-function DataTable_getActiveRows() {
-  return (DataTable_rows.value).filter(((r) => r.status === "Active"));
-}
-
-function DataTable_getStatusClass(status) {
-  if (status === "Active") {
-  return "badge active";
-  }
-  return "badge inactive";
-}
-
-function DataTable_getScoreColor(score) {
-  if (score >= 90) {
-  return "#16a34a";
-  }
-  if (score >= 75) {
-  return "#6366f1";
-  }
-  return "#dc2626";
-}
-
-function DataTable_getGradeConfig() {
-  return {"60": "D", "70": "C", "80": "B", "90": "A"};
-}
-
-function DataTable_getGradeForScore(score) {
-  let cfg = DataTable_getGradeConfig();
-  if (score >= 90) {
-  return (cfg || [])["90"];
-  }
-  if (score >= 80) {
-  return (cfg || [])["80"];
-  }
-  if (score >= 70) {
-  return (cfg || [])["70"];
-  }
-  if (score >= 60) {
-  return (cfg || [])["60"];
-  }
-  return "F";
-}
-
-function DataTable_getBonusTotal() {
-  let bonus = ((s) => s + 5);
-  let total = 0;
-  let i = 0;
-  while (i < (DataTable_rows.value).length) {
-  total = total + bonus((DataTable_rows.value || [])[i].score);
-  i = i + 1;
-  }
-  return total;
 }
 
 
@@ -4316,257 +4495,67 @@ function MotionCallbackDemo_handleInterrupt() {
 
 
 
-/// ── Component: SlotDefaultDemo ──
+/// ── Component: OptionalChainDemo ──
 
-const SlotDefaultDemo_useCustomContent = __omni_signal("SlotDefaultDemo_useCustomContent", false);
-function SlotDefaultDemo_toggleContent() {
-  SlotDefaultDemo_useCustomContent.set(!SlotDefaultDemo_useCustomContent.value);
+const OptionalChainDemo_user = __omni_signal("OptionalChainDemo_user", "Alice");
+const OptionalChainDemo_showDetails = __omni_signal("OptionalChainDemo_showDetails", false);
+const OptionalChainDemo_nameLen = __omni_computed("OptionalChainDemo_nameLen", () => (null ?? 0));
+const OptionalChainDemo_displayName = __omni_computed("OptionalChainDemo_displayName", () => (OptionalChainDemo_user.value ?? "Guest"));
+function OptionalChainDemo_clearUser() {
+  OptionalChainDemo_user.set(null);
+}
+
+function OptionalChainDemo_setUser() {
+  OptionalChainDemo_user.set("Bob");
+}
+
+function OptionalChainDemo_toggle() {
+  OptionalChainDemo_showDetails.set(!OptionalChainDemo_showDetails.value);
 }
 
 
 
-/// ── Component: DataSubmit ──
+/// ── Component: EmitKeywordDemo ──
 
-const DataSubmit_title = __omni_signal("DataSubmit_title", "");
-const DataSubmit_body = __omni_signal("DataSubmit_body", "");
-const DataSubmit_submitStatus = __omni_signal("DataSubmit_submitStatus", "idle");
-const DataSubmit_responseText = __omni_signal("DataSubmit_responseText", "");
-function DataSubmit_reset() {
-  DataSubmit_title.set("");
-  DataSubmit_body.set("");
-  DataSubmit_submitStatus.set("idle");
-  DataSubmit_responseText.set("");
+const EmitKeywordDemo_emitLog = __omni_signal("EmitKeywordDemo_emitLog", []);
+const EmitKeywordDemo_funcLog = __omni_signal("EmitKeywordDemo_funcLog", []);
+function EmitKeywordDemo_onEmitReceived(val) {
+  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_emitLog.value || []);
+  EmitKeywordDemo_emitLog.set(newLog);
 }
 
-async function DataSubmit_submitForm() {
-  if (DataSubmit_title.value === "") {
-  DataSubmit_submitStatus.set("error");
-  DataSubmit_responseText.set("Title is required");
-  return undefined;
-  }
-  DataSubmit_submitStatus.set("loading");
-  let payload = JSON.stringify(DataSubmit_title.value + ":::" + DataSubmit_body.value);
-  let raw = await fetch("https://jsonplaceholder.typicode.com/posts", { method: 'POST', body: payload }).then(r => r.text());
-  if (raw === "") {
-  DataSubmit_submitStatus.set("error");
-  DataSubmit_responseText.set("No response from server");
-  return undefined;
-  }
-  DataSubmit_responseText.set(raw);
-  DataSubmit_submitStatus.set("success");
+function EmitKeywordDemo_onFuncReceived(val) {
+  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_funcLog.value || []);
+  EmitKeywordDemo_funcLog.set(newLog);
+}
+
+function EmitKeywordDemo_recordEmit(val) {
+  EmitKeywordDemo_emitLog.set(EmitKeywordDemo_emitLog.value.concat([val]));
+}
+
+function EmitKeywordDemo_recordFunc(val) {
+  EmitKeywordDemo_funcLog.set(EmitKeywordDemo_funcLog.value.concat([val]));
 }
 
 
 
-/// ── Component: MotionTriggersDemo ──
+/// ── Component: StringLiteralsDemo ──
 
-const MotionTriggersDemo_isHovered = __omni_signal("MotionTriggersDemo_isHovered", false);
-const MotionTriggersDemo_isFocused = __omni_signal("MotionTriggersDemo_isFocused", false);
-const MotionTriggersDemo_dragX = __omni_signal("MotionTriggersDemo_dragX", 0);
-
-
-/// ── Component: ViewAttributesDemo ──
-
-const ViewAttributesDemo_isChecked = __omni_signal("ViewAttributesDemo_isChecked", false);
-const ViewAttributesDemo_richText = __omni_signal("ViewAttributesDemo_richText", "");
-
-
-/// ── Component: NotificationsPanel ──
-
-const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeVisible", false);
-
-
-/// ── Component: TimelineMotionDemo ──
-
-
-
-/// ── Component: Constants ──
-
-const Constants_APP_NAME = __omni_signal("Constants_APP_NAME", "OmniView Learn");
-const Constants_APP_VERSION = __omni_signal("Constants_APP_VERSION", "1.0.0");
-const Constants_logoUrl = __omni_signal("Constants_logoUrl", "/assets/omnilang-logo.png");
-const Constants_apiBase = __omni_signal("Constants_apiBase", "https://api.omnilang.dev/v1");
-
-
-/// ── Component: Modal ──
-
-const Modal_isOpen = __omni_signal("Modal_isOpen", false);
-const Modal_isHovering = __omni_signal("Modal_isHovering", false);
-const Modal_lastAction = __omni_signal("Modal_lastAction", "");
-function Modal_open() {
-  Modal_isOpen.set(true);
-  Modal_lastAction.set("opened");
+const StringLiteralsDemo_backtickResult = __omni_signal("StringLiteralsDemo_backtickResult", "Hello \"OmniView\" world");
+const StringLiteralsDemo_singleQuoteResult = __omni_signal("StringLiteralsDemo_singleQuoteResult", "Single-quoted text with \"double\" inside");
+const StringLiteralsDemo_mixed = __omni_signal("StringLiteralsDemo_mixed", "Backtick with 'single' and \"double\" quotes");
+const StringLiteralsDemo_userName = __omni_signal("StringLiteralsDemo_userName", "OmniView");
+const StringLiteralsDemo_version = __omni_signal("StringLiteralsDemo_version", 1.0);
+const StringLiteralsDemo_interpolated = __omni_signal("StringLiteralsDemo_interpolated", "Hello ${userName}, current version is ${version}");
+function StringLiteralsDemo_buildGreeting(name, age) {
+  return "User ${name} is ${age} years old";
 }
 
-function Modal_close() {
-  Modal_isOpen.set(false);
-  Modal_lastAction.set("closed");
+function StringLiteralsDemo_updateTemplate() {
+  StringLiteralsDemo_userName.set("User" + String(StringLiteralsDemo_version.value));
+  StringLiteralsDemo_interpolated.set("Hello ${userName}, v${version}");
 }
 
-function Modal_handleKeyDown() {
-  Modal_close();
-}
-
-function Modal_handleMouseEnter() {
-  Modal_isHovering.set(true);
-}
-
-function Modal_handleMouseLeave() {
-  Modal_isHovering.set(false);
-}
-
-function Modal_handleOverlayClick() {
-  Modal_close();
-}
-
-function Modal_getOverlayClass() {
-  if (Modal_isOpen.value) {
-  return "overlay visible";
-  }
-  return "overlay hidden";
-}
-
-function Modal_getModalClass() {
-  if (Modal_isHovering.value) {
-  return "modal-content hover";
-  }
-  return "modal-content";
-}
-
-
-
-/// ── Component: CssVarsDemo ──
-
-const CssVarsDemo_accentColor = __omni_signal("CssVarsDemo_accentColor", "#6366f1");
-const CssVarsDemo_accentHue = __omni_signal("CssVarsDemo_accentHue", 221);
-const CssVarsDemo_themeMode = __omni_signal("CssVarsDemo_themeMode", "light");
-function CssVarsDemo_cycleAccent() {
-  if (CssVarsDemo_accentColor.value === "#6366f1") {
-  CssVarsDemo_accentColor.set("#ec4899");
-  } else if (CssVarsDemo_accentColor.value === "#ec4899") {
-  CssVarsDemo_accentColor.set("#14b8a6");
-  } else {
-  CssVarsDemo_accentColor.set("#6366f1");
-  }
-}
-
-function CssVarsDemo_toggleMode() {
-  if (CssVarsDemo_themeMode.value === "light") {
-  CssVarsDemo_themeMode.set("dark");
-  } else {
-  CssVarsDemo_themeMode.set("light");
-  }
-}
-
-
-
-/// ── Component: FeatureCard ──
-
-const FeatureCard_status = __omni_signal("FeatureCard_status", "idle");
-const FeatureCard_focusCount = __omni_signal("FeatureCard_focusCount", 0);
-function FeatureCard_getOriginX() {
-  let p = {"x": 0, "y": 0};
-  return p.x;
-}
-
-function FeatureCard_getStats() {
-  return {"name": "demo", "count": FeatureCard_focusCount.value, "percentage": 75.5, "active": true};
-}
-
-function FeatureCard_handleFocus() {
-  FeatureCard_focusCount.set(FeatureCard_focusCount.value + 1);
-  FeatureCard_status.set("focused");
-}
-
-function FeatureCard_handleBlur() {
-  FeatureCard_status.set("blurred");
-}
-
-function FeatureCard_reset() {
-  FeatureCard_focusCount.set(0);
-  FeatureCard_status.set("idle");
-}
-
-
-
-/// ── Component: TabPanel ──
-
-const TabPanel_activeTab = __omni_signal("TabPanel_activeTab", "home");
-const TabPanel_activeStyle = __omni_computed("TabPanel_activeStyle", () => (TabPanel_activeTab.value === "home" ? "#6366f1" : TabPanel_activeTab.value === "about" ? "#10b981" : "#f59e0b"));
-function TabPanel_switchTo(tab) {
-  TabPanel_activeTab.set(tab);
-}
-
-function TabPanel_isActive(tab) {
-  return TabPanel_activeTab.value === tab;
-}
-
-function TabPanel_getBtnBg(tab) {
-  if (TabPanel_isActive(tab)) {
-  return "#6366f1";
-  }
-  return "#f3f4f6";
-}
-
-function TabPanel_getBtnColor(tab) {
-  if (TabPanel_isActive(tab)) {
-  return "white";
-  }
-  return "#374151";
-}
-
-
-
-/// ── Component: PlaybackAdvancedDemo ──
-
-const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
-function PlaybackAdvancedDemo_toggleDirFill() {
-  PlaybackAdvancedDemo_playDirFill.set(!PlaybackAdvancedDemo_playDirFill.value);
-}
-
-
-
-/// ── Component: AnimPropertiesDemo ──
-
-const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
-function AnimPropertiesDemo_toggleAll() {
-  AnimPropertiesDemo_playAll.set(!AnimPropertiesDemo_playAll.value);
-}
-
-
-
-/// ── Component: StaggerAndTimelineDemo ──
-
-
-
-/// ── Component: ThemeCssVarsDemo ──
-
-const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
-const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
-function ThemeCssVarsDemo_toggleScale() {
-  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
-  ThemeCssVarsDemo_boxScale.set(1.05);
-  } else {
-  ThemeCssVarsDemo_boxScale.set(1.0);
-  }
-}
-
-function ThemeCssVarsDemo_toggleBorder() {
-  if (ThemeCssVarsDemo_borderWidth.value === 2) {
-  ThemeCssVarsDemo_borderWidth.set(4);
-  } else {
-  ThemeCssVarsDemo_borderWidth.set(2);
-  }
-}
-
-
-
-/// ── Component: SlotContainer ──
-
-function SlotContainer_onClose(...args) {
-  const el = document.querySelector('[data-component="SlotContainer"]');
-  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args[0], bubbles: false }));
-}
 
 
 /// ── Component: EmitChild ──
@@ -4592,17 +4581,28 @@ function EmitChild_handleFunc() {
 
 
 
-/// ── Component: Header ──
+/// ── Component: TodoList ──
+
+const TodoList_items = __omni_signal("TodoList_items", []);
+function TodoList_onDelete(...args) {
+  const el = document.querySelector('[data-component="TodoList"]');
+  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: false }));
+}
+function TodoList_onAdd(...args) {
+  const el = document.querySelector('[data-component="TodoList"]');
+  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: false }));
+}
+function TodoList_handleDelete(index) {
+  TodoList_onDelete(index);
+}
+
+function TodoList_handleAdd(text) {
+  TodoList_onAdd(text);
+}
 
 
 
-/// ── Component: ThemeSwitcher ──
-
-const ThemeSwitcher_isHovered = __omni_signal("ThemeSwitcher_isHovered", false);
-const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", () => (ThemeSwitcher_isHovered.value ? "Switch to " + ThemeStore_nextLabel.value : ThemeStore_modeLabel.value + " Mode"));
-
-
-/// ── Component: SlotPanel ──
+/// ── Component: CssUnitsDemo ──
 
 
 
@@ -4703,7 +4703,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </div>
                       </div>
                       <div data-nid="el-StatsDashboard-046" data-component="StatsDashboard">
-                        <div data-nid="el-div-047" data-ref="container" class="dashboard">
+                        <div data-nid="el-div-047" class="dashboard" data-ref="container">
                           <h3 data-nid="el-h3-048" class="title">
                             StatsDashboard Demo
                           </h3>
@@ -4834,7 +4834,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                               <h3 data-nid="el-h3-104" class="title">
                                 FeatureCard Demo
                               </h3>
-                              <input data-nid="el-input-105" placeholder="Click" class="input" />
+                              <input data-nid="el-input-105" class="input" placeholder="Click" />
                               <div data-nid="el-if-106-b0" style="display:none">
                                 <fragment data-nid="el-fragment-107">
                                   <span data-nid="el-span-108" class="badge-focused">
@@ -5148,11 +5148,11 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <label data-nid="el-label-241" class="field-label">
                         Title
                       </label>
-                      <input data-nid="el-input-242" class="field-input" placeholder="Enter title..." />
+                      <input data-nid="el-input-242" placeholder="Enter title..." class="field-input" />
                       <label data-nid="el-label-243" class="field-label">
                         Body
                       </label>
-                      <textarea data-nid="el-textarea-244" rows="3" placeholder="Enter body..." class="field-textarea">
+                      <textarea data-nid="el-textarea-244" placeholder="Enter body..." rows="3" class="field-textarea">
                       </textarea>
                       <div data-nid="el-div-245" class="btn-row">
                         <button data-nid="el-button-246" class="btn-submit">
@@ -5247,7 +5247,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <span data-nid="el-interp-285"></span>
                       </p>
                       <div data-nid="el-div-286" class="row">
-                        <input data-nid="el-input-287" placeholder="Enter text to validate..." class="input" />
+                        <input data-nid="el-input-287" class="input" placeholder="Enter text to validate..." />
                         <button data-nid="el-button-288" class="btn-validate">
                           <span data-nid="el-interp-289"></span>
                         </button>
@@ -5543,7 +5543,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           <span data-nid="el-interp-414"></span>
                         </li>
                         <li data-nid="el-ListItem-415" class="summary-item">
-                          <img data-nid="el-img-416" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-416" src="/dot.png" alt="dot" />
                           Scroll events:
                           <span data-nid="el-interp-417"></span>
                         </li>
@@ -5565,7 +5565,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           <span data-nid="el-interp-426"></span>
                         </li>
                         <li data-nid="el-ListItem-427" class="features-item">
-                          <img data-nid="el-img-428" src="/dot.png" alt="dot" />
+                          <img data-nid="el-img-428" alt="dot" src="/dot.png" />
                           Grade for 59:
                           <span data-nid="el-interp-429"></span>
                         </li>
@@ -5578,7 +5578,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                     <hr data-nid="el-hr-433" />
                     <div data-nid="el-div-434" class="footer-row">
-                      <img data-nid="el-img-435" src="/dot.png" alt="dot" />
+                      <img data-nid="el-img-435" alt="dot" src="/dot.png" />
                       <p data-nid="el-p-436" class="footer-text">
                         DataTable Phase 4 Demo
                       </p>
@@ -5597,7 +5597,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <label data-nid="el-label-443" for="name" class="label">
                           Name
                         </label>
-                        <input data-nid="el-input-444" required placeholder="Your name" data-testid="name-field" id="name" class="input" aria-label="Full name input" data-type="text" />
+                        <input data-nid="el-input-444" aria-label="Full name input" data-testid="name-field" required class="input" data-type="text" id="name" placeholder="Your name" />
                         <div data-nid="el-if-445-b0" style="display:none">
                           <fragment data-nid="el-fragment-446">
                             <span data-nid="el-span-447" class="error-text">
@@ -5610,7 +5610,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <label data-nid="el-label-450" for="email" class="label">
                           Email
                         </label>
-                        <input data-nid="el-input-451" aria-label="Email address input" class="input" required data-testid="email-field" placeholder="your@email.com" data-type="email" id="email" />
+                        <input data-nid="el-input-451" id="email" placeholder="your@email.com" required data-testid="email-field" data-type="email" aria-label="Email address input" class="input" />
                         <div data-nid="el-if-452-b0" style="display:none">
                           <fragment data-nid="el-fragment-453">
                             <span data-nid="el-span-454" class="error-text">
@@ -5620,23 +5620,23 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </div>
                       </div>
                       <div data-nid="el-div-456" class="field">
-                        <label data-nid="el-label-457" for="msg" class="label">
+                        <label data-nid="el-label-457" class="label" for="msg">
                           Message
                         </label>
-                        <textarea data-nid="el-textarea-458" data-testid="msg-field" placeholder="Your message (optional)" id="msg" aria-label="Message input" class="textarea">
+                        <textarea data-nid="el-textarea-458" data-testid="msg-field" placeholder="Your message (optional)" aria-label="Message input" class="textarea" id="msg">
                         </textarea>
                       </div>
                       <div data-nid="el-div-459" class="field">
-                        <label data-nid="el-label-460" class="label" for="disabled-field">
+                        <label data-nid="el-label-460" for="disabled-field" class="label">
                           Disabled field
                         </label>
-                        <input data-nid="el-input-461" disabled placeholder="This field is disabled" id="disabled-field" aria-label="Disabled input" data-testid="disabled-field" class="input" />
+                        <input data-nid="el-input-461" class="input" id="disabled-field" disabled aria-label="Disabled input" data-testid="disabled-field" placeholder="This field is disabled" />
                       </div>
                       <div data-nid="el-div-462" class="field">
                         <label data-nid="el-label-463" class="label" for="readonly-field">
                           Readonly field
                         </label>
-                        <input data-nid="el-input-464" readonly class="input" value="Read-only value" id="readonly-field" aria-label="Read-only input" data-testid="readonly-field" />
+                        <input data-nid="el-input-464" class="input" readonly aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" value="Read-only value" />
                       </div>
                       <div data-nid="el-div-465" class="scroll-box">
                         <p data-nid="el-p-466" class="scroll-title">
@@ -5678,10 +5678,10 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </fragment>
                       </div>
                       <div data-nid="el-div-481" class="actions">
-                        <button data-nid="el-button-482" type="submit" data-testid="submit-btn" class="submit-btn" aria-label="Submit form">
+                        <button data-nid="el-button-482" class="submit-btn" aria-label="Submit form" data-testid="submit-btn" type="submit">
                           Submit
                         </button>
-                        <button data-nid="el-button-483" data-testid="reset-btn" class="reset-btn" aria-label="Reset form" type="button">
+                        <button data-nid="el-button-483" aria-label="Reset form" type="button" class="reset-btn" data-testid="reset-btn">
                           Reset
                         </button>
                       </div>
@@ -5777,29 +5777,29 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
               <div data-nid="el-div-522" class="demo-full">
                 <div data-nid="el-MotionDemo-523" data-component="MotionDemo">
                   <div data-nid="el-div-524">
-                    <h1 data-nid="el-h1-525">
+                    <h1 data-nid="el-h1-525" data-enter="fadeInUp">
                       Motion Demo
                     </h1>
                     <p data-nid="el-p-526">
                       Count:
                       <span data-nid="el-interp-527"></span>
                     </p>
-                    <button data-nid="el-button-528">
+                    <button data-nid="el-button-528" data-press="scalePress" data-hover="pulse">
                       Toggle Modal
                     </button>
                     <div data-nid="el-if-529-b0" style="display:none">
                       <fragment data-nid="el-fragment-530">
-                        <div data-nid="el-div-531">
+                        <div data-nid="el-div-531" data-enter="fadeInUp" data-leave="fadeInUp">
                           <h2 data-nid="el-h2-532">
                             Modal Content
                           </h2>
                         </div>
                       </fragment>
                     </div>
-                    <button data-nid="el-button-533">
+                    <button data-nid="el-button-533" data-press="scalePress">
                       Add Item
                     </button>
-                    <button data-nid="el-button-534">
+                    <button data-nid="el-button-534" data-press="scalePress">
                       Remove Item
                     </button>
                     <div data-nid="el-div-535">
@@ -5818,42 +5818,42 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖
                     </p>
                     <div data-nid="el-div-541" class="grid">
-                      <div data-nid="el-div-542" class="card">
+                      <div data-nid="el-div-542" class="card" data-enter="fillDemo">
                         <h4 data-nid="el-h4-543" class="label">
                           fill forwards
                         </h4>
                       </div>
-                      <div data-nid="el-div-544" class="card">
+                      <div data-nid="el-div-544" class="card" data-enter="delayedEntrance">
                         <h4 data-nid="el-h4-545" class="label">
                           delay + repeatDelay + repeatRefresh
                         </h4>
                       </div>
-                      <div data-nid="el-div-546" class="card">
+                      <div data-nid="el-div-546" class="card" data-enter="slowSpin">
                         <h4 data-nid="el-h4-547" class="label">
                           timeScale 0.5
                         </h4>
                       </div>
-                      <div data-nid="el-div-548" class="card">
+                      <div data-nid="el-div-548" class="card" data-enter="interruptDemo">
                         <h4 data-nid="el-h4-549" class="label">
                           interrupt queue
                         </h4>
                       </div>
-                      <div data-nid="el-div-550" class="card">
+                      <div data-nid="el-div-550" class="card" data-enter="accessibleAnim">
                         <h4 data-nid="el-h4-551" class="label">
                           respectReducedMotion
                         </h4>
                       </div>
-                      <div data-nid="el-div-552" class="card">
+                      <div data-nid="el-div-552" class="card" data-enter="staggeredList">
                         <h4 data-nid="el-h4-553" class="label">
                           staggerChildren · staggerFrom
                         </h4>
                       </div>
-                      <div data-nid="el-div-554" class="card">
+                      <div data-nid="el-div-554" class="card" data-enter="pathAnim">
                         <h4 data-nid="el-h4-555" class="label">
                           paused · path · pathRotate
                         </h4>
                       </div>
-                      <div data-nid="el-div-556" class="card">
+                      <div data-nid="el-div-556" class="card" data-enter="multiStopColor">
                         <h4 data-nid="el-h4-557" class="label">
                           multi-stop · colorSpace lab
                         </h4>
@@ -5871,14 +5871,14 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     <p data-nid="el-p-562" class="subtitle">
                       24 种未测试缓动 · 点击按钮播放当前屏幕所有  动画
                     </p>
-                    <button data-nid="el-button-563" class="trigger-btn">
+                    <button data-nid="el-button-563" class="trigger-btn" data-press="springStiff">
                       <span data-nid="el-interp-564"></span>
                     </button>
                     <h4 data-nid="el-h4-565" class="group-title">
                       Power 曲线（easeIn · power1 · power2 · power3 · power4）
                     </h4>
                     <div data-nid="el-div-566" class="grid">
-                      <div data-nid="el-div-567" class="card">
+                      <div data-nid="el-div-567" class="card" data-enter="easeInMove">
                         <strong data-nid="el-strong-568">
                           easeIn
                         </strong>
@@ -5886,7 +5886,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           三次方加速
                         </p>
                       </div>
-                      <div data-nid="el-div-570" class="card">
+                      <div data-nid="el-div-570" class="card" data-enter="power1InMove">
                         <strong data-nid="el-strong-571">
                           power1In
                         </strong>
@@ -5894,7 +5894,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           二次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-573" class="card">
+                      <div data-nid="el-div-573" class="card" data-enter="power1OutMove">
                         <strong data-nid="el-strong-574">
                           power1Out
                         </strong>
@@ -5902,7 +5902,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           二次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-576" class="card">
+                      <div data-nid="el-div-576" class="card" data-enter="power1InOutMove">
                         <strong data-nid="el-strong-577">
                           power1InOut
                         </strong>
@@ -5910,7 +5910,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           二次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-579" class="card">
+                      <div data-nid="el-div-579" class="card" data-enter="power2InMove">
                         <strong data-nid="el-strong-580">
                           power2In
                         </strong>
@@ -5918,7 +5918,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           三次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-582" class="card">
+                      <div data-nid="el-div-582" class="card" data-enter="power2InOutMove">
                         <strong data-nid="el-strong-583">
                           power2InOut
                         </strong>
@@ -5926,7 +5926,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           三次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-585" class="card">
+                      <div data-nid="el-div-585" class="card" data-enter="power3InMove">
                         <strong data-nid="el-strong-586">
                           power3In
                         </strong>
@@ -5934,7 +5934,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           四次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-588" class="card">
+                      <div data-nid="el-div-588" class="card" data-enter="power3InOutMove">
                         <strong data-nid="el-strong-589">
                           power3InOut
                         </strong>
@@ -5942,7 +5942,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           四次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-591" class="card">
+                      <div data-nid="el-div-591" class="card" data-enter="power4InMove">
                         <strong data-nid="el-strong-592">
                           power4In
                         </strong>
@@ -5950,7 +5950,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           五次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-594" class="card">
+                      <div data-nid="el-div-594" class="card" data-enter="power4OutMove">
                         <strong data-nid="el-strong-595">
                           power4Out
                         </strong>
@@ -5958,7 +5958,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           五次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-597" class="card">
+                      <div data-nid="el-div-597" class="card" data-enter="power4InOutMove">
                         <strong data-nid="el-strong-598">
                           power4InOut
                         </strong>
@@ -5971,7 +5971,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Back 弹回（带可选 intensity 参数）
                     </h4>
                     <div data-nid="el-div-601" class="grid">
-                      <div data-nid="el-div-602" class="card">
+                      <div data-nid="el-div-602" class="card" data-enter="backInMove">
                         <strong data-nid="el-strong-603">
                           backIn
                         </strong>
@@ -5979,7 +5979,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-605" class="card">
+                      <div data-nid="el-div-605" class="card" data-enter="backOutMove">
                         <strong data-nid="el-strong-606">
                           backOut
                         </strong>
@@ -5987,7 +5987,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-608" class="card">
+                      <div data-nid="el-div-608" class="card" data-enter="backInOutMove">
                         <strong data-nid="el-strong-609">
                           backInOut
                         </strong>
@@ -5995,7 +5995,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-611" class="card">
+                      <div data-nid="el-div-611" class="card" data-enter="backOutIntensity">
                         <strong data-nid="el-strong-612">
                           backOut(3.5)
                         </strong>
@@ -6008,7 +6008,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Bounce 弹跳
                     </h4>
                     <div data-nid="el-div-615" class="grid">
-                      <div data-nid="el-div-616" class="card">
+                      <div data-nid="el-div-616" class="card" data-enter="bounceInMove">
                         <strong data-nid="el-strong-617">
                           bounceIn
                         </strong>
@@ -6016,7 +6016,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           弹跳入
                         </p>
                       </div>
-                      <div data-nid="el-div-619" class="card">
+                      <div data-nid="el-div-619" class="card" data-enter="bounceOutMove">
                         <strong data-nid="el-strong-620">
                           bounceOut
                         </strong>
@@ -6024,7 +6024,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           弹跳出
                         </p>
                       </div>
-                      <div data-nid="el-div-622" class="card">
+                      <div data-nid="el-div-622" class="card" data-enter="bounceInOutMove">
                         <strong data-nid="el-strong-623">
                           bounceInOut
                         </strong>
@@ -6037,7 +6037,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Elastic 弹性（带可选 amplitude/period 参数）
                     </h4>
                     <div data-nid="el-div-626" class="grid">
-                      <div data-nid="el-div-627" class="card">
+                      <div data-nid="el-div-627" class="card" data-enter="elasticInMove">
                         <strong data-nid="el-strong-628">
                           elasticIn
                         </strong>
@@ -6045,7 +6045,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-630" class="card">
+                      <div data-nid="el-div-630" class="card" data-enter="elasticOutMove">
                         <strong data-nid="el-strong-631">
                           elasticOut
                         </strong>
@@ -6053,7 +6053,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-633" class="card">
+                      <div data-nid="el-div-633" class="card" data-enter="elasticInOutMove">
                         <strong data-nid="el-strong-634">
                           elasticInOut
                         </strong>
@@ -6061,7 +6061,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-636" class="card">
+                      <div data-nid="el-div-636" class="card" data-enter="elasticCustomMove">
                         <strong data-nid="el-strong-637">
                           elasticOut(2,0.8)
                         </strong>
@@ -6074,7 +6074,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Spring 物理缓动（tension · friction · velocity）
                     </h4>
                     <div data-nid="el-div-640" class="grid">
-                      <div data-nid="el-div-641" class="card">
+                      <div data-nid="el-div-641" class="card" data-enter="springDefault">
                         <strong data-nid="el-strong-642">
                           spring(180,12)
                         </strong>
@@ -6082,7 +6082,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           默认弹簧参数
                         </p>
                       </div>
-                      <div data-nid="el-div-644" class="card">
+                      <div data-nid="el-div-644" class="card" data-enter="springBouncy">
                         <strong data-nid="el-strong-645">
                           spring(120,8,2)
                         </strong>
@@ -6090,7 +6090,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           弹性大·阻尼小
                         </p>
                       </div>
-                      <div data-nid="el-div-647" class="card">
+                      <div data-nid="el-div-647" class="card" data-enter="springStiff">
                         <strong data-nid="el-strong-648">
                           spring(400,30)
                         </strong>
@@ -6103,7 +6103,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       自定义缓动（cubic-bezier · steps）
                     </h4>
                     <div data-nid="el-div-651" class="grid">
-                      <div data-nid="el-div-652" class="card">
+                      <div data-nid="el-div-652" class="card" data-enter="cubicCustom">
                         <strong data-nid="el-strong-653">
                           cubic(x1,y1,x2,y2)
                         </strong>
@@ -6111,7 +6111,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           自定义贝塞尔 overshoot
                         </p>
                       </div>
-                      <div data-nid="el-div-655" class="card">
+                      <div data-nid="el-div-655" class="card" data-enter="stepsDemo">
                         <strong data-nid="el-strong-656">
                           steps(6,end)
                         </strong>
@@ -6139,7 +6139,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       3D 变换组（scaleX · scaleY · rotateX · rotateY · rotateZ）
                     </h4>
                     <div data-nid="el-div-666" class="grid">
-                      <div data-nid="el-div-667" class="card">
+                      <div data-nid="el-div-667" class="card" data-enter="scaleXDemo">
                         <strong data-nid="el-strong-668">
                           scaleX
                         </strong>
@@ -6147,7 +6147,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           X 轴 1→1.8 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-670" class="card">
+                      <div data-nid="el-div-670" class="card" data-enter="scaleYDemo">
                         <strong data-nid="el-strong-671">
                           scaleY
                         </strong>
@@ -6155,7 +6155,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           Y 轴 1→1.5 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-673" class="card">
+                      <div data-nid="el-div-673" class="card" data-enter="rotateXDemo">
                         <strong data-nid="el-strong-674">
                           rotateX
                         </strong>
@@ -6163,7 +6163,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           X 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-676" class="card">
+                      <div data-nid="el-div-676" class="card" data-enter="rotateYDemo">
                         <strong data-nid="el-strong-677">
                           rotateY
                         </strong>
@@ -6171,7 +6171,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           Y 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-679" class="card">
+                      <div data-nid="el-div-679" class="card" data-enter="rotateZDemo">
                         <strong data-nid="el-strong-680">
                           rotateZ
                         </strong>
@@ -6184,7 +6184,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       滤镜组（blur · brightness）
                     </h4>
                     <div data-nid="el-div-683" class="grid">
-                      <div data-nid="el-div-684" class="card">
+                      <div data-nid="el-div-684" class="card" data-enter="blurDemo">
                         <strong data-nid="el-strong-685">
                           blur
                         </strong>
@@ -6192,7 +6192,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           模糊 0→6px 脉冲
                         </p>
                       </div>
-                      <div data-nid="el-div-687" class="card">
+                      <div data-nid="el-div-687" class="card" data-enter="brightnessDemo">
                         <strong data-nid="el-strong-688">
                           brightness
                         </strong>
@@ -6205,7 +6205,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       颜色组（backgroundColor · color · borderColor · borderRadius）
                     </h4>
                     <div data-nid="el-div-691" class="grid">
-                      <div data-nid="el-div-692" class="card">
+                      <div data-nid="el-div-692" class="card" data-enter="bgColorDemo">
                         <strong data-nid="el-strong-693">
                           backgroundColor + borderRadius
                         </strong>
@@ -6213,7 +6213,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           背景色与圆角联动
                         </p>
                       </div>
-                      <div data-nid="el-div-695" class="card-border">
+                      <div data-nid="el-div-695" class="card-border" data-enter="textColorDemo">
                         <strong data-nid="el-strong-696">
                           color + borderColor
                         </strong>
@@ -6226,7 +6226,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       尺寸组（width · height · margin · padding）
                     </h4>
                     <div data-nid="el-div-699" class="grid">
-                      <div data-nid="el-div-700" class="box">
+                      <div data-nid="el-div-700" class="box" data-enter="widthDemo">
                         <strong data-nid="el-strong-701">
                           width
                         </strong>
@@ -6234,7 +6234,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           宽度 60→200px
                         </p>
                       </div>
-                      <div data-nid="el-div-703" class="box">
+                      <div data-nid="el-div-703" class="box" data-enter="heightDemo">
                         <strong data-nid="el-strong-704">
                           height
                         </strong>
@@ -6242,7 +6242,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           高度 40→120px
                         </p>
                       </div>
-                      <div data-nid="el-div-706" class="card">
+                      <div data-nid="el-div-706" class="card" data-enter="spacingDemo">
                         <strong data-nid="el-strong-707">
                           margin + padding
                         </strong>
@@ -6261,13 +6261,13 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Motion Triggers Demo
                     </h3>
                     <p data-nid="el-p-713" class="subtitle">
-                       ·  ·  · @inView ·  · @drag
+                       ·  ·  ·  ·  · @drag
                     </p>
                     <div data-nid="el-div-714" class="card">
                       <h4 data-nid="el-h4-715" class="label">
                          触发器
                       </h4>
-                      <button data-nid="el-button-716" class="btn-hover">
+                      <button data-nid="el-button-716" class="btn-hover" data-hover="unbounce" data-unhover="unbounce">
                         Hover then leave
                       </button>
                     </div>
@@ -6275,13 +6275,13 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h4 data-nid="el-h4-718" class="label">
                          触发器
                       </h4>
-                      <input data-nid="el-input-719" class="input-focus" placeholder="Focus me" />
+                      <input data-nid="el-input-719" placeholder="Focus me" class="input-focus" data-focus="focusGlow" />
                     </div>
                     <div data-nid="el-div-720" class="card">
                       <h4 data-nid="el-h4-721" class="label">
                          触发器（持续循环）
                       </h4>
-                      <div data-nid="el-div-722" class="spin-box">
+                      <div data-nid="el-div-722" class="spin-box" data-animate="autoSpin">
                         <p data-nid="el-p-723">
                           ↻
                         </p>
@@ -6289,14 +6289,14 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                     <div data-nid="el-div-724" class="card">
                       <h4 data-nid="el-h4-725" class="label">
-                        @inView 触发器 + 子属性
+                         触发器 + 子属性
                       </h4>
-                      <div data-nid="el-div-726">
+                      <div data-nid="el-div-726" data-in-view="slideInView" data-in-view-once="true">
                         <p data-nid="el-p-727">
                           Slide in once
                         </p>
                       </div>
-                      <div data-nid="el-div-728">
+                      <div data-nid="el-div-728" data-in-view="slideInView" data-in-view-repeat="true" data-in-view-threshold="0.5">
                         <p data-nid="el-p-729">
                           Slide in repeat (threshold 0.5)
                         </p>
@@ -6306,7 +6306,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h4 data-nid="el-h4-731" class="label">
                          触发器 + scroll-start/end/scrub
                       </h4>
-                      <div data-nid="el-div-732" class="scroll-area">
+                      <div data-nid="el-div-732" class="scroll-area" data-scroll="scrollFade" data-scroll-start="top 80%" data-scroll-end="bottom 20%" data-scroll-scrub="0.5">
                         <p data-nid="el-p-733">
                           Scroll to animate
                         </p>
@@ -6316,12 +6316,12 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h4 data-nid="el-h4-735" class="label">
                         @dragHorizontal / @dragVertical 拖拽
                       </h4>
-                      <div data-nid="el-div-736" class="drag-box">
+                      <div data-nid="el-div-736" class="drag-box" data-drag-horizontal="dragSlide" data-drag-constraints="left:0 right:300" data-drag-elastic="0.2" data-drag-scrub="true" data-drag-momentum="0.95" data-drag-threshold="30" data-drag-velocity-max="2000">
                         <p data-nid="el-p-737">
                           Drag me →
                         </p>
                       </div>
-                      <div data-nid="el-div-738" class="drag-box-vertical">
+                      <div data-nid="el-div-738" class="drag-box-vertical" data-drag-vertical="dragSlide" data-drag-constraints="top:0 bottom:200" data-drag-elastic="0.3" data-drag-scrub="true" data-drag-momentum="0.9">
                         <p data-nid="el-p-739">
                           Drag me ↓
                         </p>
@@ -6450,7 +6450,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       </p>
                       <div data-nid="el-div-790" class="demo-content">
                         <div data-nid="el-div-791" class="callback-box-area">
-                          <div data-nid="el-div-792" class="anim-box pulse">
+                          <div data-nid="el-div-792" class="anim-box pulse" data-enter="pulseWithCallback">
                             <span data-nid="el-span-793" class="anim-icon">
                               <span data-nid="el-interp-794"></span>
                             </span>
@@ -6616,7 +6616,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </p>
                     <div data-nid="el-if-851-b0" style="display:none">
                       <fragment data-nid="el-fragment-852">
-                        <div data-nid="el-div-853" class="timeline-area">
+                        <div data-nid="el-div-853" class="timeline-area" data-timeline="positionDemo">
                           <h4 data-nid="el-h4-854" class="area-title">
                              with start: Position Modes
                           </h4>
@@ -6651,7 +6651,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                     <div data-nid="el-if-864-b0" style="display:none">
                       <fragment data-nid="el-fragment-865">
-                        <div data-nid="el-div-866" class="timeline-area">
+                        <div data-nid="el-div-866" class="timeline-area" data-timeline="simpleThenWith">
                           <h4 data-nid="el-h4-867" class="area-title">
                              with then / with (无定位修饰符)
                           </h4>
@@ -6821,7 +6821,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <strong data-nid="el-strong-925">
                         staggerFrom start
                       </strong>
-                      <div data-nid="el-div-926" class="stagger-row">
+                      <div data-nid="el-div-926" class="stagger-row" data-enter="staggerStart">
                         <div data-nid="el-div-927" class="dot">
                           1
                         </div>
@@ -6843,7 +6843,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <strong data-nid="el-strong-933">
                         staggerFrom end
                       </strong>
-                      <div data-nid="el-div-934" class="stagger-row">
+                      <div data-nid="el-div-934" class="stagger-row" data-enter="staggerEnd">
                         <div data-nid="el-div-935" class="dot">
                           1
                         </div>
@@ -6865,7 +6865,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <strong data-nid="el-strong-941">
                         staggerFrom edges
                       </strong>
-                      <div data-nid="el-div-942" class="stagger-row">
+                      <div data-nid="el-div-942" class="stagger-row" data-enter="staggerEdges">
                         <div data-nid="el-div-943" class="dot">
                           1
                         </div>
@@ -6886,14 +6886,14 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     <h4 data-nid="el-h4-948" class="group-title">
                       时间线连接器: then（顺序） + with（并行）+ MotionRef
                     </h4>
-                    <div data-nid="el-div-949" class="timeline-area">
+                    <div data-nid="el-div-949" class="timeline-area" data-timeline="connectorDemo">
                       <div data-nid="el-div-950" class="tl-label">
                         phase1（set 后）
                       </div>
                       <div data-nid="el-div-951" class="tl-box" data-box="box1">
                         box1 · then →
                       </div>
-                      <div data-nid="el-div-952" class="tl-box" data-box="box2">
+                      <div data-nid="el-div-952" data-box="box2" class="tl-box">
                         box2 · with（与 refMotion 并行）
                       </div>
                       <div data-nid="el-div-953" class="tl-box" data-box="box3">
@@ -6902,7 +6902,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <div data-nid="el-div-954" class="tl-label">
                         outro
                       </div>
-                      <div data-nid="el-div-955" class="tl-box" data-box="box4">
+                      <div data-nid="el-div-955" data-box="box4" class="tl-box">
                         box4 · with outro
                       </div>
                     </div>
@@ -6911,14 +6911,14 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
               </div>
               <div data-nid="el-div-956" class="demo-full">
                 <div data-nid="el-TimelineMotionDemo-957" data-component="TimelineMotionDemo">
-                  <div data-nid="el-div-958" class="container">
+                  <div data-nid="el-div-958" class="container" data-timeline="pageEnter">
                     <h3 data-nid="el-h3-959" class="title">
                       Timeline Motion Demo
                     </h3>
                     <p data-nid="el-p-960" class="subtitle">
                        · set · stagger · label
                     </p>
-                    <div data-nid="el-div-961" class="card">
+                    <div data-nid="el-div-961" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-962" class="label">
                         header
                       </h4>
@@ -6926,7 +6926,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         包含在 pageEnter timeline 中
                       </p>
                     </div>
-                    <div data-nid="el-div-964" class="card">
+                    <div data-nid="el-div-964" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-965" class="label">
                         body
                       </h4>
@@ -6934,7 +6934,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         stagger 0.05s 逐个入场
                       </p>
                     </div>
-                    <div data-nid="el-div-967" class="card">
+                    <div data-nid="el-div-967" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-968" class="label">
                         footer
                       </h4>
@@ -6961,7 +6961,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Direction 方向（reverse · alternateReverse）
                     </h4>
                     <div data-nid="el-div-978" class="grid">
-                      <div data-nid="el-div-979" class="card">
+                      <div data-nid="el-div-979" class="card" data-enter="dirReverse">
                         <strong data-nid="el-strong-980">
                           direction reverse
                         </strong>
@@ -6969,7 +6969,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           反向播放（终点→起点）
                         </p>
                       </div>
-                      <div data-nid="el-div-982" class="card">
+                      <div data-nid="el-div-982" class="card" data-enter="dirAltReverse">
                         <strong data-nid="el-strong-983">
                           direction alternateReverse
                         </strong>
@@ -6982,7 +6982,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Fill 填充（backwards · both）
                     </h4>
                     <div data-nid="el-div-986" class="grid">
-                      <div data-nid="el-div-987" class="card">
+                      <div data-nid="el-div-987" class="card" data-enter="fillBackwards">
                         <strong data-nid="el-strong-988">
                           fill backwards
                         </strong>
@@ -6990,7 +6990,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           delay 500ms 前即跳到 from 态
                         </p>
                       </div>
-                      <div data-nid="el-div-990" class="card">
+                      <div data-nid="el-div-990" class="card" data-enter="fillBoth">
                         <strong data-nid="el-strong-991">
                           fill both
                         </strong>
@@ -7003,7 +7003,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       Interrupt 中断行为（stop · complete · replace）
                     </h4>
                     <div data-nid="el-div-994" class="grid">
-                      <div data-nid="el-div-995" class="card">
+                      <div data-nid="el-div-995" class="card" data-animate="intStop">
                         <strong data-nid="el-strong-996">
                           interrupt stop
                         </strong>
@@ -7011,7 +7011,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           中断即停在当前值
                         </p>
                       </div>
-                      <div data-nid="el-div-998" class="card">
+                      <div data-nid="el-div-998" class="card" data-animate="intComplete">
                         <strong data-nid="el-strong-999">
                           interrupt complete
                         </strong>
@@ -7019,7 +7019,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           中断时快速跳到终点
                         </p>
                       </div>
-                      <div data-nid="el-div-1001" class="card">
+                      <div data-nid="el-div-1001" class="card" data-animate="intReplace">
                         <strong data-nid="el-strong-1002">
                           interrupt replace
                         </strong>
@@ -7103,7 +7103,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       </button>
                       <div data-nid="el-if-1034-b0" style="display:none">
                         <fragment data-nid="el-fragment-1035">
-                          <div data-nid="el-div-1036" class="panel">
+                          <div data-nid="el-div-1036" class="panel" data-enter="fadeEnter" data-leave="fadeSlideOut">
                             <p data-nid="el-p-1037">
                               这个面板会在旧面板离开动画完成后才渲染
                             </p>
@@ -7870,7 +7870,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           Checkbox with checked attribute:
                         </p>
                         <label data-nid="el-label-1310" class="check-label">
-                          <input data-nid="el-input-1311" type="checkbox" class="demo-checkbox" />
+                          <input data-nid="el-input-1311" class="demo-checkbox" type="checkbox" />
                           <span data-nid="el-span-1312" class="check-text">
                             I agree to the terms
                           </span>
@@ -7884,7 +7884,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1316" class="section-title">
                           Number input with min/max/step:
                         </p>
-                        <input data-nid="el-input-1317" type="number" title="Enter your age (0-120)" max="120" min="0" value class="demo-input" step="1" />
+                        <input data-nid="el-input-1317" title="Enter your age (0-120)" min="0" step="1" type="number" class="demo-input" max="120" value />
                         <p data-nid="el-p-1318" class="select-value">
                           Age:
                           <span data-nid="el-interp-1319"></span>
@@ -7894,7 +7894,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1321" class="section-title">
                           Range slider with min/max/step:
                         </p>
-                        <input data-nid="el-input-1322" max="100" type="range" value step="5" title="Select a value (0-100, step 5)" class="demo-range" min="0" />
+                        <input data-nid="el-input-1322" type="range" max="100" title="Select a value (0-100, step 5)" step="5" class="demo-range" value min="0" />
                         <p data-nid="el-p-1323" class="select-value">
                           Range:
                           <span data-nid="el-interp-1324"></span>
@@ -8158,7 +8158,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           <video data-nid="el-video-1430" class="media" width="200" controls>
                             <source data-nid="el-source-1431" src="sample.mp4" type="video/mp4" />
                           </video>
-                          <audio data-nid="el-audio-1432" class="media" controls>
+                          <audio data-nid="el-audio-1432" controls class="media">
                             <source data-nid="el-source-1433" src="sample.mp3" type="audio/mpeg" />
                           </audio>
                         </figure>
@@ -8169,17 +8169,17 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           <img data-nid="el-img-1437" alt="responsive" src="fallback.jpg" />
                         </picture>
                         <map data-nid="el-map-1438" name="demo-map">
-                          <area data-nid="el-area-1439" href="#area1" coords="0,0,50,50" shape="rect" alt="Area 1" />
+                          <area data-nid="el-area-1439" alt="Area 1" coords="0,0,50,50" shape="rect" href="#area1" />
                         </map>
                       </section>
                       <section data-nid="el-section-1440" class="tag-section">
                         <h4 data-nid="el-h4-1441" class="tag-group">
                           度量与进度
                         </h4>
-                        <progress data-nid="el-progress-1442" class="progress" value="70" max="100">
+                        <progress data-nid="el-progress-1442" value="70" class="progress" max="100">
                           70%
                         </progress>
-                        <meter data-nid="el-meter-1443" min="0" max="1" value="0.6" class="meter">
+                        <meter data-nid="el-meter-1443" value="0.6" class="meter" max="1" min="0">
                           60%
                         </meter>
                       </section>
@@ -8877,7 +8877,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           bind:checked 复选框绑定
                         </h4>
                         <label data-nid="el-label-1721" class="checkbox-label">
-                          <input data-nid="el-input-1722" type="checkbox" data-testid="agree-checkbox" />
+                          <input data-nid="el-input-1722" data-testid="agree-checkbox" type="checkbox" />
                           <span data-nid="el-span-1723">
                             同意条款:
                             <span data-nid="el-interp-1724"></span>
@@ -8888,7 +8888,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <h4 data-nid="el-h4-1726" class="label">
                           bind:value 文本输入
                         </h4>
-                        <textarea data-nid="el-textarea-1727" placeholder="输入文本..." class="rich-input">
+                        <textarea data-nid="el-textarea-1727" class="rich-input" placeholder="输入文本...">
                         </textarea>
                         <p data-nid="el-p-1728" class="preview">
                           预览:
@@ -9320,8 +9320,8 @@ function __ononPress_el_button_099() {
 }
 { const el = __omni_el("el-button-099"); if (el) el.addEventListener("click", (e) => { __ononPress_el_button_099(e.detail); }); }
 { const el = __omni_el("el-button-100"); if (el) el.addEventListener("click", (e) => { Counter_reset(e.detail); }); }
-{ const el = __omni_el("el-input-105"); if (el) el.addEventListener("focus", (e) => { FeatureCard_handleFocus(e.detail); }); }
 { const el = __omni_el("el-input-105"); if (el) el.addEventListener("blur", (e) => { FeatureCard_handleBlur(e.detail); }); }
+{ const el = __omni_el("el-input-105"); if (el) el.addEventListener("focus", (e) => { FeatureCard_handleFocus(e.detail); }); }
 let _guard_value_el_input_105 = false;
 { const el = __omni_el("el-input-105"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_105) { FeatureCard_status.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-105"); if (el) { _guard_value_el_input_105 = true; el.value = FeatureCard_status.value; _guard_value_el_input_105 = false; } });
@@ -9642,15 +9642,15 @@ __omni_effect(() => { const el = __omni_el("el-interp-310"); if (el) el.textCont
 __omni_effect(() => { const el = __omni_el("el-interp-325"); if (el) el.textContent = String(Modal_lastAction.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-326"); if (el) el.textContent = String(Modal_isHovering.value); });
 { const el = __omni_el("el-div-329"); if (el) el.addEventListener("click", (e) => { Modal_handleOverlayClick(e.detail); }); }
-{ const el = __omni_el("el-div-330"); if (el) el.addEventListener("mouseleave", (e) => { Modal_handleMouseLeave(e.detail); }); }
 { const el = __omni_el("el-div-330"); if (el) el.addEventListener("mouseenter", (e) => { Modal_handleMouseEnter(e.detail); }); }
 { const el = __omni_el("el-div-330"); if (el) el.addEventListener("keydown", (e) => { Modal_handleKeyDown(e.detail); }); }
+{ const el = __omni_el("el-div-330"); if (el) el.addEventListener("mouseleave", (e) => { Modal_handleMouseLeave(e.detail); }); }
 { const el = __omni_el("el-button-333"); if (el) el.addEventListener("click", (e) => { Modal_close(e.detail); }); }
 { const el = __omni_el("el-button-338"); if (el) el.addEventListener("click", (e) => { Modal_close(e.detail); }); }
 { const el = __omni_el("el-button-339"); if (el) el.addEventListener("click", (e) => { Modal_close(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-div-330"); if (el) el.classList.toggle("hover", !!Modal_isHovering.value); });
-__omni_effect(() => { const el = __omni_el("el-div-329"); if (el) el.classList.toggle("hidden", !!!Modal_isOpen.value); });
 __omni_effect(() => { const el = __omni_el("el-div-329"); if (el) el.classList.toggle("visible", !!Modal_isOpen.value); });
+__omni_effect(() => { const el = __omni_el("el-div-329"); if (el) el.classList.toggle("hidden", !!!Modal_isOpen.value); });
 
 /// ── @if conditional el-if-327 ──
 __omni_effect(() => {
@@ -9794,9 +9794,9 @@ __omni_effect(() => {
   if (FormPage_nameError.value !== "") { _show("el-if-445-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-input-451"); if (el) el.addEventListener("focus", (e) => { FormPage_handleEmailFocus(e.detail); }); }
 { const el = __omni_el("el-input-451"); if (el) el.addEventListener("blur", (e) => { FormPage_handleEmailBlur(e.detail); }); }
 { const el = __omni_el("el-input-451"); if (el) el.addEventListener("input", (e) => { FormPage_handleEmailChange(e.detail); }); }
+{ const el = __omni_el("el-input-451"); if (el) el.addEventListener("focus", (e) => { FormPage_handleEmailFocus(e.detail); }); }
 let _guard_value_el_input_451 = false;
 { const el = __omni_el("el-input-451"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_451) { FormPage_email.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-451"); if (el) { _guard_value_el_input_451 = true; el.value = FormPage_email.value; _guard_value_el_input_451 = false; } });
@@ -10006,9 +10006,9 @@ __omni_effect(() => {
   }
 })();
 var __omni_states_el_div_535 = {
-  "pressed": { to: { "scale": "0.95", "opacity": "0.8" }, over: 100, ease: "ease-out" },
-  "idle": { to: { "scale": "1", "opacity": "1" }, over: 150, ease: "ease-out" },
-  "hover": { to: { "opacity": "1", "scale": "1.05" }, over: 150, ease: "ease-out" },
+  "pressed": { to: { "opacity": "0.8", "scale": "0.95" }, over: 100, ease: "ease-out" },
+  "hover": { to: { "scale": "1.05", "opacity": "1" }, over: 150, ease: "ease-out" },
+  "idle": { to: { "opacity": "1", "scale": "1" }, over: 150, ease: "ease-out" },
 };
 { const el = __omni_el("el-button-563"); if (el) el.addEventListener("click", (e) => { EasingFunctionsDemo_toggleAll(e.detail); }); }
 // @press trigger
@@ -10056,8 +10056,50 @@ __omni_effect(() => { const el = __omni_el("el-interp-664"); if (el) el.textCont
    el.addEventListener("blur", function() { __omni_getAnimation("el-input-719", "focus")?.reverse(); });
   }
 })();
-{ const el = __omni_el("el-div-726"); if (el) el.addEventListener("inView", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_slideInView(el, {}); __omni_animations.set("el-div-726_inView", p); p.play(); } }); }
-{ const el = __omni_el("el-div-728"); if (el) el.addEventListener("inView", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_slideInView(el, {}); __omni_animations.set("el-div-728_inView", p); p.play(); } }); }
+// @in-view trigger
+(function() {
+  const el = __omni_el("el-div-726");
+  if (!el) return;
+  const config = { trigger: "inView" };
+  const player = __omni_motion_slideInView(el, config);
+  __omni_animations.set("el-div-726_inView", player);
+  const threshold = 0;
+  const observer = new IntersectionObserver((entries) => {
+   entries.forEach(entry => {
+    if (entry.isIntersecting) {
+     player.play();
+     if (true) {
+      observer.disconnect();
+     }
+    }
+   });
+  }, { threshold: threshold });
+  observer.observe(el);
+  __omni_inview_observers = __omni_inview_observers || [];
+  __omni_inview_observers.push(observer);
+})();
+// @in-view trigger
+(function() {
+  const el = __omni_el("el-div-728");
+  if (!el) return;
+  const config = { trigger: "inView" };
+  const player = __omni_motion_slideInView(el, config);
+  __omni_animations.set("el-div-728_inView", player);
+  const threshold = 0.5;
+  const observer = new IntersectionObserver((entries) => {
+   entries.forEach(entry => {
+    if (entry.isIntersecting) {
+     player.play();
+     if (false) {
+      observer.disconnect();
+     }
+    }
+   });
+  }, { threshold: threshold });
+  observer.observe(el);
+  __omni_inview_observers = __omni_inview_observers || [];
+  __omni_inview_observers.push(observer);
+})();
 // @scroll trigger
 (function() {
   const el = __omni_el("el-div-732");
@@ -10261,8 +10303,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-752"); if (el) el.textCont
 __omni_effect(() => { const el = __omni_el("el-interp-756"); if (el) el.textContent = String(MotionCallbackDemo_completeCount.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-760"); if (el) el.textContent = String(MotionCallbackDemo_pulseRepeatCount.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-764"); if (el) el.textContent = String(MotionCallbackDemo_lastEvent.value); });
-{ const el = __omni_el("el-div-773"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_trackedEnter(el, {}); __omni_animations.set("el-div-773_click", p); p.play(); } }); }
 { const el = __omni_el("el-div-773"); if (el) el.addEventListener("click", (e) => { MotionCallbackDemo_handleEnterStart(e.detail); }); }
+{ const el = __omni_el("el-div-773"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_trackedEnter(el, {}); __omni_animations.set("el-div-773_click", p); p.play(); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-776"); if (el) el.textContent = String(MotionCallbackDemo_isPlaying.value ? "Animating..." : "Click me"); });
 __omni_effect(() => { const el = __omni_el("el-interp-781"); if (el) el.textContent = String(MotionCallbackDemo_enterCount.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-785"); if (el) el.textContent = String(MotionCallbackDemo_completeCount.value); });
@@ -10427,10 +10469,10 @@ __omni_effect(() => { const el = __omni_el("el-interp-1319"); if (el) el.textCon
 { const el = __omni_el("el-input-1322"); if (el) el.addEventListener("input", (e) => { FormControlsDemo_handleRangeChange(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1324"); if (el) el.textContent = String(FormControlsDemo_rangeVal.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-1327"); if (el) el.textContent = String(FormControlsDemo_statusText.value); });
-function __ononInput_el_input_1336() {
-  EventsDemo_addLog("input");
+function __ononCopy_el_input_1336() {
+  EventsDemo_addLog("copy");
 }
-{ const el = __omni_el("el-input-1336"); if (el) el.addEventListener("input", (e) => { __ononInput_el_input_1336(e.detail); }); }
+{ const el = __omni_el("el-input-1336"); if (el) el.addEventListener("copy", (e) => { __ononCopy_el_input_1336(e.detail); }); }
 function __ononPaste_el_input_1336() {
   EventsDemo_addLog("paste");
 }
@@ -10443,10 +10485,10 @@ function __ononCut_el_input_1336() {
   EventsDemo_addLog("cut");
 }
 { const el = __omni_el("el-input-1336"); if (el) el.addEventListener("cut", (e) => { __ononCut_el_input_1336(e.detail); }); }
-function __ononCopy_el_input_1336() {
-  EventsDemo_addLog("copy");
+function __ononInput_el_input_1336() {
+  EventsDemo_addLog("input");
 }
-{ const el = __omni_el("el-input-1336"); if (el) el.addEventListener("copy", (e) => { __ononCopy_el_input_1336(e.detail); }); }
+{ const el = __omni_el("el-input-1336"); if (el) el.addEventListener("input", (e) => { __ononInput_el_input_1336(e.detail); }); }
 let _guard_value_el_input_1336 = false;
 { const el = __omni_el("el-input-1336"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1336) { EventsDemo_dragStatus.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-1336"); if (el) { _guard_value_el_input_1336 = true; el.value = EventsDemo_dragStatus.value; _guard_value_el_input_1336 = false; } });
@@ -10458,77 +10500,77 @@ function __ononContextMenu_el_div_1339() {
   EventsDemo_addLog("context-menu");
 }
 { const el = __omni_el("el-div-1339"); if (el) el.addEventListener("contextmenu", (e) => { __ononContextMenu_el_div_1339(e.detail); }); }
-function __ononDragStart_el_div_1343() {
-  EventsDemo_dragStatus.set("dragging");
-}
-{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("dragstart", (e) => { __ononDragStart_el_div_1343(e.detail); }); }
-function __ononDrop_el_div_1343() {
-  EventsDemo_dragStatus.set("dropped");
-}
-{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("drop", (e) => { __ononDrop_el_div_1343(e.detail); }); }
-function __ononDragOver_el_div_1343() {
-  EventsDemo_dragStatus.set("dragover");
-}
-{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("dragover", (e) => { __ononDragOver_el_div_1343(e.detail); }); }
 function __ononDragEnd_el_div_1343() {
   EventsDemo_dragStatus.set("ended");
 }
 { const el = __omni_el("el-div-1343"); if (el) el.addEventListener("dragend", (e) => { __ononDragEnd_el_div_1343(e.detail); }); }
+function __ononDragStart_el_div_1343() {
+  EventsDemo_dragStatus.set("dragging");
+}
+{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("dragstart", (e) => { __ononDragStart_el_div_1343(e.detail); }); }
+function __ononDragOver_el_div_1343() {
+  EventsDemo_dragStatus.set("dragover");
+}
+{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("dragover", (e) => { __ononDragOver_el_div_1343(e.detail); }); }
+function __ononDrop_el_div_1343() {
+  EventsDemo_dragStatus.set("dropped");
+}
+{ const el = __omni_el("el-div-1343"); if (el) el.addEventListener("drop", (e) => { __ononDrop_el_div_1343(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1345"); if (el) el.textContent = String(EventsDemo_dragStatus.value); });
 function __ononTouchMove_el_div_1348() {
   EventsDemo_addLog("touchmove");
 }
 { const el = __omni_el("el-div-1348"); if (el) el.addEventListener("touchmove", (e) => { __ononTouchMove_el_div_1348(e.detail); }); }
-function __ononTouchEnd_el_div_1348() {
-  EventsDemo_addLog("touchend");
-}
-{ const el = __omni_el("el-div-1348"); if (el) el.addEventListener("touchend", (e) => { __ononTouchEnd_el_div_1348(e.detail); }); }
 function __ononTouchStart_el_div_1348() {
   EventsDemo_addLog("touchstart");
 }
 { const el = __omni_el("el-div-1348"); if (el) el.addEventListener("touchstart", (e) => { __ononTouchStart_el_div_1348(e.detail); }); }
+function __ononTouchEnd_el_div_1348() {
+  EventsDemo_addLog("touchend");
+}
+{ const el = __omni_el("el-div-1348"); if (el) el.addEventListener("touchend", (e) => { __ononTouchEnd_el_div_1348(e.detail); }); }
 function __ononWheel_el_div_1352() {
   EventsDemo_wheelCount.set(EventsDemo_wheelCount.value + 1);
 }
 { const el = __omni_el("el-div-1352"); if (el) el.addEventListener("wheel", (e) => { __ononWheel_el_div_1352(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1354"); if (el) el.textContent = String(EventsDemo_wheelCount.value); });
-function __ononLoad_el_img_1357() {
-  EventsDemo_addLog("img-loaded");
-}
-{ const el = __omni_el("el-img-1357"); if (el) el.addEventListener("load", (e) => { __ononLoad_el_img_1357(e.detail); }); }
 function __ononError_el_img_1357() {
   EventsDemo_addLog("img-error");
 }
 { const el = __omni_el("el-img-1357"); if (el) el.addEventListener("error", (e) => { __ononError_el_img_1357(e.detail); }); }
+function __ononLoad_el_img_1357() {
+  EventsDemo_addLog("img-loaded");
+}
+{ const el = __omni_el("el-img-1357"); if (el) el.addEventListener("load", (e) => { __ononLoad_el_img_1357(e.detail); }); }
 function __ononPlay_el_div_1358() {
   EventsDemo_mediaStatus.set("playing");
 }
 { const el = __omni_el("el-div-1358"); if (el) el.addEventListener("play", (e) => { __ononPlay_el_div_1358(e.detail); }); }
-function __ononEnded_el_div_1358() {
-  EventsDemo_mediaStatus.set("ended");
-}
-{ const el = __omni_el("el-div-1358"); if (el) el.addEventListener("ended", (e) => { __ononEnded_el_div_1358(e.detail); }); }
 function __ononPause_el_div_1358() {
   EventsDemo_mediaStatus.set("paused");
 }
 { const el = __omni_el("el-div-1358"); if (el) el.addEventListener("pause", (e) => { __ononPause_el_div_1358(e.detail); }); }
-__omni_effect(() => { const el = __omni_el("el-interp-1360"); if (el) el.textContent = String(EventsDemo_mediaStatus.value); });
-function __ononAnimationStart_el_div_1363() {
-  EventsDemo_animStatus.set("anim-start");
+function __ononEnded_el_div_1358() {
+  EventsDemo_mediaStatus.set("ended");
 }
-{ const el = __omni_el("el-div-1363"); if (el) el.addEventListener("animationstart", (e) => { __ononAnimationStart_el_div_1363(e.detail); }); }
+{ const el = __omni_el("el-div-1358"); if (el) el.addEventListener("ended", (e) => { __ononEnded_el_div_1358(e.detail); }); }
+__omni_effect(() => { const el = __omni_el("el-interp-1360"); if (el) el.textContent = String(EventsDemo_mediaStatus.value); });
 function __ononAnimationEnd_el_div_1363() {
   EventsDemo_animStatus.set("anim-end");
 }
 { const el = __omni_el("el-div-1363"); if (el) el.addEventListener("animationend", (e) => { __ononAnimationEnd_el_div_1363(e.detail); }); }
-function __ononAnimationIteration_el_div_1363() {
-  EventsDemo_animStatus.set("anim-iter");
+function __ononAnimationStart_el_div_1363() {
+  EventsDemo_animStatus.set("anim-start");
 }
-{ const el = __omni_el("el-div-1363"); if (el) el.addEventListener("animationiteration", (e) => { __ononAnimationIteration_el_div_1363(e.detail); }); }
+{ const el = __omni_el("el-div-1363"); if (el) el.addEventListener("animationstart", (e) => { __ononAnimationStart_el_div_1363(e.detail); }); }
 function __ononTransitionEnd_el_div_1363() {
   EventsDemo_animStatus.set("trans-end");
 }
 { const el = __omni_el("el-div-1363"); if (el) el.addEventListener("transitionend", (e) => { __ononTransitionEnd_el_div_1363(e.detail); }); }
+function __ononAnimationIteration_el_div_1363() {
+  EventsDemo_animStatus.set("anim-iter");
+}
+{ const el = __omni_el("el-div-1363"); if (el) el.addEventListener("animationiteration", (e) => { __ononAnimationIteration_el_div_1363(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1365"); if (el) el.textContent = String(EventsDemo_animStatus.value); });
 function __ononToggle_el_details_1368() {
   EventsDemo_toggleCount.set(EventsDemo_toggleCount.value + 1);
@@ -10701,16 +10743,16 @@ __omni_effect(() => { const el = __omni_el("el-interp-1592"); if (el) el.textCon
 { const el = __omni_el("el-button-1593"); if (el) el.addEventListener("click", (e) => { EmitEventChild_doAction(e.detail); }); }
 { const el = __omni_el("el-button-1594"); if (el) el.addEventListener("click", (e) => { EmitEventChild_incrementParent(e.detail); }); }
 __omni_effect(() => { EmitEventChild_label.set("Sender A"); });
-{ const el = __omni_el("el-EmitEventChild-1587"); if (el) el.addEventListener("optionalack", (e) => { EmitEventDemo_onOptionalAck(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-1587"); if (el) el.addEventListener("action", (e) => { EmitEventDemo_onChildAction(e.detail); }); }
+{ const el = __omni_el("el-EmitEventChild-1587"); if (el) el.addEventListener("optionalack", (e) => { EmitEventDemo_onOptionalAck(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-1587"); if (el) el.addEventListener("count", (e) => { EmitEventDemo_onChildCount(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1598"); if (el) el.textContent = String(EmitEventChild_label.value); });
 __omni_effect(() => { const el = __omni_el("el-interp-1600"); if (el) el.textContent = String(EmitEventChild_clickCount.value); });
 { const el = __omni_el("el-button-1601"); if (el) el.addEventListener("click", (e) => { EmitEventChild_doAction(e.detail); }); }
 { const el = __omni_el("el-button-1602"); if (el) el.addEventListener("click", (e) => { EmitEventChild_incrementParent(e.detail); }); }
 __omni_effect(() => { EmitEventChild_label.set("Sender B"); });
-{ const el = __omni_el("el-EmitEventChild-1595"); if (el) el.addEventListener("count", (e) => { EmitEventDemo_onChildCount(e.detail); }); }
 { const el = __omni_el("el-EmitEventChild-1595"); if (el) el.addEventListener("action", (e) => { EmitEventDemo_onChildAction(e.detail); }); }
+{ const el = __omni_el("el-EmitEventChild-1595"); if (el) el.addEventListener("count", (e) => { EmitEventDemo_onChildCount(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1606"); if (el) el.textContent = String(String((EmitEventDemo_messages.value || []).length)); });
 { const el = __omni_el("el-button-1607"); if (el) el.addEventListener("click", (e) => { EmitEventDemo_clearLog(e.detail); }); }
 
@@ -10869,10 +10911,6 @@ __omni_effect(() => { const el = __omni_el("el-interp-1820"); if (el) el.textCon
 __omni_effect(() => { const el = __omni_el("el-interp-1822"); if (el) el.textContent = String(ThemeStore_toggleCount.value); });
 __omni_effect(() => { const el = __omni_el("el-button-1823"); if (el) el.style.background=ThemeStore_currentPrimary.value; });
 __omni_effect(() => { const el = __omni_el("el-button-1823"); if (el) el.style.color=ThemeStore_currentBg.value; });
-function __ononPress_el_button_1823() {
-  ThemeStore_toggle();
-}
-{ const el = __omni_el("el-button-1823"); if (el) el.addEventListener("click", (e) => { __ononPress_el_button_1823(e.detail); }); }
 function __ononMouseLeave_el_button_1823() {
   ThemeSwitcher_isHovered.set(false);
 }
@@ -10881,6 +10919,10 @@ function __ononMouseEnter_el_button_1823() {
   ThemeSwitcher_isHovered.set(true);
 }
 { const el = __omni_el("el-button-1823"); if (el) el.addEventListener("mouseenter", (e) => { __ononMouseEnter_el_button_1823(e.detail); }); }
+function __ononPress_el_button_1823() {
+  ThemeStore_toggle();
+}
+{ const el = __omni_el("el-button-1823"); if (el) el.addEventListener("click", (e) => { __ononPress_el_button_1823(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1824"); if (el) el.textContent = String(ThemeSwitcher_buttonLabel.value); });
 __omni_effect(() => { const el = __omni_el("el-div-1825"); if (el) el.style.background=ThemeStore_currentMuted.value; });
 __omni_effect(() => { const el = __omni_el("el-p-1826"); if (el) el.style.color=ThemeStore_currentText.value; });
@@ -10996,18 +11038,28 @@ __omni_effect(() => {
 });
 
 /// ── Mount Lifecycle ──
+__omni_motion_pageEnter(null, {});
 __omni_motion_positionDemo(null, {});
 __omni_motion_simpleThenWith(null, {});
-__omni_motion_pageEnter(null, {});
 __omni_motion_connectorDemo(null, {});
+// @mount DataTable
+  DataTable_initRows();
+// @mount TypeSystemDemo
+  TypeSystemDemo_loadSummary();
 // @mount TodoPage
   TodoPage_pageLoadCount.set(TodoPage_pageLoadCount.value + 1);
 // @effect TodoPage
 __omni_effect(() => {
   console.log("Total items: " + String(TodoStore_totalCount.value));
 });
-// @mount TypeSystemDemo
-  TypeSystemDemo_loadSummary();
+// @mount AddTodo
+  console.log("AddTodo mounted");
+// @effect AddTodo
+__omni_effect(() => {
+  if ((AddTodo_input.value || []).length > 20) {
+  console.log("输入较长：" + String((AddTodo_input.value || []).length) + " 字符");
+  }
+});
 // @enter trigger
 (function() {
   const el = __omni_el("el-h1-525");
@@ -11750,8 +11802,14 @@ __omni_effect(() => {
 })();
 // @enter replay (watches all signals)
 __omni_effect(function __omni_enter_replay() {
-  EventShorthand_msg.value; EventShorthand_count.value; EmitKeywordDemo_emitLog.value; EmitKeywordDemo_funcLog.value; DataFetching_status.value; DataFetching_resultText.value; DataFetching_errorMsg.value; DataFetching_url.value; DataFetching_apiDemoText.value; ComputedFnFormDemo_firstName.value; ComputedFnFormDemo_lastName.value; ComputedFnFormDemo_counter.value; MotionDemo_count.value; MotionDemo_isOpen.value; EmitEventChild_clickCount.value; FilterBar_searchText.value; FilterBar_sortAsc.value; FilterBar_changeCount.value; FilterBar_demoFrameworks.value; UserSettings_username.value; UserSettings_fontSize.value; UserSettings_autoSave.value; UserSettings_savedText.value; Counter_count.value; Counter_step.value; EmitEventDemo_messages.value; EmitEventDemo_totalCount.value; EventsDemo_eventLog.value; EventsDemo_dragStatus.value; EventsDemo_wheelCount.value; EventsDemo_mediaStatus.value; EventsDemo_animStatus.value; EventsDemo_toggleCount.value; TabPanel_activeTab.value; FormControlsDemo_selected.value; FormControlsDemo_agreed.value; FormControlsDemo_age.value; FormControlsDemo_rangeVal.value; FormControlsDemo_linkClicked.value; FormControlsDemo_statusText.value; TimelinePositionDemo_activeDemo.value; TimelinePositionDemo_playCount.value; OptionalChainDemo_user.value; OptionalChainDemo_showDetails.value; StringLiteralsDemo_backtickResult.value; StringLiteralsDemo_singleQuoteResult.value; StringLiteralsDemo_mixed.value; StringLiteralsDemo_userName.value; StringLiteralsDemo_version.value; StringLiteralsDemo_interpolated.value; AnimPropertiesDemo_playAll.value; ThemeCssVarsDemo_boxScale.value; ThemeCssVarsDemo_borderWidth.value; CssVarsDemo_accentColor.value; CssVarsDemo_accentHue.value; CssVarsDemo_themeMode.value; MotionCallbackDemo_enterCount.value; MotionCallbackDemo_completeCount.value; MotionCallbackDemo_repeatCount.value; MotionCallbackDemo_lastEvent.value; MotionCallbackDemo_isPlaying.value; MotionCallbackDemo_isPulsing.value; MotionCallbackDemo_pulseRepeatCount.value; StatsDashboard_MAX_ITEMS.value; StatsDashboard_$iconUrl.value; StatsDashboard_$apiBase.value; StatsDashboard_counter.value; StatsDashboard_removed.value; StatsDashboard_randomValue.value; TodoPage_pageLoadCount.value; App_completionRate.value; App_activeTab.value; DataTable_scrollCount.value; DataTable_rows.value; DataTable_sortAsc.value; SlotDefaultDemo_useCustomContent.value; DataSubmit_title.value; DataSubmit_body.value; DataSubmit_submitStatus.value; DataSubmit_responseText.value; InlineStoreDemo_items.value; InlineStoreDemo_totalPrice.value; InlineStoreDemo_log.value; EmitChild_count.value; FormPage_name.value; FormPage_email.value; FormPage_message.value; FormPage_nameError.value; FormPage_emailError.value; FormPage_submitted.value; FormPage_scrollPos.value; FormPage_focusField.value; ComponentSpecialsDemo_showPanel.value; ComponentSpecialsDemo_slotVisible.value; ComponentSpecialsDemo_progressPct.value; ComponentSpecialsDemo_counter.value; AddTodo_input.value; NullishDemo_inputName.value; MotionTriggersDemo_isHovered.value; MotionTriggersDemo_isFocused.value; MotionTriggersDemo_dragX.value; FeatureCard_status.value; FeatureCard_focusCount.value; StylePseudoDemo_clicked.value; PlaybackAdvancedDemo_playDirFill.value; ViewAttributesDemo_isChecked.value; ViewAttributesDemo_richText.value; Timer_count.value; Timer_running.value; Timer_interval.value; TodoItem_checked.value; Modal_isOpen.value; Modal_isHovering.value; Modal_lastAction.value; FeatureList_isOpen.value; FeatureList_features.value; NotificationsPanel_badgeVisible.value; EasingFunctionsDemo_playAll.value; MotionPlaybackDemo_play.value; Constants_APP_NAME.value; Constants_APP_VERSION.value; Constants_logoUrl.value; Constants_apiBase.value; Dashboard_totalItems.value; Dashboard_lastUpdated.value; ThemeSwitcher_isHovered.value; SettingsPage_themeColors.value; SettingsPage_aboutExpanded.value; ValidationInput_input.value; ValidationInput_result.value; ValidationInput_isProcessing.value; TypeSystemDemo_summary.value; HeroTransitionDemo_isExpanded.value; HeroTransitionDemo_progress.value;
+  SlotDefaultDemo_useCustomContent.value; UserSettings_username.value; UserSettings_fontSize.value; UserSettings_autoSave.value; UserSettings_savedText.value; Dashboard_totalItems.value; Dashboard_lastUpdated.value; ComponentSpecialsDemo_showPanel.value; ComponentSpecialsDemo_slotVisible.value; ComponentSpecialsDemo_progressPct.value; ComponentSpecialsDemo_counter.value; CssVarsDemo_accentColor.value; CssVarsDemo_accentHue.value; CssVarsDemo_themeMode.value; ThemeSwitcher_isHovered.value; ComputedFnFormDemo_firstName.value; ComputedFnFormDemo_lastName.value; ComputedFnFormDemo_counter.value; HeroTransitionDemo_isExpanded.value; HeroTransitionDemo_progress.value; EventShorthand_msg.value; EventShorthand_count.value; ViewAttributesDemo_isChecked.value; ViewAttributesDemo_richText.value; AddTodo_input.value; AnimPropertiesDemo_playAll.value; MotionTriggersDemo_isHovered.value; MotionTriggersDemo_isFocused.value; MotionTriggersDemo_dragX.value; DataFetching_status.value; DataFetching_resultText.value; DataFetching_errorMsg.value; DataFetching_url.value; DataFetching_apiDemoText.value; InlineStoreDemo_items.value; InlineStoreDemo_totalPrice.value; InlineStoreDemo_log.value; NotificationsPanel_badgeVisible.value; Counter_count.value; Counter_step.value; NullishDemo_inputName.value; FeatureCard_status.value; FeatureCard_focusCount.value; ValidationInput_input.value; ValidationInput_result.value; ValidationInput_isProcessing.value; FilterBar_searchText.value; FilterBar_sortAsc.value; FilterBar_changeCount.value; FilterBar_demoFrameworks.value; FeatureList_isOpen.value; FeatureList_features.value; MotionPlaybackDemo_play.value; ThemeCssVarsDemo_boxScale.value; ThemeCssVarsDemo_borderWidth.value; EventsDemo_eventLog.value; EventsDemo_dragStatus.value; EventsDemo_wheelCount.value; EventsDemo_mediaStatus.value; EventsDemo_animStatus.value; EventsDemo_toggleCount.value; Modal_isOpen.value; Modal_isHovering.value; Modal_lastAction.value; TabPanel_activeTab.value; EmitEventChild_clickCount.value; Constants_APP_NAME.value; Constants_APP_VERSION.value; Constants_logoUrl.value; Constants_apiBase.value; FormControlsDemo_selected.value; FormControlsDemo_agreed.value; FormControlsDemo_age.value; FormControlsDemo_rangeVal.value; FormControlsDemo_linkClicked.value; FormControlsDemo_statusText.value; OptionalChainDemo_user.value; OptionalChainDemo_showDetails.value; TimelinePositionDemo_activeDemo.value; TimelinePositionDemo_playCount.value; FormPage_name.value; FormPage_email.value; FormPage_message.value; FormPage_nameError.value; FormPage_emailError.value; FormPage_submitted.value; FormPage_scrollPos.value; FormPage_focusField.value; StylePseudoDemo_clicked.value; MotionCallbackDemo_enterCount.value; MotionCallbackDemo_completeCount.value; MotionCallbackDemo_repeatCount.value; MotionCallbackDemo_lastEvent.value; MotionCallbackDemo_isPlaying.value; MotionCallbackDemo_isPulsing.value; MotionCallbackDemo_pulseRepeatCount.value; StringLiteralsDemo_backtickResult.value; StringLiteralsDemo_singleQuoteResult.value; StringLiteralsDemo_mixed.value; StringLiteralsDemo_userName.value; StringLiteralsDemo_version.value; StringLiteralsDemo_interpolated.value; SettingsPage_themeColors.value; SettingsPage_aboutExpanded.value; TodoPage_pageLoadCount.value; EmitChild_count.value; App_completionRate.value; App_activeTab.value; DataSubmit_title.value; DataSubmit_body.value; DataSubmit_submitStatus.value; DataSubmit_responseText.value; TypeSystemDemo_summary.value; DataTable_scrollCount.value; DataTable_rows.value; DataTable_sortAsc.value; MotionDemo_count.value; MotionDemo_isOpen.value; Timer_count.value; Timer_running.value; Timer_interval.value; TodoItem_checked.value; EmitKeywordDemo_emitLog.value; EmitKeywordDemo_funcLog.value; PlaybackAdvancedDemo_playDirFill.value; EmitEventDemo_messages.value; EmitEventDemo_totalCount.value; StatsDashboard_MAX_ITEMS.value; StatsDashboard_$iconUrl.value; StatsDashboard_$apiBase.value; StatsDashboard_counter.value; StatsDashboard_removed.value; StatsDashboard_randomValue.value; EasingFunctionsDemo_playAll.value;
   (function() { var el = __omni_el("el-h1-525"); if (el) { var _old = __omni_animations.get("el-h1-525_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-h1-525_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-531"); if (el) { var _old = __omni_animations.get("el-div-531_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-div-531_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-542"); if (el) { var _old = __omni_animations.get("el-div-542_enter"); if (_old) _old.kill(); var p = __omni_motion_fillDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-542_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-544"); if (el) { var _old = __omni_animations.get("el-div-544_enter"); if (_old) _old.kill(); var p = __omni_motion_delayedEntrance(el, {trigger: "enter"}); __omni_animations.set("el-div-544_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-546"); if (el) { var _old = __omni_animations.get("el-div-546_enter"); if (_old) _old.kill(); var p = __omni_motion_slowSpin(el, {trigger: "enter"}); __omni_animations.set("el-div-546_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-548"); if (el) { var _old = __omni_animations.get("el-div-548_enter"); if (_old) _old.kill(); var p = __omni_motion_interruptDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-548_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-550"); if (el) { var _old = __omni_animations.get("el-div-550_enter"); if (_old) _old.kill(); var p = __omni_motion_accessibleAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-550_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-552"); if (el) { var _old = __omni_animations.get("el-div-552_enter"); if (_old) _old.kill(); var p = __omni_motion_staggeredList(el, {trigger: "enter"}); __omni_animations.set("el-div-552_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-554"); if (el) { var _old = __omni_animations.get("el-div-554_enter"); if (_old) _old.kill(); var p = __omni_motion_pathAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-554_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-556"); if (el) { var _old = __omni_animations.get("el-div-556_enter"); if (_old) _old.kill(); var p = __omni_motion_multiStopColor(el, {trigger: "enter"}); __omni_animations.set("el-div-556_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-567"); if (el) { var _old = __omni_animations.get("el-div-567_enter"); if (_old) _old.kill(); var p = __omni_motion_easeInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-567_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-570"); if (el) { var _old = __omni_animations.get("el-div-570_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-570_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-573"); if (el) { var _old = __omni_animations.get("el-div-573_enter"); if (_old) _old.kill(); var p = __omni_motion_power1OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-573_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-576"); if (el) { var _old = __omni_animations.get("el-div-576_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-576_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-579"); if (el) { var _old = __omni_animations.get("el-div-579_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-579_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-582"); if (el) { var _old = __omni_animations.get("el-div-582_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-582_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-585"); if (el) { var _old = __omni_animations.get("el-div-585_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-585_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-588"); if (el) { var _old = __omni_animations.get("el-div-588_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-588_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-591"); if (el) { var _old = __omni_animations.get("el-div-591_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-591_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-594"); if (el) { var _old = __omni_animations.get("el-div-594_enter"); if (_old) _old.kill(); var p = __omni_motion_power4OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-594_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-597"); if (el) { var _old = __omni_animations.get("el-div-597_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-597_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-602"); if (el) { var _old = __omni_animations.get("el-div-602_enter"); if (_old) _old.kill(); var p = __omni_motion_backInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-602_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-605"); if (el) { var _old = __omni_animations.get("el-div-605_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-605_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-608"); if (el) { var _old = __omni_animations.get("el-div-608_enter"); if (_old) _old.kill(); var p = __omni_motion_backInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-608_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-611"); if (el) { var _old = __omni_animations.get("el-div-611_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutIntensity(el, {trigger: "enter"}); __omni_animations.set("el-div-611_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-616"); if (el) { var _old = __omni_animations.get("el-div-616_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-616_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-619"); if (el) { var _old = __omni_animations.get("el-div-619_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-619_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-622"); if (el) { var _old = __omni_animations.get("el-div-622_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-622_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-627"); if (el) { var _old = __omni_animations.get("el-div-627_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-627_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-630"); if (el) { var _old = __omni_animations.get("el-div-630_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-630_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-633"); if (el) { var _old = __omni_animations.get("el-div-633_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-633_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-636"); if (el) { var _old = __omni_animations.get("el-div-636_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticCustomMove(el, {trigger: "enter"}); __omni_animations.set("el-div-636_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-641"); if (el) { var _old = __omni_animations.get("el-div-641_enter"); if (_old) _old.kill(); var p = __omni_motion_springDefault(el, {trigger: "enter"}); __omni_animations.set("el-div-641_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-644"); if (el) { var _old = __omni_animations.get("el-div-644_enter"); if (_old) _old.kill(); var p = __omni_motion_springBouncy(el, {trigger: "enter"}); __omni_animations.set("el-div-644_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-647"); if (el) { var _old = __omni_animations.get("el-div-647_enter"); if (_old) _old.kill(); var p = __omni_motion_springStiff(el, {trigger: "enter"}); __omni_animations.set("el-div-647_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-652"); if (el) { var _old = __omni_animations.get("el-div-652_enter"); if (_old) _old.kill(); var p = __omni_motion_cubicCustom(el, {trigger: "enter"}); __omni_animations.set("el-div-652_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-655"); if (el) { var _old = __omni_animations.get("el-div-655_enter"); if (_old) _old.kill(); var p = __omni_motion_stepsDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-655_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-667"); if (el) { var _old = __omni_animations.get("el-div-667_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-667_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-670"); if (el) { var _old = __omni_animations.get("el-div-670_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-670_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-673"); if (el) { var _old = __omni_animations.get("el-div-673_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-673_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-676"); if (el) { var _old = __omni_animations.get("el-div-676_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-676_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-679"); if (el) { var _old = __omni_animations.get("el-div-679_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateZDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-679_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-684"); if (el) { var _old = __omni_animations.get("el-div-684_enter"); if (_old) _old.kill(); var p = __omni_motion_blurDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-684_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-687"); if (el) { var _old = __omni_animations.get("el-div-687_enter"); if (_old) _old.kill(); var p = __omni_motion_brightnessDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-687_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-692"); if (el) { var _old = __omni_animations.get("el-div-692_enter"); if (_old) _old.kill(); var p = __omni_motion_bgColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-692_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-695"); if (el) { var _old = __omni_animations.get("el-div-695_enter"); if (_old) _old.kill(); var p = __omni_motion_textColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-695_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-700"); if (el) { var _old = __omni_animations.get("el-div-700_enter"); if (_old) _old.kill(); var p = __omni_motion_widthDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-700_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-703"); if (el) { var _old = __omni_animations.get("el-div-703_enter"); if (_old) _old.kill(); var p = __omni_motion_heightDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-703_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-706"); if (el) { var _old = __omni_animations.get("el-div-706_enter"); if (_old) _old.kill(); var p = __omni_motion_spacingDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-706_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-792"); if (el) { var _old = __omni_animations.get("el-div-792_enter"); if (_old) _old.kill(); var p = __omni_motion_pulseWithCallback(el, {trigger: "enter"}); __omni_animations.set("el-div-792_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-853"); if (el) { var _old = __omni_animations.get("el-div-853_timeline"); if (_old) _old.kill(); var p = __omni_motion_positionDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-853_timeline", p); } })(); (function() { var el = __omni_el("el-div-866"); if (el) { var _old = __omni_animations.get("el-div-866_timeline"); if (_old) _old.kill(); var p = __omni_motion_simpleThenWith(el, {trigger: "timeline"}); __omni_animations.set("el-div-866_timeline", p); } })(); (function() { var el = __omni_el("el-div-926"); if (el) { var _old = __omni_animations.get("el-div-926_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerStart(el, {trigger: "enter"}); __omni_animations.set("el-div-926_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-934"); if (el) { var _old = __omni_animations.get("el-div-934_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEnd(el, {trigger: "enter"}); __omni_animations.set("el-div-934_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-942"); if (el) { var _old = __omni_animations.get("el-div-942_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEdges(el, {trigger: "enter"}); __omni_animations.set("el-div-942_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-949"); if (el) { var _old = __omni_animations.get("el-div-949_timeline"); if (_old) _old.kill(); var p = __omni_motion_connectorDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-949_timeline", p); } })(); (function() { var el = __omni_el("el-div-958"); if (el) { var _old = __omni_animations.get("el-div-958_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-958_timeline", p); } })(); (function() { var el = __omni_el("el-div-961"); if (el) { var _old = __omni_animations.get("el-div-961_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-961_timeline", p); } })(); (function() { var el = __omni_el("el-div-964"); if (el) { var _old = __omni_animations.get("el-div-964_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-964_timeline", p); } })(); (function() { var el = __omni_el("el-div-967"); if (el) { var _old = __omni_animations.get("el-div-967_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-967_timeline", p); } })(); (function() { var el = __omni_el("el-div-979"); if (el) { var _old = __omni_animations.get("el-div-979_enter"); if (_old) _old.kill(); var p = __omni_motion_dirReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-979_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-982"); if (el) { var _old = __omni_animations.get("el-div-982_enter"); if (_old) _old.kill(); var p = __omni_motion_dirAltReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-982_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-987"); if (el) { var _old = __omni_animations.get("el-div-987_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBackwards(el, {trigger: "enter"}); __omni_animations.set("el-div-987_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-990"); if (el) { var _old = __omni_animations.get("el-div-990_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBoth(el, {trigger: "enter"}); __omni_animations.set("el-div-990_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1036"); if (el) { var _old = __omni_animations.get("el-div-1036_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeEnter(el, {trigger: "enter"}); __omni_animations.set("el-div-1036_enter", p); if (el.offsetParent !== null) p.play(); } })()
+});
+// @effect NotificationsPanel
+__omni_effect(() => {
+  if (NotificationStore_unreadCount.value > 0) {
+  NotificationsPanel_badgeVisible.set(true);
+  }
 });
 // @mount UserSettings
   let raw = localStorage.getItem("user-settings");
@@ -11769,22 +11827,6 @@ __omni_effect(function __omni_enter_replay() {
 // @effect UserSettings
 __omni_effect(() => {
   UserSettings_saveSettings();
-});
-// @mount AddTodo
-  console.log("AddTodo mounted");
-// @effect AddTodo
-__omni_effect(() => {
-  if ((AddTodo_input.value || []).length > 20) {
-  console.log("输入较长：" + String((AddTodo_input.value || []).length) + " 字符");
-  }
-});
-// @mount DataTable
-  DataTable_initRows();
-// @effect NotificationsPanel
-__omni_effect(() => {
-  if (NotificationStore_unreadCount.value > 0) {
-  NotificationsPanel_badgeVisible.set(true);
-  }
 });
 
 })();

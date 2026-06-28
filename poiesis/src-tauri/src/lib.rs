@@ -44,30 +44,25 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     let mut discover_errors: Vec<String> = Vec::new();
 
     if project_dir.is_dir() {
-        match walkdir::WalkDir::new(project_dir)
+        for entry in walkdir::WalkDir::new(project_dir)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_name().to_string_lossy().ends_with(".omni"))
         {
-            Ok(entries) => {
-                for entry in entries {
-                    let path = entry.path();
-                    match std::fs::read_to_string(path) {
-                        Ok(content) => {
-                            let rel_path = path
-                                .strip_prefix(project_dir)
-                                .unwrap_or(path)
-                                .to_string_lossy()
-                                .to_string();
-                            sources.insert(rel_path, content);
-                        }
-                        Err(e) => {
-                            discover_errors.push(format!("Cannot read {:?}: {}", path, e));
-                        }
-                    }
+            let path = entry.path().to_owned();
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    let rel_path = path
+                        .strip_prefix(project_dir)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string();
+                    sources.insert(rel_path, content);
+                }
+                Err(e) => {
+                    discover_errors.push(format!("Cannot read {:?}: {}", path, e));
                 }
             }
-            Err(_) => {}
         }
     } else if project_dir.is_file() && project_dir.extension().map_or(false, |e| e == "omni") {
         match std::fs::read_to_string(project_dir) {
@@ -149,8 +144,8 @@ fn analyse_source(source: String, file_path: String) -> AnalyseResult {
                     code: "PARSE_ERROR".to_string(),
                     message: e.message,
                     file: file_path,
-                    line: e.line,
-                    col: e.column,
+                    line: e.span.line,
+                    col: e.span.col,
                 }],
             };
         }
@@ -161,12 +156,16 @@ fn analyse_source(source: String, file_path: String) -> AnalyseResult {
         .diagnostics
         .iter()
         .map(|d| Diagnostic {
-            severity: d.severity.clone(),
+            severity: match d.severity {
+                omnilang::error::Severity::Error => "error".to_string(),
+                omnilang::error::Severity::Warning => "warning".to_string(),
+                omnilang::error::Severity::Info => "info".to_string(),
+            },
             code: d.code.clone(),
             message: d.message.clone(),
             file: file_path.clone(),
             line: d.line,
-            col: d.column,
+            col: d.col,
         })
         .collect();
 

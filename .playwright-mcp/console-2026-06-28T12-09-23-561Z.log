@@ -1,0 +1,42 @@
+[      28ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      38ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[      39ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[      98ms] [LOG] Total items: 0 @ http://localhost:8789/index.js:11006
+[     101ms] [LOG] AddTodo mounted @ http://localhost:8789/index.js:11756
+[     106ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     106ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     132ms] [LOG] Total items: 0 @ http://localhost:8789/:20819
+[     134ms] [LOG] AddTodo mounted @ http://localhost:8789/:21569
+[     138ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[     138ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[     138ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     139ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     141ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     142ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     142ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     142ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     142ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     142ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     143ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     146ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     151ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     151ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     306ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     406ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     406ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     407ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     556ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[     707ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[    1056ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[    1057ms] [WARNING] Invalid keyframe value for property transform: 0 @ http://localhost:8789/:10649
+[  117596ms] [LOG] Timer started @ http://localhost:8789/:13534
+[  119099ms] [LOG] Timer stopped @ http://localhost:8789/:13539
+[  164812ms] [WARNING] Input is empty @ http://localhost:8789/:13672
+[  173963ms] [LOG] Total items: 1 @ http://localhost:8789/:20819
+[  204310ms] [LOG] Total items: 2 @ http://localhost:8789/:20819

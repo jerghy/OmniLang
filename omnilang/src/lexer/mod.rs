@@ -754,7 +754,7 @@ impl Lexer {
             "@press" => TokenKind::AtPress,
             "@focus" => TokenKind::AtFocus,
             "@animate" => TokenKind::AtAnimate,
-            "@in-view" => TokenKind::AtInView,
+            "@in-view" | "@inView" => TokenKind::AtInView,
             "@scroll" => TokenKind::AtScroll,
             "@drag-horizontal" | "@dragHorizontal" => TokenKind::AtDragHorizontal,
             "@drag-vertical" | "@dragVertical" => TokenKind::AtDragVertical,

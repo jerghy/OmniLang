@@ -2267,6 +2267,75 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         // IMPORTANT: MUST be before the void element return below, otherwise void
         // elements like <input> never get their motion triggers emitted!
         if !el.motion_triggers.is_empty() {
+            // Also emit HTML data attributes for each trigger so runtime can discover them
+            for trigger in &el.motion_triggers {
+                let data_attr = match trigger.kind {
+                    TriggerKind::Enter => "data-enter",
+                    TriggerKind::Leave => "data-leave",
+                    TriggerKind::Hover => "data-hover",
+                    TriggerKind::Unhover => "data-unhover",
+                    TriggerKind::Press => "data-press",
+                    TriggerKind::Focus => "data-focus",
+                    TriggerKind::Animate => "data-animate",
+                    TriggerKind::InView => "data-in-view",
+                    TriggerKind::Scroll => "data-scroll",
+                    TriggerKind::DragHorizontal => "data-drag-horizontal",
+                    TriggerKind::DragVertical => "data-drag-vertical",
+                    TriggerKind::Timeline => "data-timeline",
+                };
+                if let Some(ref motion_name) = trigger.motion_ref {
+                    attrs.push_str(&format!(" {}=\"{}\"", data_attr, escape_html(motion_name)));
+                }
+            }
+            // Sub-attributes for in-view
+            if let Some(ref once) = el.in_view_once {
+                let js_val = self.expr_to_js(once);
+                attrs.push_str(&format!(" data-in-view-once=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref repeat) = el.in_view_repeat {
+                let js_val = self.expr_to_js(repeat);
+                attrs.push_str(&format!(" data-in-view-repeat=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref threshold) = el.in_view_threshold {
+                let js_val = self.expr_to_js(threshold);
+                attrs.push_str(&format!(" data-in-view-threshold=\"{}\"", escape_html(&js_val)));
+            }
+            // Sub-attributes for scroll
+            if let Some(ref s) = el.scroll_start {
+                attrs.push_str(&format!(" data-scroll-start=\"{}\"", escape_html(s)));
+            }
+            if let Some(ref s) = el.scroll_end {
+                attrs.push_str(&format!(" data-scroll-end=\"{}\"", escape_html(s)));
+            }
+            if let Some(ref scrub) = el.scroll_scrub {
+                let js_val = self.expr_to_js(scrub);
+                attrs.push_str(&format!(" data-scroll-scrub=\"{}\"", escape_html(&js_val)));
+            }
+            // Sub-attributes for drag
+            if let Some(ref s) = el.drag_constraints {
+                attrs.push_str(&format!(" data-drag-constraints=\"{}\"", escape_html(s)));
+            }
+            if let Some(ref elastic) = el.drag_elastic {
+                let js_val = self.expr_to_js(elastic);
+                attrs.push_str(&format!(" data-drag-elastic=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref scrub) = el.drag_scrub {
+                let js_val = self.expr_to_js(scrub);
+                attrs.push_str(&format!(" data-drag-scrub=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref momentum) = el.drag_momentum {
+                let js_val = self.expr_to_js(momentum);
+                attrs.push_str(&format!(" data-drag-momentum=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref threshold) = el.drag_threshold {
+                let js_val = self.expr_to_js(threshold);
+                attrs.push_str(&format!(" data-drag-threshold=\"{}\"", escape_html(&js_val)));
+            }
+            if let Some(ref vel) = el.drag_velocity_max {
+                let js_val = self.expr_to_js(vel);
+                attrs.push_str(&format!(" data-drag-velocity-max=\"{}\"", escape_html(&js_val)));
+            }
+
             self.emit_motion_triggers_for_element(&nid, &el);
         }
 

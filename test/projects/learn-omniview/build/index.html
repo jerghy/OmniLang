@@ -103,7 +103,7 @@
                         </div>
                       </div>
                       <div data-nid="el-StatsDashboard-046" data-component="StatsDashboard">
-                        <div data-nid="el-div-047" data-ref="container" class="dashboard">
+                        <div data-nid="el-div-047" class="dashboard" data-ref="container">
                           <h3 data-nid="el-h3-048" class="title">
                             StatsDashboard Demo
                           </h3>
@@ -234,7 +234,7 @@
                               <h3 data-nid="el-h3-104" class="title">
                                 FeatureCard Demo
                               </h3>
-                              <input data-nid="el-input-105" placeholder="Click" class="input" />
+                              <input data-nid="el-input-105" class="input" placeholder="Click" />
                               <div data-nid="el-if-106-b0" style="display:none">
                                 <fragment data-nid="el-fragment-107">
                                   <span data-nid="el-span-108" class="badge-focused">
@@ -548,11 +548,11 @@
                       <label data-nid="el-label-241" class="field-label">
                         Title
                       </label>
-                      <input data-nid="el-input-242" class="field-input" placeholder="Enter title..." />
+                      <input data-nid="el-input-242" placeholder="Enter title..." class="field-input" />
                       <label data-nid="el-label-243" class="field-label">
                         Body
                       </label>
-                      <textarea data-nid="el-textarea-244" rows="3" placeholder="Enter body..." class="field-textarea">
+                      <textarea data-nid="el-textarea-244" placeholder="Enter body..." rows="3" class="field-textarea">
                       </textarea>
                       <div data-nid="el-div-245" class="btn-row">
                         <button data-nid="el-button-246" class="btn-submit">
@@ -647,7 +647,7 @@
                         <span data-nid="el-interp-285"></span>
                       </p>
                       <div data-nid="el-div-286" class="row">
-                        <input data-nid="el-input-287" placeholder="Enter text to validate..." class="input" />
+                        <input data-nid="el-input-287" class="input" placeholder="Enter text to validate..." />
                         <button data-nid="el-button-288" class="btn-validate">
                           <span data-nid="el-interp-289"></span>
                         </button>
@@ -943,7 +943,7 @@
                           <span data-nid="el-interp-414"></span>
                         </li>
                         <li data-nid="el-ListItem-415" class="summary-item">
-                          <img data-nid="el-img-416" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-416" src="/dot.png" alt="dot" />
                           Scroll events:
                           <span data-nid="el-interp-417"></span>
                         </li>
@@ -965,7 +965,7 @@
                           <span data-nid="el-interp-426"></span>
                         </li>
                         <li data-nid="el-ListItem-427" class="features-item">
-                          <img data-nid="el-img-428" src="/dot.png" alt="dot" />
+                          <img data-nid="el-img-428" alt="dot" src="/dot.png" />
                           Grade for 59:
                           <span data-nid="el-interp-429"></span>
                         </li>
@@ -978,7 +978,7 @@
                     </div>
                     <hr data-nid="el-hr-433" />
                     <div data-nid="el-div-434" class="footer-row">
-                      <img data-nid="el-img-435" src="/dot.png" alt="dot" />
+                      <img data-nid="el-img-435" alt="dot" src="/dot.png" />
                       <p data-nid="el-p-436" class="footer-text">
                         DataTable Phase 4 Demo
                       </p>
@@ -997,7 +997,7 @@
                         <label data-nid="el-label-443" for="name" class="label">
                           Name
                         </label>
-                        <input data-nid="el-input-444" required placeholder="Your name" data-testid="name-field" id="name" class="input" aria-label="Full name input" data-type="text" />
+                        <input data-nid="el-input-444" aria-label="Full name input" data-testid="name-field" required class="input" data-type="text" id="name" placeholder="Your name" />
                         <div data-nid="el-if-445-b0" style="display:none">
                           <fragment data-nid="el-fragment-446">
                             <span data-nid="el-span-447" class="error-text">
@@ -1010,7 +1010,7 @@
                         <label data-nid="el-label-450" for="email" class="label">
                           Email
                         </label>
-                        <input data-nid="el-input-451" aria-label="Email address input" class="input" required data-testid="email-field" placeholder="your@email.com" data-type="email" id="email" />
+                        <input data-nid="el-input-451" id="email" placeholder="your@email.com" required data-testid="email-field" data-type="email" aria-label="Email address input" class="input" />
                         <div data-nid="el-if-452-b0" style="display:none">
                           <fragment data-nid="el-fragment-453">
                             <span data-nid="el-span-454" class="error-text">
@@ -1020,23 +1020,23 @@
                         </div>
                       </div>
                       <div data-nid="el-div-456" class="field">
-                        <label data-nid="el-label-457" for="msg" class="label">
+                        <label data-nid="el-label-457" class="label" for="msg">
                           Message
                         </label>
-                        <textarea data-nid="el-textarea-458" data-testid="msg-field" placeholder="Your message (optional)" id="msg" aria-label="Message input" class="textarea">
+                        <textarea data-nid="el-textarea-458" data-testid="msg-field" placeholder="Your message (optional)" aria-label="Message input" class="textarea" id="msg">
                         </textarea>
                       </div>
                       <div data-nid="el-div-459" class="field">
-                        <label data-nid="el-label-460" class="label" for="disabled-field">
+                        <label data-nid="el-label-460" for="disabled-field" class="label">
                           Disabled field
                         </label>
-                        <input data-nid="el-input-461" disabled placeholder="This field is disabled" id="disabled-field" aria-label="Disabled input" data-testid="disabled-field" class="input" />
+                        <input data-nid="el-input-461" class="input" id="disabled-field" disabled aria-label="Disabled input" data-testid="disabled-field" placeholder="This field is disabled" />
                       </div>
                       <div data-nid="el-div-462" class="field">
                         <label data-nid="el-label-463" class="label" for="readonly-field">
                           Readonly field
                         </label>
-                        <input data-nid="el-input-464" readonly class="input" value="Read-only value" id="readonly-field" aria-label="Read-only input" data-testid="readonly-field" />
+                        <input data-nid="el-input-464" class="input" readonly aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" value="Read-only value" />
                       </div>
                       <div data-nid="el-div-465" class="scroll-box">
                         <p data-nid="el-p-466" class="scroll-title">
@@ -1078,10 +1078,10 @@
                         </fragment>
                       </div>
                       <div data-nid="el-div-481" class="actions">
-                        <button data-nid="el-button-482" type="submit" data-testid="submit-btn" class="submit-btn" aria-label="Submit form">
+                        <button data-nid="el-button-482" class="submit-btn" aria-label="Submit form" data-testid="submit-btn" type="submit">
                           Submit
                         </button>
-                        <button data-nid="el-button-483" data-testid="reset-btn" class="reset-btn" aria-label="Reset form" type="button">
+                        <button data-nid="el-button-483" aria-label="Reset form" type="button" class="reset-btn" data-testid="reset-btn">
                           Reset
                         </button>
                       </div>
@@ -1177,29 +1177,29 @@
               <div data-nid="el-div-522" class="demo-full">
                 <div data-nid="el-MotionDemo-523" data-component="MotionDemo">
                   <div data-nid="el-div-524">
-                    <h1 data-nid="el-h1-525">
+                    <h1 data-nid="el-h1-525" data-enter="fadeInUp">
                       Motion Demo
                     </h1>
                     <p data-nid="el-p-526">
                       Count:
                       <span data-nid="el-interp-527"></span>
                     </p>
-                    <button data-nid="el-button-528">
+                    <button data-nid="el-button-528" data-press="scalePress" data-hover="pulse">
                       Toggle Modal
                     </button>
                     <div data-nid="el-if-529-b0" style="display:none">
                       <fragment data-nid="el-fragment-530">
-                        <div data-nid="el-div-531">
+                        <div data-nid="el-div-531" data-enter="fadeInUp" data-leave="fadeInUp">
                           <h2 data-nid="el-h2-532">
                             Modal Content
                           </h2>
                         </div>
                       </fragment>
                     </div>
-                    <button data-nid="el-button-533">
+                    <button data-nid="el-button-533" data-press="scalePress">
                       Add Item
                     </button>
-                    <button data-nid="el-button-534">
+                    <button data-nid="el-button-534" data-press="scalePress">
                       Remove Item
                     </button>
                     <div data-nid="el-div-535">
@@ -1218,42 +1218,42 @@
                       fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖
                     </p>
                     <div data-nid="el-div-541" class="grid">
-                      <div data-nid="el-div-542" class="card">
+                      <div data-nid="el-div-542" class="card" data-enter="fillDemo">
                         <h4 data-nid="el-h4-543" class="label">
                           fill forwards
                         </h4>
                       </div>
-                      <div data-nid="el-div-544" class="card">
+                      <div data-nid="el-div-544" class="card" data-enter="delayedEntrance">
                         <h4 data-nid="el-h4-545" class="label">
                           delay + repeatDelay + repeatRefresh
                         </h4>
                       </div>
-                      <div data-nid="el-div-546" class="card">
+                      <div data-nid="el-div-546" class="card" data-enter="slowSpin">
                         <h4 data-nid="el-h4-547" class="label">
                           timeScale 0.5
                         </h4>
                       </div>
-                      <div data-nid="el-div-548" class="card">
+                      <div data-nid="el-div-548" class="card" data-enter="interruptDemo">
                         <h4 data-nid="el-h4-549" class="label">
                           interrupt queue
                         </h4>
                       </div>
-                      <div data-nid="el-div-550" class="card">
+                      <div data-nid="el-div-550" class="card" data-enter="accessibleAnim">
                         <h4 data-nid="el-h4-551" class="label">
                           respectReducedMotion
                         </h4>
                       </div>
-                      <div data-nid="el-div-552" class="card">
+                      <div data-nid="el-div-552" class="card" data-enter="staggeredList">
                         <h4 data-nid="el-h4-553" class="label">
                           staggerChildren · staggerFrom
                         </h4>
                       </div>
-                      <div data-nid="el-div-554" class="card">
+                      <div data-nid="el-div-554" class="card" data-enter="pathAnim">
                         <h4 data-nid="el-h4-555" class="label">
                           paused · path · pathRotate
                         </h4>
                       </div>
-                      <div data-nid="el-div-556" class="card">
+                      <div data-nid="el-div-556" class="card" data-enter="multiStopColor">
                         <h4 data-nid="el-h4-557" class="label">
                           multi-stop · colorSpace lab
                         </h4>
@@ -1271,14 +1271,14 @@
                     <p data-nid="el-p-562" class="subtitle">
                       24 种未测试缓动 · 点击按钮播放当前屏幕所有  动画
                     </p>
-                    <button data-nid="el-button-563" class="trigger-btn">
+                    <button data-nid="el-button-563" class="trigger-btn" data-press="springStiff">
                       <span data-nid="el-interp-564"></span>
                     </button>
                     <h4 data-nid="el-h4-565" class="group-title">
                       Power 曲线（easeIn · power1 · power2 · power3 · power4）
                     </h4>
                     <div data-nid="el-div-566" class="grid">
-                      <div data-nid="el-div-567" class="card">
+                      <div data-nid="el-div-567" class="card" data-enter="easeInMove">
                         <strong data-nid="el-strong-568">
                           easeIn
                         </strong>
@@ -1286,7 +1286,7 @@
                           三次方加速
                         </p>
                       </div>
-                      <div data-nid="el-div-570" class="card">
+                      <div data-nid="el-div-570" class="card" data-enter="power1InMove">
                         <strong data-nid="el-strong-571">
                           power1In
                         </strong>
@@ -1294,7 +1294,7 @@
                           二次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-573" class="card">
+                      <div data-nid="el-div-573" class="card" data-enter="power1OutMove">
                         <strong data-nid="el-strong-574">
                           power1Out
                         </strong>
@@ -1302,7 +1302,7 @@
                           二次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-576" class="card">
+                      <div data-nid="el-div-576" class="card" data-enter="power1InOutMove">
                         <strong data-nid="el-strong-577">
                           power1InOut
                         </strong>
@@ -1310,7 +1310,7 @@
                           二次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-579" class="card">
+                      <div data-nid="el-div-579" class="card" data-enter="power2InMove">
                         <strong data-nid="el-strong-580">
                           power2In
                         </strong>
@@ -1318,7 +1318,7 @@
                           三次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-582" class="card">
+                      <div data-nid="el-div-582" class="card" data-enter="power2InOutMove">
                         <strong data-nid="el-strong-583">
                           power2InOut
                         </strong>
@@ -1326,7 +1326,7 @@
                           三次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-585" class="card">
+                      <div data-nid="el-div-585" class="card" data-enter="power3InMove">
                         <strong data-nid="el-strong-586">
                           power3In
                         </strong>
@@ -1334,7 +1334,7 @@
                           四次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-588" class="card">
+                      <div data-nid="el-div-588" class="card" data-enter="power3InOutMove">
                         <strong data-nid="el-strong-589">
                           power3InOut
                         </strong>
@@ -1342,7 +1342,7 @@
                           四次方出入
                         </p>
                       </div>
-                      <div data-nid="el-div-591" class="card">
+                      <div data-nid="el-div-591" class="card" data-enter="power4InMove">
                         <strong data-nid="el-strong-592">
                           power4In
                         </strong>
@@ -1350,7 +1350,7 @@
                           五次方入
                         </p>
                       </div>
-                      <div data-nid="el-div-594" class="card">
+                      <div data-nid="el-div-594" class="card" data-enter="power4OutMove">
                         <strong data-nid="el-strong-595">
                           power4Out
                         </strong>
@@ -1358,7 +1358,7 @@
                           五次方出
                         </p>
                       </div>
-                      <div data-nid="el-div-597" class="card">
+                      <div data-nid="el-div-597" class="card" data-enter="power4InOutMove">
                         <strong data-nid="el-strong-598">
                           power4InOut
                         </strong>
@@ -1371,7 +1371,7 @@
                       Back 弹回（带可选 intensity 参数）
                     </h4>
                     <div data-nid="el-div-601" class="grid">
-                      <div data-nid="el-div-602" class="card">
+                      <div data-nid="el-div-602" class="card" data-enter="backInMove">
                         <strong data-nid="el-strong-603">
                           backIn
                         </strong>
@@ -1379,7 +1379,7 @@
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-605" class="card">
+                      <div data-nid="el-div-605" class="card" data-enter="backOutMove">
                         <strong data-nid="el-strong-606">
                           backOut
                         </strong>
@@ -1387,7 +1387,7 @@
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-608" class="card">
+                      <div data-nid="el-div-608" class="card" data-enter="backInOutMove">
                         <strong data-nid="el-strong-609">
                           backInOut
                         </strong>
@@ -1395,7 +1395,7 @@
                           默认 intensity 1.7
                         </p>
                       </div>
-                      <div data-nid="el-div-611" class="card">
+                      <div data-nid="el-div-611" class="card" data-enter="backOutIntensity">
                         <strong data-nid="el-strong-612">
                           backOut(3.5)
                         </strong>
@@ -1408,7 +1408,7 @@
                       Bounce 弹跳
                     </h4>
                     <div data-nid="el-div-615" class="grid">
-                      <div data-nid="el-div-616" class="card">
+                      <div data-nid="el-div-616" class="card" data-enter="bounceInMove">
                         <strong data-nid="el-strong-617">
                           bounceIn
                         </strong>
@@ -1416,7 +1416,7 @@
                           弹跳入
                         </p>
                       </div>
-                      <div data-nid="el-div-619" class="card">
+                      <div data-nid="el-div-619" class="card" data-enter="bounceOutMove">
                         <strong data-nid="el-strong-620">
                           bounceOut
                         </strong>
@@ -1424,7 +1424,7 @@
                           弹跳出
                         </p>
                       </div>
-                      <div data-nid="el-div-622" class="card">
+                      <div data-nid="el-div-622" class="card" data-enter="bounceInOutMove">
                         <strong data-nid="el-strong-623">
                           bounceInOut
                         </strong>
@@ -1437,7 +1437,7 @@
                       Elastic 弹性（带可选 amplitude/period 参数）
                     </h4>
                     <div data-nid="el-div-626" class="grid">
-                      <div data-nid="el-div-627" class="card">
+                      <div data-nid="el-div-627" class="card" data-enter="elasticInMove">
                         <strong data-nid="el-strong-628">
                           elasticIn
                         </strong>
@@ -1445,7 +1445,7 @@
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-630" class="card">
+                      <div data-nid="el-div-630" class="card" data-enter="elasticOutMove">
                         <strong data-nid="el-strong-631">
                           elasticOut
                         </strong>
@@ -1453,7 +1453,7 @@
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-633" class="card">
+                      <div data-nid="el-div-633" class="card" data-enter="elasticInOutMove">
                         <strong data-nid="el-strong-634">
                           elasticInOut
                         </strong>
@@ -1461,7 +1461,7 @@
                           默认振幅 1.0/周期 0.5
                         </p>
                       </div>
-                      <div data-nid="el-div-636" class="card">
+                      <div data-nid="el-div-636" class="card" data-enter="elasticCustomMove">
                         <strong data-nid="el-strong-637">
                           elasticOut(2,0.8)
                         </strong>
@@ -1474,7 +1474,7 @@
                       Spring 物理缓动（tension · friction · velocity）
                     </h4>
                     <div data-nid="el-div-640" class="grid">
-                      <div data-nid="el-div-641" class="card">
+                      <div data-nid="el-div-641" class="card" data-enter="springDefault">
                         <strong data-nid="el-strong-642">
                           spring(180,12)
                         </strong>
@@ -1482,7 +1482,7 @@
                           默认弹簧参数
                         </p>
                       </div>
-                      <div data-nid="el-div-644" class="card">
+                      <div data-nid="el-div-644" class="card" data-enter="springBouncy">
                         <strong data-nid="el-strong-645">
                           spring(120,8,2)
                         </strong>
@@ -1490,7 +1490,7 @@
                           弹性大·阻尼小
                         </p>
                       </div>
-                      <div data-nid="el-div-647" class="card">
+                      <div data-nid="el-div-647" class="card" data-enter="springStiff">
                         <strong data-nid="el-strong-648">
                           spring(400,30)
                         </strong>
@@ -1503,7 +1503,7 @@
                       自定义缓动（cubic-bezier · steps）
                     </h4>
                     <div data-nid="el-div-651" class="grid">
-                      <div data-nid="el-div-652" class="card">
+                      <div data-nid="el-div-652" class="card" data-enter="cubicCustom">
                         <strong data-nid="el-strong-653">
                           cubic(x1,y1,x2,y2)
                         </strong>
@@ -1511,7 +1511,7 @@
                           自定义贝塞尔 overshoot
                         </p>
                       </div>
-                      <div data-nid="el-div-655" class="card">
+                      <div data-nid="el-div-655" class="card" data-enter="stepsDemo">
                         <strong data-nid="el-strong-656">
                           steps(6,end)
                         </strong>
@@ -1539,7 +1539,7 @@
                       3D 变换组（scaleX · scaleY · rotateX · rotateY · rotateZ）
                     </h4>
                     <div data-nid="el-div-666" class="grid">
-                      <div data-nid="el-div-667" class="card">
+                      <div data-nid="el-div-667" class="card" data-enter="scaleXDemo">
                         <strong data-nid="el-strong-668">
                           scaleX
                         </strong>
@@ -1547,7 +1547,7 @@
                           X 轴 1→1.8 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-670" class="card">
+                      <div data-nid="el-div-670" class="card" data-enter="scaleYDemo">
                         <strong data-nid="el-strong-671">
                           scaleY
                         </strong>
@@ -1555,7 +1555,7 @@
                           Y 轴 1→1.5 缩放
                         </p>
                       </div>
-                      <div data-nid="el-div-673" class="card">
+                      <div data-nid="el-div-673" class="card" data-enter="rotateXDemo">
                         <strong data-nid="el-strong-674">
                           rotateX
                         </strong>
@@ -1563,7 +1563,7 @@
                           X 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-676" class="card">
+                      <div data-nid="el-div-676" class="card" data-enter="rotateYDemo">
                         <strong data-nid="el-strong-677">
                           rotateY
                         </strong>
@@ -1571,7 +1571,7 @@
                           Y 轴 360° 旋转
                         </p>
                       </div>
-                      <div data-nid="el-div-679" class="card">
+                      <div data-nid="el-div-679" class="card" data-enter="rotateZDemo">
                         <strong data-nid="el-strong-680">
                           rotateZ
                         </strong>
@@ -1584,7 +1584,7 @@
                       滤镜组（blur · brightness）
                     </h4>
                     <div data-nid="el-div-683" class="grid">
-                      <div data-nid="el-div-684" class="card">
+                      <div data-nid="el-div-684" class="card" data-enter="blurDemo">
                         <strong data-nid="el-strong-685">
                           blur
                         </strong>
@@ -1592,7 +1592,7 @@
                           模糊 0→6px 脉冲
                         </p>
                       </div>
-                      <div data-nid="el-div-687" class="card">
+                      <div data-nid="el-div-687" class="card" data-enter="brightnessDemo">
                         <strong data-nid="el-strong-688">
                           brightness
                         </strong>
@@ -1605,7 +1605,7 @@
                       颜色组（backgroundColor · color · borderColor · borderRadius）
                     </h4>
                     <div data-nid="el-div-691" class="grid">
-                      <div data-nid="el-div-692" class="card">
+                      <div data-nid="el-div-692" class="card" data-enter="bgColorDemo">
                         <strong data-nid="el-strong-693">
                           backgroundColor + borderRadius
                         </strong>
@@ -1613,7 +1613,7 @@
                           背景色与圆角联动
                         </p>
                       </div>
-                      <div data-nid="el-div-695" class="card-border">
+                      <div data-nid="el-div-695" class="card-border" data-enter="textColorDemo">
                         <strong data-nid="el-strong-696">
                           color + borderColor
                         </strong>
@@ -1626,7 +1626,7 @@
                       尺寸组（width · height · margin · padding）
                     </h4>
                     <div data-nid="el-div-699" class="grid">
-                      <div data-nid="el-div-700" class="box">
+                      <div data-nid="el-div-700" class="box" data-enter="widthDemo">
                         <strong data-nid="el-strong-701">
                           width
                         </strong>
@@ -1634,7 +1634,7 @@
                           宽度 60→200px
                         </p>
                       </div>
-                      <div data-nid="el-div-703" class="box">
+                      <div data-nid="el-div-703" class="box" data-enter="heightDemo">
                         <strong data-nid="el-strong-704">
                           height
                         </strong>
@@ -1642,7 +1642,7 @@
                           高度 40→120px
                         </p>
                       </div>
-                      <div data-nid="el-div-706" class="card">
+                      <div data-nid="el-div-706" class="card" data-enter="spacingDemo">
                         <strong data-nid="el-strong-707">
                           margin + padding
                         </strong>
@@ -1661,13 +1661,13 @@
                       Motion Triggers Demo
                     </h3>
                     <p data-nid="el-p-713" class="subtitle">
-                       ·  ·  · @inView ·  · @drag
+                       ·  ·  ·  ·  · @drag
                     </p>
                     <div data-nid="el-div-714" class="card">
                       <h4 data-nid="el-h4-715" class="label">
                          触发器
                       </h4>
-                      <button data-nid="el-button-716" class="btn-hover">
+                      <button data-nid="el-button-716" class="btn-hover" data-hover="unbounce" data-unhover="unbounce">
                         Hover then leave
                       </button>
                     </div>
@@ -1675,13 +1675,13 @@
                       <h4 data-nid="el-h4-718" class="label">
                          触发器
                       </h4>
-                      <input data-nid="el-input-719" class="input-focus" placeholder="Focus me" />
+                      <input data-nid="el-input-719" placeholder="Focus me" class="input-focus" data-focus="focusGlow" />
                     </div>
                     <div data-nid="el-div-720" class="card">
                       <h4 data-nid="el-h4-721" class="label">
                          触发器（持续循环）
                       </h4>
-                      <div data-nid="el-div-722" class="spin-box">
+                      <div data-nid="el-div-722" class="spin-box" data-animate="autoSpin">
                         <p data-nid="el-p-723">
                           ↻
                         </p>
@@ -1689,14 +1689,14 @@
                     </div>
                     <div data-nid="el-div-724" class="card">
                       <h4 data-nid="el-h4-725" class="label">
-                        @inView 触发器 + 子属性
+                         触发器 + 子属性
                       </h4>
-                      <div data-nid="el-div-726">
+                      <div data-nid="el-div-726" data-in-view="slideInView" data-in-view-once="true">
                         <p data-nid="el-p-727">
                           Slide in once
                         </p>
                       </div>
-                      <div data-nid="el-div-728">
+                      <div data-nid="el-div-728" data-in-view="slideInView" data-in-view-repeat="true" data-in-view-threshold="0.5">
                         <p data-nid="el-p-729">
                           Slide in repeat (threshold 0.5)
                         </p>
@@ -1706,7 +1706,7 @@
                       <h4 data-nid="el-h4-731" class="label">
                          触发器 + scroll-start/end/scrub
                       </h4>
-                      <div data-nid="el-div-732" class="scroll-area">
+                      <div data-nid="el-div-732" class="scroll-area" data-scroll="scrollFade" data-scroll-start="top 80%" data-scroll-end="bottom 20%" data-scroll-scrub="0.5">
                         <p data-nid="el-p-733">
                           Scroll to animate
                         </p>
@@ -1716,12 +1716,12 @@
                       <h4 data-nid="el-h4-735" class="label">
                         @dragHorizontal / @dragVertical 拖拽
                       </h4>
-                      <div data-nid="el-div-736" class="drag-box">
+                      <div data-nid="el-div-736" class="drag-box" data-drag-horizontal="dragSlide" data-drag-constraints="left:0 right:300" data-drag-elastic="0.2" data-drag-scrub="true" data-drag-momentum="0.95" data-drag-threshold="30" data-drag-velocity-max="2000">
                         <p data-nid="el-p-737">
                           Drag me →
                         </p>
                       </div>
-                      <div data-nid="el-div-738" class="drag-box-vertical">
+                      <div data-nid="el-div-738" class="drag-box-vertical" data-drag-vertical="dragSlide" data-drag-constraints="top:0 bottom:200" data-drag-elastic="0.3" data-drag-scrub="true" data-drag-momentum="0.9">
                         <p data-nid="el-p-739">
                           Drag me ↓
                         </p>
@@ -1850,7 +1850,7 @@
                       </p>
                       <div data-nid="el-div-790" class="demo-content">
                         <div data-nid="el-div-791" class="callback-box-area">
-                          <div data-nid="el-div-792" class="anim-box pulse">
+                          <div data-nid="el-div-792" class="anim-box pulse" data-enter="pulseWithCallback">
                             <span data-nid="el-span-793" class="anim-icon">
                               <span data-nid="el-interp-794"></span>
                             </span>
@@ -2016,7 +2016,7 @@
                     </p>
                     <div data-nid="el-if-851-b0" style="display:none">
                       <fragment data-nid="el-fragment-852">
-                        <div data-nid="el-div-853" class="timeline-area">
+                        <div data-nid="el-div-853" class="timeline-area" data-timeline="positionDemo">
                           <h4 data-nid="el-h4-854" class="area-title">
                              with start: Position Modes
                           </h4>
@@ -2051,7 +2051,7 @@
                     </div>
                     <div data-nid="el-if-864-b0" style="display:none">
                       <fragment data-nid="el-fragment-865">
-                        <div data-nid="el-div-866" class="timeline-area">
+                        <div data-nid="el-div-866" class="timeline-area" data-timeline="simpleThenWith">
                           <h4 data-nid="el-h4-867" class="area-title">
                              with then / with (无定位修饰符)
                           </h4>
@@ -2221,7 +2221,7 @@
                       <strong data-nid="el-strong-925">
                         staggerFrom start
                       </strong>
-                      <div data-nid="el-div-926" class="stagger-row">
+                      <div data-nid="el-div-926" class="stagger-row" data-enter="staggerStart">
                         <div data-nid="el-div-927" class="dot">
                           1
                         </div>
@@ -2243,7 +2243,7 @@
                       <strong data-nid="el-strong-933">
                         staggerFrom end
                       </strong>
-                      <div data-nid="el-div-934" class="stagger-row">
+                      <div data-nid="el-div-934" class="stagger-row" data-enter="staggerEnd">
                         <div data-nid="el-div-935" class="dot">
                           1
                         </div>
@@ -2265,7 +2265,7 @@
                       <strong data-nid="el-strong-941">
                         staggerFrom edges
                       </strong>
-                      <div data-nid="el-div-942" class="stagger-row">
+                      <div data-nid="el-div-942" class="stagger-row" data-enter="staggerEdges">
                         <div data-nid="el-div-943" class="dot">
                           1
                         </div>
@@ -2286,14 +2286,14 @@
                     <h4 data-nid="el-h4-948" class="group-title">
                       时间线连接器: then（顺序） + with（并行）+ MotionRef
                     </h4>
-                    <div data-nid="el-div-949" class="timeline-area">
+                    <div data-nid="el-div-949" class="timeline-area" data-timeline="connectorDemo">
                       <div data-nid="el-div-950" class="tl-label">
                         phase1（set 后）
                       </div>
                       <div data-nid="el-div-951" class="tl-box" data-box="box1">
                         box1 · then →
                       </div>
-                      <div data-nid="el-div-952" class="tl-box" data-box="box2">
+                      <div data-nid="el-div-952" data-box="box2" class="tl-box">
                         box2 · with（与 refMotion 并行）
                       </div>
                       <div data-nid="el-div-953" class="tl-box" data-box="box3">
@@ -2302,7 +2302,7 @@
                       <div data-nid="el-div-954" class="tl-label">
                         outro
                       </div>
-                      <div data-nid="el-div-955" class="tl-box" data-box="box4">
+                      <div data-nid="el-div-955" data-box="box4" class="tl-box">
                         box4 · with outro
                       </div>
                     </div>
@@ -2311,14 +2311,14 @@
               </div>
               <div data-nid="el-div-956" class="demo-full">
                 <div data-nid="el-TimelineMotionDemo-957" data-component="TimelineMotionDemo">
-                  <div data-nid="el-div-958" class="container">
+                  <div data-nid="el-div-958" class="container" data-timeline="pageEnter">
                     <h3 data-nid="el-h3-959" class="title">
                       Timeline Motion Demo
                     </h3>
                     <p data-nid="el-p-960" class="subtitle">
                        · set · stagger · label
                     </p>
-                    <div data-nid="el-div-961" class="card">
+                    <div data-nid="el-div-961" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-962" class="label">
                         header
                       </h4>
@@ -2326,7 +2326,7 @@
                         包含在 pageEnter timeline 中
                       </p>
                     </div>
-                    <div data-nid="el-div-964" class="card">
+                    <div data-nid="el-div-964" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-965" class="label">
                         body
                       </h4>
@@ -2334,7 +2334,7 @@
                         stagger 0.05s 逐个入场
                       </p>
                     </div>
-                    <div data-nid="el-div-967" class="card">
+                    <div data-nid="el-div-967" class="card" data-timeline="pageEnter">
                       <h4 data-nid="el-h4-968" class="label">
                         footer
                       </h4>
@@ -2361,7 +2361,7 @@
                       Direction 方向（reverse · alternateReverse）
                     </h4>
                     <div data-nid="el-div-978" class="grid">
-                      <div data-nid="el-div-979" class="card">
+                      <div data-nid="el-div-979" class="card" data-enter="dirReverse">
                         <strong data-nid="el-strong-980">
                           direction reverse
                         </strong>
@@ -2369,7 +2369,7 @@
                           反向播放（终点→起点）
                         </p>
                       </div>
-                      <div data-nid="el-div-982" class="card">
+                      <div data-nid="el-div-982" class="card" data-enter="dirAltReverse">
                         <strong data-nid="el-strong-983">
                           direction alternateReverse
                         </strong>
@@ -2382,7 +2382,7 @@
                       Fill 填充（backwards · both）
                     </h4>
                     <div data-nid="el-div-986" class="grid">
-                      <div data-nid="el-div-987" class="card">
+                      <div data-nid="el-div-987" class="card" data-enter="fillBackwards">
                         <strong data-nid="el-strong-988">
                           fill backwards
                         </strong>
@@ -2390,7 +2390,7 @@
                           delay 500ms 前即跳到 from 态
                         </p>
                       </div>
-                      <div data-nid="el-div-990" class="card">
+                      <div data-nid="el-div-990" class="card" data-enter="fillBoth">
                         <strong data-nid="el-strong-991">
                           fill both
                         </strong>
@@ -2403,7 +2403,7 @@
                       Interrupt 中断行为（stop · complete · replace）
                     </h4>
                     <div data-nid="el-div-994" class="grid">
-                      <div data-nid="el-div-995" class="card">
+                      <div data-nid="el-div-995" class="card" data-animate="intStop">
                         <strong data-nid="el-strong-996">
                           interrupt stop
                         </strong>
@@ -2411,7 +2411,7 @@
                           中断即停在当前值
                         </p>
                       </div>
-                      <div data-nid="el-div-998" class="card">
+                      <div data-nid="el-div-998" class="card" data-animate="intComplete">
                         <strong data-nid="el-strong-999">
                           interrupt complete
                         </strong>
@@ -2419,7 +2419,7 @@
                           中断时快速跳到终点
                         </p>
                       </div>
-                      <div data-nid="el-div-1001" class="card">
+                      <div data-nid="el-div-1001" class="card" data-animate="intReplace">
                         <strong data-nid="el-strong-1002">
                           interrupt replace
                         </strong>
@@ -2503,7 +2503,7 @@
                       </button>
                       <div data-nid="el-if-1034-b0" style="display:none">
                         <fragment data-nid="el-fragment-1035">
-                          <div data-nid="el-div-1036" class="panel">
+                          <div data-nid="el-div-1036" class="panel" data-enter="fadeEnter" data-leave="fadeSlideOut">
                             <p data-nid="el-p-1037">
                               这个面板会在旧面板离开动画完成后才渲染
                             </p>
@@ -3270,7 +3270,7 @@
                           Checkbox with checked attribute:
                         </p>
                         <label data-nid="el-label-1310" class="check-label">
-                          <input data-nid="el-input-1311" type="checkbox" class="demo-checkbox" />
+                          <input data-nid="el-input-1311" class="demo-checkbox" type="checkbox" />
                           <span data-nid="el-span-1312" class="check-text">
                             I agree to the terms
                           </span>
@@ -3284,7 +3284,7 @@
                         <p data-nid="el-p-1316" class="section-title">
                           Number input with min/max/step:
                         </p>
-                        <input data-nid="el-input-1317" type="number" title="Enter your age (0-120)" max="120" min="0" value class="demo-input" step="1" />
+                        <input data-nid="el-input-1317" title="Enter your age (0-120)" min="0" step="1" type="number" class="demo-input" max="120" value />
                         <p data-nid="el-p-1318" class="select-value">
                           Age:
                           <span data-nid="el-interp-1319"></span>
@@ -3294,7 +3294,7 @@
                         <p data-nid="el-p-1321" class="section-title">
                           Range slider with min/max/step:
                         </p>
-                        <input data-nid="el-input-1322" max="100" type="range" value step="5" title="Select a value (0-100, step 5)" class="demo-range" min="0" />
+                        <input data-nid="el-input-1322" type="range" max="100" title="Select a value (0-100, step 5)" step="5" class="demo-range" value min="0" />
                         <p data-nid="el-p-1323" class="select-value">
                           Range:
                           <span data-nid="el-interp-1324"></span>
@@ -3558,7 +3558,7 @@
                           <video data-nid="el-video-1430" class="media" width="200" controls>
                             <source data-nid="el-source-1431" src="sample.mp4" type="video/mp4" />
                           </video>
-                          <audio data-nid="el-audio-1432" class="media" controls>
+                          <audio data-nid="el-audio-1432" controls class="media">
                             <source data-nid="el-source-1433" src="sample.mp3" type="audio/mpeg" />
                           </audio>
                         </figure>
@@ -3569,17 +3569,17 @@
                           <img data-nid="el-img-1437" alt="responsive" src="fallback.jpg" />
                         </picture>
                         <map data-nid="el-map-1438" name="demo-map">
-                          <area data-nid="el-area-1439" href="#area1" coords="0,0,50,50" shape="rect" alt="Area 1" />
+                          <area data-nid="el-area-1439" alt="Area 1" coords="0,0,50,50" shape="rect" href="#area1" />
                         </map>
                       </section>
                       <section data-nid="el-section-1440" class="tag-section">
                         <h4 data-nid="el-h4-1441" class="tag-group">
                           度量与进度
                         </h4>
-                        <progress data-nid="el-progress-1442" class="progress" value="70" max="100">
+                        <progress data-nid="el-progress-1442" value="70" class="progress" max="100">
                           70%
                         </progress>
-                        <meter data-nid="el-meter-1443" min="0" max="1" value="0.6" class="meter">
+                        <meter data-nid="el-meter-1443" value="0.6" class="meter" max="1" min="0">
                           60%
                         </meter>
                       </section>
@@ -4277,7 +4277,7 @@
                           bind:checked 复选框绑定
                         </h4>
                         <label data-nid="el-label-1721" class="checkbox-label">
-                          <input data-nid="el-input-1722" type="checkbox" data-testid="agree-checkbox" />
+                          <input data-nid="el-input-1722" data-testid="agree-checkbox" type="checkbox" />
                           <span data-nid="el-span-1723">
                             同意条款:
                             <span data-nid="el-interp-1724"></span>
@@ -4288,7 +4288,7 @@
                         <h4 data-nid="el-h4-1726" class="label">
                           bind:value 文本输入
                         </h4>
-                        <textarea data-nid="el-textarea-1727" placeholder="输入文本..." class="rich-input">
+                        <textarea data-nid="el-textarea-1727" class="rich-input" placeholder="输入文本...">
                         </textarea>
                         <p data-nid="el-p-1728" class="preview">
                           预览:
