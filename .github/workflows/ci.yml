@@ -30,40 +30,6 @@ jobs:
             target/release/libomnilang.so
             target/release/libomnilang.dylib
 
-  wasm:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
-      - name: Build WASM
-        run: bash scripts/build-wasm.sh
-
-  python:
-    runs-on: ${{ matrix.os }}
-    needs: rust
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Download DLL artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: omnilang-${{ matrix.os }}
-          path: target/release/
-      - name: Install omnic
-        run: pip install -e omnic/[dev]
-      - name: Run Python tests
-        run: pytest omnic/tests/ -v
-
   frontend:
     runs-on: ubuntu-latest
     steps:

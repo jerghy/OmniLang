@@ -1,0 +1,77 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  lib/validation.omni —— 输入验证模块                            ║
+// ║  演示：for..in 循环、提前 return、tagged union 定义和使用       ║
+// ║  纯逻辑文件，不写 import omniview;                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── tagged union 本地定义（演示 tagged union 语法）───────────────
+// NOTE: type Name = Variant1 { fields } | Variant2 { fields }
+// Variants with fields use { } syntax; fieldless variants have no braces.
+
+type ValidationResult = Valid { message: String } | Invalid { errors: Array<String> } | Pending
+
+// ── 1. validate_not_empty —— for..in + 提前 return ─────────────
+
+pub fn validate_not_empty(fields: Array<String>) -> String {
+    // for..in 循环遍历数组（逻辑上下文，非视图 @for）
+    for field in fields {
+        // 提前 return —— 遇到空值立即返回
+        if field == "" {
+            return "错误: 发现空字段";
+        }
+    }
+    return "通过";
+}
+
+// ── 2. validate_length —— for..in + 提前 return ──────────────
+
+pub fn validate_length(values: Array<String>, min_len: i32) -> String {
+    for value in values {
+        // 提前 return：一旦发现过短立即返回
+        if value.len() < min_len {
+            return "错误: 长度不足";
+        }
+    }
+    return "通过";
+}
+
+// ── 3. validate_all —— for..in + 错误累积 ─────────────────────
+
+pub fn validate_all(items: Array<String>, min_len: i32) -> Array<String> {
+    let mut errors: Array<String> = [];
+
+    for item in items {
+        if item == "" {
+            errors.push("发现空字符串");
+        }
+        if item.len() < min_len {
+            errors.push("长度不足: " + item);
+        }
+    }
+
+    return errors;
+}
+
+// ── 4. has_errors —— 提前 return 演示 ─────────────────────────
+
+pub fn has_errors(items: Array<String>) -> bool {
+    for item in items {
+        if item == "" {
+            return true;  // 提前 return
+        }
+        if item.len() > 100 {
+            return true;  // 提前 return
+        }
+    }
+    return false;
+}
+
+// ── 5. format_result —— match 表达式 ─────────────────────────
+
+pub fn format_result(result: ValidationResult) -> String {
+    match result {
+        Valid { message } => { return "通过: " + message; },
+        Invalid { errors } => { return "失败: 发现 " + errors.len() + " 个错误"; },
+        Pending => { return "验证中..."; }
+    }
+}

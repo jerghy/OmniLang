@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "victauri": {
+      "command": "victauri",
+      "args": ["bridge", "--wait", "--app", "com.omnilang.poiesis"]
+    }
+  }
+}

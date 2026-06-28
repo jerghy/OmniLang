@@ -1,0 +1,58 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  TodoList.omni —— @for 列表渲染 + @empty 空状态 + 组件组合      ║
+// ║  演示：跨文件导入组件和 Store、@for/@empty、                      ║
+// ║        容器组件组合叶子组件、event 中继                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+// 跨文件导入——从其他文件引用组件和 Store
+import { TodoItem } from "./TodoItem";
+import { TodoStore } from "../stores/TodoStore";
+import { AddTodo } from "./AddTodo";
+
+component TodoList {
+    // 引用全局 Store
+    @store TodoStore;
+
+    // prop 从父组件接收数据
+    prop items: Array<String> = [];
+    // event 中继——子组件 event → 本组件 → 父组件
+    event onDelete: i32;
+    event onAdd: String;
+
+    fn handleDelete(index: i32) {
+        onDelete(index);
+    }
+
+    fn handleAdd(text: String) {
+        onAdd(text);
+    }
+
+    view {
+        <div>
+            <h2 class: title>待办列表
+                <span class: badge>{items.len()}</span>
+            </h2>
+
+            <AddTodo @onAdd={handleAdd} />
+
+            <div class: items>
+                @for item in items {
+                    <TodoItem text={item} @onDelete={handleDelete} />
+                }
+                @empty {
+                    <div class: empty-state>
+                        <p class: empty-text>还没有待办事项，在上方添加吧</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    style {
+        .title { font-size: 20px; padding: 16px 16px 0 16px; color: #1f2937; display: flex; align-items: center; gap: 8px; }
+        .badge { font-size: 13px; background: #6366f1; color: #fff; padding: 2px 10px; border-radius: 12px; }
+        .items { padding: 0 16px 16px 16px; }
+        .empty-state { text-align: center; padding: 48px 24px; }
+        .empty-text { font-size: 16px; color: #9ca3af; }
+    }
+}

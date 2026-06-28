@@ -1,0 +1,75 @@
+import omniview;
+
+@motion fadeInUp {
+  from { opacity: 0, y: 20 }
+  to   { opacity: 1, y: 0 }
+  over 400
+  ease easeOut
+}
+
+@motion scalePress {
+  to { scale: 0.95 }
+  over 100
+  ease easeOut
+}
+
+@motion listItem {
+  from { opacity: 0, x: -20 }
+  to   { opacity: 1, x: 0 }
+  over 300
+  ease power2Out
+}
+
+@motion pulse {
+  to { scale: 1.05 }
+  over 800
+  ease easeInOut
+  direction alternate
+  loop
+}
+
+component MotionDemo {
+  signal count: i32 = 0
+  signal isOpen: bool = false
+
+  action toggleModal {
+    isOpen = !isOpen
+  }
+
+  action addItem {
+    count = count + 1
+  }
+
+  action removeItem {
+    count = count - 1
+  }
+
+  view {
+    <div>
+      <h1 @enter={fadeInUp}>Motion Demo</h1>
+
+      <p>Count: {count}</p>
+
+      <button @press={scalePress} @hover={pulse} @click={toggleModal}>
+        Toggle Modal
+      </button>
+
+      @if isOpen mode="sync" {
+        <div @enter={fadeInUp} @leave={fadeInUp}>
+          <h2>Modal Content</h2>
+        </div>
+      }
+
+      <button @press={scalePress} @click={addItem}>Add Item</button>
+      <button @press={scalePress} @click={removeItem}>Remove Item</button>
+
+      <div states: {
+        idle:    { scale: 1, opacity: 1 }   over: 150,
+        hover:   { scale: 1.05, opacity: 1 } over: 150,
+        pressed: { scale: 0.95, opacity: 0.8 } over: 100
+      }>
+        Interactive Panel
+      </div>
+    </div>
+  }
+}

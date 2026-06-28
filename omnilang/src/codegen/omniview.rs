@@ -4412,6 +4412,23 @@ pub fn compile_files(
     _source_files: &HashMap<String, String>,
 ) -> CompileOutput {
     let output = generate(ir, false);
+    // Wrap body HTML in a proper document that references the separate JS/CSS files
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniView App</title>
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+{}
+<script src="index.js"></script>
+</body>
+</html>"#,
+        output.html
+    );
     CompileOutput::success(vec![
         CompiledFile {
             path: "index.js".into(),
@@ -4419,7 +4436,7 @@ pub fn compile_files(
         },
         CompiledFile {
             path: "index.html".into(),
-            content: output.html,
+            content: html,
         },
         CompiledFile {
             path: "index.css".into(),

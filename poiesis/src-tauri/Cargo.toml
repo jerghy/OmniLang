@@ -21,3 +21,8 @@ tauri-plugin-store = "2"
 omnilang = { path = "../../omnilang" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+walkdir = "2"
+victauri-plugin = "0.8.5"
+
+[dev-dependencies]
+victauri-test = "0.8.5"

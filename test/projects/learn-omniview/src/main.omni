@@ -1,0 +1,445 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║    OmniView 教学项目 —— 多文件项目结构（68+ 源文件）          ║
+// ║                                                              ║
+// ║  运行：omnic run                                               ║
+// ║  编译：omnic build --target omniview                           ║
+// ║                                                              ║
+// ║  项目结构：                                                   ║
+// ║    src/main.omni              ← 入口 + App 根组件             ║
+// ║    src/lib.omni               ← 工具函数                      ║
+// ║    src/lib/types.omni         ← pub struct + pub type         ║
+// ║    src/lib/reexports.omni     ← export { X } from "./..."     ║
+// ║    src/lib/stats.omni         ← 统计引擎（pub fn）            ║
+// ║    src/lib/validation.omni    ← 输入验证（tagged union）       ║
+// ║    src/lib/transform.omni     ← 数据转换（break/continue）    ║
+// ║    src/lib/api.omni           ← API 类型 + HTTP 工具          ║
+// ║    src/stores/*               ← 状态管理                       ║
+// ║    src/shared/*               ← 主题令牌 + 常量                ║
+// ║    src/components/*           ← UI 组件                       ║
+// ║    src/pages/*                ← 页面级组件                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// ═══════════════════════════════════════════════════════════════
+// I. 全局 Store
+// ═══════════════════════════════════════════════════════════════
+import { TodoStore } from "./stores/TodoStore";
+import { ThemeStore } from "./stores/ThemeStore";
+import { NotificationStore } from "./stores/NotificationStore";
+
+// ═══════════════════════════════════════════════════════════════
+// II. 页面级组件
+// ═══════════════════════════════════════════════════════════════
+import { Header } from "./components/Header";
+import { Dashboard } from "./pages/Dashboard";
+import { TodoPage } from "./pages/TodoPage";
+import { FeatureList } from "./components/FeatureList";
+import { SettingsPage } from "./pages/SettingsPage";
+import { DataFetching } from "./pages/DataFetching";
+import { DataSubmit } from "./pages/DataSubmit";
+import { UserSettings } from "./pages/UserSettings";
+
+// ═══════════════════════════════════════════════════════════════
+// III. 基础交互组件
+// ═══════════════════════════════════════════════════════════════
+import { ValidationInput } from "./components/ValidationInput";
+import { Timer } from "./components/Timer";
+import { Modal } from "./components/Modal";
+import { TabPanel } from "./components/TabPanel";
+import { DataTable } from "./components/DataTable";
+import { NotificationsPanel } from "./components/NotificationsPanel";
+import { FormPage } from "./components/FormPage";
+
+// ═══════════════════════════════════════════════════════════════
+// IV. 运动动画
+// ═══════════════════════════════════════════════════════════════
+import { MotionDemo } from "./pages/MotionDemo";
+import { MotionCallbackDemo } from "./components/MotionCallbackDemo";
+import { TimelinePositionDemo } from "./components/TimelinePositionDemo";
+import { MotionPlaybackDemo } from "./pages/MotionPlaybackDemo";
+import { EasingFunctionsDemo } from "./pages/EasingFunctionsDemo";
+import { MotionTriggersDemo } from "./pages/MotionTriggersDemo";
+import { AnimPropertiesDemo } from "./pages/AnimPropertiesDemo";
+import { HeroTransitionDemo } from "./pages/HeroTransitionDemo";
+import { StaggerAndTimelineDemo } from "./pages/StaggerAndTimelineDemo";
+import { TimelineMotionDemo } from "./pages/TimelineMotionDemo";
+import { PlaybackAdvancedDemo } from "./pages/PlaybackAdvancedDemo";
+import { ComponentSpecialsDemo } from "./pages/ComponentSpecialsDemo";
+
+// ═══════════════════════════════════════════════════════════════
+// V. CSS 特性
+// ═══════════════════════════════════════════════════════════════
+import { CssUnitsDemo } from "./components/CssUnitsDemo";
+import { CssVarsDemo } from "./components/CssVarsDemo";
+import { ThemeCssVarsDemo } from "./components/ThemeCssVarsDemo";
+
+// ═══════════════════════════════════════════════════════════════
+// VI. 事件 / 表单 / 插槽
+// ═══════════════════════════════════════════════════════════════
+import { EventShorthand } from "./components/EventShorthand";
+import { EventsDemo } from "./components/EventsDemo";
+import { FormControlsDemo } from "./components/FormControlsDemo";
+import { EmitKeywordDemo } from "./components/EmitKeywordDemo";
+import { SlotDefaultDemo } from "./components/SlotDefaultDemo";
+import { EmitEventDemo } from "./components/EmitEventDemo";
+
+// ═══════════════════════════════════════════════════════════════
+// VII. 语言特性
+// ═══════════════════════════════════════════════════════════════
+import { TypeSystemDemo } from "./components/TypeSystemDemo";
+import { NullishDemo } from "./components/NullishDemo";
+import { OptionalChainDemo } from "./components/OptionalChainDemo";
+import { StringLiteralsDemo } from "./components/StringLiteralsDemo";
+import { InlineStoreDemo } from "./components/InlineStoreDemo";
+import { ViewAttributesDemo } from "./components/ViewAttributesDemo";
+import { ComputedFnFormDemo } from "./components/ComputedFnFormDemo";
+import { StylePseudoDemo } from "./components/StylePseudoDemo";
+
+// ═══════════════════════════════════════════════════════════════
+// VIII. 类型导入 + 重导出
+// ═══════════════════════════════════════════════════════════════
+import type { StatisticsData } from "./lib/types";
+import { Percentage } from "./lib/reexports";
+import "./lib/types" as Types;
+
+// ═══════════════════════════════════════════════════════════════
+// IX. 纯逻辑 lib（命名空间导入）
+// ═══════════════════════════════════════════════════════════════
+import "./lib/stats" as StatsLib;
+import "./lib/transform" as TransformLib;
+import "./lib/validation" as ValidationLib;
+import "./components/array_ext" as ArrayExtLib;
+import "./components/async_demo" as AsyncDemoLib;
+import "./components/datetime_demo" as DateTimeDemoLib;
+import "./components/encode_demo" as EncodeDemoLib;
+import "./components/error_handling" as ErrorHandlingLib;
+import "./components/math_ext" as MathExtLib;
+import "./components/numerics" as NumericsLib;
+import "./components/regex_demo" as RegexDemoLib;
+import "./components/string_ext" as StringExtLib;
+import "./components/strings" as StringsLib;
+import "./components/type_system" as TypeSystemLib;
+
+// ═══════════════════════════════════════════════════════════════
+// X. 共享模块
+// ═══════════════════════════════════════════════════════════════
+import "./shared/theme" as ThemeTokens;
+import { Constants } from "./shared/constants";
+
+// ═══════════════════════════════════════════════════════════════
+// App —— 根组件（含标签页导航）
+// ═══════════════════════════════════════════════════════════════
+component App {
+    @store TodoStore;
+    @store ThemeStore;
+    @store NotificationStore;
+
+    signal completionRate: Percentage = 42.0;
+    signal activeTab: String = "home";
+
+    fn switchTab(tab: String) { activeTab = tab; }
+    fn isActive(tab: String) -> bool { return activeTab == tab; }
+
+    view {
+        <div class: app>
+            <Header />
+
+            <!-- ═══════════════════════════════════════════════
+                 浏览器风格标签页导航 —— 只渲染选中标签页
+                 ═══════════════════════════════════════════════ -->
+            <div class: browser-tabs>
+                <div class: tab-strip>
+                    <button class: { browserTab: true, tabActive: isActive("home") } @onPress={switchTab("home")}>
+                        首页
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("todo") } @onPress={switchTab("todo")}>
+                        待办
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("interactive") } @onPress={switchTab("interactive")}>
+                        基础交互
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("compiler") } @onPress={switchTab("compiler")}>
+                        编译器特性
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("motion") } @onPress={switchTab("motion")}>
+                        运动动画
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("css") } @onPress={switchTab("css")}>
+                        CSS 特性
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("events") } @onPress={switchTab("events")}>
+                        事件/表单
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("language") } @onPress={switchTab("language")}>
+                        语言特性
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("settings") } @onPress={switchTab("settings")}>
+                        设置
+                    </button>
+                </div>
+                <div class: tab-content>
+
+            <!-- ═══ Tab: 首页 ═══ -->
+            @if activeTab == "home" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <Dashboard />
+                    </div>
+                    <div class: demo-full>
+                        <FeatureList />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 待办 ═══ -->
+            @if activeTab == "todo" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <TodoPage />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 编译器特性 ═══ -->
+            @if activeTab == "compiler" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <DataFetching />
+                    </div>
+                    <div class: demo-full>
+                        <DataSubmit />
+                    </div>
+                    <div class: demo-full>
+                        <UserSettings />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 基础交互 ═══ -->
+            @if activeTab == "interactive" {
+                <section class: demo-section>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <ValidationInput />
+                        </div>
+                        <div class: demo-col>
+                            <Timer />
+                        </div>
+                    </div>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <Modal />
+                        </div>
+                        <div class: demo-col>
+                            <TabPanel />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <DataTable />
+                    </div>
+                    <div class: demo-full>
+                        <FormPage />
+                    </div>
+                    <div class: demo-full>
+                        <NotificationsPanel />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 运动动画 ═══ -->
+            @if activeTab == "motion" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <MotionDemo />
+                    </div>
+                    <div class: demo-full>
+                        <MotionPlaybackDemo />
+                    </div>
+                    <div class: demo-full>
+                        <EasingFunctionsDemo />
+                    </div>
+                    <div class: demo-full>
+                        <AnimPropertiesDemo />
+                    </div>
+                    <div class: demo-full>
+                        <MotionTriggersDemo />
+                    </div>
+                    <div class: demo-full>
+                        <MotionCallbackDemo />
+                    </div>
+                    <div class: demo-full>
+                        <TimelinePositionDemo />
+                    </div>
+                    <div class: demo-full>
+                        <StaggerAndTimelineDemo />
+                    </div>
+                    <div class: demo-full>
+                        <TimelineMotionDemo />
+                    </div>
+                    <div class: demo-full>
+                        <PlaybackAdvancedDemo />
+                    </div>
+                    <div class: demo-full>
+                        <HeroTransitionDemo />
+                    </div>
+                    <div class: demo-full>
+                        <ComponentSpecialsDemo />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: CSS 特性 ═══ -->
+            @if activeTab == "css" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <CssUnitsDemo />
+                    </div>
+                    <div class: demo-full>
+                        <CssVarsDemo />
+                    </div>
+                    <div class: demo-full>
+                        <ThemeCssVarsDemo />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 事件 / 表单 ═══ -->
+            @if activeTab == "events" {
+                <section class: demo-section>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <EventShorthand />
+                        </div>
+                        <div class: demo-col>
+                            <FormControlsDemo />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <EventsDemo />
+                    </div>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <SlotDefaultDemo />
+                        </div>
+                        <div class: demo-col>
+                            <EmitKeywordDemo />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <EmitEventDemo />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 语言特性 ═══ -->
+            @if activeTab == "language" {
+                <section class: demo-section>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <InlineStoreDemo />
+                        </div>
+                        <div class: demo-col>
+                            <NullishDemo />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <StringLiteralsDemo />
+                    </div>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <TypeSystemDemo />
+                        </div>
+                        <div class: demo-col>
+                            <ViewAttributesDemo />
+                        </div>
+                    </div>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <ComputedFnFormDemo />
+                        </div>
+                        <div class: demo-col>
+                            <OptionalChainDemo />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <StylePseudoDemo />
+                    </div>
+                </section>
+            }
+
+            <!-- ═══ Tab: 设置 ═══ -->
+            @if activeTab == "settings" {
+                <section class: demo-section>
+                    <div class: demo-full>
+                        <SettingsPage />
+                    </div>
+                </section>
+            }
+
+            </div><!-- /tab-content -->
+
+            <footer class: footer>
+                <p class: footer-text>OmniView 教学项目 · 68+ 源文件 · omnic run</p>
+            </footer>
+        </div>
+    }
+    style {
+        .app { max-width: 1200px; width: 92vw; margin: 0 auto; background: #f9fafb; min-height: 100vh; }
+        .footer { text-align: center; padding: 24px; border-top: 1px solid #ddd; }
+        .footer-text { font-size: 13px; color: #888; }
+
+        // ── 浏览器风格标签页 ──
+        .browser-tabs {
+            margin: 20px 0;
+        }
+        .tab-strip {
+            display: flex;
+            gap: 0;
+            padding: 0 8px;
+            // bottom border spans full width, tabs sit on top of it
+            border-bottom: 1px solid #d4d4d8;
+        }
+        .browserTab {
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            background: transparent;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            bottom: 0;
+            transition: all 150ms;
+            white-space: nowrap;
+        }
+        .browserTab:hover {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
+            color: #334155;
+        }
+        .browserTab.tabActive {
+            background: white;
+            border-color: #d4d4d8;
+            color: #6366f1;
+            font-weight: 600;
+            // Extend down 1px to cover the strip bottom border
+            padding-bottom: 11px;
+        }
+        .tab-content {
+            background: white;
+            border: 1px solid #d4d4d8;
+            border-top: none;             // connected to active tab
+            border-radius: 0 0 8px 8px;
+            padding: 16px;
+        }
+
+        // ── Demo Sections ──
+        .demo-section { margin: 16px 0; }
+        .demo-row { display: flex; gap: 12px; margin-bottom: 12px; }
+        .demo-col { flex: 1; min-width: 0; }
+        .demo-full { margin-bottom: 12px; }
+    }
+}

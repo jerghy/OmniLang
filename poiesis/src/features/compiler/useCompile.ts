@@ -5,6 +5,7 @@ import { extractComponentName } from "../../core/utils";
 import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
 import { api } from "../../commands";
+import { parseCodeBlocks } from "../../services/parser/omni-regex-parser";
 import type { CommandContext } from "../../core/commands/types";
 import type { ElementData } from "../../core/types";
 
@@ -55,19 +56,8 @@ export function useCompile(
     useCodeGraphStore.getState().switchTab("main");
     useCodeGraphStore.getState().setElementsAndWires([], []);
     try {
-      const [, cbRes] = await Promise.all([
-        fetch("/api/parse-view", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: content }),
-        }),
-        fetch("/api/parse-codeblocks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: content }),
-        }),
-      ]);
-      const cbData = await cbRes.json();
+      // Parse code blocks via local TS parser (replaces Python /api/parse-*)
+      const cbData = { success: true, blocks: parseCodeBlocks(content) };
 
       const codeElements: ElementData[] = [];
       const seenIds = new Set<string>();

@@ -1,0 +1,247 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  TimelinePositionDemo.omni — 时间线定位模式                       ║
+// ║                                                                  ║
+// ║  编译器 @timeline 项目中支持多种 start: 定位修饰符：               ║
+// ║    - start: "withPrev"         — 与上一项同时开始                 ║
+// ║    - start: "after"            — 在上一项结束后开始（默认）       ║
+// ║    - start: "overlap(N)"       — 与上一项重叠 N ms               ║
+// ║    - start: "afterPrev(N)"     — 上一项结束后 N ms 开始          ║
+// ║    - start: "withOffset(N)"    — 与上一项同时开始但偏移 N ms     ║
+// ║    - start: "absolute(N)"      — 在绝对时间 N ms 开始            ║
+// ║                                                                  ║
+// ║  现有时间线演示 (StaggerAndTimelineDemo / TimelineMotionDemo)     ║
+// ║  只使用了 then/with 连接器，从未使用 start: 定位修饰符。           ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+// ── @timeline: 演示各种 start: 定位 ───────────────────
+@timeline positionDemo {
+    // 项目 A: 参考起点，持续 300ms
+    set { x: 0, opacity: 1 }
+    label "A-start"
+
+    // B: 与 A 同时开始 (withPrev)
+    from { opacity: 0 scale: 0.5 }
+    to   { opacity: 1 scale: 1 }
+    over 300 ease easeOut
+    label "B-withPrev"
+    start: "withPrev"
+
+    // C: 在 B 结束后开始 (after — 默认)
+    from { x: -20 opacity: 0 }
+    to   { x: 0 opacity: 1 }
+    over 300 ease easeOut
+    label "C-after"
+
+    // D: 与 C 重叠 150ms (overlap)
+    from { y: 10 opacity: 0 }
+    to   { y: 0 opacity: 1 }
+    over 300 ease easeOut
+    label "D-overlap"
+    start: "overlap(150)"
+
+    // E: C 结束后 200ms 开始 (afterPrev)
+    from { rotate: -10 opacity: 0 }
+    to   { rotate: 0 opacity: 1 }
+    over 200 ease easeOut
+    label "E-afterPrev"
+    start: "afterPrev(200)"
+
+    // F: 与 D 同时开始但偏移 100ms (withOffset)
+    from { scale: 0.8 opacity: 0 }
+    to   { scale: 1 opacity: 1 }
+    over 250 ease easeOut
+    label "F-withOffset"
+    start: "withOffset(100)"
+
+    // G: 在绝对时间 1200ms 处开始 (absolute)
+    from { x: 20 y: -10 opacity: 0 }
+    to   { x: 0 y: 0 opacity: 1 }
+    over 400 ease power2Out
+    label "G-absolute"
+    start: "absolute(1200)"
+}
+
+// ── 简单版对比：只用 then/with（无定位修饰符） ─────────
+@timeline simpleThenWith {
+    set { opacity: 1 }
+    label "start"
+
+    from { x: -20 opacity: 0 }
+    to   { x: 0 opacity: 1 }
+    over 200 ease easeOut
+    label "then-item"
+
+    from { x: 20 opacity: 0 }
+    to   { x: 0 opacity: 1 }
+    over 200 ease easeOut
+    label "with-item"
+}
+
+component TimelinePositionDemo {
+    signal activeDemo: String = "position";
+    signal playCount: i32 = 0;
+
+    fn switchDemo(name: String) {
+        activeDemo = name;
+    }
+
+    fn replayCount() {
+        playCount = playCount + 1;
+    }
+
+    view {
+        <div class: wrapper>
+            <h3 class: section-title>Timeline start: Position Modes</h3>
+            <p class: subtitle>
+                演示 <code>start: "withPrev"</code> / <code>"overlap(N)"</code> /
+                <code>"afterPrev(N)"</code> / <code>"withOffset(N)"</code> /
+                <code>"absolute(N)"</code> 定位修饰符
+            </p>
+
+            <!-- 演示切换 -->
+            <div class: tab-row>
+                <button
+                    class: tab-btn {if activeDemo == "position" { "active" } else { "" }}
+                    @onPress={switchDemo("position")}
+                >
+                    start: 定位模式
+                </button>
+                <button
+                    class: tab-btn {if activeDemo == "simple" { "active" } else { "" }}
+                    @onPress={switchDemo("simple")}
+                >
+                    then/with 对比
+                </button>
+            </div>
+
+            <!-- 时间线执行次数 -->
+            <p class: replay-hint>
+                每次切换 demo 或点此按钮重新触发时间线：
+                <button class: replay-btn @onPress={replayCount}>
+                    重新触发 (x{playCount})
+                </button>
+            </p>
+
+            <!-- Demo 1: start: 定位模式 -->
+            @if activeDemo == "position" {
+                <div class: timeline-area @timeline={positionDemo}>
+                    <h4 class: area-title>@timeline with start: Position Modes</h4>
+                    <div class: timeline-grid>
+                        <div class: tl-item label>A-start</div>
+                        <div class: tl-item label>B-withPrev</div>
+                        <div class: tl-item label>C-after</div>
+                        <div class: tl-item label>D-overlap</div>
+                        <div class: tl-item label>E-afterPrev</div>
+                        <div class: tl-item label>F-withOffset</div>
+                        <div class: tl-item label>G-absolute</div>
+                    </div>
+                    <p class: area-note>
+                        A (set) → B (withPrev, 同时) → C (after, 默认) → D (overlap 150ms) →
+                        E (afterPrev 200ms) → F (withOffset 100ms) → G (absolute 1200ms)
+                    </p>
+                </div>
+            }
+
+            <!-- Demo 2: 简单 then/with 对比 -->
+            @if activeDemo == "simple" {
+                <div class: timeline-area @timeline={simpleThenWith}>
+                    <h4 class: area-title>@timeline with then / with (无定位修饰符)</h4>
+                    <div class: timeline-grid small>
+                        <div class: tl-item label>set</div>
+                        <div class: tl-item label>then-item</div>
+                        <div class: tl-item label>with-item</div>
+                    </div>
+                    <p class: area-note>
+                        使用 then/with 连接器（无 start: 修饰符）作为对比基准
+                    </p>
+                </div>
+            }
+
+            <!-- 时间线项目语义说明 -->
+            <div class: legend>
+                <h4 class: legend-title>start: 定位修饰符一览</h4>
+                <div class: legend-grid>
+                    <div class: legend-item>
+                        <code>start: "withPrev"</code>
+                        <span class: legend-desc>与上一项同时开始</span>
+                        <span class: legend-example>→ B 与 A 同时执行</span>
+                    </div>
+                    <div class: legend-item>
+                        <code>start: "after"</code>
+                        <span class: legend-desc>在上一项结束后开始（默认行为）</span>
+                        <span class: legend-example>→ C 在 B 之后执行</span>
+                    </div>
+                    <div class: legend-item>
+                        <code>start: "overlap(N)"</code>
+                        <span class: legend-desc>与上一项重叠 N 毫秒</span>
+                        <span class: legend-example>→ D 在 C 结束前 150ms 开始</span>
+                    </div>
+                    <div class: legend-item>
+                        <code>start: "afterPrev(N)"</code>
+                        <span class: legend-desc>上一项结束后 N 毫秒开始</span>
+                        <span class: legend-example>→ E 在 D 结束后 200ms 开始</span>
+                    </div>
+                    <div class: legend-item>
+                        <code>start: "withOffset(N)"</code>
+                        <span class: legend-desc>与上一项同时开始，但偏移 N 毫秒</span>
+                        <span class: legend-example>→ F 与 D 同时但晚 100ms 触发</span>
+                    </div>
+                    <div class: legend-item>
+                        <code>start: "absolute(N)"</code>
+                        <span class: legend-desc>在时间线绝对时间 N 毫秒处开始</span>
+                        <span class: legend-example>→ G 在 1200ms 处执行</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 技术说明 -->
+            <div class: tech-note>
+                <h4 class: note-title>💡 时间线定位语义</h4>
+                <ul class: note-list>
+                    <li><code>start:</code> 修饰符控制时间线项目的<strong>相对/绝对定时</strong></li>
+                    <li>未指定时默认行为是 <code>start: "after"</code>（在上一个项目完成后开始）</li>
+                    <li><code>then</code> 连接器等价于 <code>start: "after"</code> 顺序执行</li>
+                    <li><code>with</code> 连接器等价于 <code>start: "withPrev"</code> 同时执行</li>
+                    <li><code>start:</code> 提供 <code>then</code>/<code>with</code> 之外的细粒度控制</li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .wrapper { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; margin: 16px 0; }
+        .section-title { font-size: 18px; color: #1e293b; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
+        code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        .tab-row { display: flex; gap: 6px; margin-bottom: 14px; }
+        .tab-btn { padding: 8px 16px; border: 1px solid #d4d4d8; border-radius: 6px; background: white; font-size: 13px; cursor: pointer; color: #374151; }
+        .tab-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
+
+        .replay-hint { font-size: 12px; color: #64748b; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+        .replay-btn { padding: 4px 12px; background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 4px; font-size: 12px; cursor: pointer; }
+
+        .timeline-area { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .area-title { font-size: 14px; color: #1e293b; margin: 0 0 12px 0; }
+        .timeline-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .timeline-grid.small { justify-content: center; }
+        .tl-item { padding: 12px 18px; background: white; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 12px; font-weight: 600; color: #475569; }
+        .tl-item.label { border-left: 3px solid #6366f1; }
+        .area-note { font-size: 11px; color: #94a3b8; margin: 10px 0 0 0; }
+
+        .legend { margin-bottom: 16px; }
+        .legend-title { font-size: 14px; color: #334155; margin: 0 0 10px 0; }
+        .legend-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .legend-item { flex: 1; min-width: 200px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; }
+        .legend-item code { display: block; font-size: 11px; margin-bottom: 4px; }
+        .legend-desc { display: block; font-size: 11px; color: #64748b; }
+        .legend-example { display: block; font-size: 10px; color: #94a3b8; margin-top: 2px; font-style: italic; }
+
+        .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; }
+        .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
+        .note-list { margin: 0; padding-left: 18px; }
+        .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
+    }
+}

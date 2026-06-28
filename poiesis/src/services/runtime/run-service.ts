@@ -5,6 +5,7 @@ import { api } from "../../commands";
 import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
+import { parseCodeBlocks } from "../parser/omni-regex-parser";
 import type { ElementData } from "../../core/types";
 
 /**
@@ -44,20 +45,8 @@ export async function handleRun(
   // 2. Parse view tree & code blocks for reactive canvas
   setCompileErrors([]);
   try {
-    const [vRes, cbRes] = await Promise.all([
-      fetch("/api/parse-view", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: content }),
-      }),
-      fetch("/api/parse-codeblocks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: content }),
-      }),
-    ]);
-    await vRes.json();
-    const cbData = await cbRes.json();
+    // Parse code blocks via local TS parser (replaces Python /api/parse-*)
+    const cbData = { success: true, blocks: parseCodeBlocks(content) };
 
     const codeElements: ElementData[] = [];
     const seenIds = new Set<string>();

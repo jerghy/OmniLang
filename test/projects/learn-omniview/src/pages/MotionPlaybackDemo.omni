@@ -1,0 +1,156 @@
+import omniview;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  🧪 Playwright Test                                         ║
+// ║                                                            ║
+// ║  **Steps:**                                                ║
+// ║  1. Navigate to MotionPlaybackDemo component page.         ║
+// ║  2. Verify all 9 @motion cards render in the grid.         ║
+// ║  3. Check each card uses @enter to trigger its motion.     ║
+// ║  4. Verify path animation element has @enter={pathAnim}    ║
+// ║     with path data and pathRotate attribute.               ║
+// ║  5. Check staggered list renders multiple items with       ║
+// ║     staggerChildren and staggerFrom properties.            ║
+// ║  6. Verify multi-stop keyframe card (0%/25%/50%/75%/100%)  ║
+// ║     renders with colorSpace lab data.                      ║
+// ║                                                            ║
+// ║  **Expected:**                                             ║
+// ║  - 8 animation cards rendered with @enter data attributes. ║
+// ║  - fillDemo card has fill="forwards" attribute.            ║
+// ║  - delayedEntrance card has delay and repeatDelay attrs.   ║
+// ║  - slowSpin card has timeScale="0.5" attribute.            ║
+// ║  - interruptDemo card has interrupt="queue" attribute.     ║
+// ║  - accessibleAnim card has respectReducedMotion attribute. ║
+// ║  - pathAnim element has path and pathRotate data.          ║
+// ║  - multiStopColor card has colorSpace="lab" attribute.     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ★ fill 模式
+@motion fillDemo {
+    from { opacity: 0 x: -20 }
+    to   { opacity: 1 x: 0 }
+    over 400 ease easeOut
+    fill forwards
+}
+
+// ★ delay + repeatDelay + repeatRefresh
+@motion delayedEntrance {
+    from { y: 20 opacity: 0 }
+    to   { y: 0 opacity: 1 }
+    over 300 ease power2Out
+    delay 200
+    repeatDelay 100
+    repeatRefresh
+}
+
+// ★ timeScale
+@motion slowSpin {
+    to { rotate: 360 }
+    over 5000 ease linear
+    timeScale 0.5
+    loop
+}
+
+// ★ interrupt
+@motion interruptDemo {
+    from { scale: 1 }
+    to   { scale: 1.2 }
+    over 300 ease easeOut
+    interrupt queue
+}
+
+// ★ respectReducedMotion
+@motion accessibleAnim {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over 400 ease easeOut
+    respectReducedMotion
+}
+
+// ★ delayChildren + staggerChildren + staggerFrom
+@motion staggeredList {
+    from { opacity: 0 y: 10 }
+    to   { opacity: 1 y: 0 }
+    over 300 ease easeOut
+    delayChildren 50
+    staggerChildren 30
+    staggerFrom center
+}
+
+// ★ paused + path + pathRotate
+@motion pathAnim {
+    from { offsetDistance: 0 }
+    to   { offsetDistance: 1 }
+    over 1000 ease easeInOut
+    paused
+    path: "M0,0 C50,-50 100,50 150,0"
+    pathRotate: true
+}
+
+// ★ 多停靠关键帧（百分比）+ colorSpace
+@motion multiStopColor {
+    0%   { opacity: 0 scale: 0.5 background: "#ff0000" }
+    25%  { opacity: 0.5 scale: 0.8 }
+    50%  { opacity: 1 scale: 1.2 background: "#00ff00" }
+    75%  { opacity: 1 scale: 1.05 }
+    100% { opacity: 1 scale: 1 background: "#0000ff" }
+    over 1000 ease easeInOut
+    colorSpace lab
+}
+
+// ★ 仅回调动效
+@motion callbackOnly {
+    onStart { }
+    onUpdate { }
+    onComplete { }
+    onRepeat { }
+    onInterrupt { }
+}
+
+component MotionPlaybackDemo {
+    signal play: bool = false;
+
+    fn trigger() { play = !play; }
+
+    view {
+        <div class: container>
+            <h3 class: title>Motion Playback Properties Demo</h3>
+            <p class: subtitle>fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖</p>
+
+            <div class: grid>
+                <div class: card @enter={fillDemo}>
+                    <h4 class: label>fill forwards</h4>
+                </div>
+                <div class: card @enter={delayedEntrance}>
+                    <h4 class: label>delay + repeatDelay + repeatRefresh</h4>
+                </div>
+                <div class: card @enter={slowSpin}>
+                    <h4 class: label>timeScale 0.5</h4>
+                </div>
+                <div class: card @enter={interruptDemo}>
+                    <h4 class: label>interrupt queue</h4>
+                </div>
+                <div class: card @enter={accessibleAnim}>
+                    <h4 class: label>respectReducedMotion</h4>
+                </div>
+                <div class: card @enter={staggeredList}>
+                    <h4 class: label>staggerChildren · staggerFrom</h4>
+                </div>
+                <div class: card @enter={pathAnim}>
+                    <h4 class: label>paused · path · pathRotate</h4>
+                </div>
+                <div class: card @enter={multiStopColor}>
+                    <h4 class: label>multi-stop · colorSpace lab</h4>
+                </div>
+            </div>
+        </div>
+    }
+    style {
+        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
+        .grid { display: flex; flex-wrap: wrap; gap: 12px; }
+        .card { flex: 1; min-width: 160px; padding: 16px; background: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb; }
+        .label { font-size: 13px; font-weight: 600; color: #374151; margin: 0; }
+    }
+}

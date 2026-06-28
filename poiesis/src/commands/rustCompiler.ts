@@ -105,7 +105,7 @@ class RustCompiler {
         `Loaded omni-compiler v${this.wasm.version()}`,
       );
     } catch (err) {
-      log.warn('WASM not available, using Python fallback:', err);
+      log.warn('WASM not available, compilation will be unavailable:', err);
       this.ready = false;
     }
   }

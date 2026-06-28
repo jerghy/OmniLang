@@ -1,0 +1,22 @@
+[package]
+name = "omnic"
+version = "0.2.0"
+edition = "2021"
+description = "OmniLang CLI — compile .omni to 10+ targets"
+
+[[bin]]
+name = "omnic"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+glob = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+open = "5"
+pathdiff = "0.2"
+
+[dependencies.omnilang]
+path = "../omnilang"

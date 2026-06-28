@@ -1,0 +1,91 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  TodoPage.omni —— 待办页面（Phase 7 新增）                       ║
+// ║  演示：页面级组合——将 Todo 相关组件聚合为独立页面                   ║
+// ║                                                              ║
+// ║  数据流：                                                      ║
+// ║    @store TodoStore（页面级引用）                                ║
+// ║         ↓ prop + event                                        ║
+// ║    TodoList（内嵌 AddTodo + TodoItem）                          ║
+// ║    FilterBar（读取 Store 信号驱动过滤 UI）                        ║
+// ║                                                              ║
+// ║  聚合组件：                                                    ║
+// ║    FilterBar  — @onChange 过滤 + @onClick 排序 + Store 读取     ║
+// ║    TodoList   — @for/@empty + 组件组合（内嵌 AddTodo/TodoItem）  ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { console_log } from "std/console";
+import { TodoStore } from "../stores/TodoStore";
+import { TodoList } from "../components/TodoList";
+import { FilterBar } from "../components/FilterBar";
+
+component TodoPage {
+    @store TodoStore;
+
+    // 页面级信号：统计信息
+    signal pageLoadCount: i32 = 0;
+
+    @mount {
+        pageLoadCount = pageLoadCount + 1;
+    }
+
+    // @effect：追踪待办事项总数变化
+    @effect(TodoStore.items) {
+        console_log("Total items: " + TodoStore.totalCount.to_string());
+    }
+
+    view {
+        <div class: todo-page>
+            <!-- 页面标题区 -->
+            <header class: page-header>
+                <h2 class: page-title>Todo List</h2>
+                <p class: page-subtitle>
+                    {TodoStore.totalCount} tasks · Filter: {TodoStore.filterStatus}
+                </p>
+                <span class: load-badge>Loaded ×{pageLoadCount}</span>
+            </header>
+
+            <!-- 过滤工具栏（Phase 5：Store 驱动过滤 UI） -->
+            <section class: section>
+                <FilterBar />
+            </section>
+
+            <!-- 待办列表（@for/@empty + 组件组合） -->
+            <section class: section>
+                <TodoList
+                    items={TodoStore.items}
+                    @onAdd={(text) => { TodoStore.add(text); }}
+                    @onDelete={(index) => { TodoStore.remove(); }}
+                />
+            </section>
+
+            <!-- 快捷操作区 -->
+            <footer class: page-footer>
+                <button
+                    class: action-btn clear-btn
+                    @onPress={() => { TodoStore.clear(); }}
+                >Clear All</button>
+                <button
+                    class: action-btn sync-btn
+                    @onPress={() => { TodoStore.fetchReminders(); }}
+                >Sync Reminders</button>
+                <span class: footer-hint>
+                    Last: {TodoStore.lastAction}
+                </span>
+            </footer>
+        </div>
+    }
+    style {
+        .todo-page { background: #fff; border: 1px solid #d4d4d8; border-radius: 12px; margin: 16px 0; overflow: hidden; max-width: 90vw; }
+        .page-header { padding: 20px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .page-title { font-size: 22px; font-weight: 700; color: #111; margin: 0; }
+        .page-subtitle { font-size: 13px; color: #888; margin: 0; flex: 1; }
+        .load-badge { font-size: 11px; background: #dbf0ff; color: #1d40d0; padding: 3px 10px; border-radius: 10px; }
+        .section { }
+        .page-footer { padding: 12px 20px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+        .action-btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .clear-btn { background: #fdd; color: #c00; }
+        .sync-btn { background: #d1fac5; color: #166534; }
+        .footer-hint { font-size: 12px; color: #999; margin-left: auto; }
+    }
+}

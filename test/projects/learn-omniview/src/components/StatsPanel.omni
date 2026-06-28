@@ -1,0 +1,45 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  StatsPanel.omni —— prop 接收数据 + if 表达式                   ║
+// ║  演示：prop（父→子传值）、if 表达式用于文本插值                  ║
+// ║  导入 lib.omni 的 format_count 工具函数                         ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { format_count } from "../lib";
+
+component StatsPanel {
+    // prop 从父组件接收数据，可选 prop 有默认值
+    prop total: i32 = 0;
+
+    view {
+        <div class: panel>
+            <h3 class: title>统计面板</h3>
+            <div class: grid>
+                <div class: card>
+                    <span class: value>{total}</span>
+                    <span class: label>总事项</span>
+                </div>
+                <div class: card>
+                    <span class: value>{if total > 0 { "有" } else { "无" }}</span>
+                    <span class: label>状态</span>
+                </div>
+            </div>
+            <span class: msg>{
+                if total == 0 {
+                    "开始添加第一个待办事项"
+                } else {
+                    "已添加 " + format_count(total) + " 个事项"
+                }
+            }</span>
+        </div>
+    }
+    style {
+        .panel { background: #f8fafc; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .title { font-size: 18px; margin-bottom: 16px; color: #1f2937; }
+        .grid { display: flex; gap: 12px; margin-bottom: 16px; }
+        .card { flex: 1; background: white; padding: 16px; border-radius: 8px; text-align: center; }
+        .value { font-size: 28px; font-weight: bold; color: #6366f1; }
+        .label { font-size: 13px; color: #6b7280; }
+        .msg { font-size: 14px; color: #6b7280; }
+    }
+}

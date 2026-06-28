@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "omnic",
     "omnilang",
     "poiesis/src-tauri",
 ]

@@ -1,0 +1,64 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  AddTodo.omni —— 输入绑定 + 生命周期 + 自定义事件               ║
+// ║  演示：signal, computed, bind:value, @onPress,                ║
+// ║        @mount, @effect, event                                ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { console_log, console_warn, console_error } from "std/console";
+
+component AddTodo {
+    // 自定义事件——子→父通信，携带输入文本
+    event onAdd: String;
+
+    // 局部响应式状态
+    signal input: String = "";
+
+    // 计算属性——纯函数，依赖自动追踪
+    computed hint: String = if input == "" {
+        "输入待办事项"
+    } else {
+        "已输入 " + input.len().to_string() + " 字符"
+    };
+
+    // @mount —— 组件挂载后执行一次
+    @mount {
+        console_log("AddTodo mounted");
+    }
+
+    // @effect —— 依赖变化时执行（在 DOM 更新后）
+    @effect(input) {
+        if input.len() > 20 {
+            println("输入较长：" + input.len().to_string() + " 字符");
+        }
+    }
+
+    fn handleAdd() {
+        if input != "" {
+            // emit event → 父组件接收
+            onAdd(input);
+            input = "";
+        } else {
+            console_warn("Input is empty");
+        }
+    }
+
+    view {
+        <div class: container>
+            <div class: row>
+                <input bind:value={input} placeholder={hint} class: input />
+                <button class: btn-add @onPress={handleAdd}>添加</button>
+                <button class: btn-clear @onPress={() => { input = ""; }}>清空</button>
+            </div>
+            <p class: counter>已输入 {input.len()} 字符</p>
+        </div>
+    }
+    style {
+        .container { padding: 0 16px 16px 16px; }
+        .row { display: flex; gap: 8px; }
+        .input { flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; }
+        .btn-add { padding: 12px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .btn-clear { padding: 12px 16px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .counter { font-size: 12px; color: #9ca3af; padding-top: 8px; }
+    }
+}

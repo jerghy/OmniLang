@@ -16,13 +16,14 @@
 
 import { getDesignStore, getActiveStore } from "./store";
 import { useEditorStore } from "../store/editor";
-import { api } from "../commands/client";
+import { api } from "../commands";
 import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import { getNodeConfig } from "../components/canvas/shared/nodeRegistry";
 import { ElementHandle } from "./ElementHandle";
 import { WireHandle } from "./WireHandle";
 import { ConnectionDriver } from "./ConnectionDriver";
 import { CanvasDriver } from "./CanvasDriver";
+import { parseViewTree, parseCodeBlocks } from "../services/parser/omni-regex-parser";
 import { StateDriver } from "./StateDriver";
 import { CodeDriver } from "./CodeDriver";
 import { FileDriver } from "./FileDriver";
@@ -344,56 +345,27 @@ class OmniDriver {
     const target = window.__OMNI_TARGET__ || "react";
     const result = await api.compile(content, target);
 
-    // Parse view tree and code blocks
+    // Parse view tree and code blocks via local TS parser (replaces Python /api/parse-*)
     try {
-      const [vRes, cbRes] = await Promise.all([
-        fetch("/api/parse-view", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: content }),
-        }),
-        fetch("/api/parse-codeblocks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: content }),
-        }),
-      ]);
-
-      const vData = await vRes.json();
-      const cbData = await cbRes.json();
+      const viewNodes = parseViewTree(content);
+      const codeBlocks = parseCodeBlocks(content);
 
       const elements: ElementData[] = [];
 
       // Parse view elements
-      if (vData.success && vData.nodes) {
-        type ViewTreeNode = { id: string; tag: string; props?: Record<string, unknown>; children?: ViewTreeNode[] };
-        const flattenTree = (
-          nodes: ViewTreeNode[],
-          parentId: string | null,
-        ): ElementData[] => {
-          const result: ElementData[] = [];
-          for (const n of nodes) {
-            const el: ElementData = {
-              id: n.id,
-              nodeType: "view",
-              tag: n.tag,
-              props: n.props || {},
-              children: [],
-              parentId,
-            };
-            if (n.children?.length) {
-              el.children = n.children.map((c: ViewTreeNode) => c.id);
-              result.push(...flattenTree(n.children, n.id));
-            }
-            result.push(el);
-          }
-          return result;
-        };
-        elements.push(...flattenTree(vData.nodes, null));
+      for (const n of viewNodes) {
+        elements.push({
+          id: n.id,
+          nodeType: "view",
+          tag: n.tag,
+          props: n.props || {},
+          children: n.children?.map((c: { id: string }) => c.id) || [],
+          parentId: null,
+        });
       }
 
       // Parse code blocks
-      if (cbData.success && cbData.blocks) {
+      if (codeBlocks.length > 0) {
         const seenIds = new Set<string>();
         // Factory: derive port types from typeAnnotation, using nodeRegistry defaults
         const buildPorts = (blockType: string, typeAnnotation?: string): PortDescriptor[] => {
@@ -413,7 +385,7 @@ class OmniDriver {
             };
           });
         };
-        for (const b of cbData.blocks) {
+        for (const b of codeBlocks) {
           if (seenIds.has(b.id)) continue;
           seenIds.add(b.id);
           elements.push({

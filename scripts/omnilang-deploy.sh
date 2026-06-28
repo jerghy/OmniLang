@@ -3,7 +3,6 @@
 #
 # Supports: Vercel (via npx), Netlify (via npx), manual (zip download)
 # Usage:   bash scripts/omnilang-deploy.sh [--platform vercel|netlify|manual]
-#          omnic deploy --dir ./my-project    (calls this script)
 
 set -e
 
@@ -109,7 +108,7 @@ deploy_manual() {
         echo ""
         echo "  Build output is in: $PROJECT_DIR/build_output/"
     else
-        echo "  (No build output found. Run 'omnic build' first.)"
+        echo "  (No build output found. Run the compiler first.)"
     fi
     echo ""
     echo "  Supported free static hosts:"

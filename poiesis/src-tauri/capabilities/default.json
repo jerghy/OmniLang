@@ -1,0 +1,26 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for Poiesis editor — full filesystem access",
+  "context": "local",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "**" }
+      ]
+    },
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    "fs:allow-stat",
+    "store:default",
+    "dialog:default",
+    "shell:default"
+  ]
+}

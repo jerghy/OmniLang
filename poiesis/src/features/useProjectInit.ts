@@ -5,6 +5,7 @@ import { parseOmniSource } from "../services/codegen";
 import { api } from "../commands";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
 import { useComponentRegistry } from "../store/componentRegistry";
+import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
 import type { ElementData, WireData } from "../core/types";
 import type { ComponentDefinition } from "../core/state/componentRegistry";
 
@@ -64,8 +65,14 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
               const rootOrder = parseResult.designElements
                 .filter((e: ElementData) => !e.parentId)
                 .map((e: ElementData) => e.id);
+              // Compute auto-layout positions for all elements
+              const layout = computeAutoLayout(parseResult.designElements, parseResult.designWires || []);
+              const positionedElements = parseResult.designElements.map((el) => ({
+                ...el,
+                position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
+              }));
               useEditorStore.setState({
-                elements: parseResult.designElements,
+                elements: positionedElements,
                 wires: parseResult.designWires || [],
                 rootOrder,
               });
@@ -134,8 +141,13 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 const rootOrder = parseResult.designElements
                   .filter((e: ElementData) => !e.parentId)
                   .map((e: ElementData) => e.id);
+                const layout = computeAutoLayout(parseResult.designElements, parseResult.designWires || []);
+                const positionedElements = parseResult.designElements.map((el) => ({
+                  ...el,
+                  position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
+                }));
                 useEditorStore.setState({
-                  elements: parseResult.designElements,
+                  elements: positionedElements,
                   wires: parseResult.designWires || [],
                   rootOrder,
                 });
