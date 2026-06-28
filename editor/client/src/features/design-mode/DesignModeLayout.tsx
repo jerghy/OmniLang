@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useEditorStore } from "../../store/editor";
-import { useTokenStore } from "../../ui/panels/TokenPanel";
 import { ComponentPalette } from "../../ui/panels/ComponentPalette";
 import { ComponentTree } from "../../ui/panels/ComponentTree";
 import { CanvasPanel } from "../../ui/panels/CanvasPanel";
@@ -15,10 +14,8 @@ import { S } from "../../ui/shell/theme";
 import { LayoutView } from "../../ui/canvas/design/LayoutView";
 import { CanvasTabBar } from "../../ui/canvas/design/CanvasTabBar";
 import { StateHUD } from "../../ui/canvas/StateHUD";
-import { PerfBadge } from "../../ui/canvas/PerfBadge";
 import { collectFocusOrder, focusOverlayStyles } from "../../a11y/FocusOrder";
 import type { CommandContext } from "../../core/commands/types";
-import type { DebugState } from "../compiler/useRun";
 
 export interface DesignModeLayoutProps {
   ctx: CommandContext;

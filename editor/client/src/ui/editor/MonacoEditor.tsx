@@ -11,7 +11,7 @@ import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import { OMNILANG_LANGUAGE_ID, conf, language } from "./omniLangTokens";
 import { createCompletionProvider } from "./omniCompletion";
-import { Logger } from "../utils/logger";
+import { Logger } from "../../utils/logger";
 
 const log = new Logger({ prefix: "MonacoEditor" });
 

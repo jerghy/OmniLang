@@ -16,7 +16,6 @@ export interface VariablePanelProps {
 }
 
 export function VariablePanel({
-  onDragToCanvas,
   onCreateSignal,
   onCreateComputed,
 }: VariablePanelProps) {

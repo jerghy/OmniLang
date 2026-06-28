@@ -3,7 +3,6 @@
 
 import type { Node } from "@xyflow/react";
 import type { ElementData } from "../../../core/types";
-import { getNodeConfig } from "./nodeRegistry";
 import { getAllPorts } from "./connectionValidators";
 import type { BaseNodeData } from "../code/nodes/BaseNode";
 
@@ -16,7 +15,7 @@ export interface ElementsToNodesOptions {
 }
 
 export function elementsToNodes(opts: ElementsToNodesOptions): Node<BaseNodeData>[] {
-  const { elements, wires, selectedElementIds, activeNodeIds } = opts;
+  const { elements, selectedElementIds, activeNodeIds } = opts;
 
   const nodes: Node<BaseNodeData>[] = [];
   const type = "codeblock"; // all nodes are codeblock type now (no viewEvent)
@@ -25,7 +24,6 @@ export function elementsToNodes(opts: ElementsToNodesOptions): Node<BaseNodeData
     if (el.nodeType !== "codeblock") continue; // skip non-codeblock elements
     if (el.tag === "fn") continue; // fn nodes without ports are function definitions — not rendered
 
-    const config = getNodeConfig(el.tag);
     const ports = getAllPorts(el);
     const name = String(el.props.name || el.props.label || el.tag);
     const pos = el.position || {

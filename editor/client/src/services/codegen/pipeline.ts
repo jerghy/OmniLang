@@ -398,6 +398,26 @@ function runPhaseC(
   });
   errors.push(...c1.errors);
 
+  // ── Plumb signal bindings from wire analysis into ViewNode trees ──
+  // Invert signalBindings (signalName → [{elementId, propName}]) to
+  // elementId → {propName: signalName} so the SourceEmitter can emit
+  // `bind:prop={signalName}` on each view node.
+  if (c1.errors.length === 0) {
+    const elBindings = new Map<string, Record<string, string>>();
+    for (const [sigName, targets] of phaseA.bindings.signalBindings) {
+      for (const t of targets) {
+        const existing = elBindings.get(t.elementId) ?? {};
+        existing[t.propName] = sigName;
+        elBindings.set(t.elementId, existing);
+      }
+    }
+    if (elBindings.size > 0) {
+      for (const root of phaseA.roots) {
+        walkAndApplyBindings(root, elBindings);
+      }
+    }
+  }
+
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
@@ -424,6 +444,22 @@ function runPhaseC(
     },
     errors,
   };
+}
+
+/** Walk a ViewNode tree and merge signal bindings into resolvedStyle.bindings. */
+function walkAndApplyBindings(
+  node: ViewNode,
+  elBindings: Map<string, Record<string, string>>,
+): void {
+  if (node.resolvedStyle) {
+    const bindings = elBindings.get(node.id);
+    if (bindings) {
+      node.resolvedStyle.bindings = { ...node.resolvedStyle.bindings, ...bindings };
+    }
+  }
+  for (const child of node.children) {
+    walkAndApplyBindings(child, elBindings);
+  }
 }
 
 // ── Helper: View Wrapper ID ─────────────────────────────────────────
@@ -457,10 +493,40 @@ function buildComponentPart(
     componentComputeds[c.name] = { type: c.type, body: c.body };
   }
 
+  // Read props/events from the component registry so they appear
+  // as `prop name: Type = default;` and `event name;` in the output.
+  const registryDef = useComponentRegistry.getState().definitions[options.componentName];
+  const componentProps: ComponentPart["props"] = registryDef
+    ? Object.entries(registryDef.props).map(([name, schema]) => ({
+        name,
+        type: schema.type,
+        default: schema.default,
+      }))
+    : undefined;
+  const componentEvents: ComponentPart["events"] = registryDef
+    ? Object.entries(registryDef.events).map(([name]) => ({
+        name,
+      }))
+    : undefined;
+
+  // Extract `const` declarations from codeblock elements with tag === "const"
+  const consts: ComponentPart["consts"] = [];
+  for (const el of options.designElements) {
+    if (el.nodeType === "codeblock" && el.tag === "const") {
+      const name = el.props.name as string | undefined;
+      if (name) {
+        consts.push({ name, value: el.props.value });
+      }
+    }
+  }
+
   return {
     name: options.componentName,
     signals: componentSignals,
     computeds: componentComputeds,
+    props: componentProps,
+    events: componentEvents,
+    consts: consts.length > 0 ? consts : undefined,
     storeRefs: [...phaseA.bindings.storeRefs.keys()],
     fns: phaseB.lowered.functions,
     view: phaseA.roots.length > 0 ? {

@@ -46,11 +46,11 @@ export function useRun(target: string, setStatus: (s: { text: string; isError: b
     },
     [],
   );
-  const setActiveNodeIds = useCallback((v: Set<string>) => {
-    setDebugState((prev) => ({ ...prev, activeNodeIds: v }));
+  const setActiveNodeIds = useCallback((v: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setDebugState((prev) => ({ ...prev, activeNodeIds: typeof v === 'function' ? v(prev.activeNodeIds) : v }));
   }, []);
-  const setActiveEdgeIds = useCallback((v: Set<string>) => {
-    setDebugState((prev) => ({ ...prev, activeEdgeIds: v }));
+  const setActiveEdgeIds = useCallback((v: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setDebugState((prev) => ({ ...prev, activeEdgeIds: typeof v === 'function' ? v(prev.activeEdgeIds) : v }));
   }, []);
   const setDebugPaused = useCallback((v: boolean) => {
     setDebugState((prev) => ({ ...prev, debugPaused: v }));
@@ -71,6 +71,7 @@ export function useRun(target: string, setStatus: (s: { text: string; isError: b
       setDebugPaused,
       setFnToNodeMap,
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- all runtime setters are stable useCallback wrappers
   }, [setStatus]);
 
   const handleClearDebug = useCallback(() => {

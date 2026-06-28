@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../codegraph/store";
 import { extractComponentName } from "../../core/utils";
@@ -19,7 +19,7 @@ export function useCompile(
 
   const handleCompile = useCallback(async () => {
     const store = useEditorStore.getState();
-    const cg = useCodeGraphStore.getState() as any;
+    const cg = useCodeGraphStore.getState();
     const codeTabs = cg.toSerializable().tabs;
     const componentName = extractComponentName(store.activeFileContent || "");
 
@@ -52,10 +52,10 @@ export function useCompile(
     const errs = compileResponse.errors || [];
     setCompileErrors(errs);
 
-    (useCodeGraphStore.getState() as any).switchTab("main");
-    (useCodeGraphStore.getState() as any).setElementsAndWires([], []);
+    useCodeGraphStore.getState().switchTab("main");
+    useCodeGraphStore.getState().setElementsAndWires([], []);
     try {
-      const [vRes, cbRes] = await Promise.all([
+      const [, cbRes] = await Promise.all([
         fetch("/api/parse-view", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -67,7 +67,6 @@ export function useCompile(
           body: JSON.stringify({ source: content }),
         }),
       ]);
-      const vData = await vRes.json();
       const cbData = await cbRes.json();
 
       const codeElements: ElementData[] = [];
@@ -135,7 +134,7 @@ export function useCompile(
       }
       setFnToNodeMap(newFnToNodeMap);
 
-      (useCodeGraphStore.getState() as any).setElementsAndWires(codeElements, []);
+      useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
       useEditorStore.getState().setSourceCode(content);
     } catch {
       /* canvas not critical */
@@ -154,7 +153,7 @@ export function useCompile(
       }
       const s = useEditorStore.getState();
       if (s.elements.length > 0) {
-        const cg = useCodeGraphStore.getState() as any;
+        const cg = useCodeGraphStore.getState();
         const ct = cg.toSerializable().tabs;
         const out = compilerCache.compileProject(
           {
@@ -172,7 +171,7 @@ export function useCompile(
           );
       }
     }
-  }, [target, runStatus.running, setCompileErrors, setFnToNodeMap, setStatus, ctx]);
+  }, [target, runStatus.running, setCompileErrors, setFnToNodeMap, setStatus]);
 
   return { handleCompile };
 }

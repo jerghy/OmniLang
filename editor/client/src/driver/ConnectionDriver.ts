@@ -4,8 +4,8 @@
 
 import { Logger } from "../utils/logger";
 import { getActiveStore, getAllPorts, ensureHelp, getDesignStore } from "./store";
-import { validateConnection } from "../canvas/connectionValidators";
-import { COMPONENT_PROTOCOL } from "../panels/ComponentPalette";
+import { validateConnection } from "../ui/canvas/shared/connectionValidators";
+import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
 import { WireHandle } from "./WireHandle";
 import type { ElementData } from "../store/editor";
 import type { PortDescriptor, ValidationReport } from "./types";

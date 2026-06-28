@@ -5,8 +5,8 @@ import { Logger } from "../utils/logger";
 import { useEditorStore } from "../store/editor";
 import { useCodeGraphStore } from "../codegraph/store";
 import { useUndoStore } from "../store/undo";
-import { getAllPorts } from "../canvas/connectionValidators";
-import type { ElementData } from "../store/editor";
+import { getAllPorts } from "../ui/canvas/shared/connectionValidators";
+import type { ElementData, WireData } from "../store/editor";
 
 const log = new Logger({ prefix: "OmniDriver" });
 
@@ -32,9 +32,29 @@ export function getUndoStore() {
   return useUndoStore.getState();
 }
 
+/** Minimal interface for the store returned by getActiveStore(). */
+interface ActiveStore {
+  elements: ElementData[];
+  wires: WireData[];
+  addElement: (el: ElementData) => void;
+  removeElement: (id: string) => void;
+  setProp: (id: string, prop: string, value: unknown) => void;
+  getProp: (id: string, prop: string) => unknown;
+  addWire: (w: WireData) => void;
+  removeWire: (id: string) => void;
+  setElementSource: (id: string, source: string) => void;
+  setElementPorts: (id: string, ports: ElementData["ports"]) => void;
+  selectElement: (id: string | null, multi?: boolean) => void;
+  selectedElementIds: string[];
+  previewUrl: string | null;
+  activeFileContent: string | null;
+  activeFilePath: string | null;
+  projectDir: string | null;
+}
+
 /** Access the active store (design or code graph) for element/wire CRUD.
  *  Returns an object with .elements, .wires, .addElement(), .addWire(), .removeWire(). */
-export function getActiveStore(): any {
+export function getActiveStore(): ActiveStore {
   if (isCodeMode()) {
     const cg = useCodeGraphStore.getState();
     const graph = cg.getActiveGraph();
@@ -45,10 +65,10 @@ export function getActiveStore(): any {
       removeElement: (id: string) => cg.removeElement(id),
       setProp: (id: string, prop: string, value: unknown) => cg.setProp(id, prop, value),
       getProp: (id: string, prop: string) => cg.getProp(id, prop),
-      addWire: (w: any) => cg.addWire(w),
+      addWire: (w: WireData) => cg.addWire(w),
       removeWire: (id: string) => cg.removeWire(id),
       setElementSource: (id: string, source: string) => cg.setElementSource(id, source),
-      setElementPorts: (id: string, ports: any) => cg.setElementPorts(id, ports),
+      setElementPorts: (id: string, ports: ElementData["ports"]) => cg.setElementPorts(id, ports),
       selectElement: (_id: string | null, _multi?: boolean) => {},
       get selectedElementIds() { return []; },
       get previewUrl() { return null; },

@@ -49,6 +49,8 @@ export interface ComponentPart {
   signals: Record<string, { type: string; default?: unknown }>;
   computeds: Record<string, { type: string; body: string }>;
   storeRefs: string[];
+  /** Compile-time constant declarations (e.g. `const MAX_COUNT = 100;`) */
+  consts?: Array<{ name: string; value: unknown }>;
   fns: Array<{ name: string; params: Array<{ name: string; type: string }>; returnType: string; body: string }>;
   /** Component prop declarations (e.g. `prop title: String = ""`) */
   props?: Array<{ name: string; type: string; default?: unknown }>;
@@ -136,6 +138,7 @@ export interface ViewNode {
   children: ViewNode[];
   kind: ViewNodeKind;
   resolvedStyle?: ResolvedStyle;
+  inline_style?: Record<string, string> | null;
   isFolded?: boolean;
   renderMode?: "dom" | "canvas";
   condition?: string;

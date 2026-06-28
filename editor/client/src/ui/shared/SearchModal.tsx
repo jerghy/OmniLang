@@ -5,7 +5,7 @@
  * 支持键盘导航（↑↓ 选择，Enter 执行，Esc 关闭）。
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { unifiedSearch, SOURCE_CONFIG } from "../../services/parser/search-index";
 import type { SearchResult, SearchContext, SearchSource } from "../../services/parser/search-index";
 
@@ -26,11 +26,15 @@ export function SearchModal({ visible, onClose, onSelect, context }: SearchModal
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const results = query.trim() ? unifiedSearch(query, context) : [];
+  const results = useMemo(
+    () => query.trim() ? unifiedSearch(query, context) : [],
+    [query, context],
+  );
 
   // Reset on open
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset search state when modal opens
       setQuery("");
       setSelectedIdx(0);
     }

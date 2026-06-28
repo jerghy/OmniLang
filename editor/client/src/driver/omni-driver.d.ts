@@ -9,7 +9,6 @@ import type {
   CompileResult,
   EditorSnapshot,
   ComponentInfo,
-  EventHandlerOptions,
   ValidationReport,
   FnParam,
   ParamBinding,
@@ -18,7 +17,6 @@ import type {
   TabInfo,
   FunctionValidationReport,
   FunctionSignature,
-  TabExportData,
 } from "./types";
 import type { ElementData, WireData, EditorState } from "../store/editor";
 import type { CodeEditorState } from "../codegraph/store";

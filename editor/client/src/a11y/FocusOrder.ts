@@ -20,10 +20,6 @@ const FOCUSABLE_TAGS = [
   "Slider",
 ];
 
-function getFocusableElements(elements: ElementData[]): ElementData[] {
-  return elements.filter((e) => FOCUSABLE_TAGS.includes(e.tag));
-}
-
 // ── Tab 顺序计算 ─────────────────────────────────
 
 /**

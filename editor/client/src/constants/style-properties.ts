@@ -1,5 +1,3 @@
-import type { StyleProperty } from "../core/types/style";
-
 // ─── Property → Unit mapping (kebab-case keys) ────────
 export const PROPERTY_UNIT_MAP: Record<string, { default: string; common: string[]; advanced?: string[] }> = {
   // Length

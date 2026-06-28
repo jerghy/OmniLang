@@ -3,6 +3,7 @@
  *  Built-in templates: "login-form", "data-card", "crud-table". */
 
 import { ElementHandle } from "./ElementHandle";
+import type { OmniDriver } from "./OmniDriver";
 
 // ═══════════════════════════════════════════════════════
 // SnippetService
@@ -14,7 +15,7 @@ export class SnippetService {
 
   constructor(
     /** The OmniDriver facade used for element creation. */
-    private _driver: any,
+    private _driver: OmniDriver,
   ) {}
 
   /** Register a custom snippet template.

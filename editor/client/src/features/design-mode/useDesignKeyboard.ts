@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useEditorStore } from "../../store/editor";
-import { useUndoStore } from "../../store/undo";
 import { showToast } from "../../notifications/toast";
 import {
   copySelection,
@@ -121,5 +120,6 @@ export function useDesignKeyboard(
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ctx, opts.mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- individual opts properties tracked explicitly; opts object would change every render
+  }, [ctx, opts.mode, opts.setShowHUD, opts.setShowSearch, opts.setShowConflict, opts.setActivePanel]);
 }

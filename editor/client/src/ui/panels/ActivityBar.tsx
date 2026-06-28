@@ -1,6 +1,7 @@
 /** Activity Bar — VS Code-style icon column for panel switching.
  *  Design §4.2: click icon → toggle panel. Only one panel open at a time.
  *  Reusable across code and design modes via the `panels` prop. */
+/* eslint-disable react-refresh/only-export-components -- intentional constant exports alongside component */
 
 import { useState, type ReactNode } from "react";
 

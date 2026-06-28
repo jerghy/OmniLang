@@ -1,13 +1,11 @@
 /** Code-mode property panel — shows node configuration for the selected code graph node.
  *  Only renders when activeMode === "code". */
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useCodeGraphStore } from "../../codegraph/store";
-import { getNodeConfig, getAllNodeConfigs } from "../canvas/shared/nodeRegistry";
-import { createCodeGraphContext } from "../../codegraph/context";
-import { AddElement } from "../../core/commands/AddElement";
+import { getNodeConfig } from "../canvas/shared/nodeRegistry";
 import type { ElementData } from "../../core/types";
-import type { FnParam, SignalDefinition } from "../../codegraph/types";
+import type { FnParam } from "../../codegraph/types";
 
 // ═══════════════════════════════════════════════════
 // CodePropertyPanel — main component

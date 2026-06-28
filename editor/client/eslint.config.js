@@ -22,6 +22,12 @@ export default defineConfig([
       'no-console': ['warn', {
         allow: ['debug', 'info', 'warn', 'error'],
       }],
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
     },
   },
   {

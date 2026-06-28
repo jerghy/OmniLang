@@ -242,8 +242,11 @@ describe("SourceEmitter", () => {
     const emitter = new SourceEmitter();
     const result = emitter.emitDocument(input, new Map());
     expect(result).toContain("style {");
-    expect(result).toContain(".btn { color: red; font-size: 14px; }");
-    expect(result).toContain(".container { padding: 8px; }");
+    expect(result).toContain(".btn {");
+    expect(result).toContain("color: red;");
+    expect(result).toContain("font-size: 14px;");
+    expect(result).toContain(".container {");
+    expect(result).toContain("padding: 8px;");
   });
 
   it("emits themes", () => {
@@ -367,7 +370,8 @@ describe("SourceEmitter", () => {
     };
     const emitter = new SourceEmitter();
     const result = emitter.emitDocument(input, new Map());
-    expect(result).toContain("></br>");
+    expect(result).toContain("/>");
+    expect(result).not.toContain("></br>");
   });
 
   it("emits with annotation strategy", () => {

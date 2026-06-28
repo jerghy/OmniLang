@@ -7,7 +7,7 @@ import { extractComponentName } from "../../core/utils";
 import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../codegraph/store";
 import { useComponentRegistry } from "../../store/componentRegistry";
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData, WireData, CodeTab } from "../../core/types";
 import { saveComponentDefinitionsToServer } from "./component-service";
 
 export interface FileSaveEntry {
@@ -27,14 +27,16 @@ export async function saveFileEntry(
   statusMessage?: (text: string, isError: boolean) => void,
 ): Promise<boolean> {
   const store = useEditorStore.getState();
-  const componentName = extractComponentName(
-    store.activeFileContent || store.sourceCode || "",
-  );
+  // Main canvas always uses "App" as registry key; file tabs use their actual component name.
+  const isMainCanvas = store.activeDocId === null || store.activeDocId === "main";
+  const componentName = isMainCanvas
+    ? "App"
+    : extractComponentName(store.activeFileContent || store.sourceCode || "");
 
   const genResult = generateOmniSource({
     designElements: entry.elements,
     designWires: entry.wires,
-    codeTabs: codeTabs.tabs,
+    codeTabs: codeTabs.tabs as CodeTab[],
     componentName,
     rootOrder: entry.rootOrder,
     forSave: true,
@@ -157,10 +159,12 @@ export async function saveProject(
       const genResult = generateOmniSource({
         designElements: entry.elements,
         designWires: entry.wires,
-        codeTabs: codeTabs.tabs,
-        componentName: extractComponentName(
-          store.activeFileContent || store.sourceCode || "",
-        ),
+        codeTabs: codeTabs.tabs as CodeTab[],
+        componentName: (store.activeDocId === null || store.activeDocId === "main")
+          ? "App"
+          : extractComponentName(
+              store.activeFileContent || store.sourceCode || "",
+            ),
         rootOrder: entry.rootOrder,
         forSave: true,
       });

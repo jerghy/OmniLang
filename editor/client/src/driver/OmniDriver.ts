@@ -14,13 +14,11 @@
  *  ```
  */
 
-import { Logger } from "../utils/logger";
-import { getDesignStore, getActiveStore, isCodeMode, nextId } from "./store";
+import { getDesignStore, getActiveStore } from "./store";
 import { useEditorStore } from "../store/editor";
-import { useCodeGraphStore } from "../codegraph/store";
 import { api } from "../api/client";
-import { COMPONENT_PROTOCOL } from "../panels/ComponentPalette";
-import { getNodeConfig } from "../canvas/nodeRegistry";
+import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
+import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
 import { ElementHandle } from "./ElementHandle";
 import { WireHandle } from "./WireHandle";
 import { ConnectionDriver } from "./ConnectionDriver";
@@ -46,10 +44,7 @@ import type {
   TabInfo,
   FunctionValidationReport,
   FunctionSignature,
-  TabExportData,
 } from "./types";
-
-const log = new Logger({ prefix: "OmniDriver" });
 
 // ═══════════════════════════════════════════════════════
 // OmniDriver facade
@@ -371,8 +366,9 @@ class OmniDriver {
 
       // Parse view elements
       if (vData.success && vData.nodes) {
+        type ViewTreeNode = { id: string; tag: string; props?: Record<string, unknown>; children?: ViewTreeNode[] };
         const flattenTree = (
-          nodes: any[],
+          nodes: ViewTreeNode[],
           parentId: string | null,
         ): ElementData[] => {
           const result: ElementData[] = [];
@@ -386,7 +382,7 @@ class OmniDriver {
               parentId,
             };
             if (n.children?.length) {
-              el.children = n.children.map((c: any) => c.id);
+              el.children = n.children.map((c: ViewTreeNode) => c.id);
               result.push(...flattenTree(n.children, n.id));
             }
             result.push(el);
@@ -445,7 +441,7 @@ class OmniDriver {
     }
 
     return {
-      success: !result.errors?.some((e: any) => e.severity === "error"),
+      success: !result.errors?.some((e) => e.severity === "error"),
       errors: result.errors || [],
     };
   }

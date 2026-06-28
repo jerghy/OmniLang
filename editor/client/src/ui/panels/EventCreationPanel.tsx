@@ -3,8 +3,6 @@
  *  Design §3.2: all options in one popup. */
 
 import { useState } from "react";
-import { useEditorStore } from "../../store/editor";
-import type { ElementData } from "../../core/types";
 import type { EventMeta } from "./ComponentPalette";
 
 export interface EventSource {

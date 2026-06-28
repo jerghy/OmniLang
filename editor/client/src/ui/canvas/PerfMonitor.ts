@@ -12,7 +12,7 @@
  *   - 200 components + 300 wires < 50ms property edit latency
  */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../../utils/logger";
 
 const log = new Logger({ prefix: "Perf" });
 

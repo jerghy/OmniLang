@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Logger } from "../utils/logger";
+import React, { useRef, useEffect } from 'react';
+import { Logger } from "../../../utils/logger";
 
 const log = new Logger({ prefix: "CanvasPreview" });
 
@@ -105,10 +105,6 @@ export function CanvasPreview({
       }
     }
   }, [selectedId]);
-
-  const postMessage = useCallback((msg: unknown) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
-  }, []);
 
   return (
     <iframe

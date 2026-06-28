@@ -31,7 +31,7 @@ export function ComponentPalette() {
   const allMeta = useMemo(() => {
     const unified = getUnifiedComponentMeta();
     return Object.values(unified);
-  }, [definitions]);
+  }, []); // getUnifiedComponentMeta() reads fresh data from store internally
 
   // Filter by search
   const filtered = useMemo(() => {

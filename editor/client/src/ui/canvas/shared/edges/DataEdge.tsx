@@ -18,7 +18,7 @@ const DATA_TYPE_COLORS: Record<string, string> = {
  * Represents value passing between node ports.
  */
 export function DataEdge({
-  id,
+  id: _id,
   sourceX, sourceY,
   targetX, targetY,
   sourcePosition, targetPosition,

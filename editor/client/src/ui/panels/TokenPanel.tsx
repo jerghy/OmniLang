@@ -4,6 +4,7 @@
  * 令牌可被绑定到组件属性。修改令牌后，所有绑定的组件自动更新。
  * 令牌存储使用 Zustand。
  */
+/* eslint-disable react-refresh/only-export-components -- intentional non-component exports */
 
 import { useState, useCallback } from "react";
 import { create } from "zustand";

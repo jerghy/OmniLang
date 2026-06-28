@@ -3,14 +3,17 @@
 
 import React from "react";
 import type { ElementData, StyleProperty } from "../../../core/types";
+import type { StyleRegistry } from "../../../core/types/style";
 import type { CommandContext } from "../../../core/commands/types";
-import { useEditorStore } from "../../../store/editor";
 import { useStyleRegistryStore } from "../../../core/state/styleRegistry";
 import { useUndoStore } from "../../../store/undo";
 import { SetElementClassRefs } from "../../../core/commands/SetElementClassRefs";
 import { SetElementInlineStyles } from "../../../core/commands/SetElementInlineStyles";
 import { StylePropertyEditor } from "../../panels/StylePropertyEditor";
 import { uid } from "../../../core/utils/id";
+
+/** Stable empty-registry sentinel — never creates a new reference on each render. */
+const EMPTY_REGISTRY: StyleRegistry = { variables: [], classes: [] };
 
 interface Props {
   element: ElementData;
@@ -20,9 +23,11 @@ interface Props {
 
 export function StyleSection({ element: el, ctx, onRecompile }: Props) {
   const undoExec = useUndoStore((s) => s.execute);
-  const registry = useStyleRegistryStore((s) => s.getRegistry("App"));
-  const classRefs = (el as any).style?.classRefs ?? [];
-  const inlineProperties: StyleProperty[] = (el as any).style?.inlineProperties ?? [];
+  // ⚠️ Do NOT call s.getRegistry("App") as a selector — it returns a new reference
+  // every time the key is absent, causing a useSyncExternalStore infinite loop.
+  const registry = useStyleRegistryStore((s) => s.registries["App"] ?? EMPTY_REGISTRY);
+  const classRefs = el.style?.classRefs ?? [];
+  const inlineProperties: StyleProperty[] = el.style?.inlineProperties ?? [];
 
   const handleAddClassRef = (className: string) => {
     const newRefs = [...classRefs, className];

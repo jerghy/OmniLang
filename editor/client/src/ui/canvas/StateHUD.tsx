@@ -28,6 +28,7 @@ interface HistoryPoint {
 }
 
 export function StateHUD({ elementId, visible, onClose }: StateHUDProps) {
+  // eslint-disable react-hooks/refs -- deliberate ref reads for HUD timeline display
   const [signals, setSignals] = useState<SignalEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -52,6 +53,7 @@ export function StateHUD({ elementId, visible, onClose }: StateHUDProps) {
     const iframe = document.querySelector("iframe") as HTMLIFrameElement | null;
     if (!iframe?.contentWindow) {
       // 无预览 iframe → 显示静态绑定信息
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fallback when iframe unavailable
       setSignals(
         elSignals.map((s) => ({ name: s, value: "(未运行)", type: "unknown" }))
       );
@@ -213,7 +215,8 @@ export function StateHUD({ elementId, visible, onClose }: StateHUDProps) {
       {/* Timeline view */}
       {showTimeline && (
         <div style={{ maxHeight: 100, overflowY: "auto", borderTop: "1px solid #374151", paddingTop: 4, paddingBottom: 4 }}>
-          {signals.map((sig) => {
+          {// eslint-disable-next-line react-hooks/refs -- reading history ref in render for display
+          signals.map((sig) => {
             const points = historyRef.current.get(sig.name) || [];
             if (points.length <= 1) return null;
             return (
@@ -302,6 +305,7 @@ export function StateHUD({ elementId, visible, onClose }: StateHUDProps) {
       </div>
     </div>
   );
+  // eslint-enable react-hooks/refs
 }
 
 // ── Helpers ────────────────────────────────────────

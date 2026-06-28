@@ -1,6 +1,4 @@
 import { useEffect } from "react";
-import { useEditorStore } from "../../store/editor";
-import { showToast } from "../../notifications/toast";
 
 export interface CodeKeyboardOptions {
   handleCompile: () => void;
@@ -28,5 +26,6 @@ export function useCodeKeyboard(opts: CodeKeyboardOptions) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [opts.handleCompile, opts.saveProject, opts.undoUndo, opts.undoRedo, opts.ctx]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- individual opts properties tracked explicitly; opts object would change every render
+  }, [opts.handleCompile, opts.saveProject, opts.undoUndo, opts.undoRedo, opts.ctx, opts.searchProject]);
 }

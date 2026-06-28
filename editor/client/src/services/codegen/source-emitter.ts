@@ -114,6 +114,16 @@ export class SourceEmitter {
       w.emit(`computed ${name}: ${c.type} = ${c.body};`);
     }
 
+    // Constants (compile-time, e.g. `const MAX_COUNT = 100`)
+    if (comp.consts) {
+      for (const c of comp.consts) {
+        const val = typeof c.value === "string"
+          ? `"${c.value}"`
+          : String(c.value ?? "");
+        w.emit(`const ${c.name} = ${val};`);
+      }
+    }
+
     // Functions with chains
     for (const fn of comp.fns) {
       // Event handler boundary marker (for round-trip tab reconstruction)
@@ -140,13 +150,20 @@ export class SourceEmitter {
       w.emit(`}`);
     }
 
-    // Style
+    // Style — one property per line, matching hand-written .omni conventions
     if (Object.keys(comp.style).length > 0) {
       w.emit(`style {`);
       w.indent();
       for (const [cls, rules] of Object.entries(comp.style)) {
-        const ruleStr = Object.entries(rules).map(([k, v]) => `${k}: ${v};`).join(" ");
-        w.emit(`.${cls} { ${ruleStr} }`);
+        if (Object.keys(rules).length === 0) continue;
+        w.emit(`.${cls} {`);
+        w.indent();
+        for (const [prop, val] of Object.entries(rules)) {
+          w.emit(`${prop}: ${val};`);
+        }
+        w.dedent();
+        w.emit(`}`);
+        w.blank();
       }
       w.dedent();
       w.emit(`}`);
@@ -197,13 +214,109 @@ export class SourceEmitter {
     }
   }
 
+  /** HTML void elements that must self-close. */
+  private static readonly VOID_ELEMENTS = new Set([
+    "area", "base", "br", "col", "embed", "hr", "img",
+    "input", "link", "meta", "param", "source", "track", "wbr",
+  ]);
+
+  /** HTML boolean attributes — emitted as bare attribute name. */
+  private static readonly BOOLEAN_ATTRS = new Set([
+    "disabled", "required", "readonly", "checked", "selected",
+    "hidden", "multiple", "autofocus", "novalidate",
+    "async", "defer", "ismap", "itemscope", "open",
+    "loop", "muted", "controls", "autoplay",
+  ]);
+
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
-    // Annotation
-    if (this.annotationStrategy) {
+    // Annotation (skip for text/interpolation which are inline)
+    if (this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
       const ann = this.annotationStrategy.beforeViewNode(node, depth);
       if (ann) w.emit(ann);
     }
 
+    // ── Non-element node kinds (don't need resolvedStyle) ──
+
+    if (node.kind === "text") {
+      if (node.expression) {
+        w.emit(`{${node.expression}}`);
+      } else if (node.text) {
+        w.emit(node.text);
+      }
+      return;
+    }
+    if (node.kind === "interpolation") {
+      w.emit(`{${node.expression ?? ""}}`);
+      return;
+    }
+
+    // ── @if / @else if / @else ──
+    if (node.kind === "if") {
+      if (node.branches && node.branches.length > 0) {
+        const first = node.branches[0];
+        w.emit(`@if ${first.condition} {`);
+        w.indent();
+        for (const child of first.body) this.emitViewNode(child, w, depth + 1);
+        w.dedent();
+        w.emit(`}`);
+        for (let i = 1; i < node.branches.length; i++) {
+          const b = node.branches[i];
+          w.emit(`@else if ${b.condition} {`);
+          w.indent();
+          for (const child of b.body) this.emitViewNode(child, w, depth + 1);
+          w.dedent();
+          w.emit(`}`);
+        }
+      } else if (node.condition) {
+        w.emit(`@if ${node.condition} {`);
+        w.indent();
+        for (const child of node.children) this.emitViewNode(child, w, depth + 1);
+        w.dedent();
+        w.emit(`}`);
+      } else {
+        return;
+      }
+      if (node.fallback && node.fallback.length > 0) {
+        w.emit(`@else {`);
+        w.indent();
+        for (const child of node.fallback) this.emitViewNode(child, w, depth + 1);
+        w.dedent();
+        w.emit(`}`);
+      }
+      return;
+    }
+
+    // ── @for / @empty ──
+    if (node.kind === "for") {
+      const iter = node.iterable ?? "";
+      const item = node.itemBinding ?? "item";
+      w.emit(`@for ${item} in ${iter} {`);
+      w.indent();
+      for (const child of node.children) this.emitViewNode(child, w, depth + 1);
+      w.dedent();
+      w.emit(`}`);
+      if (node.emptyBody && node.emptyBody.length > 0) {
+        w.emit(`@empty {`);
+        w.indent();
+        for (const child of node.emptyBody) this.emitViewNode(child, w, depth + 1);
+        w.dedent();
+        w.emit(`}`);
+      }
+      return;
+    }
+
+    // ── @slot ──
+    if (node.kind === "slot") {
+      const name = node.slotName ?? "";
+      w.emit(name ? `@slot ${name} {` : `@slot {`);
+      w.indent();
+      for (const child of node.children) this.emitViewNode(child, w, depth + 1);
+      w.dedent();
+      w.emit(`}`);
+      return;
+    }
+
+    // ── Element nodes (require resolvedStyle) ──
     const style = node.resolvedStyle;
     if (!style) return;
 
@@ -221,7 +334,12 @@ export class SourceEmitter {
     for (const [attr, val] of Object.entries(style.htmlAttrs)) {
       // Skip className — already emitted via class: above
       if (attr === "className" || attr === "style") continue;
-      parts.push(` ${attr}="${escapeAttr(val)}"`);
+      // Boolean attributes: emit bare name
+      if (SourceEmitter.BOOLEAN_ATTRS.has(attr)) {
+        parts.push(` ${attr}`);
+      } else {
+        parts.push(` ${attr}="${escapeAttr(val)}"`);
+      }
     }
 
     // Inline styles — values are already compiled segment strings from
@@ -243,19 +361,36 @@ export class SourceEmitter {
     }
 
     const openTag = parts.join("");
+    const isVoid = SourceEmitter.VOID_ELEMENTS.has(style.htmlTag);
     const hasContent = style.contentText || node.children.length > 0;
 
-    if (!hasContent) {
-      w.emit(`${openTag}></${style.htmlTag}>`);
+    if (isVoid || !hasContent) {
+      w.emit(isVoid ? `${openTag} />` : `${openTag}></${style.htmlTag}>`);
       return;
     }
 
     w.emit(`${openTag}>`);
     w.indent();
 
-    if (style.contentText) w.emit(style.contentText);
+    // Emit content text only when no binding covers the same prop.
+    // When a signal is wired to the content prop (e.g. label on Button),
+    // the binding takes priority; contentText becomes a stale literal.
+    if (style.contentText) {
+      const bindingKeys = new Set(Object.keys(style.bindings));
+      const contentIsBound = style.contentText.length > 0 &&
+        Array.from(bindingKeys).some((k) => k === "label" || k === "value");
+      if (!contentIsBound) {
+        w.emit(style.contentText);
+      }
+    }
 
-    for (const child of node.children) this.emitViewNode(child, w, depth + 1);
+    for (const child of node.children) {
+      if (child.kind === "text" || child.kind === "interpolation") {
+        this.emitViewNode(child, w, depth + 1);
+      } else {
+        this.emitViewNode(child, w, depth + 1);
+      }
+    }
 
     w.dedent();
     w.emit(`</${style.htmlTag}>`);

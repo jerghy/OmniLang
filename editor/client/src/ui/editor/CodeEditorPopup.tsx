@@ -1,8 +1,8 @@
 /** Monaco editor modal overlay — triggered by double-clicking a code block in wire canvas.
  *  Edits the block's own source code, not the whole file. */
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { MonacoEditor, type MonacoEditorHandle } from "./MonacoEditor";
+import { useState, useCallback, useEffect } from "react";
+import { MonacoEditor } from "./MonacoEditor";
 import { useEditorStore } from "../../store/editor";
 import type { ElementData } from "../../core/types";
 import { SnippetPanel } from "../panels/SnippetPanel";
@@ -55,6 +55,7 @@ export function CodeEditorPopup({ visible, blockId, title, source, blockElement,
 
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync draft state when opening with new source
       setDraft(source);
       setModified(false);
     }
@@ -95,8 +96,6 @@ export function CodeEditorPopup({ visible, blockId, title, source, blockElement,
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, handleClose, handleSave]);
-
-  const editorRef = useRef<MonacoEditorHandle>(null);
 
   if (!visible) return null;
 

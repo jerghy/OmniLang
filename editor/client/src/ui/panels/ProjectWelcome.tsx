@@ -67,6 +67,7 @@ function DirBrowser({ onSelectDir }: { onSelectDir: (absPath: string) => void })
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load directory listing on mount
     loadDir("/");
   }, [loadDir]);
 

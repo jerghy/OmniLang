@@ -38,6 +38,7 @@ export function StyleValueEditor({
 
   // Keep text in sync when segments change externally
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync text display when segments change
     setText(segmentsToDisplay(segments));
   }, [segments]);
 
@@ -55,7 +56,7 @@ export function StyleValueEditor({
     }
 
     // Detect var( trigger
-    const varMatch = rawValue.match(/var\((\-{0,2}\w*)$/);
+    const varMatch = rawValue.match(/var\((-{0,2}\w*)$/);
     if (varMatch && availableCssVars.length > 0) {
       setFilterText(varMatch[1]);
       setSuggestionType("var-ref");
@@ -89,7 +90,7 @@ export function StyleValueEditor({
   };
 
   const insertVarRef = (varName: string) => {
-    const beforeText = text.replace(/var\([\-]*\w*$/, "");
+    const beforeText = text.replace(/var\([-]*\w*$/, "");
     const newSegments: StyleValueSegment[] = [];
 
     if (beforeText.trim()) {

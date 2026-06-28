@@ -1,6 +1,7 @@
 /** Block palette — quick-add code block types.
  *  Used in both design mode sidebar and code mode FunctionLibrary panel.
  *  Each type creates a code block with proper ports, nodeCategory, and source template. */
+/* eslint-disable react-refresh/only-export-components -- intentional non-component exports */
 
 import { useEditorStore } from "../../store/editor";
 import type { ElementData } from "../../core/types";

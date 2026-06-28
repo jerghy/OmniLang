@@ -30,7 +30,7 @@ export function CodeToolbar({
         onChange={(e) => {
           const v = e.target.value;
           if (v) {
-            const O = (window as any).__OMNI__;
+            const O = (window as unknown as Record<string, unknown>).__OMNI__ as { snippet: (v: string) => void } | undefined;
             if (O) O.snippet(v);
           }
           e.target.value = "";

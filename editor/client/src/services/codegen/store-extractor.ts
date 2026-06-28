@@ -3,7 +3,7 @@
 // Phase 1: scan for tag==="store" -> StoreDef skeleton
 // Phase 2: group signal/computed/action into parent stores
 
-import type { ElementData, WireData } from "../../core/types";
+import type { ElementData } from "../../core/types";
 import type { StoreDef } from "./types";
 
 export interface StoreExtractResult {
@@ -20,7 +20,7 @@ export interface StoreExtractResult {
  * Phase 2: Assign signal/computed/action elements to their parent store
  * via props.parentStore or parentId chain walk.
  */
-export function extractStores(elements: ElementData[], wires: WireData[]): StoreExtractResult {
+export function extractStores(elements: ElementData[]): StoreExtractResult {
   const codeblocks = elements.filter(e => e.nodeType === "codeblock");
 
   // ── Phase 1: Build store skeletons ──

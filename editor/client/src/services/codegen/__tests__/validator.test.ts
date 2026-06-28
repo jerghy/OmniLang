@@ -13,7 +13,7 @@ import { rustCompiler } from "../../../api/rustCompiler";
 
 describe("validate", () => {
   it("returns valid=true when compileToIR succeeds", () => {
-    (rustCompiler.compileToIR as any).mockReturnValue({
+    vi.mocked(rustCompiler.compileToIR).mockReturnValue({
       success: true,
       ir: { version: "1", components: {}, stores: {}, source_map: {} },
       errors: [],
@@ -26,7 +26,7 @@ describe("validate", () => {
   });
 
   it("returns valid=false with errors when compileToIR fails", () => {
-    (rustCompiler.compileToIR as any).mockReturnValue({
+    vi.mocked(rustCompiler.compileToIR).mockReturnValue({
       success: false,
       errors: [{ severity: "error", code: "E001", message: "unexpected token", line: 1, col: 10, end_line: 1, end_col: 15 }],
     });

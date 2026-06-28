@@ -1,4 +1,3 @@
-import { useEditorStore } from "../../store/editor";
 import { FileExplorer } from "../../ui/panels/FileExplorer";
 import { StatePanel } from "../../ui/panels/StatePanel";
 import { FunctionLibrary } from "../../ui/panels/FunctionLibrary";

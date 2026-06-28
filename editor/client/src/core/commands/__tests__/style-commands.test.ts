@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStyleRegistryStore } from "../../state/styleRegistry";
-import { useEditorStore } from "../../../store/editor";
 import { uid } from "../../utils/id";
 import { AddCssVariable } from "../AddCssVariable";
 import { RemoveCssVariable } from "../RemoveCssVariable";

@@ -17,7 +17,7 @@ import { CanvasPreview } from "./CanvasPreview";
 import { compilerCache } from "../../../services/compiler/cache";
 import { rustCompiler } from "../../../api/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
-import { Logger } from "../utils/logger";
+import { Logger } from "../../../utils/logger";
 
 const log = new Logger({ prefix: "LayoutView" });
 
@@ -34,10 +34,12 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
   const elements = useEditorStore((s) => s.elements);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const selectElement = useEditorStore((s) => s.selectElement);
+  const activeDocId = useEditorStore((s) => s.activeDocId);
   const undoExec = useUndoStore((s) => s.execute);
 
   // -- Compilation state --
   const [srcdoc, setSrcdoc] = useState<string>("");
+  const prevDocRef = useRef(activeDocId);
   const [wasmReady, setWasmReady] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initAttempted = useRef(false);
@@ -74,10 +76,12 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
 
     // Determine the correct component name: use the component name when on
     // a component canvas, otherwise extract from source or default to "App".
+    // ⚠️ activeFileContent may contain a project-level component name (e.g. "demo1")
+    // that doesn't match the style registry key "App". Only use it on file tabs.
     let componentName = "App";
     if (store.activeDocId?.startsWith("comp:")) {
       componentName = store.activeDocId.replace("comp:", "");
-    } else if (store.activeFileContent) {
+    } else if (store.activeDocId?.startsWith("file:") && store.activeFileContent) {
       componentName = extractComponentName(store.activeFileContent, "App");
     }
 
@@ -100,13 +104,22 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
         useEditorStore.getState().setSourceCode(output.omniSource);
       }
     }
-  }, [hideCodeBlocks]);
+  }, [hideCodeBlocks]); // recompile helper reads state via useEditorStore.getState()
 
   // -- Initial compile on mount (re-runs when WASM becomes ready) --
   useEffect(() => {
     if (!wasmReady) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial compile when WASM becomes ready
     recompile();
   }, [recompile, wasmReady]);
+
+  // -- Force recompile when activeDocId (canvas tab) changes --
+  useEffect(() => {
+    if (!wasmReady) return;
+    if (prevDocRef.current === activeDocId) return;
+    prevDocRef.current = activeDocId;
+    recompile();
+  }, [activeDocId, wasmReady, recompile]);
 
   // -- Subscribe to store changes and debounce recompilation --
   // Only recompile when elements, wires, or rootOrder actually change to
@@ -116,7 +129,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     const unsub = useEditorStore.subscribe((state) => {
       // Compute a lightweight key: join element IDs, wire IDs, rootOrder, compVersion,
       // and activeDocId to force recompile on tab/canvas switch.
-      const elKey = state.elements.map((e) => `${e.id}:${e.tag}:${e.parentId}:${e.componentRef || ''}:${JSON.stringify(e.styles)}`).join('|');
+      const elKey = state.elements.map((e) => `${e.id}:${e.tag}:${e.parentId}:${e.componentRef || ''}:${JSON.stringify(e.style ?? null)}`).join('|');
       const wireKey = state.wires.map((w) => `${w.id}:${w.fromId}->${w.toId}`).join('|');
       const key = `${elKey}|${wireKey}|${state.rootOrder.join(',')}|${state.compVersion}|${state.activeDocId || 'main'}`;
       if (key === prevKey) return; // No meaningful change → skip recompile
@@ -154,7 +167,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     [selectElement],
   );
 
-  const handleRendered = useCallback((_map: Record<string, NidEntry>) => {
+  const handleRendered = useCallback(() => {
     // nidMap is stored in CanvasPreview's ref, accessible for nid -> elementId lookups
     // We don't need the map in this component directly.
   }, []);
@@ -229,15 +242,6 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     elementId: string;
   } | null>(null);
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent, elementId: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setCtxMenu({ x: e.clientX, y: e.clientY, elementId });
-    },
-    [],
-  );
-
   const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
 
   const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
@@ -256,6 +260,7 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     >
       {hasContent || srcdoc ? (
         <CanvasPreview
+          key={activeDocId || "main"}
           srcdoc={srcdoc}
           onSelect={handleSelect}
           onRendered={handleRendered}
@@ -354,3 +359,4 @@ export function LayoutView({ ctx, hideCodeBlocks = false }: LayoutViewProps) {
     </div>
   );
 }
+

@@ -14,7 +14,6 @@ import type { ElementData, WireData } from "../../../core/types";
 //   View elements: ~180×198 (inputs), ~180×306 (buttons)
 const CB_WIDTH = 200;   // slightly larger than actual 180 for padding
 const CB_HEIGHT = 170;  // slightly larger than actual 162, covers store (126) too
-const VIEW_WIDTH = 200;
 const VIEW_HEIGHT = 200; // covers input (198), tight for button (306) but ok
 
 // ── Layout spacing ──

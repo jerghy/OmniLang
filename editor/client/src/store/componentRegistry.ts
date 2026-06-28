@@ -71,7 +71,7 @@ export interface ComponentRegistryState {
 
   /** Update metadata (props schema, events, etc.) */
   updateMeta: (name: string, patch: Partial<
-    Pick<ComponentDefinition, "props" | "events" | "styleProperties" | "children" | "description" | "category">
+    Pick<ComponentDefinition, "props" | "events" | "styleProperties" | "children" | "description" | "category" | "storage">
   >) => void;
 
   /** Save component canvas state */
@@ -80,7 +80,7 @@ export interface ComponentRegistryState {
   renameComponent: (oldName: string, newName: string) => void;
 }
 
-export const useComponentRegistry = create<ComponentRegistryState>((set, get) => ({
+export const useComponentRegistry = create<ComponentRegistryState>((set) => ({
   definitions: {},
 
   defineComponent: (name, meta) => {
@@ -147,7 +147,7 @@ export const useComponentRegistry = create<ComponentRegistryState>((set, get) =>
       if (editorStore) {
         const editorState = editorStore.getState();
         if (editorState?.elements) {
-          const updatedElements = editorState.elements.map((el: any) =>
+          const updatedElements = editorState.elements.map((el: ElementData) =>
             el.componentRef === oldName ? { ...el, componentRef: newName, tag: newName } : el
           );
           editorStore.setState({ elements: updatedElements });

@@ -2,9 +2,9 @@
  *  Extracted from OmniDriver god class. */
 
 import { Logger } from "../utils/logger";
-import { getDesignStore, getActiveStore, isCodeMode, getCodeGraphStore, nextId, ensureHelp } from "./store";
-import { COMPONENT_PROTOCOL } from "../panels/ComponentPalette";
-import { getNodeConfig } from "../canvas/nodeRegistry";
+import { getDesignStore, isCodeMode, getCodeGraphStore, nextId, ensureHelp } from "./store";
+import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
+import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
 import { useEditorStore } from "../store/editor";
 import { ElementHandle } from "./ElementHandle";
 import type { ElementData } from "../store/editor";

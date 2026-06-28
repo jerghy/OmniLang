@@ -59,7 +59,7 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
 
   // ── Handlers ──
   const toggleCollapse = useCallback((id: string) => {
-    setCollapsed((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setCollapsed((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, elementId: string) => {
@@ -156,7 +156,6 @@ function ContextMenu({ x, y, elementId, elements, rootOrder, undoExec, ctx, ente
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const addChildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextElement = elements.find((e) => e.id === elementId);
-  const registryVersion = useComponentRegistry((s) => Object.keys(s.definitions).length);
   const registryDefs = useComponentRegistry((s) => s.definitions);
 
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", h); return () => document.removeEventListener("keydown", h); }, [onClose]);
@@ -173,7 +172,7 @@ function ContextMenu({ x, y, elementId, elements, rootOrder, undoExec, ctx, ente
     for (const cat of CATEGORY_ORDER) { if (map.has(cat)) sorted.set(cat, map.get(cat)!); }
     for (const [cat, items] of map) { if (!sorted.has(cat)) sorted.set(cat, items); }
     return sorted;
-  }, [registryVersion]);
+  }, []); // getUnifiedComponentMeta() reads fresh data from store internally
 
   const handleAddChild = useCallback((parentId: string, tag: string) => {
     const isCustom = registryDefs[tag] !== undefined;

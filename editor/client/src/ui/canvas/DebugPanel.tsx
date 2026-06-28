@@ -22,16 +22,6 @@ interface StateChange {
   timestamp: number;
 }
 
-interface DebugMessage {
-  type: string;
-  signalId?: string;
-  name?: string;
-  value?: unknown;
-  timestamp?: number;
-  nodeId?: string;
-  edgeId?: string;
-}
-
 interface DebugPanelProps {
   connected: boolean;
   stateChanges: StateChange[];
@@ -42,9 +32,6 @@ interface DebugPanelProps {
   onStep?: () => void;
   onResume?: () => void;
 }
-
-/** Maximum state changes to keep in the timeline. */
-const MAX_HISTORY = 200;
 
 // ── Component ────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 /** Function library panel — manages external code blocks (fn definitions).
  *  Design §1.10: fn definitions live here, not on canvas.
  *  Double-click → open CodeEditorPopup. Drag to canvas → creates 📞 call node. */
+/* eslint-disable react-refresh/only-export-components -- intentional non-component exports */
 
 import { useState } from "react";
 import { useEditorStore } from "../../store/editor";

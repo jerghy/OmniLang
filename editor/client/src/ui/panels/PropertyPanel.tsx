@@ -6,7 +6,6 @@ import type { ElementData } from "../../core/types";
 import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../codegraph/store";
 import { compilerCache } from "../../services/compiler/cache";
-import { COMPONENT_PROTOCOL } from "./ComponentPalette";
 import {
   getUnifiedComponentMeta,
   useComponentRegistry,
