@@ -23,9 +23,7 @@
     }
   },
   "plugins": {
-    "fs": {
-      "scope": ["**"]
-    },
+    "fs": {},
     "shell": {
       "open": true
     }
