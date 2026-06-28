@@ -1,9 +1,0 @@
-import omniview;
-
-component ProductList {
-    view {
-        <div class: product-list>
-            <h2>Products</h2>
-        </div>
-    }
-}

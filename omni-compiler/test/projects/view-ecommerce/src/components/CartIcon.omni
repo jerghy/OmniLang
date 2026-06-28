@@ -1,9 +1,0 @@
-import omniview;
-
-component CartIcon {
-    view {
-        <div class: cart-icon>
-            Cart (0)
-        </div>
-    }
-}
