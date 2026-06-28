@@ -69,6 +69,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         comp_mount_js: String::new(),
         component_js: HashMap::new(),
         enter_trigger_nids: Vec::new(),
+        for_state_names: std::collections::HashMap::new(),
         motion_names: std::collections::HashSet::new(),
     };
 
@@ -225,6 +226,8 @@ struct OmniViewGenerator {
     /// (nid, motion_name, trigger_kind) pairs for replay on signal change.
     /// trigger_kind is "enter" or "timeline" — used to build correct replay code.
     enter_trigger_nids: Vec<(String, String, String)>,
+    /// @for template: maps child component state names -> (original_name, default_js)
+    for_state_names: std::collections::HashMap<String, (String, String)>,
 }
 
 impl OmniViewGenerator {
@@ -254,6 +257,7 @@ function __omni_signal(name, init) {
   let val = init;
   const subs = new Set();
   const signal = {
+    _default: init,
     get value() {
       if (__omni_activeEffect) {
         subs.add(__omni_activeEffect);
@@ -320,12 +324,30 @@ function __omni_el(nid) {
 }
 
 function __omni_bindText(nid) {
-  const el = __omni_el(nid);
-  return {
-    set text(v) { if (el) el.textContent = String(v); },
-  };
-}
+	  const el = __omni_el(nid);
+	  return {
+	    set text(v) { if (el) el.textContent = String(v); },
+	  };
+	}
 
+	/// ─── @for instance-state helpers ───
+	function __omni_forGetState(el, name, defaultVal) {
+	  var comp = el && el.closest ? el.closest('[data-component]') : null;
+	  if (!comp) return defaultVal;
+	  if (!comp.__omniState) return defaultVal;
+	  return name in comp.__omniState ? comp.__omniState[name] : defaultVal;
+	}
+	function __omni_forSetState(comp, name, val) {
+	  if (!comp) return;
+	  if (!comp.__omniState) comp.__omniState = {};
+	  comp.__omniState[name] = val;
+	  comp.querySelectorAll('[data-bind-text]').forEach(function(el) {
+	    try { el.textContent = String(eval(el.getAttribute('data-bind-text'))); } catch(e) {}
+	  });
+	}
+	function __omni_forToggleState(comp, name) {
+	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false));
+	}
 /// ─── End Signal Runtime ────────────────────────────
 
 "#,
@@ -1607,6 +1629,27 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         self.js.push_str("      }\n");
         self.js.push_str("    });\n");
 
+        // Initialize per-instance state for @for component instances
+        self.js.push_str("    // Initialize per-instance state for @for component instances\n");
+        self.js.push_str("    var _stateEls = [];\n");
+        self.js.push_str("    if (clone.matches && clone.matches('[data-for-state-names]')) _stateEls.push(clone);\n");
+        self.js.push_str("    clone.querySelectorAll('[data-for-state-names]').forEach(function(el) { _stateEls.push(el); });\n");
+        self.js.push_str("    _stateEls.forEach(function(_fc) {\n");
+        self.js.push_str("      if (!_fc.__omniState) {\n");
+        self.js.push_str("        _fc.__omniState = {};\n");
+        self.js.push_str("        var _snStr = _fc.getAttribute('data-for-state-names');\n");
+        self.js.push_str("        if (_snStr) {\n");
+        self.js.push_str("          _snStr.split(',').forEach(function(_sn) {\n");
+        self.js.push_str("            if (_sn) {\n");
+        self.js.push_str("              var _cn = _fc.getAttribute('data-component');\n");
+        self.js.push_str("              var _sig = __omni_subs.get(_cn + '_' + _sn);\n");
+        self.js.push_str("              if (_sig) _fc.__omniState[_sn] = _sig._default != null ? _sig._default : _sig.peek();\n");
+        self.js.push_str("            }\n");
+        self.js.push_str("          });\n");
+        self.js.push_str("        }\n");
+        self.js.push_str("      }\n");
+        self.js.push_str("    });\n");
+
         // Bind class expressions (data-class-* attributes set when in_for_template)
         self.js.push_str("    // Bind dynamic class expressions\n");
         self.js.push_str("    clone.querySelectorAll('[data-class-expr]').forEach(el => {\n");
@@ -1677,7 +1720,40 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
         self.js.push_str("      if (attr.startsWith('fn:')) {\n");
         self.js.push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
+        self.js.push_str("        // Before calling fn, restore per-instance state to global signal\n");
+        self.js.push_str("        // so the fn handler operates on the correct per-instance value\n");
+        self.js.push_str("        const _forComp = t.closest('[data-for-state-names]');\n");
+        self.js.push_str("        if (_forComp && _forComp.__omniState) {\n");
+        self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
+        self.js.push_str("          if (_stateNames) {\n");
+        self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
+        self.js.push_str("              if (_sname && _sname in _forComp.__omniState) {\n");
+        self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
+        self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
+        self.js.push_str("                if (_sig) _sig.set(_forComp.__omniState[_sname]);\n");
+        self.js.push_str("              }\n");
+        self.js.push_str("            });\n");
+        self.js.push_str("          }\n");
+        self.js.push_str("        }\n");
         self.js.push_str("        if (typeof fn === 'function') fn(e.detail);\n");
+        self.js.push_str("        // Sync global signals back to element-scoped state for @for component instances\n");
+        self.js.push_str("        if (_forComp) {\n");
+        self.js.push_str("          if (!_forComp.__omniState) _forComp.__omniState = {};\n");
+        self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
+        self.js.push_str("          if (_stateNames) {\n");
+        self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
+        self.js.push_str("              if (_sname) {\n");
+        self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
+        self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
+        self.js.push_str("                if (_sig) _forComp.__omniState[_sname] = _sig.peek();\n");
+        self.js.push_str("              }\n");
+        self.js.push_str("            });\n");
+        self.js.push_str("          }\n");
+        self.js.push_str("          // Re-evaluate text bindings from element-scoped state\n");
+        self.js.push_str("          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n");
+        self.js.push_str("            try { el.textContent = String(eval(el.getAttribute('data-bind-text'))); } catch(e) {}\n");
+        self.js.push_str("          });\n");
+        self.js.push_str("        }\n");
         self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
         self.js.push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
         self.js.push_str("        if (typeof fn === 'function') fn();\n");
@@ -1728,16 +1804,27 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     // Inside @for template: map component prop names to their
                     // value expressions so data-bind-text markers resolve to
                     // the @for loop variable (e.g. text={item} → "text" → "item").
+                    // States are NOT added to signal_names — instead they go into
+                    // for_state_names so expr_to_js emits element-scoped expressions
+                    // (__omni_forGetState) rather than .value reads on global signals.
                     for state in &child_comp.states {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
+                        let default_js = self.expr_to_js(&state.initial_value);
                         self.name_renames
                             .insert(state.name.clone(), prefixed.clone());
-                        self.signal_names.insert(prefixed);
+                        self.for_state_names.insert(prefixed, (state.name.clone(), default_js));
                     }
                     for c in &child_comp.computeds {
                         let prefixed = format!("{}_{}", child_comp.name, c.name);
                         self.name_renames.insert(c.name.clone(), prefixed.clone());
                         self.signal_names.insert(prefixed);
+                    }
+                    // Add child component functions so class: map and call
+                    // expressions in the inlined view resolve to the correct
+                    // prefixed name (e.g. isActive -> TabPanel_isActive).
+                    for f in &child_comp.fns {
+                        let prefixed = format!("{}_{}", child_comp.name, f.name);
+                        self.name_renames.insert(f.name.clone(), prefixed);
                     }
                     // Props: map to their value expression (which references
                     // the @for loop variable), not to prefixed signal names.
@@ -1770,6 +1857,13 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         self.name_renames.insert(c.name.clone(), prefixed.clone());
                         self.signal_names.insert(prefixed);
                     }
+                    // Add child component functions so class: map and call
+                    // expressions in the inlined view resolve to the correct
+                    // prefixed name (e.g. isActive -> TabPanel_isActive).
+                    for f in &child_comp.fns {
+                        let prefixed = format!("{}_{}", child_comp.name, f.name);
+                        self.name_renames.insert(f.name.clone(), prefixed);
+                    }
                     for prop_name in child_comp.prop_defaults.keys() {
                         let prefixed = format!("{}_{}", child_comp.name, prop_name);
                         self.name_renames
@@ -1787,9 +1881,18 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 self.name_renames = saved_renames_child;
 
                 // Emit wrapper div with nid for event bindings on this component
+                // For @for, add data-for-state-names for per-instance state sync
+                let for_states_attr = if self.in_for_template && !child_comp.states.is_empty() {
+                    let names: Vec<&str> = child_comp.states.iter().map(|s| s.name.as_str()).collect();
+                    format!(" data-for-state-names=\"{}\"", names.join(","))
+                } else if self.in_for_template {
+                    " data-for-state-names=\"\"".to_string()
+                } else {
+                    String::new()
+                };
                 out.push_str(&format!(
-                    "{}<div data-nid=\"{}\" data-component=\"{}\">\n",
-                    pad, nid, el.tag
+                    "{}<div data-nid=\"{}\" data-component=\"{}\"{for_states}>\n",
+                    pad, nid, el.tag, for_states = for_states_attr
                 ));
                 out.push_str(&child_html);
                 out.push_str(&format!("{}</div>\n", pad));
@@ -3990,6 +4093,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     format!("{}.value", resolved)
                 } else if self.signal_names.contains(name.as_str()) {
                     format!("{}.value", name)
+                } else if self.in_for_template && self.for_state_names.contains_key(resolved.as_str()) {
+                    // @for instance state → emit element-scoped expression
+                    let (orig_name, default_js) = &self.for_state_names[resolved.as_str()];
+                    format!("__omni_forGetState(el, '{}', {})", orig_name, default_js)
                 } else {
                     resolved
                 }
