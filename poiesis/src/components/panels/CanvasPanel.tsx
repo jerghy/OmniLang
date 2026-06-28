@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useEditorStore } from "../../store/editor";
 import { useComponentRegistry, type ComponentDefinition } from "../../store/componentRegistry";
-import { api } from "../../services/api";
+import { api } from "../../commands";
 import { parseOmniSource } from "../../services/codegen";
 import type { PropSchema, EventSchema } from "../../store/componentRegistry";
 

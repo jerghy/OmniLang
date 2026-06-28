@@ -1,7 +1,7 @@
 // Rust WASM compiler loader for the OmniLang editor.
 // Loads the WASM-compiled omni-compiler and exposes compile_to_ir / compile_to_omniview.
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 
 const log = new Logger({ prefix: "RustCompiler" });
 

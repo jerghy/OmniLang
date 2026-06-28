@@ -4,7 +4,7 @@
 
 import { validate, parseOmniSource } from "../codegen";
 import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import type { ElementData, WireData } from "../../core/types";
 
 export interface ParseResult {

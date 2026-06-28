@@ -2,8 +2,8 @@
 // Compilation orchestration — wraps the generateOmniSource → api.compile flow.
 
 import { generateOmniSource, validate } from "../codegen";
-import { api } from "../api";
-import type { CompileResponse, CompileError } from "../../api/types";
+import { api } from "../../commands";
+import type { CompileResponse, CompileError } from "../../commands/types";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 
 export interface CompileProjectParams {

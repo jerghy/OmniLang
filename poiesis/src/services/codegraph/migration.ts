@@ -9,8 +9,8 @@
  *  3. Keep all other nodes (signal, computed, store, fn, literal, etc.)
  */
 
-import type { ElementData, WireData } from "../store/editor";
-import { Logger } from "../utils/logger";
+import type { ElementData, WireData } from "../../store/editor";
+import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "Migration" });
 

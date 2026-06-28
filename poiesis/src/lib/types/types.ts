@@ -11,6 +11,6 @@ export type {
   AnnotatedLoadResponse,
   AnnotatedSaveResponse,
   EditorTomlState,
-} from "../core/types";
+} from "../../core/types";
 
-export type { CodeTabType_Annotation as CodeTabType } from "../core/types";
+export type { CodeTabType_Annotation as CodeTabType } from "../../core/types";

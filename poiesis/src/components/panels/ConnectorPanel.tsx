@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react";
-import { Logger } from "../../utils/logger";
+import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "ConnectorPanel" });
 

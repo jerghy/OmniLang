@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData, WireData } from "../../store/editor";
 import {
   type CodeTab,
   type CodeTabType,
@@ -20,8 +20,8 @@ import {
   createMainTab,
   newTabId,
 } from "./types";
-import type { Command } from "../core/commands/types";
-import { Logger } from "../utils/logger";
+import type { Command } from "../../core/commands/types";
+import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "codegraph" });
 

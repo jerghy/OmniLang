@@ -1,17 +1,17 @@
-import { FileExplorer } from "../../ui/panels/FileExplorer";
-import { StatePanel } from "../../ui/panels/StatePanel";
-import { FunctionLibrary } from "../../ui/panels/FunctionLibrary";
-import { BlockPalette } from "../../ui/panels/BlockPalette";
-import { CodePropertyPanel } from "../../ui/panels/CodePropertyPanel";
-import { ConnectorPanel } from "../../ui/panels/ConnectorPanel";
-import { ActivityBar, PanelContainer, type PanelId } from "../../ui/panels/ActivityBar";
-import { Toolbar } from "../../ui/shell/Toolbar";
-import { CodeToolbar } from "../../ui/shell/CodeToolbar";
-import { StatusBar } from "../../ui/shell/StatusBar";
-import { S } from "../../ui/shell/theme";
-import { FlowCanvas } from "../../ui/canvas/code/FlowCanvas";
-import { CodeTabBar } from "../../ui/canvas/code/CodeTabBar";
-import { DebugPanel } from "../../ui/canvas/DebugPanel";
+import { FileExplorer } from "../../components/panels/FileExplorer";
+import { StatePanel } from "../../components/panels/StatePanel";
+import { FunctionLibrary } from "../../components/panels/FunctionLibrary";
+import { BlockPalette } from "../../components/panels/BlockPalette";
+import { CodePropertyPanel } from "../../components/panels/CodePropertyPanel";
+import { ConnectorPanel } from "../../components/panels/ConnectorPanel";
+import { ActivityBar, PanelContainer, type PanelId } from "../../components/panels/ActivityBar";
+import { Toolbar } from "../../components/shell/Toolbar";
+import { CodeToolbar } from "../../components/shell/CodeToolbar";
+import { StatusBar } from "../../components/shell/StatusBar";
+import { S } from "../../components/shell/theme";
+import { FlowCanvas } from "../../components/canvas/code/FlowCanvas";
+import { CodeTabBar } from "../../components/canvas/code/CodeTabBar";
+import { DebugPanel } from "../../components/canvas/DebugPanel";
 import type { CommandContext } from "../../core/commands/types";
 import type { DebugState } from "../compiler/useRun";
 
@@ -51,7 +51,7 @@ export interface CodeModeLayoutProps {
   onToggleBreakpoint: (signalId: string) => void;
   onStep: () => void;
   onResume: () => void;
-  onFnDoubleClick: (fnId: string, fnData: import("../../ui/panels/FunctionLibrary").FnEntry) => void;
+  onFnDoubleClick: (fnId: string, fnData: import("../../components/panels/FunctionLibrary").FnEntry) => void;
 }
 
 export function CodeModeLayout({

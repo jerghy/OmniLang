@@ -9,7 +9,7 @@ import {
   isCustomProperty,
   getUnitGroup,
   getDropdownOptions,
-} from "../../constants/style-properties";
+} from "../../lib/constants/style-properties";
 
 interface SignalOption {
   name: string;

@@ -1,7 +1,7 @@
 /** 项目欢迎页 — 创建新项目 / 打开已有项目 / 最近项目列表。 */
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "../../services/api";
+import { api } from "../../commands";
 
 // ── Types ────────────────────────────────────────────
 

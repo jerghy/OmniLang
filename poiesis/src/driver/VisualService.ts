@@ -1,7 +1,7 @@
 /** VisualService — highlight indicators and waitFor polling.
  *  Extracted from OmniDriver god class. */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { getDesignStore } from "./store";
 import { ElementHandle } from "./ElementHandle";
 import { WireHandle } from "./WireHandle";

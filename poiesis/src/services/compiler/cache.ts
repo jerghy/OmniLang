@@ -4,10 +4,10 @@
 // Rust WASM compiler (.omni source -> JS/HTML/CSS) into a single cache.
 
 import { generateOmniSource } from "../codegen/pipeline";
-import { rustCompiler } from "../../api/rustCompiler";
+import { rustCompiler } from "../../commands/rustCompiler";
 import type { ElementData, WireData } from "../../store/editor";
-import type { CodeTab } from "../../codegraph/types";
-import { Logger } from "../../utils/logger";
+import type { CodeTab } from "../../services/codegraph/types";
+import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "OmniCompilerCache" });
 

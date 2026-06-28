@@ -6,7 +6,7 @@ import React, { useCallback, useState, useEffect, useRef } from "react";
 import { useEditorStore } from "../../../store/editor";
 import type { ElementData } from "../../../core/types";
 import { useUndoStore } from "../../../store/undo";
-import { useCodeGraphStore } from "../../../codegraph/store";
+import { useCodeGraphStore } from "../../../services/codegraph/store";
 import { AddElement } from "../../../core/commands/AddElement";
 import { RemoveElement } from "../../../core/commands/RemoveElement";
 import type { CommandContext } from "../../../core/commands/types";
@@ -15,9 +15,9 @@ import { getDefaultProps } from "../../../core/constants";
 import { useComponentRegistry } from "../../../store/componentRegistry";
 import { CanvasPreview } from "./CanvasPreview";
 import { compilerCache } from "../../../services/compiler/cache";
-import { rustCompiler } from "../../../api/rustCompiler";
+import { rustCompiler } from "../../../commands/rustCompiler";
 import type { NidEntry } from "./CanvasPreview";
-import { Logger } from "../../../utils/logger";
+import { Logger } from "../../../lib/utils/logger";
 
 const log = new Logger({ prefix: "LayoutView" });
 

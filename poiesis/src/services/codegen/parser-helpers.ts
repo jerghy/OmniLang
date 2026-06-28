@@ -7,7 +7,7 @@ import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
 import type { ElementData } from "../../store/editor";
 import { useComponentRegistry } from "../../store/componentRegistry";
-import { Logger } from "../../utils/logger";
+import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "omni-parser" });
 

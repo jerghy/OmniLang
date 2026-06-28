@@ -2,10 +2,10 @@
 // Project save logic — extracted 1:1 from App.tsx saveProject + saveFileEntry.
 
 import { generateOmniSource } from "../codegen";
-import { api } from "../api";
+import { api } from "../../commands";
 import { extractComponentName } from "../../core/utils";
 import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import { useComponentRegistry } from "../../store/componentRegistry";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 import { saveComponentDefinitionsToServer } from "./component-service";

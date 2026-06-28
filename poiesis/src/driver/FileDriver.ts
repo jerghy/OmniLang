@@ -3,7 +3,7 @@
 
 import { getDesignStore } from "./store";
 import { useEditorStore } from "../store/editor";
-import { api } from "../api/client";
+import { api } from "../commands/client";
 
 // ═══════════════════════════════════════════════════════
 // FileDriver

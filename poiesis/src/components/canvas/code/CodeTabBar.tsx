@@ -3,7 +3,7 @@
  *             "logic" (general purpose logic code) */
 
 import React, { useState } from "react";
-import { useCodeGraphStore } from "../../../codegraph/store";
+import { useCodeGraphStore } from "../../../services/codegraph/store";
 import type { CodeTab, CodeTabType } from "../../../core/types";
 
 // ── Tab Creation Dialog ──

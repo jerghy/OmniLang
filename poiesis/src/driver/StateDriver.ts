@@ -1,7 +1,7 @@
 /** StateDriver — state queries, snapshots, diff, undo/redo.
  *  Extracted from OmniDriver god class. */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { getDesignStore, getActiveStore, getUndoStore } from "./store";
 import { useEditorStore } from "../store/editor";
 import { ElementHandle } from "./ElementHandle";

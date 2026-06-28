@@ -19,7 +19,7 @@ import type {
   FunctionSignature,
 } from "./types";
 import type { ElementData, WireData, EditorState } from "../store/editor";
-import type { CodeEditorState } from "../codegraph/store";
+import type { CodeEditorState } from "../services/codegraph/store";
 import type { ComponentRegistryState } from "../store/componentRegistry";
 
 interface ElementHandle {

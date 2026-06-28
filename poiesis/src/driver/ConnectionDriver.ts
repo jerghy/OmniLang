@@ -2,10 +2,10 @@
  *  Extracted from OmniDriver god class.
  *  ALSO exports a standalone connect() function for ElementHandle to import. */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { getActiveStore, getAllPorts, ensureHelp, getDesignStore } from "./store";
-import { validateConnection } from "../ui/canvas/shared/connectionValidators";
-import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
+import { validateConnection } from "../components/canvas/shared/connectionValidators";
+import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import { WireHandle } from "./WireHandle";
 import type { ElementData } from "../store/editor";
 import type { PortDescriptor, ValidationReport } from "./types";

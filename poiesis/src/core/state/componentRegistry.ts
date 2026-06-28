@@ -8,7 +8,7 @@
 
 import { create } from "zustand";
 import type { ElementData, WireData } from "../../core/types";
-import { uid } from "../../utils/id";
+import { uid } from "../../lib/utils/id";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
 import { useElementStore } from "./elements";
 

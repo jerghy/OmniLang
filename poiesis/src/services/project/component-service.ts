@@ -2,7 +2,7 @@
 // Custom component definition save/load logic — extracted from project-service.ts.
 
 import { generateOmniSource } from "../codegen";
-import { api } from "../api";
+import { api } from "../../commands";
 import type { ElementData, WireData } from "../../core/types";
 
 /**

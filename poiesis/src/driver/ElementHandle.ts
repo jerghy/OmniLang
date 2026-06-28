@@ -2,9 +2,9 @@
  *  Extracted from OmniDriver god class.
  *  Constructor takes only the element ID (imports store directly). */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { getDesignStore, getAllPorts } from "./store";
-import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
+import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import type { ElementData } from "../store/editor";
 import type {
   PortDescriptor,

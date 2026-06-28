@@ -2,11 +2,11 @@
  *  Extracted from OmniDriver god class. */
 
 import { getDesignStore, getCodeGraphStore, nextId, ensureHelp } from "./store";
-import { useCodeGraphStore, type CodeEditorState } from "../codegraph/store";
+import { useCodeGraphStore, type CodeEditorState } from "../services/codegraph/store";
 import type { StoreApi } from "zustand";
 import { ElementHandle } from "./ElementHandle";
 import type { ElementData, WireData } from "../store/editor";
-import type { CodeTab, CodeTabVariable } from "../codegraph/types";
+import type { CodeTab, CodeTabVariable } from "../services/codegraph/types";
 import type {
   EventBindingRecord,
   FnParam,

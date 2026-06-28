@@ -1,9 +1,9 @@
 // services/runtime/run-service.ts
 // Run / Vite DevServer lifecycle — extracted 1:1 from App.tsx handleRun + handleStop.
 
-import { api } from "../api";
+import { api } from "../../commands";
 import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
 import type { ElementData } from "../../core/types";
 

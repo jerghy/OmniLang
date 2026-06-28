@@ -1,7 +1,7 @@
 // services/api/compile-api.ts
 // Compilation + runtime lifecycle (compile, run start/stop/status, write run files)
 
-import type { CompileResponse } from "../../api/types";
+import type { CompileResponse } from "./types";
 
 export function createCompileApi(
   post: <T>(url: string, options?: { body?: BodyInit | null }) => Promise<T>,

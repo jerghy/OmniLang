@@ -1,26 +1,26 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { useEditorStore } from "../store/editor";
-import { useUndoStore } from "../store/undo";
-import { useTokenStore } from "../ui/panels/TokenPanel";
-import { S } from "../ui/shell/theme";
-import { CodeEditorPopup } from "../ui/editor/CodeEditorPopup";
-import { SearchModal } from "../ui/shared/SearchModal";
-import { ProjectWelcome } from "../ui/panels/ProjectWelcome";
-import { saveProject as saveProjectToServer } from "../services/project/project-service";
-import { api } from "../services/api";
-import { createCommandContext } from "../core/commands/createCommandContext";
-import type { SearchResult } from "../services/parser/search-index";
-import type { PanelId } from "../ui/panels/ActivityBar";
+import { useEditorStore } from "./store/editor";
+import { useUndoStore } from "./store/undo";
+import { useTokenStore } from "./components/panels/TokenPanel";
+import { S } from "./components/shell/theme";
+import { CodeEditorPopup } from "./components/editor/CodeEditorPopup";
+import { SearchModal } from "./components/shared/SearchModal";
+import { ProjectWelcome } from "./components/panels/ProjectWelcome";
+import { saveProject as saveProjectToServer } from "./services/project/project-service";
+import { api } from "./commands";
+import { createCommandContext } from "./core/commands/createCommandContext";
+import type { SearchResult } from "./services/parser/search-index";
+import type { PanelId } from "./components/panels/ActivityBar";
 
-import { useProjectInit } from "../features/project-explorer/useProjectInit";
-import { useDesignKeyboard } from "../features/design-mode/useDesignKeyboard";
-import { useCodeKeyboard } from "../features/code-mode/useCodeKeyboard";
-import { useCompile } from "../features/compiler/useCompile";
-import { useRun } from "../features/compiler/useRun";
-import { useAutoCompile } from "../features/compiler/useAutoCompile";
-import { useDebugSession } from "../features/debug/useDebugSession";
-import { DesignModeLayout } from "../features/design-mode/DesignModeLayout";
-import { CodeModeLayout } from "../features/code-mode/CodeModeLayout";
+import { useProjectInit } from "./features/useProjectInit";
+import { useDesignKeyboard } from "./features/design-mode/useDesignKeyboard";
+import { useCodeKeyboard } from "./features/code-mode/useCodeKeyboard";
+import { useCompile } from "./features/compiler/useCompile";
+import { useRun } from "./features/compiler/useRun";
+import { useAutoCompile } from "./features/compiler/useAutoCompile";
+import { useDebugSession } from "./features/debug/useDebugSession";
+import { DesignModeLayout } from "./features/design-mode/DesignModeLayout";
+import { CodeModeLayout } from "./features/code-mode/CodeModeLayout";
 
 export default function App() {
   // ── Core mode / welcome ──
@@ -48,7 +48,7 @@ export default function App() {
     blockId: string | null;
     title: string;
     source: string;
-    blockElement: import("../store/editor").ElementData | null;
+    blockElement: import("./store/editor").ElementData | null;
   }>({ visible: false, blockId: null, title: "", source: "", blockElement: null });
   const [openDialog, setOpenDialog] = useState<{ visible: boolean; files: string[] }>({ visible: false, files: [] });
   const codeEditorRef = useRef<{ insertSnippet: (code: string) => void }>(null);
@@ -167,7 +167,7 @@ export default function App() {
         projectPath: projectDir || filePath,
         projectName: filePath.replace(/^.*[\\/]/, "").replace(/\.omni$/, ""),
       });
-      const { parseOmniSource } = await import("../services/codegen");
+      const { parseOmniSource } = await import("./services/codegen");
       const parseResult = parseOmniSource(result.source);
       if (parseResult.designElements) {
         const rootOrder = parseResult.designElements.filter((e) => !e.parentId).map((e) => e.id);
@@ -184,7 +184,7 @@ export default function App() {
 
   // ── OmniDriver init (intentionally runs once; mode/target would cause reimport) ──
   useEffect(() => {
-    import("../driver").then(({ OmniDriver }) => {
+    import("./driver").then(({ OmniDriver }) => {
       const omni = new OmniDriver();
       window.__OMNI__ = omni;
     }).catch(() => {});

@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from "react";
-import { api } from "../../services/api";
+import { api } from "../../commands";
 import { handleDebugMessage as debugMessageService } from "../../services/runtime/debug-service";
 
 export function useDebugSession(

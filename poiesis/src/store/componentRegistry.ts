@@ -6,7 +6,7 @@
 
 import { create } from "zustand";
 import type { ElementData, WireData } from "./editor";
-import { uid } from "../utils/id";
+import { uid } from "../lib/utils/id";
 
 // ── Schema Types ────────────────────────────────
 

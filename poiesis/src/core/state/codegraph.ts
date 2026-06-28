@@ -22,7 +22,7 @@ import {
   emptyGraph,
   createMainTab,
   newTabId,
-} from "../../codegraph/types";
+} from "../../services/codegraph/types";
 import type { Command } from "../../core/commands/types";
 
 // ── Store Interface ──

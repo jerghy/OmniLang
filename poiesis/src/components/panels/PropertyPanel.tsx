@@ -4,7 +4,7 @@
 import React, { useCallback, useRef, useEffect } from "react";
 import type { ElementData } from "../../core/types";
 import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import { compilerCache } from "../../services/compiler/cache";
 import {
   getUnifiedComponentMeta,

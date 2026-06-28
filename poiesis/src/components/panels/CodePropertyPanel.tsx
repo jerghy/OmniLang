@@ -2,10 +2,10 @@
  *  Only renders when activeMode === "code". */
 
 import React, { useState } from "react";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import { getNodeConfig } from "../canvas/shared/nodeRegistry";
 import type { ElementData } from "../../core/types";
-import type { FnParam } from "../../codegraph/types";
+import type { FnParam } from "../../services/codegraph/types";
 
 // ═══════════════════════════════════════════════════
 // CodePropertyPanel — main component

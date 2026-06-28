@@ -5,12 +5,12 @@
  *  core/types/ — re-exported from there.  Module-specific types and helpers
  *  remain here. */
 
-import type { ElementData, WireData } from "../core/types";
-import type { CodeGraph, CodeTab } from "../core/types";
-import { uid } from "../core/utils";
+import type { ElementData, WireData } from "../../core/types";
+import type { CodeGraph, CodeTab } from "../../core/types";
+import { uid } from "../../core/utils";
 
 // ── Re-exports from core/types (migrated types) ──
-export type { CodeGraph, CodeTab, CodeTabType, CodeTabVariable } from "../core/types";
+export type { CodeGraph, CodeTab, CodeTabType, CodeTabVariable } from "../../core/types";
 
 // ── Signal Definition ──
 
@@ -33,7 +33,7 @@ export interface FnParam {
 
 // ── CodeTab (legacy re-export alias, prefer CodeTabVariable from core/types) ──
 /** @deprecated Use CodeTabVariable from core/types */
-export type { CodeTabVariable as SignalDefinition_v2 } from "../core/types";
+export type { CodeTabVariable as SignalDefinition_v2 } from "../../core/types";
 
 // ── Custom Function Metadata ──
 

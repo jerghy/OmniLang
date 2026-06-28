@@ -1,11 +1,11 @@
 /** Shared utilities for OmniDriver sub-modules.
  *  Foundation module with no dependencies on other driver modules. */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { useEditorStore } from "../store/editor";
-import { useCodeGraphStore } from "../codegraph/store";
+import { useCodeGraphStore } from "../services/codegraph/store";
 import { useUndoStore } from "../store/undo";
-import { getAllPorts } from "../ui/canvas/shared/connectionValidators";
+import { getAllPorts } from "../components/canvas/shared/connectionValidators";
 import type { ElementData, WireData } from "../store/editor";
 
 const log = new Logger({ prefix: "OmniDriver" });

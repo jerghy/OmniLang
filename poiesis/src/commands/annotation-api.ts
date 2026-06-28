@@ -6,7 +6,7 @@ import type {
   AnnotatedSaveResponse,
   EditorTomlState,
   AnnotationFile,
-} from "../../core/types";
+} from "../core/types";
 
 export function createAnnotationApi(
   post: <T>(url: string, options?: { body?: BodyInit | null }) => Promise<T>,

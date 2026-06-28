@@ -18,8 +18,8 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { ElementData, WireData } from "../../../core/types";
-import { useCodeGraphStore } from "../../../codegraph/store";
-import { createCodeGraphContext } from "../../../codegraph/context";
+import { useCodeGraphStore } from "../../../services/codegraph/store";
+import { createCodeGraphContext } from "../../../services/codegraph/context";
 import { AddWire } from "../../../core/commands/AddWire";
 import { RemoveWire } from "../../../core/commands/RemoveWire";
 import { AddElement } from "../../../core/commands/AddElement";
@@ -32,8 +32,8 @@ import { getAllPorts, validateConnection, generateCustomFnPorts } from "../share
 import { NodePalette } from "../design/NodePalette";
 import { elementsToNodes } from "../shared/elementsToNodes";
 import { wiresToEdges } from "../shared/wiresToEdges";
-import { showToast } from "../../../notifications/toast";
-import { uid } from "../../../utils/id";
+import { showToast } from "../../../lib/toast";
+import { uid } from "../../../lib/utils/id";
 
 // ── Custom node/edge types ──
 

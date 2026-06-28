@@ -2,8 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import type { ElementData } from "../../../core/types";
-import type { EventBinding, ParamBinding, FnParam } from "../../../codegraph/types";
-import { useCodeGraphStore } from "../../../codegraph/store";
+import type { EventBinding, ParamBinding, FnParam } from "../../../services/codegraph/types";
+import { useCodeGraphStore } from "../../../services/codegraph/store";
 import { uid } from "../../../core/utils";
 import { SetProp } from "../../../core/commands/SetProp";
 import { useUndoStore } from "../../../store/undo";

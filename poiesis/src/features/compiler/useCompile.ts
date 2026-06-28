@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
+import { useCodeGraphStore } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
 import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
-import { api } from "../../services/api";
+import { api } from "../../commands";
 import type { CommandContext } from "../../core/commands/types";
 import type { ElementData } from "../../core/types";
 

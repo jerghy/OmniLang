@@ -12,7 +12,7 @@ import { RemoveElement } from "../../core/commands/RemoveElement";
 import { ReorderElement } from "../../core/commands/ReorderElement";
 import { MoveElement } from "../../core/commands/MoveElement";
 import { copySelection, pasteFromClipboard } from "../../core/commands/CopyPaste";
-import { uid } from "../../utils/id";
+import { uid } from "../../lib/utils/id";
 import { resolveHtmlTag, getDisplayLabel, type TreeNode } from "./tree-utils";
 import { TreeNodeView } from "./TreeNodeRenderer";
 

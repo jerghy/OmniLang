@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useEditorStore } from "../../store/editor";
-import { api } from "../../services/api";
+import { api } from "../../commands";
 
 export function FileExplorer() {
   const files = useEditorStore((s) => s.files);

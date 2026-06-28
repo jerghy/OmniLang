@@ -1,10 +1,10 @@
 /** CanvasDriver — element CRUD, queries, props, and convenience creation methods.
  *  Extracted from OmniDriver god class. */
 
-import { Logger } from "../utils/logger";
+import { Logger } from "../lib/utils/logger";
 import { getDesignStore, isCodeMode, getCodeGraphStore, nextId, ensureHelp } from "./store";
-import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
-import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
+import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
+import { getNodeConfig } from "../components/canvas/shared/nodeRegistry";
 import { useEditorStore } from "../store/editor";
 import { ElementHandle } from "./ElementHandle";
 import type { ElementData } from "../store/editor";

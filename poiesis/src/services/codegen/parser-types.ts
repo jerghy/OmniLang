@@ -2,7 +2,7 @@
 // Shared types and utilities for the OmniLang recursive-descent parser.
 
 import type { ElementData, WireData } from "../../store/editor";
-import type { CodeTab } from "../../codegraph/types";
+import type { CodeTab } from "../../services/codegraph/types";
 import type { ParseResult } from "./types";
 import type { Token } from "./omni-tokenizer";
 

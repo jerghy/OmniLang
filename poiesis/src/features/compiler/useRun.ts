@@ -83,12 +83,12 @@ export function useRun(target: string, setStatus: (s: { text: string; isError: b
       const next = new Set(prev.debugBreakpoints);
       if (next.has(signalId)) {
         next.delete(signalId);
-        import("../../services/api").then(({ api }) =>
+        import("../../commands").then(({ api }) =>
           api.sendDebugCommand({ type: "remove-breakpoint", signalId }),
         );
       } else {
         next.add(signalId);
-        import("../../services/api").then(({ api }) =>
+        import("../../commands").then(({ api }) =>
           api.sendDebugCommand({ type: "set-breakpoint", signalId }),
         );
       }
@@ -97,11 +97,11 @@ export function useRun(target: string, setStatus: (s: { text: string; isError: b
   }, []);
 
   const handleStep = useCallback(() => {
-    import("../../services/api").then(({ api }) => api.sendDebugCommand({ type: "step" }));
+    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "step" }));
   }, []);
 
   const handleResume = useCallback(() => {
-    import("../../services/api").then(({ api }) => api.sendDebugCommand({ type: "resume" }));
+    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "resume" }));
   }, []);
 
   return {

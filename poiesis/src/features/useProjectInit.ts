@@ -1,12 +1,12 @@
 import { useEffect, useCallback } from "react";
-import { useEditorStore } from "../../store/editor";
-import { useCodeGraphStore } from "../../codegraph/store";
-import { parseOmniSource } from "../../services/codegen";
-import { api } from "../../services/api";
-import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../../services/project/component-service";
-import { useComponentRegistry } from "../../store/componentRegistry";
-import type { ElementData, WireData } from "../../core/types";
-import type { ComponentDefinition } from "../../core/state/componentRegistry";
+import { useEditorStore } from "../store/editor";
+import { useCodeGraphStore } from "../services/codegraph/store";
+import { parseOmniSource } from "../services/codegen";
+import { api } from "../commands";
+import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
+import { useComponentRegistry } from "../store/componentRegistry";
+import type { ElementData, WireData } from "../core/types";
+import type { ComponentDefinition } from "../core/state/componentRegistry";
 
 export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Initial load

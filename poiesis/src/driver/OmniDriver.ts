@@ -16,9 +16,9 @@
 
 import { getDesignStore, getActiveStore } from "./store";
 import { useEditorStore } from "../store/editor";
-import { api } from "../api/client";
-import { COMPONENT_PROTOCOL } from "../ui/panels/ComponentPalette";
-import { getNodeConfig } from "../ui/canvas/shared/nodeRegistry";
+import { api } from "../commands/client";
+import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
+import { getNodeConfig } from "../components/canvas/shared/nodeRegistry";
 import { ElementHandle } from "./ElementHandle";
 import { WireHandle } from "./WireHandle";
 import { ConnectionDriver } from "./ConnectionDriver";

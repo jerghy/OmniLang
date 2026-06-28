@@ -1,7 +1,7 @@
 // services/api/project-api.ts
 // Project filesystem operations (list, read, write, project info, project dir management)
 
-import type { FsEntry, ProjectInfo } from "../../api/types";
+import type { FsEntry, ProjectInfo } from "./types";
 
 export function createProjectApi(
   post: <T>(url: string, options?: { body?: BodyInit | null }) => Promise<T>,

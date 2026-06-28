@@ -4,9 +4,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "../../../store/editor";
 import { useComponentRegistry } from "../../../store/componentRegistry";
-import { api } from "../../../services/api";
+import { api } from "../../../commands";
 import { parseOmniSource } from "../../../services/codegen";
-import { Logger } from "../../../utils/logger";
+import { Logger } from "../../../lib/utils/logger";
 
 const log = new Logger({ prefix: "CanvasTabBar" });
 

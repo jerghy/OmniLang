@@ -12,7 +12,7 @@ import { AddWire } from "./AddWire";
 import { RemoveElement } from "./RemoveElement";
 import { RemoveWire } from "./RemoveWire";
 import { CompositeCommand } from "./CompositeCommand";
-import { uid } from "../../utils/id";
+import { uid } from "../../lib/utils/id";
 
 // ── Clipboard data types ────────────────────────────────────────────
 
