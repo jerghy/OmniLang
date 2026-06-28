@@ -86,7 +86,7 @@ class OmniRuntimeBridge {
     // Read debug WebSocket URL from Vite env or global
     this.wsUrl =
       (typeof window !== "undefined" &&
-        (window as Record<string, unknown>).__OMNI_DEBUG_WS_URL__ as string) ||
+        (window as unknown as Record<string, unknown>).__OMNI_DEBUG_WS_URL__ as string) ||
       "ws://localhost:8942/api/debug/ws";
     this.connect();
     this._registerDebugHandlers();
@@ -289,7 +289,7 @@ const bridge = new OmniRuntimeBridge();
 
 // Expose for debugging in browser console
 if (typeof window !== "undefined") {
-  (window as Record<string, unknown>).__OMNI_RUNTIME__ = bridge;
+  (window as unknown as Record<string, unknown>).__OMNI_RUNTIME__ = bridge;
 }
 
 // ── Tracked Signal (Proxy-wrapped useState) ──────────────
@@ -341,7 +341,7 @@ export function useTrackedSignal<T>(
 
         // Check breakpoint: defer if hit and not in flush mode
         if (!bridge.isFlushing && bridge.hasBreakpoint(signalId)) {
-          bridge.queuePending(signalId, resolved, rawSetValueRef.current);
+          bridge.queuePending(signalId, resolved, rawSetValueRef.current as (v: unknown) => void);
           return prev; // Return unchanged — defer the React state update
         }
 
@@ -393,7 +393,7 @@ function omniDebugMiddleware<T extends Record<string, unknown>>(
 ) {
   return (config: StateCreator<T>): StateCreator<T> => {
     return (set, get, api) => {
-      const trackedSet: typeof set = (partial, replace) => {
+      const trackedSet: typeof set = (partial: any, replace?: any) => {
         const prev = get();
         set(partial, replace);
         const next = get();

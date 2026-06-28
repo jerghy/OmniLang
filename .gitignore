@@ -13,6 +13,9 @@ omnic/*.egg-info/
 # WASM output
 poiesis/public/wasm/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # IDE
 .vscode/
 .idea/

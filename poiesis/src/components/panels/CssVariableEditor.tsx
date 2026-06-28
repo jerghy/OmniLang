@@ -1,7 +1,6 @@
 // ui/panels/CssVariableEditor.tsx
 // List of CSS variable rows with fude value editors.
 
-import React from "react";
 import type { CssVariable, StyleValueSegment } from "../../core/types/style";
 import { StyleValueEditor } from "./StyleValueEditor";
 

@@ -1,6 +1,6 @@
 /** Layout section — instance info, element ID editor. */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { ElementData } from "../../../core/types";
 import { useEditorStore } from "../../../store/editor";
 

@@ -1,7 +1,7 @@
 // ui/panels/ClassCard.tsx
 // Expandable card for editing a single StyleClass.
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { StyleClass, StyleProperty } from "../../core/types/style";
 import { ClassPreview } from "./ClassPreview";
 import { StylePropertyEditor } from "./StylePropertyEditor";

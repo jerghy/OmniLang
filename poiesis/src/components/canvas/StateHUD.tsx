@@ -6,7 +6,7 @@
  *   预览 iframe → 编辑器: postMessage({ type: "omni:state", values: {...} })
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useEditorStore } from "../../store/editor";
 
 interface StateHUDProps {

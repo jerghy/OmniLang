@@ -94,21 +94,6 @@ function trackDep(s: Signal<unknown> | Computed<unknown>): void {
 let batchDepth = 0;
 const pendingNotifies = new Set<Signal<unknown> | Computed<unknown>>();
 
-function batch(fn: () => void): void {
-  batchDepth++;
-  try {
-    fn();
-  } finally {
-    batchDepth--;
-    if (batchDepth === 0) {
-      // Flush pending notifications
-      for (const s of pendingNotifies) {
-        (s as SignalImpl<unknown>)._notify();
-      }
-      pendingNotifies.clear();
-    }
-  }
-}
 
 function scheduleNotify(s: SignalImpl<unknown>): void {
   if (batchDepth > 0) {
@@ -277,7 +262,7 @@ class DebugBus {
 
 // Initialize DebugBus only when debug mode is explicitly enabled
 if (typeof window !== "undefined") {
-  const wsUrl = (window as Record<string, unknown>).__OMNI_DEBUG_WS_URL__ as string | undefined;
+  const wsUrl = (window as unknown as Record<string, unknown>).__OMNI_DEBUG_WS_URL__ as string | undefined;
   if (wsUrl) {
     DebugBus.init(wsUrl);
   }
@@ -290,13 +275,11 @@ class SignalImpl<T> implements Signal<T> {
   private _subscribers = new Set<(v: T) => void>();
   public readonly id: string;
   private readonly _name: string;
-  private readonly _type: string | undefined;
 
   constructor(initialValue: T, meta?: SignalMeta) {
     this._value = initialValue;
     this.id = meta?.id ?? "";
     this._name = meta?.name ?? meta?.id ?? "";
-    this._type = meta?.type;
   }
 
   get(): T {
@@ -327,7 +310,7 @@ class SignalImpl<T> implements Signal<T> {
   private _apply(value: T): void {
     if (this._value === value) return;
     this._value = value;
-    scheduleNotify(this);
+    scheduleNotify(this as unknown as SignalImpl<unknown>);
   }
 
   /** @internal — called by scheduler */
@@ -352,12 +335,10 @@ class ComputedImpl<T> implements Computed<T> {
   private _factory: () => T;
   private _subscribers = new Set<(v: T) => void>();
   public readonly id: string;
-  private readonly _name: string;
 
   constructor(factory: () => T, meta?: SignalMeta) {
     this._factory = factory;
     this.id = meta?.id ?? "";
-    this._name = meta?.name ?? meta?.id ?? "";
   }
 
   get(): T {
@@ -465,7 +446,7 @@ export function effect(fn: () => CleanupFn | void): CleanupFn {
     unsubs = [];
 
     // Track dependencies
-    const { result, deps } = runWithTracker(() => {
+    const { deps } = runWithTracker(() => {
       cleanup = fn();
     });
 
@@ -530,7 +511,7 @@ export function store<T extends Record<string, unknown>>(
     set(target, prop, value, receiver) {
       const existing = Reflect.get(target, prop, receiver);
       if (signalKeys.has(prop as string) && isSignalLike(existing)) {
-        existing.set(value);
+        (existing as Signal<unknown>).set(value);
         return true;
       }
       return Reflect.set(target, prop, value, receiver);
@@ -609,7 +590,7 @@ function mountVNode(
     } else if (key === "style" && typeof value === "object" && value !== null) {
       Object.assign(el.style, value as Record<string, string>);
     } else if (key in el) {
-      (el as Record<string, unknown>)[key] = value;
+      (el as unknown as Record<string, unknown>)[key] = value;
     } else {
       el.setAttribute(key, String(value));
     }
@@ -662,9 +643,9 @@ export function bindProperty(
   prop: string,
   s: Signal<unknown> | Computed<unknown>
 ): CleanupFn {
-  (el as Record<string, unknown>)[prop] = s.get();
+  (el as unknown as Record<string, unknown>)[prop] = s.get();
   return s.subscribe((v: unknown) => {
-    (el as Record<string, unknown>)[prop] = v;
+    (el as unknown as Record<string, unknown>)[prop] = v;
   });
 }
 
@@ -732,7 +713,7 @@ export function renderConditional(
   };
 
   update(condition.get());
-  const unsub = condition.subscribe(update);
+  condition.subscribe(update);
   // Register cleanup through the wrapper's removal detection
   return wrapper;
 }
@@ -860,7 +841,7 @@ export function withTrace<T extends (...args: unknown[]) => unknown>(
 // ── Browser Console Access ────────────────────────────────
 
 if (typeof window !== "undefined") {
-  (window as Record<string, unknown>).__OMNI_RUNTIME__ = {
+  (window as unknown as Record<string, unknown>).__OMNI_RUNTIME__ = {
     DebugBus,
     signal,
     computed,

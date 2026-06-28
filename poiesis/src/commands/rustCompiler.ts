@@ -67,7 +67,7 @@ class RustCompiler {
     try {
       // Dynamic import of the WASM JS glue
       const wasmModule = await import(
-        '../../../public/wasm/omni_compiler.js'
+        '../../public/wasm/omnilang.js'
       );
 
       try {
@@ -87,10 +87,10 @@ class RustCompiler {
         const __dirname = dirname(__filename);
         const wasmPath = resolve(
           __dirname,
-          '../../../public/wasm/omni_compiler_bg.wasm',
+          '../../public/wasm/omnilang_bg.wasm',
         );
         const wasmBytes = readFileSync(wasmPath);
-        wasmModule.initSync(wasmBytes.buffer);
+        wasmModule.initSync(wasmBytes.buffer as ArrayBuffer);
       }
 
       this.wasm = {

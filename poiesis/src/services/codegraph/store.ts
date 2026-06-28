@@ -125,7 +125,6 @@ function uid(): string {
  *  `s.tabs.map(t => t.id === s.activeTabId ? {...} : t)` boilerplate. */
 function updateActiveTab(
   set: (fn: (s: CodeEditorState) => Partial<CodeEditorState>) => void,
-  get: () => CodeEditorState,
   updater: (tab: CodeTab) => CodeTab,
 ) {
   set((s) => ({
@@ -242,12 +241,12 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   // ── Graph mutations ──
 
   addElement: (el) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, elements: [...t.graph.elements, { ...el, props: el.props || {} }] },
     })),
 
   removeElement: (id) =>
-    updateActiveTab(set, get, (t) => {
+    updateActiveTab(set, (t) => {
       const el = t.graph.elements.find((e) => e.id === id);
       let elements = t.graph.elements.filter((e) => e.id !== id);
       if (el?.parentId) {
@@ -261,7 +260,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
     }),
 
   setProp: (id, prop, value) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t,
       graph: {
         ...t.graph,
@@ -307,32 +306,32 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   clearSelection: () => set({ selectedElementIds: [] }),
 
   addWire: (w) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, wires: [...t.graph.wires, w] },
     })),
 
   removeWire: (id) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, wires: t.graph.wires.filter((w) => w.id !== id) },
     })),
 
   setElementSource: (id, source) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, source } : e)) },
     })),
 
   setElementPorts: (id, ports) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, ports } : e)) },
     })),
 
   setElementPosition: (id, pos) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, graph: { ...t.graph, elements: t.graph.elements.map((e) => (e.id === id ? { ...e, position: { ...pos } } : e)) },
     })),
 
   setElementsAndWires: (elements, wires) =>
-    updateActiveTab(set, get, (t) => ({ ...t, graph: { elements, wires } })),
+    updateActiveTab(set, (t) => ({ ...t, graph: { elements, wires } })),
 
   // ── Clipboard ──
 
@@ -375,7 +374,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
       .filter(Boolean) as WireData[];
 
     // Add to active tab
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t,
       graph: {
         elements: [...t.graph.elements, ...newElements],
@@ -394,7 +393,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
   // ── Variables ──
 
   defineVariable: (variable) =>
-    updateActiveTab(set, get, (t) => {
+    updateActiveTab(set, (t) => {
       const existing = t.variables.findIndex((v) => v.name === variable.name);
       const variables = existing >= 0
         ? t.variables.map((v, i) => i === existing ? variable : v)
@@ -403,7 +402,7 @@ export const useCodeGraphStore = create<CodeEditorState>((set, get) => ({
     }),
 
   removeVariable: (name) =>
-    updateActiveTab(set, get, (t) => ({
+    updateActiveTab(set, (t) => ({
       ...t, variables: t.variables.filter((v) => v.name !== name),
     })),
 

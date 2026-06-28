@@ -508,6 +508,17 @@ export const useEditorStore = create<EditorState>((set, get) => {
       syncToAtoms();
     },
 
+    openProject: (path, sourceOrDocument) => {
+      set({
+        projectPath: path,
+        projectDir: path ? path.substring(0, path.lastIndexOf('/')) : null,
+        sourceCode: typeof sourceOrDocument === 'string' ? sourceOrDocument : '',
+        activeFilePath: path,
+        isDirty: false,
+      });
+      syncToAtoms();
+    },
+
     markDirty: () => {
       useProjectStore.getState().markDirty();
       set({ isDirty: true });
@@ -687,7 +698,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   },
 
   /** @deprecated Use openProject() for .omni.json files instead. */
-  openFileTab: (path, name, elements, wires, customComponents) =>
+  openFileTab: (path, _name, elements, wires, customComponents) =>
     set((s) => {
       const tabKey = `file:${path}`;
       if (s.openTabs.includes(tabKey)) return s;

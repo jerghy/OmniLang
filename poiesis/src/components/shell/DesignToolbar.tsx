@@ -2,7 +2,6 @@
 // Design-mode-specific toolbar buttons
 // ═══════════════════════════════════════════════
 
-import React from "react";
 import { iconBtn } from "./theme";
 
 export interface DesignToolbarProps {

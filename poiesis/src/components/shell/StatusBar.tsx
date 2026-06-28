@@ -2,7 +2,6 @@
 // Shared StatusBar — present in both design and code modes
 // ═══════════════════════════════════════════════
 
-import React from "react";
 import { S } from "./theme";
 import { PerfBadge } from "../canvas/PerfBadge";
 

@@ -1,6 +1,5 @@
 /** 组件画布头部条 — 编辑自定义组件时显示在 LayoutView 上方。 */
 
-import React from "react";
 import { useEditorStore } from "../../../store/editor";
 import { useComponentRegistry } from "../../../store/componentRegistry";
 

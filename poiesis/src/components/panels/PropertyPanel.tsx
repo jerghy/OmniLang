@@ -1,7 +1,7 @@
 /** 属性面板。根据选中元素和统一元数据动态渲染编辑器。
  *  编辑自定义组件定义时显示 ComponentMetaSection。*/
 
-import React, { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import type { ElementData } from "../../core/types";
 import { useEditorStore } from "../../store/editor";
 import { useCodeGraphStore } from "../../services/codegraph/store";

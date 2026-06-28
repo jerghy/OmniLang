@@ -2,7 +2,6 @@
 // Code-mode-specific toolbar buttons
 // ═══════════════════════════════════════════════
 
-import React from "react";
 import { btnStyle } from "./theme";
 
 export interface CodeToolbarProps {

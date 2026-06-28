@@ -9,7 +9,7 @@ import type { CommandContext } from "../../core/commands/types";
 import type { ElementData } from "../../core/types";
 
 export function useCompile(
-  ctx: CommandContext,
+  _ctx: CommandContext,
   target: string,
   runStatus: { running: boolean },
   setFnToNodeMap: (map: Record<string, string>) => void,

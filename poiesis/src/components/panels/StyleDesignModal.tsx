@@ -1,7 +1,7 @@
 // ui/panels/StyleDesignModal.tsx
 // Modal dialog for editing component-level CSS styles (variables + classes).
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import { useUndoStore } from "../../store/undo";
 import { uid } from "../../core/utils/id";
