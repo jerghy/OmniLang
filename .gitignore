@@ -1,4 +1,21 @@
-.playwright-mcp/
-build_output/
-docs/screenshots/
+# Rust
+target/
+Cargo.lock
+
+# Node / Tauri
+poiesis/node_modules/
+poiesis/dist/
+
+# Python
 __pycache__/
+omnic/*.egg-info/
+
+# WASM output
+poiesis/public/wasm/
+
+# IDE
+.vscode/
+.idea/
+
+# Docs
+docs/screenshots/
