@@ -7,42 +7,45 @@ on:
     branches: [main]
 
 jobs:
-  rust-build-and-test:
+  rust:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-      - name: Build Rust compiler (release)
-        run: cd omni-compiler && cargo build --release
+      - name: Build workspace
+        run: cargo build --release
       - name: Run Rust tests
-        run: cd omni-compiler && cargo test
+        run: cargo test --workspace
       - name: Upload DLL artifact
         uses: actions/upload-artifact@v4
         with:
-          name: omni_compiler-${{ matrix.os }}
-          path: omni-compiler/target/release/omni_compiler.*
+          name: omnilang-${{ matrix.os }}
+          path: |
+            target/release/omnilang.dll
+            target/release/libomnilang.so
+            target/release/libomnilang.dylib
 
-  wasm-build:
+  wasm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
       - name: Install wasm-pack
         run: cargo install wasm-pack
       - name: Build WASM
-        run: wasm-pack build omni-compiler --out-dir ../editor/public/wasm --target web --features wasm
+        run: bash scripts/build-wasm.sh
 
-  python-tests:
+  python:
     runs-on: ${{ matrix.os }}
-    needs: rust-build-and-test
+    needs: rust
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
@@ -54,9 +57,23 @@ jobs:
       - name: Download DLL artifact
         uses: actions/download-artifact@v4
         with:
-          name: omni_compiler-${{ matrix.os }}
-          path: omni-compiler/target/release/
-      - name: Install Python deps
-        run: pip install pytest
+          name: omnilang-${{ matrix.os }}
+          path: target/release/
+      - name: Install omnic
+        run: pip install -e omnic/[dev]
       - name: Run Python tests
-        run: pytest tests/ -v
+        run: pytest omnic/tests/ -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: cd poiesis && npm ci
+      - name: Type check
+        run: cd poiesis && npx tsc --noEmit
+      - name: Build
+        run: cd poiesis && npm run build
