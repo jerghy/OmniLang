@@ -31,6 +31,8 @@ pub struct SemanticAnalyzer {
     symbols: SymbolTable,
     diagnostics: Vec<Diagnostic>,
     dependencies: HashMap<String, Vec<String>>,
+    /// True when resolving a view template interpolation {expr}
+    resolving_interpolation: bool,
 }
 
 impl Default for SemanticAnalyzer {
@@ -45,6 +47,7 @@ impl SemanticAnalyzer {
             symbols: SymbolTable::new(),
             diagnostics: Vec::new(),
             dependencies: HashMap::new(),
+            resolving_interpolation: false,
         }
     }
 
@@ -501,7 +504,15 @@ impl SemanticAnalyzer {
 
     fn resolve_stmt_refs(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::VarDecl { init, .. } => {
+            Stmt::VarDecl { name, init, type_ann, mutable, .. } => {
+                // Declare the variable so it's available in enclosing scope
+                let _ = self.symbols.declare(Symbol {
+                    name: name.clone(),
+                    kind: SymbolKind::Variable,
+                    type_ann: type_ann.as_ref().map(type_to_string),
+                    mutable: *mutable,
+                    declared_at: 0,
+                });
                 if let Some(e) = init {
                     self.resolve_expr_refs(e);
                 }
@@ -547,7 +558,7 @@ impl SemanticAnalyzer {
     fn resolve_expr_refs(&mut self, expr: &Expr) {
         match expr {
             Expr::VarRef(name, span) => {
-                if !self.symbols.contains(name) {
+                if !self.symbols.contains(name) && !self.resolving_interpolation {
                     self.diagnostics.push(Diagnostic::error(
                         "E0001",
                         &format!("Undeclared variable '{}'", name),
@@ -621,7 +632,9 @@ impl SemanticAnalyzer {
                 self.resolve_expr_refs(else_expr);
             }
             Expr::Block { body, .. } => {
+                self.symbols.push_scope("block_expr");
                 self.resolve_block_refs(body);
+                self.symbols.pop_scope();
             }
             Expr::MatchExpr { matched, arms, .. } => {
                 self.resolve_expr_refs(matched);
@@ -672,7 +685,9 @@ impl SemanticAnalyzer {
     fn resolve_view_node_refs(&mut self, node: &ViewNode) {
         match node {
             ViewNode::Interpolation(expr) => {
+                self.resolving_interpolation = true;
                 self.resolve_expr_refs(expr);
+                self.resolving_interpolation = false;
             }
             ViewNode::Element(element) => {
                 self.resolve_element_refs(element);
@@ -791,6 +806,10 @@ impl SemanticAnalyzer {
             mutable: false,
             declared_at: 0,
         });
+        // Resolve key_expr inside the loop scope (may reference loop variable)
+        if let Some(ref key_expr) = dir.key_expr {
+            self.resolve_expr_refs(key_expr);
+        }
         for child in &dir.body {
             self.resolve_view_node_refs(child);
         }
@@ -820,6 +839,9 @@ impl SemanticAnalyzer {
         for comp in &module.components {
             self.validate_control_flow_in_component(comp);
             self.validate_bind_targets(comp);
+            self.validate_store_action_refs(comp, module);
+            self.validate_store_field_access(comp);
+            self.validate_prop_assignment_in_component(comp);
         }
         for func in &module.functions {
             self.validate_function_body(&func.body, func.is_async);
@@ -1121,6 +1143,580 @@ impl SemanticAnalyzer {
 
         if let Some(ref view) = comp.view {
             walk_elements(&view.children, &signal_names, &mut self.diagnostics);
+        }
+    }
+
+    /// Validate that EventHandler::StoreAction references point to real stores and actions.
+    /// Triggers: E0007
+    fn validate_store_action_refs(&mut self, comp: &ComponentDef, module: &Module) {
+        // Build a map: store_name -> set of action names
+        let mut store_actions: HashMap<&str, HashSet<&str>> = HashMap::new();
+        for store in &module.stores {
+            let actions: HashSet<&str> =
+                store.actions.iter().map(|a| a.name.as_str()).collect();
+            store_actions.insert(store.name.as_str(), actions);
+        }
+
+        let store_refs: HashSet<&str> =
+            comp.store_refs.iter().map(|s| s.as_str()).collect();
+
+        fn walk_nodes(
+            nodes: &[ViewNode],
+            store_actions: &HashMap<&str, HashSet<&str>>,
+            store_refs: &HashSet<&str>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            for node in nodes {
+                match node {
+                    ViewNode::Element(el) => {
+                        for prop in &el.props {
+                            if let ElementProp::Event { handler, .. } = prop {
+                                if let EventHandler::StoreAction { store, action } = handler {
+                                    // Check @store declaration
+                                    if !store_refs.contains(store.as_str()) {
+                                        diagnostics.push(Diagnostic::error(
+                                            "E0007",
+                                            &format!(
+                                                "Store '{}' is not declared with @store in this \
+                                                 component — add '@store {};' to the component body",
+                                                store, store
+                                            ),
+                                            &el.span,
+                                        ));
+                                    }
+                                    // Check action exists
+                                    if let Some(actions) = store_actions.get(store.as_str()) {
+                                        if !actions.contains(action.as_str()) {
+                                            diagnostics.push(Diagnostic::error(
+                                                "E0007",
+                                                &format!(
+                                                    "Store '{}' has no action '{}'",
+                                                    store, action
+                                                ),
+                                                &el.span,
+                                            ));
+                                        }
+                                    } else {
+                                        // Store not found at all
+                                        diagnostics.push(Diagnostic::error(
+                                            "E0007",
+                                            &format!("Store '{}' not found", store),
+                                            &el.span,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        walk_nodes(&el.children, store_actions, store_refs, diagnostics);
+                    }
+                    ViewNode::IfDirective(if_dir) => {
+                        walk_nodes(&if_dir.body, store_actions, store_refs, diagnostics);
+                        for (_, body) in &if_dir.else_ifs {
+                            walk_nodes(body, store_actions, store_refs, diagnostics);
+                        }
+                        if let Some(ref else_body) = if_dir.else_body {
+                            walk_nodes(else_body, store_actions, store_refs, diagnostics);
+                        }
+                    }
+                    ViewNode::ForDirective(for_dir) => {
+                        walk_nodes(&for_dir.body, store_actions, store_refs, diagnostics);
+                        if let Some(ref empty_body) = for_dir.empty_body {
+                            walk_nodes(empty_body, store_actions, store_refs, diagnostics);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(ref view) = comp.view {
+            walk_nodes(&view.children, &store_actions, &store_refs, &mut self.diagnostics);
+        }
+    }
+
+    /// Validate that store fields are only accessed with @store declaration.
+    /// Triggers: E0008
+    fn validate_store_field_access(&mut self, comp: &ComponentDef) {
+        let store_refs: HashSet<&str> =
+            comp.store_refs.iter().map(|s| s.as_str()).collect();
+
+        // Collect all known store names from the module
+        // (we check against store_refs since we're inside validate_module)
+
+        // Walk function bodies looking for StoreFieldAccess or FieldAccess on store names
+        fn check_expr_for_undeclared_store(
+            expr: &Expr,
+            store_refs: &HashSet<&str>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            match expr {
+                Expr::StoreFieldAccess { store_alias, .. } => {
+                    if !store_refs.contains(store_alias.as_str()) {
+                        diagnostics.push(Diagnostic::error(
+                            "E0008",
+                            &format!(
+                                "Accessing store '{}' without @store declaration — \
+                                 add '@store {};' to the component body",
+                                store_alias, store_alias
+                            ),
+                            &crate::lexer::Span { start: 0, end: 0, line: 0, col: 0 },
+                        ));
+                    }
+                }
+                Expr::FieldAccess { object, .. } => {
+                    if let Expr::VarRef(_name, _) = object.as_ref() {
+                        // Check if this is a store name access
+                        // Only flag if the name matches a known pattern
+                        // We can't know all store names here, so we check
+                        // against store_refs (if it's in store_refs, it's fine;
+                        // if we can't tell, we're lenient)
+                    }
+                    check_expr_for_undeclared_store(object, store_refs, diagnostics);
+                }
+                Expr::FuncCall { func, args, .. } => {
+                    check_expr_for_undeclared_store(func, store_refs, diagnostics);
+                    for a in args {
+                        check_expr_for_undeclared_store(a, store_refs, diagnostics);
+                    }
+                }
+                Expr::MethodCall { object, args, .. } => {
+                    check_expr_for_undeclared_store(object, store_refs, diagnostics);
+                    for a in args {
+                        check_expr_for_undeclared_store(a, store_refs, diagnostics);
+                    }
+                }
+                Expr::BinaryOp { left, right, .. } => {
+                    check_expr_for_undeclared_store(left, store_refs, diagnostics);
+                    check_expr_for_undeclared_store(right, store_refs, diagnostics);
+                }
+                Expr::UnaryOp { operand, .. } => {
+                    check_expr_for_undeclared_store(operand, store_refs, diagnostics);
+                }
+                Expr::ArrayLiteral { elements, .. } => {
+                    for e in elements {
+                        check_expr_for_undeclared_store(e, store_refs, diagnostics);
+                    }
+                }
+                Expr::MapLiteral { entries, .. } => {
+                    for (k, v) in entries {
+                        check_expr_for_undeclared_store(k, store_refs, diagnostics);
+                        check_expr_for_undeclared_store(v, store_refs, diagnostics);
+                    }
+                }
+                Expr::StructLiteral { fields, .. } => {
+                    for (_, v) in fields {
+                        check_expr_for_undeclared_store(v, store_refs, diagnostics);
+                    }
+                }
+                Expr::IfExpr {
+                    condition,
+                    then_expr,
+                    else_expr,
+                    ..
+                }
+                | Expr::TernaryExpr {
+                    condition,
+                    then_expr,
+                    else_expr,
+                    ..
+                } => {
+                    check_expr_for_undeclared_store(condition, store_refs, diagnostics);
+                    check_expr_for_undeclared_store(then_expr, store_refs, diagnostics);
+                    check_expr_for_undeclared_store(else_expr, store_refs, diagnostics);
+                }
+                Expr::TemplateString { parts, .. } => {
+                    for part in parts {
+                        if let TemplatePart::Expr(e) = part {
+                            check_expr_for_undeclared_store(e, store_refs, diagnostics);
+                        }
+                    }
+                }
+                Expr::Block { body, .. } => {
+                    for stmt in &body.stmts {
+                        check_stmt_for_undeclared_store(stmt, store_refs, diagnostics);
+                    }
+                    if let Some(ref trailing) = body.trailing_expr {
+                        check_expr_for_undeclared_store(trailing, store_refs, diagnostics);
+                    }
+                }
+                Expr::IndexGet { object, index, .. } => {
+                    check_expr_for_undeclared_store(object, store_refs, diagnostics);
+                    check_expr_for_undeclared_store(index, store_refs, diagnostics);
+                }
+                Expr::ClosureExpr { body, .. } => {
+                    check_expr_for_undeclared_store(body, store_refs, diagnostics);
+                }
+                Expr::AwaitExpr { operand, .. } => {
+                    check_expr_for_undeclared_store(operand, store_refs, diagnostics);
+                }
+                Expr::MatchExpr { matched, arms, .. } => {
+                    check_expr_for_undeclared_store(matched, store_refs, diagnostics);
+                    for arm in arms {
+                        for stmt in &arm.body.stmts {
+                            check_stmt_for_undeclared_store(stmt, store_refs, diagnostics);
+                        }
+                        if let Some(ref trailing) = arm.body.trailing_expr {
+                            check_expr_for_undeclared_store(
+                                trailing, store_refs, diagnostics,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        fn check_stmt_for_undeclared_store(
+            stmt: &Stmt,
+            store_refs: &HashSet<&str>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            match stmt {
+                Stmt::ExprStmt { expr, .. }
+                | Stmt::Print { arg: expr, .. }
+                | Stmt::Throw { expr, .. } => {
+                    check_expr_for_undeclared_store(expr, store_refs, diagnostics);
+                }
+                Stmt::Return { value: Some(e), .. } => {
+                    check_expr_for_undeclared_store(e, store_refs, diagnostics);
+                }
+                Stmt::VarDecl { init: Some(e), .. } => {
+                    check_expr_for_undeclared_store(e, store_refs, diagnostics);
+                }
+                Stmt::Assign { value, .. } => {
+                    check_expr_for_undeclared_store(value, store_refs, diagnostics);
+                }
+                Stmt::If {
+                    condition,
+                    then_body,
+                    else_ifs,
+                    else_body,
+                    ..
+                } => {
+                    check_expr_for_undeclared_store(condition, store_refs, diagnostics);
+                    for s in &then_body.stmts {
+                        check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                    }
+                    for (cond, body) in else_ifs {
+                        check_expr_for_undeclared_store(cond, store_refs, diagnostics);
+                        for s in &body.stmts {
+                            check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                        }
+                    }
+                    if let Some(ref body) = else_body {
+                        for s in &body.stmts {
+                            check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                        }
+                    }
+                }
+                Stmt::While {
+                    condition, body, ..
+                }
+                | Stmt::ForIn {
+                    iterable: condition,
+                    body,
+                    ..
+                } => {
+                    check_expr_for_undeclared_store(condition, store_refs, diagnostics);
+                    for s in &body.stmts {
+                        check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                    }
+                }
+                Stmt::TryCatch {
+                    try_body,
+                    catch_body,
+                    finally_body,
+                    ..
+                } => {
+                    for s in &try_body.stmts {
+                        check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                    }
+                    if let Some(ref body) = catch_body {
+                        for s in &body.stmts {
+                            check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                        }
+                    }
+                    if let Some(ref body) = finally_body {
+                        for s in &body.stmts {
+                            check_stmt_for_undeclared_store(s, store_refs, diagnostics);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Walk all component code
+        for func in &comp.fns {
+            for stmt in &func.body.stmts {
+                check_stmt_for_undeclared_store(stmt, &store_refs, &mut self.diagnostics);
+            }
+            if let Some(ref trailing) = func.body.trailing_expr {
+                check_expr_for_undeclared_store(trailing, &store_refs, &mut self.diagnostics);
+            }
+        }
+        for action in &comp.actions {
+            for stmt in &action.body.stmts {
+                check_stmt_for_undeclared_store(stmt, &store_refs, &mut self.diagnostics);
+            }
+            if let Some(ref trailing) = action.body.trailing_expr {
+                check_expr_for_undeclared_store(trailing, &store_refs, &mut self.diagnostics);
+            }
+        }
+        for lc in &comp.lifecycles {
+            for stmt in &lc.body.stmts {
+                check_stmt_for_undeclared_store(stmt, &store_refs, &mut self.diagnostics);
+            }
+            if let Some(ref trailing) = lc.body.trailing_expr {
+                check_expr_for_undeclared_store(trailing, &store_refs, &mut self.diagnostics);
+            }
+        }
+        for computed in &comp.computeds {
+            check_expr_for_undeclared_store(&computed.body, &store_refs, &mut self.diagnostics);
+        }
+        for sig in &comp.signals {
+            check_expr_for_undeclared_store(&sig.init, &store_refs, &mut self.diagnostics);
+        }
+        // Walk view tree
+        if let Some(ref view) = comp.view {
+            for child in &view.children {
+                check_view_node_for_undeclared_store(
+                    child, &store_refs, &mut self.diagnostics,
+                );
+            }
+        }
+
+        fn check_view_node_for_undeclared_store(
+            node: &ViewNode,
+            store_refs: &HashSet<&str>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            match node {
+                ViewNode::Element(el) => {
+                    for prop in &el.props {
+                        match prop {
+                            ElementProp::Static { value, .. }
+                            | ElementProp::AnimateSignal(value)
+                            | ElementProp::PausedOverride(value)
+                            | ElementProp::DrivenBy(value)
+                            | ElementProp::InViewOnce(value)
+                            | ElementProp::InViewRepeat(value)
+                            | ElementProp::InViewThreshold(value)
+                            | ElementProp::ScrollScrub(value)
+                            | ElementProp::DragElastic(value)
+                            | ElementProp::DragScrub(value)
+                            | ElementProp::DragMomentum(value)
+                            | ElementProp::DragThreshold(value)
+                            | ElementProp::DragVelocityMax(value)
+                            | ElementProp::HeroTransition(value) => {
+                                check_expr_for_undeclared_store(
+                                    value, store_refs, diagnostics,
+                                );
+                            }
+                            ElementProp::Style { entries, .. } => {
+                                for (_, expr) in entries {
+                                    check_expr_for_undeclared_store(
+                                        expr, store_refs, diagnostics,
+                                    );
+                                }
+                            }
+                            ElementProp::Class { value } => {
+                                if let ClassValue::ClassMap(entries) = value {
+                                    for (_, expr) in entries {
+                                        check_expr_for_undeclared_store(
+                                            expr, store_refs, diagnostics,
+                                        );
+                                    }
+                                }
+                            }
+                            ElementProp::Event { handler, .. } => {
+                                if let EventHandler::InlineFn { body, .. } = handler {
+                                    for stmt in &body.stmts {
+                                        check_stmt_for_undeclared_store(
+                                            stmt, store_refs, diagnostics,
+                                        );
+                                    }
+                                    if let Some(ref trailing) = body.trailing_expr {
+                                        check_expr_for_undeclared_store(
+                                            trailing, store_refs, diagnostics,
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    for child in &el.children {
+                        check_view_node_for_undeclared_store(
+                            child, store_refs, diagnostics,
+                        );
+                    }
+                }
+                ViewNode::Interpolation(expr) => {
+                    check_expr_for_undeclared_store(expr, store_refs, diagnostics);
+                }
+                ViewNode::IfDirective(if_dir) => {
+                    check_expr_for_undeclared_store(
+                        &if_dir.condition, store_refs, diagnostics,
+                    );
+                    for child in &if_dir.body {
+                        check_view_node_for_undeclared_store(
+                            child, store_refs, diagnostics,
+                        );
+                    }
+                    for (cond, body) in &if_dir.else_ifs {
+                        check_expr_for_undeclared_store(cond, store_refs, diagnostics);
+                        for child in body {
+                            check_view_node_for_undeclared_store(
+                                child, store_refs, diagnostics,
+                            );
+                        }
+                    }
+                    if let Some(ref else_body) = if_dir.else_body {
+                        for child in else_body {
+                            check_view_node_for_undeclared_store(
+                                child, store_refs, diagnostics,
+                            );
+                        }
+                    }
+                }
+                ViewNode::ForDirective(for_dir) => {
+                    check_expr_for_undeclared_store(
+                        &for_dir.iterable, store_refs, diagnostics,
+                    );
+                    for child in &for_dir.body {
+                        check_view_node_for_undeclared_store(
+                            child, store_refs, diagnostics,
+                        );
+                    }
+                    if let Some(ref empty_body) = for_dir.empty_body {
+                        for child in empty_body {
+                            check_view_node_for_undeclared_store(
+                                child, store_refs, diagnostics,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Validate that component props are not assigned to within the component.
+    fn validate_prop_assignment_in_component(&mut self, comp: &ComponentDef) {
+        let prop_names: HashSet<&str> =
+            comp.props.iter().map(|p| p.name.as_str()).collect();
+
+        if prop_names.is_empty() {
+            return;
+        }
+
+        fn check_block(block: &Block, prop_names: &HashSet<&str>, diagnostics: &mut Vec<Diagnostic>) {
+            for stmt in &block.stmts {
+                if let Stmt::Assign {
+                    target: AssignTarget::Name(name),
+                    span,
+                    ..
+                } = stmt
+                {
+                    if prop_names.contains(name.as_str()) {
+                        diagnostics.push(Diagnostic::error(
+                            "E0009",
+                            &format!(
+                                "Cannot assign to prop '{}' — component props are read-only. \
+                                 Use a local signal if you need mutable state.",
+                                name
+                            ),
+                            span,
+                        ));
+                    }
+                }
+                // Recurse into nested blocks
+                match stmt {
+                    Stmt::If {
+                        then_body,
+                        else_ifs,
+                        else_body,
+                        ..
+                    } => {
+                        check_block(then_body, prop_names, diagnostics);
+                        for (_, body) in else_ifs {
+                            check_block(body, prop_names, diagnostics);
+                        }
+                        if let Some(ref body) = else_body {
+                            check_block(body, prop_names, diagnostics);
+                        }
+                    }
+                    Stmt::While { body, .. } | Stmt::ForIn { body, .. } => {
+                        check_block(body, prop_names, diagnostics);
+                    }
+                    Stmt::TryCatch {
+                        try_body,
+                        catch_body,
+                        finally_body,
+                        ..
+                    } => {
+                        check_block(try_body, prop_names, diagnostics);
+                        if let Some(ref body) = catch_body {
+                            check_block(body, prop_names, diagnostics);
+                        }
+                        if let Some(ref body) = finally_body {
+                            check_block(body, prop_names, diagnostics);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        for func in &comp.fns {
+            check_block(&func.body, &prop_names, &mut self.diagnostics);
+        }
+        for action in &comp.actions {
+            check_block(&action.body, &prop_names, &mut self.diagnostics);
+        }
+        for lc in &comp.lifecycles {
+            check_block(&lc.body, &prop_names, &mut self.diagnostics);
+        }
+        // Also check view inline event handlers
+        if let Some(ref view) = comp.view {
+            fn check_view_nodes(
+                nodes: &[ViewNode],
+                prop_names: &HashSet<&str>,
+                diagnostics: &mut Vec<Diagnostic>,
+            ) {
+                for node in nodes {
+                    match node {
+                        ViewNode::Element(el) => {
+                            for prop in &el.props {
+                                if let ElementProp::Event { handler, .. } = prop {
+                                    if let EventHandler::InlineFn { body, .. } = handler {
+                                        check_block(body, prop_names, diagnostics);
+                                    }
+                                }
+                            }
+                            check_view_nodes(&el.children, prop_names, diagnostics);
+                        }
+                        ViewNode::IfDirective(if_dir) => {
+                            check_view_nodes(&if_dir.body, prop_names, diagnostics);
+                            for (_, body) in &if_dir.else_ifs {
+                                check_view_nodes(body, prop_names, diagnostics);
+                            }
+                            if let Some(ref else_body) = if_dir.else_body {
+                                check_view_nodes(else_body, prop_names, diagnostics);
+                            }
+                        }
+                        ViewNode::ForDirective(for_dir) => {
+                            check_view_nodes(&for_dir.body, prop_names, diagnostics);
+                            if let Some(ref empty_body) = for_dir.empty_body {
+                                check_view_nodes(empty_body, prop_names, diagnostics);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            check_view_nodes(&view.children, &prop_names, &mut self.diagnostics);
         }
     }
 

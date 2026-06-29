@@ -1,0 +1,13 @@
+[  426360ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[  426360ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[  426360ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[  426400ms] [LOG] AddTodo mounted @ http://localhost:8789/:23062
+[  426401ms] [LOG] Total items: 0 @ http://localhost:8789/:23083
+[  426406ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[  426406ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[  426408ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[  426420ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[  426420ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[  426428ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[  426428ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[  426441ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/favicon.ico:0

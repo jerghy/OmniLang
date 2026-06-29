@@ -1,8 +1,0 @@
-[      19ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
-[      22ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/dot.png:0
-[      29ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/large.jpg:0
-[      30ms] Invalid regular expression: missing /
-[      32ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/dot.png:0
-[      34ms] Invalid regular expression: missing /
-[      35ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp4:0
-[      36ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0

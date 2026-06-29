@@ -44,8 +44,33 @@ impl<'a> Parser<'a> {
                 // HTML-like element: <Tag ...> or <Tag .../>
                 self.parse_element()
             }
-            TokenKind::AtIf => self.parse_if_directive(),
-            TokenKind::AtFor => self.parse_for_directive(),
+            TokenKind::AtIf => {
+                // Try to parse @if as a real directive; fall back to text on failure
+                let saved_pos = self.pos;
+                let saved_depth = self.depth;
+                match self.parse_if_directive() {
+                    Ok(node) => Ok(node),
+                    Err(_) => {
+                        self.pos = saved_pos;
+                        self.depth = saved_depth;
+                        Ok(self.collect_at_text("@if"))
+                    }
+                }
+            }
+            TokenKind::AtFor => {
+                // Try to parse @for as a real directive; fall back to text on failure.
+                // This handles @for in text content (e.g. "@for key={expr} Demo" in a heading).
+                let saved_pos = self.pos;
+                let saved_depth = self.depth;
+                match self.parse_for_directive() {
+                    Ok(node) => Ok(node),
+                    Err(_) => {
+                        self.pos = saved_pos;
+                        self.depth = saved_depth;
+                        Ok(self.collect_at_text("@for"))
+                    }
+                }
+            }
             TokenKind::AtSlot => {
                 self.advance();
                 let name = if self.peek_kind() == TokenKind::LParen {
@@ -108,9 +133,63 @@ impl<'a> Parser<'a> {
                     self.advance(); // consume '}'
                     Ok(ViewNode::Text(String::new())) // Empty braces → empty text
                 } else {
-                    let expr = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    Ok(ViewNode::Interpolation(expr))
+                    // Try to parse as interpolation expression.
+                    // Fall back to raw text if expression is not immediately closed by '}'.
+                    let saved_pos = self.pos;
+                    let saved_depth = self.depth;
+                    let parse_result = self.parse_expr();
+                    let is_valid_interpolation = parse_result.is_ok()
+                        && self.peek_kind() == TokenKind::RBrace;
+                    if is_valid_interpolation {
+                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                        Ok(ViewNode::Interpolation(parse_result.unwrap()))
+                    } else {
+                        // Not a valid/complete interpolation — treat as literal text
+                        self.pos = saved_pos;
+                        self.depth = saved_depth;
+                        let mut text = String::from("{");
+                        while self.peek_kind() != TokenKind::RBrace
+                            && self.peek_kind() != TokenKind::Eof
+                        {
+                            match self.peek_kind() {
+                                TokenKind::StringLiteral(s) => {
+                                    text.push_str(&s);
+                                    self.advance();
+                                }
+                                TokenKind::IntLiteral(n) => {
+                                    text.push_str(&n.to_string());
+                                    self.advance();
+                                }
+                                TokenKind::FloatLiteral(n) => {
+                                    text.push_str(&n.to_string());
+                                    self.advance();
+                                }
+                                TokenKind::Semicolon => { text.push(';'); self.advance(); }
+                                TokenKind::Comma => { text.push(','); self.advance(); }
+                                TokenKind::Dot => { text.push('.'); self.advance(); }
+                                TokenKind::LParen => { text.push('('); self.advance(); }
+                                TokenKind::RParen => { text.push(')'); self.advance(); }
+                                TokenKind::LBrace => { text.push('{'); self.advance(); }
+                                TokenKind::Eq => { text.push('='); self.advance(); }
+                                TokenKind::Colon => { text.push(':'); self.advance(); }
+                                TokenKind::Plus => { text.push('+'); self.advance(); }
+                                TokenKind::Minus => { text.push('-'); self.advance(); }
+                                TokenKind::Star => { text.push('*'); self.advance(); }
+                                TokenKind::Slash => { text.push('/'); self.advance(); }
+                                _ => {
+                                    if let Some(name) = crate::parser::stmt::keyword_as_ident_name(&self.peek_kind()) {
+                                        text.push_str(&name);
+                                    }
+                                    self.advance();
+                                }
+                            }
+                        }
+                        if self.peek_kind() == TokenKind::RBrace {
+                            text.push('}');
+                            self.advance();
+                        }
+                        Ok(ViewNode::Text(text))
+                    }
                 }
             }
             // Component call syntax: Card(prop: value, ...) { children }
@@ -1163,10 +1242,10 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
-        self.advance(); // '@for'
-        let item_name = self.expect_ident("expected item variable name")?;
-        self.expect_token(TokenKind::In, "expected 'in'")?;
+	    fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
+	        self.advance(); // '@for'
+	        let item_name = self.expect_ident("expected item variable name")?;
+	        self.expect_token(TokenKind::In, "expected 'in'")?;
         let iterable = self.parse_expr()?;
 
         // Optional key={expr} for identity tracking
@@ -1653,6 +1732,34 @@ impl<'a> Parser<'a> {
         }
         self.expect_token(TokenKind::RBrace, "expected '}' at end of property block")?;
         Ok(properties)
+    }
+
+    /// Collect an @-keyword that failed to parse as a real directive into a text node.
+    /// Used when @for/@if appear in element text content rather than as directives.
+    fn collect_at_text(&mut self, keyword: &str) -> ViewNode {
+        let mut text = String::from(keyword);
+        self.advance(); // consume the @-keyword token
+        while self.pos < self.tokens.len() {
+            let kind = self.peek_kind();
+            match kind {
+                TokenKind::Lt | TokenKind::Gt | TokenKind::Eof => break,
+                TokenKind::LBrace => {
+                    text.push('{');
+                    self.advance();
+                }
+                TokenKind::RBrace => {
+                    text.push('}');
+                    self.advance();
+                }
+                _ if is_text_token(&kind) => {
+                    // Insert space if there's a gap indicating whitespace
+                    text.push_str(&token_text(&kind));
+                    self.advance();
+                }
+                _ => break,
+            }
+        }
+        ViewNode::Text(text)
     }
 }
 

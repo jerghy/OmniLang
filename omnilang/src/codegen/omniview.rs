@@ -1003,6 +1003,47 @@ function __omni_bindText(nid) {
         }
     }
 
+    /// Convert a single statement to an inline JS string (no buffer push).
+    fn stmt_to_js_inline(&self, stmt: &StatementIR) -> String {
+        match stmt {
+            StatementIR::LetStmtIR { name, value, .. } => {
+                let safe_name = super::sanitize_js_ident(name);
+                let val = value
+                    .as_ref()
+                    .map(|e| self.expr_to_js(e))
+                    .unwrap_or_else(|| "undefined".into());
+                format!("let {} = {}", safe_name, val)
+            }
+            StatementIR::ExprStmtIR { expr } => self.expr_to_js(expr),
+            StatementIR::ReturnStmtIR { value } => {
+                let val = value
+                    .as_ref()
+                    .map(|e| self.expr_to_js(e))
+                    .unwrap_or_else(|| "undefined".into());
+                format!("return {}", val)
+            }
+            StatementIR::MutationStmt { intent } => {
+                if let Some(intent) = intent {
+                    let target = self
+                        .name_renames
+                        .get(intent.target.name.as_str())
+                        .cloned()
+                        .unwrap_or_else(|| intent.target.name.clone());
+                    let op = &intent.operation;
+                    match &intent.amount {
+                        Some(amt) => {
+                            format!("{} {} {}", target, op, self.expr_to_js(amt))
+                        }
+                        None => format!("{} {}", target, op),
+                    }
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::from("/* unhandled stmt in block expr */"),
+        }
+    }
+
     fn emit_mutation(&mut self, intent: &MutationIntent) {
         let target = self
             .name_renames
@@ -1319,7 +1360,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     };
                     // Write to self.js (which is the deferred buffer after emit_view swap)
                     self.js.push_str(&format!(
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.textContent = String({}); }});\n",
+                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.textContent = String({}); }} catch(e) {{}} }});\n",
                         nid, value_access
                     ));
                     format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
@@ -1747,21 +1788,17 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
 
             // Emit _extractEvent switch function
             self.js.push_str("    function _extractEvent(kind, e) {\n");
-            if !for_event_kinds.is_empty() {
-                self.js.push_str("      switch (kind) {\n");
-                for (_, kind) in &for_event_kinds {
-                    let label = event_data_kind_label(kind);
-                    self.js.push_str(&format!("        case '{}':\n", label));
-                    self.js.push_str(&format!(
-                        "          return {};\n",
-                        emit_event_object(&Some(kind.clone()), &None, "e")
-                    ));
-                }
+            self.js.push_str("      switch (kind) {\n");
+            for (_, kind) in &for_event_kinds {
+                let label = event_data_kind_label(kind);
+                self.js.push_str(&format!("        case '{}':\n", label));
+                self.js.push_str(&format!(
+                    "          return {};\n",
+                    emit_event_object(&Some(kind.clone()), &None, "e")
+                ));
             }
             self.js.push_str("        default: return {};\n");
-            if !for_event_kinds.is_empty() {
-                self.js.push_str("      }\n");
-            }
+            self.js.push_str("      }\n");
             self.js.push_str("    }\n");
 
             self.js.push_str("    const _forHandle = (e) => {\n");
@@ -4404,15 +4441,20 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 format!("{{{}}}", entries.join(", "))
             }
             ExprIR::BlockExpr { statements, tail } => {
-                // Block expression: preceding statements (side effects) are
-                // preserved in IR for future codegen handling.
-                // For now, emit the tail expression as the value.
-                // TODO: emit preceding statements as IIFE when they have side effects.
-                if !statements.is_empty() {
-                    // Warn: side-effecting statements in block expression
-                    // will be preserved in IR but not yet emitted in JS
+                // Block expression: emit as IIFE to preserve statement scope.
+                if statements.is_empty() {
+                    self.expr_to_js(tail)
+                } else {
+                    let mut js = String::from("(function(){ ");
+                    for stmt in statements {
+                        js.push_str(&self.stmt_to_js_inline(stmt));
+                        js.push(';');
+                    }
+                    js.push_str("return ");
+                    js.push_str(&self.expr_to_js(tail));
+                    js.push_str("; })()");
+                    js
                 }
-                self.expr_to_js(tail)
             }
             ExprIR::IndexExpr { object, index } => {
                 let obj = self.expr_to_js(object);

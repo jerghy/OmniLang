@@ -98,6 +98,16 @@ import { ComputedFnFormDemo } from "./components/ComputedFnFormDemo";
 import { StylePseudoDemo } from "./components/StylePseudoDemo";
 
 // ═══════════════════════════════════════════════════════════════
+// XI. 补充特性
+// ═══════════════════════════════════════════════════════════════
+import { ForDirectiveKeyDemo } from "./components/ForDirectiveKeyDemo";
+import { TernaryExprDemo } from "./components/TernaryExprDemo";
+import { BlockExprDemo } from "./components/BlockExprDemo";
+import { StepsStartDemo } from "./components/StepsStartDemo";
+import { PathTimelineDemo } from "./components/PathTimelineDemo";
+import { AdvancedPseudoDemo } from "./components/AdvancedPseudoDemo";
+
+// ═══════════════════════════════════════════════════════════════
 // VIII. 类型导入 + 重导出
 // ═══════════════════════════════════════════════════════════════
 import type { StatisticsData } from "./lib/types";
@@ -177,6 +187,9 @@ component App {
                     </button>
                     <button class: { browserTab: true, tabActive: isActive("settings") } @onPress={switchTab("settings")}>
                         设置
+                    </button>
+                    <button class: { browserTab: true, tabActive: isActive("supplement") } @onPress={switchTab("supplement")}>
+                        补充
                     </button>
                 </div>
                 <div class: tab-content>
@@ -381,10 +394,36 @@ component App {
                 </section>
             }
 
+            <!-- ═══ Tab: 补充特性 ═══ -->
+            @if activeTab == "supplement" {
+                <section class: demo-section>
+                    <div class: demo-row>
+                        <div class: demo-col>
+                            <TernaryExprDemo />
+                        </div>
+                        <div class: demo-col>
+                            <BlockExprDemo />
+                        </div>
+                    </div>
+                    <div class: demo-full>
+                        <ForDirectiveKeyDemo />
+                    </div>
+                    <div class: demo-full>
+                        <AdvancedPseudoDemo />
+                    </div>
+                    <div class: demo-full>
+                        <StepsStartDemo />
+                    </div>
+                    <div class: demo-full>
+                        <PathTimelineDemo />
+                    </div>
+                </section>
+            }
+
             </div><!-- /tab-content -->
 
             <footer class: footer>
-                <p class: footer-text>OmniView 教学项目 · 68+ 源文件 · omnic run</p>
+                <p class: footer-text>OmniView 教学项目 · 74+ 源文件 · omnic run</p>
             </footer>
         </div>
     }

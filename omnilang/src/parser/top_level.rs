@@ -1401,6 +1401,7 @@ impl<'a> Parser<'a> {
         // Optional per-stop ease
         let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
             self.advance();
+            if self.peek_kind() == TokenKind::Colon { self.advance(); }
             Some(self.parse_easing()?)
         } else {
             None
@@ -1424,14 +1425,17 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "color_space" || s == "colorSpace" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
                 _ => break,
@@ -1636,30 +1640,37 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "delay" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *delay = Some(self.parse_expr()?);
                 }
                 Some(ref s) if s == "color_space" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
                 Some(ref s) if s == "start" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *start = Some(self.parse_position_value()?);
                 }
                 Some(ref s) if s == "path" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *path = Some(self.expect_string("expected path string")?);
                 }
                 Some(ref s) if s == "pathRotate" => {
                     self.advance();
+                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
                     *path_rotate = Some(match self.peek_kind() {
                         TokenKind::True => {
                             self.advance();

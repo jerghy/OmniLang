@@ -355,18 +355,52 @@ impl<'a> Parser<'a> {
             }
 
             TokenKind::LBrace => {
-                // Map literal: {key: val, ...} or Struct literal: TypeName{field: val, ...}
-                // For now, always parse as map literal
-                let entries = self.parse_map_entries()?;
-                Ok(Expr::MapLiteral {
-                    entries,
-                    span: Span {
-                        start: span.start,
-                        end: span.end,
-                        line: span.line,
-                        col: span.col,
-                    },
-                })
+                // Block expression: { stmts; trailing_expr }
+                // '{' was already consumed by parse_prefix()
+                match self.peek_kind() {
+                    // Statement-starting tokens → parse as block expression
+                    TokenKind::Let | TokenKind::If | TokenKind::While
+                    | TokenKind::For | TokenKind::Return | TokenKind::Break
+                    | TokenKind::Continue | TokenKind::Print | TokenKind::Println
+                    | TokenKind::Throw | TokenKind::Try | TokenKind::Emit
+                    | TokenKind::Semicolon | TokenKind::LBrace => {
+                        let start_span = self.peek_span();
+                        let mut stmts = Vec::new();
+                        let mut trailing_expr: Option<Expr> = None;
+                        while self.peek_kind() != TokenKind::RBrace
+                            && self.peek_kind() != TokenKind::Eof
+                        {
+                            let stmt = self.parse_stmt()?;
+                            if self.peek_kind() == TokenKind::RBrace {
+                                if let Stmt::ExprStmt { expr, .. } = &stmt {
+                                    trailing_expr = Some(expr.clone());
+                                    break;
+                                }
+                            }
+                            stmts.push(stmt);
+                        }
+                        let end_span = self.peek_span();
+                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                        Ok(Expr::Block {
+                            body: Block {
+                                stmts,
+                                trailing_expr: trailing_expr.map(Box::new),
+                                span: Span {
+                                    start: start_span.start,
+                                    end: end_span.start,
+                                    line: start_span.line,
+                                    col: start_span.col,
+                                },
+                            },
+                            span,
+                        })
+                    }
+                    _ => {
+                        // Map literal: {key: val, ...}
+                        let entries = self.parse_map_entries()?;
+                        Ok(Expr::MapLiteral { entries, span })
+                    }
+                }
             }
 
             TokenKind::Pipe => {

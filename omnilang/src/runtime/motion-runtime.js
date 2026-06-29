@@ -598,7 +598,14 @@ class AnimationPlayer {
   reverse() {
     this._reversed = !this._reversed;
     if (this._waapiAnimation) {
-      this._waapiAnimation.reverse();
+      try {
+        this._waapiAnimation.reverse();
+      } catch(e) {
+        // WAAPI reverse() throws InvalidStateError for infinite-iteration
+        // animations. Fall back to cancelling so the element returns to
+        // its pre-animation state.
+        if (this._waapiAnimation) this._waapiAnimation.cancel();
+      }
     } else {
       // Swap from/to
       const tmp = this._from;

@@ -1095,7 +1095,7 @@ fn codegen_array_sort(args: &[String], target: Target) -> String {
         | Target::Vue
         | Target::OmniView => {
             if let Some(c) = closure {
-                format!("([...{arr}]).sort({c})")
+                format!("([...{arr}]).sort(($0,$1) => {{ let $ka={c}($0,$1); let $kb={c}($1,$0); return $ka < $kb ? -1 : $ka > $kb ? 1 : 0; }})")
             } else {
                 format!("([...{arr}]).sort()")
             }
