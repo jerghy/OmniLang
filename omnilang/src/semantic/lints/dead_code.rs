@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::helpers::{
+use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view_node,
 };
 use super::{LintDiagnostic, LintRule, LintSeverity};

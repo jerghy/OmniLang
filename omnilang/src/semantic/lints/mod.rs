@@ -8,6 +8,7 @@
 //!   1. Create a new file in this directory implementing `LintRule`.
 //!   2. Register it in `all_rules()`.
 
+mod ast_collectors;
 mod computed_purity;
 mod dead_code;
 mod helpers;

@@ -5,10 +5,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::helpers::{
+use super::ast_collectors::{
     collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view,
-    import_span_line_col,
 };
+use super::helpers::import_span_line_col;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
 use crate::parser::ast::{ImportStmt, Program};
