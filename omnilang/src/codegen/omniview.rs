@@ -71,7 +71,6 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         enter_trigger_nids: Vec::new(),
         for_state_names: std::collections::HashMap::new(),
         motion_names: std::collections::HashSet::new(),
-        needs_touch_merge: false,
     };
 
     gen.emit_js_header();
@@ -145,20 +144,18 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
     }
 
-    // Emit global __mergeTouches helper if any @for (or other codegen) uses TouchEvent
-    if gen.needs_touch_merge {
-        gen.js.push_str(
-            "function __mergeTouches(e) {\n\
-             \x20 const seen = new Map();\n\
-             \x20 for (const t of e.touches)\n\
-             \x20   seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
-             \x20 for (const t of e.changedTouches)\n\
-             \x20   if (!seen.has(t.identifier))\n\
-             \x20     seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
-             \x20 return [...seen.values()];\n\
-             }\n"
-        );
-    }
+    // Emit global __mergeTouches helper for TouchEvent support
+    gen.js.push_str(
+        "function __mergeTouches(e) {\n\
+         \x20 const seen = new Map();\n\
+         \x20 for (const t of e.touches)\n\
+         \x20   seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+         \x20 for (const t of e.changedTouches)\n\
+         \x20   if (!seen.has(t.identifier))\n\
+         \x20     seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+         \x20 return [...seen.values()];\n\
+         }\n"
+    );
 
     // Build per-component output map for editor hot-replace
     let mut components: HashMap<String, ComponentOutput> = HashMap::new();
@@ -244,8 +241,6 @@ struct OmniViewGenerator {
     enter_trigger_nids: Vec<(String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
     for_state_names: std::collections::HashMap<String, (String, String)>,
-    /// Whether to emit global __mergeTouches helper (for TouchEvent in @for or elsewhere)
-    needs_touch_merge: bool,
 }
 
 impl OmniViewGenerator {
@@ -1736,11 +1731,6 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         }
 
         if !for_event_types.is_empty() {
-            // Check if TouchEvent is used — need the global __mergeTouches helper
-            if for_event_kinds.iter().any(|(_, k)| *k == EventDataKind::TouchEvent) {
-                self.needs_touch_merge = true;
-            }
-
             self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
             self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
 
@@ -1983,6 +1973,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         } else {
                             ""
                         };
+                        let sp = if handler.needs_stop_propagation {
+                            " e.stopPropagation();"
+                        } else {
+                            ""
+                        };
                         match handler.kind.as_str() {
                             "fn_ref" => {
                                 if let Some(ref fn_name) = handler.r#ref {
@@ -1999,8 +1994,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                             format!("{}_{}", self.current_component, fn_name);
                                         let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                         self.js.push_str(&format!(
-                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ e.stopPropagation(); {pd} {prefixed}({event_obj}); }}); }}\n",
-                                            nid = nid, js_event = js_event, pd = pd, prefixed = prefixed, event_obj = event_obj
+                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                                            nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                                         ));
                                     }
                                 }
@@ -2009,8 +2004,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 if let Some(ref action_path) = handler.r#ref {
                                     let var_name = action_path.replace('.', "_");
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ e.stopPropagation(); {} {}(); }}); }}\n",
-                                        nid, js_event, pd, var_name
+                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
+                                        nid, js_event, sp, pd, var_name
                                     ));
                                 }
                             }
@@ -2030,8 +2025,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 self.js.push_str("}\n");
                                 let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ e.stopPropagation(); {pd} {wrapper_name}({event_obj}); }}); }}\n",
-                                    nid = nid, js_event = js_event, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
+                                    nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                                 ));
                             }
                             _ => {}
@@ -2343,6 +2338,11 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                 } else {
                     ""
                 };
+                let sp = if handler.needs_stop_propagation {
+                    " e.stopPropagation();"
+                } else {
+                    ""
+                };
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
@@ -2358,8 +2358,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 let prefixed = format!("{}_{}", self.current_component, fn_name);
                                 let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{{pd} {prefixed}({event_obj}); }}); }}\n",
-                                    nid = nid, js_event = js_event, pd = pd, prefixed = prefixed, event_obj = event_obj
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                                    nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                                 ));
                             }
                         }
@@ -2368,8 +2368,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         if let Some(ref action_path) = handler.r#ref {
                             let var_name = action_path.replace('.', "_");
                             self.js.push_str(&format!(
-                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(); }}); }}\n",
-                                nid, js_event, pd, var_name
+                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
+                                nid, js_event, sp, pd, var_name
                             ));
                         }
                     }
@@ -2386,8 +2386,8 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         self.js.push_str("}\n");
                         let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                         self.js.push_str(&format!(
-                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{{pd} {wrapper_name}({event_obj}); }}); }}\n",
-                            nid = nid, js_event = js_event, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
+                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
+                            nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         ));
                     }
                     _ => {}

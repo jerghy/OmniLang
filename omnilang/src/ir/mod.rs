@@ -1223,7 +1223,7 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
 
     // Collect input-binding signal names for <input> element auto-binding.
     // Only auto-bind signals whose name suggests they're for input binding.
-    // If none exist, don't auto-bind (requires explicit bind:value).
+    // If none exist, fall back to all String signals for backward compatibility.
     let input_signals: Vec<String> = {
         let string_signals: Vec<_> = comp.signals.iter()
             .filter(|s| matches!(s.type_ann, TypeAnnotation::Named { ref name, .. } if name == "String"))
@@ -1235,7 +1235,7 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
             .filter(|n| n.contains("input") || n.contains("Input"))
             .cloned()
             .collect();
-        candidates
+        if candidates.is_empty() { string_signals } else { candidates }
     };
 
     let mut view = comp
