@@ -1278,6 +1278,36 @@ fn generate_statement_tsx(w: &mut CodeWriter, stmt: &StatementIR) {
         StatementIR::ContinueStmtIR => {
             w.emit("continue;");
         }
+        StatementIR::ThrowStmtIR { expr } => {
+            let e = format_expr_ir_tsx(expr);
+            w.emit(&format!("throw {};", e));
+        }
+        StatementIR::TryCatchStmtIR { try_body, catch_var, catch_body, finally_body } => {
+            w.emit("try {");
+            w.indent();
+            for s in &try_body.statements { generate_statement_tsx(w, s); }
+            w.dedent();
+            if let Some(ref cv) = catch_var {
+                w.emit(&format!("}} catch ({}) {{", cv));
+            } else if catch_body.is_some() {
+                w.emit("} catch (_) {");
+            }
+            if let Some(ref cb) = catch_body {
+                w.indent();
+                for s in &cb.statements { generate_statement_tsx(w, s); }
+                w.dedent();
+            }
+            if let Some(ref fb) = finally_body {
+                w.emit("} finally {");
+                w.indent();
+                for s in &fb.statements { generate_statement_tsx(w, s); }
+                w.dedent();
+            }
+            w.emit("}");
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements { generate_statement_tsx(w, s); }
+        }
         _ => {}
     }
 }
