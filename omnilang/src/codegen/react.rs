@@ -110,6 +110,12 @@ impl ReactCodegen {
             w.emit("");
         }
 
+        // Component map for composition references
+        let component_map: HashMap<String, ComponentIR> = ir.all_components()
+            .into_iter()
+            .map(|(n, c)| (n.to_string(), c.clone()))
+            .collect();
+
         // Component function signature
         if comp.props.is_empty() {
             w.emit(&format!("export function {}() {{", name));
@@ -227,7 +233,7 @@ impl ReactCodegen {
         w.emit("return (");
         w.indent();
         if let Some(view) = &comp.view {
-            gen_view_node_tsx(&mut w, view);
+            gen_view_node_tsx(&mut w, view, &component_map);
         } else {
             w.emit("<div className={styles.container}>");
             w.indent();
@@ -854,9 +860,10 @@ fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
 
-fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
+fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree, component_map: &HashMap<String, ComponentIR>) {
     match node {
         ViewTree::Element(el) => {
+            // Build attribute list from props, bindings, events
             // Build attribute list from props, bindings, events
             let mut attrs: Vec<String> = Vec::new();
 
@@ -1073,7 +1080,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
             // Children
             w.indent();
             for child in &el.children {
-                gen_view_node_tsx(w, child);
+                gen_view_node_tsx(w, child, component_map);
             }
             w.dedent();
 
@@ -1086,7 +1093,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    gen_view_node_tsx(w, fb);
+                    gen_view_node_tsx(w, fb, component_map);
                 }
                 return;
             }
@@ -1099,7 +1106,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                 w.emit(&format!("{} && (", cond_str));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
-                    gen_view_node_tsx(w, body);
+                    gen_view_node_tsx(w, body, component_map);
                 }
                 w.dedent();
                 w.emit(")");
@@ -1120,7 +1127,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                 w.emit(&format!("{} ? (", cond_str));
                 w.indent();
                 if let Some(ref body) = branch.body {
-                    gen_view_node_tsx(w, body);
+                    gen_view_node_tsx(w, body, component_map);
                 }
                 w.dedent();
             }
@@ -1128,7 +1135,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
             if let Some(ref fb) = fallback {
                 w.emit(") : (");
                 w.indent();
-                gen_view_node_tsx(w, fb);
+                gen_view_node_tsx(w, fb, component_map);
                 w.dedent();
                 w.emit(")");
                 // Close all open parenthesis from chained ternary
@@ -1151,17 +1158,38 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
         ViewTree::ListRendering(list) => {
             let iterable_str = format_expr_ir_tsx(&list.iterable);
             let item_name = &list.item_binding.name;
-            w.emit("{");
-            w.indent();
-            w.emit(&format!("{}.map(({}, index) => (", iterable_str, item_name));
+            let key_expr = if let Some(ref ke) = list.key_expr {
+                format!("key={{{}}}", format_expr_ir_tsx(ke))
+            } else {
+                "key={index}".to_string()
+            };
+            if list.empty_body.is_some() {
+                w.emit("{");
+                w.indent();
+                w.emit(&format!("({} && {}.length === 0) ? (", iterable_str, iterable_str));
+                w.indent();
+                if let Some(ref empty_body) = list.empty_body {
+                    gen_view_node_tsx(w, empty_body, component_map);
+                }
+                w.dedent();
+                w.emit(&format!(") : ({}.map(({}, index) => (", iterable_str, item_name));
+            } else {
+                w.emit("{");
+                w.indent();
+                w.emit(&format!("{}.map(({}, index) => (", iterable_str, item_name));
+            }
             w.indent();
             if let Some(ref body) = list.body {
-                gen_view_node_tsx(w, body);
+                gen_view_node_tsx(w, body, component_map);
             }
             w.dedent();
-            w.emit("))");
+            w.emit(&format!(", {})))", key_expr));
             w.dedent();
-            w.emit("}");
+            if list.empty_body.is_some() {
+                w.emit(")}");
+            } else {
+                w.emit("}");
+            }
         }
         ViewTree::Text(text) => {
             if text.starts_with('{') && text.ends_with('}') {
