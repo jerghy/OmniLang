@@ -43,7 +43,10 @@ impl Lexer {
 
     /// Convert a character index (self.pos space) to a byte index in the original &str.
     fn byte_of(&self, char_idx: usize) -> usize {
-        self.byte_pos.get(char_idx).copied().unwrap_or(self.byte_pos.last().copied().unwrap_or(0))
+        self.byte_pos
+            .get(char_idx)
+            .copied()
+            .unwrap_or(self.byte_pos.last().copied().unwrap_or(0))
     }
 
     /// Create a token whose span is in byte positions (converted from character indices).
@@ -464,7 +467,9 @@ impl Lexer {
                                 self.advance();
                                 let mut hex = String::new();
                                 while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
-                                    hex.push(self.advance().expect("peek() confirmed hex digit, advance() should return Some"));
+                                    hex.push(self.advance().expect(
+                                        "peek() confirmed hex digit, advance() should return Some",
+                                    ));
                                 }
                                 if self.peek() == Some('}') {
                                     self.advance();
@@ -537,7 +542,10 @@ impl Lexer {
                     self.advance();
                     let mut hex = String::new();
                     while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
-                        hex.push(self.advance().expect("peek() confirmed hex digit, advance() should return Some"));
+                        hex.push(
+                            self.advance()
+                                .expect("peek() confirmed hex digit, advance() should return Some"),
+                        );
                     }
                     return self.mk_token(
                         TokenKind::IntLiteral(u64::from_str_radix(&hex, 16).unwrap_or(0)),
@@ -552,7 +560,11 @@ impl Lexer {
                     self.advance();
                     let mut oct = String::new();
                     while self.peek().is_some_and(|c| ('0'..='7').contains(&c)) {
-                        oct.push(self.advance().expect("peek() confirmed octal digit, advance() should return Some"));
+                        oct.push(
+                            self.advance().expect(
+                                "peek() confirmed octal digit, advance() should return Some",
+                            ),
+                        );
                     }
                     return self.mk_token(
                         TokenKind::IntLiteral(u64::from_str_radix(&oct, 8).unwrap_or(0)),
@@ -567,7 +579,11 @@ impl Lexer {
                     self.advance();
                     let mut bin = String::new();
                     while self.peek() == Some('0') || self.peek() == Some('1') {
-                        bin.push(self.advance().expect("peek() confirmed binary digit, advance() should return Some"));
+                        bin.push(
+                            self.advance().expect(
+                                "peek() confirmed binary digit, advance() should return Some",
+                            ),
+                        );
                     }
                     return self.mk_token(
                         TokenKind::IntLiteral(u64::from_str_radix(&bin, 2).unwrap_or(0)),
@@ -584,13 +600,22 @@ impl Lexer {
         let mut num = String::new();
         let mut is_float = false;
         while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-            num.push(self.advance().expect("peek() confirmed digit, advance() should return Some"));
+            num.push(
+                self.advance()
+                    .expect("peek() confirmed digit, advance() should return Some"),
+            );
         }
         if self.peek() == Some('.') && self.peek_n(1).is_some_and(|c| c.is_ascii_digit()) {
             is_float = true;
-            num.push(self.advance().expect("peek() confirmed '.', advance() should return Some"));
+            num.push(
+                self.advance()
+                    .expect("peek() confirmed '.', advance() should return Some"),
+            );
             while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-                num.push(self.advance().expect("peek() confirmed digit, advance() should return Some"));
+                num.push(
+                    self.advance()
+                        .expect("peek() confirmed digit, advance() should return Some"),
+                );
             }
         }
         // Peek-ahead for scientific notation: e/E must be followed by at
@@ -610,12 +635,21 @@ impl Lexer {
             }
             if has_exponent {
                 is_float = true;
-                num.push(self.advance().expect("peek() confirmed e/E, advance() should return Some")); // consume e/E
+                num.push(
+                    self.advance()
+                        .expect("peek() confirmed e/E, advance() should return Some"),
+                ); // consume e/E
                 if self.peek() == Some('+') || self.peek() == Some('-') {
-                    num.push(self.advance().expect("peek() confirmed +/- after exponent, advance() should return Some"));
+                    num.push(self.advance().expect(
+                        "peek() confirmed +/- after exponent, advance() should return Some",
+                    ));
                 }
                 while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-                    num.push(self.advance().expect("peek() confirmed exponent digit, advance() should return Some"));
+                    num.push(
+                        self.advance().expect(
+                            "peek() confirmed exponent digit, advance() should return Some",
+                        ),
+                    );
                 }
             }
         }
@@ -649,7 +683,10 @@ impl Lexer {
                 || c == '_'
                 || (!c.is_ascii() && !c.is_whitespace() && !c.is_control())
         }) {
-            ident.push(self.advance().expect("peek() confirmed ident char, advance() should return Some"));
+            ident.push(
+                self.advance()
+                    .expect("peek() confirmed ident char, advance() should return Some"),
+            );
         }
         let kind = match ident.as_str() {
             "fn" => TokenKind::Fn,
@@ -729,7 +766,10 @@ impl Lexer {
             .peek()
             .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-')
         {
-            kw.push(self.advance().expect("peek() confirmed @keyword char, advance() should return Some"));
+            kw.push(
+                self.advance()
+                    .expect("peek() confirmed @keyword char, advance() should return Some"),
+            );
         }
         let kind = match kw.as_str() {
             "@store" => TokenKind::AtStore,

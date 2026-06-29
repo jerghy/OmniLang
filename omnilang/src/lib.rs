@@ -192,11 +192,16 @@ pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
 /// options_json: {"editor_mode": true}
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn compile_omniview_component(source: &str, component_name: &str, options_json: &str) -> String {
+pub fn compile_omniview_component(
+    source: &str,
+    component_name: &str,
+    options_json: &str,
+) -> String {
     let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
     let result = compile_omniview(source, opts.editor_mode);
 
-    let component = result.components
+    let component = result
+        .components
         .as_ref()
         .and_then(|comps| comps.get(component_name).cloned());
 
@@ -710,7 +715,10 @@ fn rust_to_c_string(s: String) -> *mut c_char {
     // with a placeholder rather than silently returning "{}"
     let sanitized = s.replace('\0', "\\0");
     CString::new(sanitized)
-        .unwrap_or_else(|_| CString::new("{\"error\":\"serialization failed\"}").expect("hardcoded CString has no interior NUL bytes"))
+        .unwrap_or_else(|_| {
+            CString::new("{\"error\":\"serialization failed\"}")
+                .expect("hardcoded CString has no interior NUL bytes")
+        })
         .into_raw()
 }
 

@@ -293,7 +293,8 @@ impl<'a> Parser<'a> {
 
             // Contextual keywords as identifiers in expressions
             kind if keyword_as_ident_name(kind).is_some() => {
-                let name = keyword_as_ident_name(kind).expect("keyword_as_ident_name returned Some as checked above");
+                let name = keyword_as_ident_name(kind)
+                    .expect("keyword_as_ident_name returned Some as checked above");
                 self.parse_ident_expr(name, span)
             }
 
@@ -359,11 +360,20 @@ impl<'a> Parser<'a> {
                 // '{' was already consumed by parse_prefix()
                 match self.peek_kind() {
                     // Statement-starting tokens → parse as block expression
-                    TokenKind::Let | TokenKind::If | TokenKind::While
-                    | TokenKind::For | TokenKind::Return | TokenKind::Break
-                    | TokenKind::Continue | TokenKind::Print | TokenKind::Println
-                    | TokenKind::Throw | TokenKind::Try | TokenKind::Emit
-                    | TokenKind::Semicolon | TokenKind::LBrace => {
+                    TokenKind::Let
+                    | TokenKind::If
+                    | TokenKind::While
+                    | TokenKind::For
+                    | TokenKind::Return
+                    | TokenKind::Break
+                    | TokenKind::Continue
+                    | TokenKind::Print
+                    | TokenKind::Println
+                    | TokenKind::Throw
+                    | TokenKind::Try
+                    | TokenKind::Emit
+                    | TokenKind::Semicolon
+                    | TokenKind::LBrace => {
                         let start_span = self.peek_span();
                         let mut stmts = Vec::new();
                         let mut trailing_expr: Option<Expr> = None;
@@ -763,7 +773,11 @@ impl<'a> Parser<'a> {
         match expr {
             Expr::Literal(Literal::Float(f), _) => Ok(f),
             Expr::Literal(Literal::Int(i), _) => Ok(i as f64),
-            Expr::UnaryOp { op: UnaryOpKind::Neg, operand, .. } => match *operand {
+            Expr::UnaryOp {
+                op: UnaryOpKind::Neg,
+                operand,
+                ..
+            } => match *operand {
                 Expr::Literal(Literal::Float(f), _) => Ok(-f),
                 Expr::Literal(Literal::Int(i), _) => Ok(-(i as f64)),
                 _ => Err(self.error("expected number")),
@@ -935,7 +949,12 @@ impl<'a> Parser<'a> {
             return Ok(StaggerCall {
                 motion: Box::new(Expr::Literal(
                     Literal::Null,
-                    Span { start: 0, end: 0, line: 0, col: 0 },
+                    Span {
+                        start: 0,
+                        end: 0,
+                        line: 0,
+                        col: 0,
+                    },
                 )),
                 timing,
                 from: StaggerDirection::Start,

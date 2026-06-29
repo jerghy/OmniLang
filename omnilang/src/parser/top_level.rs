@@ -1138,7 +1138,10 @@ impl<'a> Parser<'a> {
     fn parse_motion_body(&mut self) -> Result<MotionBody, ParseError> {
         // Check percentage tokens FIRST (e.g., "0%") before trying ident-based matching.
         // IntLiteral/FloatLiteral are not idents, so peek_ident_value() returns None for them.
-        let is_percentage = matches!(self.peek_kind(), TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_));
+        let is_percentage = matches!(
+            self.peek_kind(),
+            TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_)
+        );
         if is_percentage {
             let mut body = self.parse_keyframe_body()?;
             body.callbacks = self.parse_optional_callbacks()?;
@@ -1177,7 +1180,12 @@ impl<'a> Parser<'a> {
                     let expr = body.trailing_expr.unwrap_or_else(|| {
                         Box::new(Expr::Literal(
                             Literal::Null,
-                            Span { start: 0, end: 0, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ))
                     });
                     callbacks.push(CallbackSpec::OnStart(*expr));
@@ -1188,7 +1196,12 @@ impl<'a> Parser<'a> {
                     let expr = body.trailing_expr.unwrap_or_else(|| {
                         Box::new(Expr::Literal(
                             Literal::Null,
-                            Span { start: 0, end: 0, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ))
                     });
                     callbacks.push(CallbackSpec::OnUpdate(*expr));
@@ -1199,7 +1212,12 @@ impl<'a> Parser<'a> {
                     let expr = body.trailing_expr.unwrap_or_else(|| {
                         Box::new(Expr::Literal(
                             Literal::Null,
-                            Span { start: 0, end: 0, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ))
                     });
                     callbacks.push(CallbackSpec::OnComplete(*expr));
@@ -1210,7 +1228,12 @@ impl<'a> Parser<'a> {
                     let expr = body.trailing_expr.unwrap_or_else(|| {
                         Box::new(Expr::Literal(
                             Literal::Null,
-                            Span { start: 0, end: 0, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ))
                     });
                     callbacks.push(CallbackSpec::OnRepeat(*expr));
@@ -1221,7 +1244,12 @@ impl<'a> Parser<'a> {
                     let expr = body.trailing_expr.unwrap_or_else(|| {
                         Box::new(Expr::Literal(
                             Literal::Null,
-                            Span { start: 0, end: 0, line: 0, col: 0 },
+                            Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ))
                     });
                     callbacks.push(CallbackSpec::OnInterrupt(*expr));
@@ -1241,7 +1269,10 @@ impl<'a> Parser<'a> {
 
         // Parse remaining stops while they start with "to", "from", or percentage
         loop {
-            let is_percentage = matches!(self.peek_kind(), TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_));
+            let is_percentage = matches!(
+                self.peek_kind(),
+                TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_)
+            );
             match self.peek_ident_value() {
                 Some(ref s) if s == "to" || s == "from" => {
                     stops.push(self.parse_keyframe_stop()?);
@@ -1319,8 +1350,14 @@ impl<'a> Parser<'a> {
                     self.advance();
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     path_rotate = Some(match self.peek_kind() {
-                        TokenKind::True => { self.advance(); true }
-                        TokenKind::False => { self.advance(); false }
+                        TokenKind::True => {
+                            self.advance();
+                            true
+                        }
+                        TokenKind::False => {
+                            self.advance();
+                            false
+                        }
                         _ => return Err(self.error("expected bool for pathRotate")),
                     });
                 }
@@ -1401,7 +1438,9 @@ impl<'a> Parser<'a> {
         // Optional per-stop ease
         let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
             self.advance();
-            if self.peek_kind() == TokenKind::Colon { self.advance(); }
+            if self.peek_kind() == TokenKind::Colon {
+                self.advance();
+            }
             Some(self.parse_easing()?)
         } else {
             None
@@ -1425,17 +1464,23 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "color_space" || s == "colorSpace" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
                 _ => break,
@@ -1523,7 +1568,13 @@ impl<'a> Parser<'a> {
                 Ok(TimelineItemKind::Direction(dir))
             }
             // start: "withPrev" | "overlap(N)" | etc. — position modifier for previous item
-            Some(ref s) if s == "start" && self.tokens.get(self.pos + 1).map_or(false, |t| t.kind == TokenKind::Colon) => {
+            Some(ref s)
+                if s == "start"
+                    && self
+                        .tokens
+                        .get(self.pos + 1)
+                        .map_or(false, |t| t.kind == TokenKind::Colon) =>
+            {
                 self.advance(); // consume 'start'
                 self.advance(); // consume ':'
                 let pos = self.parse_position_value()?;
@@ -1640,37 +1691,51 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "delay" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *delay = Some(self.parse_expr()?);
                 }
                 Some(ref s) if s == "color_space" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
                 Some(ref s) if s == "start" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *start = Some(self.parse_position_value()?);
                 }
                 Some(ref s) if s == "path" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *path = Some(self.expect_string("expected path string")?);
                 }
                 Some(ref s) if s == "pathRotate" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon { self.advance(); }
+                    if self.peek_kind() == TokenKind::Colon {
+                        self.advance();
+                    }
                     *path_rotate = Some(match self.peek_kind() {
                         TokenKind::True => {
                             self.advance();
@@ -1738,9 +1803,7 @@ impl<'a> Parser<'a> {
 
     /// Collect timeline items from current position to RBrace/Eof, handling ident { ... } expansion.
     /// NOTE: callers must call parse_playback_props() after this if needed.
-    fn parse_timeline_items_with_expansion(
-        &mut self,
-    ) -> Result<Vec<TimelineItem>, ParseError> {
+    fn parse_timeline_items_with_expansion(&mut self) -> Result<Vec<TimelineItem>, ParseError> {
         let mut items = Vec::new();
         let mut connector = Connector::None;
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
@@ -1752,7 +1815,7 @@ impl<'a> Parser<'a> {
                 && self.peek_kind() == TokenKind::LBrace
             {
                 self.advance(); // consume '{'
-                // Parse from { ... } direction item (handles its own timing internally)
+                                // Parse from { ... } direction item (handles its own timing internally)
                 let dir1 = self.parse_direction_item()?;
                 items.push(TimelineItem {
                     kind: TimelineItemKind::Direction(dir1),
@@ -1760,7 +1823,9 @@ impl<'a> Parser<'a> {
                 });
 
                 // Check for to { ... } — second direction item (handles its own timing)
-                let has_to = self.peek_ident_value().map_or(false, |s| s == "to" || s == "from");
+                let has_to = self
+                    .peek_ident_value()
+                    .map_or(false, |s| s == "to" || s == "from");
                 if has_to {
                     let dir2 = self.parse_direction_item()?;
                     items.push(TimelineItem {
@@ -1769,10 +1834,7 @@ impl<'a> Parser<'a> {
                     });
                 }
 
-                self.expect_token(
-                    TokenKind::RBrace,
-                    "expected '}' after timeline item block",
-                )?;
+                self.expect_token(TokenKind::RBrace, "expected '}' after timeline item block")?;
             } else {
                 items.push(TimelineItem {
                     kind,
@@ -2066,19 +2128,31 @@ fn parse_position_string(raw: &str) -> PositionValue {
         _ => {}
     }
     if raw.starts_with("overlap(") && raw.ends_with(')') {
-        let n = raw.trim_start_matches("overlap(").trim_end_matches(')').to_string();
+        let n = raw
+            .trim_start_matches("overlap(")
+            .trim_end_matches(')')
+            .to_string();
         return PositionValue::Overlap(n);
     }
     if raw.starts_with("afterPrev(") && raw.ends_with(')') {
-        let n = raw.trim_start_matches("afterPrev(").trim_end_matches(')').to_string();
+        let n = raw
+            .trim_start_matches("afterPrev(")
+            .trim_end_matches(')')
+            .to_string();
         return PositionValue::AfterPrev(n);
     }
     if raw.starts_with("withOffset(") && raw.ends_with(')') {
-        let n = raw.trim_start_matches("withOffset(").trim_end_matches(')').to_string();
+        let n = raw
+            .trim_start_matches("withOffset(")
+            .trim_end_matches(')')
+            .to_string();
         return PositionValue::WithOffset(n);
     }
     if raw.starts_with("absolute(") && raw.ends_with(')') {
-        let n = raw.trim_start_matches("absolute(").trim_end_matches(')').to_string();
+        let n = raw
+            .trim_start_matches("absolute(")
+            .trim_end_matches(')')
+            .to_string();
         return PositionValue::Absolute(n);
     }
     PositionValue::Absolute(raw.to_string())

@@ -504,7 +504,13 @@ impl SemanticAnalyzer {
 
     fn resolve_stmt_refs(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::VarDecl { name, init, type_ann, mutable, .. } => {
+            Stmt::VarDecl {
+                name,
+                init,
+                type_ann,
+                mutable,
+                ..
+            } => {
                 // Declare the variable so it's available in enclosing scope
                 let _ = self.symbols.declare(Symbol {
                     name: name.clone(),
@@ -1152,13 +1158,11 @@ impl SemanticAnalyzer {
         // Build a map: store_name -> set of action names
         let mut store_actions: HashMap<&str, HashSet<&str>> = HashMap::new();
         for store in &module.stores {
-            let actions: HashSet<&str> =
-                store.actions.iter().map(|a| a.name.as_str()).collect();
+            let actions: HashSet<&str> = store.actions.iter().map(|a| a.name.as_str()).collect();
             store_actions.insert(store.name.as_str(), actions);
         }
 
-        let store_refs: HashSet<&str> =
-            comp.store_refs.iter().map(|s| s.as_str()).collect();
+        let store_refs: HashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
         fn walk_nodes(
             nodes: &[ViewNode],
@@ -1230,15 +1234,19 @@ impl SemanticAnalyzer {
         }
 
         if let Some(ref view) = comp.view {
-            walk_nodes(&view.children, &store_actions, &store_refs, &mut self.diagnostics);
+            walk_nodes(
+                &view.children,
+                &store_actions,
+                &store_refs,
+                &mut self.diagnostics,
+            );
         }
     }
 
     /// Validate that store fields are only accessed with @store declaration.
     /// Triggers: E0008
     fn validate_store_field_access(&mut self, comp: &ComponentDef) {
-        let store_refs: HashSet<&str> =
-            comp.store_refs.iter().map(|s| s.as_str()).collect();
+        let store_refs: HashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
         // Collect all known store names from the module
         // (we check against store_refs since we're inside validate_module)
@@ -1259,7 +1267,12 @@ impl SemanticAnalyzer {
                                  add '@store {};' to the component body",
                                 store_alias, store_alias
                             ),
-                            &crate::lexer::Span { start: 0, end: 0, line: 0, col: 0 },
+                            &crate::lexer::Span {
+                                start: 0,
+                                end: 0,
+                                line: 0,
+                                col: 0,
+                            },
                         ));
                     }
                 }
@@ -1356,9 +1369,7 @@ impl SemanticAnalyzer {
                             check_stmt_for_undeclared_store(stmt, store_refs, diagnostics);
                         }
                         if let Some(ref trailing) = arm.body.trailing_expr {
-                            check_expr_for_undeclared_store(
-                                trailing, store_refs, diagnostics,
-                            );
+                            check_expr_for_undeclared_store(trailing, store_refs, diagnostics);
                         }
                     }
                 }
@@ -1480,9 +1491,7 @@ impl SemanticAnalyzer {
         // Walk view tree
         if let Some(ref view) = comp.view {
             for child in &view.children {
-                check_view_node_for_undeclared_store(
-                    child, &store_refs, &mut self.diagnostics,
-                );
+                check_view_node_for_undeclared_store(child, &store_refs, &mut self.diagnostics);
             }
         }
 
@@ -1509,22 +1518,20 @@ impl SemanticAnalyzer {
                             | ElementProp::DragThreshold(value)
                             | ElementProp::DragVelocityMax(value)
                             | ElementProp::HeroTransition(value) => {
-                                check_expr_for_undeclared_store(
-                                    value, store_refs, diagnostics,
-                                );
+                                check_expr_for_undeclared_store(value, store_refs, diagnostics);
                             }
                             ElementProp::Style { entries, .. } => {
                                 for (_, expr) in entries {
-                                    check_expr_for_undeclared_store(
-                                        expr, store_refs, diagnostics,
-                                    );
+                                    check_expr_for_undeclared_store(expr, store_refs, diagnostics);
                                 }
                             }
                             ElementProp::Class { value } => {
                                 if let ClassValue::ClassMap(entries) = value {
                                     for (_, expr) in entries {
                                         check_expr_for_undeclared_store(
-                                            expr, store_refs, diagnostics,
+                                            expr,
+                                            store_refs,
+                                            diagnostics,
                                         );
                                     }
                                 }
@@ -1533,12 +1540,16 @@ impl SemanticAnalyzer {
                                 if let EventHandler::InlineFn { body, .. } = handler {
                                     for stmt in &body.stmts {
                                         check_stmt_for_undeclared_store(
-                                            stmt, store_refs, diagnostics,
+                                            stmt,
+                                            store_refs,
+                                            diagnostics,
                                         );
                                     }
                                     if let Some(ref trailing) = body.trailing_expr {
                                         check_expr_for_undeclared_store(
-                                            trailing, store_refs, diagnostics,
+                                            trailing,
+                                            store_refs,
+                                            diagnostics,
                                         );
                                     }
                                 }
@@ -1547,53 +1558,37 @@ impl SemanticAnalyzer {
                         }
                     }
                     for child in &el.children {
-                        check_view_node_for_undeclared_store(
-                            child, store_refs, diagnostics,
-                        );
+                        check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                     }
                 }
                 ViewNode::Interpolation(expr) => {
                     check_expr_for_undeclared_store(expr, store_refs, diagnostics);
                 }
                 ViewNode::IfDirective(if_dir) => {
-                    check_expr_for_undeclared_store(
-                        &if_dir.condition, store_refs, diagnostics,
-                    );
+                    check_expr_for_undeclared_store(&if_dir.condition, store_refs, diagnostics);
                     for child in &if_dir.body {
-                        check_view_node_for_undeclared_store(
-                            child, store_refs, diagnostics,
-                        );
+                        check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                     }
                     for (cond, body) in &if_dir.else_ifs {
                         check_expr_for_undeclared_store(cond, store_refs, diagnostics);
                         for child in body {
-                            check_view_node_for_undeclared_store(
-                                child, store_refs, diagnostics,
-                            );
+                            check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                         }
                     }
                     if let Some(ref else_body) = if_dir.else_body {
                         for child in else_body {
-                            check_view_node_for_undeclared_store(
-                                child, store_refs, diagnostics,
-                            );
+                            check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                         }
                     }
                 }
                 ViewNode::ForDirective(for_dir) => {
-                    check_expr_for_undeclared_store(
-                        &for_dir.iterable, store_refs, diagnostics,
-                    );
+                    check_expr_for_undeclared_store(&for_dir.iterable, store_refs, diagnostics);
                     for child in &for_dir.body {
-                        check_view_node_for_undeclared_store(
-                            child, store_refs, diagnostics,
-                        );
+                        check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                     }
                     if let Some(ref empty_body) = for_dir.empty_body {
                         for child in empty_body {
-                            check_view_node_for_undeclared_store(
-                                child, store_refs, diagnostics,
-                            );
+                            check_view_node_for_undeclared_store(child, store_refs, diagnostics);
                         }
                     }
                 }
@@ -1604,14 +1599,17 @@ impl SemanticAnalyzer {
 
     /// Validate that component props are not assigned to within the component.
     fn validate_prop_assignment_in_component(&mut self, comp: &ComponentDef) {
-        let prop_names: HashSet<&str> =
-            comp.props.iter().map(|p| p.name.as_str()).collect();
+        let prop_names: HashSet<&str> = comp.props.iter().map(|p| p.name.as_str()).collect();
 
         if prop_names.is_empty() {
             return;
         }
 
-        fn check_block(block: &Block, prop_names: &HashSet<&str>, diagnostics: &mut Vec<Diagnostic>) {
+        fn check_block(
+            block: &Block,
+            prop_names: &HashSet<&str>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
             for stmt in &block.stmts {
                 if let Stmt::Assign {
                     target: AssignTarget::Name(name),
@@ -1939,7 +1937,8 @@ impl SemanticAnalyzer {
                                 }
                             }
                         }
-                        TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _)
+                        TimelineItemKind::SetBlock(_)
+                        | TimelineItemKind::Label(_, _)
                         | TimelineItemKind::StartPos(_) => {}
                     }
                 }
@@ -2479,7 +2478,9 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-                TimelineItemKind::SetBlock(_) | TimelineItemKind::Label(_, _) | TimelineItemKind::StartPos(_) => {}
+                TimelineItemKind::SetBlock(_)
+                | TimelineItemKind::Label(_, _)
+                | TimelineItemKind::StartPos(_) => {}
             }
         }
     }
@@ -2593,7 +2594,8 @@ impl SemanticAnalyzer {
                         );
                     }
                 }
-                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {}
+                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {
+                }
             }
         }
     }

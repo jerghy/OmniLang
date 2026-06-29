@@ -395,11 +395,7 @@ impl<'a> Parser<'a> {
         if self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
-        Ok(Stmt::EventEmit {
-            name,
-            args,
-            span,
-        })
+        Ok(Stmt::EventEmit { name, args, span })
     }
 
     // ── Helpers ────────────────────────────────────────

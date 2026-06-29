@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
                 // including {expr} markers. Check if the content starts with { and
                 // ends with }, then parse it as an interpolation expression.
                 if text.starts_with('{') && text.ends_with('}') && text.len() > 2 {
-                    let inner = &text[1..text.len()-1];
+                    let inner = &text[1..text.len() - 1];
                     // Create a temporary lexer + parser for the expression
                     use crate::lexer::tokenize;
                     let sub_tokens = tokenize(inner);
@@ -138,11 +138,13 @@ impl<'a> Parser<'a> {
                     let saved_pos = self.pos;
                     let saved_depth = self.depth;
                     let parse_result = self.parse_expr();
-                    let is_valid_interpolation = parse_result.is_ok()
-                        && self.peek_kind() == TokenKind::RBrace;
+                    let is_valid_interpolation =
+                        parse_result.is_ok() && self.peek_kind() == TokenKind::RBrace;
                     if is_valid_interpolation {
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                        Ok(ViewNode::Interpolation(parse_result.expect("parse_result is Ok as verified above")))
+                        Ok(ViewNode::Interpolation(
+                            parse_result.expect("parse_result is Ok as verified above"),
+                        ))
                     } else {
                         // Not a valid/complete interpolation — treat as literal text
                         self.pos = saved_pos;
@@ -164,20 +166,58 @@ impl<'a> Parser<'a> {
                                     text.push_str(&n.to_string());
                                     self.advance();
                                 }
-                                TokenKind::Semicolon => { text.push(';'); self.advance(); }
-                                TokenKind::Comma => { text.push(','); self.advance(); }
-                                TokenKind::Dot => { text.push('.'); self.advance(); }
-                                TokenKind::LParen => { text.push('('); self.advance(); }
-                                TokenKind::RParen => { text.push(')'); self.advance(); }
-                                TokenKind::LBrace => { text.push('{'); self.advance(); }
-                                TokenKind::Eq => { text.push('='); self.advance(); }
-                                TokenKind::Colon => { text.push(':'); self.advance(); }
-                                TokenKind::Plus => { text.push('+'); self.advance(); }
-                                TokenKind::Minus => { text.push('-'); self.advance(); }
-                                TokenKind::Star => { text.push('*'); self.advance(); }
-                                TokenKind::Slash => { text.push('/'); self.advance(); }
+                                TokenKind::Semicolon => {
+                                    text.push(';');
+                                    self.advance();
+                                }
+                                TokenKind::Comma => {
+                                    text.push(',');
+                                    self.advance();
+                                }
+                                TokenKind::Dot => {
+                                    text.push('.');
+                                    self.advance();
+                                }
+                                TokenKind::LParen => {
+                                    text.push('(');
+                                    self.advance();
+                                }
+                                TokenKind::RParen => {
+                                    text.push(')');
+                                    self.advance();
+                                }
+                                TokenKind::LBrace => {
+                                    text.push('{');
+                                    self.advance();
+                                }
+                                TokenKind::Eq => {
+                                    text.push('=');
+                                    self.advance();
+                                }
+                                TokenKind::Colon => {
+                                    text.push(':');
+                                    self.advance();
+                                }
+                                TokenKind::Plus => {
+                                    text.push('+');
+                                    self.advance();
+                                }
+                                TokenKind::Minus => {
+                                    text.push('-');
+                                    self.advance();
+                                }
+                                TokenKind::Star => {
+                                    text.push('*');
+                                    self.advance();
+                                }
+                                TokenKind::Slash => {
+                                    text.push('/');
+                                    self.advance();
+                                }
                                 _ => {
-                                    if let Some(name) = crate::parser::stmt::keyword_as_ident_name(&self.peek_kind()) {
+                                    if let Some(name) = crate::parser::stmt::keyword_as_ident_name(
+                                        &self.peek_kind(),
+                                    ) {
                                         text.push_str(&name);
                                     }
                                     self.advance();
@@ -238,11 +278,14 @@ impl<'a> Parser<'a> {
             && end_span.end <= self.source.len()
             && start_span.start <= end_span.end
         {
-            let start = self.source.char_indices()
+            let start = self
+                .source
+                .char_indices()
                 .find(|&(i, _)| i >= start_span.start)
                 .map(|(i, _)| i)
                 .unwrap_or(start_span.start);
-            let end = self.source[start..].char_indices()
+            let end = self.source[start..]
+                .char_indices()
                 .find(|&(i, _)| i + start >= end_span.end)
                 .map(|(i, c)| i + start + c.len_utf8())
                 .unwrap_or(end_span.end);
@@ -580,8 +623,8 @@ impl<'a> Parser<'a> {
 
         // Auto-close void HTML elements (input, br, hr, img, etc.)
         let void_tags = [
-            "area", "base", "br", "col", "embed", "hr", "img", "input",
-            "link", "meta", "param", "source", "track", "wbr",
+            "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+            "source", "track", "wbr",
         ];
         if !self_closing && void_tags.contains(&tag.as_str()) {
             self_closing = true;
@@ -987,10 +1030,8 @@ impl<'a> Parser<'a> {
                             // e.g., class: tab-btn {if activeDemo == "position" { "active" } else { "" }}
                             // Combine static names with dynamic expression result
                             let span = self.peek_span();
-                            let static_part = Expr::Literal(
-                                Literal::String(classes.join(" ")),
-                                span.clone(),
-                            );
+                            let static_part =
+                                Expr::Literal(Literal::String(classes.join(" ")), span.clone());
                             self.advance(); // consume '{'
                             let dyn_expr = self.parse_expr()?;
                             self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -1242,10 +1283,10 @@ impl<'a> Parser<'a> {
         }))
     }
 
-	    fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
-	        self.advance(); // '@for'
-	        let item_name = self.expect_ident("expected item variable name")?;
-	        self.expect_token(TokenKind::In, "expected 'in'")?;
+    fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
+        self.advance(); // '@for'
+        let item_name = self.expect_ident("expected item variable name")?;
+        self.expect_token(TokenKind::In, "expected 'in'")?;
         let iterable = self.parse_expr()?;
 
         // Optional key={expr} for identity tracking
@@ -1423,14 +1464,17 @@ impl<'a> Parser<'a> {
                                         }
                                     }
                                 }
-                                TokenKind::Ident(s) => { hex.push_str(s); }
+                                TokenKind::Ident(s) => {
+                                    hex.push_str(s);
+                                }
                                 TokenKind::FloatLiteral(_) => {
                                     // Clamp to valid UTF-8 char boundaries.
                                     // The tokenizer may produce byte positions in the
                                     // middle of multi-byte characters; walk backward from
                                     // the token start and forward from the token end to
                                     // find valid char boundaries.
-                                    let raw_start = (0..=next_t.span.start).rev()
+                                    let raw_start = (0..=next_t.span.start)
+                                        .rev()
                                         .find(|&i| self.source.is_char_boundary(i))
                                         .unwrap_or(next_t.span.start);
                                     let raw_end = (next_t.span.end..self.source.len())
@@ -1543,7 +1587,9 @@ impl<'a> Parser<'a> {
                                             }
                                         }
                                     }
-                                    TokenKind::Ident(s) => { hex.push_str(s); }
+                                    TokenKind::Ident(s) => {
+                                        hex.push_str(s);
+                                    }
                                     TokenKind::FloatLiteral(_) => {
                                         let raw = &self.source[next_t.span.start..next_t.span.end];
                                         hex.push_str(raw);
