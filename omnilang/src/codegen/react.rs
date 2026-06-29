@@ -1082,8 +1082,9 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                 w.emit(&format!("{{'{}'}}", escaped));
             }
         }
-        ViewTree::Interpolation(_expr) => {
-            w.emit("{/* interpolation */}");
+        ViewTree::Interpolation(expr) => {
+            let js_expr = format_expr_ir_tsx(expr);
+            w.emit(&format!("{{{}}}", js_expr));
         }
         ViewTree::Slot(_) => {
             // slots not supported in React — emit placeholder
@@ -1879,6 +1880,16 @@ mod tests {
 
     // ── gen_component_tsx tests ──────────────────────────────
 
+    fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
+        ComponentIR {
+            name: name.into(), generic_params: vec![], props: HashMap::new(),
+            prop_defaults: HashMap::new(), states: vec![], computeds: vec![],
+            effects: vec![], lifecycles: vec![], fns: vec![], store_refs: vec![],
+            refs: vec![], event_names: vec![], view: Some(view), styles: vec![],
+            motions: vec![], if_mode_default: None, hero_defs: vec![], timelines: vec![],
+        }
+    }
+
     /// Build IRProgram with a single module containing the given components.
     fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
         IRProgram {
@@ -1894,6 +1905,32 @@ mod tests {
             stdlib_imports: Vec::new(),
             source_map: HashMap::new(),
         }
+    }
+
+    #[test]
+    fn test_tsx_interpolation_renders_expr() {
+        let codegen = ReactCodegen;
+        let comp = make_test_component("Test", ViewTree::Element(ElementIR {
+            tag: "div".into(), props: HashMap::new(), bindings: HashMap::new(),
+            events: HashMap::new(), style_classes: None, inline_style: None,
+            children: vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr { name: "count".into() }))],
+            class_map_bindings: HashMap::new(), driven_by: None,
+            in_view_threshold: None, in_view_once: None, in_view_repeat: None,
+            scroll_start: None, scroll_end: None, scroll_scrub: None,
+            drag_constraints: None, drag_elastic: None, drag_threshold: None,
+            drag_velocity_max: None, drag_scrub: None, drag_momentum: None,
+            hover_reverse: None, paused_override: None, hero_tag: None,
+            hero_transition: None, test_id: None, ref_name: None,
+            states: None, construction_kind: "static".into(),
+            source_line: 0, source_col: 0, motion_triggers: vec![],
+        }));
+        let ir = make_ir(HashMap::from([("Test".into(), comp)]));
+        let comp_ref = ir.modules.get("main").unwrap().components.get("Test").unwrap();
+        let tsx = ReactCodegen.gen_component_tsx("Test", comp_ref, &ir);
+        assert!(!tsx.contains("/* interpolation */"),
+            "Interpolation must NOT be a comment placeholder. Got: {}", tsx);
+        assert!(tsx.contains("{count}"),
+            "Should contain {{count}} JSX expression. Got: {}", tsx);
     }
 
     #[test]
