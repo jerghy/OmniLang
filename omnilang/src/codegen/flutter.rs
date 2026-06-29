@@ -480,8 +480,36 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
         let formatted = format_expr_ir_flutter(value);
         match name.as_str() {
             "style" => {
-                // Style is handled via inline props on the widget;
-                // For now, skip complex CSS-style parsing
+                // Map common CSS properties to Flutter widget parameters
+                if let ExprIR::LiteralExpr { value: v } = value {
+                    if let serde_json::Value::Object(ref style_obj) = v {
+                        for (css_prop, css_val) in style_obj {
+                            match css_prop.as_str() {
+                                "padding" => {
+                                    if let Some(v) = css_val.as_str() {
+                                        args.push(format!("padding: EdgeInsets.all({})", v));
+                                    }
+                                }
+                                "margin" => {
+                                    if let Some(v) = css_val.as_str() {
+                                        args.push(format!("margin: EdgeInsets.all({})", v));
+                                    }
+                                }
+                                "color" => {
+                                    if let Some(v) = css_val.as_str() {
+                                        args.push(format!("color: {}", v));
+                                    }
+                                }
+                                "background-color" => {
+                                    if let Some(v) = css_val.as_str() {
+                                        args.push(format!("color: {}", v));
+                                    }
+                                }
+                                _ => {} // skip unknown CSS properties
+                            }
+                        }
+                    }
+                }
             }
             other => {
                 let param = prop_to_flutter_param_name(other);
@@ -512,7 +540,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
             }
             "store_action" => {
                 if let Some(ref action) = handler.r#ref {
-                    format!("() {{ /* TODO: action {} */ }}", action)
+                    let action_fn = action.split('.').last().unwrap_or(action);
+                    format!("() {{ {}(); }}", action_fn)
                 } else {
                     "() {}".to_string()
                 }
