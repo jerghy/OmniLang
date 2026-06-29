@@ -11,6 +11,31 @@ use crate::ir::*;
 
 pub struct ReactCodegen;
 
+/// Check if an ExprIR references a given identifier anywhere in its tree.
+fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
+    match expr {
+        ExprIR::IdentifierExpr { name } => name == ident,
+        ExprIR::BinaryOpExpr { left, right, .. } =>
+            getter_expr_contains_ident(left, ident) || getter_expr_contains_ident(right, ident),
+        ExprIR::UnaryOpExpr { operand, .. } => getter_expr_contains_ident(operand, ident),
+        ExprIR::TernaryIR { cond, then_expr, else_expr } =>
+            getter_expr_contains_ident(cond, ident)
+                || getter_expr_contains_ident(then_expr, ident)
+                || getter_expr_contains_ident(else_expr, ident),
+        ExprIR::CallExpr { ref args, .. } =>
+            args.iter().any(|a| getter_expr_contains_ident(a, ident)),
+        ExprIR::FieldAccessExpr { ref object, .. }
+        | ExprIR::OptionalChainExpr { ref object, .. } =>
+            getter_expr_contains_ident(object, ident),
+        ExprIR::MethodCallExpr { ref object, ref args, .. } =>
+            getter_expr_contains_ident(object, ident)
+                || args.iter().any(|a| getter_expr_contains_ident(a, ident)),
+        ExprIR::StoreFieldAccessExpr { ref call_args, .. } =>
+            call_args.iter().any(|a| getter_expr_contains_ident(a, ident)),
+        _ => false,
+    }
+}
+
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
@@ -275,15 +300,37 @@ impl ReactCodegen {
 
         // Getters as memoized values
         for (getter_name, getter_expr) in &store.getters {
+            let deps: Vec<String> = store.signals.keys()
+                .filter(|sig| getter_expr_contains_ident(getter_expr, sig))
+                .cloned()
+                .collect();
+            let deps_str = deps.join(", ");
             w.emit(&format!(
-                "const {} = useCallback(() => {{ return {}; }}, []);",
+                "const {} = useCallback(() => {{ return {}; }}, [{}]);",
                 getter_name,
-                format_expr_ir_tsx(getter_expr)
+                format_expr_ir_tsx(getter_expr),
+                deps_str
             ));
         }
 
-        // Return value
+        // Actions: each becomes a useCallback function calling signal setters
         let mut return_keys: Vec<String> = Vec::new();
+        for action in &store.actions {
+            let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
+            let params_str = params.join(", ");
+            w.emit(&format!(
+                "const {} = useCallback(({}) => {{", action.name, params_str
+            ));
+            w.indent();
+            for stmt in &action.body.statements {
+                generate_statement_tsx(&mut w, stmt);
+            }
+            w.dedent();
+            w.emit("}, []);");
+            return_keys.push(action.name.clone());
+        }
+
+        // Return value
         for sig_name in store.signals.keys() {
             return_keys.push(sig_name.clone());
         }
@@ -2372,7 +2419,7 @@ mod tests {
         };
         let hook = codegen.gen_store_hook("CalcStore", &store);
         assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
-        assert!(hook.contains("const doubleCount = useCallback(() => { return count * 2; }, []);"));
+        assert!(hook.contains("const doubleCount = useCallback(() => { return count * 2; }, [count]);"));
         assert!(hook.contains("return { count, doubleCount };"));
     }
 

@@ -83,7 +83,23 @@ impl<'a> Parser<'a> {
             TokenKind::StringLiteral(s) => {
                 let text = s.clone();
                 self.advance();
-                Ok(ViewNode::Text(text))
+                // Detect interpolation inside string literal: "{expr}"
+                // The lexer's read_string() consumes everything between " and ",
+                // including {expr} markers. Check if the content starts with { and
+                // ends with }, then parse it as an interpolation expression.
+                if text.starts_with('{') && text.ends_with('}') && text.len() > 2 {
+                    let inner = &text[1..text.len()-1];
+                    // Create a temporary lexer + parser for the expression
+                    use crate::lexer::tokenize;
+                    let sub_tokens = tokenize(inner);
+                    let mut sub_parser = Parser::new(&sub_tokens, inner);
+                    match sub_parser.parse_expr() {
+                        Ok(expr) => Ok(ViewNode::Interpolation(expr)),
+                        Err(_) => Ok(ViewNode::Text(text)),
+                    }
+                } else {
+                    Ok(ViewNode::Text(text))
+                }
             }
             TokenKind::LBrace => {
                 // Interpolation: { expr } or empty braces {} (JSX comments stripped)

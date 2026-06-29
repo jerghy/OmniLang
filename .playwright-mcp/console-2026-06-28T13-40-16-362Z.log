@@ -16,3 +16,5 @@
 [     104ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp4:0
 [     104ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0
 [     110ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:5174/sample.mp3:0
+[  156380ms] [LOG] Total items: 1 @ http://localhost:5174/:21060
+[  169597ms] [LOG] Total items: 2 @ http://localhost:5174/:21060

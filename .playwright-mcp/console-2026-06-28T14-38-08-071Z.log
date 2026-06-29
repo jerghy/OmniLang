@@ -1,0 +1,27 @@
+[      20ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      23ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/dot.png:0
+[      27ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/large.jpg:0
+[      43ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/dot.png:0
+[      82ms] [LOG] AddTodo mounted @ http://localhost:8080/index.js:11575
+[      82ms] [LOG] Total items: 0 @ http://localhost:8080/index.js:11586
+[      91ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp4:0
+[      92ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     121ms] [LOG] AddTodo mounted @ http://localhost:8080/:21356
+[     121ms] [LOG] Total items: 0 @ http://localhost:8080/:21367
+[     128ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/dot.png:0
+[     128ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/large.jpg:0
+[     128ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     130ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp3:0
+[     134ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp4:0
+[     137ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp3:0
+[     137ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp4:0
+[     143ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp3:0
+[     147ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/favicon.ico:0
+[   87302ms] [LOG] Total items: 1 @ http://localhost:8080/:21367
+[   98314ms] [LOG] Total items: 2 @ http://localhost:8080/:21367
+[  203431ms] InvalidStateError: Failed to execute 'reverse' on 'Animation': Cannot play reversed Animation with infinite target effect end.
+    at AnimationPlayer.reverse (http://localhost:8080/:10490:28)
+    at HTMLButtonElement.<anonymous> (http://localhost:8080/:20024:98)
+[  211440ms] InvalidStateError: Failed to execute 'reverse' on 'Animation': Cannot play reversed Animation with infinite target effect end.
+    at AnimationPlayer.reverse (http://localhost:8080/:10490:28)
+    at HTMLButtonElement.<anonymous> (http://localhost:8080/:20024:98)

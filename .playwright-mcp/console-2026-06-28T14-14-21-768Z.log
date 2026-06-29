@@ -1,0 +1,19 @@
+[      23ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      26ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[      29ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[      36ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[      39ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[      39ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[      73ms] [LOG] AddTodo mounted @ http://localhost:8789/index.js:12319
+[      78ms] [LOG] Total items: 0 @ http://localhost:8789/index.js:12357
+[      80ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      82ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[     114ms] [LOG] AddTodo mounted @ http://localhost:8789/:22100
+[     118ms] [LOG] Total items: 0 @ http://localhost:8789/:22138
+[     119ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     119ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[     119ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     122ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     127ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     131ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[   43947ms] [LOG] Timer started @ http://localhost:8789/:13254

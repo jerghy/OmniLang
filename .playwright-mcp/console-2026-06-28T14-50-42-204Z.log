@@ -1,0 +1,14 @@
+[      17ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      23ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/dot.png:0
+[      23ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/large.jpg:0
+[      28ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp4:0
+[      29ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp3:0
+[      54ms] [LOG] AddTodo mounted @ http://localhost:8080/index.js:11707
+[      54ms] [LOG] Total items: 0 @ http://localhost:8080/index.js:11718
+[      59ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[      60ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/dot.png:0
+[      60ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/large.jpg:0
+[      61ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp4:0
+[      64ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/sample.mp3:0
+[   14887ms] [LOG] Total items: 1 @ http://localhost:8080/index.js:11718
+[   21003ms] [LOG] Total items: 2 @ http://localhost:8080/index.js:11718
