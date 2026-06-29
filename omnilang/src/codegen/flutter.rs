@@ -378,6 +378,46 @@ impl FlutterCodegen {
             w.emit("}");
         }
 
+        // Actions — methods on the ChangeNotifier that call notifyListeners
+        for action in &store.actions {
+            w.emit("");
+            let params: Vec<String> = action.params.iter().map(|p| {
+                let ty = p.r#type.as_ref()
+                    .map(|t| super::dart::dart_type(&t.kind, &t.type_args))
+                    .unwrap_or_else(|| "dynamic".into());
+                format!("{} {}", ty, p.name)
+            }).collect();
+            let prefix = if action.is_async { "Future<void>" } else { "void" };
+            w.emit(&format!("{} {}({}) {{", prefix, action.name, params.join(", ")));
+            w.indent();
+            for stmt in &action.body.statements {
+                generate_statement_flutter(&mut w, stmt);
+            }
+            w.emit("notifyListeners();");
+            w.dedent();
+            w.emit("}");
+        }
+
+        // Actions — methods on the ChangeNotifier that call notifyListeners
+        for action in &store.actions {
+            w.emit("");
+            let params: Vec<String> = action.params.iter().map(|p| {
+                let ty = p.r#type.as_ref()
+                    .map(|t| super::dart::dart_type(&t.kind, &t.type_args))
+                    .unwrap_or_else(|| "dynamic".into());
+                format!("{} {}", ty, p.name)
+            }).collect();
+            let prefix = if action.is_async { "Future<void>" } else { "void" };
+            w.emit(&format!("{} {}({}) {{", prefix, action.name, params.join(", ")));
+            w.indent();
+            for stmt in &action.body.statements {
+                generate_statement_flutter(&mut w, stmt);
+            }
+            w.emit("notifyListeners();");
+            w.dedent();
+            w.emit("}");
+        }
+
         // Setter methods with notifyListeners for each signal
         for (sig_name, sig_type) in &store.signals {
             w.emit("");
