@@ -779,11 +779,19 @@ fn format_list_rendering(list: &ListRenderingIntent, motions: &[MotionIntent]) -
         .as_ref()
         .map(|b| format_view_tree(b, motions))
         .unwrap_or_else(|| "SizedBox()".to_string());
-
-    format!(
-        "{}.map<Widget>(({}) => {}).toList()",
-        iterable_str, item_name, body_str
-    )
+    let list_builder = format!(
+        "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
+        iter = iterable_str, item = item_name, body = body_str
+    );
+    if list.empty_body.is_some() {
+        let empty_str = list.empty_body.as_ref()
+            .map(|b| format_view_tree(b, motions))
+            .unwrap_or_else(|| "SizedBox()".to_string());
+        format!("Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
+            iterable_str, empty_str, list_builder)
+    } else {
+        list_builder
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
