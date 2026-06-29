@@ -230,10 +230,13 @@ impl FlutterCodegen {
                 }
             }
             // Effects
-            for effect in &comp.effects {
+            for (i, effect) in comp.effects.iter().enumerate() {
+                let method_name = format!("_runEffect_{}", i);
+                w.emit(&format!("{}();", method_name));
                 for stmt in &effect.body.statements {
                     generate_statement_flutter(&mut w, stmt);
                 }
+                w.emit("// @effect: re-executes on setState");
             }
             w.dedent();
             w.emit("}");
