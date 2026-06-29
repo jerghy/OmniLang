@@ -1238,7 +1238,7 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         candidates
     };
 
-    let view = comp
+    let mut view = comp
         .view
         .as_ref()
         .map(|v| lower_view_block(v, &input_signals, variant_map));
@@ -1329,6 +1329,11 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         })
         .collect();
 
+    // ── Pass 2: Backfill used_fields for fn_ref event handlers ──
+    if let Some(ref mut view_tree) = view {
+        backfill_fn_ref_event_fields(view_tree, &fns);
+    }
+
     ComponentIR {
         name: comp.name.clone(),
         generic_params: vec![],
@@ -1348,6 +1353,238 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         timelines,
         if_mode_default: comp.if_mode_default.clone(),
         hero_defs,
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Pass 2: Backfill used_fields for fn_ref event handlers
+// ═══════════════════════════════════════════════════════
+
+/// Pass 2: backfill used_fields for fn_ref event handlers by walking the
+/// referenced function's IR body for `FieldAccessExpr { object: IdentifierExpr("e"), field }`.
+fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionIR]) {
+    match view {
+        ViewTree::Element(ref mut el) => {
+            for (_event_name, handler) in el.events.iter_mut() {
+                if handler.used_fields.is_some()
+                    || handler.event_data.is_none()
+                    || handler.kind != "fn_ref"
+                {
+                    continue;
+                }
+                let kind = handler.event_data.as_ref().unwrap();
+                let schema = event_data_schema(kind);
+                let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+
+                if let Some(ref fn_name) = handler.r#ref {
+                    let func_ir = fns.iter().find(|f| f.name == *fn_name)
+                        .or_else(|| {
+                            fns.iter().find(|f| {
+                                f.name == *fn_name
+                                    || f.name.ends_with(&format!("_{}", fn_name))
+                            })
+                        });
+
+                    if let Some(func) = func_ir {
+                        let mut used = Vec::new();
+                        collect_ir_event_fields(&func.body, &mut used);
+                        let used: Vec<String> = used
+                            .into_iter()
+                            .filter(|f| valid_names.contains(&f.as_str()))
+                            .collect();
+                        handler.used_fields = Some(used);
+                    }
+                }
+            }
+            for child in &mut el.children {
+                backfill_fn_ref_event_fields(child, fns);
+            }
+        }
+        ViewTree::Conditional(ref mut cond) => {
+            for branch in &mut cond.branches {
+                if let Some(ref mut body) = branch.body {
+                    backfill_fn_ref_event_fields(body, fns);
+                }
+            }
+            if let Some(ref mut fallback) = cond.fallback {
+                backfill_fn_ref_event_fields(fallback, fns);
+            }
+        }
+        ViewTree::ListRendering(ref mut list) => {
+            if let Some(ref mut body) = list.body {
+                backfill_fn_ref_event_fields(body, fns);
+            }
+            if let Some(ref mut empty) = list.empty_body {
+                backfill_fn_ref_event_fields(empty, fns);
+            }
+        }
+        _ => {} // Interpolation, Text, Slot — no events
+    }
+}
+
+/// Walk a BlockIR statement list for FieldAccessExpr where object is IdentifierExpr("e").
+fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
+    for stmt in &block.statements {
+        match stmt {
+            StatementIR::ExprStmtIR { expr } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::IfStmtIR {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+            } => {
+                walk_expr_event_fields(condition, fields);
+                collect_ir_event_fields(then_body, fields);
+                for (_, block) in else_ifs {
+                    collect_ir_event_fields(block, fields);
+                }
+                if let Some(block) = else_body {
+                    collect_ir_event_fields(block, fields);
+                }
+            }
+            StatementIR::LetStmtIR { value: Some(expr), .. } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::ReturnStmtIR { value: Some(expr) } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::BlockStmtIR { body } => {
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::WhileStmtIR { condition, body } => {
+                walk_expr_event_fields(condition, fields);
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::ForInStmtIR { iterable, body, .. } => {
+                walk_expr_event_fields(iterable, fields);
+                collect_ir_event_fields(body, fields);
+            }
+            StatementIR::ThrowStmtIR { expr } => {
+                walk_expr_event_fields(expr, fields);
+            }
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                collect_ir_event_fields(try_body, fields);
+                if let Some(body) = catch_body {
+                    collect_ir_event_fields(body, fields);
+                }
+                if let Some(body) = finally_body {
+                    collect_ir_event_fields(body, fields);
+                }
+            }
+            StatementIR::EventEmitStmtIR { args, .. } => {
+                for arg in args {
+                    walk_expr_event_fields(arg, fields);
+                }
+            }
+            StatementIR::MutationStmt { intent: Some(intent) } => {
+                if let Some(amount) = &intent.amount {
+                    walk_expr_event_fields(amount, fields);
+                }
+                if let Some(item) = &intent.item {
+                    walk_expr_event_fields(item, fields);
+                }
+            }
+            _ => {} // BreakStmtIR, ContinueStmtIR, ReturnStmtIR(None), MutationStmt(None), LetStmtIR(None), etc.
+        }
+    }
+}
+
+/// Walk an ExprIR tree for `FieldAccessExpr { object: Box(IdentifierExpr("e")), field }`.
+fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
+    match expr {
+        ExprIR::FieldAccessExpr { object, field } => {
+            if let ExprIR::IdentifierExpr { name } = object.as_ref() {
+                if name == "e" && !fields.contains(field) {
+                    fields.push(field.clone());
+                }
+            }
+            walk_expr_event_fields(object, fields);
+        }
+        ExprIR::OptionalChainExpr { object, .. } => {
+            walk_expr_event_fields(object, fields);
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            walk_expr_event_fields(object, fields);
+            for arg in args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        ExprIR::CallExpr { args, .. } => {
+            for arg in args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            walk_expr_event_fields(left, fields);
+            walk_expr_event_fields(right, fields);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_event_fields(operand, fields),
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            walk_expr_event_fields(cond, fields);
+            walk_expr_event_fields(then_expr, fields);
+            walk_expr_event_fields(else_expr, fields);
+        }
+        ExprIR::StructExpr { fields: map_fields, .. } => {
+            for (_, v) in map_fields {
+                walk_expr_event_fields(v, fields);
+            }
+        }
+        ExprIR::ArrayExpr { elements, .. } => {
+            for e in elements {
+                walk_expr_event_fields(e, fields);
+            }
+        }
+        ExprIR::IndexExpr { object, index } => {
+            walk_expr_event_fields(object, fields);
+            walk_expr_event_fields(index, fields);
+        }
+        ExprIR::ClosureExpr { body, .. } => {
+            walk_expr_event_fields(body, fields);
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            // Walk expressions in block expression statements
+            for stmt in statements {
+                match stmt {
+                    StatementIR::ExprStmtIR { expr } => {
+                        walk_expr_event_fields(expr, fields);
+                    }
+                    StatementIR::LetStmtIR { value: Some(expr), .. } => {
+                        walk_expr_event_fields(expr, fields);
+                    }
+                    _ => {}
+                }
+            }
+            walk_expr_event_fields(tail, fields);
+        }
+        ExprIR::AwaitExpr { operand } => walk_expr_event_fields(operand, fields),
+        ExprIR::MatchExpr { matched, arms } => {
+            walk_expr_event_fields(matched, fields);
+            for arm in arms {
+                collect_ir_event_fields(&arm.body, fields);
+            }
+        }
+        ExprIR::VariantLiteral { fields: variant_fields, .. } => {
+            for (_, v) in variant_fields {
+                walk_expr_event_fields(v, fields);
+            }
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for arg in call_args {
+                walk_expr_event_fields(arg, fields);
+            }
+        }
+        _ => {} // LiteralExpr, IdentifierExpr — no sub-expressions
     }
 }
 
