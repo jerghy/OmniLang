@@ -23,13 +23,25 @@ The compiler must extract event data from native platform events and pass it to
 4. **Framework-idiomatic codegen** — each target generates code that reads like hand-written code for that framework
 5. **Null-safe extraction** — all generated field extractions include fallback values
 
+## IR Design: Shared Fields
+
+Modifier keys (`alt`, `ctrl`, `shift`, `meta`) are **not** KeyEvent-specific.
+In native DOM, `MouseEvent`, `WheelEvent`, `PointerEvent`, `KeyboardEvent`,
+`DragEvent`, and `TouchEvent` all carry modifier state.  Likewise `button`
+(0=left, 1=middle, 2=right) is a property of every pointer-like event.
+
+The IR schema reflects this: any EventDataKind whose native source carries
+modifiers includes them as first-class fields — same name, same type, same
+semantics across all categories.  There is no "shared mixin" indirection;
+each category lists its full field set explicitly.
+
 ## Event Categories (20)
 
 | # | EventDataKind | Events | Fields |
 |---|--------------|--------|--------|
-| 1 | PointerEvent | onClick, onPress, onTap, onDoubleClick, onLongPress, onMouseMove, onHover, onMouseEnter, onMouseLeave, onPointerDown, onPointerUp, onPointerMove, onPointerCancel | `x: float`, `y: float`, `pressure: float`, `tiltX: float`, `tiltY: float`, `pointerType: string` |
-| 2 | TouchEvent | onTouchStart, onTouchMove, onTouchEnd, onTouchCancel | `touches: [{x: float, y: float, id: int}]` |
-| 3 | WheelEvent | onWheel | `x: float`, `y: float`, `deltaX: float`, `deltaY: float`, `deltaZ: float`, `deltaMode: int` |
+| 1 | PointerEvent | onClick, onPress, onTap, onDoubleClick, onLongPress, onMouseMove, onHover, onMouseEnter, onMouseLeave, onPointerDown, onPointerUp, onPointerMove, onPointerCancel | `x: float`, `y: float`, `button: int`, `pressure: float`, `tiltX: float`, `tiltY: float`, `pointerType: string`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 2 | TouchEvent | onTouchStart, onTouchMove, onTouchEnd, onTouchCancel | `touches: [{x: float, y: float, id: int}]`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 3 | WheelEvent | onWheel | `x: float`, `y: float`, `deltaX: float`, `deltaY: float`, `deltaZ: float`, `deltaMode: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
 | 4 | KeyEvent | onKeyDown, onKeyUp | `key: string`, `code: string`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
 | 5 | ScrollEvent | onScroll | `x: float`, `y: float` |
 | 6 | InputEvent | onChange, onInput | `value: string`, `checked: bool` |
@@ -37,9 +49,9 @@ The compiler must extract event data from native platform events and pass it to
 | 8 | SubmitEvent | onSubmit | Web: `values: {[fieldName]: string}` / Flutter: `value: string` |
 | 9 | FocusEvent | onFocus, onBlur | `value: string` |
 | 10 | ClipboardEvent | onCopy, onCut, onPaste | `text: string` |
-| 11 | DragEvent | onDragStart, onDrag, onDragEnd | `x: float`, `y: float` |
-| 12 | DropEvent | onDrop | `x: float`, `y: float`, `files: string[]`, `text: string` |
-| 13 | ContextMenuEvent | onContextMenu | `x: float`, `y: float` |
+| 11 | DragEvent | onDragStart, onDrag, onDragEnd | `x: float`, `y: float`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 12 | DropEvent | onDrop | `x: float`, `y: float`, `files: string[]`, `text: string`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 13 | ContextMenuEvent | onContextMenu | `x: float`, `y: float`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
 | 14 | SelectEvent | onSelect | `start: int`, `end: int`, `text: string` |
 | 15 | ResizeEvent | onResize | `width: float`, `height: float` |
 | 16 | MediaEvent | onPlay, onPause, onEnded | `currentTime: float`, `duration: float` |
@@ -240,15 +252,19 @@ All generated extractions use optional chaining + nullish coalescing:
 |--------------|-------|-----------|----------|
 | PointerEvent | x | `_e.clientX` | `0` |
 | PointerEvent | y | `_e.clientY` | `0` |
+| PointerEvent | button | `_e.button` | `0` |
 | PointerEvent | pressure | `_e.pressure` | `0` |
 | PointerEvent | tiltX | `_e.tiltX` | `0` |
 | PointerEvent | tiltY | `_e.tiltY` | `0` |
 | PointerEvent | pointerType | `_e.pointerType` | `""` |
+| PointerEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | TouchEvent | touches | merged `touches` + `changedTouches`, deduped by `identifier` | `[]` |
+| TouchEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | WheelEvent | x | `_e.clientX` | `0` |
 | WheelEvent | y | `_e.clientY` | `0` |
 | WheelEvent | delta* | `_e.deltaX/Y/Z` | `0` |
 | WheelEvent | deltaMode | `_e.deltaMode` | `0` |
+| WheelEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | KeyEvent | key | `_e.key` | `""` |
 | KeyEvent | code | `_e.code` | `""` |
 | KeyEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
@@ -262,12 +278,18 @@ All generated extractions use optional chaining + nullish coalescing:
 | ClipboardEvent | text | try-catch wrapped `_e.clipboardData?.getData('text')` | `""` |
 | DragEvent | x | `_e.clientX` | `0` |
 | DragEvent | y | `_e.clientY` | `0` |
+| DragEvent | button | `_e.button` | `0` |
+| DragEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | DropEvent | x | `_e.clientX` | `0` |
 | DropEvent | y | `_e.clientY` | `0` |
 | DropEvent | files | `[...(_e.dataTransfer?.files ?? [])].map(f => f.name)` | `[]` |
 | DropEvent | text | try-catch `_e.dataTransfer?.getData('text')` | `""` |
+| DropEvent | button | `_e.button` | `0` |
+| DropEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | ContextMenuEvent | x | `_e.clientX` | `0` |
 | ContextMenuEvent | y | `_e.clientY` | `0` |
+| ContextMenuEvent | button | `_e.button` | `0` |
+| ContextMenuEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | SelectEvent | start | `_e.target?.selectionStart` | `0` |
 | SelectEvent | end | `_e.target?.selectionEnd` | `0` |
 | SelectEvent | text | computed from `substring(start, end)` on target value | `""` |
@@ -467,10 +489,14 @@ function _extractEvent(kind, e) {
     case "ScrollEvent":
       return { x: e.target?.scrollLeft ?? 0, y: e.target?.scrollTop ?? 0 };
     case "PointerEvent":
-      return { x: e.clientX, y: e.clientY };
+      return { x: e.clientX, y: e.clientY, button: e.button,
+               alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey };
     case "KeyEvent":
-      return { key: e.key, code: e.code, alt: e.altKey, ctrl: e.ctrlKey,
-               shift: e.shiftKey, meta: e.metaKey };
+      return { key: e.key, code: e.code,
+               alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey };
+    case "WheelEvent":
+      return { deltaX: e.deltaX, deltaY: e.deltaY, deltaZ: e.deltaZ, deltaMode: e.deltaMode,
+               alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey };
     case "InputEvent":
       return { value: e.target?.value ?? "", checked: e.target?.checked ?? false };
     default:
