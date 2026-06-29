@@ -10,7 +10,7 @@ component Modal {
 
     fn open() { isOpen = true; lastAction = "opened"; }
     fn close() { isOpen = false; lastAction = "closed"; }
-    fn handleKeyDown() { close(); }
+    fn handleKeyDown(e) { if e.key == "Escape" { close() } }
     fn handleMouseEnter() { isHovering = true; }
     fn handleMouseLeave() { isHovering = false; }
     fn handleOverlayClick() { close(); }

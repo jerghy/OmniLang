@@ -12,9 +12,22 @@ component EventsDemo {
     signal mediaStatus: String = "stopped";
     signal animStatus: String = "idle";
     signal toggleCount: i32 = 0;
+    signal scrollY: i32 = 0;
+    signal scrollCount: i32 = 0;
+    signal deltaY: f64 = 0.0;
 
     fn addLog(msg: String) {
         eventLog.push(msg);
+    }
+
+    fn handleScroll(e) {
+        scrollY = e.y;
+        scrollCount = scrollCount + 1;
+    }
+
+    fn handleWheel(e) {
+        deltaY = e.deltaY;
+        wheelCount = wheelCount + 1;
     }
 
     view {
@@ -73,8 +86,16 @@ component EventsDemo {
             <!-- 滚轮事件 :: @onWheel -->
             <article class: card>
                 <h3 class: card-title>滚轮事件</h3>
-                <div class: wheel-box @onWheel={wheelCount = wheelCount + 1}>
-                    <p class: hint>滚轮计数: {wheelCount}</p>
+                <div class: wheel-box @onWheel={handleWheel}>
+                    <p class: hint>滚轮计数: {wheelCount} | deltaY: {deltaY}</p>
+                </div>
+            </article>
+
+            <!-- 滚动事件 :: @onScroll -->
+            <article class: card>
+                <h3 class: card-title>滚动事件</h3>
+                <div class: scroll-box @onScroll={handleScroll}>
+                    <p class: hint>Scroll Y: {scrollY} ({scrollCount}次)</p>
                 </div>
             </article>
 
@@ -212,6 +233,7 @@ component EventsDemo {
         .drag-box { padding: 20px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; text-align: center; }
         .touch-box { padding: 20px; background: #fce7f3; border: 1px solid #fbcfe8; border-radius: 8px; text-align: center; }
         .wheel-box { padding: 20px; background: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 8px; text-align: center; }
+        .scroll-box { padding: 20px; background: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; text-align: center; overflow-y: auto; height: 80px; }
         .media-box { padding: 12px; background: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; text-align: center; }
         .anim-box { padding: 12px; background: #f3e8ff; border: 1px solid #e9d5ff; border-radius: 8px; text-align: center; }
         .details-box { padding: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; }

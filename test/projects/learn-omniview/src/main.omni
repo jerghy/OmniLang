@@ -83,6 +83,7 @@ import { FormControlsDemo } from "./components/FormControlsDemo";
 import { EmitKeywordDemo } from "./components/EmitKeywordDemo";
 import { SlotDefaultDemo } from "./components/SlotDefaultDemo";
 import { EmitEventDemo } from "./components/EmitEventDemo";
+import { EventDataDemo } from "./pages/EventDataDemo";
 
 // ═══════════════════════════════════════════════════════════════
 // VII. 语言特性
@@ -317,6 +318,9 @@ component App {
                     </div>
                     <div class: demo-full>
                         <EventsDemo />
+                    </div>
+                    <div class: demo-full>
+                        <EventDataDemo />
                     </div>
                     <div class: demo-row>
                         <div class: demo-col>

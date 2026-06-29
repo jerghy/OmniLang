@@ -1,0 +1,53 @@
+// EventDataDemo.omni — exercise event data fields across categories
+// Demonstrates: scroll (e.y), key (e.key, e.ctrl), mouse move (e.x, e.y), wheel (e.deltaY, e.ctrl)
+
+import omniview;
+
+component EventDataDemo {
+    signal scrollY: i32 = 0;
+    signal keyPressed: String = "";
+    signal mouseX: i32 = 0;
+    signal mouseY: i32 = 0;
+    signal wheelDelta: f64 = 0.0;
+    signal ctrlHeld: bool = false;
+
+    fn handleScroll(e) {
+        scrollY = e.y;
+    }
+
+    fn handleKeyDown(e) {
+        keyPressed = e.key;
+        ctrlHeld = e.ctrl;
+    }
+
+    fn handleMouseMove(e) {
+        mouseX = e.x;
+        mouseY = e.y;
+    }
+
+    fn handleWheel(e) {
+        wheelDelta = e.deltaY;
+        ctrlHeld = e.ctrl;
+    }
+
+    view {
+        <div class: event-data-demo @onScroll={handleScroll}>
+            <div class: mouse-tracker @onMouseMove={handleMouseMove}>
+                <p>Mouse: ({mouseX}, {mouseY})</p>
+            </div>
+            <div class: scroll-tracker @onWheel={handleWheel}>
+                <p>Scroll Y: {scrollY}</p>
+                <p>Wheel Delta: {wheelDelta}</p>
+                <p>Ctrl held: {ctrlHeld}</p>
+            </div>
+            <input class: key-input @onKeyDown={handleKeyDown} placeholder="Press a key" />
+            <p>Key: {keyPressed}</p>
+        </div>
+    }
+    style {
+        .event-data-demo { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
+        .mouse-tracker { padding: 20px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+        .scroll-tracker { padding: 20px; background: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+        .key-input { width: 100%; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+    }
+}
