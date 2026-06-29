@@ -985,6 +985,20 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                 }
             }
 
+            // Dynamic class bindings: class:active={isOpen} -> className={`base ${isOpen ? 'active' : ''}`}
+            if !el.class_map_bindings.is_empty() {
+                let dynamic_parts: Vec<String> = el.class_map_bindings.iter().map(|(cls, expr)| {
+                    let cond = format_expr_ir_tsx(expr);
+                    format!("${{{cond} ? '{cls}' : ''}}")
+                }).collect();
+                if let Some(pos) = attrs.iter().position(|a| a.starts_with("className=")) {
+                    let old = std::mem::take(&mut attrs[pos]);
+                    attrs[pos] = old.replace("}}", &format!(" {}", dynamic_parts.join(" ")));
+                } else {
+                    attrs.push(format!("className={{`{}`}}", dynamic_parts.join(" ")));
+                }
+            }
+
             // Emit opening tag
             if attrs.is_empty() && el.children.is_empty() {
                 // Self-closing tag
