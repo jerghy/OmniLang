@@ -10,6 +10,7 @@ use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::ir::*;
 
 pub(super) mod expr;
+pub(super) mod motion;
 pub(super) mod tests;
 pub(super) mod utils;
 pub(super) mod view;
@@ -188,27 +189,27 @@ impl ReactCodegen {
         // Motion animation effects — emit hooks for @enter/@hover/@press/@focus triggers
         if let Some(ref view) = comp.view {
             let mut ref_counter = 0u32;
-            view::emit_motion_effects_tsx(&mut w, view, &mut ref_counter, name);
+            motion::emit_motion_effects_tsx(&mut w, view, &mut ref_counter, name);
         }
 
         // @driven-by effects — emit reactive hooks for external progress control
         if let Some(ref view) = comp.view {
-            view::emit_driven_by_effects_tsx(&mut w, view);
+            motion::emit_driven_by_effects_tsx(&mut w, view);
         }
 
         // @in-view effects — IntersectionObserver for entrance animations
         if let Some(ref view) = comp.view {
-            view::emit_inview_effects_tsx(&mut w, view);
+            motion::emit_inview_effects_tsx(&mut w, view);
         }
 
         // @scroll effects — scroll-driven animation progress
         if let Some(ref view) = comp.view {
-            view::emit_scroll_effects_tsx(&mut w, view);
+            motion::emit_scroll_effects_tsx(&mut w, view);
         }
 
         // @drag-horizontal / @drag-vertical effects — gesture-driven animation progress
         if let Some(ref view) = comp.view {
-            view::emit_drag_effects_tsx(&mut w, view);
+            motion::emit_drag_effects_tsx(&mut w, view);
         }
 
         w.emit("");
