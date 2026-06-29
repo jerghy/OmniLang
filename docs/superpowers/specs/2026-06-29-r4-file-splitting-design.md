@@ -220,39 +220,50 @@ src/parser/view/
 
 ### expr.rs (1034 code) → `expr/` directory
 
+Only ~200 lines over 800. The cleanest split is extracting motion/easing parsers
+(~276 lines) since they're a distinct concern called from `top_level/motion.rs`:
+
 ```
 src/parser/expr/
-├── mod.rs          # Pratt parser core: parse_expr(), precedence/climbing loop (~500 lines)
-├── operators.rs    # Operator precedence table, associativity (~300 lines)
-└── literals.rs     # Literal parsing: numbers, strings, bools, arrays, structs (~234 lines)
+├── mod.rs          # Pratt parser core: parse_expr, parse_expr_bp, parse_prefix,
+│                   #   infix_bp, parse_infix, parse_primary, parse_ident_expr,
+│                   #   parse_call_args, parse_assign, parse_match_*, etc. (~758 lines)
+└── motion.rs       # parse_easing, parse_motion_expr, parse_elastic_params,
+│                   #   parse_stagger_call, parse_number_literal (~276 lines)
 ```
 
 ### ast.rs (975 code) → `ast/` directory
 
+All type definitions. Natural split by domain — OmniView types and Motion types
+each form a cohesive sub-module:
+
 ```
 src/parser/ast/
-├── mod.rs          # Core AST types: Expr, Stmt, Program, etc. (~600 lines)
-└── types.rs        # TypeAnnotation + helpers (~375 lines)
+├── mod.rs          # Base types (TypeAnnotation, Expr, Literal, BinaryOpKind, Stmt,
+│                   #   Block, MatchArm), Top-level decls (Param, FunctionDef, StructDef,
+│                   #   TaggedUnionDef, TypeAlias), Visibility, Import/Export,
+│                   #   Module, Program (~500 lines)
+├── view.rs         # OmniView-specific: ComponentDef, PropDecl, SignalDecl, ComputedDecl,
+│                   #   EventDecl, RefDecl, LifecycleHook, ActionDef, ViewBlock, ViewNode,
+│                   #   Element, ElementProp, EventHandler, ClassValue, IfDirective,
+│                   #   ForDirective, StyleRule, StyleValue, StyleValuePart (~210 lines)
+└── motion.rs       # Motion/Animation: MotionDef, TimelineDef, MotionBody, KeyframeBody,
+│                   #   KeyframeStop, TimelineBody, TimelineItem, DirectionItem, Direction,
+│                   #   Connector, PositionValue, CallbackBody, PlaybackProp, LoopValue,
+│                   #   DirectionValue, FillValue, InterruptValue, WhenValue, EasingExpr,
+│                   #   StaggerCall, MotionTrigger, TriggerKind, StateDef, HeroDef
+│                   #   + Store & Theme types (~310 lines)
 ```
 
 ---
 
-## Batch 5: Remaining (lsp.rs + stdlib.rs + lib.rs)
+## Batch 5: Remaining (stdlib.rs + lib.rs)
 
-### lsp.rs (1549 code) → `lsp/` directory
+### lsp.rs — DELETE
 
-```
-src/lsp/
-├── mod.rs          # AnalysisRequest, AnalysisContext, public types, entry point (~300 lines)
-├── types.rs        # LspDiagnostic, LspRange, CompletionItem, HoverInfo, Location,
-│                   #   TextEdit, SignatureInfo, SymbolInfo, FoldingRange, etc. (~200 lines)
-├── diagnostics.rs  # compute_diagnostics(), diagnostic_to_lsp(), span helpers (~200 lines)
-├── hover.rs        # compute_hover(), find_symbol_at_cursor() (~200 lines)
-├── symbols.rs      # collect_file_symbols(), compute_definition(), compute_references() (~300 lines)
-├── completions.rs  # Completion and signature help (~150 lines)
-├── imports.rs      # compute_resolved_imports(), resolve_import_path() (~150 lines)
-└── tests.rs        # all tests (~85 lines)
-```
+`lsp.rs` (1634 lines) is dead code: the file exists but is never declared as a
+module in `lib.rs` and is not compiled. **Delete it.** This removes one file
+from the >800 list immediately, no splitting needed.
 
 ### stdlib.rs (1211 code) → `stdlib/` directory
 
@@ -271,14 +282,27 @@ src/stdlib/
 └── tests.rs        # all tests (~348 lines)
 ```
 
-### lib.rs (970 code) → extract WASM + Python bindings
+### lib.rs (970 code) → extract WASM + FFI + validation
+
+Actual breakdown: WASM bindings (~72 lines, `#[cfg(feature = "wasm")]`), C FFI (~270 lines,
+`extern "C"` + `#[no_mangle]`), multi-file validation (~436 lines), main pipeline (~192 lines).
 
 ```
 src/
-├── lib.rs          # Crate docs, public re-exports, module declarations (~200 lines)
-├── wasm.rs         # WASM exports: compile_to_omniview, compile_to_ir, version (~400 lines)
-└── python.rs       # Python (PyO3) bindings: omnilang_compile, omnilang_version (~370 lines)
+├── lib.rs          # Crate docs, public re-exports, module declarations,
+│                   #   CompileResult, compile(), OmniViewResult, compile_omniview(),
+│                   #   compile_to_target_json(), compile_multi_to_target() (~450 lines)
+├── wasm.rs         # WASM exports: compile_to_omniview, compile_omniview_component,
+│                   #   compile_to_ir, version — behind #[cfg(feature = "wasm")] (~72 lines)
+├── ffi.rs          # C FFI: rust_to_c_string, omni_free_string, omni_version,
+│                   #   omni_analyse, omni_compile_multi_to_target (~270 lines)
+└── validate.rs     # validate_multi(), validate_file_consistency(),
+│                   #   build_pub_symbols(), validate_cross_file(),
+│                   #   validate_named_import(), CrossFileSymbolKind (~436 lines)
 ```
+
+**Note:** `lib.rs` declares `#[cfg(feature = "wasm")] pub mod wasm;` so WASM bindings
+remain conditionally compiled.
 
 ---
 
@@ -286,9 +310,38 @@ src/
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Source files | 30 | ~75 |
-| Files > 800 lines | 18 | **0** |
-| Largest file | omniview.rs (5084) | lower_ast.rs (~2500, tracked for follow-up) |
+| Source files | 30 | ~76 |
+| Files > 800 lines (code) | 18 | **1** (lower_ast.rs, tracked for follow-up) |
+| Largest file | omniview.rs (5084) | lower_ast.rs (~2500, down from mod.rs 3576) |
+
+**Remaining >800:** `lower_ast.rs` at ~2500 lines. This is a 30% reduction from the
+original `ir/mod.rs` (3576 lines). It can be further split by lowering phase
+(`lower_component.rs`, `lower_view.rs`, `lower_stmt.rs`) in a follow-up — the
+immediate win is separating IR types (now in `types.rs`, ~1050 lines) from
+lowering logic.
+
+## Visibility Changes Required
+
+When splitting a single `.rs` file into a directory with sub-modules, private
+`fn` items that are called across the new file boundaries must become
+`pub(super)` so sibling modules can access them.
+
+**Audit needed per batch:**
+- **Codegen:** All `fn emit_*`, `fn format_*`, `fn gen_*` helper methods on the
+  generator struct cross-reference each other. They become `pub(super)` methods
+  on the same `impl` block (split across files via inherent `impl` blocks).
+- **IR:** `lower()` calls `lower_component()`, `lower_view_node()`, etc. These
+  become `pub(super)` free functions in `lower_ast.rs`.
+- **Semantic:** Analyzer passes share `SemanticAnalyzer` fields. Split as
+  `pub(super)` methods on the same struct.
+- **Parser:** Each `parse_*()` function in `top_level/` sub-modules is called
+  from the dispatcher in `mod.rs`. These become `pub(super)`.
+- **stdlib:** Standalone `codegen_*()` functions become `pub(super)`.
+
+No public API changes. `pub(crate)` items stay `pub(crate)`. The only change is
+private `fn` → `pub(super) fn` for items accessed across sibling module
+boundaries. `cargo clippy` will flag any unnecessarily-public items afterward
+so we can tighten them back.
 
 ### Implementation Order
 
