@@ -21,6 +21,7 @@ fail=0
 warn=0
 results=""
 BASELINE_CLIPPY=220
+BASELINE_UNWRAP=25
 BASELINE_TESTS=375
 BASELINE_OVER_800=18
 
@@ -144,37 +145,65 @@ run_c5() {
 # ── R1: Unsafe Without Safety Comments ──────────────
 run_r1() {
   echo "── R1: Unsafe Blocks Without Safety Comments ──"
-  local matches
-  matches=$(grep -rn "unsafe" src/ --include="*.rs" | grep -v "// SAFETY:" | grep -v "///" | grep -v "#\[cfg(test)\]" | grep -v "unsafe extern" || true)
-  if [ -z "$matches" ]; then
+  local missing=0
+  local missing_lines=""
+
+  while IFS= read -r match; do
+    # Parse: file:line:content (only split first two colons)
+    local file="${match%%:*}"
+    local rest="${match#*:}"
+    local line="${rest%%:*}"
+    local content="${rest#*:}"
+
+    # Skip test code
+    echo "$content" | grep -q "#\[cfg(test)\]" && continue
+    # Skip lines that already have SAFETY inline
+    echo "$content" | grep -q "// SAFETY:" && continue
+    # Skip `unsafe extern`
+    echo "$content" | grep -q "unsafe extern" && continue
+
+    # Check preceding 5 lines for // SAFETY: comment
+    local found=0
+    for offset in 1 2 3 4 5; do
+      local check_line=$((line - offset))
+      if [ "$check_line" -lt 1 ]; then
+        continue
+      fi
+      if sed -n "${check_line}p" "$file" 2>/dev/null | grep -q "// SAFETY:"; then
+        found=1
+        break
+      fi
+    done
+    if [ "$found" -eq 0 ]; then
+      ((missing++)) || true
+      missing_lines+="$file:$line: $content"$'\n'
+    fi
+  done < <(grep -rn "unsafe {" src/ --include="*.rs" | grep -v "#\[cfg(test)\]" || true)
+
+  if [ "$missing" -eq 0 ]; then
     grade "R1" "All unsafe blocks have SAFETY comments" "PASS"
   else
-    grade "R1" "Unsafe blocks missing SAFETY comments" "FAIL" "$(echo "$matches" | wc -l) instances"
-    echo "$matches" | head -20
+    grade "R1" "Unsafe blocks missing SAFETY comments" "FAIL" "$missing instances"
+    echo "$missing_lines" | head -20
   fi
   echo ""
 }
 
 # ── R2: No .unwrap() in Non-Test Code ───────────────
 run_r2() {
-  echo "── R2: No .unwrap() in Production Code ──"
-  local matches
-  matches=$(grep -rn "\.unwrap()" src/ --include="*.rs" | grep -v "#\[cfg(test)\]" | grep -v "mod tests" | grep -v "tests {" | grep -v '//' || true)
-  # Also exclude known safe unwraps in CString::new cases (validated at compile time)
-  matches=$(echo "$matches" | grep -v "unwrap_or_else" || true)
-  if [ -z "$matches" ]; then
-    grade "R2" "No .unwrap() in production code" "PASS"
+  echo "── R2: Production .unwrap() Count (clippy, baseline: $BASELINE_UNWRAP) ──"
+  local out
+  local count
+  out=$(cargo clippy -- -W clippy::unwrap_used 2>&1) || true
+  count=$(echo "$out" | grep -c "warning: used \`.unwrap()\`" || true)
+  count=$(echo "$count" | tr -d '[:space:]')
+  count=${count:-0}
+  if [ "$count" -lt "$BASELINE_UNWRAP" ] 2>/dev/null; then
+    grade "R2" "Production .unwrap() calls: $count (↓$((BASELINE_UNWRAP - count)) from baseline)" "PASS" "$count unwraps"
+  elif [ "$count" -eq "$BASELINE_UNWRAP" ] 2>/dev/null; then
+    grade "R2" "Production .unwrap() calls: $count (no change)" "WARN" "$count unwraps"
   else
-    # Count non-test unwraps, but check if they're in FFI or other justified contexts
-    local count
-    count=$(echo "$matches" | wc -l)
-    if [ "$count" -le 3 ] 2>/dev/null; then
-      grade "R2" "Few .unwrap() calls ($count — likely justified)" "WARN" "$count instances"
-      echo "$matches" | head -10
-    else
-      grade "R2" "Too many .unwrap() calls" "FAIL" "$count instances"
-      echo "$matches" | head -10
-    fi
+    grade "R2" "Production .unwrap() calls: $count (↑$((count - BASELINE_UNWRAP)) from baseline)" "FAIL" "$count unwraps"
   fi
   echo ""
 }

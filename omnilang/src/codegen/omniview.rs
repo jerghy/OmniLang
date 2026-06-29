@@ -1601,7 +1601,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
 
         // Key-based map
         if has_key {
-            let key_js = self.expr_to_js(list.key_expr.as_ref().unwrap());
+            let key_js = self.expr_to_js(list.key_expr.as_ref().expect("key_expr is Some when has_key is true"));
             self.js.push_str("  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());\n");
             self.js.push_str("  const keyFn = (item) => { try { return String(");
             self.js.push_str(&key_js);

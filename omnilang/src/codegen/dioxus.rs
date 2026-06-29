@@ -252,7 +252,7 @@ fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root: bool) {
                 let attr_name = to_dioxus_attr(prop_name);
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value.as_str().unwrap();
+                        let s = value.as_str().expect("literal string value confirmed by is_string()");
                         let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
                         attrs.push(format!(r#"{}: "{}","#, attr_name, escaped));
                     }

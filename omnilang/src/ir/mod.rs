@@ -1090,7 +1090,7 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
         for imp in &module.imports {
             if let ImportStmt::Named(ni) = imp {
                 if ni.path.starts_with("std/") {
-                    let module_name = ni.path.strip_prefix("std/").unwrap().to_string();
+                    let module_name = ni.path.strip_prefix("std/").expect("path starts with \"std/\" as checked above").to_string();
                     if !stdlib_imports.contains(&module_name) {
                         stdlib_imports.push(module_name);
                     }
@@ -1372,7 +1372,7 @@ fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionIR]) {
                 {
                     continue;
                 }
-                let kind = handler.event_data.as_ref().unwrap();
+                let kind = handler.event_data.as_ref().expect("event_data is Some because is_none() check failed above");
                 let schema = event_data_schema(kind);
                 let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
 

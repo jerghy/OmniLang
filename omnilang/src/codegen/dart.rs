@@ -414,7 +414,18 @@ fn format_block_as_dart_expr(block: &BlockIR) -> String {
                 .as_ref()
                 .map(|e| format_expr_ir(e))
                 .unwrap_or_else(|| "null".into()),
-            _ => "null".into(),
+            // Non-value-producing statements — block yields null
+            StatementIR::LetStmtIR { .. }
+            | StatementIR::IfStmtIR { .. }
+            | StatementIR::MutationStmt { .. }
+            | StatementIR::EventEmitStmtIR { .. }
+            | StatementIR::BlockStmtIR { .. }
+            | StatementIR::WhileStmtIR { .. }
+            | StatementIR::ForInStmtIR { .. }
+            | StatementIR::BreakStmtIR
+            | StatementIR::ContinueStmtIR
+            | StatementIR::ThrowStmtIR { .. }
+            | StatementIR::TryCatchStmtIR { .. } => "null".into(),
         }
     } else {
         "null".into()

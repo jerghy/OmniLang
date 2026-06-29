@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
 
             // Contextual keywords as identifiers in expressions
             kind if keyword_as_ident_name(kind).is_some() => {
-                let name = keyword_as_ident_name(kind).unwrap();
+                let name = keyword_as_ident_name(kind).expect("keyword_as_ident_name returned Some as checked above");
                 self.parse_ident_expr(name, span)
             }
 

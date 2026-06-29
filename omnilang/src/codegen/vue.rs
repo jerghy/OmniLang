@@ -304,7 +304,7 @@ fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                 let vue_attr = to_vue_attr(prop_name);
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value.as_str().unwrap();
+                        let s = value.as_str().expect("literal string value confirmed by is_string()");
                         // Escape quotes for HTML attribute
                         let escaped = s.replace('"', "&quot;");
                         attrs.push(format!("{}=\"{}\"", vue_attr, escaped));

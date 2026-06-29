@@ -142,7 +142,7 @@ impl<'a> Parser<'a> {
                         && self.peek_kind() == TokenKind::RBrace;
                     if is_valid_interpolation {
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                        Ok(ViewNode::Interpolation(parse_result.unwrap()))
+                        Ok(ViewNode::Interpolation(parse_result.expect("parse_result is Ok as verified above")))
                     } else {
                         // Not a valid/complete interpolation — treat as literal text
                         self.pos = saved_pos;

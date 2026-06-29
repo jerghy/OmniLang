@@ -917,7 +917,7 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree, component_map: &HashMa
                 let jsx_attr = to_jsx_attr(prop_name);
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value.as_str().unwrap();
+                        let s = value.as_str().expect("literal string value confirmed by is_string()");
                         let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
                         attrs.push(format!("{}=\"{}\"", jsx_attr, escaped));
                     }

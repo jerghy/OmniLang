@@ -710,7 +710,7 @@ fn rust_to_c_string(s: String) -> *mut c_char {
     // with a placeholder rather than silently returning "{}"
     let sanitized = s.replace('\0', "\\0");
     CString::new(sanitized)
-        .unwrap_or_else(|_| CString::new("{\"error\":\"serialization failed\"}").unwrap())
+        .unwrap_or_else(|_| CString::new("{\"error\":\"serialization failed\"}").expect("hardcoded CString has no interior NUL bytes"))
         .into_raw()
 }
 

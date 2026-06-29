@@ -1079,7 +1079,7 @@ pub mod rules {
                     if handler.kind == "store_action" {
                         // used_fields should be None for store_actions
                         if handler.used_fields.is_some()
-                            && !handler.used_fields.as_ref().unwrap().is_empty()
+                            && !handler.used_fields.as_ref().expect("used_fields is Some as checked above").is_empty()
                         {
                             diags.push(LintDiagnostic {
                                 rule: rule.name().into(),
