@@ -9,6 +9,7 @@ mod helpers;
 mod motion;
 mod resolve;
 mod validate_motion;
+mod validate_store_access;
 mod validate_types;
 
 use std::collections::HashMap;
