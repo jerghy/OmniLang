@@ -960,8 +960,29 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
             }
 
             // Inline style
-            if el.inline_style.is_some() {
-                attrs.push("style={{ /* TODO: inline style */ }}".into());
+            if let Some(ref style_json) = el.inline_style {
+                if let Some(obj) = style_json.as_object() {
+                    let mut pairs: Vec<String> = Vec::new();
+                    for (prop, val) in obj {
+                        let js_prop = to_css_prop(prop);
+                        if let Some(s) = val.as_str() {
+                            if s.starts_with("$signal:") {
+                                let sig_name = &s[8..];
+                                pairs.push(format!("{}: {{{}}}", js_prop, sig_name));
+                            } else if s.starts_with("$call:") {
+                                let fn_call = &s[6..];
+                                pairs.push(format!("{}: {{{}}}", js_prop, fn_call));
+                            } else {
+                                pairs.push(format!("{}: '{}'", js_prop, s));
+                            }
+                        } else {
+                            pairs.push(format!("{}: {{{}}}", js_prop, format_json_value_tsx(val)));
+                        }
+                    }
+                    if !pairs.is_empty() {
+                        attrs.push(format!("style={{{{ {} }}}}", pairs.join(", ")));
+                    }
+                }
             }
 
             // Emit opening tag
