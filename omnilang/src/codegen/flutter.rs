@@ -572,14 +572,35 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], component_map: &Hash
         let body = match handler.kind.as_str() {
             "fn_ref" => {
                 if let Some(ref fn_name) = handler.r#ref {
-                    format!("() {{ {}(); }}", fn_name)
+                    if handler.event_data.is_some() {
+                        let event_obj = emit_event_object_flutter(&handler.event_data, &handler.used_fields, "event");
+                        format!("(event) {{ {}({}); }}", fn_name, event_obj)
+                    } else {
+                        format!("() {{ {}(); }}", fn_name)
+                    }
                 } else {
                     "() {}".to_string()
                 }
             }
             "inline_fn" => {
                 if let Some(ref body) = handler.body {
-                    format_inline_handler_flutter(body)
+                    if handler.event_data.is_some() {
+                        let event_obj = emit_event_object_flutter(&handler.event_data, &handler.used_fields, "e");
+                        let mut hw = CodeWriter::new();
+                        hw.emit("(e) {");
+                        hw.indent();
+                        for stmt in &body.statements {
+                            generate_statement_flutter(&mut hw, stmt);
+                        }
+                        hw.dedent();
+                        hw.emit("}");
+                        let result = hw.into_string().trim().to_string();
+                        // Replace the extracted event object usage: the body references
+                        // e via the parameter, which already has the extracted fields
+                        result
+                    } else {
+                        format_inline_handler_flutter(body)
+                    }
                 } else {
                     "() {}".to_string()
                 }
@@ -2310,6 +2331,171 @@ fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("}");
     w.dedent();
     w.emit("}");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Flutter event data extraction
+// ═══════════════════════════════════════════════════════════════
+
+/// Flutter target field extraction — maps schema fields to Dart expressions.
+/// Modifier keys use HardwareKeyboard.instance, button uses bitmask conversion.
+fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str) -> String {
+    match (kind, field) {
+        // PointerEvent — from pointer event details (TapDownDetails, etc.)
+        (EventDataKind::PointerEvent, "x") => format!("{}.localPosition.dx", raw),
+        (EventDataKind::PointerEvent, "y") => format!("{}.localPosition.dy", raw),
+        (EventDataKind::PointerEvent, "button") => {
+            format!("({}.buttons & 0x1 != 0 ? 0 : {}.buttons & 0x2 != 0 ? 2 : {}.buttons & 0x4 != 0 ? 1 : 0)", raw, raw, raw)
+        }
+        (EventDataKind::PointerEvent, "pressure") => format!("{}.pressure", raw),
+        (EventDataKind::PointerEvent, "tiltX") => format!("{}.tilt", raw),
+        (EventDataKind::PointerEvent, "tiltY") => format!("0.0"),
+        (EventDataKind::PointerEvent, "pointerType") => format!("'pointer'"),
+        (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // TouchEvent
+        (EventDataKind::TouchEvent, "touches") => format!("<Map<String,dynamic>>[]"),
+        (EventDataKind::TouchEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // WheelEvent — from PointerSignalEvent
+        (EventDataKind::WheelEvent, "x") => format!("{}.localPosition.dx", raw),
+        (EventDataKind::WheelEvent, "y") => format!("{}.localPosition.dy", raw),
+        (EventDataKind::WheelEvent, "deltaX") => format!("{}.scrollDelta.dx", raw),
+        (EventDataKind::WheelEvent, "deltaY") => format!("{}.scrollDelta.dy", raw),
+        (EventDataKind::WheelEvent, "deltaZ") => format!("{}.scrollDelta.dy", raw),
+        (EventDataKind::WheelEvent, "deltaMode") => format!("0"),
+        (EventDataKind::WheelEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // KeyEvent — from KeyEvent
+        (EventDataKind::KeyEvent, "key") => format!("{}.logicalKey.keyLabel", raw),
+        (EventDataKind::KeyEvent, "code") => format!("{}.logicalKey.debugName", raw),
+        (EventDataKind::KeyEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // ScrollEvent — from ScrollNotification
+        (EventDataKind::ScrollEvent, "x") => format!("{}.metrics.pixels", raw),
+        (EventDataKind::ScrollEvent, "y") => format!("{}.metrics.pixels", raw),
+
+        // InputEvent
+        (EventDataKind::InputEvent, "value") => format!("{}", raw),
+        (EventDataKind::InputEvent, "checked") => format!("{}", raw),
+
+        // ToggleEvent
+        (EventDataKind::ToggleEvent, "checked") => format!("{}", raw),
+
+        // SubmitEvent
+        (EventDataKind::SubmitEvent, "values") => format!("{{}} /* FormData not available in Flutter */"),
+
+        // FocusEvent
+        (EventDataKind::FocusEvent, "value") => format!("{}", raw),
+
+        // ClipboardEvent
+        (EventDataKind::ClipboardEvent, "text") => format!("''"),
+
+        // DragEvent — from DragUpdateDetails
+        (EventDataKind::DragEvent, "x") => format!("{}.localPosition.dx", raw),
+        (EventDataKind::DragEvent, "y") => format!("{}.localPosition.dy", raw),
+        (EventDataKind::DragEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // DropEvent
+        (EventDataKind::DropEvent, "x") => format!("{}.localPosition.dx", raw),
+        (EventDataKind::DropEvent, "y") => format!("{}.localPosition.dy", raw),
+        (EventDataKind::DropEvent, "files") => format!("<String>[]"),
+        (EventDataKind::DropEvent, "text") => format!("''"),
+        (EventDataKind::DropEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // ContextMenuEvent
+        (EventDataKind::ContextMenuEvent, "x") => format!("{}.localPosition.dx", raw),
+        (EventDataKind::ContextMenuEvent, "y") => format!("{}.localPosition.dy", raw),
+        (EventDataKind::ContextMenuEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let prop = match m { "alt" => "isAltPressed", "ctrl" => "isControlPressed", "shift" => "isShiftPressed", _ => "isMetaPressed" };
+            format!("HardwareKeyboard.instance.{}", prop)
+        }
+
+        // SelectEvent
+        (EventDataKind::SelectEvent, "start") => format!("0"),
+        (EventDataKind::SelectEvent, "end") => format!("0"),
+        (EventDataKind::SelectEvent, "text") => format!("''"),
+
+        // ResizeEvent — Flutter uses MediaQuery or LayoutBuilder
+        (EventDataKind::ResizeEvent, "width") => format!("MediaQuery.of(context).size.width"),
+        (EventDataKind::ResizeEvent, "height") => format!("MediaQuery.of(context).size.height"),
+
+        // MediaEvent
+        (EventDataKind::MediaEvent, "currentTime") => format!("{}.position.inSeconds", raw),
+        (EventDataKind::MediaEvent, "duration") => format!("{}.duration?.inSeconds ?? 0.0", raw),
+
+        // MediaLoadEvent
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => format!("0.0"),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => format!("0.0"),
+
+        // MediaErrorEvent
+        (EventDataKind::MediaErrorEvent, "message") => format!("''"),
+
+        // AnimationEvent
+        (EventDataKind::AnimationEvent, "animationName") => format!("''"),
+        (EventDataKind::AnimationEvent, "elapsedTime") => format!("{}.value", raw),
+
+        // TransitionEvent
+        (EventDataKind::TransitionEvent, "propertyName") => format!("''"),
+        (EventDataKind::TransitionEvent, "elapsedTime") => format!("{}.value", raw),
+
+        _ => format!("null /* {} */", field),
+    }
+}
+
+/// Emit a Dart Map literal for Flutter event data extraction.
+/// Only emits fields in `used_fields` (or all fields from schema if None).
+fn emit_event_object_flutter(
+    event_data: &Option<EventDataKind>,
+    used_fields: &Option<Vec<String>>,
+    raw_var: &str,
+) -> String {
+    let kind = match event_data {
+        Some(k) => k,
+        None => return "{}".to_string(),
+    };
+
+    let schema = event_data_schema(kind);
+    let fields: Vec<String> = match used_fields {
+        Some(fields) if !fields.is_empty() => {
+            schema.iter()
+                .filter(|f| fields.contains(&f.name))
+                .map(|f| {
+                    let extract = field_extract_flutter(kind, &f.name, raw_var);
+                    format!("'{}': {}", f.name, extract)
+                })
+                .collect()
+        }
+        Some(_) => return "{}".to_string(),
+        None => {
+            schema.iter()
+                .map(|f| {
+                    let extract = field_extract_flutter(kind, &f.name, raw_var);
+                    format!("'{}': {}", f.name, extract)
+                })
+                .collect()
+        }
+    };
+
+    format!("{{ {} }}", fields.join(", "))
 }
 
 // ═══════════════════════════════════════════════════════════════
