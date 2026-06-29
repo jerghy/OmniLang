@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::omniview::{emit_event_object as emit_event_object_js, field_extract_js};
 use crate::ir::*;
 
 pub struct VueCodegen;
@@ -327,13 +328,33 @@ fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
-                            attrs.push(format!("@{}=\"{}\"", vue_event, fn_name));
+                            if handler.event_data.is_some() {
+                                let event_obj = emit_event_object_js(&handler.event_data, &handler.used_fields, "e");
+                                attrs.push(format!("@{}=\"(e) => {{ {}({}) }}\"", vue_event, fn_name, event_obj));
+                            } else {
+                                attrs.push(format!("@{}=\"{}\"", vue_event, fn_name));
+                            }
                         }
                     }
                     "inline_fn" => {
                         if let Some(ref body) = handler.body {
-                            let handler_str = format_inline_handler_vue(body);
-                            attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
+                            if handler.event_data.is_some() {
+                                let event_obj = emit_event_object_js(&handler.event_data, &handler.used_fields, "e");
+                                let mut hw = CodeWriter::new();
+                                for stmt in &body.statements {
+                                    generate_statement_vue(&mut hw, stmt);
+                                }
+                                let content = hw.into_string();
+                                let mut result = String::from("(e) => {\n");
+                                for line in content.lines() {
+                                    result.push_str(&format!("        {}\n", line));
+                                }
+                                result.push_str("      }");
+                                attrs.push(format!("@{}=\"{}\"", vue_event, result));
+                            } else {
+                                let handler_str = format_inline_handler_vue(body);
+                                attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
+                            }
                         }
                     }
                     "store_action" => {

@@ -279,16 +279,39 @@ fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root: bool) {
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
-                            attrs.push(format!("{}: {},", dioxus_event, fn_name));
+                            if handler.event_data.is_some() {
+                                let event_obj = emit_event_object_dioxus(&handler.event_data, &handler.used_fields, "e");
+                                attrs.push(format!(
+                                    "{}: move |e| {{ {}({}); }},",
+                                    dioxus_event, fn_name, event_obj
+                                ));
+                            } else {
+                                attrs.push(format!("{}: {},", dioxus_event, fn_name));
+                            }
                         }
                     }
                     "inline_fn" => {
                         if let Some(ref body) = handler.body {
-                            attrs.push(format!(
-                                "{}: {},",
-                                dioxus_event,
-                                format_inline_handler_dioxus(body)
-                            ));
+                            if handler.event_data.is_some() {
+                                let event_obj = emit_event_object_dioxus(&handler.event_data, &handler.used_fields, "e");
+                                let mut hw = CodeWriter::new();
+                                for stmt in &body.statements {
+                                    generate_statement_dioxus(&mut hw, stmt);
+                                }
+                                let content = hw.into_string();
+                                let mut result = String::from("move |e| {\n");
+                                for line in content.lines() {
+                                    result.push_str(&format!("                {}\n", line));
+                                }
+                                result.push_str("            }");
+                                attrs.push(format!("{}: {},", dioxus_event, result));
+                            } else {
+                                attrs.push(format!(
+                                    "{}: {},",
+                                    dioxus_event,
+                                    format_inline_handler_dioxus(body)
+                                ));
+                            }
                         }
                     }
                     "store_action" => {
@@ -865,6 +888,169 @@ fn to_dioxus_event(event_name: &str) -> String {
         "drop" => "ondrop".into(),
         _ => event_name.to_string(),
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Dioxus event data extraction (web_sys conventions)
+// ═══════════════════════════════════════════════════════════
+
+/// Dioxus target field extraction — uses web_sys Rust API with method-call syntax.
+/// Properties like `clientX` become `client_x()` (snake_case, function call).
+fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str) -> String {
+    let js = |f: &str| format!("{}.{}()", raw, f);
+    match (kind, field) {
+        // PointerEvent
+        (EventDataKind::PointerEvent, "x") => format!("{}.client_x()", raw),
+        (EventDataKind::PointerEvent, "y") => format!("{}.client_y()", raw),
+        (EventDataKind::PointerEvent, "button") => format!("{}.button()", raw),
+        (EventDataKind::PointerEvent, "pressure") => format!("{}.pressure()", raw),
+        (EventDataKind::PointerEvent, "tiltX") => format!("{}.tilt_x()", raw),
+        (EventDataKind::PointerEvent, "tiltY") => format!("{}.tilt_y()", raw),
+        (EventDataKind::PointerEvent, "pointerType") => format!("{}.pointer_type()", raw),
+        (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // TouchEvent
+        (EventDataKind::TouchEvent, "touches") => format!("Vec::<(f64,f64,f64)>::new()"),
+        (EventDataKind::TouchEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // WheelEvent
+        (EventDataKind::WheelEvent, "x") => format!("{}.client_x()", raw),
+        (EventDataKind::WheelEvent, "y") => format!("{}.client_y()", raw),
+        (EventDataKind::WheelEvent, "deltaX") => format!("{}.delta_x()", raw),
+        (EventDataKind::WheelEvent, "deltaY") => format!("{}.delta_y()", raw),
+        (EventDataKind::WheelEvent, "deltaZ") => format!("{}.delta_z()", raw),
+        (EventDataKind::WheelEvent, "deltaMode") => format!("{}.delta_mode()", raw),
+        (EventDataKind::WheelEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // KeyEvent
+        (EventDataKind::KeyEvent, "key") => format!("{}.key()", raw),
+        (EventDataKind::KeyEvent, "code") => format!("{}.code()", raw),
+        (EventDataKind::KeyEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // ScrollEvent
+        (EventDataKind::ScrollEvent, "x") => format!("0.0"),
+        (EventDataKind::ScrollEvent, "y") => format!("0.0"),
+
+        // InputEvent
+        (EventDataKind::InputEvent, "value") => format!("{}.data().value()", raw),
+        (EventDataKind::InputEvent, "checked") => format!("false"),
+
+        // ToggleEvent
+        (EventDataKind::ToggleEvent, "checked") => format!("false"),
+
+        // SubmitEvent
+        (EventDataKind::SubmitEvent, "values") => format!("HashMap::new()"),
+
+        // FocusEvent
+        (EventDataKind::FocusEvent, "value") => format!("{}.data().value()", raw),
+
+        // ClipboardEvent
+        (EventDataKind::ClipboardEvent, "text") => format!("String::new()"),
+
+        // DragEvent
+        (EventDataKind::DragEvent, "x") => format!("{}.client_x()", raw),
+        (EventDataKind::DragEvent, "y") => format!("{}.client_y()", raw),
+        (EventDataKind::DragEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // DropEvent
+        (EventDataKind::DropEvent, "x") => format!("{}.client_x()", raw),
+        (EventDataKind::DropEvent, "y") => format!("{}.client_y()", raw),
+        (EventDataKind::DropEvent, "files") => format!("Vec::<String>::new()"),
+        (EventDataKind::DropEvent, "text") => format!("String::new()"),
+        (EventDataKind::DropEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // ContextMenuEvent
+        (EventDataKind::ContextMenuEvent, "x") => format!("{}.client_x()", raw),
+        (EventDataKind::ContextMenuEvent, "y") => format!("{}.client_y()", raw),
+        (EventDataKind::ContextMenuEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "alt_key()", "ctrl" => "ctrl_key()", "shift" => "shift_key()", _ => "meta_key()" };
+            format!("{}.{}", raw, key)
+        }
+
+        // SelectEvent
+        (EventDataKind::SelectEvent, "start") => format!("0"),
+        (EventDataKind::SelectEvent, "end") => format!("0"),
+        (EventDataKind::SelectEvent, "text") => format!("String::new()"),
+
+        // ResizeEvent
+        (EventDataKind::ResizeEvent, "width") => format!("window.inner_width()"),
+        (EventDataKind::ResizeEvent, "height") => format!("window.inner_height()"),
+
+        // MediaEvent
+        (EventDataKind::MediaEvent, "currentTime") => format!("0.0"),
+        (EventDataKind::MediaEvent, "duration") => format!("0.0"),
+
+        // MediaLoadEvent
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => format!("0.0"),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => format!("0.0"),
+
+        // MediaErrorEvent
+        (EventDataKind::MediaErrorEvent, "message") => format!("String::new()"),
+
+        // AnimationEvent
+        (EventDataKind::AnimationEvent, "animationName") => format!("String::new()"),
+        (EventDataKind::AnimationEvent, "elapsedTime") => format!("0.0"),
+
+        // TransitionEvent
+        (EventDataKind::TransitionEvent, "propertyName") => format!("String::new()"),
+        (EventDataKind::TransitionEvent, "elapsedTime") => format!("0.0"),
+
+        _ => format!("todo!(\"field {}\")", field),
+    }
+}
+
+/// Emit a Rust HashMap literal for Dioxus event data extraction.
+fn emit_event_object_dioxus(
+    event_data: &Option<EventDataKind>,
+    used_fields: &Option<Vec<String>>,
+    raw_var: &str,
+) -> String {
+    let kind = match event_data {
+        Some(k) => k,
+        None => return "HashMap::new()".to_string(),
+    };
+
+    let schema = event_data_schema(kind);
+    let fields: Vec<String> = match used_fields {
+        Some(fields) if !fields.is_empty() => {
+            schema.iter()
+                .filter(|f| fields.contains(&f.name))
+                .map(|f| {
+                    let extract = field_extract_dioxus(kind, &f.name, raw_var);
+                    format!("(\"{}\", {})", f.name, extract)
+                })
+                .collect()
+        }
+        Some(_) => return "HashMap::new()".to_string(),
+        None => {
+            schema.iter()
+                .map(|f| {
+                    let extract = field_extract_dioxus(kind, &f.name, raw_var);
+                    format!("(\"{}\", {})", f.name, extract)
+                })
+                .collect()
+        }
+    };
+
+    format!("::std::collections::HashMap::from([{}])", fields.join(", "))
 }
 
 // ═══════════════════════════════════════════════════════════

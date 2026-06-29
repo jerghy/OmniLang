@@ -4656,7 +4656,8 @@ fn map_event(name: &str) -> String {
 
 /// Emit JS extraction code for a single event data field.
 /// Returns (extraction_expression, fallback_value_literal).
-fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
+/// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+pub(crate) fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
         // PointerEvent
         (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
@@ -4796,7 +4797,8 @@ fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, St
 
 /// Emit a JS object literal for event data extraction from a raw event variable.
 /// Only emits fields in `used_fields` (or all fields from schema if None).
-fn emit_event_object(
+/// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+pub(crate) fn emit_event_object(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,
     raw_var: &str,

@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use super::{try_format_stdlib_call, CodeWriter, Codegen, CompileOutput, CompiledFile, Target};
+use crate::codegen::omniview::{emit_event_object as emit_event_object_js, field_extract_js};
 use crate::ir::*;
 
 pub struct JavaScriptCodegen {
@@ -93,6 +94,24 @@ impl Codegen for JavaScriptCodegen {
 
         CompileOutput::success(files)
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// JS/TS event data extraction (reuses Web DOM-based extraction)
+// ═══════════════════════════════════════════════════════════
+
+/// JS/TS field extraction — same as Web DOM (native DOM events).
+pub(crate) fn field_extract_js_raw(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
+    field_extract_js(kind, field, raw)
+}
+
+/// Emit a JS object literal for event data extraction (raw DOM events).
+pub(crate) fn emit_event_object_js_raw(
+    event_data: &Option<EventDataKind>,
+    used_fields: &Option<Vec<String>>,
+    raw_var: &str,
+) -> String {
+    emit_event_object_js(event_data, used_fields, raw_var)
 }
 
 // ═══════════════════════════════════════════════════════════
