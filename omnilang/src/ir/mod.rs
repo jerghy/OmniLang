@@ -1446,6 +1446,176 @@ fn lower_view_block(
     }
 }
 
+/// Collects `e.field` references and `e.preventDefault()`/`e.stopPropagation()`
+/// calls from an inline event handler AST body.  Used during IR lowering
+/// to populate `EventHandlerIR.used_fields`.
+struct EventFieldCollector {
+    fields: Vec<String>,
+    needs_prevent_default: bool,
+    needs_stop_propagation: bool,
+}
+
+impl EventFieldCollector {
+    fn collect(block: &crate::parser::ast::Block) -> Self {
+        let mut c = Self {
+            fields: vec![],
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        };
+        for stmt in &block.stmts {
+            c.visit_stmt(stmt);
+        }
+        c
+    }
+
+    fn visit_stmt(&mut self, stmt: &crate::parser::ast::Stmt) {
+        match stmt {
+            crate::parser::ast::Stmt::ExprStmt { expr, .. } => {
+                self.visit_expr(expr);
+            }
+            crate::parser::ast::Stmt::VarDecl { init: Some(init), .. } => {
+                self.visit_expr(init);
+            }
+            crate::parser::ast::Stmt::Assign { value, .. } => {
+                self.visit_expr(value);
+            }
+            crate::parser::ast::Stmt::If {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+                ..
+            } => {
+                self.visit_expr(condition);
+                self.visit_block(then_body);
+                for (_, elsif_block) in else_ifs {
+                    self.visit_block(elsif_block);
+                }
+                if let Some(else_b) = else_body {
+                    self.visit_block(else_b);
+                }
+            }
+            crate::parser::ast::Stmt::While { condition, body, .. } => {
+                self.visit_expr(condition);
+                self.visit_block(body);
+            }
+            crate::parser::ast::Stmt::ForIn { iterable, body, .. } => {
+                self.visit_expr(iterable);
+                self.visit_block(body);
+            }
+            crate::parser::ast::Stmt::Return { value: Some(value), .. } => {
+                self.visit_expr(value);
+            }
+            crate::parser::ast::Stmt::Print { arg, .. } => {
+                self.visit_expr(arg);
+            }
+            crate::parser::ast::Stmt::EventEmit { args, .. } => {
+                for arg in args {
+                    self.visit_expr(arg);
+                }
+            }
+            crate::parser::ast::Stmt::Throw { expr, .. } => {
+                self.visit_expr(expr);
+            }
+            crate::parser::ast::Stmt::TryCatch {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                self.visit_block(try_body);
+                if let Some(catch_b) = catch_body {
+                    self.visit_block(catch_b);
+                }
+                if let Some(finally_b) = finally_body {
+                    self.visit_block(finally_b);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn visit_block(&mut self, block: &crate::parser::ast::Block) {
+        for stmt in &block.stmts {
+            self.visit_stmt(stmt);
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &crate::parser::ast::Expr) {
+        use crate::parser::ast::Expr;
+        match expr {
+            // e.field
+            Expr::FieldAccess { object, field, .. } => {
+                if let Expr::VarRef(name, _) = object.as_ref() {
+                    if name == "e" && !self.fields.contains(field) {
+                        self.fields.push(field.clone());
+                    }
+                } else {
+                    self.visit_expr(object);
+                }
+            }
+            // e.method(args)
+            Expr::MethodCall {
+                object, method, args, ..
+            } => {
+                if let Expr::VarRef(name, _) = object.as_ref() {
+                    if name == "e" {
+                        match method.as_str() {
+                            "preventDefault" => self.needs_prevent_default = true,
+                            "stopPropagation" => self.needs_stop_propagation = true,
+                            _ => {}
+                        }
+                    }
+                } else {
+                    self.visit_expr(object);
+                }
+                for arg in args {
+                    self.visit_expr(arg);
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.visit_expr(left);
+                self.visit_expr(right);
+            }
+            Expr::UnaryOp { operand, .. } => self.visit_expr(operand),
+            Expr::FuncCall { func, args, .. } => {
+                self.visit_expr(func);
+                for arg in args {
+                    self.visit_expr(arg);
+                }
+            }
+            Expr::IfExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            }
+            | Expr::TernaryExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
+                self.visit_expr(condition);
+                self.visit_expr(then_expr);
+                self.visit_expr(else_expr);
+            }
+            Expr::ArrayLiteral { elements, .. } => {
+                for e in elements {
+                    self.visit_expr(e);
+                }
+            }
+            Expr::MapLiteral { entries, .. } => {
+                for (k, v) in entries {
+                    self.visit_expr(k);
+                    self.visit_expr(v);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn lower_view_node(
     node: &ViewNode,
     string_signals: &[String],
@@ -1499,37 +1669,57 @@ fn lower_view_node(
                         );
                     }
                     ElementProp::Event { name, handler } => {
+                        // Collect event data kind
+                        let event_data = map_event_data_kind(&name);
+                        let mut needs_pd = name == "onSubmit"; // backward compat
+                        let mut needs_sp = false;
+                        let mut used_fields: Option<Vec<String>> = None;
+
                         let ir_handler = match handler {
-                            EventHandler::InlineFn { params, body, .. } => EventHandlerIR {
-                                kind: "inline_fn".into(),
-                                body: Some(lower_block(body, variant_map)),
-                                r#ref: None,
-                                params: params.iter().map(|p| p.name.clone()).collect(),
-                                event_data: None,
-                                used_fields: None,
-                                needs_prevent_default: false,
-                                needs_stop_propagation: false,
-                            },
-                            EventHandler::FnRef(fn_name) => EventHandlerIR {
-                                kind: "fn_ref".into(),
-                                body: None,
-                                r#ref: Some(fn_name.clone()),
-                                params: vec![],
-                                event_data: None,
-                                used_fields: None,
-                                needs_prevent_default: false,
-                                needs_stop_propagation: false,
-                            },
-                            EventHandler::StoreAction { store, action } => EventHandlerIR {
-                                kind: "store_action".into(),
-                                body: None,
-                                r#ref: Some(format!("{}.{}", store, action)),
-                                params: vec![],
-                                event_data: None,
-                                used_fields: None,
-                                needs_prevent_default: false,
-                                needs_stop_propagation: false,
-                            },
+                            EventHandler::InlineFn { params, body, .. } => {
+                                if event_data.is_some() {
+                                    let collector = EventFieldCollector::collect(body);
+                                    used_fields = Some(collector.fields);
+                                    needs_pd = needs_pd || collector.needs_prevent_default;
+                                    needs_sp = collector.needs_stop_propagation;
+                                }
+                                EventHandlerIR {
+                                    kind: "inline_fn".into(),
+                                    body: Some(lower_block(body, variant_map)),
+                                    r#ref: None,
+                                    params: params.iter().map(|p| p.name.clone()).collect(),
+                                    event_data: event_data.clone(),
+                                    used_fields: used_fields.clone(),
+                                    needs_prevent_default: needs_pd,
+                                    needs_stop_propagation: needs_sp,
+                                }
+                            }
+                            EventHandler::FnRef(fn_name) => {
+                                // Defer used_fields to Pass 2 (fn_ref backfill)
+                                EventHandlerIR {
+                                    kind: "fn_ref".into(),
+                                    body: None,
+                                    r#ref: Some(fn_name.clone()),
+                                    params: vec![],
+                                    event_data: event_data.clone(),
+                                    used_fields: None, // backfilled in Pass 2
+                                    needs_prevent_default: needs_pd,
+                                    needs_stop_propagation: needs_sp,
+                                }
+                            }
+                            EventHandler::StoreAction { store, action } => {
+                                // Store actions receive no event data
+                                EventHandlerIR {
+                                    kind: "store_action".into(),
+                                    body: None,
+                                    r#ref: Some(format!("{}.{}", store, action)),
+                                    params: vec![],
+                                    event_data: None,
+                                    used_fields: None,
+                                    needs_prevent_default: false,
+                                    needs_stop_propagation: false,
+                                }
+                            }
                         };
                         events.insert(name.clone(), ir_handler);
                     }
