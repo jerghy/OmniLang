@@ -71,6 +71,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         enter_trigger_nids: Vec::new(),
         for_state_names: std::collections::HashMap::new(),
         motion_names: std::collections::HashSet::new(),
+        needs_touch_merge: false,
     };
 
     gen.emit_js_header();
@@ -142,6 +143,21 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
     // Generate each component (signals, fns). Only root component emits its view.
     for (comp_name, comp) in ir.all_components() {
         gen.generate_component(comp_name, comp, ir, comp_name == root_name);
+    }
+
+    // Emit global __mergeTouches helper if any @for (or other codegen) uses TouchEvent
+    if gen.needs_touch_merge {
+        gen.js.push_str(
+            "function __mergeTouches(e) {\n\
+             \x20 const seen = new Map();\n\
+             \x20 for (const t of e.touches)\n\
+             \x20   seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+             \x20 for (const t of e.changedTouches)\n\
+             \x20   if (!seen.has(t.identifier))\n\
+             \x20     seen.set(t.identifier, { x: t.clientX, y: t.clientY, id: t.identifier });\n\
+             \x20 return [...seen.values()];\n\
+             }\n"
+        );
     }
 
     // Build per-component output map for editor hot-replace
@@ -228,6 +244,8 @@ struct OmniViewGenerator {
     enter_trigger_nids: Vec<(String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
     for_state_names: std::collections::HashMap<String, (String, String)>,
+    /// Whether to emit global __mergeTouches helper (for TouchEvent in @for or elsewhere)
+    needs_touch_merge: bool,
 }
 
 impl OmniViewGenerator {
@@ -1710,63 +1728,112 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
 
         // Attach delegated event listeners on the parent for @for item events.
         // (Items are siblings of ctr, so events bubble to parent.)
-        self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
-        self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
-        self.js.push_str("    const _forHandle = (e) => {\n");
-        self.js.push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
-        self.js.push_str("      if (!t) return;\n");
-        self.js.push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
-        self.js.push_str("      if (!attr) return;\n");
-        self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
-        self.js.push_str("      if (attr.startsWith('fn:')) {\n");
-        self.js.push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
-        self.js.push_str("        // Before calling fn, restore per-instance state to global signal\n");
-        self.js.push_str("        // so the fn handler operates on the correct per-instance value\n");
-        self.js.push_str("        const _forComp = t.closest('[data-for-state-names]');\n");
-        self.js.push_str("        if (_forComp && _forComp.__omniState) {\n");
-        self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
-        self.js.push_str("          if (_stateNames) {\n");
-        self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
-        self.js.push_str("              if (_sname && _sname in _forComp.__omniState) {\n");
-        self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
-        self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
-        self.js.push_str("                if (_sig) _sig.set(_forComp.__omniState[_sname]);\n");
-        self.js.push_str("              }\n");
-        self.js.push_str("            });\n");
-        self.js.push_str("          }\n");
-        self.js.push_str("        }\n");
-        self.js.push_str("        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));\n");
-        self.js.push_str("        // Sync global signals back to element-scoped state for @for component instances\n");
-        self.js.push_str("        if (_forComp) {\n");
-        self.js.push_str("          if (!_forComp.__omniState) _forComp.__omniState = {};\n");
-        self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
-        self.js.push_str("          if (_stateNames) {\n");
-        self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
-        self.js.push_str("              if (_sname) {\n");
-        self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
-        self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
-        self.js.push_str("                if (_sig) _forComp.__omniState[_sname] = _sig.peek();\n");
-        self.js.push_str("              }\n");
-        self.js.push_str("            });\n");
-        self.js.push_str("          }\n");
-        self.js.push_str("          // Re-evaluate text bindings from element-scoped state\n");
-        self.js.push_str("          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n");
-        self.js.push_str("            try { el.textContent = String(eval(el.getAttribute('data-bind-text'))); } catch(e) {}\n");
-        self.js.push_str("          });\n");
-        self.js.push_str("        }\n");
-        self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
-        self.js.push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
-        self.js.push_str("        if (typeof fn === 'function') fn();\n");
-        self.js.push_str("      }\n");
-        self.js.push_str("    };\n");
-        self.js.push_str("    parent.addEventListener('click', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('submit', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('input', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('change', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('focus', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('blur', _forHandle);\n");
-        self.js.push_str("    parent.addEventListener('keydown', _forHandle);\n");
-        self.js.push_str("  }\n");
+        // Collect all event types used in the @for template body for dynamic subscription.
+        let mut for_event_types: Vec<String> = Vec::new();
+        let mut for_event_kinds: Vec<(String, EventDataKind)> = Vec::new();
+        if let Some(ref body) = list.body {
+            collect_for_events(body, &mut for_event_types, &mut for_event_kinds);
+        }
+
+        if !for_event_types.is_empty() {
+            // Check if TouchEvent is used — need the global __mergeTouches helper
+            if for_event_kinds.iter().any(|(_, k)| *k == EventDataKind::TouchEvent) {
+                self.needs_touch_merge = true;
+            }
+
+            self.js.push_str("  if (!ctr.dataset.forEventsAttached) {\n");
+            self.js.push_str("    ctr.dataset.forEventsAttached = 'true';\n");
+
+            // Emit event-kind lookup map
+            self.js.push_str("    const _eventKinds = {\n");
+            for (js_event, kind) in &for_event_kinds {
+                self.js.push_str(&format!(
+                    "      '{}': '{}',\n",
+                    js_event,
+                    event_data_kind_label(kind)
+                ));
+            }
+            self.js.push_str("    };\n");
+
+            // Emit _extractEvent switch function
+            self.js.push_str("    function _extractEvent(kind, e) {\n");
+            if !for_event_kinds.is_empty() {
+                self.js.push_str("      switch (kind) {\n");
+                for (_, kind) in &for_event_kinds {
+                    let label = event_data_kind_label(kind);
+                    self.js.push_str(&format!("        case '{}':\n", label));
+                    self.js.push_str(&format!(
+                        "          return {};\n",
+                        emit_event_object(&Some(kind.clone()), &None, "e")
+                    ));
+                }
+            }
+            self.js.push_str("        default: return {};\n");
+            if !for_event_kinds.is_empty() {
+                self.js.push_str("      }\n");
+            }
+            self.js.push_str("    }\n");
+
+            self.js.push_str("    const _forHandle = (e) => {\n");
+            self.js.push_str("      const t = e.target.closest('[data-event-' + e.type + ']');\n");
+            self.js.push_str("      if (!t) return;\n");
+            self.js.push_str("      const attr = t.getAttribute('data-event-' + e.type);\n");
+            self.js.push_str("      if (!attr) return;\n");
+            self.js.push_str("      if (e.type === 'submit') e.preventDefault();\n");
+            self.js.push_str("      if (attr.startsWith('fn:')) {\n");
+            self.js.push_str("        const fn = __omni_forHandlers[attr.slice(3)];\n");
+            self.js.push_str("        // Before calling fn, restore per-instance state to global signal\n");
+            self.js.push_str("        // so the fn handler operates on the correct per-instance value\n");
+            self.js.push_str("        const _forComp = t.closest('[data-for-state-names]');\n");
+            self.js.push_str("        if (_forComp && _forComp.__omniState) {\n");
+            self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
+            self.js.push_str("          if (_stateNames) {\n");
+            self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
+            self.js.push_str("              if (_sname && _sname in _forComp.__omniState) {\n");
+            self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
+            self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
+            self.js.push_str("                if (_sig) _sig.set(_forComp.__omniState[_sname]);\n");
+            self.js.push_str("              }\n");
+            self.js.push_str("            });\n");
+            self.js.push_str("          }\n");
+            self.js.push_str("        }\n");
+            self.js.push_str("        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));\n");
+            self.js.push_str("        // Sync global signals back to element-scoped state for @for component instances\n");
+            self.js.push_str("        if (_forComp) {\n");
+            self.js.push_str("          if (!_forComp.__omniState) _forComp.__omniState = {};\n");
+            self.js.push_str("          var _stateNames = _forComp.getAttribute('data-for-state-names');\n");
+            self.js.push_str("          if (_stateNames) {\n");
+            self.js.push_str("            _stateNames.split(',').forEach(function(_sname) {\n");
+            self.js.push_str("              if (_sname) {\n");
+            self.js.push_str("                var _compName = _forComp.getAttribute('data-component');\n");
+            self.js.push_str("                var _sig = __omni_subs.get(_compName + '_' + _sname);\n");
+            self.js.push_str("                if (_sig) _forComp.__omniState[_sname] = _sig.peek();\n");
+            self.js.push_str("              }\n");
+            self.js.push_str("            });\n");
+            self.js.push_str("          }\n");
+            self.js.push_str("          // Re-evaluate text bindings from element-scoped state\n");
+            self.js.push_str("          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n");
+            self.js.push_str("            try { el.textContent = String(eval(el.getAttribute('data-bind-text'))); } catch(e) {}\n");
+            self.js.push_str("          });\n");
+            self.js.push_str("        }\n");
+            self.js.push_str("      } else if (attr.startsWith('store:')) {\n");
+            self.js.push_str("        const fn = __omni_forHandlers[attr.slice(6)];\n");
+            self.js.push_str("        if (typeof fn === 'function') fn();\n");
+            self.js.push_str("      }\n");
+            self.js.push_str("    };\n");
+
+            // Dynamic subscription: iterate over collected event types
+            self.js.push_str("    [");
+            for (i, evt) in for_event_types.iter().enumerate() {
+                if i > 0 { self.js.push_str(", "); }
+                self.js.push_str(&format!("'{}'", evt));
+            }
+            self.js.push_str("].forEach(function(evt) {\n");
+            self.js.push_str("      parent.addEventListener(evt, _forHandle);\n");
+            self.js.push_str("    });\n");
+
+            self.js.push_str("  }\n");
+        }
 
         self.js.push_str("});\n");
 
@@ -4733,6 +4800,50 @@ fn emit_event_object(
     };
 
     format!("{{ {} }}", fields.join(", "))
+}
+
+/// Recursively walk a ViewTree to collect all DOM event types and EventDataKinds
+/// used within the tree. Used by @for codegen for dynamic event subscription.
+fn collect_for_events(
+    tree: &ViewTree,
+    event_types: &mut Vec<String>,
+    event_kinds: &mut Vec<(String, EventDataKind)>,
+) {
+    match tree {
+        ViewTree::Element(el) => {
+            for (event_name, handler) in &el.events {
+                let js_event = map_event(event_name);
+                if !event_types.contains(&js_event) {
+                    event_types.push(js_event.clone());
+                    if let Some(ref kind) = handler.event_data {
+                        event_kinds.push((js_event.clone(), kind.clone()));
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_for_events(child, event_types, event_kinds);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_for_events(body, event_types, event_kinds);
+                }
+            }
+            if let Some(ref fallback) = cond.fallback {
+                collect_for_events(fallback, event_types, event_kinds);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_for_events(body, event_types, event_kinds);
+            }
+            if let Some(ref empty) = list.empty_body {
+                collect_for_events(empty, event_types, event_kinds);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Map omni binary operators to JS operators.
