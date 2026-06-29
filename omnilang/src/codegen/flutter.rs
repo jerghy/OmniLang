@@ -415,7 +415,10 @@ fn format_view_tree(node: &ViewTree, motions: &[MotionIntent]) -> String {
                 format!("Text('{}')", text.replace('\'', "\\'"))
             }
         }
-        ViewTree::Interpolation(_expr) => "Text('')".to_string(),
+        ViewTree::Interpolation(expr) => {
+            let dart_expr = format_expr_ir_flutter(expr);
+            format!("Text({})", dart_expr)
+        }
         ViewTree::Conditional(cond) => format_conditional(cond, motions),
         ViewTree::ListRendering(list) => format_list_rendering(list, motions),
         ViewTree::Slot(_) => "SizedBox.shrink()".to_string(),
