@@ -179,6 +179,186 @@ pub struct EventHandlerIR {
 }
 
 // ═══════════════════════════════════════════════════════
+// Event Data Schema — cross-target event payload definitions
+// ═══════════════════════════════════════════════════════
+
+/// Event payload categories. Each variant has a fixed set of fields
+/// defined in `event_data_schema()`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EventDataKind {
+    PointerEvent,
+    TouchEvent,
+    WheelEvent,
+    KeyEvent,
+    ScrollEvent,
+    InputEvent,
+    ToggleEvent,
+    SubmitEvent,
+    FocusEvent,
+    ClipboardEvent,
+    DragEvent,
+    DropEvent,
+    ContextMenuEvent,
+    SelectEvent,
+    ResizeEvent,
+    MediaEvent,
+    MediaLoadEvent,
+    MediaErrorEvent,
+    AnimationEvent,
+    TransitionEvent,
+}
+
+/// A single field within an event data payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventFieldDef {
+    pub name: String,
+    /// "float" | "string" | "bool" | "int" | "{x,y,id}[]" | "string[]"
+    pub field_type: String,
+}
+
+/// Full schema: kind -> ordered field definitions.
+/// Used by both lowering (field validation) and codegen (extraction).
+pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
+    let f = |name: &str, field_type: &str| EventFieldDef {
+        name: name.to_string(),
+        field_type: field_type.to_string(),
+    };
+    match kind {
+        EventDataKind::PointerEvent => vec![
+            f("x", "float"), f("y", "float"), f("button", "int"),
+            f("pressure", "float"), f("tiltX", "float"), f("tiltY", "float"),
+            f("pointerType", "string"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::TouchEvent => vec![
+            f("touches", "{x,y,id}[]"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::WheelEvent => vec![
+            f("x", "float"), f("y", "float"),
+            f("deltaX", "float"), f("deltaY", "float"), f("deltaZ", "float"),
+            f("deltaMode", "int"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::KeyEvent => vec![
+            f("key", "string"), f("code", "string"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::ScrollEvent => vec![
+            f("x", "float"), f("y", "float"),
+        ],
+        EventDataKind::InputEvent => vec![
+            f("value", "string"), f("checked", "bool"),
+        ],
+        EventDataKind::ToggleEvent => vec![
+            f("checked", "bool"),
+        ],
+        EventDataKind::SubmitEvent => vec![
+            f("values", "{string: string}"),
+        ],
+        EventDataKind::FocusEvent => vec![
+            f("value", "string"),
+        ],
+        EventDataKind::ClipboardEvent => vec![
+            f("text", "string"),
+        ],
+        EventDataKind::DragEvent => vec![
+            f("x", "float"), f("y", "float"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::DropEvent => vec![
+            f("x", "float"), f("y", "float"),
+            f("files", "string[]"), f("text", "string"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::ContextMenuEvent => vec![
+            f("x", "float"), f("y", "float"),
+            f("alt", "bool"), f("ctrl", "bool"), f("shift", "bool"), f("meta", "bool"),
+        ],
+        EventDataKind::SelectEvent => vec![
+            f("start", "int"), f("end", "int"), f("text", "string"),
+        ],
+        EventDataKind::ResizeEvent => vec![
+            f("width", "float"), f("height", "float"),
+        ],
+        EventDataKind::MediaEvent => vec![
+            f("currentTime", "float"), f("duration", "float"),
+        ],
+        EventDataKind::MediaLoadEvent => vec![
+            f("naturalWidth", "float"), f("naturalHeight", "float"),
+        ],
+        EventDataKind::MediaErrorEvent => vec![
+            f("message", "string"),
+        ],
+        EventDataKind::AnimationEvent => vec![
+            f("animationName", "string"), f("elapsedTime", "float"),
+        ],
+        EventDataKind::TransitionEvent => vec![
+            f("propertyName", "string"), f("elapsedTime", "float"),
+        ],
+    }
+}
+
+/// Map .omni event name string -> EventDataKind.
+/// Returns None for store-only or non-data events.
+pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
+    match event_name {
+        "onClick" | "onPress" | "onTap" | "onDoubleClick" | "onLongPress"
+        | "onMouseMove" | "onHover" | "onMouseEnter" | "onMouseLeave"
+        | "onPointerDown" | "onPointerUp" | "onPointerMove" | "onPointerCancel"
+            => Some(EventDataKind::PointerEvent),
+        "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel"
+            => Some(EventDataKind::TouchEvent),
+        "onWheel" => Some(EventDataKind::WheelEvent),
+        "onKeyDown" | "onKeyUp" => Some(EventDataKind::KeyEvent),
+        "onScroll" => Some(EventDataKind::ScrollEvent),
+        "onChange" | "onInput" => Some(EventDataKind::InputEvent),
+        "onToggle" => Some(EventDataKind::ToggleEvent),
+        "onSubmit" => Some(EventDataKind::SubmitEvent),
+        "onFocus" | "onBlur" => Some(EventDataKind::FocusEvent),
+        "onCopy" | "onCut" | "onPaste" => Some(EventDataKind::ClipboardEvent),
+        "onDragStart" | "onDrag" | "onDragEnd" => Some(EventDataKind::DragEvent),
+        "onDrop" => Some(EventDataKind::DropEvent),
+        "onContextMenu" => Some(EventDataKind::ContextMenuEvent),
+        "onSelect" => Some(EventDataKind::SelectEvent),
+        "onResize" => Some(EventDataKind::ResizeEvent),
+        "onPlay" | "onPause" | "onEnded" => Some(EventDataKind::MediaEvent),
+        "onLoad" => Some(EventDataKind::MediaLoadEvent),
+        "onError" => Some(EventDataKind::MediaErrorEvent),
+        "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration"
+            => Some(EventDataKind::AnimationEvent),
+        "onTransitionEnd" => Some(EventDataKind::TransitionEvent),
+        _ => None,
+    }
+}
+
+/// Map EventDataKind to a string label for the @for JS kind-lookup map.
+pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
+    match kind {
+        EventDataKind::PointerEvent => "PointerEvent",
+        EventDataKind::TouchEvent => "TouchEvent",
+        EventDataKind::WheelEvent => "WheelEvent",
+        EventDataKind::KeyEvent => "KeyEvent",
+        EventDataKind::ScrollEvent => "ScrollEvent",
+        EventDataKind::InputEvent => "InputEvent",
+        EventDataKind::ToggleEvent => "ToggleEvent",
+        EventDataKind::SubmitEvent => "SubmitEvent",
+        EventDataKind::FocusEvent => "FocusEvent",
+        EventDataKind::ClipboardEvent => "ClipboardEvent",
+        EventDataKind::DragEvent => "DragEvent",
+        EventDataKind::DropEvent => "DropEvent",
+        EventDataKind::ContextMenuEvent => "ContextMenuEvent",
+        EventDataKind::SelectEvent => "SelectEvent",
+        EventDataKind::ResizeEvent => "ResizeEvent",
+        EventDataKind::MediaEvent => "MediaEvent",
+        EventDataKind::MediaLoadEvent => "MediaLoadEvent",
+        EventDataKind::MediaErrorEvent => "MediaErrorEvent",
+        EventDataKind::AnimationEvent => "AnimationEvent",
+        EventDataKind::TransitionEvent => "TransitionEvent",
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // Block IR & Statements
 // ═══════════════════════════════════════════════════════
 
@@ -1023,22 +1203,19 @@ fn lower_component(comp: &ComponentDef, variant_map: &HashMap<String, String>) -
         .collect();
 
     // Collect input-binding signal names for <input> element auto-binding.
-    // Priority: String signals with "input" in name, then any String signal.
+    // Only auto-bind signals whose name suggests they're for input binding.
+    // If none exist, don't auto-bind (requires explicit bind:value).
     let input_signals: Vec<String> = {
         let string_signals: Vec<_> = comp.signals.iter()
             .filter(|s| matches!(s.type_ann, TypeAnnotation::Named { ref name, .. } if name == "String"))
             .map(|s| s.name.clone())
             .collect();
         // Prefer signals whose name suggests they're for input binding
-        let mut candidates: Vec<_> = string_signals
+        let candidates: Vec<_> = string_signals
             .iter()
             .filter(|n| n.contains("input") || n.contains("Input"))
             .cloned()
             .collect();
-        // Fall back to any String signal
-        if candidates.is_empty() {
-            candidates = string_signals;
-        }
         candidates
     };
 
@@ -1995,6 +2172,47 @@ fn try_lower_mutation(
                 _ => {}
             }
         }
+        // Pattern 4: Assignment to store field: MyStore.count = value or MyStore.count += 1
+        if let Expr::FieldAccess { object, field, .. } = left.as_ref() {
+            if let Expr::VarRef(owner_name, _) = object.as_ref() {
+                match op {
+                    BinaryOpKind::Assign => {
+                        return Some(MutationIntent {
+                            target: SignalRefIR {
+                                owner: Some(owner_name.clone()),
+                                name: field.clone(),
+                            },
+                            operation: "direct_assign".into(),
+                            amount: Some(lower_expr(right, variant_map)),
+                            item: None,
+                        });
+                    }
+                    BinaryOpKind::AddAssign => {
+                        return Some(MutationIntent {
+                            target: SignalRefIR {
+                                owner: Some(owner_name.clone()),
+                                name: field.clone(),
+                            },
+                            operation: "increment".into(),
+                            amount: Some(lower_expr(right, variant_map)),
+                            item: None,
+                        });
+                    }
+                    BinaryOpKind::SubAssign => {
+                        return Some(MutationIntent {
+                            target: SignalRefIR {
+                                owner: Some(owner_name.clone()),
+                                name: field.clone(),
+                            },
+                            operation: "decrement".into(),
+                            amount: Some(lower_expr(right, variant_map)),
+                            item: None,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
     None
 }
@@ -2895,5 +3113,73 @@ fn format_position_value(pv: &crate::parser::ast::PositionValue) -> String {
         crate::parser::ast::PositionValue::AfterPrev(v) => format!("after-prev({})", v),
         crate::parser::ast::PositionValue::WithOffset(v) => format!("with-offset({})", v),
         crate::parser::ast::PositionValue::Absolute(v) => format!("absolute({})", v),
+    }
+}
+
+#[cfg(test)]
+mod event_data_tests {
+    use super::*;
+
+    #[test]
+    fn test_map_event_data_kind_pointer() {
+        assert_eq!(map_event_data_kind("onClick"), Some(EventDataKind::PointerEvent));
+        assert_eq!(map_event_data_kind("onMouseMove"), Some(EventDataKind::PointerEvent));
+        assert_eq!(map_event_data_kind("onPointerDown"), Some(EventDataKind::PointerEvent));
+    }
+
+    #[test]
+    fn test_map_event_data_kind_keyboard() {
+        assert_eq!(map_event_data_kind("onKeyDown"), Some(EventDataKind::KeyEvent));
+        assert_eq!(map_event_data_kind("onKeyUp"), Some(EventDataKind::KeyEvent));
+    }
+
+    #[test]
+    fn test_map_event_data_kind_scroll() {
+        assert_eq!(map_event_data_kind("onScroll"), Some(EventDataKind::ScrollEvent));
+    }
+
+    #[test]
+    fn test_map_event_data_kind_none_for_unknown() {
+        assert_eq!(map_event_data_kind("onUnknown"), None);
+    }
+
+    #[test]
+    fn test_schema_pointer_event_has_button_and_modifiers() {
+        let fields = event_data_schema(&EventDataKind::PointerEvent);
+        let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"x"));
+        assert!(names.contains(&"y"));
+        assert!(names.contains(&"button"));
+        assert!(names.contains(&"alt"));
+        assert!(names.contains(&"ctrl"));
+    }
+
+    #[test]
+    fn test_schema_scroll_event_only_position() {
+        let fields = event_data_schema(&EventDataKind::ScrollEvent);
+        let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn test_schema_twenty_kinds() {
+        // All 20 variants produce non-empty field lists
+        let kinds = [
+            EventDataKind::PointerEvent, EventDataKind::TouchEvent,
+            EventDataKind::WheelEvent, EventDataKind::KeyEvent,
+            EventDataKind::ScrollEvent, EventDataKind::InputEvent,
+            EventDataKind::ToggleEvent, EventDataKind::SubmitEvent,
+            EventDataKind::FocusEvent, EventDataKind::ClipboardEvent,
+            EventDataKind::DragEvent, EventDataKind::DropEvent,
+            EventDataKind::ContextMenuEvent, EventDataKind::SelectEvent,
+            EventDataKind::ResizeEvent, EventDataKind::MediaEvent,
+            EventDataKind::MediaLoadEvent, EventDataKind::MediaErrorEvent,
+            EventDataKind::AnimationEvent, EventDataKind::TransitionEvent,
+        ];
+        assert_eq!(kinds.len(), 20);
+        for kind in &kinds {
+            assert!(!event_data_schema(kind).is_empty(),
+                "Schema empty for {:?}", kind);
+        }
     }
 }
