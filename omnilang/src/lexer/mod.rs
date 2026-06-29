@@ -2,6 +2,7 @@
 //!
 //! Produces a flat Vec<Token> from source text. No regex, no parser generators.
 
+mod keywords;
 mod token;
 pub use token::*;
 
@@ -688,71 +689,7 @@ impl Lexer {
                     .expect("peek() confirmed ident char, advance() should return Some"),
             );
         }
-        let kind = match ident.as_str() {
-            "fn" => TokenKind::Fn,
-            "const" => TokenKind::Const,
-            "let" => TokenKind::Let,
-            "mut" => TokenKind::Mut,
-            "if" => TokenKind::If,
-            "else" => TokenKind::Else,
-            "while" => TokenKind::While,
-            "for" => TokenKind::For,
-            "in" => TokenKind::In,
-            "return" => TokenKind::Return,
-            "break" => TokenKind::Break,
-            "continue" => TokenKind::Continue,
-            "print" => TokenKind::Print,
-            "println" => TokenKind::Println,
-            "as" => TokenKind::As,
-            "async" => TokenKind::Async,
-            "await" => TokenKind::Await,
-            "throw" => TokenKind::Throw,
-            "try" => TokenKind::Try,
-            "catch" => TokenKind::Catch,
-            "finally" => TokenKind::Finally,
-            "match" => TokenKind::Match,
-            "struct" => TokenKind::Struct,
-            "class" => TokenKind::Class,
-            "interface" => TokenKind::Interface,
-            "impl" => TokenKind::Impl,
-            "extends" => TokenKind::Extends,
-            "implements" => TokenKind::Implements,
-            "type" => TokenKind::Type,
-            "nominal" => TokenKind::Nominal,
-            "static" => TokenKind::Static,
-            "private" => TokenKind::Private,
-            "pub" => TokenKind::Pub,
-            "override" => TokenKind::Override,
-            "import" => TokenKind::Import,
-            "from" => TokenKind::From,
-            "export" => TokenKind::Export,
-            "true" => TokenKind::True,
-            "false" => TokenKind::False,
-            "null" => TokenKind::Null,
-            "component" => TokenKind::Component,
-            "signal" => TokenKind::Signal,
-            "computed" => TokenKind::Computed,
-            "prop" => TokenKind::Prop,
-            "event" => TokenKind::Event,
-            "ref" => TokenKind::Ref,
-            "store" => TokenKind::Store,
-            "view" => TokenKind::View,
-            "style" => TokenKind::Style,
-            "action" => TokenKind::Action,
-            "getter" => TokenKind::Getter,
-            "theme" => TokenKind::Theme,
-            "bind" => TokenKind::Bind,
-            "emit" => TokenKind::Emit,
-            // Motion keywords (context-sensitive, recognized in @motion blocks)
-            "if_mode" => TokenKind::IfMode,
-            "drag_constraints" => TokenKind::DragConstraints,
-            "drag_elastic" => TokenKind::DragElastic,
-            "drag_scrub" => TokenKind::DragScrub,
-            "drag_momentum" => TokenKind::DragMomentum,
-            "drag_threshold" => TokenKind::DragThreshold,
-            "drag_velocity_max" => TokenKind::DragVelocityMax,
-            _ => TokenKind::Ident(ident),
-        };
+        let kind = keywords::ident_to_keyword(&ident).unwrap_or(TokenKind::Ident(ident));
         self.mk_token(kind, start, self.pos, line, col)
     }
 
@@ -771,57 +708,7 @@ impl Lexer {
                     .expect("peek() confirmed @keyword char, advance() should return Some"),
             );
         }
-        let kind = match kw.as_str() {
-            "@store" => TokenKind::AtStore,
-            "@if" => TokenKind::AtIf,
-            "@else" => TokenKind::AtElse,
-            "@for" => TokenKind::AtFor,
-            "@empty" => TokenKind::AtEmpty,
-            "@slot" => TokenKind::AtSlot,
-            "@native" => TokenKind::AtNative,
-            "@fallback" => TokenKind::AtFallback,
-            "@error" => TokenKind::AtError,
-            "@mount" => TokenKind::AtMount,
-            "@unmount" => TokenKind::AtUnmount,
-            "@effect" => TokenKind::AtEffect,
-            // Motion @-keywords
-            "@motion" => TokenKind::AtMotion,
-            "@timeline" => TokenKind::AtTimeline,
-            "@enter" => TokenKind::AtEnter,
-            "@leave" => TokenKind::AtLeave,
-            "@hover" => TokenKind::AtHover,
-            "@unhover" => TokenKind::AtUnhover,
-            "@press" => TokenKind::AtPress,
-            "@focus" => TokenKind::AtFocus,
-            "@animate" => TokenKind::AtAnimate,
-            "@in-view" | "@inView" => TokenKind::AtInView,
-            "@scroll" => TokenKind::AtScroll,
-            "@drag-horizontal" | "@dragHorizontal" => TokenKind::AtDragHorizontal,
-            "@drag-vertical" | "@dragVertical" => TokenKind::AtDragVertical,
-            "@driven-by" => TokenKind::AtDrivenBy,
-            "@paused" => TokenKind::AtPaused,
-            "@hover-reverse" => TokenKind::AtHoverReverse,
-            "@in-view-once" => TokenKind::AtInViewOnce,
-            "@in-view-repeat" => TokenKind::AtInViewRepeat,
-            "@in-view-threshold" => TokenKind::AtInViewThreshold,
-            "@scroll-start" => TokenKind::AtScrollStart,
-            "@scroll-end" => TokenKind::AtScrollEnd,
-            "@scroll-scrub" => TokenKind::AtScrollScrub,
-            // Drag sub-attributes
-            "@drag-constraints" => TokenKind::DragConstraints,
-            "@drag-elastic" => TokenKind::DragElastic,
-            "@drag-scrub" => TokenKind::DragScrub,
-            "@drag-momentum" => TokenKind::DragMomentum,
-            "@drag-threshold" => TokenKind::DragThreshold,
-            "@drag-velocity-max" => TokenKind::DragVelocityMax,
-            // @hero support
-            "@hero" => TokenKind::AtHero,
-            "@hero-transition" => TokenKind::AtHeroTransition,
-            // @if-mode component prop
-            "@if-mode" => TokenKind::IfMode,
-            // Unknown @-prefixed words are event bindings like @onPress, @onChange
-            _ => TokenKind::Ident(kw),
-        };
+        let kind = keywords::at_keyword_to_token(&kw).unwrap_or(TokenKind::Ident(kw));
         self.mk_token(kind, start, self.pos, line, col)
     }
 }
