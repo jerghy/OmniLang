@@ -6,6 +6,7 @@ pub mod module;
 pub mod motion;
 pub mod store;
 pub mod struct_def;
+pub mod timeline;
 
 use crate::error::ParseError;
 use crate::lexer::TokenKind;
