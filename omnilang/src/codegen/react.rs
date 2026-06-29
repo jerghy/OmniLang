@@ -829,10 +829,24 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                 }
             }
 
-            // Signal bindings
+            // Two-way bindings: value={x} onChange={e => setX(e.target.value)}
             for (bind_name, signal_ref) in &el.bindings {
                 let jsx_attr = to_jsx_attr(bind_name);
+                let setter = format!("set{}", capitalize_first(&signal_ref.name));
                 attrs.push(format!("{}={{{}}}", jsx_attr, signal_ref.name));
+                match bind_name.as_str() {
+                    "value" => {
+                        attrs.push(format!(
+                            "onChange={{(e) => {{ {}(e.target.value); }}}}", setter
+                        ));
+                    }
+                    "checked" => {
+                        attrs.push(format!(
+                            "onChange={{(e) => {{ {}(e.target.checked); }}}}", setter
+                        ));
+                    }
+                    _ => {}
+                }
             }
 
             // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
