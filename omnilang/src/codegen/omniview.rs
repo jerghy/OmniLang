@@ -561,7 +561,7 @@ function __omni_bindText(nid) {
                 name
             ));
             self.js.push_str(&format!(
-                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: false }}));\n",
+                "  if (el) el.dispatchEvent(new CustomEvent('{}', {{ detail: args[0], bubbles: true }}));\n",
                 dom_event
             ));
             self.js.push_str("}\n");
@@ -1735,7 +1735,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
         self.js.push_str("            });\n");
         self.js.push_str("          }\n");
         self.js.push_str("        }\n");
-        self.js.push_str("        if (typeof fn === 'function') fn(e.detail);\n");
+        self.js.push_str("        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));\n");
         self.js.push_str("        // Sync global signals back to element-scoped state for @for component instances\n");
         self.js.push_str("        if (_forComp) {\n");
         self.js.push_str("          if (!_forComp.__omniState) _forComp.__omniState = {};\n");
@@ -1930,9 +1930,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                     } else {
                                         let prefixed =
                                             format!("{}_{}", self.current_component, fn_name);
+                                        let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                         self.js.push_str(&format!(
-                                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                                            nid, js_event, pd, prefixed
+                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ e.stopPropagation(); {pd} {prefixed}({event_obj}); }}); }}\n",
+                                            nid = nid, js_event = js_event, pd = pd, prefixed = prefixed, event_obj = event_obj
                                         ));
                                     }
                                 }
@@ -1941,7 +1942,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 if let Some(ref action_path) = handler.r#ref {
                                     let var_name = action_path.replace('.', "_");
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(); }}); }}\n",
+                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ e.stopPropagation(); {} {}(); }}); }}\n",
                                         nid, js_event, pd, var_name
                                     ));
                                 }
@@ -1960,9 +1961,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                     }
                                 }
                                 self.js.push_str("}\n");
+                                let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                                    nid, js_event, pd, wrapper_name
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ e.stopPropagation(); {pd} {wrapper_name}({event_obj}); }}); }}\n",
+                                    nid = nid, js_event = js_event, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                                 ));
                             }
                             _ => {}
@@ -2253,9 +2255,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                                 ));
                             } else {
                                 let prefixed = format!("{}_{}", self.current_component, fn_name);
+                                let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                                 self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                                    nid, js_event, pd, prefixed
+                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{{pd} {prefixed}({event_obj}); }}); }}\n",
+                                    nid = nid, js_event = js_event, pd = pd, prefixed = prefixed, event_obj = event_obj
                                 ));
                             }
                         }
@@ -2280,9 +2283,10 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                             }
                         }
                         self.js.push_str("}\n");
+                        let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "e");
                         self.js.push_str(&format!(
-                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{{} {}(e.detail); }}); }}\n",
-                            nid, js_event, pd, wrapper_name
+                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{{pd} {wrapper_name}({event_obj}); }}); }}\n",
+                            nid = nid, js_event = js_event, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         ));
                     }
                     _ => {}
@@ -4543,9 +4547,192 @@ fn map_event(name: &str) -> String {
         "onScroll" => "scroll".into(),
         "onMouseEnter" => "mouseenter".into(),
         "onMouseLeave" => "mouseleave".into(),
+        "onMouseMove" => "mousemove".into(),
         n if n.starts_with("on") => n[2..].to_lowercase(),
         n => n.to_string(),
     }
+}
+
+/// Emit JS extraction code for a single event data field.
+/// Returns (extraction_expression, fallback_value_literal).
+fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
+    match (kind, field) {
+        // PointerEvent
+        (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
+        (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
+        (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "tiltY") => (format!("{}.tiltY", raw), "0".into()),
+        (EventDataKind::PointerEvent, "pointerType") => (format!("{}.pointerType", raw), "\"\"".into()),
+        (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // TouchEvent
+        (EventDataKind::TouchEvent, "touches") => (
+            format!("__mergeTouches({})", raw),
+            "[]".into()
+        ),
+        (EventDataKind::TouchEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // WheelEvent
+        (EventDataKind::WheelEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::WheelEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaX") => (format!("{}.deltaX", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaY") => (format!("{}.deltaY", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaZ") => (format!("{}.deltaZ", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaMode") => (format!("{}.deltaMode", raw), "0".into()),
+        (EventDataKind::WheelEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // KeyEvent
+        (EventDataKind::KeyEvent, "key") => (format!("{}.key", raw), "\"\"".into()),
+        (EventDataKind::KeyEvent, "code") => (format!("{}.code", raw), "\"\"".into()),
+        (EventDataKind::KeyEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // ScrollEvent
+        (EventDataKind::ScrollEvent, "x") => (format!("{}.target?.scrollLeft", raw), "0".into()),
+        (EventDataKind::ScrollEvent, "y") => (format!("{}.target?.scrollTop", raw), "0".into()),
+
+        // InputEvent
+        (EventDataKind::InputEvent, "value") => (format!("{}.target?.value", raw), "\"\"".into()),
+        (EventDataKind::InputEvent, "checked") => (format!("{}.target?.checked", raw), "false".into()),
+
+        // ToggleEvent
+        (EventDataKind::ToggleEvent, "checked") => (format!("{}.target?.checked", raw), "false".into()),
+
+        // SubmitEvent — Web
+        (EventDataKind::SubmitEvent, "values") => (
+            format!("Object.fromEntries(new FormData({}.target))", raw),
+            "{}".into()
+        ),
+
+        // FocusEvent
+        (EventDataKind::FocusEvent, "value") => (format!("{}.target?.value", raw), "\"\"".into()),
+
+        // ClipboardEvent
+        (EventDataKind::ClipboardEvent, "text") => (
+            format!("(function(){{try{{return {}.clipboardData?.getData('text')||''}}catch(_){{return''}}}})()", raw),
+            "\"\"".into()
+        ),
+
+        // DragEvent
+        (EventDataKind::DragEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::DragEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::DragEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // DropEvent
+        (EventDataKind::DropEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::DropEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::DropEvent, "files") => (
+            format!("[...({}.dataTransfer?.files ?? [])].map(f => f.name)", raw),
+            "[]".into()
+        ),
+        (EventDataKind::DropEvent, "text") => (
+            format!("(function(){{try{{return {}.dataTransfer?.getData('text')||''}}catch(_){{return''}}}})()", raw),
+            "\"\"".into()
+        ),
+        (EventDataKind::DropEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // ContextMenuEvent
+        (EventDataKind::ContextMenuEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::ContextMenuEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::ContextMenuEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // SelectEvent
+        (EventDataKind::SelectEvent, "start") => (format!("{}.target?.selectionStart", raw), "0".into()),
+        (EventDataKind::SelectEvent, "end") => (format!("{}.target?.selectionEnd", raw), "0".into()),
+        (EventDataKind::SelectEvent, "text") => (
+            format!("({}.target?.value ?? '').substring({}.target?.selectionStart ?? 0, {}.target?.selectionEnd ?? 0)", raw, raw, raw),
+            "\"\"".into()
+        ),
+
+        // ResizeEvent
+        (EventDataKind::ResizeEvent, "width") => ("window.innerWidth".into(), "0".into()),
+        (EventDataKind::ResizeEvent, "height") => ("window.innerHeight".into(), "0".into()),
+
+        // MediaEvent
+        (EventDataKind::MediaEvent, "currentTime") => (format!("{}.target?.currentTime", raw), "0".into()),
+        (EventDataKind::MediaEvent, "duration") => (format!("{}.target?.duration", raw), "0".into()),
+
+        // MediaLoadEvent
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => (format!("{}.target?.naturalWidth", raw), "0".into()),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => (format!("{}.target?.naturalHeight", raw), "0".into()),
+
+        // MediaErrorEvent
+        (EventDataKind::MediaErrorEvent, "message") => (format!("{}.target?.error?.message", raw), "\"unknown\"".into()),
+
+        // AnimationEvent
+        (EventDataKind::AnimationEvent, "animationName") => (format!("{}.animationName", raw), "\"\"".into()),
+        (EventDataKind::AnimationEvent, "elapsedTime") => (format!("{}.elapsedTime", raw), "0".into()),
+
+        // TransitionEvent
+        (EventDataKind::TransitionEvent, "propertyName") => (format!("{}.propertyName", raw), "\"\"".into()),
+        (EventDataKind::TransitionEvent, "elapsedTime") => (format!("{}.elapsedTime", raw), "0".into()),
+
+        _ => (format!("undefined /* unknown field {} for {:?} */", field, kind), "undefined".into()),
+    }
+}
+
+/// Emit a JS object literal for event data extraction from a raw event variable.
+/// Only emits fields in `used_fields` (or all fields from schema if None).
+fn emit_event_object(
+    event_data: &Option<EventDataKind>,
+    used_fields: &Option<Vec<String>>,
+    raw_var: &str,
+) -> String {
+    let kind = match event_data {
+        Some(k) => k,
+        None => return "{}".to_string(),
+    };
+
+    let schema = event_data_schema(kind);
+    let fields: Vec<String> = match used_fields {
+        Some(fields) if !fields.is_empty() => {
+            // Only emit used fields, in schema order
+            schema.iter()
+                .filter(|f| fields.contains(&f.name))
+                .map(|f| {
+                    let (extract, fallback) = field_extract_js(kind, &f.name, raw_var);
+                    format!("{}: {} ?? {}", f.name, extract, fallback)
+                })
+                .collect()
+        }
+        Some(_) => {
+            // Empty vec — no fields used
+            return "{}".to_string();
+        }
+        None => {
+            // Conservative — emit all fields
+            schema.iter()
+                .map(|f| {
+                    let (extract, fallback) = field_extract_js(kind, &f.name, raw_var);
+                    format!("{}: {} ?? {}", f.name, extract, fallback)
+                })
+                .collect()
+        }
+    };
+
+    format!("{{ {} }}", fields.join(", "))
 }
 
 /// Map omni binary operators to JS operators.
@@ -4675,6 +4862,10 @@ pub fn compile_files(
         CompiledFile {
             path: "index.html".into(),
             content: html,
+        },
+        CompiledFile {
+            path: "body.html".into(),
+            content: output.html,
         },
         CompiledFile {
             path: "index.css".into(),
