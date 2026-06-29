@@ -936,9 +936,10 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree) {
                     }
                     "store_action" => {
                         if let Some(ref action) = handler.r#ref {
+                            let action_fn = action.split('.').last().unwrap_or(action);
                             attrs.push(format!(
-                                "{}={{() => {{ /* TODO: action {} */ }}}}",
-                                react_event, action
+                                "{react_event}={{() => {{ {action_fn}(); }}}}",
+                                react_event = react_event, action_fn = action_fn
                             ));
                         }
                     }
