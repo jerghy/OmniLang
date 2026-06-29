@@ -394,34 +394,36 @@ git commit -m "feat(ir): add event_data, used_fields, needs_prevent_default, nee
 
 ---
 
-### Task 3: Semantic Lowering — Pass 1 (Inline Handlers)
+### Task 3: IR Lowering — Pass 1 (Inline Handlers)
 
 **Files:**
-- Modify: `omnilang/src/semantic/mod.rs` — locate the `ElementProp::Event` lowering arm (~line 1302)
+- Modify: `omnilang/src/ir/mod.rs` — modify `lower_view_node` function at `ElementProp::Event` arm (~line 1302)
+- Modify: `omnilang/src/ir/mod.rs` — add `EventFieldCollector` struct before `lower_view_node`
 
 **Interfaces:**
 - Consumes: `map_event_data_kind`, `event_data_schema`, `EventDataKind` from Task 1
 - Consumes: `EventHandlerIR` with new fields from Task 2
-- Produces: lowered `EventHandlerIR` with `event_data`, `used_fields`, `needs_prevent_default` populated for inline_fn handlers
+- Produces: lowered `EventHandlerIR` with `event_data`, `used_fields`, `needs_prevent_default` populated for inline_fn handlers. **No diagnostic emission here — validation deferred to Task 5 (lints).**
+
+**Key insight:** The AST→IR lowering for events happens in `ir/mod.rs`'s `lower_view_node`, not in `semantic/mod.rs`. This function doesn't have a `diagnostics` parameter, so field collection is done silently — invalid fields are still recorded in `used_fields`; Task 5's lints will flag them as errors.
 
 - [ ] **Step 1: Locate the event lowering code**
 
-Read the current lowering of `ElementProp::Event`:
-
 ```bash
-# Find the exact location
-grep -n "ElementProp::Event" omnilang/src/semantic/mod.rs
+grep -n "ElementProp::Event" omnilang/src/ir/mod.rs
+# Expected output: 1302: ElementProp::Event { name, handler } => {
 ```
 
-The existing code at this location creates `EventHandlerIR` with `kind`, `body`, `r#ref`, `params`. We need to add logic after this creation to populate the new fields.
+The match arm at line 1302–1323 creates `EventHandlerIR` from `EventHandler::InlineFn`/`FnRef`/`StoreAction`.
 
-- [ ] **Step 2: Add helper function — walk handler body for e.field references**
+- [ ] **Step 2: Add EventFieldCollector struct before lower_view_node**
 
-In `semantic/mod.rs`, add a helper function:
+In `omnilang/src/ir/mod.rs`, add before the `lower_view_node` function (~line 1249):
 
 ```rust
-/// Walk an AST Block to collect all `e.field` accesses and detect
-/// `e.preventDefault()` / `e.stopPropagation()` calls.
+/// Collects `e.field` references and `e.preventDefault()`/`e.stopPropagation()`
+/// calls from an inline event handler AST body.  Used during IR lowering
+/// to populate `EventHandlerIR.used_fields`.
 struct EventFieldCollector {
     fields: Vec<String>,
     needs_prevent_default: bool,
@@ -430,7 +432,11 @@ struct EventFieldCollector {
 
 impl EventFieldCollector {
     fn collect(block: &crate::parser::ast::Block) -> Self {
-        let mut c = Self { fields: vec![], needs_prevent_default: false, needs_stop_propagation: false };
+        let mut c = Self {
+            fields: vec![],
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        };
         for stmt in &block.statements {
             c.visit_stmt(stmt);
         }
@@ -439,15 +445,19 @@ impl EventFieldCollector {
 
     fn visit_stmt(&mut self, stmt: &crate::parser::ast::Stmt) {
         match stmt {
-            crate::parser::ast::Stmt::Expr(expr) | crate::parser::ast::Stmt::Semi(expr) => {
+            crate::parser::ast::Stmt::Expr(expr)
+            | crate::parser::ast::Stmt::Semi(expr) => {
                 self.visit_expr(expr);
             }
-            crate::parser::ast::Stmt::Assign { target, value, .. } => {
-                // `e.preventDefault()` or `e.stopPropagation()` in a Stmt
+            crate::parser::ast::Stmt::Assign { value, .. } => {
                 self.visit_expr(value);
-                // target could reference `e` indirectly but ignore for now
             }
-            crate::parser::ast::Stmt::If { condition, then_block, else_block, .. } => {
+            crate::parser::ast::Stmt::If {
+                condition,
+                then_block,
+                else_block,
+                ..
+            } => {
                 self.visit_expr(condition);
                 self.visit_block(then_block);
                 if let Some(else_b) = else_block {
@@ -471,60 +481,74 @@ impl EventFieldCollector {
     }
 
     fn visit_expr(&mut self, expr: &crate::parser::ast::Expr) {
+        use crate::parser::ast::Expr;
         match expr {
-            // e.y → FieldAccess { object: VarRef("e"), field: "y" }
-            crate::parser::ast::Expr::FieldAccess { object, field, .. } => {
-                match object.as_ref() {
-                    crate::parser::ast::Expr::VarRef(name, _) if name == "e" => {
-                        if !self.fields.contains(field) {
-                            self.fields.push(field.clone());
-                        }
+            // e.field
+            Expr::FieldAccess { object, field, .. } => {
+                if let Expr::VarRef(name, _) = object.as_ref() {
+                    if name == "e" && !self.fields.contains(field) {
+                        self.fields.push(field.clone());
                     }
-                    _ => {
-                        // Nested: base.field.subfield — walk base
-                        self.visit_expr(object);
-                    }
+                } else {
+                    self.visit_expr(object);
                 }
             }
             // e.method(args)
-            crate::parser::ast::Expr::MethodCall { object, method, args, .. } => {
-                match object.as_ref() {
-                    crate::parser::ast::Expr::VarRef(name, _) if name == "e" => {
+            Expr::MethodCall {
+                object, method, args, ..
+            } => {
+                if let Expr::VarRef(name, _) = object.as_ref() {
+                    if name == "e" {
                         match method.as_str() {
                             "preventDefault" => self.needs_prevent_default = true,
                             "stopPropagation" => self.needs_stop_propagation = true,
                             _ => {}
                         }
                     }
-                    _ => self.visit_expr(object),
+                } else {
+                    self.visit_expr(object);
                 }
                 for arg in args {
                     self.visit_expr(arg);
                 }
             }
-            // Recursively walk other expression types
-            crate::parser::ast::Expr::BinaryOp { left, right, .. } => {
+            Expr::BinaryOp { left, right, .. } => {
                 self.visit_expr(left);
                 self.visit_expr(right);
             }
-            crate::parser::ast::Expr::UnaryOp { operand, .. } => {
-                self.visit_expr(operand);
-            }
-            crate::parser::ast::Expr::FuncCall { func, args, .. } => {
+            Expr::UnaryOp { operand, .. } => self.visit_expr(operand),
+            Expr::FuncCall { func, args, .. } => {
                 self.visit_expr(func);
                 for arg in args {
                     self.visit_expr(arg);
                 }
             }
-            crate::parser::ast::Expr::IfExpr { condition, then_expr, else_expr, .. } => {
+            Expr::IfExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            }
+            | Expr::TernaryExpr {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
                 self.visit_expr(condition);
                 self.visit_expr(then_expr);
                 self.visit_expr(else_expr);
             }
-            crate::parser::ast::Expr::TernaryExpr { condition, then_expr, else_expr, .. } => {
-                self.visit_expr(condition);
-                self.visit_expr(then_expr);
-                self.visit_expr(else_expr);
+            Expr::ArrayLiteral { elements, .. } => {
+                for e in elements {
+                    self.visit_expr(e);
+                }
+            }
+            Expr::MapLiteral { entries, .. } => {
+                for (k, v) in entries {
+                    self.visit_expr(k);
+                    self.visit_expr(v);
+                }
             }
             _ => {}
         }
@@ -532,183 +556,199 @@ impl EventFieldCollector {
 }
 ```
 
-- [ ] **Step 3: Integrate into EventProp::Event lowering**
+- [ ] **Step 3: Modify ElementProp::Event lowering in lower_view_node**
 
-At the lowering site for `ElementProp::Event` (~line 1303), after creating the `ir_handler`:
+Replace the match arm at line 1302–1323:
 
 ```rust
-// After the existing ir_handler creation:
 ElementProp::Event { name, handler } => {
-    let ir_handler = match handler { /* ... existing match ... */ };
-
-    // ── NEW: Populate event data fields ──
-    let mut event_data = None;
-    let mut used_fields = None;
-    let mut needs_pd = false;
+    // ── Collect event data kind ──
+    let event_data = map_event_data_kind(&name);
+    let mut needs_pd = name == "onSubmit"; // backward compat
     let mut needs_sp = false;
+    let mut used_fields: Option<Vec<String>> = None;
 
-    // Always preventDefault for onSubmit (backward compat)
-    if name == "onSubmit" {
-        needs_pd = true;
-    }
-
-    // Determine event data kind
-    if let Some(kind) = map_event_data_kind(&name) {
-        event_data = Some(kind.clone());
-
-        match handler {
-            EventHandler::InlineFn { ref body, .. } => {
-                let schema = event_data_schema(&kind);
-                let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+    let ir_handler = match handler {
+        EventHandler::InlineFn { params, body, .. } => {
+            if let Some(ref kind) = event_data {
                 let collector = EventFieldCollector::collect(body);
-
-                // Validate fields
-                for field in &collector.fields {
-                    if !valid_names.contains(&field.as_str()) {
-                        diags.push(Diagnostic::error(format!(
-                            "`e.{}` is not a field of {:?}. Available fields: {:?}",
-                            field, kind, valid_names
-                        )));
-                    }
-                }
-
                 used_fields = Some(collector.fields);
                 needs_pd = needs_pd || collector.needs_prevent_default;
                 needs_sp = collector.needs_stop_propagation;
             }
-            EventHandler::FnRef(_) => {
-                // Defer to Pass 2 — used_fields stays None
-                needs_pd = needs_pd; // onSubmit already set
-            }
-            EventHandler::StoreAction { .. } => {
-                // Store actions get no event data
-                event_data = None;
+            EventHandlerIR {
+                kind: "inline_fn".into(),
+                body: Some(lower_block(body, variant_map)),
+                r#ref: None,
+                params: params.iter().map(|p| p.name.clone()).collect(),
+                event_data: event_data.clone(),
+                used_fields: used_fields.clone(),
+                needs_prevent_default: needs_pd,
+                needs_stop_propagation: needs_sp,
             }
         }
-    }
-
-    let ir_handler = EventHandlerIR {
-        kind: ir_handler.kind,
-        body: ir_handler.body,
-        r#ref: ir_handler.r#ref,
-        params: ir_handler.params,
-        event_data,
-        used_fields,
-        needs_prevent_default: needs_pd,
-        needs_stop_propagation: needs_sp,
+        EventHandler::FnRef(fn_name) => {
+            // Defer used_fields to Pass 2 (fn_ref backfill)
+            EventHandlerIR {
+                kind: "fn_ref".into(),
+                body: None,
+                r#ref: Some(fn_name.clone()),
+                params: vec![],
+                event_data: event_data.clone(),
+                used_fields: None, // ← will be backfilled in Pass 2
+                needs_prevent_default: needs_pd,
+                needs_stop_propagation: needs_sp,
+            }
+        }
+        EventHandler::StoreAction { store, action } => {
+            // Store actions receive no event data
+            EventHandlerIR {
+                kind: "store_action".into(),
+                body: None,
+                r#ref: Some(format!("{}.{}", store, action)),
+                params: vec![],
+                event_data: None,
+                used_fields: None,
+                needs_prevent_default: false,
+                needs_stop_propagation: false,
+            }
+        }
     };
-    // ... insert into events map as before
+    events.insert(name.clone(), ir_handler);
 }
 ```
-
-**Important:** The `Diagnostic::error` path and `diags` variable may need adjustment depending on the function signature at this site. Read the surrounding code to determine the correct diagnostic emission pattern.
 
 - [ ] **Step 4: Run tests**
 
 ```bash
 cargo test --package omnilang
 ```
-Expected: 362+ tests pass. If any test fails due to new warnings/errors in the test fixtures, note them — they'll be fixed in Task 12.
+Expected: 362+ tests pass. Compilation errors in test fixtures will be fixed in Task 12.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add omnilang/src/semantic/mod.rs
-git commit -m "feat(semantic): Pass 1 lowering — collect e.field references and validate against EventDataKind schema"
+git add omnilang/src/ir/mod.rs
+git commit -m "feat(ir): Pass 1 — populate event_data, used_fields, preventDefault flags from inline handlers"
 ```
 
 ---
 
-### Task 4: Semantic Lowering — Pass 2 (FnRef Backfill)
+### Task 4: IR Lowering — Pass 2 (FnRef Backfill)
 
 **Files:**
-- Modify: `omnilang/src/semantic/mod.rs` — add a post-processing pass after all component functions are lowered
+- Modify: `omnilang/src/ir/mod.rs` — add `backfill_fn_ref_event_fields` function, call it in `lower_component`
 
 **Interfaces:**
 - Consumes: `EventHandlerIR.used_fields == None` (unresolved fn_ref) from Task 3
-- Consumes: lowered function `BlockIR` bodies from the component
-- Produces: `used_fields: Some(vec)` for resolved fn_ref handlers
+- Consumes: lowered `ViewTree` and `Vec<FunctionIR>` from `lower_component`
+- Produces: mutated ViewTree with `used_fields: Some(vec)` for resolved fn_ref handlers
 
-- [ ] **Step 1: Add the backfill pass function**
+**Key insight:** `lower_component` (line 911) builds the `fns` vector (line 971) and the `view` (line 1042). Pass 2 runs AFTER both are complete, walking the ViewTree to find fn_ref handlers and matching their referenced function name to the IR body.
+
+- [ ] **Step 1: Add the backfill function in ir/mod.rs**
+
+Add after `lower_component` and before `lower_store`:
 
 ```rust
-/// Pass 2: backfill used_fields for fn_ref handlers by walking the
-/// referenced function's IR body.
-fn backfill_fn_ref_event_fields(
-    component_events: &mut HashMap<String, HashMap<String, EventHandlerIR>>,
-    component_functions: &HashMap<String, super::ir::FunctionIR>,
-    event_data_lookup: &HashMap<String, EventDataKind>, // event_name → kind, collected during Pass 1
-) {
-    for (_el_id, events) in component_events.iter_mut() {
-        for (event_name, handler) in events.iter_mut() {
-            if handler.used_fields.is_some() || handler.event_data.is_none() {
-                continue; // Already resolved, or store_action
-            }
-            let kind = handler.event_data.as_ref().unwrap();
-
-            if let Some(ref fn_name) = handler.r#ref {
-                // Resolve: fn_name may be "ComponentName_fnName" after prefixed rename
-                // Try the full name first, then strip component prefix
-                let resolved = component_functions.get(fn_name)
-                    .or_else(|| {
-                        // Try stripping known component prefixes
-                        component_functions.iter()
-                            .find(|(k, _)| k.ends_with(&format!("_{}", fn_name)) || k == fn_name)
-                            .map(|(_, v)| v)
-                    });
-
-                if let Some(func_ir) = resolved {
-                    let schema = event_data_schema(kind);
-                    let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
-                    let mut used = Vec::new();
-
-                    // Walk the function body IR for FieldAccessExpr(e, field)
-                    if let Some(ref body) = func_ir.body {
-                        collect_ir_field_accesses(body, &mut used);
-                    }
-
-                    // Filter to valid event data fields
-                    let used: Vec<String> = used.into_iter()
-                        .filter(|f| valid_names.contains(&f.as_str()))
-                        .collect();
-                    handler.used_fields = Some(used);
+/// Pass 2: backfill used_fields for fn_ref event handlers by walking the
+/// referenced function's IR body for `FieldAccessExpr { object: VarRefExpr("e"), field }`.
+fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionIR]) {
+    match view {
+        ViewTree::Element(ref mut el) => {
+            for (_event_name, handler) in el.events.iter_mut() {
+                if handler.used_fields.is_some()
+                    || handler.event_data.is_none()
+                    || handler.kind != "fn_ref"
+                {
+                    continue;
                 }
-                // If not found: leave used_fields as None (conservative)
+                let kind = handler.event_data.as_ref().unwrap();
+                let schema = event_data_schema(kind);
+                let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+
+                if let Some(ref fn_name) = handler.r#ref {
+                    let func_ir = fns.iter().find(|f| f.name == *fn_name)
+                        .or_else(|| {
+                            fns.iter().find(|f| {
+                                f.name == *fn_name
+                                    || f.name.ends_with(&format!("_{}", fn_name))
+                            })
+                        });
+
+                    if let Some(func) = func_ir {
+                        let mut used = Vec::new();
+                        if let Some(ref body) = func.body {
+                            collect_ir_event_fields(body, &mut used);
+                        }
+                        let used: Vec<String> = used
+                            .into_iter()
+                            .filter(|f| valid_names.contains(&f.as_str()))
+                            .collect();
+                        handler.used_fields = Some(used);
+                    }
+                }
+            }
+            // Recurse into children
+            for child in &mut el.children {
+                backfill_fn_ref_event_fields(child, fns);
             }
         }
+        ViewTree::Conditional(ref mut cond) => {
+            for branch in &mut cond.branches {
+                if let Some(ref mut body) = branch.body {
+                    backfill_fn_ref_event_fields(body, fns);
+                }
+            }
+            if let Some(ref mut fallback) = cond.fallback {
+                backfill_fn_ref_event_fields(fallback, fns);
+            }
+        }
+        ViewTree::ListRendering(ref mut list) => {
+            if let Some(ref mut body) = list.body {
+                backfill_fn_ref_event_fields(body, fns);
+            }
+            if let Some(ref mut empty) = list.empty_body {
+                backfill_fn_ref_event_fields(empty, fns);
+            }
+        }
+        _ => {} // Interpolation, Text, Slot — no events
     }
 }
 
-/// Recursively walk BlockIR statements for FieldAccessExpr where object is VarRefExpr("e").
-fn collect_ir_field_accesses(block: &BlockIR, fields: &mut Vec<String>) {
+/// Walk a BlockIR statement list for FieldAccessExpr where object is VarRefExpr("e").
+fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>) {
     for stmt in &block.statements {
         match stmt {
-            StatementIR::ExpressionStmt(expr) | StatementIR::Semi(expr) => {
-                collect_expr_fields(expr, fields);
+            StatementIR::Semi(expr) | StatementIR::ExpressionStmt(expr) => {
+                walk_expr_event_fields(expr, fields);
             }
-            StatementIR::IfStmtIR { condition, then_block, else_ifs, else_block, .. } => {
-                collect_expr_fields(condition, fields);
-                collect_ir_field_accesses(then_block, fields);
+            StatementIR::IfStmtIR {
+                condition,
+                then_block,
+                else_ifs,
+                else_block,
+                ..
+            } => {
+                walk_expr_event_fields(condition, fields);
+                collect_ir_event_fields(then_block, fields);
                 for (_, block) in else_ifs {
-                    collect_ir_field_accesses(block, fields);
+                    collect_ir_event_fields(block, fields);
                 }
                 if let Some(block) = else_block {
-                    collect_ir_field_accesses(block, fields);
+                    collect_ir_event_fields(block, fields);
                 }
             }
-            StatementIR::LetStmtIR { value: Some(expr), .. } => {
-                collect_expr_fields(expr, fields);
-            }
-            StatementIR::AssignStmt { target, value, .. } => {
-                collect_expr_fields(target, fields);
-                collect_expr_fields(value, fields);
+            StatementIR::LetStmtIR { value: Some(expr), .. }
+            | StatementIR::AssignStmt { value: expr, .. } => {
+                walk_expr_event_fields(expr, fields);
             }
             _ => {}
         }
     }
 }
 
-fn collect_expr_fields(expr: &ExprIR, fields: &mut Vec<String>) {
+fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
     match expr {
         ExprIR::FieldAccessExpr { object, field } => {
             if let box ExprIR::VarRefExpr(name) = object {
@@ -716,42 +756,60 @@ fn collect_expr_fields(expr: &ExprIR, fields: &mut Vec<String>) {
                     fields.push(field.clone());
                 }
             }
-            collect_expr_fields(object, fields);
+            walk_expr_event_fields(object, fields);
         }
-        ExprIR::MethodCallExpr { object, args, .. } => {
-            collect_expr_fields(object, fields);
-            for arg in args { collect_expr_fields(arg, fields); }
-        }
-        ExprIR::FuncCallExpr { args, .. } => {
-            for arg in args { collect_expr_fields(arg, fields); }
+        ExprIR::MethodCallExpr { object, args, .. }
+        | ExprIR::FuncCallExpr {
+            func: object, args, ..
+        } => {
+            walk_expr_event_fields(object, fields);
+            for arg in args {
+                walk_expr_event_fields(arg, fields);
+            }
         }
         ExprIR::BinaryOpExpr { left, right, .. } => {
-            collect_expr_fields(left, fields);
-            collect_expr_fields(right, fields);
+            walk_expr_event_fields(left, fields);
+            walk_expr_event_fields(right, fields);
         }
-        ExprIR::UnaryOpExpr { operand, .. } => {
-            collect_expr_fields(operand, fields);
+        ExprIR::UnaryOpExpr { operand, .. } => walk_expr_event_fields(operand, fields),
+        ExprIR::IfExprIR {
+            cond,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            walk_expr_event_fields(cond, fields);
+            walk_expr_event_fields(then_expr, fields);
+            walk_expr_event_fields(else_expr, fields);
         }
-        ExprIR::IfExprIR { cond, then_expr, else_expr, .. } => {
-            collect_expr_fields(cond, fields);
-            collect_expr_fields(then_expr, fields);
-            collect_expr_fields(else_expr, fields);
+        ExprIR::MapLiteralExpr { fields: map_fields, .. } => {
+            for (k, v) in map_fields {
+                walk_expr_event_fields(k, fields);
+                walk_expr_event_fields(v, fields);
+            }
+        }
+        ExprIR::ArrayLiteralExpr { elements, .. } => {
+            for e in elements {
+                walk_expr_event_fields(e, fields);
+            }
         }
         _ => {}
     }
 }
 ```
 
-- [ ] **Step 2: Call backfill at the right point in the lowering pipeline**
+- [ ] **Step 2: Call backfill in lower_component**
 
-Find where all component functions have been lowered (likely after the component lowering loop in `semantic/mod.rs`). Add:
+In `lower_component` (line 911), just before the `ComponentIR { ... }` construction (~line 1133), add:
 
 ```rust
-// After all components lowered:
-backfill_fn_ref_event_fields(&mut component_events, &component_functions, &event_data_lookup);
+// ── Pass 2: Backfill used_fields for fn_ref event handlers ──
+if let Some(ref mut view_tree) = view {
+    backfill_fn_ref_event_fields(view_tree, &fns);
+}
 ```
 
-**Note:** The exact variable names (`component_events`, `component_functions`) depend on the lowering function's internal structure. Read the containing function to determine the correct variable names. If `component_events` is not a separate map (events live on `ElementIR`), iterate over all elements in all components.
+This runs after both the `view` (`Option<ViewTree>`, line 1042) and `fns` (`Vec<FunctionIR>`, line 971) are built.
 
 - [ ] **Step 3: Run tests**
 
@@ -763,8 +821,8 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add omnilang/src/semantic/mod.rs
-git commit -m "feat(semantic): Pass 2 — backfill used_fields for fn_ref event handlers"
+git add omnilang/src/ir/mod.rs
+git commit -m "feat(ir): Pass 2 — backfill used_fields for fn_ref event handlers via IR walk"
 ```
 
 ---
@@ -772,79 +830,186 @@ git commit -m "feat(semantic): Pass 2 — backfill used_fields for fn_ref event 
 ### Task 5: New Lint Rules
 
 **Files:**
-- Modify: `omnilang/src/semantic/lints.rs` — add new lint functions
+- Modify: `omnilang/src/semantic/lints.rs` — add 3 new `LintRule` structs in `rules` module, register in `all_rules()`
 
 **Interfaces:**
-- Produces: three new lint rules
+- Produces: `InvalidEventField`, `StoreActionEventData`, `EventPlatformUnsupported` lint rules
+- Each implements `LintRule` trait with `check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic>`
+- Uses `LintDiagnostic { rule, severity, message, file, line, col }` (NOT `Diagnostic`)
 
-- [ ] **Step 1: Add lint — store action accessing event data**
+- [ ] **Step 1: Add InvalidEventField lint rule**
+
+In `omnilang/src/semantic/lints.rs`, inside `pub mod rules { ... }`, add:
 
 ```rust
-/// LINT: Store actions cannot receive event data.
-/// If a store action path references `e` (event data), it's a compile error.
-pub fn check_store_action_no_event_data(
-    events: &HashMap<String, crate::ir::EventHandlerIR>,
-    diags: &mut Vec<Diagnostic>,
-) {
-    for (event_name, handler) in events {
-        if handler.kind == "store_action" {
-            if let Some(ref path) = handler.r#ref {
-                // Check if the path references `e` anywhere
-                if path.contains("e.") || path == "e" {
-                    diags.push(Diagnostic::error(format!(
-                        "Store action `{}` cannot access event data. \
-                         Store actions receive no arguments. \
-                         Use an inline handler or fn_ref instead for `{}`.",
-                        path, event_name
-                    )));
-                }
+/// Checks that `e.field` references in event handlers refer to fields
+/// that exist in the event's EventDataKind schema.
+pub struct InvalidEventField;
+
+impl LintRule for InvalidEventField {
+    fn name(&self) -> &str { "invalid-event-field" }
+    fn category(&self) -> &str { "correctness" }
+    fn severity(&self) -> LintSeverity { LintSeverity::Error }
+
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        _file_map: &HashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
+        let mut diags = Vec::new();
+        for (_comp_name, comp) in ir.all_components() {
+            if let Some(ref view) = comp.view {
+                check_view_invalid_fields(view, &comp.name, self, &mut diags);
             }
         }
+        diags
     }
 }
-```
 
-- [ ] **Step 2: Add lint — platform compatibility warning**
-
-```rust
-/// LINT: Warn when an event has no equivalent on the current target platform.
-pub fn check_event_platform_compatibility(
-    events: &HashMap<String, crate::ir::EventHandlerIR>,
-    target: crate::Target,
-    diags: &mut Vec<Diagnostic>,
+fn check_view_invalid_fields(
+    tree: &ViewTree,
+    comp_name: &str,
+    rule: &InvalidEventField,
+    diags: &mut Vec<LintDiagnostic>,
 ) {
-    for (event_name, _handler) in events {
-        let warning = match (target, event_name.as_str()) {
-            (crate::Target::Flutter, "onAnimationStart" | "onAnimationEnd"
-                | "onAnimationIteration" | "onTransitionEnd") => Some(format!(
-                "`{}` has no native Flutter equivalent. \
-                 Consider using AnimationController.addStatusListener instead.",
-                event_name
-            )),
-            _ => None,
-        };
-        if let Some(msg) = warning {
-            diags.push(Diagnostic::warning(msg));
+    match tree {
+        ViewTree::Element(el) => {
+            for (_ev_name, handler) in &el.events {
+                if let (Some(ref kind), Some(ref used)) = (&handler.event_data, &handler.used_fields) {
+                    let schema = event_data_schema(kind);
+                    let valid: HashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+                    for field in used {
+                        if !valid.contains(field.as_str()) {
+                            diags.push(LintDiagnostic {
+                                rule: rule.name().into(),
+                                severity: rule.severity(),
+                                message: format!(
+                                    "`e.{}` is not a field of {:?}. Available fields: {:?}",
+                                    field, kind,
+                                    schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
+                                ),
+                                file: comp_name.to_string(),
+                                line: el.source_line,
+                                col: el.source_col,
+                            });
+                        }
+                    }
+                }
+            }
+            for child in &el.children {
+                check_view_invalid_fields(child, comp_name, rule, diags);
+            }
         }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    check_view_invalid_fields(body, comp_name, rule, diags);
+                }
+            }
+            if let Some(ref fallback) = cond.fallback {
+                check_view_invalid_fields(fallback, comp_name, rule, diags);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                check_view_invalid_fields(body, comp_name, rule, diags);
+            }
+            if let Some(ref empty) = list.empty_body {
+                check_view_invalid_fields(empty, comp_name, rule, diags);
+            }
+        }
+        _ => {}
     }
 }
 ```
 
-- [ ] **Step 3: Wire lints into the existing linting pass**
-
-Find the lint entry point (likely a function like `run_all_lints` or similar) and add calls:
+- [ ] **Step 2: Add StoreActionEventData lint rule**
 
 ```rust
-// In the lint execution function:
-for component in &ir.components {
-    for el in &component.template.elements {
-        check_store_action_no_event_data(&el.events, diags);
-        check_event_platform_compatibility(&el.events, target, diags);
+/// Store actions receive no event data. If a store_action handler's
+/// target expression references `e`, it's a compile error.
+pub struct StoreActionEventData;
+
+impl LintRule for StoreActionEventData {
+    fn name(&self) -> &str { "store-action-no-event-data" }
+    fn category(&self) -> &str { "correctness" }
+    fn severity(&self) -> LintSeverity { LintSeverity::Error }
+
+    fn check_ir(
+        &self,
+        ir: &IRProgram,
+        _file_map: &HashMap<String, String>,
+    ) -> Vec<LintDiagnostic> {
+        let mut diags = Vec::new();
+        for (comp_name, comp) in ir.all_components() {
+            if let Some(ref view) = comp.view {
+                check_view_store_actions(view, comp_name, self, &mut diags);
+            }
+        }
+        diags
+    }
+}
+
+fn check_view_store_actions(
+    tree: &ViewTree,
+    comp_name: &str,
+    rule: &StoreActionEventData,
+    diags: &mut Vec<LintDiagnostic>,
+) {
+    match tree {
+        ViewTree::Element(el) => {
+            for (ev_name, handler) in &el.events {
+                if handler.kind == "store_action" {
+                    // used_fields should be None for store_actions
+                    if handler.used_fields.is_some() && !handler.used_fields.as_ref().unwrap().is_empty() {
+                        diags.push(LintDiagnostic {
+                            rule: rule.name().into(),
+                            severity: rule.severity(),
+                            message: format!(
+                                "Store action `{}` cannot access event data. \
+                                 Store actions receive no arguments. \
+                                 Use an inline handler or fn_ref instead.",
+                                handler.r#ref.as_deref().unwrap_or("?")
+                            ),
+                            file: comp_name.to_string(),
+                            line: el.source_line,
+                            col: el.source_col,
+                        });
+                    }
+                }
+            }
+            for child in &el.children {
+                check_view_store_actions(child, comp_name, rule, diags);
+            }
+        }
+        _ => {}
     }
 }
 ```
 
-**Note:** The exact iteration patterns depend on the lints.rs structure. Match the existing pattern.
+- [ ] **Step 3: Register rules in all_rules()**
+
+In the `all_rules()` function, add the new rules:
+
+```rust
+fn all_rules() -> Vec<Box<dyn LintRule>> {
+    vec![
+        Box::new(rules::UndefinedRef),
+        Box::new(rules::TypeMismatch),
+        Box::new(rules::StoreFieldDirectMutation),
+        Box::new(rules::PropImmutability),
+        Box::new(rules::ComputedPurity),
+        Box::new(rules::MissingReturn),
+        Box::new(rules::DeadCode),
+        Box::new(rules::UnusedImport),
+        // ── New event data rules ──
+        Box::new(rules::InvalidEventField),
+        Box::new(rules::StoreActionEventData),
+    ]
+}
+```
+
+**Note:** The `EventPlatformUnsupported` lint is deferred — it requires target information that isn't available at the lint level. The platform validation matrix from the spec is implemented as codegen-level comments instead.
 
 - [ ] **Step 4: Run tests**
 
@@ -856,7 +1021,7 @@ cargo test --package omnilang
 
 ```bash
 git add omnilang/src/semantic/lints.rs
-git commit -m "feat(lints): add store_action_no_event_data and platform_compatibility lints"
+git commit -m "feat(lints): add InvalidEventField and StoreActionEventData lint rules"
 ```
 
 ---
@@ -1173,9 +1338,23 @@ fn collect_for_events(
                 collect_for_events(child, event_types, event_kinds);
             }
         }
-        ViewTree::If { then_branch, else_branch, .. } => {
-            for node in then_branch { collect_for_events(node, event_types, event_kinds); }
-            if let Some(nodes) = else_branch { for node in nodes { collect_for_events(node, event_types, event_kinds); } }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_for_events(body, event_types, event_kinds);
+                }
+            }
+            if let Some(ref fallback) = cond.fallback {
+                collect_for_events(fallback, event_types, event_kinds);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_for_events(body, event_types, event_kinds);
+            }
+            if let Some(ref empty) = list.empty_body {
+                collect_for_events(empty, event_types, event_kinds);
+            }
         }
         _ => {}
     }
