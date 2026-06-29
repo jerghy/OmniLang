@@ -279,7 +279,11 @@ impl FlutterCodegen {
         w.indent();
 
         if let Some(view) = &comp.view {
-            let tree_expr = format_view_tree(view, &comp.motions);
+            let component_map: HashMap<String, ComponentIR> = ir.all_components()
+                .into_iter()
+                .map(|(n, c)| (n.to_string(), c.clone()))
+                .collect();
+            let tree_expr = format_view_tree(view, &comp.motions, &component_map);
             w.emit(&format!("return {};", tree_expr));
         } else {
             // Default widget tree
@@ -442,9 +446,9 @@ impl FlutterCodegen {
 // ═══════════════════════════════════════════════════════════════
 
 /// Render a ViewTree as a single-line Flutter widget expression string.
-fn format_view_tree(node: &ViewTree, motions: &[MotionIntent]) -> String {
+fn format_view_tree(node: &ViewTree, motions: &[MotionIntent], component_map: &HashMap<String, ComponentIR>) -> String {
     match node {
-        ViewTree::Element(el) => format_element(el, motions),
+        ViewTree::Element(el) => format_element(el, motions, component_map),
         ViewTree::Text(text) => {
             if text.starts_with('{') && text.ends_with('}') {
                 // OmniView interpolation: {name} -> Text('$name')
@@ -462,8 +466,8 @@ fn format_view_tree(node: &ViewTree, motions: &[MotionIntent]) -> String {
             let dart_expr = format_expr_ir_flutter(expr);
             format!("Text({})", dart_expr)
         }
-        ViewTree::Conditional(cond) => format_conditional(cond, motions),
-        ViewTree::ListRendering(list) => format_list_rendering(list, motions),
+        ViewTree::Conditional(cond) => format_conditional(cond, motions, component_map),
+        ViewTree::ListRendering(list) => format_list_rendering(list, motions, component_map),
         ViewTree::Slot(_) => "SizedBox.shrink()".to_string(),
     }
 }
@@ -471,7 +475,49 @@ fn format_view_tree(node: &ViewTree, motions: &[MotionIntent]) -> String {
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
-fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
+fn format_element(el: &ElementIR, motions: &[MotionIntent], component_map: &HashMap<String, ComponentIR>) -> String {
+    // Component composition: check if tag is a known component
+    if let Some(_child_comp) = component_map.get(&el.tag) {
+        let mut child_args: Vec<String> = Vec::new();
+        // Props become constructor parameters
+        for (prop_name, prop_value) in &el.props {
+            child_args.push(format!("{}: {}", prop_name, format_expr_ir_flutter(prop_value)));
+        }
+        // Events become callback parameters
+        for (event_name, handler) in &el.events {
+            let cb = match handler.kind.as_str() {
+                "fn_ref" => {
+                    if let Some(ref fn_name) = handler.r#ref {
+                        format!("() {{ {}(); }}", fn_name)
+                    } else { "() {}".to_string() }
+                }
+                "inline_fn" => {
+                    if let Some(ref body) = handler.body {
+                        format_inline_handler_flutter(body)
+                    } else { "() {}".to_string() }
+                }
+                "store_action" => {
+                    if let Some(ref action) = handler.r#ref {
+                        let action_fn = action.split('.').last().unwrap_or(action);
+                        format!("() {{ {}(); }}", action_fn)
+                    } else { "() {}".to_string() }
+                }
+                _ => "() {}".to_string()
+            };
+            child_args.push(format!("on{}: {}", capitalize_first(event_name), cb));
+        }
+        // Return component constructor with children
+        let args_str = child_args.join(", ");
+        if el.children.is_empty() {
+            return format!("{}({})", el.tag, args_str);
+        } else {
+            let children_str: Vec<String> = el.children.iter()
+                .map(|c| format_view_tree(c, motions, component_map))
+                .collect();
+            return format!("{}({}, children: [{}])", el.tag, args_str, children_str.join(", "));
+        }
+    }
+    // Otherwise, fall through to HTML tag mapping
     let widget = tag_to_flutter_widget(&el.tag);
     let mut args: Vec<String> = Vec::new();
 
@@ -563,13 +609,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     if el.children.is_empty() {
         // No children
     } else if el.children.len() == 1 {
-        let child_str = format_view_tree(&el.children[0], motions);
+        let child_str = format_view_tree(&el.children[0], motions, component_map);
         args.push(format!("child: {}", child_str));
     } else {
         let children: Vec<String> = el
             .children
             .iter()
-            .map(|c| format_view_tree(c, motions))
+            .map(|c| format_view_tree(c, motions, component_map))
             .collect();
         args.push(format!("children: [{}]", children.join(", ")));
     }
@@ -726,10 +772,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
 
 /// Format a ConditionalIntent as a Dart ternary expression wrapped in Builder
 /// so that setState rebuilds re-evaluate conditions reactively.
-fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> String {
+fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent], component_map: &HashMap<String, ComponentIR>) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
-            return format_view_tree(fb, motions);
+            return format_view_tree(fb, motions, component_map);
         }
         return "SizedBox()".to_string();
     }
@@ -740,7 +786,7 @@ fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> Str
         let body_str = branch
             .body
             .as_ref()
-            .map(|b| format_view_tree(b, motions))
+            .map(|b| format_view_tree(b, motions, component_map))
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
             result.push_str(&format!("{} ? {}", cond_str, body_str));
@@ -751,7 +797,7 @@ fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> Str
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        result.push_str(&format!(" : {}", format_view_tree(fb, motions)));
+        result.push_str(&format!(" : {}", format_view_tree(fb, motions, component_map)));
     } else {
         result.push_str(" : SizedBox()");
     }
@@ -771,13 +817,13 @@ fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> Str
 }
 
 /// Format a ListRenderingIntent as a ListView.builder for reactive re-rendering.
-fn format_list_rendering(list: &ListRenderingIntent, motions: &[MotionIntent]) -> String {
+fn format_list_rendering(list: &ListRenderingIntent, motions: &[MotionIntent], component_map: &HashMap<String, ComponentIR>) -> String {
     let iterable_str = format_expr_ir_flutter(&list.iterable);
     let item_name = &list.item_binding.name;
     let body_str = list
         .body
         .as_ref()
-        .map(|b| format_view_tree(b, motions))
+        .map(|b| format_view_tree(b, motions, component_map))
         .unwrap_or_else(|| "SizedBox()".to_string());
     let list_builder = format!(
         "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
@@ -785,7 +831,7 @@ fn format_list_rendering(list: &ListRenderingIntent, motions: &[MotionIntent]) -
     );
     if list.empty_body.is_some() {
         let empty_str = list.empty_body.as_ref()
-            .map(|b| format_view_tree(b, motions))
+            .map(|b| format_view_tree(b, motions, component_map))
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!("Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
             iterable_str, empty_str, list_builder)
@@ -2563,13 +2609,13 @@ mod tests {
     #[test]
     fn test_format_text_node() {
         let node = ViewTree::Text("Hello".into());
-        assert_eq!(format_view_tree(&node, &[]), "Text('Hello')");
+        assert_eq!(format_view_tree(&node, &[], &HashMap::new()), "Text('Hello')");
     }
 
     #[test]
     fn test_format_text_with_interpolation() {
         let node = ViewTree::Text("{name}".into());
-        assert_eq!(format_view_tree(&node, &[]), "Text('$name')");
+        assert_eq!(format_view_tree(&node, &[], &HashMap::new()), "Text('$name')");
     }
 
     #[test]
@@ -2608,7 +2654,7 @@ mod tests {
             hero_tag: None,
             hero_transition: None,
         };
-        assert_eq!(format_view_tree(&ViewTree::Element(el), &[]), "Container()");
+        assert_eq!(format_view_tree(&ViewTree::Element(el), &[], &HashMap::new()), "Container()");
     }
 
     #[test]
@@ -2647,7 +2693,7 @@ mod tests {
             hero_tag: None,
             hero_transition: None,
         };
-        let expr = format_view_tree(&ViewTree::Element(el), &[]);
+        let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
         assert_eq!(expr, "Container(child: Text('Hello'))");
     }
 
@@ -2690,7 +2736,7 @@ mod tests {
             hero_tag: None,
             hero_transition: None,
         };
-        let expr = format_view_tree(&ViewTree::Element(el), &[]);
+        let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
         assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
     }
 
@@ -2740,7 +2786,7 @@ mod tests {
             hero_tag: None,
             hero_transition: None,
         };
-        let expr = format_view_tree(&ViewTree::Element(el), &[]);
+        let expr = format_view_tree(&ViewTree::Element(el), &[], &HashMap::new());
         assert!(expr.contains("ElevatedButton("));
         assert!(expr.contains("onPressed: () { handleClick(); }"));
     }
