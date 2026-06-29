@@ -6,12 +6,14 @@
 
 mod expr;
 mod motion;
+mod motion_widgets;
 mod stmt;
 mod utils;
 mod view;
 
 pub(crate) use expr::*;
 pub(crate) use motion::*;
+pub(crate) use motion_widgets::*;
 pub(crate) use stmt::*;
 pub(crate) use utils::*;
 pub(crate) use view::*;

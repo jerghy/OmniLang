@@ -6,7 +6,8 @@ use crate::codegen::CodeWriter;
 use crate::ir::*;
 
 use super::expr::format_expr_ir_flutter;
-use super::motion::{emit_event_object_flutter, wrap_flutter_states, wrap_with_motion_widgets};
+use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
+use super::motion_widgets::emit_event_object_flutter;
 use super::stmt::generate_statement_flutter;
 use super::utils::{
     binding_to_flutter_param, capitalize_first, event_to_flutter_callback,
