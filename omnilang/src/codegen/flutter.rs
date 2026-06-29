@@ -2750,6 +2750,10 @@ mod tests {
                 body: None,
                 r#ref: Some("handleClick".into()),
                 params: vec![],
+                event_data: None,
+                used_fields: None,
+                needs_prevent_default: false,
+                needs_stop_propagation: false,
             },
         );
         let el = ElementIR {

@@ -171,11 +171,30 @@ pub struct BindingIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventHandlerIR {
+    /// "fn_ref" | "inline_fn" | "store_action"
     pub kind: String,
+    /// Inline handler body (None for fn_ref, store_action)
     pub body: Option<BlockIR>,
+    /// Function name (fn_ref) or action path (store_action)
     pub r#ref: Option<String>,
+    /// Inline handler declared parameter names
     #[serde(default)]
     pub params: Vec<String>,
+    // ── Event data fields (new) ──
+    /// Event payload category. None for store_action handlers.
+    #[serde(default)]
+    pub event_data: Option<EventDataKind>,
+    /// Fields of `e` actually referenced in the handler body.
+    /// None = all fields (conservative, for unresolved fn_ref).
+    /// Some(vec) = exact set; empty vec = no fields used (pass `{}`).
+    #[serde(default)]
+    pub used_fields: Option<Vec<String>>,
+    /// Handler explicitly calls e.preventDefault()
+    #[serde(default)]
+    pub needs_prevent_default: bool,
+    /// Handler explicitly calls e.stopPropagation()
+    #[serde(default)]
+    pub needs_stop_propagation: bool,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1486,18 +1505,30 @@ fn lower_view_node(
                                 body: Some(lower_block(body, variant_map)),
                                 r#ref: None,
                                 params: params.iter().map(|p| p.name.clone()).collect(),
+                                event_data: None,
+                                used_fields: None,
+                                needs_prevent_default: false,
+                                needs_stop_propagation: false,
                             },
                             EventHandler::FnRef(fn_name) => EventHandlerIR {
                                 kind: "fn_ref".into(),
                                 body: None,
                                 r#ref: Some(fn_name.clone()),
                                 params: vec![],
+                                event_data: None,
+                                used_fields: None,
+                                needs_prevent_default: false,
+                                needs_stop_propagation: false,
                             },
                             EventHandler::StoreAction { store, action } => EventHandlerIR {
                                 kind: "store_action".into(),
                                 body: None,
                                 r#ref: Some(format!("{}.{}", store, action)),
                                 params: vec![],
+                                event_data: None,
+                                used_fields: None,
+                                needs_prevent_default: false,
+                                needs_stop_propagation: false,
                             },
                         };
                         events.insert(name.clone(), ir_handler);
