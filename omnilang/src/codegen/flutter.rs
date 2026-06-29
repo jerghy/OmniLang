@@ -724,7 +724,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent]) -> String {
     result
 }
 
-/// Format a ConditionalIntent as a Dart ternary expression.
+/// Format a ConditionalIntent as a Dart ternary expression wrapped in Builder
+/// so that setState rebuilds re-evaluate conditions reactively.
 fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> String {
     if cond.branches.is_empty() {
         if let Some(ref fb) = cond.fallback {
@@ -765,10 +766,11 @@ fn format_conditional(cond: &ConditionalIntent, motions: &[MotionIntent]) -> Str
         }
     }
 
-    result
+    // Wrap in Builder so setState triggers re-evaluation of the ternary condition
+    format!("Builder(\n  builder: (context) => {},\n)", result)
 }
 
-/// Format a ListRenderingIntent as a .map().toList() expression.
+/// Format a ListRenderingIntent as a ListView.builder for reactive re-rendering.
 fn format_list_rendering(list: &ListRenderingIntent, motions: &[MotionIntent]) -> String {
     let iterable_str = format_expr_ir_flutter(&list.iterable);
     let item_name = &list.item_binding.name;
