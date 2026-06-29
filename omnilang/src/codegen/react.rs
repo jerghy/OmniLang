@@ -1024,7 +1024,15 @@ fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree, component_map: &HashMa
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
-                            attrs.push(format!("{}={{{}}}", react_event, fn_name));
+                            if handler.event_data.is_some() {
+                                let event_obj = emit_event_object_react(&handler.event_data, &handler.used_fields, "e");
+                                attrs.push(format!(
+                                    "{}={{(e) => {{ {}({}) }}}}",
+                                    react_event, fn_name, event_obj
+                                ));
+                            } else {
+                                attrs.push(format!("{}={{{}}}", react_event, fn_name));
+                            }
                         }
                     }
                     "inline_fn" => {
@@ -1758,6 +1766,187 @@ fn to_react_event(event_name: &str) -> String {
         "drop" => "onDrop".into(),
         _ => format!("on{}", capitalize_first(event_name)),
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// React event data extraction
+// ═══════════════════════════════════════════════════════════
+
+/// React target field extraction — mostly identical to Web but uses
+/// SyntheticEvent conventions (e.target guaranteed during handler, no ?. needed).
+fn field_extract_react(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
+    match (kind, field) {
+        // PointerEvent
+        (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
+        (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
+        (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "tiltY") => (format!("{}.tiltY", raw), "0".into()),
+        (EventDataKind::PointerEvent, "pointerType") => (format!("{}.pointerType", raw), "\"\"".into()),
+        (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // TouchEvent
+        (EventDataKind::TouchEvent, "touches") => (
+            format!("[...({}.touches)].map(t => ({{ x: t.clientX, y: t.clientY, id: t.identifier }}))", raw),
+            "[]".into()
+        ),
+        (EventDataKind::TouchEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // WheelEvent
+        (EventDataKind::WheelEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::WheelEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaX") => (format!("{}.deltaX", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaY") => (format!("{}.deltaY", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaZ") => (format!("{}.deltaZ", raw), "0".into()),
+        (EventDataKind::WheelEvent, "deltaMode") => (format!("{}.deltaMode", raw), "0".into()),
+        (EventDataKind::WheelEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // KeyEvent
+        (EventDataKind::KeyEvent, "key") => (format!("{}.key", raw), "\"\"".into()),
+        (EventDataKind::KeyEvent, "code") => (format!("{}.code", raw), "\"\"".into()),
+        (EventDataKind::KeyEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // ScrollEvent — React guarantees e.target
+        (EventDataKind::ScrollEvent, "x") => (format!("{}.target.scrollLeft", raw), "0".into()),
+        (EventDataKind::ScrollEvent, "y") => (format!("{}.target.scrollTop", raw), "0".into()),
+
+        // InputEvent — React guarantees e.target
+        (EventDataKind::InputEvent, "value") => (format!("{}.target.value", raw), "\"\"".into()),
+        (EventDataKind::InputEvent, "checked") => (format!("{}.target.checked", raw), "false".into()),
+
+        // ToggleEvent — React guarantees e.target
+        (EventDataKind::ToggleEvent, "checked") => (format!("{}.target.checked", raw), "false".into()),
+
+        // SubmitEvent
+        (EventDataKind::SubmitEvent, "values") => (
+            format!("Object.fromEntries(new FormData({}.target))", raw),
+            "{}".into()
+        ),
+
+        // FocusEvent — React guarantees e.target
+        (EventDataKind::FocusEvent, "value") => (format!("{}.target.value", raw), "\"\"".into()),
+
+        // ClipboardEvent
+        (EventDataKind::ClipboardEvent, "text") => (
+            format!("(function(){{try{{return {}.clipboardData?.getData('text')||''}}catch(_){{return''}}}})()", raw),
+            "\"\"".into()
+        ),
+
+        // DragEvent
+        (EventDataKind::DragEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::DragEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::DragEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // DropEvent
+        (EventDataKind::DropEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::DropEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::DropEvent, "files") => (
+            format!("[...({}.dataTransfer?.files ?? [])].map(f => f.name)", raw),
+            "[]".into()
+        ),
+        (EventDataKind::DropEvent, "text") => (
+            format!("(function(){{try{{return {}.dataTransfer?.getData('text')||''}}catch(_){{return''}}}})()", raw),
+            "\"\"".into()
+        ),
+        (EventDataKind::DropEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // ContextMenuEvent
+        (EventDataKind::ContextMenuEvent, "x") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::ContextMenuEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        (EventDataKind::ContextMenuEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
+            let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
+            (format!("{}.{}", raw, key), "false".into())
+        }
+
+        // SelectEvent — React guarantees e.target
+        (EventDataKind::SelectEvent, "start") => (format!("{}.target.selectionStart", raw), "0".into()),
+        (EventDataKind::SelectEvent, "end") => (format!("{}.target.selectionEnd", raw), "0".into()),
+        (EventDataKind::SelectEvent, "text") => (
+            format!("({}.target.value ?? '').substring({}.target.selectionStart ?? 0, {}.target.selectionEnd ?? 0)", raw, raw, raw),
+            "\"\"".into()
+        ),
+
+        // ResizeEvent
+        (EventDataKind::ResizeEvent, "width") => ("window.innerWidth".into(), "0".into()),
+        (EventDataKind::ResizeEvent, "height") => ("window.innerHeight".into(), "0".into()),
+
+        // MediaEvent — React guarantees e.target
+        (EventDataKind::MediaEvent, "currentTime") => (format!("{}.target.currentTime", raw), "0".into()),
+        (EventDataKind::MediaEvent, "duration") => (format!("{}.target.duration", raw), "0".into()),
+
+        // MediaLoadEvent — React guarantees e.target
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => (format!("{}.target.naturalWidth", raw), "0".into()),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => (format!("{}.target.naturalHeight", raw), "0".into()),
+
+        // MediaErrorEvent
+        (EventDataKind::MediaErrorEvent, "message") => (format!("{}.target?.error?.message", raw), "\"unknown\"".into()),
+
+        // AnimationEvent
+        (EventDataKind::AnimationEvent, "animationName") => (format!("{}.animationName", raw), "\"\"".into()),
+        (EventDataKind::AnimationEvent, "elapsedTime") => (format!("{}.elapsedTime", raw), "0".into()),
+
+        // TransitionEvent
+        (EventDataKind::TransitionEvent, "propertyName") => (format!("{}.propertyName", raw), "\"\"".into()),
+        (EventDataKind::TransitionEvent, "elapsedTime") => (format!("{}.elapsedTime", raw), "0".into()),
+
+        _ => (format!("undefined /* {} */", field), "undefined".into()),
+    }
+}
+
+/// Emit a JS object literal for React event data extraction.
+/// Only emits fields in `used_fields` (or all fields from schema if None).
+fn emit_event_object_react(
+    event_data: &Option<EventDataKind>,
+    used_fields: &Option<Vec<String>>,
+    raw_var: &str,
+) -> String {
+    let kind = match event_data {
+        Some(k) => k,
+        None => return "{}".to_string(),
+    };
+
+    let schema = event_data_schema(kind);
+    let fields: Vec<String> = match used_fields {
+        Some(fields) if !fields.is_empty() => {
+            schema.iter()
+                .filter(|f| fields.contains(&f.name))
+                .map(|f| {
+                    let (extract, fallback) = field_extract_react(kind, &f.name, raw_var);
+                    format!("{}: {} ?? {}", f.name, extract, fallback)
+                })
+                .collect()
+        }
+        Some(_) => return "{}".to_string(),
+        None => {
+            schema.iter()
+                .map(|f| {
+                    let (extract, fallback) = field_extract_react(kind, &f.name, raw_var);
+                    format!("{}: {} ?? {}", f.name, extract, fallback)
+                })
+                .collect()
+        }
+    };
+
+    format!("{{ {} }}", fields.join(", "))
 }
 
 // ═══════════════════════════════════════════════════════════
