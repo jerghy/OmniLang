@@ -863,6 +863,51 @@ fn emit_drag_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 fn gen_view_node_tsx(w: &mut CodeWriter, node: &ViewTree, component_map: &HashMap<String, ComponentIR>) {
     match node {
         ViewTree::Element(el) => {
+            // Component composition: check if tag is a known component
+            if let Some(_child_comp) = component_map.get(&el.tag) {
+                let mut comp_attrs: Vec<String> = Vec::new();
+                for (prop_name, prop_value) in &el.props {
+                    let js_val = format_expr_ir_tsx(prop_value);
+                    comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
+                }
+                for (event_name, handler) in &el.events {
+                    let jsx_event = to_react_event(event_name);
+                    match handler.kind.as_str() {
+                        "fn_ref" => {
+                            if let Some(ref fn_name) = handler.r#ref {
+                                comp_attrs.push(format!("{}={{{}}}", jsx_event, fn_name));
+                            }
+                        }
+                        "inline_fn" => {
+                            if let Some(ref body) = handler.body {
+                                let handler_str = format_inline_handler(body);
+                                comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
+                            }
+                        }
+                        "store_action" => {
+                            if let Some(ref action) = handler.r#ref {
+                                let action_fn = action.split('.').last().unwrap_or(action);
+                                comp_attrs.push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_fn));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let attrs_str = comp_attrs.join(" ");
+                if el.children.is_empty() {
+                    w.emit(&format!("<{} {}/>", el.tag, attrs_str));
+                } else {
+                    w.emit(&format!("<{} {}>", el.tag, attrs_str));
+                    w.indent();
+                    for child in &el.children {
+                        gen_view_node_tsx(w, child, component_map);
+                    }
+                    w.dedent();
+                    w.emit(&format!("</{}>", el.tag));
+                }
+                return;  // IMPORTANT: skip HTML element handling
+            }
+            // Otherwise, fall through to existing HTML element handling
             // Build attribute list from props, bindings, events
             // Build attribute list from props, bindings, events
             let mut attrs: Vec<String> = Vec::new();
