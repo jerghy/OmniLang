@@ -1978,7 +1978,7 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                     // Emit event bindings for the component element
                     for (event_name, handler) in &el.events {
                         let js_event = map_event(event_name);
-                        let pd = if js_event == "submit" {
+                        let pd = if handler.needs_prevent_default || js_event == "submit" {
                             " e.preventDefault();"
                         } else {
                             ""
@@ -2304,7 +2304,41 @@ parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*')
                         .push_str(&format!("__omni_forHandlers[\"{}\"] = {};\n", hname, hname));
                 }
             } else {
-                let pd = if js_event == "submit" {
+                // ResizeEvent binds to window, not el.addEventListener
+                if let Some(EventDataKind::ResizeEvent) = handler.event_data {
+                    let event_obj = emit_event_object(&handler.event_data, &handler.used_fields, "_e");
+                    let handler_call = match handler.kind.as_str() {
+                        "fn_ref" => {
+                            if let Some(ref fn_name) = handler.r#ref {
+                                let prefixed = format!("{}_{}", self.current_component, fn_name);
+                                format!("{}({})", prefixed, event_obj)
+                            } else { continue; }
+                        }
+                        "store_action" => {
+                            if let Some(ref action_path) = handler.r#ref {
+                                let var_name = action_path.replace('.', "_");
+                                format!("{}()", var_name)
+                            } else { continue; }
+                        }
+                        "inline_fn" => {
+                            let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
+                            let params_str = handler.params.join(", ");
+                            self.js.push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
+                            if let Some(ref body) = handler.body {
+                                for stmt in &body.statements { self.emit_statement(stmt); }
+                            }
+                            self.js.push_str("}\n");
+                            format!("{}({})", wrapper_name, event_obj)
+                        }
+                        _ => continue,
+                    };
+                    self.js.push_str(&format!(
+                        "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}\n",
+                        handler_call
+                    ));
+                    continue;
+                }
+                let pd = if handler.needs_prevent_default || js_event == "submit" {
                     " e.preventDefault();"
                 } else {
                     ""
