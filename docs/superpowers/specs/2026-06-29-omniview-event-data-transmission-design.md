@@ -49,9 +49,9 @@ each category lists its full field set explicitly.
 | 8 | SubmitEvent | onSubmit | Web: `values: {[fieldName]: string}` / Flutter: `value: string` |
 | 9 | FocusEvent | onFocus, onBlur | `value: string` |
 | 10 | ClipboardEvent | onCopy, onCut, onPaste | `text: string` |
-| 11 | DragEvent | onDragStart, onDrag, onDragEnd | `x: float`, `y: float`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
-| 12 | DropEvent | onDrop | `x: float`, `y: float`, `files: string[]`, `text: string`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
-| 13 | ContextMenuEvent | onContextMenu | `x: float`, `y: float`, `button: int`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 11 | DragEvent | onDragStart, onDrag, onDragEnd | `x: float`, `y: float`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 12 | DropEvent | onDrop | `x: float`, `y: float`, `files: string[]`, `text: string`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
+| 13 | ContextMenuEvent | onContextMenu | `x: float`, `y: float`, `alt: bool`, `ctrl: bool`, `shift: bool`, `meta: bool` |
 | 14 | SelectEvent | onSelect | `start: int`, `end: int`, `text: string` |
 | 15 | ResizeEvent | onResize | `width: float`, `height: float` |
 | 16 | MediaEvent | onPlay, onPause, onEnded | `currentTime: float`, `duration: float` |
@@ -278,17 +278,14 @@ All generated extractions use optional chaining + nullish coalescing:
 | ClipboardEvent | text | try-catch wrapped `_e.clipboardData?.getData('text')` | `""` |
 | DragEvent | x | `_e.clientX` | `0` |
 | DragEvent | y | `_e.clientY` | `0` |
-| DragEvent | button | `_e.button` | `0` |
 | DragEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | DropEvent | x | `_e.clientX` | `0` |
 | DropEvent | y | `_e.clientY` | `0` |
 | DropEvent | files | `[...(_e.dataTransfer?.files ?? [])].map(f => f.name)` | `[]` |
 | DropEvent | text | try-catch `_e.dataTransfer?.getData('text')` | `""` |
-| DropEvent | button | `_e.button` | `0` |
 | DropEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | ContextMenuEvent | x | `_e.clientX` | `0` |
 | ContextMenuEvent | y | `_e.clientY` | `0` |
-| ContextMenuEvent | button | `_e.button` | `0` |
 | ContextMenuEvent | alt/ctrl/shift/meta | `_e.altKey` etc. | `false` |
 | SelectEvent | start | `_e.target?.selectionStart` | `0` |
 | SelectEvent | end | `_e.target?.selectionEnd` | `0` |
