@@ -2,11 +2,12 @@
  *  Foundation module with no dependencies on other driver modules. */
 
 import { Logger } from "../lib/utils/logger";
-import { useEditorStore } from "../store/editor";
+import { usePoiesisStore } from "../store";
 import { useCodeGraphStore } from "../services/codegraph/store";
-import { useUndoStore } from "../store/undo";
 import { getAllPorts } from "../components/canvas/shared/connectionValidators";
-import type { ElementData, WireData } from "../store/editor";
+import type { ElementData } from "../core/types/element";
+import type { WireData } from "../core/types/wire";
+import type { PortData } from "../core/types/element";
 
 const log = new Logger({ prefix: "OmniDriver" });
 
@@ -14,7 +15,7 @@ const log = new Logger({ prefix: "OmniDriver" });
 
 /** Access the design-mode Zustand store (for view elements, file ops, etc.). */
 export function getDesignStore() {
-  return useEditorStore.getState();
+  return usePoiesisStore.getState();
 }
 
 /** Check if we are in code mode. */
@@ -27,9 +28,9 @@ export function getCodeGraphStore() {
   return useCodeGraphStore.getState();
 }
 
-/** Access the undo store. */
+/** Access the undo store (via unified store). */
 export function getUndoStore() {
-  return useUndoStore.getState();
+  return usePoiesisStore.getState();
 }
 
 /** Minimal interface for the store returned by getActiveStore(). */
@@ -77,7 +78,26 @@ export function getActiveStore(): ActiveStore {
       get projectDir() { return ""; },
     };
   }
-  return useEditorStore.getState();
+  const s = usePoiesisStore.getState();
+  return {
+    get elements() { return s.elements; },
+    get wires() { return s.wires; },
+    addElement: (el: ElementData) => s.addElement(el),
+    removeElement: (id: string) => s.removeElement(id),
+    setProp: (id: string, prop: string, value: unknown) => s.setProp(id, prop, value),
+    getProp: (id: string, prop: string) => s.getProp(id, prop),
+    addWire: (w: WireData) => s.addWire(w),
+    removeWire: (id: string) => s.removeWire(id),
+    setElementSource: (id: string, source: string) => s.setElementSource(id, source),
+    // NOTE: setElementPorts is not on PoiesisState — migration needed
+    setElementPorts: (_id: string, _ports: ElementData["ports"]) => {},
+    selectElement: (id: string | null, multi?: boolean) => s.selectElement(id, multi),
+    get selectedElementIds() { return s.selectedElementIds; },
+    get previewUrl() { return s.previewUrl; },
+    get activeFileContent() { return s.activeFileContent; },
+    get activeFilePath() { return s.activeFilePath; },
+    get projectDir() { return s.projectDir; },
+  };
 }
 
 // ── ID Generation ───────────────────────────────────

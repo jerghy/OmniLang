@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { MonacoEditor } from "./MonacoEditor";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import type { ElementData } from "../../core/types";
 // NOTE(poiesis-v2): SnippetPanel was removed during Phase 0 restructuring.
 import { TYPE_COLORS } from "../canvas/shared/socketTypes";
@@ -50,8 +50,9 @@ function PortsBadge({ el }: { el?: ElementData | null }) {
 export function CodeEditorPopup({ visible, blockId, title, source, blockElement, onClose, onSave }: CodeEditorPopupProps) {
   const [draft, setDraft] = useState(source);
   const [modified, setModified] = useState(false);
-  const setBlockValue = useEditorStore((s: any) => s.setBlockValue);
-  const setElementPorts = useEditorStore((s: any) => s.setElementPorts);
+  // NOTE: setBlockValue and setElementPorts are not on PoiesisState yet — migration needed
+  const setBlockValue = (usePoiesisStore as any).getState().setBlockValue;
+  const setElementPorts = (usePoiesisStore as any).getState().setElementPorts;
 
   useEffect(() => {
     if (visible) {

@@ -163,26 +163,11 @@ export function createAnnotationApi() {
         const dir = await resolveProjectDir();
         if (!dir) return { ok: false, error: "未设置项目目录" };
 
-        // Save the raw .omni source file
+        // Save the raw .omni source file (truth source)
         const omniPath = joinPath(dir, filePath);
         await writeTextFile(omniPath, source);
 
-        // Save the PidMap annotation envelope
-        const annoDir = joinPath(dir, ".poiesis/annotations");
-        await mkdir(annoDir, { recursive: true });
-        const annoPath = joinPath(
-          dir,
-          `.poiesis/annotations/${filePath.replace(/[/\\:]/g, "_")}.json`,
-        );
-        await writeTextFile(
-          annoPath,
-          JSON.stringify(
-            { pidMap, source, savedAt: Date.now() },
-            null,
-            2,
-          ),
-        );
-
+        // PidMap is embedded in .omni via // @pid:xxx comments — no sidecar needed
         return { ok: true };
       } catch (e) {
         return { ok: false, error: String(e) };

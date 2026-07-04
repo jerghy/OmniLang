@@ -270,22 +270,16 @@ function nextBubblePosition(
   };
 }
 
-// ── ID helpers ──
+// ── ID helpers (counters are local to buildBubbleGraph — not module-level) ──
 
-let bubbleCounter = 0;
-let edgeCounter = 0;
+interface IdCounter { bc: number; ec: number; }
 
-function resetCounters(): void {
-  bubbleCounter = 0;
-  edgeCounter = 0;
+function bubbleId(prefix: string, c: IdCounter): string {
+  return `${prefix}-${c.bc++}`;
 }
 
-function bubbleId(prefix: string): string {
-  return `${prefix}-${bubbleCounter++}`;
-}
-
-function edgeId(): string {
-  return `e${edgeCounter++}`;
+function edgeId(c: IdCounter): string {
+  return `e${c.ec++}`;
 }
 
 // ── Demo data fallback ──
@@ -332,6 +326,7 @@ function buildComponentSubtree(
   depth: number,
   visited: Set<string>,
   siblingIndex: { value: number },
+  idCounter: IdCounter,
 ): string | null {
   if (visited.has(compName)) return null; // circular ref guard
   const comp = components.get(compName);
@@ -342,7 +337,7 @@ function buildComponentSubtree(
 
   visited.add(compName);
 
-  const bid = bubbleId(compName.toLowerCase());
+  const bid = bubbleId(compName.toLowerCase(), idCounter);
   const isLeaf = !comp.hasPascalCaseChildren;
 
   // Position based on depth and sibling order
@@ -366,7 +361,7 @@ function buildComponentSubtree(
   // Composition edge from parent
   if (parentBubbleId !== "ui") {
     edges.push({
-      id: edgeId(),
+      id: edgeId(idCounter),
       source: parentBubbleId,
       target: bid,
       edgeType: "composition",
@@ -383,7 +378,7 @@ function buildComponentSubtree(
       );
       if (storeBubble) {
         edges.push({
-          id: edgeId(),
+          id: edgeId(idCounter),
           source: bid,
           target: storeBubble.id,
           label: storeRef,
@@ -399,7 +394,7 @@ function buildComponentSubtree(
     const childBid = buildComponentSubtree(
       childName, components, stores,
       bubbles, edges, bid, depth + 1,
-      new Set(visited), childSiblingIndex,
+      new Set(visited), childSiblingIndex, idCounter,
     );
     if (childBid) {
       bubble.children.push(childBid);
@@ -417,10 +412,11 @@ function buildStoreBubbles(
   stores: Map<string, ParsedStore>,
   bubbles: BubbleNode[],
   edges: BubbleEdge[],
+  idCounter: IdCounter,
 ): void {
   let storeIndex = 0;
   for (const [, store] of stores) {
-    const storeBid = bubbleId(`store-${store.name.toLowerCase()}`);
+    const storeBid = bubbleId(`store-${store.name.toLowerCase()}`, idCounter);
     const position = nextBubblePosition(1, storeIndex);
 
     const storeBubble: BubbleNode = {
@@ -439,7 +435,7 @@ function buildStoreBubbles(
 
     // Edge from Store top-level
     edges.push({
-      id: edgeId(),
+      id: edgeId(idCounter),
       source: "store",
       target: storeBid,
       edgeType: "composition",
@@ -448,7 +444,7 @@ function buildStoreBubbles(
     // Signal children
     let sigIndex = 0;
     for (const sig of store.signals) {
-      const sigBid = bubbleId(`sig-${sig}`);
+      const sigBid = bubbleId(`sig-${sig}`, idCounter);
       const sigPos = nextBubblePosition(2, sigIndex);
       bubbles.push({
         id: sigBid,
@@ -469,7 +465,7 @@ function buildStoreBubbles(
 
     // Getter children
     for (const getter of store.getters) {
-      const getBid = bubbleId(`get-${getter}`);
+      const getBid = bubbleId(`get-${getter}`, idCounter);
       const getPos = nextBubblePosition(2, sigIndex);
       bubbles.push({
         id: getBid,
@@ -490,7 +486,7 @@ function buildStoreBubbles(
 
     // Action children
     for (const act of store.actions) {
-      const actBid = bubbleId(`act-${act}`);
+      const actBid = bubbleId(`act-${act}`, idCounter);
       const actPos = nextBubblePosition(2, sigIndex);
       bubbles.push({
         id: actBid,
@@ -519,6 +515,7 @@ function buildStoreBubbles(
 function buildCodeBubbles(
   libs: ParsedLib[],
   bubbles: BubbleNode[],
+  idCounter: IdCounter,
 ): void {
   let libIndex = 0;
   for (const lib of libs) {
@@ -528,7 +525,7 @@ function buildCodeBubbles(
       .split(/[/\\]/)
       .pop() || "lib";
 
-    const libBid = bubbleId(`lib-${moduleName}`);
+    const libBid = bubbleId(`lib-${moduleName}`, idCounter);
     const position = nextBubblePosition(1, libIndex);
 
     const libBubble: BubbleNode = {
@@ -548,7 +545,7 @@ function buildCodeBubbles(
     // Fn children
     let fnIndex = 0;
     for (const fn of lib.functions) {
-      const fnBid = bubbleId(`fn-${fn}`);
+      const fnBid = bubbleId(`fn-${fn}`, idCounter);
       const fnPos = nextBubblePosition(2, fnIndex);
       bubbles.push({
         id: fnBid,
@@ -582,7 +579,7 @@ export async function buildBubbleGraph(
     return buildDemoData();
   }
 
-  resetCounters();
+  const idCounter: IdCounter = { bc: 0, ec: 0 };
 
   // ── Phase 1: Parse all files ──
   const components = new Map<string, ParsedComponent>();
@@ -657,7 +654,7 @@ export async function buildBubbleGraph(
     const bid = buildComponentSubtree(
       entryCompName, components, stores,
       bubbles, edges, "ui", 1,
-      new Set(), siblingIndex,
+      new Set(), siblingIndex, idCounter,
     );
     if (bid) {
       uiBubble.children.push(bid);
@@ -666,15 +663,15 @@ export async function buildBubbleGraph(
 
   // Edges: ui → store, ui → code (always present for context)
   edges.push(
-    { id: edgeId(), source: "ui", target: "store", edgeType: "composition" },
-    { id: edgeId(), source: "ui", target: "code", edgeType: "composition" },
+    { id: edgeId(idCounter), source: "ui", target: "store", edgeType: "composition" },
+    { id: edgeId(idCounter), source: "ui", target: "code", edgeType: "composition" },
   );
 
   // Build store bubbles
-  buildStoreBubbles(stores, bubbles, edges);
+  buildStoreBubbles(stores, bubbles, edges, idCounter);
 
   // Build code bubbles
-  buildCodeBubbles(libs, bubbles);
+  buildCodeBubbles(libs, bubbles, idCounter);
 
   return { bubbles, edges };
 }

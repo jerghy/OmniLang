@@ -3,7 +3,7 @@
 // Extracted 1:1 from App.tsx's useEffect that calls validate() then parseOmniSource().
 
 import { validate, parseOmniSource } from "../codegen";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import { useCodeGraphStore } from "../../services/codegraph/store";
 import type { ElementData, WireData } from "../../core/types";
 
@@ -38,7 +38,7 @@ export function parseAndPopulate(
   // ── Parse `.omni` source to populate design elements and code tabs ──
   const parseResult = parseOmniSource(source);
   if (parseResult.designElements) {
-    useEditorStore.setState({
+    usePoiesisStore.setState({
       elements: parseResult.designElements,
       wires: parseResult.designWires,
     });

@@ -21,9 +21,10 @@ export function FlowCanvas() {
     (s) => s.designPage.codeFlowElementId,
   );
 
-  // Filter to only code-relevant elements (fn internals)
+  // Filter to code-relevant elements by tag (fn/if/else/for/while/return)
+  const CODE_TAGS = new Set(["fn", "if", "else", "for", "while", "return", "let", "const", "signal", "computed"]);
   const codeElements = useMemo(
-    () => elements.filter((e) => e.nodeType === "codeblock"),
+    () => elements.filter((e) => CODE_TAGS.has(e.tag)),
     [elements],
   );
 

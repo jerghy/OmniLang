@@ -2,7 +2,7 @@
  *  Extracted from OmniDriver god class. */
 
 import { getDesignStore } from "./store";
-import { useEditorStore } from "../store/editor";
+import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 
 // ═══════════════════════════════════════════════════════
@@ -19,7 +19,7 @@ export class FileDriver {
 
   /** Set the active file content. */
   setSourceCode(content: string): void {
-    useEditorStore.setState({ activeFileContent: content });
+    usePoiesisStore.setState({ activeFileContent: content });
   }
 
   /** Get the active file path. */
@@ -54,7 +54,7 @@ export class FileDriver {
   async openFile(filePath: string): Promise<void> {
     const result = await api.project.readFile(filePath);
     if (result.content) {
-      useEditorStore.getState().openFile(filePath, result.content);
+      usePoiesisStore.getState().openFile(filePath, result.content);
     }
   }
 }

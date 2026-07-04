@@ -35,6 +35,7 @@ export function ArchitecturePreview() {
   return (
     <iframe
       ref={iframeRef}
+      src="about:blank"
       style={{
         width: "100%",
         height: "100%",

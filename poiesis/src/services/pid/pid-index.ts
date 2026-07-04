@@ -88,3 +88,26 @@ export function mergePidMaps(maps: PidMap[]): PidMap {
   }
   return merged;
 }
+
+/**
+ * Detect duplicate PIDs across multiple PidMaps.
+ * Returns an array of PID strings that appear more than once.
+ */
+export function detectPidConflicts(
+  sourcePidMaps: Record<string, PidMap>,
+): Array<{ pid: string; sources: string[] }> {
+  const pidToSources: Record<string, string[]> = {};
+
+  for (const [sourceName, pidMap] of Object.entries(sourcePidMaps)) {
+    for (const pid of Object.keys(pidMap.entries)) {
+      if (!pidToSources[pid]) {
+        pidToSources[pid] = [];
+      }
+      pidToSources[pid].push(sourceName);
+    }
+  }
+
+  return Object.entries(pidToSources)
+    .filter(([, sources]) => sources.length > 1)
+    .map(([pid, sources]) => ({ pid, sources }));
+}

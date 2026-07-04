@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import { parseAndPopulate } from "../../services/parser/source-parser";
 
 export function useAutoCompile(
@@ -7,13 +7,13 @@ export function useAutoCompile(
   setCompileErrors: (errors: unknown[]) => void,
   setStatus: (s: { text: string; isError: boolean }) => void,
 ) {
-  const activeFilePath = useEditorStore((s) => s.activeFilePath);
-  const activeFileContent = useEditorStore((s) => s.activeFileContent);
+  const activeFilePath = usePoiesisStore((s) => s.activeFilePath);
+  const activeFileContent = usePoiesisStore((s) => s.activeFileContent);
   const prevFilePath = useRef<string | null>(null);
 
   useEffect(() => {
-    const currentPath = useEditorStore.getState().activeFilePath;
-    const currentContent = useEditorStore.getState().activeFileContent;
+    const currentPath = usePoiesisStore.getState().activeFilePath;
+    const currentContent = usePoiesisStore.getState().activeFileContent;
     if (currentPath && currentContent && currentPath !== prevFilePath.current) {
       prevFilePath.current = currentPath;
       const timer = setTimeout(() => {

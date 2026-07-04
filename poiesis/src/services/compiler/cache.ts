@@ -5,7 +5,8 @@
 
 import { generateOmniSource } from "../codegen/pipeline";
 import { rustCompiler } from "../../commands/rustCompiler";
-import type { ElementData, WireData } from "../../store/editor";
+import type { ElementData } from "../../core/types/element";
+import type { WireData } from "../../core/types/wire";
 import type { CodeTab } from "../../services/codegraph/types";
 import { Logger } from "../../lib/utils/logger";
 

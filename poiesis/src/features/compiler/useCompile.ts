@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import { useCodeGraphStore } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
 import { compileProject } from "../../services/compiler/compiler";
@@ -16,10 +16,10 @@ export function useCompile(
   setFnToNodeMap: (map: Record<string, string>) => void,
   setStatus: (s: { text: string; isError: boolean }) => void,
 ) {
-  const setCompileErrors = useEditorStore((s) => s.setCompileErrors);
+  const setCompileErrors = usePoiesisStore((s) => s.setCompileErrors);
 
   const handleCompile = useCallback(async () => {
-    const store = useEditorStore.getState();
+    const store = usePoiesisStore.getState();
     const cg = useCodeGraphStore.getState();
     const codeTabs = cg.toSerializable().tabs;
     const componentName = extractComponentName(store.activeFileContent || "");
@@ -40,7 +40,7 @@ export function useCompile(
     const { content, compileResponse } = compileResult;
 
     if (compileResult.generatedSource && compileResult.validationPassed) {
-      store.setSourceCode(content);
+      store.setActiveFileContent(content);
     }
 
     if (!compileResult.validationPassed && compileResult.validationErrors.length > 0) {
@@ -125,7 +125,7 @@ export function useCompile(
       setFnToNodeMap(newFnToNodeMap);
 
       useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
-      useEditorStore.getState().setSourceCode(content);
+      usePoiesisStore.getState().setActiveFileContent(content);
     } catch {
       /* canvas not critical */
     }
@@ -141,7 +141,7 @@ export function useCompile(
       if (runStatus.running && compileResponse.files) {
         api.compile.writeRunFiles(compileResponse.files).catch(() => {});
       }
-      const s = useEditorStore.getState();
+      const s = usePoiesisStore.getState();
       if (s.elements.length > 0) {
         const cg = useCodeGraphStore.getState();
         const ct = cg.toSerializable().tabs;

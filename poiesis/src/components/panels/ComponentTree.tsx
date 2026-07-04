@@ -1,9 +1,8 @@
 /** ComponentTree -- 元素树状面板，支持右键菜单、选择、折叠/展开。 */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import type { ElementData } from "../../core/types";
-import { useUndoStore } from "../../store/undo";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
 import type { CommandContext } from "../../core/commands/types";
 import { getDefaultProps, CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/constants";
@@ -21,12 +20,15 @@ interface ComponentTreeProps {
 }
 
 export function ComponentTree({ ctx }: ComponentTreeProps) {
-  const elements = useEditorStore((s) => s.elements);
-  const rootOrder = useEditorStore((s) => s.rootOrder);
-  const selectedIds = useEditorStore((s) => s.selectedElementIds);
-  const selectElement = useEditorStore((s) => s.selectElement);
-  const undoExec = useUndoStore((s) => s.execute);
-  const enterCanvas = useEditorStore((s) => s.enterComponentCanvas);
+  const elements = usePoiesisStore((s) => s.elements);
+  const rootOrder = usePoiesisStore((s) => s.rootOrder);
+  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
+  const selectElement = usePoiesisStore((s) => s.selectElement);
+  // NOTE: enterComponentCanvas and execute are not on PoiesisState — migration needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const storeAny = usePoiesisStore as any;
+  const undoExec = storeAny.execute as (cmd: import("../../core/commands/types").Command, ctx: CommandContext) => void;
+  const enterCanvas = storeAny.enterComponentCanvas as (name: string) => void;
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; elementId: string } | null>(null);
@@ -116,7 +118,7 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
             <TreeNodeView
               key={node.id}
               node={node} depth={0}
-              selectedIds={selectedIds} collapsed={collapsed}
+              selectedIds={new Set(selectedIds)} collapsed={collapsed}
               onToggle={toggleCollapse}
               onSelect={(id, multi) => selectElement(id, multi)}
               onContextMenu={handleContextMenu}
@@ -157,7 +159,7 @@ function ContextMenu({ x, y, elementId, elements, rootOrder, undoExec, ctx, ente
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const addChildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextElement = elements.find((e) => e.id === elementId);
-  const registryDefs = useComponentRegistry((s) => s.definitions);
+  const registryDefs = useComponentRegistry((s: any) => s.definitions);
 
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", h); return () => document.removeEventListener("keydown", h); }, [onClose]);
 
@@ -182,7 +184,7 @@ function ContextMenu({ x, y, elementId, elements, rootOrder, undoExec, ctx, ente
   }, [undoExec, ctx, onClose, registryDefs]);
 
   const handleCopy = useCallback(() => { copySelection(ctx, [elementId]); onClose(); }, [ctx, elementId, onClose]);
-  const handlePaste = useCallback(() => { const ids = pasteFromClipboard(ctx); if (ids?.length) useEditorStore.setState({ selectedElementIds: ids }); onClose(); }, [ctx, onClose]);
+  const handlePaste = useCallback(() => { const ids = pasteFromClipboard(ctx); if (ids?.length) (usePoiesisStore as any).setState({ selectedElementIds: ids }); onClose(); }, [ctx, onClose]);
   const handleMoveUp = useCallback(() => {
     const el = elements.find((e) => e.id === elementId); if (!el) return;
     const siblings = el.parentId ? (elements.find((e) => e.id === el.parentId)?.children || []) : rootOrder;

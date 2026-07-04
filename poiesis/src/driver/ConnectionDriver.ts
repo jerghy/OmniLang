@@ -8,7 +8,7 @@ import { getActiveStore, getAllPorts, ensureHelp, getDesignStore } from "./store
 import { validateConnection } from "../components/canvas/shared/connectionValidators";
 import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import { WireHandle } from "./WireHandle";
-import type { ElementData } from "../store/editor";
+import type { ElementData } from "../core/types/element";
 import type { PortDescriptor, ValidationReport } from "./types";
 
 const log = new Logger({ prefix: "OmniDriver" });

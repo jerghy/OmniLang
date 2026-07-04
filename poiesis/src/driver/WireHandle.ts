@@ -4,7 +4,7 @@
 
 import { getDesignStore } from "./store";
 import { ElementHandle } from "./ElementHandle";
-import type { WireData } from "../store/editor";
+import type { WireData } from "../core/types/wire";
 
 // ═══════════════════════════════════════════════════════
 // WireHandle

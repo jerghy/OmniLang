@@ -25,10 +25,6 @@ export interface ProjectJson {
   canvasStates: Record<string, CanvasViewport>;
 
   panels: PanelLayout;
-
-  /** Component definitions cache — parsed from .omni, stored here for fast access.
-   *  Note: can be regenerated from .omni if lost. */
-  componentDefs?: Record<string, ComponentDef>;
 }
 
 export interface NodeMeta {

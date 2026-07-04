@@ -1,6 +1,6 @@
 // @ts-nocheck — Legacy feature, needs refactoring for unified store
 import { useEffect, useCallback } from "react";
-import { useEditorStore } from "../store/editor";
+import { usePoiesisStore } from "../store";
 import { useCodeGraphStore } from "../services/codegraph/store";
 import { parseOmniSource } from "../services/codegen";
 import { api } from "../commands";
@@ -15,9 +15,9 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   useEffect(() => {
     (async () => {
       const proj = await api.project.getProject();
-      if (proj.dir) useEditorStore.getState().setProjectDir(proj.dir);
+      if (proj.dir) usePoiesisStore.getState().setProjectDir(proj.dir);
       const list = await api.project.listDir(".");
-      if (list.entries) useEditorStore.getState().loadFiles(list.entries);
+      if (list.entries) usePoiesisStore.getState().loadFiles(list.entries);
       setShowWelcome(true);
     })();
   }, [setShowWelcome]);
@@ -48,15 +48,15 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
 
   const handleProjectReady = useCallback(
     (dir: string, name: string) => {
-      useEditorStore.getState().setProjectDir(dir);
-      useEditorStore.getState().newProject();
-      useEditorStore.setState({ projectName: name, projectPath: dir });
+      usePoiesisStore.getState().setProjectDir(dir);
+      usePoiesisStore.getState().newProject();
+      usePoiesisStore.setState({ projectName: name, projectPath: dir });
 
       (async () => {
         try {
           const loadResult = await api.annotation.annotatedLoad("src/main.omni");
           if (loadResult.success && loadResult.source) {
-            useEditorStore.setState({
+            usePoiesisStore.setState({
               activeFileContent: loadResult.source,
               activeFilePath: "src/main.omni",
             });
@@ -72,7 +72,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 ...el,
                 position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
               }));
-              useEditorStore.setState({
+              usePoiesisStore.setState({
                 elements: positionedElements,
                 wires: parseResult.designWires || [],
                 rootOrder,
@@ -86,7 +86,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
               const annotations = loadResult.annotations as Record<string, unknown>;
               const markers = annotations.viewMarkers as Array<{ elementId: string; isFolded?: boolean; renderMode?: string }> | undefined;
               if (markers) {
-                useEditorStore.setState((prev) => ({
+                usePoiesisStore.setState((prev) => ({
                   elements: prev.elements.map((el) => {
                     const marker = markers.find((m) => m.elementId === el.id);
                     if (marker) {
@@ -136,7 +136,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
           } else {
             const res = await api.project.readFile("src/main.omni");
             if (res.content) {
-              useEditorStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
+              usePoiesisStore.setState({ activeFileContent: res.content, activeFilePath: "src/main.omni" });
               const parseResult = parseOmniSource(res.content);
               if (parseResult.designElements) {
                 const rootOrder = parseResult.designElements
@@ -147,7 +147,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                   ...el,
                   position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
                 }));
-                useEditorStore.setState({
+                usePoiesisStore.setState({
                   elements: positionedElements,
                   wires: parseResult.designWires || [],
                   rootOrder,
@@ -175,7 +175,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
         try {
           const tomlResult = await api.annotation.loadEditorToml();
           if (tomlResult.state?.open_files?.length) {
-            useEditorStore.setState({ openTabs: tomlResult.state.open_files });
+            usePoiesisStore.setState({ openTabs: tomlResult.state.open_files });
           }
         } catch {
           /* non-critical */

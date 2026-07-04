@@ -7,4 +7,5 @@ export {
   resolvePid,
   resolvePidByLine,
   mergePidMaps,
+  detectPidConflicts,
 } from "./pid-index";
