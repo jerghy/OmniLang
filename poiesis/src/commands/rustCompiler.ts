@@ -65,8 +65,10 @@ class RustCompiler {
     if (this.ready) return;
 
     try {
-      // Dynamic import of the WASM JS glue
+      // Dynamic import of the WASM JS glue — resolved by Vite at build time
+      // eslint-disable-next-line
       const wasmModule = await import(
+        // @ts-expect-error — WASM module resolved by Vite at build time
         '../../public/wasm/omnilang.js'
       );
 

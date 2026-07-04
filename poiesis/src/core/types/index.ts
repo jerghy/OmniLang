@@ -11,3 +11,6 @@ export * from "./node-flow";
 export * from "./element";
 export * from "./wire";
 export * from "./style";
+
+// Legacy type alias for files that still import CodeTab
+export type CodeTab = Record<string, unknown>;

@@ -343,7 +343,7 @@ class OmniDriver {
     }
 
     const target = window.__OMNI_TARGET__ || "react";
-    const result = await api.compile(content, target);
+    const result = await api.compile.compile(content, target);
 
     // Parse view tree and code blocks via local TS parser (replaces Python /api/parse-*)
     try {

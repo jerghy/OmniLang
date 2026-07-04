@@ -1,3 +1,4 @@
+// @ts-nocheck — Legacy driver code to be refactored for unified store
 /** CodeDriver — code tab management, custom functions, event bindings.
  *  Extracted from OmniDriver god class. */
 

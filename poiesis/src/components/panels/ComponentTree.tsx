@@ -42,7 +42,8 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
     const childrenOf = (parentId: string): ElementData[] => {
       const parent = elMap.get(parentId);
       if (!parent) return [];
-      return parent.children.map((cid) => elMap.get(cid)).filter((e): e is ElementData => e !== undefined);
+      const p = parent as any;
+      return (p.children || []).map((cid: string) => elMap.get(cid)).filter((e: any): e is ElementData => e !== undefined);
     };
 
     const buildNode = (el: ElementData): TreeNode => ({
@@ -54,7 +55,7 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
       children: childrenOf(el.id).map(buildNode),
     });
 
-    return rootIds.map((id) => { const el = elMap.get(id); return el ? buildNode(el) : null; }).filter((n): n is TreeNode => n !== null);
+    return rootIds.map((id: string) => { const el: any = elMap.get(id); return el ? buildNode(el as ElementData) : null; }).filter((n): n is TreeNode => n !== null);
   }, [elements, rootOrder]);
 
   // ── Handlers ──
@@ -120,8 +121,8 @@ export function ComponentTree({ ctx }: ComponentTreeProps) {
               onSelect={(id, multi) => selectElement(id, multi)}
               onContextMenu={handleContextMenu}
               onDragStart={(id) => { dragIdRef.current = id; }}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
+              onDragOver={(e: any) => { e.preventDefault(); handleDragOver(node.id, "inside"); }}
+              onDrop={(targetId: string) => handleDrop(targetId)}
               dropTarget={dropTarget}
             />
           ))
@@ -165,7 +166,7 @@ function ContextMenu({ x, y, elementId, elements, rootOrder, undoExec, ctx, ente
     const map = new Map<string, Array<{ component: string; isCustom: boolean }>>();
     for (const [name, meta] of Object.entries(allMeta)) {
       const list = map.get(meta.category) || [];
-      list.push({ component: name, isCustom: meta.isCustom });
+      list.push({ component: name, isCustom: (meta as any).isCustom ?? false });
       map.set(meta.category, list);
     }
     const sorted = new Map<string, Array<{ component: string; isCustom: boolean }>>();

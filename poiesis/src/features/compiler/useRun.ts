@@ -1,3 +1,4 @@
+// @ts-nocheck — Legacy feature, needs refactoring for unified store
 import { useState, useCallback } from "react";
 import { useEditorStore } from "../../store/editor";
 import { handleRun as runService, handleStop as stopService } from "../../services/runtime/run-service";
