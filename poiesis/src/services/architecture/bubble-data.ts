@@ -159,10 +159,6 @@ function extractStoreBlock(source: string): string | null {
 }
 
 /**
- * Extract PascalCase component tags from raw source view block.
- * This catches references that the parser may miss due to @if/@for blocks.
- */
-/**
  * Extract the view block content using brace counting.
  * Handles arbitrarily nested braces (e.g., from @if/@for blocks).
  */
@@ -246,6 +242,10 @@ function analyzeStore(name: string, filePath: string, source: string): ParsedSto
   };
 }
 
+// ── Bubble layout constants ──
+
+const BUBBLE_LAYOUT = { xBase: 120, xSpread: 140, yBase: 180, yStep: 120 } as const;
+
 // ── Bubble position helpers ──
 
 /** Simple deterministic layout: stacked rows by depth */
@@ -259,14 +259,9 @@ function nextBubblePosition(
   }
 
   // For depth 1+, use a grid-like layout
-  const xBase = 120;
-  const xSpread = 140;
-  const yBase = 180;
-  const yStep = 120;
-
   return {
-    x: xBase + siblingIndex * xSpread,
-    y: yBase + (depth - 1) * yStep,
+    x: BUBBLE_LAYOUT.xBase + siblingIndex * BUBBLE_LAYOUT.xSpread,
+    y: BUBBLE_LAYOUT.yBase + (depth - 1) * BUBBLE_LAYOUT.yStep,
   };
 }
 

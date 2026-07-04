@@ -1,5 +1,4 @@
-// TODO(poiesis-v2): remove @ts-nocheck — Codegen service, needs type alignment with unified store
-// editor/client/src/services/codegen/pipeline.ts
+// poiesis/src/services/codegen/pipeline.ts
 // Orchestrates the 3-phase omni-gen pipeline:
 //   Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
 //   Phase B: StoreExtractor + ExpressionLowering + ChainEmitter
@@ -18,6 +17,7 @@ import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { uid } from "../../core/utils";
 import { classNameToVariable, variableToClassName } from "../../core/types";
 import type { StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
+import type { PidMap } from "../../core/types/pid";
 import { useComponentRegistry } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
@@ -238,7 +238,7 @@ type GenerateOmniSourceOptions = {
   forSave?: boolean;
   componentMeta?: ComponentMeta;
   /** Existing PID map to reuse PIDs across regenerations for stability. */
-  existingPidMap?: import("../../core/types/pid").PidMap;
+  existingPidMap?: PidMap;
 };
 
 // ── Default Factory Functions ───────────────────────────────────────
@@ -258,7 +258,7 @@ function defaultBindingResult(): BindingResult {
 
 interface StoreExtractResult {
   stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
   standaloneComputeds: Array<{ name: string; type: string; body: string }>;
 }
 
@@ -296,7 +296,7 @@ interface PhaseAContext {
 
 interface PhaseBContext {
   stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
   standaloneComputeds: Array<{ name: string; type: string; body: string }>;
   lowered: LoweredCode;
   allChains: Map<string, ChainBlock>;
@@ -487,9 +487,9 @@ function buildComponentPart(
   phaseC: PhaseCContext,
 ): ComponentPart {
   // Build component-level signals from standaloneSignals (signals not in a store)
-  const componentSignals: Record<string, { type: string; default?: unknown }> = {};
+  const componentSignals: Record<string, { type: string; defaultValue?: unknown }> = {};
   for (const s of phaseB.standaloneSignals) {
-    componentSignals[s.name] = { type: s.type, default: s.default };
+    componentSignals[s.name] = { type: s.type, defaultValue: s.defaultValue };
   }
 
   // Build component-level computeds from standaloneComputeds
@@ -500,17 +500,25 @@ function buildComponentPart(
 
   // Read props/events from the component registry so they appear
   // as `prop name: Type = default;` and `event name;` in the output.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const registryDef: any = useComponentRegistry.getState().definitions[options.componentName];
-  const componentProps: ComponentPart["props"] = registryDef
-    ? Object.entries(registryDef.props).map(([name, schema]) => ({
+  const registryDef: unknown = useComponentRegistry.getState().definitions[options.componentName];
+  const registryRecord = registryDef && typeof registryDef === "object"
+    ? (registryDef as Record<string, unknown>)
+    : null;
+  const registryProps: Record<string, unknown> = registryRecord && "props" in registryRecord
+    ? (registryRecord.props as Record<string, unknown>)
+    : {};
+  const registryEvents: Record<string, unknown> = registryRecord && "events" in registryRecord
+    ? (registryRecord.events as Record<string, unknown>)
+    : {};
+  const componentProps: ComponentPart["props"] = Object.keys(registryProps).length > 0
+    ? Object.entries(registryProps).map(([name, schema]) => ({
         name,
         type: (schema as { type: string }).type,
         default: (schema as { default?: unknown }).default,
       }))
     : undefined;
-  const componentEvents: ComponentPart["events"] = registryDef
-    ? Object.entries(registryDef.events).map(([name]) => ({
+  const componentEvents: ComponentPart["events"] = Object.keys(registryEvents).length > 0
+    ? Object.entries(registryEvents).map(([name]) => ({
         name,
       }))
     : undefined;
@@ -712,8 +720,8 @@ function emitStoreBlock(store: StoreDef): string {
   w.indent();
   for (const [name, sig] of Object.entries(store.signals)) {
     const def =
-      sig.default !== undefined
-        ? ` = ${JSON.stringify(sig.default)}`
+      sig.defaultValue !== undefined
+        ? ` = ${JSON.stringify(sig.defaultValue)}`
         : "";
     w.emit(`signal ${name}: ${sig.type}${def};`);
   }

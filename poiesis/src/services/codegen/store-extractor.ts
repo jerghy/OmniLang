@@ -8,7 +8,7 @@ import type { StoreDef } from "./types";
 
 export interface StoreExtractResult {
   stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
   standaloneComputeds: Array<{ name: string; type: string; body: string }>;
 }
 
@@ -94,12 +94,12 @@ export function extractStores(elements: ElementData[]): StoreExtractResult {
     const parentStoreName = resolveParentStore(el);
 
     if (tag === "signal") {
-      const signalDef = { type: getSignalType(el), default: el.props.default as unknown | undefined };
+      const signalDef = { type: getSignalType(el), defaultValue: el.props.default as unknown | undefined };
       if (parentStoreName) {
         const store = storeDefs.get(parentStoreName)!;
         store.signals[name] = signalDef;
       } else {
-        standaloneSignals.push({ name, type: signalDef.type, default: signalDef.default });
+        standaloneSignals.push({ name, type: signalDef.type, defaultValue: signalDef.defaultValue });
       }
     } else if (tag === "computed") {
       const returnType = getComputedReturnType(el);

@@ -6,6 +6,10 @@ import type { DesignPageState, DesignTab, Breadcrumb } from "../core/types/desig
 import type { PidEntry } from "../core/types/pid";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
 import type { StyleProperty } from "../core/types/style";
+import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
+import type { UndoAction, UndoStack } from "./undo-slice";
+import { skipUndoGuard, buildUndoUpdate, createUndoSlice } from "./undo-slice";
+import { createTabSlice } from "./tab-slice";
 
 // ── Store Interface ──
 
@@ -138,22 +142,6 @@ export interface PoiesisState {
   loadFromProjectJson: (json: ProjectJson) => void;
 }
 
-type UndoAction =
-  | { type: "addElement"; element: ElementData }
-  | { type: "removeElement"; id: string }
-  | { type: "setProp"; id: string; prop: string; oldValue: unknown }
-  | { type: "addWire"; wire: WireData }
-  | { type: "removeWire"; id: string }
-  | { type: "moveElement"; elementId: string; oldParentId: string | null };
-
-interface UndoStack {
-  undo: UndoAction[];
-  redo: UndoAction[];
-}
-
-/** Skip undo recording during undo/redo operations to prevent stack contamination. */
-let __skipUndo = false;
-
 // ── Initial State ──
 
 function createInitialArchitectureState(): ArchitectureState {
@@ -194,7 +182,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   componentDefs: {},
   pidIndex: {},
   projectDir: null,
-  projectName: "未命名项目",
+  projectName: DEFAULT_PROJECT_NAME,
   isDirty: false,
   activeFilePath: null,
   activeFileContent: null,
@@ -203,7 +191,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   nodeMeta: {},
   wireMeta: {},
   canvasStates: {},
-  panels: { leftWidth: 240, rightWidth: 300 },
+  panels: { ...DEFAULT_PANEL_LAYOUT },
   undoStacks: {},
 
   // ── Architecture actions ──
@@ -213,7 +201,6 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     const linkedIds = s.architecture.bubbles
       .filter(b => b.id === bubbleId)
       .flatMap(b => {
-        // Find linked bubbles (same depth, sibling types)
         const linked = s.architecture.bubbles.filter(
           o => o.depth === b.depth && o.type !== b.type && o.parentId === b.parentId
         );
@@ -251,112 +238,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   })),
 
   // ── Design page actions ──
-  openTab: (filePath, componentName) => set((s) => {
-    const existing = s.designPage.openTabs.find(t => t.filePath === filePath);
-    if (existing) {
-      // Restore the existing tab's canvas data from tabData
-      const td = s.tabData[existing.id];
-      return {
-        currentPage: "design",
-        designPage: { ...s.designPage, activeTabId: existing.id },
-        elements: td?.elements ?? s.elements,
-        wires: td?.wires ?? s.wires,
-        rootOrder: td?.rootOrder ?? s.rootOrder,
-        selectedElementIds: td?.selectedElementIds ?? [],
-      };
-    }
-    const id = `tab_${Date.now()}`;
-    const newTab: DesignTab = {
-      id, filePath, componentName,
-      isDirty: false,
-      pidMap: { entries: {}, lineToPid: {} },
-    };
-    return {
-      currentPage: "design",
-      designPage: {
-        ...s.designPage,
-        openTabs: [...s.designPage.openTabs, newTab],
-        tabOrder: [...s.designPage.tabOrder, id],
-        activeTabId: id,
-        breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
-      },
-    };
-  }),
-
-  /** Maximum number of tabData entries to prevent unbounded growth (LRU eviction). */
-  closeTab: (tabId) => set((s) => {
-    const idx = s.designPage.openTabs.findIndex(t => t.id === tabId);
-    if (idx === -1) return s;
-    const newTabs = s.designPage.openTabs.filter(t => t.id !== tabId);
-    const newOrder = s.designPage.tabOrder.filter(id => id !== tabId);
-    let activeTabId = s.designPage.activeTabId;
-    if (activeTabId === tabId) {
-      const neighborIdx = Math.min(idx, newTabs.length - 1);
-      activeTabId = newTabs[neighborIdx]?.id ?? null;
-    }
-    // Save current canvas state for the tab being closed BEFORE removing its data.
-    // This ensures unsaved canvas state is persisted in tabData for undo/redo history.
-    const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
-    const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
-    // Clean up the closed tab's data
-    const { [tabId]: _, ...restTabData } = tabDataWithSave;
-    // LRU eviction: keep at most 20 entries to prevent unbounded growth.
-    const TAB_DATA_MAX = 20;
-    let prunedTabData = restTabData;
-    const keys = Object.keys(prunedTabData);
-    if (keys.length > TAB_DATA_MAX) {
-      const toRemove = keys.length - TAB_DATA_MAX;
-      // Remove oldest (not currently open) entries — simple FIFO approximation
-      const openIds = new Set(newTabs.map(t => t.id));
-      const removable = keys.filter(k => !openIds.has(k)).sort();
-      for (let i = 0; i < Math.min(toRemove, removable.length); i++) {
-        const { [removable[i]]: _, ...remaining } = prunedTabData;
-        prunedTabData = remaining;
-      }
-    }
-    // If a neighbor tab becomes active, restore its data
-    const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
-    return {
-      designPage: { ...s.designPage, openTabs: newTabs, tabOrder: newOrder, activeTabId },
-      tabData: prunedTabData,
-      elements: restoreEntry?.elements ?? (activeTabId ? [] : s.elements),
-      wires: restoreEntry?.wires ?? (activeTabId ? [] : s.wires),
-      rootOrder: restoreEntry?.rootOrder ?? (activeTabId ? [] : s.rootOrder),
-      selectedElementIds: restoreEntry?.selectedElementIds ?? [],
-    };
-  }),
-
-  switchTab: (tabId) => set((s) => {
-    const oldTabId = s.designPage.activeTabId;
-    if (oldTabId === tabId) return s;
-    // Save current tab's data into tabData
-    const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
-    const savedTabData = oldTabId
-      ? { [oldTabId]: saveEntry }
-      : {};
-    // Restore target tab's data (or empty if not yet loaded)
-    const restoreEntry = s.tabData[tabId];
-    return {
-      designPage: { ...s.designPage, activeTabId: tabId },
-      tabData: { ...s.tabData, ...savedTabData },
-      elements: restoreEntry?.elements ?? [],
-      wires: restoreEntry?.wires ?? [],
-      rootOrder: restoreEntry?.rootOrder ?? [],
-      selectedElementIds: restoreEntry?.selectedElementIds ?? [],
-    };
-  }),
-
-  reorderTabs: (tabOrder) => set((s) => ({
-    designPage: { ...s.designPage, tabOrder },
-  })),
-
-  markTabDirty: (tabId, dirty) => set((s) => ({
-    designPage: {
-      ...s.designPage,
-      openTabs: s.designPage.openTabs.map(t => t.id === tabId ? { ...t, isDirty: dirty } : t),
-    },
-    isDirty: dirty,
-  })),
+  ...createTabSlice(set, get),
 
   toggleCodeFlow: (elementId) => set((s) => {
     const visible = elementId !== null;
@@ -376,30 +258,11 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   addElement: (el) => set((s) => {
     const normalized = { ...el, props: el.props || {} };
     const elements = [...s.elements, normalized];
-
-    // Skip undo recording during undo/redo operations
-    if (__skipUndo) {
-      if (normalized.parentId) {
-        return {
-          elements: elements.map(e =>
-            e.id === normalized.parentId ? { ...e, children: [...e.children, normalized.id] } : e
-          ),
-          isDirty: true,
-        };
-      }
-      return { elements, rootOrder: [...s.rootOrder, normalized.id], isDirty: true };
-    }
-
-    const tabId = s.designPage.activeTabId;
-    // Push inverse for undo
-    const undoAction = { type: "removeElement" as const, id: normalized.id };
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoStack = tabId
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
-      : {};
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "removeElement", id: normalized.id },
+    );
     if (normalized.parentId) {
       return {
         ...undoUpdate,
@@ -430,26 +293,11 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
         e.id === el.parentId ? { ...e, children: e.children.filter(cid => !removedIds.has(cid)) } : e
       );
     }
-
-    // Skip undo recording during undo/redo operations
-    if (__skipUndo) {
-      return {
-        elements,
-        rootOrder: s.rootOrder.filter(rid => !removedIds.has(rid)),
-        wires: s.wires.filter(w => !removedIds.has(w.fromId) && !removedIds.has(w.toId)),
-        isDirty: true,
-      };
-    }
-
-    const tabId = s.designPage.activeTabId;
-    // Push inverse for undo
-    const undoAction = undoPayload ? { type: "addElement" as const, element: undoPayload.element } : null;
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoStack = tabId && undoAction
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
+    const undoAction = undoPayload
+      ? { type: "addElement" as const, element: undoPayload.element }
+      : null;
+    const undoUpdate = undoAction
+      ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, undoAction)
       : {};
     return {
       ...undoUpdate,
@@ -462,24 +310,13 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 
   setProp: (id, prop, value) => set((s) => {
     const elements = s.elements.map(e => e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e);
-
-    if (__skipUndo) {
-      return { elements, isDirty: true };
-    }
-
     const oldEl = s.elements.find(e => e.id === id);
     const oldValue = oldEl?.props[prop];
-
-    const tabId = s.designPage.activeTabId;
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoAction = { type: "setProp" as const, id, prop, oldValue };
-    const undoStack = tabId
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
-      : {};
-
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "setProp", id, prop, oldValue },
+    );
     return { ...undoUpdate, elements, isDirty: true };
   }),
 
@@ -502,41 +339,23 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 
   addWire: (w) => set((s) => {
     const wires = [...s.wires, w];
-
-    if (__skipUndo) {
-      return { wires, isDirty: true };
-    }
-
-    const tabId = s.designPage.activeTabId;
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoAction = { type: "removeWire" as const, id: w.id };
-    const undoStack = tabId
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
-      : {};
-
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "removeWire", id: w.id },
+    );
     return { ...undoUpdate, wires, isDirty: true };
   }),
+
   removeWire: (id) => set((s) => {
     const wire = s.wires.find(w => w.id === id);
     const wires = s.wires.filter(w => w.id !== id);
-
-    if (__skipUndo || !wire) {
-      return { wires, isDirty: true };
-    }
-
-    const tabId = s.designPage.activeTabId;
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoAction = { type: "addWire" as const, wire };
-    const undoStack = tabId
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
-      : {};
-
+    if (!wire) return { wires, isDirty: true };
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "addWire", wire },
+    );
     return { ...undoUpdate, wires, isDirty: true };
   }),
 
@@ -580,21 +399,11 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
         elements = elements.map(e => e.id === newParentId ? { ...e, children: newChildren } : e);
       }
     }
-
-    if (__skipUndo) {
-      return { elements, isDirty: true };
-    }
-
-    const tabId = s.designPage.activeTabId;
-    const existingStack = tabId ? s.undoStacks[tabId] : undefined;
-    const undoAction = { type: "moveElement" as const, elementId, oldParentId };
-    const undoStack = tabId
-      ? { undo: [...(existingStack?.undo ?? []), undoAction], redo: [] }
-      : undefined;
-    const undoUpdate = undoStack && tabId
-      ? { undoStacks: { ...s.undoStacks, [tabId]: undoStack } }
-      : {};
-
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "moveElement", elementId, oldParentId },
+    );
     return { ...undoUpdate, elements, isDirty: true };
   }),
 
@@ -643,140 +452,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     return { rootOrder: newSiblings, isDirty: true };
   }),
 
-  // Undo/redo: execute the inverse of the last action
-  undo: () => {
-    const s = get();
-    const tabId = s.designPage.activeTabId;
-    if (!tabId) return;
-    const stack = s.undoStacks[tabId];
-    if (!stack || stack.undo.length === 0) return;
-    const action = stack.undo[stack.undo.length - 1];
-    // Execute inverse (skip undo recording to avoid contamination)
-    __skipUndo = true;
-    try {
-      switch (action.type) {
-        case "removeElement":
-          s.removeElement(action.id);
-          break;
-        case "addElement":
-          s.addElement(action.element);
-          break;
-        case "setProp":
-          s.setProp(action.id, action.prop, action.oldValue);
-          break;
-        case "addWire":
-          s.addWire(action.wire);
-          break;
-        case "removeWire":
-          s.removeWire(action.id);
-          break;
-        case "moveElement":
-          set((st) => {
-            const element = st.elements.find(e => e.id === action.elementId);
-            if (!element) return st;
-            const currentParent = element.parentId;
-            let elements = st.elements.map(e =>
-              e.id === action.elementId ? { ...e, parentId: action.oldParentId } : e
-            );
-            if (currentParent) {
-              elements = elements.map(e =>
-                e.id === currentParent ? { ...e, children: e.children.filter(c => c !== action.elementId) } : e
-              );
-            }
-            let rootOrder = st.rootOrder.filter(rid => rid !== action.elementId);
-            if (action.oldParentId) {
-              elements = elements.map(e =>
-                e.id === action.oldParentId ? { ...e, children: [...e.children, action.elementId] } : e
-              );
-            } else {
-              rootOrder = [...rootOrder, action.elementId];
-            }
-            return { elements, rootOrder };
-          });
-          break;
-      }
-    } finally {
-      __skipUndo = false;
-    }
-    // Update stacks (after the inverse execution modified the store)
-    const s2 = get();
-    set({
-      undoStacks: {
-        ...s2.undoStacks,
-        [tabId]: {
-          undo: stack.undo.slice(0, -1),
-          redo: [...stack.redo, action],
-        },
-      },
-    });
-  },
-
-  redo: () => {
-    const s = get();
-    const tabId = s.designPage.activeTabId;
-    if (!tabId) return;
-    const stack = s.undoStacks[tabId];
-    if (!stack || stack.redo.length === 0) return;
-    const action = stack.redo[stack.redo.length - 1];
-    // Re-execute the action (skip undo recording)
-    __skipUndo = true;
-    try {
-      switch (action.type) {
-        case "removeElement":
-          s.removeElement(action.id);
-          break;
-        case "addElement":
-          s.addElement(action.element);
-          break;
-        case "setProp":
-          s.setProp(action.id, action.prop, action.oldValue);
-          break;
-        case "addWire":
-          s.addWire(action.wire);
-          break;
-        case "removeWire":
-          s.removeWire(action.id);
-          break;
-        case "moveElement":
-          set((st) => {
-            const element = st.elements.find(e => e.id === action.elementId);
-            if (!element) return st;
-            const currentParent = element.parentId;
-            let elements = st.elements.map(e =>
-              e.id === action.elementId ? { ...e, parentId: action.oldParentId } : e
-            );
-            if (currentParent) {
-              elements = elements.map(e =>
-                e.id === currentParent ? { ...e, children: e.children.filter(c => c !== action.elementId) } : e
-              );
-            }
-            let rootOrder = st.rootOrder.filter(rid => rid !== action.elementId);
-            if (action.oldParentId) {
-              elements = elements.map(e =>
-                e.id === action.oldParentId ? { ...e, children: [...e.children, action.elementId] } : e
-              );
-            } else {
-              rootOrder = [...rootOrder, action.elementId];
-            }
-            return { elements, rootOrder };
-          });
-          break;
-      }
-    } finally {
-      __skipUndo = false;
-    }
-    // Update stacks
-    const s2 = get();
-    set({
-      undoStacks: {
-        ...s2.undoStacks,
-        [tabId]: {
-          undo: [...stack.undo, action],
-          redo: stack.redo.slice(0, -1),
-        },
-      },
-    });
-  },
+  // ── Undo/redo ──
+  ...createUndoSlice(set, get),
 
   // ── Component defs ──
   setComponentDef: (name, def) => set((s) => ({
@@ -841,7 +518,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     componentDefs: {},
     pidIndex: {},
     projectDir: null,
-    projectName: "未命名项目",
+    projectName: DEFAULT_PROJECT_NAME,
     isDirty: false,
     activeFilePath: null,
     activeFileContent: null,
@@ -850,7 +527,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     nodeMeta: {},
     wireMeta: {},
     canvasStates: {},
-    panels: { leftWidth: 240, rightWidth: 300 },
+    panels: { ...DEFAULT_PANEL_LAYOUT },
     undoStacks: {},
   }),
 
@@ -889,6 +566,6 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 }));
 
 // ── Window exposure for E2E / Victauri ──
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && typeof (window as unknown as Record<string, unknown>).__ZUSTAND_STORE__ === "undefined") {
   (window as unknown as Record<string, unknown>).__ZUSTAND_STORE__ = usePoiesisStore;
 }

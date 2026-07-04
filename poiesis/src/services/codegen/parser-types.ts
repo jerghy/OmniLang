@@ -40,7 +40,7 @@ export interface ParseContext {
   pendingEditFlags: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
   hasStyleBlock: boolean;
-  props: Array<{ name: string; type: string; default?: unknown }>;
+  props: Array<{ name: string; type: string; defaultValue?: unknown }>;
   events: Array<{ name: string }>;
   componentMeta: Record<string, unknown> | null;
 }

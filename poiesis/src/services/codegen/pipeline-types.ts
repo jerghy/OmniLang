@@ -1,9 +1,10 @@
-// editor/client/src/services/codegen/pipeline-types.ts
+// poiesis/src/services/codegen/pipeline-types.ts
 // Public type interfaces for the codegen pipeline.
 // Extracted from pipeline.ts for type-safe usage without @ts-nocheck.
 
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 import type { ComponentMeta, StageResult } from "./types";
+import type { PidMap } from "../../core/types/pid";
 
 /**
  * Options for generating a single OmniLang source string from design data.
@@ -17,7 +18,7 @@ export interface GenerateOmniSourceOptions {
   forSave?: boolean;
   componentMeta?: ComponentMeta;
   /** Existing PID map to reuse PIDs across regenerations for stability. */
-  existingPidMap?: import("../../core/types/pid").PidMap;
+  existingPidMap?: PidMap;
 }
 
 /**
@@ -31,7 +32,7 @@ export interface GenerateOmniFilesOptions {
   rootOrder?: string[];
   forSave?: boolean;
   componentMeta?: ComponentMeta;
-  existingPidMap?: import("../../core/types/pid").PidMap;
+  existingPidMap?: PidMap;
 }
 
 /**
@@ -43,7 +44,7 @@ export interface GenerateOmniFragmentOptions {
   designWires: WireData[];
   codeTabs: CodeTab[];
   rootOrder?: string[];
-  existingPidMap?: import("../../core/types/pid").PidMap;
+  existingPidMap?: PidMap;
 }
 
 // ── Public function signatures (re-exported from pipeline.ts) ──

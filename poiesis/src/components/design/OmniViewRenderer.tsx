@@ -14,31 +14,32 @@ function isTextSegment(
   return s.type === "text";
 }
 
-/** Map OmniLang tags to HTML tag names. */
+/** Map OmniLang tags to HTML tag names — static, never changes. */
+const tagMap: Record<string, string> = {
+  text: "span",
+  button: "button",
+  input: "input",
+  img: "img",
+  a: "a",
+  p: "p",
+  h1: "h1",
+  h2: "h2",
+  h3: "h3",
+  section: "section",
+  article: "article",
+  header: "header",
+  footer: "footer",
+  nav: "nav",
+  main: "main",
+  ul: "ul",
+  ol: "ol",
+  li: "li",
+  label: "label",
+  textarea: "textarea",
+  select: "select",
+};
+
 function resolveTag(tag: string): string {
-  const tagMap: Record<string, string> = {
-    text: "span",
-    button: "button",
-    input: "input",
-    img: "img",
-    a: "a",
-    p: "p",
-    h1: "h1",
-    h2: "h2",
-    h3: "h3",
-    section: "section",
-    article: "article",
-    header: "header",
-    footer: "footer",
-    nav: "nav",
-    main: "main",
-    ul: "ul",
-    ol: "ol",
-    li: "li",
-    label: "label",
-    textarea: "textarea",
-    select: "select",
-  };
   return tagMap[tag] || tag || "div";
 }
 

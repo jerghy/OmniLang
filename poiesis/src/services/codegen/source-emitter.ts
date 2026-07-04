@@ -67,7 +67,7 @@ export class SourceEmitter {
     w.emit(`store ${store.name} {`);
     w.indent();
     for (const [name, sig] of Object.entries(store.signals)) {
-      const def = sig.default !== undefined ? ` = ${JSON.stringify(sig.default)}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, g] of Object.entries(store.getters)) {
@@ -98,7 +98,7 @@ export class SourceEmitter {
 
     // Props (e.g. `prop title: String = ""`)
     for (const prop of comp.props || []) {
-      const def = prop.default !== undefined ? ` = ${JSON.stringify(prop.default)}` : "";
+      const def = prop.defaultValue !== undefined ? ` = ${JSON.stringify(prop.defaultValue)}` : "";
       w.emit(`prop ${prop.name}: ${prop.type}${def};`);
     }
     // Events (e.g. `event onAction`)
@@ -107,7 +107,7 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.default !== undefined ? ` = ${JSON.stringify(sig.default)}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds)) {

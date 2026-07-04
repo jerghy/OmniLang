@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/annotation-data.ts
+// poiesis/src/services/codegen/annotation-data.ts
 // Build PID annotations from view tree + tab type, and create AnnotationStrategy from data.
 // Replaces the old // @edit system with // @pid:xxx PIDs.
 

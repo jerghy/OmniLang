@@ -1,8 +1,9 @@
-// editor/client/src/omni-gen/types.ts
+// poiesis/src/services/codegen/types.ts
 // Shared types for the OmniGen pipeline.
 
 import type { ElementData, WireData } from "../../core/types";
 import type { CodeTab } from "../../core/types";
+import type { PidMap, PidBlockType } from "../../core/types/pid";
 
 // ── Error types ──
 
@@ -39,21 +40,21 @@ export interface ValidationResult {
 
 export interface StoreDef {
   name: string;
-  signals: Record<string, { type: string; default?: unknown }>;
+  signals: Record<string, { type: string; defaultValue?: unknown }>;
   getters: Record<string, { returnType: string; body: string }>;
   actions: Array<{ name: string; params: Array<{ name: string; type: string }>; body: string }>;
 }
 
 export interface ComponentPart {
   name: string;
-  signals: Record<string, { type: string; default?: unknown }>;
+  signals: Record<string, { type: string; defaultValue?: unknown }>;
   computeds: Record<string, { type: string; body: string }>;
   storeRefs: string[];
   /** Compile-time constant declarations (e.g. `const MAX_COUNT = 100;`) */
   consts?: Array<{ name: string; value: unknown }>;
   fns: Array<{ name: string; params: Array<{ name: string; type: string }>; returnType: string; body: string }>;
   /** Component prop declarations (e.g. `prop title: String = ""`) */
-  props?: Array<{ name: string; type: string; default?: unknown }>;
+  props?: Array<{ name: string; type: string; defaultValue?: unknown }>;
   /** Component event declarations (e.g. `event onAction`) */
   events?: Array<{ name: string }>;
   view: ViewNode | null;
@@ -75,7 +76,7 @@ export interface EmitInput {
   /** Editor metadata embedded as `// @component`, `// @prop`, `// @event`, `// @style` comments */
   componentMeta?: ComponentMeta;
   /** Existing PID map to preserve PIDs across regenerations (PID stability). */
-  existingPidMap?: import("../../core/types/pid").PidMap;
+  existingPidMap?: PidMap;
 }
 
 /**
@@ -101,8 +102,6 @@ export interface ComponentMeta {
 }
 
 // ── Annotation (v2 PID-based) ──
-
-import type { PidBlockType } from "../../core/types/pid";
 
 export interface PidAnnotation {
   pid: string;
@@ -191,9 +190,9 @@ export interface ParseResult {
   /** Component metadata parsed from `// @component`, `// @prop`, `// @event`, `// @style` comments. */
   componentMeta?: ComponentMeta | null;
   /** Parsed prop declarations from component body (`prop <name>: <type>;`). */
-  props?: Array<{ name: string; type: string; default?: unknown }>;
+  props?: Array<{ name: string; type: string; defaultValue?: unknown }>;
   /** Parsed event declarations from component body (`event <name>;`). */
   events?: Array<{ name: string }>;
   /** PID map parsed from `// @pid:xxx` comments in the source. */
-  pidMap?: import("../../core/types/pid").PidMap;
+  pidMap?: PidMap;
 }

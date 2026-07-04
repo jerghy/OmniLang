@@ -11,6 +11,7 @@ import { ChildBubbleNode } from "./nodes/ChildBubbleNode";
 import { BubbleEdge } from "./edges/BubbleEdge";
 import { BubbleContextMenu } from "./context-menu/BubbleContextMenu";
 
+// @xyflow/react v12 uses broad Node/Edge types; cast to our specific component types
 const nodeTypes = {
   bubble: BubbleNode as unknown as ComponentType<NodeProps>,
   childBubble: ChildBubbleNode as unknown as ComponentType<NodeProps>,
@@ -40,11 +41,15 @@ export function ArchitectureGraph() {
 
   // Load bubble data on mount
   useEffect(() => {
+    let cancelled = false;
     const projectDir = usePoiesisStore.getState().projectDir;
     buildBubbleGraph(projectDir ?? "").then((data) => {
-      setBubblesAndEdges(data.bubbles, data.edges);
-      setLoading(false);
+      if (!cancelled) {
+        setBubblesAndEdges(data.bubbles, data.edges);
+        setLoading(false);
+      }
     });
+    return () => { cancelled = true; };
   }, [setBubblesAndEdges]);
 
   // Compute positions via layout hook
@@ -88,13 +93,13 @@ export function ArchitectureGraph() {
           expanded.has(e.source) ||
           bubbles.find((b) => b.id === e.source)?.depth === 0
       )
-      .map((e) => ({
+      .map((e): Edge => ({
         id: e.id,
-        type: "bubble" as const,
+        type: "bubble",
         source: e.source,
         target: e.target,
         data: e as unknown as Record<string, unknown>,
-      })) as unknown as Edge[];
+      }));
   }, [edges, expandedIds, bubbles]);
 
   // Double-click: expand bubble or navigate to design page
