@@ -17,6 +17,8 @@ export function CodeBlockNode({ data }: Props) {
 
   return (
     <div
+      className="flow-node"
+      data-node-type="code-block"
       onDoubleClick={data.onDoubleClick}
       style={{
         background: "#F8FAFC",

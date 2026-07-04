@@ -40,6 +40,7 @@ export function ContextInspector() {
   if (selectedIds.length === 0) {
     return (
       <div
+        className="context-inspector"
         style={{
           padding: 16,
           color: "#94a3b8",
@@ -62,6 +63,8 @@ export function ContextInspector() {
 
   return (
     <div
+      className="context-inspector"
+      data-section="props"
       style={{
         padding: 12,
         overflow: "auto",

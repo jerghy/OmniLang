@@ -51,7 +51,7 @@ export function SignalForm({
   }, [newName, newType, newDefault, onAdd]);
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div className="signal-form" style={{ marginBottom: 12 }}>
       <div
         style={{
           fontSize: 11,

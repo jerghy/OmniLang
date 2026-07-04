@@ -1,7 +1,7 @@
 // pages/DesignPage.tsx
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 
-import { useMemo } from "react";
+import { useMemo, Component, type ReactNode } from "react";
 import { DesignTabBar } from "../components/design/DesignTabBar";
 import { DesignCanvas } from "../components/design/DesignCanvas";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
@@ -9,6 +9,28 @@ import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
 import { createCommandContext } from "../core/commands/createCommandContext";
+
+// Lightweight error boundary to prevent one panel crash from blanking the entire page
+class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }, { error: Error | null }> {
+  constructor(props: { children: ReactNode; name: string }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 16, color: "#dc2626", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, margin: 4 }}>
+          <strong>⚠ {this.props.name}</strong>
+          <div style={{ marginTop: 4, opacity: 0.7 }}>{this.state.error.message}</div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export function DesignPage() {
   const ctx = useMemo(() => createCommandContext(), []);
@@ -41,7 +63,9 @@ export function DesignPage() {
         }}
       >
         <div style={{ flex: "0 0 auto", maxHeight: "50%", overflow: "auto" }}>
-          <ComponentPalette />
+          <PanelErrorBoundary name="组件面板">
+            <ComponentPalette />
+          </PanelErrorBoundary>
         </div>
         <div style={{ flex: 1, borderTop: "1px solid #e2e8f0", overflow: "auto" }}>
           <ComponentTree ctx={ctx} />

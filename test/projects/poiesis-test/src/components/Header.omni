@@ -1,0 +1,24 @@
+import omniview;
+
+// @pid:c2
+component Header {
+    signal title: String = "App";
+
+    view {
+        <header class="header">
+            <h1>{title}</h1>
+            <nav>
+                <span>Home</span>
+                <span>About</span>
+            </nav>
+        </header>
+    }
+
+    style {
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: white; border-bottom: 1px solid #e5e7eb; }
+        .header h1 { font-size: 18px; color: #111827; margin: 0; }
+        .header nav { display: flex; gap: 16px; }
+        .header nav span { color: #6b7280; cursor: pointer; font-size: 14px; }
+        .header nav span:hover { color: #111827; }
+    }
+}

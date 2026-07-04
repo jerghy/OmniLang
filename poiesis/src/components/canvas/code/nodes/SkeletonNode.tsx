@@ -20,6 +20,8 @@ export function SkeletonNode({ data }: Props) {
 
   return (
     <div
+      className="flow-node"
+      data-node-type="skeleton"
       style={{
         background: "#FFFBEB",
         border: "2px solid #F59E0B",

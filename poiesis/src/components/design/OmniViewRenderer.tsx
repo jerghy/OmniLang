@@ -103,6 +103,7 @@ export function OmniViewRenderer() {
 
   return (
     <div
+      data-renderer="omniview"
       style={{
         width: "100%",
         height: "100%",

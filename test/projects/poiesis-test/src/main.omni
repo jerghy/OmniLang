@@ -1,0 +1,34 @@
+import omniview;
+
+import { TodoStore } from "./stores/TodoStore";
+import { Header } from "./components/Header";
+import { TodoItem } from "./components/TodoItem";
+
+// @pid:c1
+component App {
+    @store TodoStore;
+
+    signal appTitle: String = "Poiesis Test";
+    signal count: i32 = 0;
+
+    fn increment() { count = count + 1; }
+
+    view {
+        <div class="app">
+            <Header title={appTitle} />
+            <main class="main-content">
+                <h1>Poiesis Test Project</h1>
+                <p>Count: {count}</p>
+                <button class="btn" @onPress={increment}>Increment</button>
+                <TodoItem text="Test todo" done={false} />
+            </main>
+        </div>
+    }
+
+    style {
+        .app { max-width: 800px; margin: 0 auto; padding: 20px; background: #f9fafb; min-height: 100vh; }
+        .main-content { padding: 16px; }
+        .btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #4f46e5; }
+    }
+}

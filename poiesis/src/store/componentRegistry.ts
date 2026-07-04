@@ -10,9 +10,13 @@ export const useComponentRegistry = usePoiesisStore as any;
 /** Return unified component metadata (built-in + custom). */
 export function getUnifiedComponentMeta(): Record<string, ComponentProtocolEntry> {
   const state = usePoiesisStore.getState();
-  const customDefs = state.componentDefs;
+  const customDefs = state.componentDefs ?? {};
 
-  const unified: Record<string, ComponentProtocolEntry> = { ...COMPONENT_PROTOCOL };
+  // Guard against module initialization order issues where COMPONENT_PROTOCOL
+  // may not be fully initialized when this function is called during render.
+  const unified: Record<string, ComponentProtocolEntry> = COMPONENT_PROTOCOL
+    ? { ...COMPONENT_PROTOCOL }
+    : {};
 
   for (const [name, def] of Object.entries(customDefs)) {
     const typedDef = def as unknown as Record<string, unknown>;

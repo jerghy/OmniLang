@@ -25,10 +25,10 @@ export function ComponentPalette() {
   // NOTE: definitions, enterComponentCanvas, defineComponent, removeComponent not in PoiesisState — migration needed
   const storeAny = usePoiesisStore as any;
   const registryAny = useComponentRegistry as any;
-  const definitions = registryAny((s: any) => s.definitions);
-  const enterCanvas = storeAny((s: any) => s.enterComponentCanvas);
-  const defineComponent = registryAny((s: any) => s.defineComponent);
-  const removeComponent = registryAny((s: any) => s.removeComponent);
+  const definitions = registryAny((s: any) => s.definitions) ?? {};
+  const enterCanvas = storeAny((s: any) => s.enterComponentCanvas) ?? (() => {});
+  const defineComponent = registryAny((s: any) => s.defineComponent) ?? (() => {});
+  const removeComponent = registryAny((s: any) => s.removeComponent) ?? (() => {});
 
   // Build unified metadata list
   const allMeta = useMemo(() => {

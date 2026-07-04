@@ -16,3 +16,4 @@ Re-review: confirmed all 11 findings fixed. Ready to merge.
 Fix-review2: complete (0 TS errors, vite build passes)
 Fix-review3: complete (0 TS errors, vite build passes)
 Fix-review4: complete (0 TS errors, store 571 lines)
+Victauri tests: extracted (10 files, 64 assertions)

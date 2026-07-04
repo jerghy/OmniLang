@@ -11,6 +11,8 @@ interface Props {
 export function FunctionHeaderNode({ data }: Props) {
   return (
     <div
+      className="flow-node"
+      data-node-type="function-header"
       style={{
         background: "#EEF2FF",
         border: "2px solid #6366F1",

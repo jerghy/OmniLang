@@ -10,6 +10,8 @@ interface Props {
 export function ReturnNode({ data }: Props) {
   return (
     <div
+      className="flow-node"
+      data-node-type="return"
       style={{
         background: "#ECFDF5",
         border: "2px solid #10B981",

@@ -1,0 +1,15 @@
+import omniview;
+
+// @pid:s1
+store TodoStore {
+    signal count: i32 = 0;
+    signal text: String = "";
+
+    action increment() {
+        count = count + 1;
+    }
+
+    action setText(t: String) {
+        text = t;
+    }
+}
