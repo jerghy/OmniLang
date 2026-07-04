@@ -57,7 +57,10 @@ export function BubbleContextMenu({
     if (!bubbleId) return;
     const bubble = bubbles.find((b) => b.id === bubbleId);
     if (bubble && bubble.pid) {
-      openTab(bubble.pid, bubble.label);
+      const pidIndex = usePoiesisStore.getState().pidIndex;
+      const entry = pidIndex[bubble.pid];
+      const filePath = entry?.sourceFile ?? bubble.pid;
+      openTab(filePath, bubble.label);
     }
     onClose();
   }, [bubbleId, bubbles, openTab, onClose]);

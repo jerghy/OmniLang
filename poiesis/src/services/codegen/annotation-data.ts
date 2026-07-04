@@ -4,12 +4,6 @@
 
 import type { ViewNode, AnnotationData, AnnotationStrategy, PidAnnotation } from "./types";
 
-let pidCounter = 0;
-
-function nextPidSeq(): number {
-  return ++pidCounter;
-}
-
 /**
  * Walk ViewNode tree recursively and build AnnotationData with PID annotations.
  *
@@ -28,7 +22,12 @@ export function buildPidAnnotations(
   tabType: "logic" | "event",
   componentIndex: number = 1,
 ): AnnotationData {
-  pidCounter = 0; // reset for consistency
+  let pidCounter = 0;
+
+  function nextPidSeq(): number {
+    return ++pidCounter;
+  }
+
   const pidAnnotations = new Map<string, PidAnnotation>();
 
   function walk(nodes: ViewNode[]): void {

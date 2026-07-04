@@ -20,9 +20,16 @@ export function useBubbleLayout(
 
     // Children: grid below parent
     const childBubbles = visible.filter((b) => b.depth > 0);
+    // Pre-compute sibling groups for O(n) layout
+    const siblingGroups = new Map<string, BubbleNode[]>();
+    childBubbles.forEach((b) => {
+      const key = b.parentId ?? "__root__";
+      if (!siblingGroups.has(key)) siblingGroups.set(key, []);
+      siblingGroups.get(key)!.push(b);
+    });
     childBubbles.forEach((b) => {
       const parentPos = positions.get(b.parentId!) || { x: 400, y: 100 };
-      const siblings = childBubbles.filter((c) => c.parentId === b.parentId);
+      const siblings = siblingGroups.get(b.parentId!) ?? [];
       const idx = siblings.indexOf(b);
       const cols = Math.ceil(Math.sqrt(siblings.length));
       const row = Math.floor(idx / cols);

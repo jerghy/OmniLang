@@ -57,6 +57,7 @@ export function loadProjectFromJson(raw: string): { success: boolean; error?: st
   try {
     const projectJson = deserializeProjectJson(raw);
     const store = usePoiesisStore.getState();
+    store.newProject();
     store.loadFromProjectJson(projectJson);
     return { success: true };
   } catch (e) {

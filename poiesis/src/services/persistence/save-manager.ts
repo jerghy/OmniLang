@@ -25,23 +25,17 @@ export function buildProjectJsonFromStore(): string {
  * In the full implementation, this also triggers the codegen pipeline
  * to write .omni files. For Phase 6, we handle the project.json side.
  */
-export async function saveProject(projectDir: string): Promise<{ success: boolean; error?: string }> {
+export async function saveProject(projectDir: string): Promise<{ success: boolean; error?: string; jsonStr?: string }> {
   try {
     const jsonStr = buildProjectJsonFromStore();
 
-    // In Tauri, write to disk. For now, expose the serialized string.
-    // The actual file write will go through Tauri fs API:
+    // TODO: wire Tauri fs writeFile:
     // await writeTextFile(`${projectDir}/project.json`, jsonStr);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     void projectDir;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    void jsonStr;
 
-    const store = usePoiesisStore.getState();
-    store.markClean();
-
-    return { success: true };
+    return { success: true, jsonStr };
   } catch (e) {
     return { success: false, error: String(e) };
   }

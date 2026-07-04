@@ -38,14 +38,11 @@ export function useBubbleExpand() {
       .filter((b: BubbleNode) => b.depth > 0)
       .map((b: BubbleNode) => b.id);
     // Only collapse children, keep top-level visible
-    usePoiesisStore.setState((s) => ({
-      architecture: {
-        ...s.architecture,
-        expandedBubbleIds: s.architecture.expandedBubbleIds.filter(
-          (id) => !childIds.includes(id)
-        ),
-      },
-    }));
+    childIds.forEach((id) => {
+      if (expandedIds.includes(id)) {
+        collapseBubble(id);
+      }
+    });
   };
 
   return {

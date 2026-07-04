@@ -11,3 +11,5 @@ Phase7: complete (commits 33dabf86..c34f7645, review clean)
 Integ3: complete (0 TS errors)
 Integ2: complete (225 bubbles, 65 edges from real scan)
 Integ1: complete (0 TS errors, vite build passes)
+Fix-review: complete (0 TS errors, vite build passes)
+Re-review: confirmed all 11 findings fixed. Ready to merge.

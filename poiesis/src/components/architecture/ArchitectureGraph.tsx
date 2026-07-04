@@ -40,7 +40,8 @@ export function ArchitectureGraph() {
 
   // Load bubble data on mount
   useEffect(() => {
-    buildBubbleGraph("").then((data) => {
+    const projectDir = usePoiesisStore.getState().projectDir;
+    buildBubbleGraph(projectDir ?? "").then((data) => {
       setBubblesAndEdges(data.bubbles, data.edges);
       setLoading(false);
     });

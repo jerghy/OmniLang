@@ -50,7 +50,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
     (dir: string, name: string) => {
       usePoiesisStore.getState().setProjectDir(dir);
       usePoiesisStore.getState().newProject();
-      usePoiesisStore.setState({ projectName: name, projectPath: dir });
+      usePoiesisStore.setState({ projectName: name, projectDir: dir });
 
       (async () => {
         try {
