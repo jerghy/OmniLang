@@ -1,4 +1,4 @@
-// @ts-nocheck — Codegen service, needs type alignment with unified store
+// TODO(poiesis-v2): remove @ts-nocheck — Codegen service, needs type alignment with unified store
 // editor/client/src/services/codegen/pipeline.ts
 // Orchestrates the 3-phase omni-gen pipeline:
 //   Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
@@ -171,7 +171,7 @@ export function parseStylesFromAST(
           // BOTH auto-generated path classes (e.g. "Test_div_0") from the style
           // resolver AND user-defined classes from the registry.
           const registry = store.getRegistry(componentName);
-          const registryNames = new Set(registry.classes.map((c) => c.name));
+          const registryNames = new Set((registry.classes as Array<{ name: string }>).map((c) => c.name));
           for (const v of registry.variables) {
             registryNames.add(variableToClassName(v.name));
           }
@@ -237,6 +237,8 @@ type GenerateOmniSourceOptions = {
   rootOrder?: string[];
   forSave?: boolean;
   componentMeta?: ComponentMeta;
+  /** Existing PID map to reuse PIDs across regenerations for stability. */
+  existingPidMap?: import("../../core/types/pid").PidMap;
 };
 
 // ── Default Factory Functions ───────────────────────────────────────
@@ -434,6 +436,7 @@ function runPhaseC(
       phaseA.roots,
       (mainTab.type as "logic" | "event") ?? "logic",
       1, // componentIndex — hardcoded for single-component files
+      options.existingPidMap, // pass through for PID stability
     );
     return createAnnotationStrategy(annData);
   });
@@ -497,12 +500,13 @@ function buildComponentPart(
 
   // Read props/events from the component registry so they appear
   // as `prop name: Type = default;` and `event name;` in the output.
-  const registryDef = useComponentRegistry.getState().definitions[options.componentName];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const registryDef: any = useComponentRegistry.getState().definitions[options.componentName];
   const componentProps: ComponentPart["props"] = registryDef
     ? Object.entries(registryDef.props).map(([name, schema]) => ({
         name,
-        type: schema.type,
-        default: schema.default,
+        type: (schema as { type: string }).type,
+        default: (schema as { default?: unknown }).default,
       }))
     : undefined;
   const componentEvents: ComponentPart["events"] = registryDef
@@ -582,6 +586,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     stores: phaseB.ctx.stores,
     component: componentPart,
     componentMeta: emitComponentMeta,
+    existingPidMap: options.existingPidMap,
   };
 
   const c3 = runPhase("C", "source-emitter", () => {

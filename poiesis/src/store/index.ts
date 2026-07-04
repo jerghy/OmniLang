@@ -254,9 +254,15 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   openTab: (filePath, componentName) => set((s) => {
     const existing = s.designPage.openTabs.find(t => t.filePath === filePath);
     if (existing) {
+      // Restore the existing tab's canvas data from tabData
+      const td = s.tabData[existing.id];
       return {
         currentPage: "design",
         designPage: { ...s.designPage, activeTabId: existing.id },
+        elements: td?.elements ?? s.elements,
+        wires: td?.wires ?? s.wires,
+        rootOrder: td?.rootOrder ?? s.rootOrder,
+        selectedElementIds: td?.selectedElementIds ?? [],
       };
     }
     const id = `tab_${Date.now()}`;
@@ -277,6 +283,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     };
   }),
 
+  /** Maximum number of tabData entries to prevent unbounded growth (LRU eviction). */
   closeTab: (tabId) => set((s) => {
     const idx = s.designPage.openTabs.findIndex(t => t.id === tabId);
     if (idx === -1) return s;
@@ -287,16 +294,31 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
       const neighborIdx = Math.min(idx, newTabs.length - 1);
       activeTabId = newTabs[neighborIdx]?.id ?? null;
     }
-    // Save current canvas state for the tab being closed BEFORE removing its data
+    // Save current canvas state for the tab being closed BEFORE removing its data.
+    // This ensures unsaved canvas state is persisted in tabData for undo/redo history.
     const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
     const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
     // Clean up the closed tab's data
     const { [tabId]: _, ...restTabData } = tabDataWithSave;
+    // LRU eviction: keep at most 20 entries to prevent unbounded growth.
+    const TAB_DATA_MAX = 20;
+    let prunedTabData = restTabData;
+    const keys = Object.keys(prunedTabData);
+    if (keys.length > TAB_DATA_MAX) {
+      const toRemove = keys.length - TAB_DATA_MAX;
+      // Remove oldest (not currently open) entries — simple FIFO approximation
+      const openIds = new Set(newTabs.map(t => t.id));
+      const removable = keys.filter(k => !openIds.has(k)).sort();
+      for (let i = 0; i < Math.min(toRemove, removable.length); i++) {
+        const { [removable[i]]: _, ...remaining } = prunedTabData;
+        prunedTabData = remaining;
+      }
+    }
     // If a neighbor tab becomes active, restore its data
-    const restoreEntry = activeTabId ? restTabData[activeTabId] : undefined;
+    const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
     return {
       designPage: { ...s.designPage, openTabs: newTabs, tabOrder: newOrder, activeTabId },
-      tabData: restTabData,
+      tabData: prunedTabData,
       elements: restoreEntry?.elements ?? (activeTabId ? [] : s.elements),
       wires: restoreEntry?.wires ?? (activeTabId ? [] : s.wires),
       rootOrder: restoreEntry?.rootOrder ?? (activeTabId ? [] : s.rootOrder),
@@ -391,23 +413,30 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   }),
 
   removeElement: (id) => set((s) => {
+    // Recursively collect all descendant IDs for proper wire cleanup
+    const removedIds = new Set<string>();
+    function collectDescendants(eid: string): void {
+      removedIds.add(eid);
+      s.elements.filter(e => e.parentId === eid).forEach(c => collectDescendants(c.id));
+    }
     const el = s.elements.find(e => e.id === id);
+    if (el) collectDescendants(el.id);
+
     // Save element snapshot for undo
     const undoPayload = el ? { element: el, rootOrder: s.rootOrder } : null;
-    let elements = s.elements.filter(e => e.id !== id);
+    let elements = s.elements.filter(e => !removedIds.has(e.id));
     if (el?.parentId) {
       elements = elements.map(e =>
-        e.id === el.parentId ? { ...e, children: e.children.filter(cid => cid !== id) } : e
+        e.id === el.parentId ? { ...e, children: e.children.filter(cid => !removedIds.has(cid)) } : e
       );
     }
-    elements = elements.filter(e => e.parentId !== id);
 
     // Skip undo recording during undo/redo operations
     if (__skipUndo) {
       return {
         elements,
-        rootOrder: s.rootOrder.filter(rid => rid !== id),
-        wires: s.wires.filter(w => w.fromId !== id && w.toId !== id),
+        rootOrder: s.rootOrder.filter(rid => !removedIds.has(rid)),
+        wires: s.wires.filter(w => !removedIds.has(w.fromId) && !removedIds.has(w.toId)),
         isDirty: true,
       };
     }
@@ -425,8 +454,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     return {
       ...undoUpdate,
       elements,
-      rootOrder: s.rootOrder.filter(rid => rid !== id),
-      wires: s.wires.filter(w => w.fromId !== id && w.toId !== id),
+      rootOrder: s.rootOrder.filter(rid => !removedIds.has(rid)),
+      wires: s.wires.filter(w => !removedIds.has(w.fromId) && !removedIds.has(w.toId)),
       isDirty: true,
     };
   }),

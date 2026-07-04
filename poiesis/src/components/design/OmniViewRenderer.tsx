@@ -93,7 +93,7 @@ export function OmniViewRenderer() {
         onClick: handleClick,
         onDoubleClick: handleDoubleClick,
       },
-      el.props?.label ? String(el.props.label) : null,
+      el.props?.label != null ? String(el.props.label) : null,
       ...children.map(renderElement)
     );
   };

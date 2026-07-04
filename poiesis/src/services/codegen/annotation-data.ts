@@ -3,29 +3,45 @@
 // Replaces the old // @edit system with // @pid:xxx PIDs.
 
 import type { ViewNode, AnnotationData, AnnotationStrategy, PidAnnotation } from "./types";
+import type { PidMap } from "../../core/types/pid";
+import { generatePid } from "../../services/pid/pid-index";
 
 /**
  * Walk ViewNode tree recursively and build AnnotationData with PID annotations.
  *
- * For each ViewNode (excluding text/interpolation which are inline), a PID is generated:
- * - Format: `c{compIndex}_v{seq}` where seq is a sequential counter
- * - The PidAnnotation stores the pid, blockType ("view"), and the node's tag as blockName
+ * For each ViewNode (excluding text/interpolation which are inline), a PID is generated
+ * using the centralized generatePid() from pid-index.ts (format: `v{compIdx}_v{seq}`).
+ *
+ * The PidAnnotation maps the node's kind to an appropriate PidBlockType and stores
+ * the node's tag as blockName.
  *
  * The codeTabDirective is set to `// @omni-file type=${tabType}`.
  *
  * @param viewNodes     The list of root ViewNodes.
  * @param tabType       The current code tab type.
  * @param componentIndex The file-level index of the component (1-based).
+ * @param existingPidMap Optional map of existing PIDs to preserve across regenerations.
  */
 export function buildPidAnnotations(
   viewNodes: ViewNode[],
   tabType: "logic" | "event",
   componentIndex: number = 1,
+  existingPidMap?: PidMap,
 ): AnnotationData {
   let pidCounter = 0;
 
   function nextPidSeq(): number {
     return ++pidCounter;
+  }
+
+  /** Map a ViewNode kind to the most specific PidBlockType. */
+  function getPidBlockType(kind: ViewNode["kind"]): "view" | "if" | "for" | "slot" {
+    switch (kind) {
+      case "if":   return "if";
+      case "for":  return "for";
+      case "slot": return "slot";
+      default:     return "view";
+    }
   }
 
   const pidAnnotations = new Map<string, PidAnnotation>();
@@ -35,11 +51,26 @@ export function buildPidAnnotations(
       if (node.kind === "text" || node.kind === "interpolation") continue;
 
       const seq = nextPidSeq();
-      const pid = `c${componentIndex}_v${seq}`;
+      const blockType = getPidBlockType(node.kind);
+      // Generate PID using the centralized generatePid() from pid-index.ts.
+      // For view nodes this produces `v{compIdx}_v{seq}` (view prefix + view sub-prefix).
+      const generatedPid = generatePid(componentIndex, "view", seq);
+
+      // Check if we already have a PID for this node path in the existing map
+      let finalPid = generatedPid;
+      if (existingPidMap) {
+        for (const [existingPid, entry] of Object.entries(existingPidMap.entries)) {
+          if (entry.blockName === node.path || entry.blockName === node.tag) {
+            // Reuse existing PID for same path to preserve stability
+            finalPid = existingPid;
+            break;
+          }
+        }
+      }
 
       pidAnnotations.set(node.path, {
-        pid,
-        blockType: "view",
+        pid: finalPid,
+        blockType,
         blockName: node.tag,
       });
 

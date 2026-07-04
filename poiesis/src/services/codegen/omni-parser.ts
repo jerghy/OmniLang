@@ -32,8 +32,8 @@ export function parsePidAnnotations(source: string): PidMap {
   const entries: PidEntry[] = [];
   const lines = source.split("\n");
 
-  // Regex: optional whitespace, then // @pid:<pid>
-  const pidRe = /^\s*\/\/\s*@pid:(.+)$/;
+  // Regex: optional whitespace, then // @pid:<pid>  — capture only the first non-whitespace token
+  const pidRe = /^\s*\/\/\s*@pid:(\S+)/;
 
   for (let i = 0; i < lines.length; i++) {
     const match = lines[i].match(pidRe);

@@ -74,6 +74,8 @@ export interface EmitInput {
   customComponents?: Array<{ name: string; source: string }>;
   /** Editor metadata embedded as `// @component`, `// @prop`, `// @event`, `// @style` comments */
   componentMeta?: ComponentMeta;
+  /** Existing PID map to preserve PIDs across regenerations (PID stability). */
+  existingPidMap?: import("../../core/types/pid").PidMap;
 }
 
 /**

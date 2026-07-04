@@ -3,7 +3,8 @@
 export type PidBlockType =
   | "component" | "store" | "lib" | "signal" | "computed" | "prop"
   | "fn" | "event" | "view" | "style" | "getter" | "action"
-  | "struct" | "type_alias" | "pub_fn";
+  | "struct" | "type_alias" | "pub_fn"
+  | "if" | "for" | "slot";
 
 export interface PidEntry {
   pid: string;           // e.g. "c1", "c1_n1", "s1", "s1_a1"

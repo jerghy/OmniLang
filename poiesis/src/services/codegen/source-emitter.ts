@@ -317,8 +317,15 @@ export class SourceEmitter {
     }
 
     // ── Element nodes (require resolvedStyle) ──
+    // If resolvedStyle is missing, skip silently — this can happen when a node
+    // was added to the ViewNode tree but applyStyles() hasn't been called yet
+    // (e.g. during incremental compilation where only part of the tree is rebuilt).
     const style = node.resolvedStyle;
-    if (!style) return;
+    if (!style) {
+      // Skipping element node without resolvedStyle — caller should ensure
+      // applyStyles() is called before emitting.
+      return;
+    }
 
     const parts: string[] = [];
     parts.push(`<${style.htmlTag}`);

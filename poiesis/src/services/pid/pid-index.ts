@@ -25,7 +25,7 @@ export function generatePid(
 ): string {
   const prefix = getBlockPrefix(blockType);
   if (subIndex !== undefined) {
-    const subPrefix = blockType === "store" ? "a" : "n";
+    const subPrefix = blockType === "store" ? "a" : blockType === "view" ? "v" : "n";
     return `${prefix}${fileIndex}_${subPrefix}${subIndex}`;
   }
   return `${prefix}${fileIndex}`;
@@ -33,13 +33,26 @@ export function generatePid(
 
 /**
  * Map a PidBlockType to its PID prefix character.
+ * Each block type gets a unique prefix for stable identification.
  */
 function getBlockPrefix(blockType: PidBlockType): string {
   switch (blockType) {
-    case "component": return "c";
-    case "store":     return "s";
-    case "lib":       return "l";
-    default:          return "x"; // fallback for sub-block types
+    case "component":  return "c";
+    case "store":      return "s";
+    case "lib":        return "l";
+    case "view":       return "v";
+    case "signal":     return "sg";
+    case "computed":   return "cp";
+    case "prop":       return "p";
+    case "fn":         return "f";
+    case "event":      return "e";
+    case "style":      return "st";
+    case "getter":     return "g";
+    case "action":     return "a";
+    case "struct":     return "t";
+    case "type_alias": return "ta";
+    case "pub_fn":     return "pf";
+    default:           return "x";
   }
 }
 

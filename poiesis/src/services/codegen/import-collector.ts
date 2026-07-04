@@ -1,4 +1,3 @@
-// @ts-nocheck — Codegen service, needs type alignment with unified store
 // editor/client/src/omni-gen/import-collector.ts
 // Collects import statements from component tags, store refs, and cross-tab function references.
 
@@ -22,10 +21,13 @@ export function collectImports(
   // Cross-tab function references
   const logicFnMap = new Map<string, string>(); // fnName → tabLabel
   for (const tab of codeTabs) {
-    if (tab.type === "logic" && tab.id !== "main") {
+    if ((tab.type === "logic" || tab.type === "event") && tab.id !== "main") {
       for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config?.fnName) {
-          logicFnMap.set(el.config.fnName as string, tab.label);
+        if (el.tag === "customFn" && el.config) {
+          const fnName: unknown = el.config.fnName;
+          if (typeof fnName === "string") {
+            logicFnMap.set(fnName, tab.label);
+          }
         }
       }
     }

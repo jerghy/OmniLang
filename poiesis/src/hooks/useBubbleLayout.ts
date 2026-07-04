@@ -30,7 +30,10 @@ export function useBubbleLayout(
     childBubbles.forEach((b) => {
       const parentPos = positions.get(b.parentId!) || { x: 400, y: 100 };
       const siblings = siblingGroups.get(b.parentId!) ?? [];
-      const idx = siblings.indexOf(b);
+      // Build a Map for O(1) position lookup instead of indexOf (O(n^2))
+      const idxMap = new Map<string, number>();
+      siblings.forEach((sib, i) => idxMap.set(sib.id, i));
+      const idx = idxMap.get(b.id) ?? 0;
       const cols = Math.ceil(Math.sqrt(siblings.length));
       const row = Math.floor(idx / cols);
       const col = idx % cols;

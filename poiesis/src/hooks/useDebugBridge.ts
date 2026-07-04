@@ -18,9 +18,11 @@ export function useDebugBridge({ iframeRef, onElementClick }: UseDebugBridgeOpti
   const handlerRef = useRef(onElementClick);
   handlerRef.current = onElementClick;
 
-  // Listen for messages from iframe
+  // Listen for messages from iframe — validate origin for security
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      // Only accept messages from same origin (or the iframe's origin in dev)
+      if (e.origin !== window.location.origin && e.origin !== "null") return;
       if (e.data?.type === "poiesis:element-click" && e.data.pid) {
         handlerRef.current?.(e.data.pid);
       }
@@ -32,7 +34,7 @@ export function useDebugBridge({ iframeRef, onElementClick }: UseDebugBridgeOpti
   const sendToIframe = useCallback(
     (message: BridgeMessage) => {
       if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(message, "*");
+        iframeRef.current.contentWindow.postMessage(message, window.location.origin);
       }
     },
     [iframeRef]
