@@ -7,6 +7,7 @@ import { readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
 import type { EditorTomlState } from "../core/types/annotation";
 import type { PidMap, PidEntry } from "../core/types/pid";
+import { buildProjectJsonFromStore, loadProjectFromJson } from "../services/persistence";
 
 const STORE_PATH = "project.json";
 const COMPONENT_DEFS_FILE = ".poiesis/components.json";
@@ -216,6 +217,44 @@ export function createAnnotationApi() {
         return { state: JSON.parse(content) };
       } catch {
         return { state: null };
+      }
+    },
+
+    // ── Project save/load (via persistence layer) ──
+
+    /**
+     * Save the full project state to project.json.
+     * Builds the ProjectJson from the store via buildProjectJsonFromStore()
+     * and writes it to `project.json` in the project directory.
+     */
+    async saveProject(): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const jsonStr = buildProjectJsonFromStore();
+        const path = joinPath(dir, "project.json");
+        await writeTextFile(path, jsonStr);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    /**
+     * Load project state from project.json.
+     * Reads `project.json` from the project directory and populates
+     * the store via loadProjectFromJson().
+     */
+    async loadProject(): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const path = joinPath(dir, "project.json");
+        const content = await readTextFile(path);
+        const result = loadProjectFromJson(content);
+        return result.success ? { ok: true } : { ok: false, error: result.error };
+      } catch (e) {
+        return { ok: false, error: String(e) };
       }
     },
   };
