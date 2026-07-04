@@ -5,7 +5,8 @@ import { useState, useCallback, useEffect } from "react";
 import { MonacoEditor } from "./MonacoEditor";
 import { useEditorStore } from "../../store/editor";
 import type { ElementData } from "../../core/types";
-import { SnippetPanel } from "../panels/SnippetPanel";
+// NOTE(poiesis-v2): SnippetPanel was removed during Phase 0 restructuring.
+// import { SnippetPanel } from "../panels/SnippetPanel";
 import { TYPE_COLORS } from "../canvas/shared/socketTypes";
 
 interface CodeEditorPopupProps {
