@@ -1,0 +1,26 @@
+import omniview;
+
+// @pid:c5
+component TodoItem {
+    signal text: String = "";
+    signal done: bool = false;
+
+    fn toggleDone() { done = !done; }
+
+    view {
+        <div class="todo-item">
+            <input type="checkbox" checked={done} @onChange={toggleDone} />
+            <span class="todo-text" style="text-decoration: { done ? 'line-through' : 'none' }">{text}</span>
+            <button class="delete-btn" @onPress={remove}>×</button>
+        </div>
+    }
+
+    event remove: void;
+
+    style {
+        .todo-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 4px; background: white; }
+        .todo-text { flex: 1; font-size: 14px; color: #374151; }
+        .delete-btn { padding: 2px 6px; background: #fee2e2; color: #dc2626; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .delete-btn:hover { background: #fecaca; }
+    }
+}

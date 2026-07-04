@@ -5,9 +5,9 @@ import { Logger } from "../lib/utils/logger";
 import { getDesignStore, isCodeMode, getCodeGraphStore, nextId, ensureHelp } from "./store";
 import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import { getNodeConfig } from "../components/canvas/shared/nodeRegistry";
-import { useEditorStore } from "../store/editor";
+import { usePoiesisStore } from "../store";
 import { ElementHandle } from "./ElementHandle";
-import type { ElementData } from "../store/editor";
+import type { ElementData } from "../core/types/element";
 import type { CodeBlockOptions, ElementQuery, PortDescriptor } from "./types";
 
 const log = new Logger({ prefix: "OmniDriver" });
@@ -121,8 +121,8 @@ export class CanvasDriver {
 
     // Auto-nest inline children
     for (const child of inlineChildren) {
-      useEditorStore.setState({
-        elements: useEditorStore.getState().elements.map((e) => {
+      usePoiesisStore.setState({
+        elements: usePoiesisStore.getState().elements.map((e) => {
           if (e.id === child.id) return { ...e, parentId: id };
           if (e.id === id) return { ...e, children: [...e.children, child.id] };
           return e;
@@ -152,7 +152,7 @@ export class CanvasDriver {
 
     // Clone default ports, mapping value-typed ports to the caller's valueType.
     // Keep deps as "any" (it accepts dependencies of any type).
-    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p) => {
+    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p: PortDescriptor) => {
       const shouldMapType =
         p.type === "any" &&
         p.name !== "deps";       // computed deps always accepts "any"
@@ -278,7 +278,7 @@ export class CanvasDriver {
 
   /** Clear all elements and wires from the canvas. */
   clearAll(): void {
-    useEditorStore.setState({ elements: [], wires: [], selectedElementIds: [] });
+    usePoiesisStore.setState({ elements: [], wires: [], selectedElementIds: [] });
   }
 
   // ── Property Operations ───────────────────────────

@@ -6,6 +6,26 @@ import { useComponentRegistry } from "../../core/state/componentRegistry";
 import type { ComponentDefinition } from "../../core/state/componentRegistry";
 import type { ElementData } from "../../core/types";
 
+/** Minimal shape of a component definition's element needed for expansion. */
+interface DefElement {
+  id: string;
+  parentId: string | null;
+  children: string[];
+  tag?: string;
+  nodeType?: string;
+  componentRef?: string;
+  props?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Narrow a component definition to an object with an elements array. */
+function getDefElements(def: ComponentDefinition): DefElement[] | null {
+  if (!def || typeof def !== "object") return null;
+  const maybe = def as Record<string, unknown>;
+  if (!Array.isArray(maybe.elements)) return null;
+  return maybe.elements as DefElement[];
+}
+
 /**
  * Expand custom component references in the elements array.
  *
@@ -41,24 +61,28 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
       expandedRefs.add(id);
 
       const def: ComponentDefinition | undefined = registry[el.componentRef];
-      if (!def || def.elements.length === 0) continue;
+      const defElements = def ? getDefElements(def) : null;
+      if (!defElements || defElements.length === 0) continue;
 
       // Map old definition element IDs -> deterministic IDs based on instance element ID
       const idMap = new Map<string, string>();
       let idx = 0;
-      for (const defEl of def.elements) {
+      for (const defEl of defElements) {
         idMap.set(defEl.id, `${el.id}__${idx++}`);
       }
 
       // Clone definition elements with remapped IDs and parent references
       const rootIds: string[] = [];
-      for (const defEl of def.elements) {
+      for (const defEl of defElements) {
         const newId = idMap.get(defEl.id)!;
         const isRoot = defEl.parentId === null;
 
         const cloned: ElementData = {
           ...defEl,
           id: newId,
+          nodeType: "view" as const,
+          tag: defEl.tag ?? "div",
+          props: defEl.props ?? {},
           parentId: isRoot
             ? el.id
             : idMap.get(defEl.parentId ?? "") || defEl.parentId,

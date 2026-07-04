@@ -2,7 +2,7 @@
 // Finalization (post-processing) functions extracted from the Parser class.
 
 import type { ParserInternals } from "./parser";
-import type { ElementData } from "../../store/editor";
+import type { ElementData } from "../../core/types/element";
 import type { ParseResult } from "./types";
 import { parseStylesFromAST } from "./pipeline";
 import { flushChain } from "./parser-helpers";

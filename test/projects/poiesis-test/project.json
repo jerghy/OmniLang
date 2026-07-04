@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "nodes": {
+    "c1": { "pos": { "x": 400, "y": 100 } },
+    "c2": { "pos": { "x": 250, "y": 340 } },
+    "c5": { "pos": { "x": 350, "y": 580 } },
+    "s1": { "pos": { "x": 100, "y": 470 } }
+  },
+  "wires": {},
+  "architecture": {
+    "mode": "overall",
+    "expandedBubbles": [],
+    "focusComponent": null,
+    "camera": { "x": 0, "y": 0, "zoom": 1 }
+  },
+  "canvasStates": {},
+  "panels": { "leftWidth": 240, "rightWidth": 300 }
+}

@@ -1,23 +1,33 @@
 /** 文件浏览器 — 支持目录导航、返回上级、.omni 文件高亮。*/
 
 import { useState, useCallback } from "react";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import { api } from "../../commands";
 
+// NOTE: 'files' is not in PoiesisState yet — migration needed
+type FileEntry = { name: string; path: string; type: "file" | "directory"; ext?: string };
+
+function getFiles(): FileEntry[] {
+  return (usePoiesisStore.getState() as unknown as Record<string, unknown>).files as FileEntry[] || [];
+}
+
+function setFiles(files: FileEntry[]): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (usePoiesisStore as any).setState({ files });
+}
+
 export function FileExplorer() {
-  const files = useEditorStore((s) => s.files);
-  const activePath = useEditorStore((s) => s.activeFilePath);
-  const openFile = useEditorStore((s) => s.openFile);
+  const files = getFiles();
+  const activePath = usePoiesisStore((s) => s.activeFilePath);
+  const openFile = usePoiesisStore((s) => s.openFile);
   const [currentDir, setCurrentDir] = useState<string[]>(["."]);
 
-  const handleClick = useCallback(async (entry: { name: string; path: string; type: "file" | "directory"; ext?: string }) => {
+  const handleClick = useCallback(async (entry: FileEntry) => {
     if (entry.type === "directory") {
       const result = await api.project.listDir(entry.path);
       if (result.entries) {
         setCurrentDir([...currentDir, entry.path]);
-        useEditorStore.setState(() => ({
-          files: result.entries!,
-        }));
+        setFiles(result.entries);
       }
     } else {
       const result = await api.project.readFile(entry.path);
@@ -34,7 +44,7 @@ export function FileExplorer() {
     const parentPath = newDir[newDir.length - 1] || ".";
     const result = await api.project.listDir(parentPath);
     if (result.entries) {
-      useEditorStore.setState(() => ({ files: result.entries! }));
+      setFiles(result.entries);
     }
   }, [currentDir]);
 

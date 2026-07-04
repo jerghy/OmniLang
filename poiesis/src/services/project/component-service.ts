@@ -84,7 +84,7 @@ export async function loadComponentDefinitionsFromServer(): Promise<
       if (!propSchema[p.name]) {
         propSchema[p.name] = {
           type: p.type,
-          default: p.default,
+          default: p.defaultValue,
           editor: "text",
         };
       }

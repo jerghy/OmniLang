@@ -2,7 +2,7 @@
  *  Extracted from OmniDriver god class. */
 
 import { getDesignStore } from "./store";
-import { useEditorStore } from "../store/editor";
+import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 
 // ═══════════════════════════════════════════════════════
@@ -19,7 +19,7 @@ export class FileDriver {
 
   /** Set the active file content. */
   setSourceCode(content: string): void {
-    useEditorStore.setState({ activeFileContent: content });
+    usePoiesisStore.setState({ activeFileContent: content });
   }
 
   /** Get the active file path. */
@@ -32,7 +32,7 @@ export class FileDriver {
     const path = getDesignStore().activeFilePath;
     const content = getDesignStore().activeFileContent;
     if (!path || !content) return false;
-    const result = await api.writeFile(path, content);
+    const result = await api.project.writeFile(path, content);
     return result.ok;
   }
 
@@ -40,21 +40,21 @@ export class FileDriver {
 
   /** Read a file from the project. */
   async readFile(filePath: string): Promise<string | null> {
-    const result = await api.readFile(filePath);
+    const result = await api.project.readFile(filePath);
     return result.content || null;
   }
 
   /** Write content to a file in the project. */
   async writeFile(filePath: string, content: string): Promise<boolean> {
-    const result = await api.writeFile(filePath, content);
+    const result = await api.project.writeFile(filePath, content);
     return result.ok;
   }
 
   /** Open a file in the editor. */
   async openFile(filePath: string): Promise<void> {
-    const result = await api.readFile(filePath);
+    const result = await api.project.readFile(filePath);
     if (result.content) {
-      useEditorStore.getState().openFile(filePath, result.content);
+      usePoiesisStore.getState().openFile(filePath, result.content);
     }
   }
 }

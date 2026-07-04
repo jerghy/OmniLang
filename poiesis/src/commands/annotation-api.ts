@@ -1,16 +1,13 @@
 // commands/annotation-api.ts
-// Annotation + component definitions + editor TOML operations
-// Replaces Python FastAPI endpoints: /api/annotated-*, /api/component-definitions/*, /api/editor-toml/*
+// PID annotation + component definitions + editor TOML operations
+// Replaces the old annotatedLoad/annotatedSave with v2 PID-based versions.
 // Implemented via Tauri plugin-fs for file I/O
 
-import { readTextFile, writeTextFile, readDir, remove, mkdir } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
-import type {
-  AnnotatedLoadResponse,
-  AnnotatedSaveResponse,
-  EditorTomlState,
-  AnnotationFile,
-} from "../core/types";
+import type { EditorTomlState } from "../core/types/annotation";
+import type { PidMap, PidEntry } from "../core/types/pid";
+import { buildProjectJsonFromStore, loadProjectFromJson } from "../services/persistence";
 
 const STORE_PATH = "project.json";
 const COMPONENT_DEFS_FILE = ".poiesis/components.json";
@@ -40,6 +37,41 @@ async function ensurePoiesisDir(projectDir: string): Promise<string> {
     // Directory may already exist
   }
   return dir;
+}
+
+/**
+ * Parse `// @pid:xxx` comments from raw .omni source text.
+ * Returns a PidMap with the parsed PIDs.
+ */
+function parsePidComments(source: string): PidMap {
+  const entries: PidEntry[] = [];
+  const lines = source.split("\n");
+  const pidRe = /^\s*\/\/\s*@pid:(.+)$/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(pidRe);
+    if (match) {
+      const pid = match[1].trim();
+      entries.push({
+        pid,
+        blockType: "view",
+        blockName: "",
+        sourceFile: "",
+        startLine: i + 1, // 1-based
+        endLine: i + 1,
+      });
+    }
+  }
+
+  const pidMap: PidMap = { entries: {}, lineToPid: {} };
+  for (const entry of entries) {
+    pidMap.entries[entry.pid] = entry;
+    for (let line = entry.startLine; line <= entry.endLine; line++) {
+      pidMap.lineToPid[line] = entry.pid;
+    }
+  }
+
+  return pidMap;
 }
 
 export function createAnnotationApi() {
@@ -94,57 +126,51 @@ export function createAnnotationApi() {
       }
     },
 
-    // ── Annotated save/load ──
-    // Saves an envelope JSON alongside the .omni source that includes
-    // annotations (viewMarkers, chains, etc.) and the raw source.
-    async annotatedSave(
-      filePath: string,
-      annotations: AnnotationFile,
-      source: string,
-    ): Promise<AnnotatedSaveResponse> {
+    // ── PID annotation API (v2, replaces old annotatedSave/annotatedLoad) ──
+
+    /**
+     * Read a .omni file and extract its PID map from `// @pid:xxx` comments.
+     *
+     * @param filePath  Relative path from project root (e.g. "src/main.omni").
+     * @returns The parsed PidMap, or an empty PidMap if no pid comments found.
+     */
+    async readPidMap(filePath: string): Promise<PidMap> {
       try {
         const dir = await resolveProjectDir();
-        if (!dir) return { success: false, error: "未设置项目目录" };
+        if (!dir) return { entries: {}, lineToPid: {} };
 
-        // Save the raw .omni source file
-        const omniPath = joinPath(dir, filePath);
-        await writeTextFile(omniPath, source);
-
-        // Save the annotation envelope
-        const annoDir = joinPath(dir, ".poiesis/annotations");
-        await mkdir(annoDir, { recursive: true });
-        const annoPath = joinPath(dir, `.poiesis/annotations/${filePath.replace(/[/\\:]/g, "_")}.json`);
-        await writeTextFile(annoPath, JSON.stringify({ annotations, source, savedAt: Date.now() }, null, 2));
-
-        return { success: true };
-      } catch (e) {
-        return { success: false, error: String(e) };
+        const fullPath = joinPath(dir, filePath);
+        const source = await readTextFile(fullPath);
+        return parsePidComments(source);
+      } catch {
+        return { entries: {}, lineToPid: {} };
       }
     },
 
-    async annotatedLoad(filePath: string): Promise<AnnotatedLoadResponse> {
+    /**
+     * Write the .omni source file and persist its PidMap to the annotation store.
+     *
+     * @param filePath  Relative path from project root.
+     * @param source    The .omni source text to write.
+     * @param pidMap    The PidMap to persist as annotation metadata.
+     */
+    async writePidAnnotations(
+      filePath: string,
+      source: string,
+      pidMap: PidMap,
+    ): Promise<{ ok: boolean; error?: string }> {
       try {
         const dir = await resolveProjectDir();
-        if (!dir) return { success: false, error: "未设置项目目录" };
+        if (!dir) return { ok: false, error: "未设置项目目录" };
 
-        // Try loading annotation envelope first
-        const annoPath = joinPath(dir, `.poiesis/annotations/${filePath.replace(/[/\\:]/g, "_")}.json`);
-        try {
-          const annoContent = await readTextFile(annoPath);
-          const envelope = JSON.parse(annoContent);
-          return {
-            success: true,
-            source: envelope.source as string,
-            annotations: envelope.annotations as Record<string, unknown>,
-          };
-        } catch {
-          // Fallback: read raw .omni file without annotations
-          const omniPath = joinPath(dir, filePath);
-          const source = await readTextFile(omniPath);
-          return { success: true, source };
-        }
+        // Save the raw .omni source file (truth source)
+        const omniPath = joinPath(dir, filePath);
+        await writeTextFile(omniPath, source);
+
+        // PidMap is embedded in .omni via // @pid:xxx comments — no sidecar needed
+        return { ok: true };
       } catch (e) {
-        return { success: false, error: String(e) };
+        return { ok: false, error: String(e) };
       }
     },
 
@@ -176,6 +202,44 @@ export function createAnnotationApi() {
         return { state: JSON.parse(content) };
       } catch {
         return { state: null };
+      }
+    },
+
+    // ── Project save/load (via persistence layer) ──
+
+    /**
+     * Save the full project state to project.json.
+     * Builds the ProjectJson from the store via buildProjectJsonFromStore()
+     * and writes it to `project.json` in the project directory.
+     */
+    async saveProject(): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const jsonStr = buildProjectJsonFromStore();
+        const path = joinPath(dir, "project.json");
+        await writeTextFile(path, jsonStr);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    /**
+     * Load project state from project.json.
+     * Reads `project.json` from the project directory and populates
+     * the store via loadProjectFromJson().
+     */
+    async loadProject(): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const path = joinPath(dir, "project.json");
+        const content = await readTextFile(path);
+        const result = loadProjectFromJson(content);
+        return result.success ? { ok: true } : { ok: false, error: result.error };
+      } catch (e) {
+        return { ok: false, error: String(e) };
       }
     },
   };

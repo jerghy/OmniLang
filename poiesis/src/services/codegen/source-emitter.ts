@@ -67,7 +67,7 @@ export class SourceEmitter {
     w.emit(`store ${store.name} {`);
     w.indent();
     for (const [name, sig] of Object.entries(store.signals)) {
-      const def = sig.default !== undefined ? ` = ${JSON.stringify(sig.default)}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, g] of Object.entries(store.getters)) {
@@ -98,7 +98,7 @@ export class SourceEmitter {
 
     // Props (e.g. `prop title: String = ""`)
     for (const prop of comp.props || []) {
-      const def = prop.default !== undefined ? ` = ${JSON.stringify(prop.default)}` : "";
+      const def = prop.defaultValue !== undefined ? ` = ${JSON.stringify(prop.defaultValue)}` : "";
       w.emit(`prop ${prop.name}: ${prop.type}${def};`);
     }
     // Events (e.g. `event onAction`)
@@ -107,7 +107,7 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.default !== undefined ? ` = ${JSON.stringify(sig.default)}` : "";
+      const def = sig.defaultValue !== undefined ? ` = ${JSON.stringify(sig.defaultValue)}` : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds)) {
@@ -229,10 +229,10 @@ export class SourceEmitter {
   ]);
 
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
-    // Annotation (skip for text/interpolation which are inline)
+    // PID annotation (skip for text/interpolation which are inline)
     if (this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
       const ann = this.annotationStrategy.beforeViewNode(node, depth);
-      if (ann) w.emit(ann);
+      if (ann) w.emit(`// @pid:${ann.pid}`);
     }
 
     // ── Non-element node kinds (don't need resolvedStyle) ──
@@ -317,8 +317,15 @@ export class SourceEmitter {
     }
 
     // ── Element nodes (require resolvedStyle) ──
+    // If resolvedStyle is missing, skip silently — this can happen when a node
+    // was added to the ViewNode tree but applyStyles() hasn't been called yet
+    // (e.g. during incremental compilation where only part of the tree is rebuilt).
     const style = node.resolvedStyle;
-    if (!style) return;
+    if (!style) {
+      // Skipping element node without resolvedStyle — caller should ensure
+      // applyStyles() is called before emitting.
+      return;
+    }
 
     const parts: string[] = [];
     parts.push(`<${style.htmlTag}`);

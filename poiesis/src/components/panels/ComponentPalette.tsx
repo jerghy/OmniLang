@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from "react";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
 import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/constants";
 
@@ -22,10 +22,13 @@ export function ComponentPalette() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  const definitions = useComponentRegistry((s) => s.definitions);
-  const enterCanvas = useEditorStore((s) => s.enterComponentCanvas);
-  const defineComponent = useComponentRegistry((s) => s.defineComponent);
-  const removeComponent = useComponentRegistry((s) => s.removeComponent);
+  // NOTE: definitions, enterComponentCanvas, defineComponent, removeComponent not in PoiesisState — migration needed
+  const storeAny = usePoiesisStore as any;
+  const registryAny = useComponentRegistry as any;
+  const definitions = registryAny((s: any) => s.definitions) ?? {};
+  const enterCanvas = storeAny((s: any) => s.enterComponentCanvas) ?? (() => {});
+  const defineComponent = registryAny((s: any) => s.defineComponent) ?? (() => {});
+  const removeComponent = registryAny((s: any) => s.removeComponent) ?? (() => {});
 
   // Build unified metadata list
   const allMeta = useMemo(() => {

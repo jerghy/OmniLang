@@ -1,7 +1,7 @@
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 
 export function PreviewFrame() {
-  const compileErrors = useEditorStore((s) => s.compileErrors);
+  const compileErrors = usePoiesisStore((s) => s.compileErrors);
 
   if (compileErrors.length > 0) {
     return (

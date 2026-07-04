@@ -18,9 +18,10 @@ import type {
   FunctionValidationReport,
   FunctionSignature,
 } from "./types";
-import type { ElementData, WireData, EditorState } from "../store/editor";
+import type { ElementData } from "../core/types/element";
+import type { WireData } from "../core/types/wire";
 import type { CodeEditorState } from "../services/codegraph/store";
-import type { ComponentRegistryState } from "../store/componentRegistry";
+import type { PoiesisState } from "../store";
 
 interface ElementHandle {
   readonly id: string;

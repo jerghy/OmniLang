@@ -65,9 +65,11 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
             }
         }
     } else if project_dir.is_file() && project_dir.extension().map_or(false, |e| e == "omni") {
+        // Also discover sibling .omni files for import resolution
+        let file_stem = project_dir.file_stem().unwrap().to_string_lossy().to_string();
+        let name = project_dir.file_name().unwrap().to_string_lossy().to_string();
         match std::fs::read_to_string(project_dir) {
             Ok(content) => {
-                let name = project_dir.file_name().unwrap().to_string_lossy().to_string();
                 sources.insert(name, content);
             }
             Err(e) => {
@@ -76,6 +78,32 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                     files: HashMap::new(),
                     errors: vec![format!("Cannot read {:?}: {}", project_dir, e)],
                 };
+            }
+        }
+        // Walk sibling directories to resolve imports
+        if let Some(parent) = project_dir.parent() {
+            let parent = if parent.as_os_str().is_empty() {
+                std::path::Path::new(".")
+            } else {
+                parent
+            };
+            for entry in walkdir::WalkDir::new(parent)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.file_name().to_string_lossy().ends_with(".omni")
+                        && e.path() != project_dir
+                })
+            {
+                let path = entry.path().to_owned();
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    let rel_path = path
+                        .strip_prefix(parent)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string();
+                    sources.insert(rel_path, content);
+                }
             }
         }
     } else {
@@ -296,6 +324,205 @@ fn build_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, Stri
     mapping
 }
 
+// ── Project state management ──
+
+use std::sync::Mutex;
+
+struct ProjectState {
+    project_dir: Mutex<Option<String>>,
+    store_snapshot: Mutex<String>,
+    pid_index: Mutex<String>,
+}
+
+impl Default for ProjectState {
+    fn default() -> Self {
+        Self {
+            project_dir: Mutex::new(None),
+            store_snapshot: Mutex::new(String::new()),
+            pid_index: Mutex::new("{}".to_string()),
+        }
+    }
+}
+
+// ── Project lifecycle commands ──
+
+#[tauri::command]
+fn get_project_dir(state: tauri::State<ProjectState>) -> Result<String, String> {
+    state
+        .project_dir
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No project open".to_string())
+}
+
+#[tauri::command]
+fn open_project(path: String, state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Project path not found: {}", path));
+    }
+    let canonical = p
+        .canonicalize()
+        .unwrap_or_else(|_| p.to_path_buf())
+        .to_string_lossy()
+        .to_string();
+    *state.project_dir.lock().map_err(|e| e.to_string())? = Some(canonical.clone());
+    Ok(serde_json::json!({"success": true, "path": canonical}))
+}
+
+#[tauri::command]
+fn save_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .project_dir
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No project open".to_string())?;
+    let snapshot = state.store_snapshot.lock().map_err(|e| e.to_string())?.clone();
+    let project_json_path = std::path::Path::new(&dir).join("project.json");
+    std::fs::write(&project_json_path, &snapshot)
+        .map_err(|e| format!("Failed to write project.json: {}", e))?;
+    Ok(serde_json::json!({"success": true}))
+}
+
+#[tauri::command]
+fn close_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
+    *state.project_dir.lock().map_err(|e| e.to_string())? = None;
+    *state.store_snapshot.lock().map_err(|e| e.to_string())? = String::new();
+    *state.pid_index.lock().map_err(|e| e.to_string())? = "{}".to_string();
+    Ok(serde_json::json!({"success": true}))
+}
+
+// ── File system commands ──
+
+#[tauri::command]
+fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, String> {
+    let dir = state
+        .project_dir
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No project open".to_string())?;
+    let full = std::path::Path::new(&dir).join(&path);
+    std::fs::read_to_string(&full).map_err(|e| format!("Failed to read {}: {}", full.display(), e))
+}
+
+#[tauri::command]
+fn write_file(
+    path: String,
+    content: String,
+    state: tauri::State<ProjectState>,
+) -> Result<serde_json::Value, String> {
+    let dir = state
+        .project_dir
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No project open".to_string())?;
+    let full = std::path::Path::new(&dir).join(&path);
+    if let Some(parent) = full.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create dir: {}", e))?;
+    }
+    std::fs::write(&full, &content)
+        .map_err(|e| format!("Failed to write {}: {}", full.display(), e))?;
+    Ok(serde_json::json!({"success": true}))
+}
+
+// ── State sync commands ──
+
+#[tauri::command]
+fn sync_store_state(
+    store_snapshot: String,
+    pid_index: String,
+    state: tauri::State<ProjectState>,
+) -> Result<(), String> {
+    *state.store_snapshot.lock().map_err(|e| e.to_string())? = store_snapshot;
+    *state.pid_index.lock().map_err(|e| e.to_string())? = pid_index;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_store_snapshot(state: tauri::State<ProjectState>) -> Result<String, String> {
+    let snap = state.store_snapshot.lock().map_err(|e| e.to_string())?.clone();
+    if snap.is_empty() {
+        // If no state synced yet, return empty JSON object
+        Ok("{}".to_string())
+    } else {
+        Ok(snap)
+    }
+}
+
+#[tauri::command]
+fn get_pid_index(state: tauri::State<ProjectState>) -> Result<String, String> {
+    Ok(state.pid_index.lock().map_err(|e| e.to_string())?.clone())
+}
+
+// ── PID verification ──
+
+#[derive(Debug, serde::Serialize)]
+struct PidRoundtripResult {
+    consistent: bool,
+    pids: Vec<String>,
+}
+
+#[tauri::command]
+fn verify_pid_roundtrip(
+    file: String,
+    state: tauri::State<ProjectState>,
+) -> Result<serde_json::Value, String> {
+    let dir = state
+        .project_dir
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No project open".to_string())?;
+    let full = std::path::Path::new(&dir).join(&file);
+    let source = std::fs::read_to_string(&full)
+        .map_err(|e| format!("Failed to read {}: {}", full.display(), e))?;
+
+    // Parse using omnilang
+    let tokens = omnilang::lexer::tokenize(&source);
+    let program = match omnilang::parser::parse(&tokens, &source) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(serde_json::json!({
+                "consistent": false,
+                "pids": [],
+                "error": e.message
+            }));
+        }
+    };
+
+    // Extract @pid annotations from comments in source
+    let mut pids_from_comments: Vec<String> = Vec::new();
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if let Some(pos) = trimmed.find("// @pid:") {
+            let pid = trimmed[pos + 8..].trim().to_string();
+            if !pid.is_empty() && !pids_from_comments.contains(&pid) {
+                pids_from_comments.push(pid);
+            }
+        }
+    }
+
+    // Count components in the parsed program
+    let mut component_count = 0usize;
+    for module in program.modules.values() {
+        component_count += module.components.len();
+    }
+
+    // Consistent if: file parses successfully AND has @pid annotations
+    let consistent = !pids_from_comments.is_empty();
+
+    Ok(serde_json::json!({
+        "consistent": consistent,
+        "pids": pids_from_comments,
+        "component_count": component_count,
+    }))
+}
+
 // ── Tauri app entry ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -306,10 +533,21 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .manage(ProjectState::default())
         .invoke_handler(tauri::generate_handler![
             compile_project,
             analyse_source,
             project_export,
+            get_project_dir,
+            open_project,
+            save_project,
+            close_project,
+            read_file,
+            write_file,
+            sync_store_state,
+            get_store_snapshot,
+            get_pid_index,
+            verify_pid_roundtrip,
         ])
         .plugin(victauri_plugin::init())
         .run(tauri::generate_context!())

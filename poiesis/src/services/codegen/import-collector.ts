@@ -21,10 +21,13 @@ export function collectImports(
   // Cross-tab function references
   const logicFnMap = new Map<string, string>(); // fnName → tabLabel
   for (const tab of codeTabs) {
-    if (tab.type === "logic" && tab.id !== "main") {
+    if ((tab.type === "logic" || tab.type === "event") && tab.id !== "main") {
       for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config?.fnName) {
-          logicFnMap.set(el.config.fnName as string, tab.label);
+        if (el.tag === "customFn" && el.config) {
+          const fnName: unknown = el.config.fnName;
+          if (typeof fnName === "string") {
+            logicFnMap.set(fnName, tab.label);
+          }
         }
       }
     }

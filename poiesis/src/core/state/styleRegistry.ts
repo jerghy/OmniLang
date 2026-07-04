@@ -1,196 +1,28 @@
-// core/state/styleRegistry.ts
-// Atom store — canonical owner of component-level StyleRegistry data.
+// Legacy style registry stub — merged into unified store.
+import { usePoiesisStore } from "../../store";
 
-import { create } from "zustand";
-import type { CssVariable, StyleClass, StyleProperty, StyleRegistry } from "../types/style";
+export const styleRegistry = {
+  classes: {},
+  cssVars: {},
+};
 
-/** Stable sentinel used when a component has no registry yet.
- *  Do NOT inline `?? { variables: [], classes: [] }` — that creates a new reference
- *  on every call, which triggers React 18's useSyncExternalStore infinite loop detection. */
-const NO_REGISTRY: StyleRegistry = Object.freeze({ variables: [], classes: [] });
+// Hybrid: callable as a hook + has .getState()/.setState()/.subscribe()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StoreFn = { (selector?: (state: any) => unknown): any; getState(): any; setState(p: any): void; subscribe(fn?: (s: any) => unknown): () => void; destroy(): void };
 
-interface StyleRegistryState {
-  registries: Record<string, StyleRegistry>;
+const _getState = () => usePoiesisStore.getState() as any;
 
-  // ── CSS Variable operations ──
-  addVariable: (componentName: string, variable: CssVariable) => void;
-  removeVariable: (componentName: string, variableId: string) => void;
-  updateVariable: (componentName: string, variableId: string, patch: Partial<CssVariable>) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const styleStore: StoreFn = ((selector?: (state: any) => unknown): any => {
+  const store = _getState();
+  return selector ? selector(store) : store;
+}) as StoreFn;
 
-  // ── Class operations ──
-  addClass: (componentName: string, styleClass: StyleClass) => void;
-  removeClass: (componentName: string, classId: string) => void;
-  replaceClass: (componentName: string, styleClass: StyleClass) => void;
-  renameClass: (componentName: string, classId: string, newName: string) => void;
+styleStore.getState = _getState;
+styleStore.setState = (partial: any) => usePoiesisStore.setState(partial);
+styleStore.subscribe = (selector?: (s: any) => unknown) => {
+  return usePoiesisStore.subscribe((s) => selector?.(s as any));
+};
+styleStore.destroy = () => {};
 
-  // ── Property operations ──
-  addProperty: (componentName: string, classId: string, property: StyleProperty) => void;
-  removeProperty: (componentName: string, classId: string, propertyId: string) => void;
-  updateProperty: (componentName: string, classId: string, propertyId: string, patch: Partial<StyleProperty>) => void;
-
-  // ── Queries ──
-  getRegistry: (componentName: string) => StyleRegistry;
-}
-
-export const useStyleRegistryStore = create<StyleRegistryState>((set, get) => ({
-  registries: {},
-
-  addVariable: (componentName, variable) => set((s) => {
-    const reg = s.registries[componentName] ?? { variables: [], classes: [] };
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: { ...reg, variables: [...reg.variables, variable] },
-      },
-    };
-  }),
-
-  removeVariable: (componentName, variableId) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          variables: reg.variables.filter((v) => v.id !== variableId),
-        },
-      },
-    };
-  }),
-
-  updateVariable: (componentName, variableId, patch) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          variables: reg.variables.map((v) =>
-            v.id === variableId ? { ...v, ...patch } : v
-          ),
-        },
-      },
-    };
-  }),
-
-  addClass: (componentName, styleClass) => set((s) => {
-    const reg = s.registries[componentName] ?? { variables: [], classes: [] };
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: { ...reg, classes: [...reg.classes, styleClass] },
-      },
-    };
-  }),
-
-  removeClass: (componentName, classId) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.filter((c) => c.id !== classId),
-        },
-      },
-    };
-  }),
-
-  replaceClass: (componentName, styleClass) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.map((c) =>
-            c.id === styleClass.id ? styleClass : c
-          ),
-        },
-      },
-    };
-  }),
-
-  renameClass: (componentName, classId, newName) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.map((c) =>
-            c.id === classId ? { ...c, name: newName } : c
-          ),
-        },
-      },
-    };
-  }),
-
-  addProperty: (componentName, classId, property) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.map((c) =>
-            c.id === classId
-              ? { ...c, properties: [...c.properties, property] }
-              : c
-          ),
-        },
-      },
-    };
-  }),
-
-  removeProperty: (componentName, classId, propertyId) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.map((c) =>
-            c.id === classId
-              ? { ...c, properties: c.properties.filter((p) => p.id !== propertyId) }
-              : c
-          ),
-        },
-      },
-    };
-  }),
-
-  updateProperty: (componentName, classId, propertyId, patch) => set((s) => {
-    const reg = s.registries[componentName];
-    if (!reg) return {};
-    return {
-      registries: {
-        ...s.registries,
-        [componentName]: {
-          ...reg,
-          classes: reg.classes.map((c) =>
-            c.id === classId
-              ? {
-                  ...c,
-                  properties: c.properties.map((p) =>
-                    p.id === propertyId ? { ...p, ...patch } : p
-                  ),
-                }
-              : c
-          ),
-        },
-      },
-    };
-  }),
-
-  getRegistry: (componentName) => {
-    return get().registries[componentName] ?? NO_REGISTRY;
-  },
-}));
+export const useStyleRegistryStore = styleStore;

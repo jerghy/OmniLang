@@ -141,6 +141,7 @@ import { Constants } from "./shared/constants";
 // ═══════════════════════════════════════════════════════════════
 // App —— 根组件（含标签页导航）
 // ═══════════════════════════════════════════════════════════════
+// @pid:c1
 component App {
     @store TodoStore;
     @store ThemeStore;

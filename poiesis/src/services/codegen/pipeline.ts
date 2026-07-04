@@ -1,4 +1,4 @@
-// editor/client/src/services/codegen/pipeline.ts
+// poiesis/src/services/codegen/pipeline.ts
 // Orchestrates the 3-phase omni-gen pipeline:
 //   Phase A: ViewTreeBuilder + WireAnalyzer + ImportCollector
 //   Phase B: StoreExtractor + ExpressionLowering + ChainEmitter
@@ -10,13 +10,14 @@ import { collectImports } from "./import-collector";
 import { extractStores } from "./store-extractor";
 import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
-import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
+import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { uid } from "../../core/utils";
 import { classNameToVariable, variableToClassName } from "../../core/types";
 import type { StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
+import type { PidMap } from "../../core/types/pid";
 import { useComponentRegistry } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
@@ -170,7 +171,7 @@ export function parseStylesFromAST(
           // BOTH auto-generated path classes (e.g. "Test_div_0") from the style
           // resolver AND user-defined classes from the registry.
           const registry = store.getRegistry(componentName);
-          const registryNames = new Set(registry.classes.map((c) => c.name));
+          const registryNames = new Set((registry.classes as Array<{ name: string }>).map((c) => c.name));
           for (const v of registry.variables) {
             registryNames.add(variableToClassName(v.name));
           }
@@ -236,6 +237,8 @@ type GenerateOmniSourceOptions = {
   rootOrder?: string[];
   forSave?: boolean;
   componentMeta?: ComponentMeta;
+  /** Existing PID map to reuse PIDs across regenerations for stability. */
+  existingPidMap?: PidMap;
 };
 
 // ── Default Factory Functions ───────────────────────────────────────
@@ -255,7 +258,7 @@ function defaultBindingResult(): BindingResult {
 
 interface StoreExtractResult {
   stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
   standaloneComputeds: Array<{ name: string; type: string; body: string }>;
 }
 
@@ -293,7 +296,7 @@ interface PhaseAContext {
 
 interface PhaseBContext {
   stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; default?: unknown }>;
+  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
   standaloneComputeds: Array<{ name: string; type: string; body: string }>;
   lowered: LoweredCode;
   allChains: Map<string, ChainBlock>;
@@ -429,9 +432,11 @@ function runPhaseC(
   const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
 
   const c2 = runPhase("C", "annotation-data", () => {
-    const annData = buildAnnotationData(
+    const annData = buildPidAnnotations(
       phaseA.roots,
       (mainTab.type as "logic" | "event") ?? "logic",
+      1, // componentIndex — hardcoded for single-component files
+      options.existingPidMap, // pass through for PID stability
     );
     return createAnnotationStrategy(annData);
   });
@@ -482,9 +487,9 @@ function buildComponentPart(
   phaseC: PhaseCContext,
 ): ComponentPart {
   // Build component-level signals from standaloneSignals (signals not in a store)
-  const componentSignals: Record<string, { type: string; default?: unknown }> = {};
+  const componentSignals: Record<string, { type: string; defaultValue?: unknown }> = {};
   for (const s of phaseB.standaloneSignals) {
-    componentSignals[s.name] = { type: s.type, default: s.default };
+    componentSignals[s.name] = { type: s.type, defaultValue: s.defaultValue };
   }
 
   // Build component-level computeds from standaloneComputeds
@@ -495,16 +500,25 @@ function buildComponentPart(
 
   // Read props/events from the component registry so they appear
   // as `prop name: Type = default;` and `event name;` in the output.
-  const registryDef = useComponentRegistry.getState().definitions[options.componentName];
-  const componentProps: ComponentPart["props"] = registryDef
-    ? Object.entries(registryDef.props).map(([name, schema]) => ({
+  const registryDef: unknown = useComponentRegistry.getState().definitions[options.componentName];
+  const registryRecord = registryDef && typeof registryDef === "object"
+    ? (registryDef as Record<string, unknown>)
+    : null;
+  const registryProps: Record<string, unknown> = registryRecord && "props" in registryRecord
+    ? (registryRecord.props as Record<string, unknown>)
+    : {};
+  const registryEvents: Record<string, unknown> = registryRecord && "events" in registryRecord
+    ? (registryRecord.events as Record<string, unknown>)
+    : {};
+  const componentProps: ComponentPart["props"] = Object.keys(registryProps).length > 0
+    ? Object.entries(registryProps).map(([name, schema]) => ({
         name,
-        type: schema.type,
-        default: schema.default,
+        type: (schema as { type: string }).type,
+        default: (schema as { default?: unknown }).default,
       }))
     : undefined;
-  const componentEvents: ComponentPart["events"] = registryDef
-    ? Object.entries(registryDef.events).map(([name]) => ({
+  const componentEvents: ComponentPart["events"] = Object.keys(registryEvents).length > 0
+    ? Object.entries(registryEvents).map(([name]) => ({
         name,
       }))
     : undefined;
@@ -580,6 +594,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     stores: phaseB.ctx.stores,
     component: componentPart,
     componentMeta: emitComponentMeta,
+    existingPidMap: options.existingPidMap,
   };
 
   const c3 = runPhase("C", "source-emitter", () => {
@@ -705,8 +720,8 @@ function emitStoreBlock(store: StoreDef): string {
   w.indent();
   for (const [name, sig] of Object.entries(store.signals)) {
     const def =
-      sig.default !== undefined
-        ? ` = ${JSON.stringify(sig.default)}`
+      sig.defaultValue !== undefined
+        ? ` = ${JSON.stringify(sig.defaultValue)}`
         : "";
     w.emit(`signal ${name}: ${sig.type}${def};`);
   }

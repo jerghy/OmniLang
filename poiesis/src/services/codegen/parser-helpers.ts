@@ -5,7 +5,7 @@ import type { Token } from "./omni-tokenizer";
 import type { TokenStream } from "./token-stream";
 import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
-import type { ElementData } from "../../store/editor";
+import type { ElementData } from "../../core/types/element";
 import { useComponentRegistry } from "../../store/componentRegistry";
 import { Logger } from "../../lib/utils/logger";
 

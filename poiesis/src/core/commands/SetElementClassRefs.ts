@@ -1,6 +1,6 @@
 // core/commands/SetElementClassRefs.ts
 import type { Command, CommandContext } from "./types";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 
 export class SetElementClassRefs implements Command {
   readonly type = "SetElementClassRefs";
@@ -15,10 +15,10 @@ export class SetElementClassRefs implements Command {
   }
 
   execute(_ctx: CommandContext): void {
-    useEditorStore.getState().setElementClassRefs(this.elementId, this.newClassRefs);
+    usePoiesisStore.getState().setElementClassRefs(this.elementId, this.newClassRefs);
   }
 
   undo(_ctx: CommandContext): void {
-    useEditorStore.getState().setElementClassRefs(this.elementId, this.oldClassRefs);
+    usePoiesisStore.getState().setElementClassRefs(this.elementId, this.oldClassRefs);
   }
 }

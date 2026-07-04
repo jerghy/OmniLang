@@ -1,48 +1,103 @@
-// editor/client/src/omni-gen/annotation-data.ts
-// Build AnnotationData from view tree + tab type, and create AnnotationStrategy from data.
+// poiesis/src/services/codegen/annotation-data.ts
+// Build PID annotations from view tree + tab type, and create AnnotationStrategy from data.
+// Replaces the old // @edit system with // @pid:xxx PIDs.
 
-import type { ViewNode, AnnotationData, AnnotationStrategy, EditAnnotation } from "./types";
+import type { ViewNode, AnnotationData, AnnotationStrategy, PidAnnotation } from "./types";
+import type { PidMap } from "../../core/types/pid";
+import { generatePid } from "../../services/pid/pid-index";
 
 /**
- * Walk ViewNode tree recursively and build AnnotationData.
+ * Walk ViewNode tree recursively and build AnnotationData with PID annotations.
  *
- * For each ViewNode, an EditAnnotation is created:
- * - `"// @edit"` for normal nodes
- * - `"// @edit folded"` if `node.isFolded` is true
- * - `"// @edit render=canvas"` if `node.renderMode === "canvas"` (folded takes precedence)
+ * For each ViewNode (excluding text/interpolation which are inline), a PID is generated
+ * using the centralized generatePid() from pid-index.ts (format: `v{compIdx}_v{seq}`).
+ *
+ * The PidAnnotation maps the node's kind to an appropriate PidBlockType and stores
+ * the node's tag as blockName.
  *
  * The codeTabDirective is set to `// @omni-file type=${tabType}`.
+ *
+ * @param viewNodes     The list of root ViewNodes.
+ * @param tabType       The current code tab type.
+ * @param componentIndex The file-level index of the component (1-based).
+ * @param existingPidMap Optional map of existing PIDs to preserve across regenerations.
  */
-export function buildAnnotationData(
+export function buildPidAnnotations(
   viewNodes: ViewNode[],
   tabType: "logic" | "event",
+  componentIndex: number = 1,
+  existingPidMap?: PidMap,
 ): AnnotationData {
-  const editAnnotations = new Map<string, EditAnnotation>();
+  let pidCounter = 0;
 
-  function walk(nodes: ViewNode[], depth: number): void {
+  function nextPidSeq(): number {
+    return ++pidCounter;
+  }
+
+  /** Map a ViewNode kind to the most specific PidBlockType. */
+  function getPidBlockType(kind: ViewNode["kind"]): "view" | "if" | "for" | "slot" {
+    switch (kind) {
+      case "if":   return "if";
+      case "for":  return "for";
+      case "slot": return "slot";
+      default:     return "view";
+    }
+  }
+
+  const pidAnnotations = new Map<string, PidAnnotation>();
+
+  function walk(nodes: ViewNode[]): void {
     for (const node of nodes) {
-      let line: string;
-      if (node.isFolded) {
-        line = "// @edit folded";
-      } else if (node.renderMode === "canvas") {
-        line = "// @edit render=canvas";
-      } else {
-        line = "// @edit";
+      if (node.kind === "text" || node.kind === "interpolation") continue;
+
+      const seq = nextPidSeq();
+      const blockType = getPidBlockType(node.kind);
+      // Generate PID using the centralized generatePid() from pid-index.ts.
+      // For view nodes this produces `v{compIdx}_v{seq}` (view prefix + view sub-prefix).
+      const generatedPid = generatePid(componentIndex, "view", seq);
+
+      // Check if we already have a PID for this node path in the existing map
+      let finalPid = generatedPid;
+      if (existingPidMap) {
+        for (const [existingPid, entry] of Object.entries(existingPidMap.entries)) {
+          if (entry.blockName === node.path || entry.blockName === node.tag) {
+            // Reuse existing PID for same path to preserve stability
+            finalPid = existingPid;
+            break;
+          }
+        }
       }
 
-      editAnnotations.set(node.path, { line, indent: depth });
+      pidAnnotations.set(node.path, {
+        pid: finalPid,
+        blockType,
+        blockName: node.tag,
+      });
 
       if (node.children.length > 0) {
-        walk(node.children, depth + 1);
+        walk(node.children);
+      }
+
+      // Handle conditional branches
+      if (node.branches) {
+        for (const branch of node.branches) {
+          walk(branch.body);
+        }
+      }
+      if (node.fallback) {
+        walk(node.fallback);
+      }
+      if (node.emptyBody) {
+        walk(node.emptyBody);
       }
     }
   }
 
-  walk(viewNodes, 0);
+  walk(viewNodes);
 
   return {
     codeTabDirective: `// @omni-file type=${tabType}`,
-    editAnnotations,
+    pidAnnotations,
   };
 }
 
@@ -50,15 +105,15 @@ export function buildAnnotationData(
  * Create an AnnotationStrategy from AnnotationData.
  *
  * - `beforeFile()` returns the codeTabDirective.
- * - `beforeViewNode(node, depth)` looks up `node.path` in the editAnnotations map.
- *   If found, returns the annotation line. If not found, returns null.
+ * - `beforeViewNode(node, depth)` looks up `node.path` in the pidAnnotations map.
+ *   If found, returns the PidAnnotation. If not found, returns null.
  */
 export function createAnnotationStrategy(data: AnnotationData): AnnotationStrategy {
   return {
     beforeFile: () => data.codeTabDirective,
-    beforeViewNode: (node: ViewNode, _depth: number): string | null => {
-      const ann = data.editAnnotations.get(node.path);
-      return ann ? ann.line : null;
+    beforeViewNode: (node: ViewNode, _depth: number): PidAnnotation | null => {
+      const ann = data.pidAnnotations.get(node.path);
+      return ann ?? null;
     },
   };
 }

@@ -1,7 +1,7 @@
 // core/commands/SetElementInlineStyles.ts
 import type { Command, CommandContext } from "./types";
 import type { StyleProperty } from "../types/style";
-import { useEditorStore } from "../../store/editor";
+import { usePoiesisStore } from "../../store";
 
 export class SetElementInlineStyles implements Command {
   readonly type = "SetElementInlineStyles";
@@ -16,10 +16,10 @@ export class SetElementInlineStyles implements Command {
   }
 
   execute(_ctx: CommandContext): void {
-    useEditorStore.getState().setElementInlineStyles(this.elementId, this.newProperties);
+    usePoiesisStore.getState().setElementInlineStyles(this.elementId, this.newProperties);
   }
 
   undo(_ctx: CommandContext): void {
-    useEditorStore.getState().setElementInlineStyles(this.elementId, this.oldProperties);
+    usePoiesisStore.getState().setElementInlineStyles(this.elementId, this.oldProperties);
   }
 }

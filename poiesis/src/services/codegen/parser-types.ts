@@ -1,7 +1,8 @@
 // editor/client/src/omni-gen/parser-types.ts
 // Shared types and utilities for the OmniLang recursive-descent parser.
 
-import type { ElementData, WireData } from "../../store/editor";
+import type { ElementData } from "../../core/types/element";
+import type { WireData } from "../../core/types/wire";
 import type { CodeTab } from "../../services/codegraph/types";
 import type { ParseResult } from "./types";
 import type { Token } from "./omni-tokenizer";
@@ -39,7 +40,7 @@ export interface ParseContext {
   pendingEditFlags: string | null;
   parsedStyleRules: Array<{ class_name: string; properties: Record<string, string> }>;
   hasStyleBlock: boolean;
-  props: Array<{ name: string; type: string; default?: unknown }>;
+  props: Array<{ name: string; type: string; defaultValue?: unknown }>;
   events: Array<{ name: string }>;
   componentMeta: Record<string, unknown> | null;
 }

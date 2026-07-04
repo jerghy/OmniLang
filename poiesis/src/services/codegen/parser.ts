@@ -416,7 +416,7 @@ export class Parser {
     this.ctx.props.push({
       name: nameTok.text,
       type: typeTok.text,
-      default: defaultVal || undefined,
+      defaultValue: defaultVal || undefined,
     });
   }
 
