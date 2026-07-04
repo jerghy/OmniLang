@@ -10,7 +10,7 @@ import { collectImports } from "./import-collector";
 import { extractStores } from "./store-extractor";
 import { lowerCode } from "./expression-lowering";
 import { emitChains } from "./chain-emitter";
-import { buildAnnotationData, createAnnotationStrategy } from "./annotation-data";
+import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data";
 import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
@@ -429,9 +429,10 @@ function runPhaseC(
   const mainTab = options.codeTabs.find((t) => t.id === "main") ?? options.codeTabs[0];
 
   const c2 = runPhase("C", "annotation-data", () => {
-    const annData = buildAnnotationData(
+    const annData = buildPidAnnotations(
       phaseA.roots,
       (mainTab.type as "logic" | "event") ?? "logic",
+      1, // componentIndex — hardcoded for single-component files
     );
     return createAnnotationStrategy(annData);
   });

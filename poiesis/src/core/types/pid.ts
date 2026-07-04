@@ -1,7 +1,7 @@
 // PID annotation system types
 
 export type PidBlockType =
-  | "component" | "store" | "signal" | "computed" | "prop"
+  | "component" | "store" | "lib" | "signal" | "computed" | "prop"
   | "fn" | "event" | "view" | "style" | "getter" | "action"
   | "struct" | "type_alias" | "pub_fn";
 

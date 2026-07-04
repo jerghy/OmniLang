@@ -98,20 +98,23 @@ export interface ComponentMeta {
   }>;
 }
 
-// ── Annotation ──
+// ── Annotation (v2 PID-based) ──
 
-export interface EditAnnotation {
-  line: string;    // "// @edit" | "// @edit folded" | "// @edit render=canvas"
-  indent: number;  // view tree depth
+import type { PidBlockType } from "../../core/types/pid";
+
+export interface PidAnnotation {
+  pid: string;
+  blockType: PidBlockType;
+  blockName: string;
 }
 
 export interface AnnotationData {
   codeTabDirective: string;
-  editAnnotations: Map<string, EditAnnotation>;
+  pidAnnotations: Map<string, PidAnnotation>;
 }
 
 export interface AnnotationStrategy {
-  beforeViewNode(node: ViewNode, depth: number): string | null;
+  beforeViewNode(node: ViewNode, depth: number): PidAnnotation | null;
   beforeFile(): string;
 }
 
@@ -189,4 +192,6 @@ export interface ParseResult {
   props?: Array<{ name: string; type: string; default?: unknown }>;
   /** Parsed event declarations from component body (`event <name>;`). */
   events?: Array<{ name: string }>;
+  /** PID map parsed from `// @pid:xxx` comments in the source. */
+  pidMap?: import("../../core/types/pid").PidMap;
 }

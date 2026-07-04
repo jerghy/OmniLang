@@ -229,10 +229,10 @@ export class SourceEmitter {
   ]);
 
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
-    // Annotation (skip for text/interpolation which are inline)
+    // PID annotation (skip for text/interpolation which are inline)
     if (this.annotationStrategy && node.kind !== "text" && node.kind !== "interpolation") {
       const ann = this.annotationStrategy.beforeViewNode(node, depth);
-      if (ann) w.emit(ann);
+      if (ann) w.emit(`// @pid:${ann.pid}`);
     }
 
     // ── Non-element node kinds (don't need resolvedStyle) ──
