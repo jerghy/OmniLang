@@ -24,7 +24,7 @@ export function ReturnNode({ data }: Props) {
         color: "#065F46",
       }}
     >
-      <div>{'↩'} return</div>
+      <div>↩ 返回</div>
       {data.returnType && (
         <div style={{ fontSize: 11, color: "#10B981", marginTop: 2 }}>
           {data.returnType}
@@ -41,7 +41,7 @@ export function ReturnNode({ data }: Props) {
         position={Position.Left}
         id="data-in"
         style={{ background: "#6EE7B7" }}
-        title="return value"
+        title="返回值"
       />
     </div>
   );

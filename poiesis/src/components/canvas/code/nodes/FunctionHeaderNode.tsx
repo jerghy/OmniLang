@@ -9,6 +9,7 @@ interface Props {
 }
 
 export function FunctionHeaderNode({ data }: Props) {
+  const displayName = data.fnName || data.label;
   return (
     <div
       className="flow-node"
@@ -24,10 +25,13 @@ export function FunctionHeaderNode({ data }: Props) {
         fontWeight: 600,
       }}
     >
-      <div>{data.fnName || data.label}</div>
+      <div>
+        <span style={{ fontSize: 14, marginRight: 4 }}>ƒ</span>
+        {displayName}
+      </div>
       {data.params && (
         <div style={{ fontSize: 11, color: "#6366F1", marginTop: 2 }}>
-          {data.params}
+          ({data.params})
         </div>
       )}
       <Handle

@@ -1,6 +1,13 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { ReactFlow, ReactFlowProvider, useReactFlow } from "@xyflow/react";
-import type { Node as RFNode } from "@xyflow/react";
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  useOnSelectionChange,
+  type Node as RFNode,
+  type OnNodesChange,
+  applyNodeChanges,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
 import { uid } from "../../../core/utils/id";
@@ -9,6 +16,34 @@ import { FunctionHeaderNode } from "./nodes/FunctionHeaderNode";
 import { SkeletonNode } from "./nodes/SkeletonNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
+
+/** Chinese labels for code-element tags shown in nodes */
+const TAG_CN: Record<string, string> = {
+  fn: "函数",
+  if: "如果",
+  else: "否则",
+  for: "计数循环",
+  while: "条件循环",
+  return: "返回",
+  let: "let 声明",
+  const: "const 声明",
+  signal: "信号",
+  computed: "计算属性",
+  store: "Store",
+  literal: "字面量",
+  getVariable: "读取变量",
+  setVariable: "赋值",
+  add: "加法",
+  sub: "减法",
+  mul: "乘法",
+  div: "除法",
+  compare: "比较",
+  and: "与",
+  or: "或",
+  not: "非",
+  concat: "拼接",
+  customFn: "函数调用",
+};
 
 const nodeTypes = {
   "function-header": FunctionHeaderNode,
@@ -101,9 +136,7 @@ const MENU_SECTIONS: MenuSection[] = [
   },
   {
     label: "函数调用",
-    items: [
-      { label: "自定义函数 (customFn)", tag: "customFn", shortcut: "fn!" },
-    ],
+    items: [], // dynamically populated from registered customFn / fn nodes
   },
 ];
 
@@ -119,6 +152,7 @@ function FlowCanvasInner() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
+  const _registeredFns = useRef<Set<string>>(new Set());
 
   // Reset collapsed sections when menu opens
   useEffect(() => {
@@ -157,14 +191,20 @@ function FlowCanvasInner() {
   );
 
   const handleAddNode = useCallback(
-    (tag: string) => {
+    (tag: string, fnName?: string) => {
       if (!contextMenu) return;
       const id = uid(tag);
-      // Offset each added node slightly so they don't stack exactly
       const jitter = Math.random() * 40 - 20;
       const props: Record<string, string> = {};
-      if (tag === "fn" || tag === "customFn") {
-        props.name = `new${tag === "fn" ? "Fn" : "Call"}`;
+      const config: Record<string, unknown> = {};
+
+      if (tag === "fn") {
+        props.name = "newFn";
+      }
+      if (tag === "customFn") {
+        const name = fnName || "newCall";
+        props.name = name;
+        config.fnName = name;
       }
       if (tag === "signal") {
         props.name = "newSignal";
@@ -180,6 +220,7 @@ function FlowCanvasInner() {
       if (tag === "literal") {
         props.literal = "''";
       }
+
       const newEl: ElementData = {
         id,
         nodeType: "codeblock" as const,
@@ -188,6 +229,7 @@ function FlowCanvasInner() {
         children: [],
         parentId: null,
         position: { x: contextMenu.flowX + jitter, y: contextMenu.flowY + jitter },
+        ...(Object.keys(config).length > 0 ? { config } : {}),
       };
       addElement(newEl);
       setContextMenu(null);
@@ -195,7 +237,90 @@ function FlowCanvasInner() {
     [contextMenu, addElement],
   );
 
-  // Filter to code-relevant elements by tag
+  // ── Store actions ──
+  const setElementPosition = usePoiesisStore((s) => s.setElementPosition);
+  const removeElement = usePoiesisStore((s) => s.removeElement);
+
+  // ── Selected node IDs ──
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  useOnSelectionChange({
+    onChange: ({ nodes: selNodes }) => {
+      setSelectedNodeIds(selNodes.map((n) => n.id));
+    },
+  });
+
+  // ── Node context menu (right-click on a node) ──
+  const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const nodeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!nodeMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (nodeMenuRef.current && !nodeMenuRef.current.contains(e.target as Node)) {
+        setNodeMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [nodeMenu]);
+
+  // ── Keyboard: arrow keys to move selected nodes, Delete to remove ──
+  const MOVE_STEP = 10;
+  useEffect(() => {
+    if (selectedNodeIds.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        for (const id of selectedNodeIds) removeElement(id);
+        setSelectedNodeIds([]);
+        return;
+      }
+      let dx = 0, dy = 0;
+      if (e.key === "ArrowUp") dy = -MOVE_STEP;
+      else if (e.key === "ArrowDown") dy = MOVE_STEP;
+      else if (e.key === "ArrowLeft") dx = -MOVE_STEP;
+      else if (e.key === "ArrowRight") dx = MOVE_STEP;
+      else return;
+      e.preventDefault();
+      for (const id of selectedNodeIds) {
+        const el = elements.find((x) => x.id === id);
+        if (el) {
+          const pos = el.position || { x: 0, y: 0 };
+          setElementPosition(id, { x: pos.x + dx, y: pos.y + dy });
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedNodeIds, elements, setElementPosition, removeElement]);
+
+  // ── Drag: sync position back to store ──
+  const onNodesChange: OnNodesChange = useCallback(
+    (changes) => {
+      for (const change of changes) {
+        if (change.type === "position" && change.position) {
+          // Update store when node is dragged to new position
+          if (!change.dragging) {
+            setElementPosition(change.id, change.position);
+          }
+        }
+      }
+    },
+    [setElementPosition],
+  );
+
+  // ── Node context menu handler ──
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: RFNode) => {
+      event.preventDefault();
+      setNodeMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+    },
+    [],
+  );
+
+  // ── Build nodes/edges ──
   const codeElements = useMemo(
     () => elements.filter((e) => CODE_TAGS.has(e.tag)),
     [elements],
@@ -208,17 +333,14 @@ function FlowCanvasInner() {
         type:
           el.tag === "fn"
             ? "function-header"
-            : el.tag === "if" ||
-                el.tag === "else" ||
-                el.tag === "for" ||
-                el.tag === "while"
+            : el.tag === "if" || el.tag === "else" || el.tag === "for" || el.tag === "while"
               ? "skeleton"
               : el.tag === "return"
                 ? "return"
                 : "code-block",
         position: el.position || { x: 0, y: 0 },
         data: {
-          label: el.tag,
+          label: TAG_CN[el.tag] || el.tag,
           source: el.source,
           fnName: el.props?.name as string,
           skeletonType: el.tag,
@@ -269,9 +391,28 @@ function FlowCanvasInner() {
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
+          nodesDraggable
+          nodesConnectable
+          elementsSelectable
+          onNodesChange={onNodesChange}
           onPaneContextMenu={handlePaneContextMenu}
+          onNodeContextMenu={handleNodeContextMenu}
         />
       )}
+
+      {/* Derive registered custom functions from elements */}
+      {useMemo(() => {
+        const registered = new Set<string>();
+        for (const el of elements) {
+          if (el.tag === "customFn" && el.config?.fnName) {
+            registered.add(el.config.fnName as string);
+          } else if (el.tag === "fn" && el.props?.name) {
+            registered.add(el.props.name as string);
+          }
+        }
+        _registeredFns.current = registered;
+        return null;
+      }, [elements])}
 
       {/* Right-click context menu with collapsible sections and overflow handling */}
       {contextMenu && (
@@ -280,16 +421,59 @@ function FlowCanvasInner() {
           y={contextMenu.y}
           menuRef={menuRef}
           collapsedSections={collapsedSections}
+          registeredFns={_registeredFns.current}
           onToggleSection={(i) => setCollapsedSections((prev) => {
             const next = new Set(prev);
             if (next.has(i)) next.delete(i); else next.add(i);
             return next;
           })}
-          onSelectNode={(tag) => {
-            handleAddNode(tag);
+          onSelectNode={(tag, fnName) => {
+            handleAddNode(tag, fnName);
           }}
           onClose={() => setContextMenu(null)}
         />
+      )}
+
+      {/* Node right-click menu — delete */}
+      {nodeMenu && (
+        <div
+          ref={nodeMenuRef}
+          style={{
+            position: "fixed",
+            top: nodeMenu.y,
+            left: nodeMenu.x,
+            zIndex: 10001,
+            background: "#fff",
+            borderRadius: 6,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+            padding: "2px 0",
+            minWidth: 120,
+            fontSize: 12,
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              width: "100%",
+              padding: "6px 12px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 12,
+              color: "#dc2626",
+              textAlign: "left" as const,
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            🗑 删除节点
+          </button>
+        </div>
       )}
     </div>
   );
@@ -306,8 +490,9 @@ interface ContextMenuProps {
   y: number;
   menuRef: React.RefObject<HTMLDivElement | null>;
   collapsedSections: Set<number>;
+  registeredFns: Set<string>;
   onToggleSection: (i: number) => void;
-  onSelectNode: (tag: string) => void;
+  onSelectNode: (tag: string, fnName?: string) => void;
   onClose: () => void;
 }
 
@@ -316,10 +501,31 @@ function ContextMenu({
   y,
   menuRef,
   collapsedSections,
+  registeredFns,
   onToggleSection,
   onSelectNode,
   onClose,
 }: ContextMenuProps) {
+
+  // Build sections, replacing "函数调用" with dynamic registered functions
+  const sections = useMemo(() => {
+    return MENU_SECTIONS.map((section) => {
+      if (section.label === "函数调用") {
+        if (registeredFns.size === 0) {
+          return { ...section, items: [{ label: "（暂无已注册函数）", tag: "", shortcut: "" }] };
+        }
+        return {
+          ...section,
+          items: Array.from(registeredFns).sort().map((name) => ({
+            label: name,
+            tag: "customFn",
+            shortcut: name,
+          })),
+        };
+      }
+      return section;
+    });
+  }, [registeredFns]);
   // Compute total visible items for height estimation
   let visibleCount = 0;
   for (let i = 0; i < MENU_SECTIONS.length; i++) {
@@ -365,7 +571,7 @@ function ContextMenu({
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {MENU_SECTIONS.map((section, i) => {
+      {sections.map((section, i) => {
         const collapsed = collapsedSections.has(i);
         return (
           <div key={section.label}>
@@ -398,35 +604,41 @@ function ContextMenu({
               </span>
             </button>
             {!collapsed &&
-              section.items.map((item) => (
-                <button
-                  key={item.tag}
-                  onClick={() => { onSelectNode(item.tag); onClose(); }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    padding: "5px 12px 5px 26px",
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    color: "#1e293b",
-                    textAlign: "left" as const,
-                    fontFamily: "inherit",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <span>{item.label}</span>
-                  {item.shortcut && (
-                    <span style={{ color: "#94a3b8", fontSize: 10, fontFamily: "monospace" }}>
-                      {item.shortcut}
-                    </span>
-                  )}
-                </button>
-              ))}
+              section.items.map((item) => {
+                const isDisabled = item.tag === "";
+                const fnName = item.tag === "customFn" ? item.label : undefined;
+                return (
+                  <button
+                    key={item.label}
+                    disabled={isDisabled}
+                    onClick={() => { if (!isDisabled) { onSelectNode(item.tag, fnName); onClose(); } }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      padding: "5px 12px 5px 26px",
+                      border: "none",
+                      background: "transparent",
+                      cursor: isDisabled ? "default" : "pointer",
+                      fontSize: 12,
+                      color: isDisabled ? "#94a3b8" : "#1e293b",
+                      fontStyle: isDisabled ? "italic" : "normal",
+                      textAlign: "left" as const,
+                      fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => { if (!isDisabled) e.currentTarget.style.background = "#f1f5f9"; }}
+                    onMouseLeave={(e) => { if (!isDisabled) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span>{item.label}</span>
+                    {item.shortcut && (
+                      <span style={{ color: isDisabled ? "#cbd5e1" : "#94a3b8", fontSize: 10, fontFamily: "monospace" }}>
+                        {item.shortcut}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
           </div>
         );
       })}

@@ -8,14 +8,23 @@ interface Props {
   };
 }
 
-export function SkeletonNode({ data }: Props) {
-  const icons: Record<string, string> = {
-    if: "◇",
-    else: "◇",
-    for: "↻",
-    while: "⟳",
-  };
+const LABELS: Record<string, string> = {
+  if: "如果",
+  else: "否则",
+  for: "计数循环",
+  while: "条件循环",
+};
 
+const ICONS: Record<string, string> = {
+  if: "◇",
+  else: "◇",
+  for: "↻",
+  while: "⟳",
+};
+
+export function SkeletonNode({ data }: Props) {
+  const label = LABELS[data.skeletonType] || data.label;
+  const icon = ICONS[data.skeletonType] || "";
   const hasTwoBranches = data.skeletonType === "if";
 
   return (
@@ -34,7 +43,7 @@ export function SkeletonNode({ data }: Props) {
       }}
     >
       <div>
-        {icons[data.skeletonType]} {data.label}
+        {icon} {label}
       </div>
       {data.condition && (
         <div
@@ -61,7 +70,7 @@ export function SkeletonNode({ data }: Props) {
         position={Position.Bottom}
         id="flow-true"
         style={{ background: "#10B981", left: hasTwoBranches ? "30%" : "50%" }}
-        title="true"
+        title={data.skeletonType === "if" ? "是" : "循环体"}
       />
       {hasTwoBranches && (
         <Handle
@@ -69,7 +78,7 @@ export function SkeletonNode({ data }: Props) {
           position={Position.Bottom}
           id="flow-false"
           style={{ background: "#EF4444", left: "70%" }}
-          title="false"
+          title="否"
         />
       )}
       <Handle
@@ -77,6 +86,7 @@ export function SkeletonNode({ data }: Props) {
         position={Position.Left}
         id="data-in"
         style={{ background: "#FBBF24" }}
+        title={data.skeletonType === "if" ? "条件" : "循环条件"}
       />
     </div>
   );
