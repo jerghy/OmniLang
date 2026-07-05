@@ -68,7 +68,6 @@ class RustCompiler {
       // Dynamic import of the WASM JS glue — resolved at runtime, not at build time
       // eslint-disable-next-line
       const wasmModule = await import(
-        // @ts-expect-error — WASM module resolved at runtime
         /* @vite-ignore */ '../../public/wasm/omnilang.js'
       );
 

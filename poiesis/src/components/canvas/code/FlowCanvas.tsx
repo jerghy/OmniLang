@@ -17,6 +17,13 @@ import { SkeletonNode } from "./nodes/SkeletonNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  flowX: number;
+  flowY: number;
+}
+
 /** Chinese labels for code-element tags shown in nodes */
 const TAG_CN: Record<string, string> = {
   fn: "函数",

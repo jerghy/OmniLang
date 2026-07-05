@@ -495,7 +495,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   defineComponent: (name, def) => {
     const s = get();
     // Register the component definition so it appears in the palette
-    s.setComponentDef(name, def as ComponentDef);
+    s.setComponentDef(name, def as unknown as ComponentDef);
     // Open the component in a new tab for editing
     // The .omni file is persisted when the user saves (Ctrl+S)
     const filePath = `src/components/${name}.omni`;

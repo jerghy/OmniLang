@@ -424,7 +424,7 @@ function runPhaseC(
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
-  const registry = (useStyleRegistryStore as unknown as { getRegistry: (name: string) => { variables: unknown[]; classes: unknown[] } }).getRegistry(options.componentName);
+  const registry = useStyleRegistryStore.getRegistry(options.componentName);
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(expandedElements, registry, phaseA.roots);
