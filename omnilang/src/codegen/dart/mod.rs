@@ -5,6 +5,7 @@
 //! classes.
 
 mod expr;
+#[cfg(test)]
 mod tests;
 
 pub(crate) use expr::*;

@@ -1,6 +1,12 @@
 //! Unit tests for javascript codegen.
 
 
+#[allow(unused_imports)]
+use super::*;
+use crate::codegen::CodeWriter;
+use crate::ir::*;
+use std::collections::HashMap;
+
 // ── js_type tests ──────────────────────────────────────
 
 #[test]

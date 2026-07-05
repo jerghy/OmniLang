@@ -5,6 +5,7 @@
 //! a module with a `use_X_store()` hook function.
 
 mod expr;
+#[cfg(test)]
 mod tests;
 mod view;
 

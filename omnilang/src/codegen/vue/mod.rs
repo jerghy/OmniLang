@@ -6,6 +6,7 @@
 
 mod expr;
 mod template;
+#[cfg(test)]
 mod tests;
 
 use expr::*;

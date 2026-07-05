@@ -6,6 +6,7 @@
 //! In TS mode (ts_mode: true), type annotations are added.
 
 mod expr;
+#[cfg(test)]
 mod tests;
 mod utils;
 

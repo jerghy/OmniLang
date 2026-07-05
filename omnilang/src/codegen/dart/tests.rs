@@ -1,6 +1,12 @@
 //! Unit tests for dart codegen.
 
 
+#[allow(unused_imports)]
+use super::*;
+use crate::codegen::CodeWriter;
+use crate::ir::*;
+use std::collections::HashMap;
+
 // ── dart_type tests ────────────────────────────────────
 
 #[test]

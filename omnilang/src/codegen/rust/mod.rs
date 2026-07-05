@@ -5,6 +5,7 @@
 //! stores become standalone structs with impl blocks.
 
 mod expr;
+#[cfg(test)]
 mod tests;
 
 pub(crate) use expr::*;
