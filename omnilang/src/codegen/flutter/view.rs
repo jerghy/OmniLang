@@ -187,7 +187,7 @@ fn format_element(
             "inline_fn" => {
                 if let Some(ref body) = handler.body {
                     if handler.event_data.is_some() {
-                        let event_obj = emit_event_object_flutter(
+                        let _event_obj = emit_event_object_flutter(
                             &handler.event_data,
                             &handler.used_fields,
                             "e",

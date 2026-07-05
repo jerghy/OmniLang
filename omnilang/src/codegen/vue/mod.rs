@@ -8,8 +8,8 @@ mod expr;
 mod template;
 mod tests;
 
-pub(crate) use expr::*;
-pub(crate) use template::*;
+use expr::*;
+use template::*;
 
 use std::collections::HashMap;
 

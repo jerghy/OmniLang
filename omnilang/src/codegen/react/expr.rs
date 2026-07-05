@@ -239,7 +239,6 @@ pub(super) fn generate_statement_tsx(
                 generate_statement_tsx(w, s, signal_names);
             }
         }
-        _ => {}
     }
 }
 

@@ -4,11 +4,10 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::helpers::{check_block_for_prop_assign, check_view_for_prop_assign};
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::IRProgram;
 use crate::parser::ast::Program;
 
 pub struct PropImmutability;

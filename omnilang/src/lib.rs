@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::codegen::omniview::ComponentOutput;
-use crate::parser::ast::{ImportStmt, Program};
+use crate::parser::ast::Program;
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
 #[derive(Debug, Serialize, Deserialize)]
@@ -247,7 +247,7 @@ pub fn compile_multi_to_target(
             errors.push(format!("{}: {}", path, d.message));
         }
 
-        let mut ir_program = ir::lower(program, &semantics);
+        let ir_program = ir::lower(program, &semantics);
 
         // Annotate components and stores with their source file path,
         // then merge modules — combine declarations from multiple files.

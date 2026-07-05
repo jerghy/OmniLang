@@ -1,7 +1,5 @@
 //! Unit tests for javascript codegen.
 
-use super::*;
-use std::collections::HashMap;
 
 // ── js_type tests ──────────────────────────────────────
 

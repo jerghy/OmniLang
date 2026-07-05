@@ -289,6 +289,7 @@ impl Lexer {
         }
     }
 
+    #[allow(dead_code)]
     fn expect(
         &mut self,
         expected: char,

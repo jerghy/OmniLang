@@ -108,6 +108,7 @@ impl Codegen for JavaScriptCodegen {
 // ═══════════════════════════════════════════════════════════
 
 /// JS/TS field extraction — same as Web DOM (native DOM events).
+#[allow(dead_code)]
 pub(crate) fn field_extract_js_raw(
     kind: &EventDataKind,
     field: &str,
@@ -117,6 +118,7 @@ pub(crate) fn field_extract_js_raw(
 }
 
 /// Emit a JS object literal for event data extraction (raw DOM events).
+#[allow(dead_code)]
 pub(crate) fn emit_event_object_js_raw(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,

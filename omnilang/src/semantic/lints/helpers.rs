@@ -6,7 +6,7 @@ use super::LintDiagnostic;
 use crate::ir::{BlockIR, ExprIR, StatementIR, ViewTree};
 use crate::parser::ast::{
     AssignTarget, BinaryOpKind, Block, ElementProp, EventHandler, Expr, ImportStmt, Stmt,
-    TemplatePart, ViewBlock, ViewNode,
+    TemplatePart, ViewNode,
 };
 
 /// Recursively check if a block's statement tree contains a return.

@@ -197,7 +197,6 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
                 generate_statement_flutter(w, s);
             }
         }
-        _ => {}
     }
 }
 

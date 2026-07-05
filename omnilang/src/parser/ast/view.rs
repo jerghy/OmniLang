@@ -3,7 +3,7 @@
 use crate::lexer::Span;
 
 use super::motion::{
-    EasingExpr, GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef,
+    GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef,
 };
 use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 

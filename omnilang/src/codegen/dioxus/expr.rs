@@ -98,7 +98,7 @@ pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
                 .collect();
             format!("{}::{} {{ {} }}", union_type, variant, entries.join(", "))
         }
-        ExprIR::MethodCallExpr { is_optional,
+        ExprIR::MethodCallExpr { is_optional: _,
             object,
             method,
             args,

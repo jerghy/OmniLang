@@ -251,7 +251,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
             entries.insert(0, format!("\"_variant\": \"{}\"", variant));
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::MethodCallExpr { is_optional,
+        ExprIR::MethodCallExpr { is_optional: _,
             object,
             method,
             args,

@@ -63,7 +63,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                     "inline_fn" => {
                         if let Some(ref body) = handler.body {
                             if handler.event_data.is_some() {
-                                let event_obj = emit_event_object_js(
+                                let _event_obj = emit_event_object_js(
                                     &handler.event_data,
                                     &handler.used_fields,
                                     "e",

@@ -10,7 +10,6 @@ use super::ast_collectors::{
 };
 use super::helpers::import_span_line_col;
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::IRProgram;
 use crate::parser::ast::{ImportStmt, Program};
 
 pub struct UnusedImport;

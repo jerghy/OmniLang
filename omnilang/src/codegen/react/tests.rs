@@ -2,12 +2,8 @@
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
-use super::utils::*;
-use super::ReactCodegen;
-use crate::codegen::{CodeWriter, Codegen};
 use crate::ir::ModuleIR;
 use crate::ir::*;
 
@@ -370,6 +366,7 @@ fn test_css_with_styles() {
 
 // ── gen_component_tsx tests ──────────────────────────────
 
+#[allow(dead_code)]
 fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
     ComponentIR {
         name: name.into(),
@@ -395,6 +392,7 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
 }
 
 /// Build IRProgram with a single module containing the given components.
+#[allow(dead_code)]
 fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
     IRProgram {
         version: "1.0".into(),

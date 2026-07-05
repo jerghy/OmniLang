@@ -4,11 +4,10 @@
 //! Category: correctness
 //! Severity: error
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::helpers::expr_contains_side_effect;
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::IRProgram;
 use crate::parser::ast::Program;
 
 pub struct ComputedPurity;

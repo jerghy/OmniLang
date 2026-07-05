@@ -4,7 +4,7 @@
 //! declared the store with `@store`.  Extracted from `validate_types` to
 //! keep that file below 800 lines.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::SemanticAnalyzer;
 use crate::error::Diagnostic;

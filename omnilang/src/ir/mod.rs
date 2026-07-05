@@ -13,7 +13,7 @@ pub use lower_ast::lower;
 pub use types::*;
 pub use types_motion::*;
 
-pub(crate) use lower_ast::{lower_block, lower_expr, lower_type};
+pub(crate) use lower_ast::{lower_block, lower_type};
 
 // ── Private imports visible to child modules via `use super::*;` ──
 use std::collections::HashMap;

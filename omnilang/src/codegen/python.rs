@@ -491,7 +491,7 @@ fn format_expr_ir(expr: &ExprIR) -> String {
                 .collect();
             format!("{}({})", type_name, field_strs.join(", "))
         }
-        ExprIR::MethodCallExpr { is_optional,
+        ExprIR::MethodCallExpr { is_optional: _,
             object,
             method,
             args,
