@@ -462,6 +462,7 @@ fn get_pid_index(state: tauri::State<ProjectState>) -> Result<String, String> {
 // ── PID verification ──
 
 #[derive(Debug, serde::Serialize)]
+#[allow(dead_code)]
 struct PidRoundtripResult {
     consistent: bool,
     pids: Vec<String>,
