@@ -66,7 +66,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
         }
     } else if project_dir.is_file() && project_dir.extension().map_or(false, |e| e == "omni") {
         // Also discover sibling .omni files for import resolution
-        let file_stem = project_dir.file_stem().unwrap().to_string_lossy().to_string();
+        let _file_stem = project_dir.file_stem().unwrap().to_string_lossy().to_string();
         let name = project_dir.file_name().unwrap().to_string_lossy().to_string();
         match std::fs::read_to_string(project_dir) {
             Ok(content) => {
