@@ -83,7 +83,7 @@ mod tests {
     use crate::lexer::Span;
     use crate::parser::ast::{
         AssignTarget, BinaryOpKind, Block, ComponentDef, ComputedDecl, Expr, Literal, Module,
-        SignalDecl, Stmt, TypeAnnotation, ViewBlock, ViewNode,
+        SignalDecl, Stmt, TypeAnnotation,
     };
 
     use super::*;

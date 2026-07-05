@@ -11,6 +11,7 @@ use crate::ir::*;
 
 pub(super) mod expr;
 pub(super) mod motion;
+#[cfg(test)]
 pub(super) mod tests;
 pub(super) mod utils;
 pub(super) mod view;

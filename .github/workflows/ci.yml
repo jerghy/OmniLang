@@ -17,8 +17,9 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-      - name: Build workspace
-        run: cargo build --release
+      - uses: Swatinem/rust-cache@v2
+      - name: Check workspace
+        run: cargo check --workspace
       - name: Run Rust tests
         run: cargo test --workspace
 

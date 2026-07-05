@@ -2,8 +2,13 @@
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+#[allow(unused_imports)]
+use super::utils::*;
+use super::ReactCodegen;
+use super::expr::*;
+use crate::codegen::{CodeWriter, Codegen};
 use crate::ir::ModuleIR;
 use crate::ir::*;
 

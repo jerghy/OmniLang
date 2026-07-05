@@ -1,12 +1,19 @@
+#[allow(unused_imports)]
 use super::array::{codegen_array_length, codegen_array_map, codegen_array_push};
+#[allow(unused_imports)]
 use super::console::{codegen_console_error, codegen_console_log};
+#[allow(unused_imports)]
 use super::http::{codegen_http_get, codegen_http_post, codegen_http_send};
+#[allow(unused_imports)]
 use super::json::{codegen_json_parse, codegen_json_stringify};
+#[allow(unused_imports)]
 use super::math::{
     codegen_math_abs, codegen_math_ceil, codegen_math_floor, codegen_math_max, codegen_math_min,
     codegen_math_pow, codegen_math_random, codegen_math_round, codegen_math_sqrt,
 };
+#[allow(unused_imports)]
 use super::storage::{codegen_storage_get, codegen_storage_set};
+#[allow(unused_imports)]
 use super::string::{
     codegen_string_concat, codegen_string_contains, codegen_string_ends_with, codegen_string_join,
     codegen_string_length, codegen_string_replace, codegen_string_split,

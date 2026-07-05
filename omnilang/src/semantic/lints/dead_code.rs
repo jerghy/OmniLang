@@ -154,7 +154,7 @@ mod tests {
     use crate::ir::{ComponentIR, StoreIR};
     use crate::lexer::Span;
     use crate::parser::ast::{
-        Block, ComponentDef, Expr, FunctionDef, Literal, Module, SignalDecl, Stmt, TypeAnnotation,
+        Block, ComponentDef, Expr, FunctionDef, Literal, Module, SignalDecl, TypeAnnotation,
         ViewBlock, ViewNode, Visibility,
     };
 
