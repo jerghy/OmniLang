@@ -1,0 +1,151 @@
+<h2>无限画布：三种空间组织方案</h2>
+<p class="subtitle">每个 .omni 文件是一个 tab，tab 内是一个无限画布——画布上怎么组织"视觉"和"逻辑"？</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>📍 A: 双锚点（你的方案一）</h3>
+      <p>画布上有两个预设锚点——UI 视图区 + 逻辑节点区</p>
+      <div class="mockup">
+        <div class="mockup-header">画布空间示意</div>
+        <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px">
+<pre style="margin:0">
+┌─────────────────┐     ┌─────────────────┐
+│  🎨 UI 视图区    │     │  🔗 逻辑节点区   │
+│                 │     │                 │
+│  ┌───────────┐  │     │  [signal:count] │
+│  │ Header     │  │     │      │          │
+│  │ ┌───────┐ │  │     │  [computed:     │
+│  │ │Counter│ │  │     │   doubled]      │
+│  │ └───────┘ │  │     │      │          │
+│  └───────────┘  │     │  [fn:inc]       │
+│                 │     │                 │
+└─────────────────┘     └─────────────────┘
+    Ctrl+1 跳转              Ctrl+2 跳转
+</pre>
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>✅</h4><ul><li>结构清晰</li><li>快捷键直达</li></ul></div>
+        <div class="cons"><h4>❌</h4><ul><li>硬性分离违背"统一"理念</li><li>UI 和逻辑的连线跨越很远</li><li>多组件时锚点不够</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>💬 B: UI 为主 + 浮层（你的方案二）</h3>
+      <p>UI 视图是主画布，点击组件时相关节点浮出</p>
+      <div class="mockup">
+        <div class="mockup-header">选中 Counter 组件时</div>
+        <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px">
+<pre style="margin:0">
+              [signal:count]──→[computed:doubled]
+                     │
+              [fn:inc]         [fn:dec]
+                ╱ ╲               ╱
+          ┌─────┐             ┌─────┐
+          │Counter│           │ btn  │
+          │     0 │           │  -   │
+          └─────┘             └─────┘
+          主画布（始终可见）    相关节点浮出
+</pre>
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>✅</h4><ul><li>上下文关联强</li><li>不选中时界面干净</li></ul></div>
+        <div class="cons"><h4>❌</h4><ul><li>全局视角缺失</li><li>浮出位置不稳定</li><li>无法同时看两个组件的逻辑</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>🎯 C: 缩放层级（推荐）</h3>
+      <p>一个组件 = 一个空间区域。UI 在上，逻辑在下/周围。缩放控制可见粒度</p>
+      <div class="mockup">
+        <div class="mockup-header">三种缩放级别</div>
+        <div class="mockup-body" style="padding:12px;font-family:monospace;font-size:11px">
+<pre style="margin:0">
+100% 缩放（细看 UI）:
+┌─────────────────────┐
+│  Header              │
+│  ┌─────────────────┐ │
+│  │ Counter      0   │ │  ← 可以看到像素
+│  │  [+]  [-]       │ │
+│  └─────────────────┘ │
+└─────────────────────┘
+
+50% 缩放（看组件+逻辑）:
+┌─────────────────────┐
+│  [signal:count]      │
+│     │    │            │
+│  [comp] [fn:inc]     │  ← 逻辑节点浮现
+│     │    │            │
+│  ┌────Counter──────┐ │
+│  │  count: 0       │ │
+│  │  [+] [-]        │ │
+│  └─────────────────┘ │
+└─────────────────────┘
+
+25% 缩放（俯瞰全项目）:
+┌──────┐ ┌──────┐ ┌──────┐
+│ App  │→│Header│→│Todo  │  ← 组件间关系
+└──────┘ └──────┘ └──────┘
+</pre>
+        </div>
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>✅</h4><ul><li>无硬性分离——UI和逻辑在同一空间</li><li>空间记忆——Counter 的逻辑总在 UI 下方</li><li>缩放自然控制可见粒度</li><li>Figma 用户零学习成本</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>需要精心设计缩放阈值</li><li>节点位置自动布局算法很重要</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:28px">🎯 推荐 C，理由很简单</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  <tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">
+    <th style="text-align:left;padding:8px">需求</th>
+    <th style="text-align:center;padding:8px;width:80px">A 双锚点</th>
+    <th style="text-align:center;padding:8px;width:80px">B 浮层</th>
+    <th style="text-align:center;padding:8px;width:80px">C 缩放层级</th>
+  </tr>
+  <tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:6px 8px">UI 和逻辑统一空间</td>
+    <td style="text-align:center">❌ 分离</td>
+    <td style="text-align:center">⚠️ 半分离</td>
+    <td style="text-align:center;color:#16a34a">✅ 统一</td>
+  </tr>
+  <tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:6px 8px">连线可见性</td>
+    <td style="text-align:center">⚠️ 跨区连线长</td>
+    <td style="text-align:center">❌ 选中才显示</td>
+    <td style="text-align:center;color:#16a34a">✅ 始终可见</td>
+  </tr>
+  <tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:6px 8px">空间记忆</td>
+    <td style="text-align:center">⚠️ 两个区域</td>
+    <td style="text-align:center">❌ 浮层不稳定</td>
+    <td style="text-align:center;color:#16a34a">✅ 位置固定</td>
+  </tr>
+  <tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:6px 8px">多组件支持</td>
+    <td style="text-align:center">❌ 锚点不够</td>
+    <td style="text-align:center">✅</td>
+    <td style="text-align:center;color:#16a34a">✅ 自然扩展</td>
+  </tr>
+  <tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:6px 8px">学习成本</td>
+    <td style="text-align:center">✅ 简单</td>
+    <td style="text-align:center">✅ 直觉</td>
+    <td style="text-align:center;color:#16a34a">✅ Figma 用户熟悉</td>
+  </tr>
+</table>
+
+<div style="margin-top:16px;padding:12px;background:#EEF2FF;border-radius:8px;border:1px solid #C7D2FE">
+  <p style="margin:0;font-size:13px;color:#3730A3">
+    <strong>核心差异：</strong>A 是"两个房间"，B 是"东西藏起来"，C 是"一个房间，你决定站多远看"。<br>
+    C 不需要切换模式、不需要锚点、不需要浮层——<strong>你只是改变观察距离。</strong>
+  </p>
+</div>

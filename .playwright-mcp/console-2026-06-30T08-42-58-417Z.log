@@ -1,0 +1,1521 @@
+[     135ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:21548
+[     146ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     148ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     148ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     150ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     150ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     150ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[     152ms] [ERROR] The above error occurred in the <StatsPanel> component:
+
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:18:30)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[     152ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:22:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[     152ms] [ERROR] The above error occurred in the <FeatureCard> component:
+
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:22:31)
+    at div
+    at div
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[     152ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performConcurrentWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18682:30)
+[     165ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[  148052ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AddTodo.tsx?t=1782809126371:0
+[  148052ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782809126378:0
+[  148053ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AdvancedPseudoDemo.tsx?t=1782809126378:0
+[  148053ms] [ERROR] [hmr] Failed to reload /src/AddTodo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148062ms] [ERROR] [hmr] Failed to reload /src/AnimPropertiesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148062ms] [ERROR] [hmr] Failed to reload /src/AdvancedPseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148084ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809126386:0
+[  148084ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148087ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComponentSpecialsDemo.tsx?t=1782809126387:0
+[  148087ms] [ERROR] [hmr] Failed to reload /src/ComponentSpecialsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148090ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/BlockExprDemo.tsx?t=1782809126387:0
+[  148090ms] [ERROR] [hmr] Failed to reload /src/BlockExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148100ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComputedFnFormDemo.tsx?t=1782809126387:0
+[  148100ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148104ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Counter.tsx?t=1782809126388:0
+[  148104ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148108ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssUnitsDemo.tsx?t=1782809126388:0
+[  148108ms] [ERROR] [hmr] Failed to reload /src/CssUnitsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148115ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssVarsDemo.tsx?t=1782809126400:0
+[  148115ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148119ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809126400:0
+[  148120ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148125ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataFetching.tsx?t=1782809126400:0
+[  148128ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148134ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataSubmit.tsx?t=1782809126400:0
+[  148135ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148141ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataTable.tsx?t=1782809126400:0
+[  148141ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148148ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EasingFunctionsDemo.tsx?t=1782809126400:0
+[  148148ms] [ERROR] [hmr] Failed to reload /src/EasingFunctionsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148150ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitChild.tsx?t=1782809126400:0
+[  148150ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148156ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventChild.tsx?t=1782809126400:0
+[  148156ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148162ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventDemo.tsx?t=1782809126400:0
+[  148164ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148171ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventDataDemo.tsx?t=1782809126401:0
+[  148172ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148173ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureCard.tsx?t=1782809126416:0
+[  148173ms] [ERROR] [hmr] Failed to reload /src/FeatureCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148176ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitKeywordDemo.tsx?t=1782809126401:0
+[  148176ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148181ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809126401:0
+[  148181ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148185ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventsDemo.tsx?t=1782809126401:0
+[  148185ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148188ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureList.tsx?t=1782809126417:0
+[  148188ms] [ERROR] [hmr] Failed to reload /src/FeatureList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148190ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809126417:0
+[  148192ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148194ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ForDirectiveKeyDemo.tsx?t=1782809126417:0
+[  148194ms] [ERROR] [hmr] Failed to reload /src/ForDirectiveKeyDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148197ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormControlsDemo.tsx?t=1782809126417:0
+[  148197ms] [ERROR] [hmr] Failed to reload /src/FormControlsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormPage.tsx?t=1782809126417:0
+[  148201ms] [ERROR] [hmr] Failed to reload /src/FormPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148206ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Header.tsx?t=1782809126417:0
+[  148206ms] [ERROR] [hmr] Failed to reload /src/Header.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148210ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/InlineStoreDemo.tsx?t=1782809126417:0
+[  148211ms] [ERROR] [hmr] Failed to reload /src/InlineStoreDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148211ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/HeroTransitionDemo.tsx?t=1782809126417:0
+[  148214ms] [ERROR] [hmr] Failed to reload /src/HeroTransitionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148215ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Modal.tsx?t=1782809126417:0
+[  148217ms] [ERROR] [hmr] Failed to reload /src/Modal.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148219ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionCallbackDemo.tsx?t=1782809126418:0
+[  148221ms] [ERROR] [hmr] Failed to reload /src/MotionCallbackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148223ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionDemo.tsx?t=1782809126418:0
+[  148223ms] [ERROR] [hmr] Failed to reload /src/MotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148226ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionPlaybackDemo.tsx?t=1782809126418:0
+[  148226ms] [ERROR] [hmr] Failed to reload /src/MotionPlaybackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148231ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionTriggersDemo.tsx?t=1782809126418:0
+[  148232ms] [ERROR] [hmr] Failed to reload /src/MotionTriggersDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148232ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809126418:0
+[  148235ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148236ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NullishDemo.tsx?t=1782809126418:0
+[  148239ms] [ERROR] [hmr] Failed to reload /src/NullishDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148240ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809126418:0
+[  148242ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148243ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PathTimelineDemo.tsx?t=1782809126419:0
+[  148244ms] [ERROR] [hmr] Failed to reload /src/PathTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148247ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PlaybackAdvancedDemo.tsx?t=1782809126449:0
+[  148248ms] [ERROR] [hmr] Failed to reload /src/PlaybackAdvancedDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148253ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809126449:0
+[  148257ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotContainer.tsx?t=1782809126450:0
+[  148257ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148258ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotDefaultDemo.tsx?t=1782809126450:0
+[  148261ms] [ERROR] [hmr] Failed to reload /src/SlotContainer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148262ms] [ERROR] [hmr] Failed to reload /src/SlotDefaultDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148263ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotPanel.tsx?t=1782809126450:0
+[  148266ms] [ERROR] [hmr] Failed to reload /src/SlotPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148267ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsDashboard.tsx?t=1782809126450:0
+[  148271ms] [ERROR] [hmr] Failed to reload /src/StatsDashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148272ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StaggerAndTimelineDemo.tsx?t=1782809126450:0
+[  148274ms] [ERROR] [hmr] Failed to reload /src/StaggerAndTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148276ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StepsStartDemo.tsx?t=1782809126450:0
+[  148278ms] [ERROR] [hmr] Failed to reload /src/StepsStartDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148279ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsPanel.tsx?t=1782809126450:0
+[  148282ms] [ERROR] [hmr] Failed to reload /src/StatsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148283ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StringLiteralsDemo.tsx?t=1782809126450:0
+[  148286ms] [ERROR] [hmr] Failed to reload /src/StringLiteralsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148286ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StylePseudoDemo.tsx?t=1782809126450:0
+[  148290ms] [ERROR] [hmr] Failed to reload /src/StylePseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148290ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TabPanel.tsx?t=1782809126450:0
+[  148294ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809126450:0
+[  148294ms] [ERROR] [hmr] Failed to reload /src/TabPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148295ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148297ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeCssVarsDemo.tsx?t=1782809126451:0
+[  148299ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148301ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeSwitcher.tsx?t=1782809126451:0
+[  148302ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelineMotionDemo.tsx?t=1782809126451:0
+[  148303ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148305ms] [ERROR] [hmr] Failed to reload /src/TimelineMotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148307ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelinePositionDemo.tsx?t=1782809126451:0
+[  148309ms] [ERROR] [hmr] Failed to reload /src/TimelinePositionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148310ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Timer.tsx?t=1782809126451:0
+[  148310ms] [ERROR] [hmr] Failed to reload /src/Timer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148314ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoItem.tsx?t=1782809126451:0
+[  148314ms] [ERROR] [hmr] Failed to reload /src/TodoItem.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148317ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoList.tsx?t=1782809126451:0
+[  148317ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148321ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoPage.tsx?t=1782809126451:0
+[  148321ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148324ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TypeSystemDemo.tsx?t=1782809126451:0
+[  148324ms] [ERROR] [hmr] Failed to reload /src/TypeSystemDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148333ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/UserSettings.tsx?t=1782809126451:0
+[  148334ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ValidationInput.tsx?t=1782809126451:0
+[  148334ms] [ERROR] [hmr] Failed to reload /src/UserSettings.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148337ms] [ERROR] [hmr] Failed to reload /src/ValidationInput.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148338ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ViewAttributesDemo.tsx?t=1782809126451:0
+[  148341ms] [ERROR] [hmr] Failed to reload /src/ViewAttributesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148341ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AddTodo.tsx?t=1782809126451:0
+[  148344ms] [ERROR] [hmr] Failed to reload /src/AddTodo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148344ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AdvancedPseudoDemo.tsx?t=1782809126452:0
+[  148348ms] [ERROR] [hmr] Failed to reload /src/AdvancedPseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148348ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782809126452:0
+[  148351ms] [ERROR] [hmr] Failed to reload /src/AnimPropertiesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148353ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809126452:0
+[  148355ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148356ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/BlockExprDemo.tsx?t=1782809126465:0
+[  148356ms] [ERROR] [hmr] Failed to reload /src/BlockExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148361ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComponentSpecialsDemo.tsx?t=1782809126465:0
+[  148364ms] [ERROR] [hmr] Failed to reload /src/ComponentSpecialsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148365ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComputedFnFormDemo.tsx?t=1782809126466:0
+[  148365ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComputedFnFormDemo.tsx?t=1782809126465:0
+[  148370ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Counter.tsx?t=1782809126466:0
+[  148370ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148370ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148371ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssUnitsDemo.tsx?t=1782809126466:0
+[  148371ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148377ms] [ERROR] [hmr] Failed to reload /src/CssUnitsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148377ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssVarsDemo.tsx?t=1782809126467:0
+[  148377ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssVarsDemo.tsx?t=1782809126466:0
+[  148380ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809126467:0
+[  148382ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809126466:0
+[  148382ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148382ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148382ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Counter.tsx?t=1782809126467:0
+[  148383ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148387ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataFetching.tsx?t=1782809126467:0
+[  148387ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148387ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148387ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataTable.tsx?t=1782809126468:0
+[  148392ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148392ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148392ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataTable.tsx?t=1782809126467:0
+[  148392ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148392ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataSubmit.tsx?t=1782809126467:0
+[  148396ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148397ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EasingFunctionsDemo.tsx?t=1782809126467:0
+[  148397ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148397ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148399ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventChild.tsx?t=1782809126468:0
+[  148400ms] [ERROR] [hmr] Failed to reload /src/EasingFunctionsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148400ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitChild.tsx?t=1782809126468:0
+[  148401ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148401ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148404ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148404ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148404ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventDemo.tsx?t=1782809126468:0
+[  148408ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148408ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148408ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitKeywordDemo.tsx?t=1782809126468:0
+[  148413ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148414ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148414ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventDataDemo.tsx?t=1782809126468:0
+[  148414ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventsDemo.tsx?t=1782809126468:0
+[  148419ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148419ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148419ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148419ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148419ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809126469:0
+[  148421ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureCard.tsx?t=1782809126469:0
+[  148423ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148423ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148424ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureList.tsx?t=1782809126469:0
+[  148425ms] [ERROR] [hmr] Failed to reload /src/FeatureCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148425ms] [ERROR] [hmr] Failed to reload /src/FeatureList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148425ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809126469:0
+[  148428ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148428ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ForDirectiveKeyDemo.tsx?t=1782809126469:0
+[  148431ms] [ERROR] [hmr] Failed to reload /src/ForDirectiveKeyDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148431ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormControlsDemo.tsx?t=1782809126469:0
+[  148435ms] [ERROR] [hmr] Failed to reload /src/FormControlsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148437ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormPage.tsx?t=1782809126469:0
+[  148440ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Header.tsx?t=1782809126469:0
+[  148441ms] [ERROR] [hmr] Failed to reload /src/FormPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148441ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Modal.tsx?t=1782809126469:0
+[  148441ms] [ERROR] [hmr] Failed to reload /src/Header.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148445ms] [ERROR] [hmr] Failed to reload /src/Modal.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148445ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/HeroTransitionDemo.tsx?t=1782809126469:0
+[  148449ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/InlineStoreDemo.tsx?t=1782809126469:0
+[  148450ms] [ERROR] [hmr] Failed to reload /src/HeroTransitionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148453ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionCallbackDemo.tsx?t=1782809126470:0
+[  148454ms] [ERROR] [hmr] Failed to reload /src/InlineStoreDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148454ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionPlaybackDemo.tsx?t=1782809126470:0
+[  148457ms] [ERROR] [hmr] Failed to reload /src/MotionCallbackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148458ms] [ERROR] [hmr] Failed to reload /src/MotionPlaybackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148458ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionTriggersDemo.tsx?t=1782809126470:0
+[  148464ms] [ERROR] [hmr] Failed to reload /src/MotionTriggersDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148465ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809126470:0
+[  148465ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809126470:0
+[  148469ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148469ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148470ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PathTimelineDemo.tsx?t=1782809126470:0
+[  148471ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PlaybackAdvancedDemo.tsx?t=1782809126470:0
+[  148475ms] [ERROR] [hmr] Failed to reload /src/PathTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148476ms] [ERROR] [hmr] Failed to reload /src/PlaybackAdvancedDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148476ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809126470:0
+[  148480ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148480ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotDefaultDemo.tsx?t=1782809126471:0
+[  148484ms] [ERROR] [hmr] Failed to reload /src/SlotDefaultDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148484ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotContainer.tsx?t=1782809126471:0
+[  148489ms] [ERROR] [hmr] Failed to reload /src/SlotContainer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148489ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotPanel.tsx?t=1782809126471:0
+[  148491ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StaggerAndTimelineDemo.tsx?t=1782809126471:0
+[  148493ms] [ERROR] [hmr] Failed to reload /src/SlotPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148493ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsDashboard.tsx?t=1782809126471:0
+[  148493ms] [ERROR] [hmr] Failed to reload /src/StaggerAndTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148498ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsPanel.tsx?t=1782809126471:0
+[  148498ms] [ERROR] [hmr] Failed to reload /src/StatsDashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148499ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StepsStartDemo.tsx?t=1782809126471:0
+[  148502ms] [ERROR] [hmr] Failed to reload /src/StatsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148502ms] [ERROR] [hmr] Failed to reload /src/StepsStartDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148502ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StringLiteralsDemo.tsx?t=1782809126471:0
+[  148503ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StylePseudoDemo.tsx?t=1782809126471:0
+[  148507ms] [ERROR] [hmr] Failed to reload /src/StringLiteralsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148507ms] [ERROR] [hmr] Failed to reload /src/StylePseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148508ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TabPanel.tsx?t=1782809126472:0
+[  148510ms] [ERROR] [hmr] Failed to reload /src/TabPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148511ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809126472:0
+[  148514ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148515ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeCssVarsDemo.tsx?t=1782809126472:0
+[  148517ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148517ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148519ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeSwitcher.tsx?t=1782809126472:0
+[  148519ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148519ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148523ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelineMotionDemo.tsx?t=1782809126472:0
+[  148525ms] [ERROR] [hmr] Failed to reload /src/TimelineMotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148529ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelinePositionDemo.tsx?t=1782809126472:0
+[  148529ms] [ERROR] [hmr] Failed to reload /src/TimelinePositionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148534ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Timer.tsx?t=1782809126472:0
+[  148535ms] [ERROR] [hmr] Failed to reload /src/Timer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148535ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoItem.tsx?t=1782809126472:0
+[  148535ms] [ERROR] [hmr] Failed to reload /src/TodoItem.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148539ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoPage.tsx?t=1782809126472:0
+[  148539ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148542ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoList.tsx?t=1782809126472:0
+[  148543ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148547ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TypeSystemDemo.tsx?t=1782809126472:0
+[  148547ms] [ERROR] [hmr] Failed to reload /src/TypeSystemDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148550ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809126472:0
+[  148551ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148551ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148555ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809126472:0
+[  148555ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148558ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809126472:0
+[  148558ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148559ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809126472:0
+[  148559ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148563ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/UserSettings.tsx?t=1782809126473:0
+[  148563ms] [ERROR] [hmr] Failed to reload /src/UserSettings.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148569ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809126473:0
+[  148569ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148573ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoPage.tsx?t=1782809126473:0
+[  148573ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148576ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809126473:0
+[  148577ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148580ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoList.tsx?t=1782809126473:0
+[  148580ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148581ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ValidationInput.tsx?t=1782809126473:0
+[  148581ms] [ERROR] [hmr] Failed to reload /src/ValidationInput.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  148584ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ViewAttributesDemo.tsx?t=1782809126493:0
+[  148585ms] [ERROR] [hmr] Failed to reload /src/ViewAttributesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337943ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AddTodo.tsx?t=1782809316294:0
+[  337943ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AdvancedPseudoDemo.tsx?t=1782809316297:0
+[  337943ms] [ERROR] [hmr] Failed to reload /src/AddTodo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337944ms] [ERROR] [hmr] Failed to reload /src/AdvancedPseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337958ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782809316301:0
+[  337961ms] [ERROR] [hmr] Failed to reload /src/AnimPropertiesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337963ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809316301:0
+[  337963ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337972ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComponentSpecialsDemo.tsx?t=1782809316308:0
+[  337974ms] [ERROR] [hmr] Failed to reload /src/ComponentSpecialsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  337975ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/BlockExprDemo.tsx?t=1782809316308:0
+[  337977ms] [ERROR] [hmr] Failed to reload /src/BlockExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338010ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComputedFnFormDemo.tsx?t=1782809316308:0
+[  338013ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338014ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Counter.tsx?t=1782809316308:0
+[  338016ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338021ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssUnitsDemo.tsx?t=1782809316308:0
+[  338024ms] [ERROR] [hmr] Failed to reload /src/CssUnitsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338028ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssVarsDemo.tsx?t=1782809316315:0
+[  338029ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338036ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataFetching.tsx?t=1782809316315:0
+[  338036ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338037ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809316315:0
+[  338037ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338045ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataSubmit.tsx?t=1782809316315:0
+[  338045ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338047ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataTable.tsx?t=1782809316315:0
+[  338048ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338053ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EasingFunctionsDemo.tsx?t=1782809316315:0
+[  338053ms] [ERROR] [hmr] Failed to reload /src/EasingFunctionsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338056ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitChild.tsx?t=1782809316315:0
+[  338057ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338058ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventDemo.tsx?t=1782809316327:0
+[  338058ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338061ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventChild.tsx?t=1782809316315:0
+[  338061ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338067ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventDataDemo.tsx?t=1782809316327:0
+[  338069ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338074ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitKeywordDemo.tsx?t=1782809316327:0
+[  338076ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338077ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809316327:0
+[  338079ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338080ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureList.tsx?t=1782809316327:0
+[  338082ms] [ERROR] [hmr] Failed to reload /src/FeatureList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338083ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventsDemo.tsx?t=1782809316327:0
+[  338083ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338087ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureCard.tsx?t=1782809316327:0
+[  338087ms] [ERROR] [hmr] Failed to reload /src/FeatureCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338091ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809316327:0
+[  338092ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338096ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ForDirectiveKeyDemo.tsx?t=1782809316328:0
+[  338100ms] [ERROR] [hmr] Failed to reload /src/ForDirectiveKeyDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338101ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormControlsDemo.tsx?t=1782809316328:0
+[  338102ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormPage.tsx?t=1782809316328:0
+[  338103ms] [ERROR] [hmr] Failed to reload /src/FormControlsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338103ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Header.tsx?t=1782809316328:0
+[  338104ms] [ERROR] [hmr] Failed to reload /src/FormPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338104ms] [ERROR] [hmr] Failed to reload /src/Header.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338109ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/HeroTransitionDemo.tsx?t=1782809316349:0
+[  338112ms] [ERROR] [hmr] Failed to reload /src/HeroTransitionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338112ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/InlineStoreDemo.tsx?t=1782809316349:0
+[  338114ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Modal.tsx?t=1782809316349:0
+[  338114ms] [ERROR] [hmr] Failed to reload /src/InlineStoreDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338116ms] [ERROR] [hmr] Failed to reload /src/Modal.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338118ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionCallbackDemo.tsx?t=1782809316349:0
+[  338118ms] [ERROR] [hmr] Failed to reload /src/MotionCallbackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338132ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionDemo.tsx?t=1782809316349:0
+[  338133ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionPlaybackDemo.tsx?t=1782809316349:0
+[  338133ms] [ERROR] [hmr] Failed to reload /src/MotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338133ms] [ERROR] [hmr] Failed to reload /src/MotionPlaybackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338133ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionTriggersDemo.tsx?t=1782809316350:0
+[  338133ms] [ERROR] [hmr] Failed to reload /src/MotionTriggersDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338136ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NullishDemo.tsx?t=1782809316350:0
+[  338137ms] [ERROR] [hmr] Failed to reload /src/NullishDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338141ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809316350:0
+[  338142ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338142ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809316350:0
+[  338144ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338146ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotContainer.tsx?t=1782809316350:0
+[  338146ms] [ERROR] [hmr] Failed to reload /src/SlotContainer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338150ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PathTimelineDemo.tsx?t=1782809316350:0
+[  338150ms] [ERROR] [hmr] Failed to reload /src/PathTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338155ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PlaybackAdvancedDemo.tsx?t=1782809316350:0
+[  338158ms] [ERROR] [hmr] Failed to reload /src/PlaybackAdvancedDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338158ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotDefaultDemo.tsx?t=1782809316350:0
+[  338159ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809316350:0
+[  338159ms] [ERROR] [hmr] Failed to reload /src/SlotDefaultDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338161ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338166ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotPanel.tsx?t=1782809316379:0
+[  338166ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StaggerAndTimelineDemo.tsx?t=1782809316379:0
+[  338167ms] [ERROR] [hmr] Failed to reload /src/SlotPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338167ms] [ERROR] [hmr] Failed to reload /src/StaggerAndTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338170ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsPanel.tsx?t=1782809316379:0
+[  338170ms] [ERROR] [hmr] Failed to reload /src/StatsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338174ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsDashboard.tsx?t=1782809316379:0
+[  338174ms] [ERROR] [hmr] Failed to reload /src/StatsDashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338175ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StepsStartDemo.tsx?t=1782809316379:0
+[  338175ms] [ERROR] [hmr] Failed to reload /src/StepsStartDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338178ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StringLiteralsDemo.tsx?t=1782809316380:0
+[  338178ms] [ERROR] [hmr] Failed to reload /src/StringLiteralsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338183ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809316380:0
+[  338183ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338187ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TabPanel.tsx?t=1782809316380:0
+[  338188ms] [ERROR] [hmr] Failed to reload /src/TabPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338188ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StylePseudoDemo.tsx?t=1782809316380:0
+[  338190ms] [ERROR] [hmr] Failed to reload /src/StylePseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338192ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeCssVarsDemo.tsx?t=1782809316380:0
+[  338194ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338196ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeSwitcher.tsx?t=1782809316380:0
+[  338199ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338200ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelinePositionDemo.tsx?t=1782809316380:0
+[  338200ms] [ERROR] [hmr] Failed to reload /src/TimelinePositionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338205ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Timer.tsx?t=1782809316380:0
+[  338207ms] [ERROR] [hmr] Failed to reload /src/Timer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338209ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelineMotionDemo.tsx?t=1782809316380:0
+[  338211ms] [ERROR] [hmr] Failed to reload /src/TimelineMotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338212ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoItem.tsx?t=1782809316380:0
+[  338213ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoList.tsx?t=1782809316380:0
+[  338213ms] [ERROR] [hmr] Failed to reload /src/TodoItem.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338215ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338216ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TypeSystemDemo.tsx?t=1782809316380:0
+[  338216ms] [ERROR] [hmr] Failed to reload /src/TypeSystemDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338219ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/UserSettings.tsx?t=1782809316380:0
+[  338220ms] [ERROR] [hmr] Failed to reload /src/UserSettings.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338222ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoPage.tsx?t=1782809316380:0
+[  338224ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338225ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ValidationInput.tsx?t=1782809316380:0
+[  338225ms] [ERROR] [hmr] Failed to reload /src/ValidationInput.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338235ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ViewAttributesDemo.tsx?t=1782809316383:0
+[  338235ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AddTodo.tsx?t=1782809316391:0
+[  338238ms] [ERROR] [hmr] Failed to reload /src/ViewAttributesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338238ms] [ERROR] [hmr] Failed to reload /src/AddTodo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338238ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AdvancedPseudoDemo.tsx?t=1782809316391:0
+[  338242ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/BlockExprDemo.tsx?t=1782809316392:0
+[  338242ms] [ERROR] [hmr] Failed to reload /src/AdvancedPseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338243ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782809316392:0
+[  338243ms] [ERROR] [hmr] Failed to reload /src/BlockExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338245ms] [ERROR] [hmr] Failed to reload /src/AnimPropertiesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338252ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809316392:0
+[  338254ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComputedFnFormDemo.tsx?t=1782809316392:0
+[  338254ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338254ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338254ms] [ERROR] [hmr] Failed to reload /src/ComputedFnFormDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338257ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ComponentSpecialsDemo.tsx?t=1782809316392:0
+[  338257ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Counter.tsx?t=1782809316392:0
+[  338257ms] [ERROR] [hmr] Failed to reload /src/ComponentSpecialsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338257ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338257ms] [ERROR] [hmr] Failed to reload /src/Counter.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338258ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssVarsDemo.tsx?t=1782809316392:0
+[  338259ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338259ms] [ERROR] [hmr] Failed to reload /src/CssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338262ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/CssUnitsDemo.tsx?t=1782809316392:0
+[  338262ms] [ERROR] [hmr] Failed to reload /src/CssUnitsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338262ms] [ERROR] [hmr] Failed to reload /src/CssUnitsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338267ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809316393:0
+[  338268ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338268ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Dashboard.tsx?t=1782809316392:0
+[  338268ms] [ERROR] [hmr] Failed to reload /src/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338272ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataFetching.tsx?t=1782809316393:0
+[  338273ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338275ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataFetching.tsx?t=1782809316392:0
+[  338275ms] [ERROR] [hmr] Failed to reload /src/DataFetching.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338276ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataSubmit.tsx?t=1782809316393:0
+[  338276ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338276ms] [ERROR] [hmr] Failed to reload /src/DataSubmit.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338281ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/DataTable.tsx?t=1782809316393:0
+[  338281ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338281ms] [ERROR] [hmr] Failed to reload /src/DataTable.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338285ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitChild.tsx?t=1782809316394:0
+[  338286ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338286ms] [ERROR] [hmr] Failed to reload /src/EmitChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338292ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EasingFunctionsDemo.tsx?t=1782809316394:0
+[  338292ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EasingFunctionsDemo.tsx?t=1782809316393:0
+[  338293ms] [ERROR] [hmr] Failed to reload /src/EasingFunctionsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338293ms] [ERROR] [hmr] Failed to reload /src/EasingFunctionsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338295ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventChild.tsx?t=1782809316394:0
+[  338296ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338296ms] [ERROR] [hmr] Failed to reload /src/EmitEventChild.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338297ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitEventDemo.tsx?t=1782809316394:0
+[  338299ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338299ms] [ERROR] [hmr] Failed to reload /src/EmitEventDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338301ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809316395:0
+[  338303ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809316394:0
+[  338303ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338305ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventDataDemo.tsx?t=1782809316394:0
+[  338305ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338307ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338307ms] [ERROR] [hmr] Failed to reload /src/EventDataDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338309ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventsDemo.tsx?t=1782809316394:0
+[  338311ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338311ms] [ERROR] [hmr] Failed to reload /src/EventsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338312ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EmitKeywordDemo.tsx?t=1782809316394:0
+[  338312ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338313ms] [ERROR] [hmr] Failed to reload /src/EmitKeywordDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338316ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureList.tsx?t=1782809316395:0
+[  338316ms] [ERROR] [hmr] Failed to reload /src/FeatureList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338316ms] [ERROR] [hmr] Failed to reload /src/FeatureList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338322ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ForDirectiveKeyDemo.tsx?t=1782809316395:0
+[  338323ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FeatureCard.tsx?t=1782809316395:0
+[  338323ms] [ERROR] [hmr] Failed to reload /src/ForDirectiveKeyDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338323ms] [ERROR] [hmr] Failed to reload /src/ForDirectiveKeyDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338325ms] [ERROR] [hmr] Failed to reload /src/FeatureCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338325ms] [ERROR] [hmr] Failed to reload /src/FeatureCard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338326ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809316395:0
+[  338328ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338328ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338329ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormControlsDemo.tsx?t=1782809316395:0
+[  338329ms] [ERROR] [hmr] Failed to reload /src/FormControlsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338329ms] [ERROR] [hmr] Failed to reload /src/FormControlsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338333ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FormPage.tsx?t=1782809316395:0
+[  338334ms] [ERROR] [hmr] Failed to reload /src/FormPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338334ms] [ERROR] [hmr] Failed to reload /src/FormPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338336ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Header.tsx?t=1782809316395:0
+[  338337ms] [ERROR] [hmr] Failed to reload /src/Header.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338337ms] [ERROR] [hmr] Failed to reload /src/Header.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338337ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/HeroTransitionDemo.tsx?t=1782809316395:0
+[  338338ms] [ERROR] [hmr] Failed to reload /src/HeroTransitionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338341ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Modal.tsx?t=1782809316395:0
+[  338341ms] [ERROR] [hmr] Failed to reload /src/Modal.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338344ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/InlineStoreDemo.tsx?t=1782809316396:0
+[  338345ms] [ERROR] [hmr] Failed to reload /src/InlineStoreDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338353ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionCallbackDemo.tsx?t=1782809316396:0
+[  338353ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionTriggersDemo.tsx?t=1782809316396:0
+[  338354ms] [ERROR] [hmr] Failed to reload /src/MotionCallbackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338354ms] [ERROR] [hmr] Failed to reload /src/MotionTriggersDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338355ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/MotionPlaybackDemo.tsx?t=1782809316396:0
+[  338357ms] [ERROR] [hmr] Failed to reload /src/MotionPlaybackDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338358ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809316396:0
+[  338358ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338362ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809316396:0
+[  338362ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338366ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PathTimelineDemo.tsx?t=1782809316396:0
+[  338367ms] [ERROR] [hmr] Failed to reload /src/PathTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338369ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/PlaybackAdvancedDemo.tsx?t=1782809316396:0
+[  338369ms] [ERROR] [hmr] Failed to reload /src/PlaybackAdvancedDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338374ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotContainer.tsx?t=1782809316396:0
+[  338375ms] [ERROR] [hmr] Failed to reload /src/SlotContainer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338375ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809316396:0
+[  338375ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338378ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotDefaultDemo.tsx?t=1782809316396:0
+[  338378ms] [ERROR] [hmr] Failed to reload /src/SlotDefaultDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338382ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SlotPanel.tsx?t=1782809316396:0
+[  338382ms] [ERROR] [hmr] Failed to reload /src/SlotPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338386ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StaggerAndTimelineDemo.tsx?t=1782809316396:0
+[  338386ms] [ERROR] [hmr] Failed to reload /src/StaggerAndTimelineDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338391ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsDashboard.tsx?t=1782809316396:0
+[  338392ms] [ERROR] [hmr] Failed to reload /src/StatsDashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338395ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StatsPanel.tsx?t=1782809316396:0
+[  338395ms] [ERROR] [hmr] Failed to reload /src/StatsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338399ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StepsStartDemo.tsx?t=1782809316397:0
+[  338399ms] [ERROR] [hmr] Failed to reload /src/StepsStartDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338404ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StringLiteralsDemo.tsx?t=1782809316397:0
+[  338404ms] [ERROR] [hmr] Failed to reload /src/StringLiteralsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338411ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/StylePseudoDemo.tsx?t=1782809316408:0
+[  338411ms] [ERROR] [hmr] Failed to reload /src/StylePseudoDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338415ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TabPanel.tsx?t=1782809316408:0
+[  338415ms] [ERROR] [hmr] Failed to reload /src/TabPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338419ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809316408:0
+[  338420ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338421ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeCssVarsDemo.tsx?t=1782809316408:0
+[  338421ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338424ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeSwitcher.tsx?t=1782809316408:0
+[  338424ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338428ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelineMotionDemo.tsx?t=1782809316408:0
+[  338428ms] [ERROR] [hmr] Failed to reload /src/TimelineMotionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338432ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoItem.tsx?t=1782809316408:0
+[  338432ms] [ERROR] [hmr] Failed to reload /src/TodoItem.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338434ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoList.tsx?t=1782809316409:0
+[  338436ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338436ms] [ERROR] [hmr] Failed to reload /src/TodoList.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338437ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TodoPage.tsx?t=1782809316409:0
+[  338437ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338437ms] [ERROR] [hmr] Failed to reload /src/TodoPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338441ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TypeSystemDemo.tsx?t=1782809316409:0
+[  338441ms] [ERROR] [hmr] Failed to reload /src/TypeSystemDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338445ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.tsx?t=1782809316409:0
+[  338445ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338445ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338445ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338450ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/EventShorthand.tsx?t=1782809316409:0
+[  338450ms] [ERROR] [hmr] Failed to reload /src/EventShorthand.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338454ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/NotificationsPanel.tsx?t=1782809316409:0
+[  338455ms] [ERROR] [hmr] Failed to reload /src/NotificationsPanel.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338455ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/UserSettings.tsx?t=1782809316409:0
+[  338457ms] [ERROR] [hmr] Failed to reload /src/UserSettings.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338458ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/SettingsPage.tsx?t=1782809316409:0
+[  338458ms] [ERROR] [hmr] Failed to reload /src/SettingsPage.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338465ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeCssVarsDemo.tsx?t=1782809316409:0
+[  338467ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ViewAttributesDemo.tsx?t=1782809316410:0
+[  338468ms] [ERROR] [hmr] Failed to reload /src/ThemeCssVarsDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338468ms] [ERROR] [hmr] Failed to reload /src/ViewAttributesDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338470ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ThemeSwitcher.tsx?t=1782809316409:0
+[  338471ms] [ERROR] [hmr] Failed to reload /src/ThemeSwitcher.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338471ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/ValidationInput.tsx?t=1782809316410:0
+[  338474ms] [ERROR] [hmr] Failed to reload /src/ValidationInput.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338475ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/FilterBar.tsx?t=1782809316409:0
+[  338475ms] [ERROR] [hmr] Failed to reload /src/FilterBar.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338478ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TimelinePositionDemo.tsx?t=1782809316410:0
+[  338479ms] [ERROR] [hmr] Failed to reload /src/TimelinePositionDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  338483ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/Timer.tsx?t=1782809316421:0
+[  338483ms] [ERROR] [hmr] Failed to reload /src/Timer.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507718ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809484882:0
+[  507718ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507728ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507728ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507729ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507730ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507730ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507731ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507733ms] [ERROR] The above error occurred in the <StatsPanel> component:
+
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:18:30)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507733ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:22:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507733ms] [ERROR] The above error occurred in the <FeatureCard> component:
+
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:22:31)
+    at div
+    at div
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507734ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  507745ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809484924:0
+[  507745ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507816ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507816ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507817ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507818ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507818ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507818ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507820ms] [ERROR] The above error occurred in the <StatsPanel> component:
+
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:18:30)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507820ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:22:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507820ms] [ERROR] The above error occurred in the <FeatureCard> component:
+
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:22:31)
+    at div
+    at div
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507820ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  507847ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/OptionalChainDemo.tsx?t=1782809485041:0
+[  507847ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507847ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507847ms] [ERROR] [hmr] Failed to reload /src/OptionalChainDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507848ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507865ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507865ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507865ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507866ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507867ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507867ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507868ms] [ERROR] The above error occurred in the <StatsPanel> component:
+
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:18:30)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507868ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:22:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507869ms] [ERROR] The above error occurred in the <FeatureCard> component:
+
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:22:31)
+    at div
+    at div
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507868ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  507873ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809485042:0
+[  507873ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/TernaryExprDemo.tsx?t=1782809485050:0
+[  507874ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507874ms] [ERROR] [hmr] Failed to reload /src/TernaryExprDemo.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507890ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507891ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507891ms] [ERROR] [hmr] Failed to reload /src/App.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:175
+[  507891ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507891ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507892ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507892ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507893ms] ReferenceError: getModStatus is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:114:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507893ms] ReferenceError: getOriginX is not defined
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:130:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507894ms] [ERROR] The above error occurred in the <StatsPanel> component:
+
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:18:30)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507894ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx:22:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507894ms] [ERROR] The above error occurred in the <FeatureCard> component:
+
+    at FeatureCard (http://localhost:5173/src/FeatureCard.tsx:22:31)
+    at div
+    at div
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx:26:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507894ms] ReferenceError: format_count is not defined
+    at StatsPanel (http://localhost:5173/src/StatsPanel.tsx:151:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  507966ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507968ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  507969ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809484980:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  507969ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  651245ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651246ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651247ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809484980:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  651248ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  651268ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651270ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651271ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809484980:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  651271ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  651388ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651389ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651390ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809484980:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  651391ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  651459ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651460ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651461ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809484980:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:76:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  651461ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809485042:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)
+[  651562ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809628607:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651564ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809628607:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+[  651564ms] [ERROR] The above error occurred in the <StatsDashboard> component:
+
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809628607:658:37)
+    at section
+    at div
+    at Dashboard (http://localhost:5173/src/Dashboard.tsx?t=1782809628607:662:39)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx?t=1782809628609:712:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[  651564ms] ReferenceError: math_abs is not defined
+    at StatsDashboard (http://localhost:5173/src/StatsDashboard.tsx?t=1782809628607:921:27)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:18877:28)

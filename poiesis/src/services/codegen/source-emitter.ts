@@ -29,9 +29,10 @@ export class SourceEmitter {
   emitDocument(input: EmitInput, chains: Map<string, ChainBlock>): string {
     const writer = new CodeWriter();
 
-    // @omni-file
+    // @omni-file directive (only emitted for non-default types like "event")
     if (this.annotationStrategy) {
-      writer.emit(this.annotationStrategy.beforeFile());
+      const directive = this.annotationStrategy.beforeFile();
+      if (directive) writer.emit(directive);
     }
 
     // imports

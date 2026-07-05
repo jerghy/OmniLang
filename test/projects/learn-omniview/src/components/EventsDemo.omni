@@ -102,7 +102,7 @@ component EventsDemo {
             <!-- 媒体与资源事件 :: @onLoad @onError @onPlay @onPause @onEnded -->
             <article class: card>
                 <h3 class: card-title>媒体与资源事件</h3>
-                <img src="about:blank" class: hidden-img
+                <img src="" class: hidden-img
                     @onLoad={addLog("img-loaded")}
                     @onError={addLog("img-error")} alt="test" />
                 <div class: media-box
@@ -161,7 +161,7 @@ component EventsDemo {
                         <cite>— 来源 (cite)</cite>
                     </blockquote>
                     <p><time datetime="2025-06-20">时间 (time)</time></p>
-                    <p><address>地址: contact@example.com (address)</address></p>
+                    <div><address>地址: contact@example.com (address)</address></div>
                     <p><bdi>双向文本 (bdi)</bdi>
                     <bdo dir="rtl">双向覆盖 (bdo)</bdo></p>
                     <p>换行<wbr />机会 (wbr)</p>

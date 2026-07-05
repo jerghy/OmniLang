@@ -1,0 +1,38 @@
+/* Styles for EmitEventChild */
+.child-box {
+  padding: 14px;
+  border-radius: 10px;
+  margin: 8px 0;
+  background: #f3f0ff;
+  border: 1px solid #c7d2fe;
+}
+.child-box {
+  color: #4338ca;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.child-box {
+  color: #6b7280;
+  margin: 0 0 8px 0;
+  font-size: 12px;
+}
+.child-btn {
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 6px 14px;
+  color: #fff;
+  border: none;
+  margin-right: 6px;
+  background: #6366f1;
+}
+.child-btn-outline {
+  color: #6366f1;
+  border-radius: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid #6366f1;
+  cursor: pointer;
+  font-size: 12px;
+}

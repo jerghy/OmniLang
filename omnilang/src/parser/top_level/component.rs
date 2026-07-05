@@ -327,26 +327,22 @@ impl<'a> Parser<'a> {
                     },
                 }
             };
-            let body = self.parse_block()?;
-            // Wrap the block body as the computed expression
-            // Use trailing expression if present
-            let body_expr = if let Some(trailing) = body.trailing_expr {
-                *trailing
-            } else {
-                Expr::Literal(
-                    Literal::Null,
-                    Span {
+            let block = self.parse_block()?;
+            // Preserve the full block body as a Block expression so the
+            // compiled output contains all statements (if-return chains, etc.),
+            // not just the trailing expression.
+            return Ok(ComputedDecl {
+                name,
+                type_ann,
+                body: Expr::Block {
+                    body: block,
+                    span: Span {
                         start: 0,
                         end: 0,
                         line: 0,
                         col: 0,
                     },
-                )
-            };
-            return Ok(ComputedDecl {
-                name,
-                type_ann,
-                body: body_expr,
+                },
             });
         }
 

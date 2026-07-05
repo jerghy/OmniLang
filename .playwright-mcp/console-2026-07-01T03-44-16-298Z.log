@@ -1,0 +1,4 @@
+[     167ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     236ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     247ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    2396ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683

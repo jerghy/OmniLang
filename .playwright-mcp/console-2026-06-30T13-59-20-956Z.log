@@ -1,0 +1,17 @@
+[     114ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     161ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     172ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    2537ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   75421ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   80459ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[  594039ms] [WARNING] Invalid keyframe value for property offsetDistance: 1 @ http://localhost:5173/src/MotionPlaybackDemo.tsx?t=1782828553026:699
+[  594039ms] [WARNING] Invalid keyframe value for property borderRadius: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594039ms] [WARNING] Invalid keyframe value for property borderRadius: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property width: 60 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property width: 200 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property height: 40 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property height: 120 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property margin: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property padding: 8 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property margin: 16 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700
+[  594040ms] [WARNING] Invalid keyframe value for property padding: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx?t=1782828553035:700

@@ -1,0 +1,758 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="description" content="DIY可视化提供技术支持" />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <div
+      class="relative w-[186.125rem] h-[371.625rem] overflow-hidden bg-white"
+    >
+      <div
+        class="absolute left-[1.875rem] top-[7.8125rem] w-[165.8125rem] h-[91.8125rem] border-black"
+      >
+        <div
+          class="absolute left-6 top-[1.5625rem] text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          架构页面
+        </div>
+        <div
+          class="absolute left-[7.4375rem] top-20 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          以泡泡为主，分为整体架构和局部架构模式。整体架构只能显示全局
+          Store、<br />全局代码和界面；局部架构模式以该组件为中心，按需显示。
+        </div>
+        <div
+          class="absolute left-[5.0625rem] top-[11.3125rem] text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          整体架构
+        </div>
+        <div
+          class="absolute left-[2.625rem] top-60 w-[45.9375rem] h-[25.5rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[28rem] top-[15.375rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-[0.6875rem] top-3.5 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              界面
+            </div>
+          </div>
+          <div
+            class="absolute left-[20.875rem] top-[6.625rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-1.5 top-3 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              store
+            </div>
+          </div>
+          <div
+            class="absolute left-[13.75rem] top-[15.4375rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-[0.6875rem] top-3.5 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              代码
+            </div>
+          </div>
+          <img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEMAAABcCAYAAAA1Sgg9AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAGsSURBVHic7dlRjRtBEEXRmyAwhGKQQBgIgdBhsAyiIFgIhhAIhhAFwYbBQkg++rm9be132krfI1mW7Z/WaGrKrwqk93xYfYB/rIDPef+U776uOswqJ+A1rx/AM/Ann7f3DTgDL/S7ZFvF7SKcgXb94eOS46xzAi7Ad+A38Ivbs2M7z/S74eqgP0O20+jlcbr7/v7zf6/oF+JYe4zHcKZ3kO01+l2xvcL/EsMFywOAJywPoJfFK5YH0O+Ip9WHeATXELa9wu4xvPAmhe7M8ogDywO4PSe+LD7HQzjT5xTba7w/o9hO4XNicEYRhrAoDGHDTywPoF+Ey+pDPILC7jEYwsIQFoXlAfS/2ZZH3C+Kt9UwhAEuiieGsGgYwgDb6MRFcTijiMIZxeCiOAxhUdg9BkNYWB5xYHkALoonLoqj4YwCsI1OnFGEISwKQ9jgojhcFEdh9xgMYWEIi8LyAFwUT1wUR8MQBrgonhjComEIA2yjExfF4YwiCmcUg4viMIRFYfcYDGFhecSB5QG4KJ64KI6GMwrANjpxRhGGsCgMYYOL4nBR/MYFy0O68xf853LI7w8AywAAAABJRU5ErkJggg=="
+            class="absolute left-[17.150625rem] top-[15.0175rem] w-[6.605218107678201rem] h-0"
+          /><img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEoAAABkCAYAAAAhdqY3AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAIXSURBVHic7d3BbRNBGEfxp0ABLmE6wFTAlJASTAW4A+jAJaQEzpxMB8mRG+mApAMOm1VCZKH/BwqTIe8nWdrDSv602l2/w44XpKeyAY5AGzzHs3T2YPsGuAIuBs0ynSOwHz3EDBrwHdgOnmMKe5aDtRk9yAwugMPoIWawYTmr+uA5ptCBH3gJRg4sv4QKmAyhxnK/amPHmMMeuMT7VeQzJkPEZCjoWO0xk6HgEpMh0jAZYiZDgckQMhkKOiZD7MByGSpgMoQaJkNsTQYFTIaQyVDQMRliJkOByRBqmAwxk6HgiMkQMRkKOiZDzGQIbTAZYg2TIWYyFJgMIZOhoGMyxA64YiJiMhRsMRlie3ycKGYyhBrLIoA+dow5dEyGmMkQWqvdZAiYDAUmQ8ER+Dh6iBk0TIZYZ2AyvBrxpX/omuXM6sCXkYPMYE2G3eA5prBluV+1wXNMwWQocJ1zqGEyxM75R8kwUx6c8g2TIWYyFJgMBSZDgckQaiyXoP+mFniSZJg9D04xGQrWZDgfPcgMTIYCk6HAZAg1TIbYXyfD/5gHp5gMBSZDQcdkiJkMBSZDqGEyxHYUkuGl5MEpV5gMMZOhoGMyxEyGgsfJsOPB45Bnj/d+wd4DH7hPhjfA7bhxnrcd98lwxAdAfmt9zcsvL+V4PWyc52NdVHnN/fu7Pt1t36w7eaCWg/GW5d60Ad4BX+8+ksb6Cd1vg5aNAK3LAAAAAElFTkSuQmCC"
+            class="absolute left-[24.974375rem] top-[9.518125rem] w-[7.214622737884498rem] h-0"
+          />
+          <div class="absolute left-72 top-[17rem] w-40 h-8">
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKEAAAAKCAYAAADcij6bAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACUSURBVFiF7daxDYMwEIXhH4k+HsEjeATYgBFYIRNklWzCCB4BRiAbUOAiogynXHHvk05y9fR0usIg8l8LULxLSGwTsKJDFGeFr0PsfLuEl9pYyoZZ1v0S8GjvAgzA2AOvm6HRlmiZt7extBlmWfe75iUgd9w7wg+xlyi/yUAFnsDbtYmElDn/g7NvDYmsogMUEbk4APlfGAFSBJVZAAAAAElFTkSuQmCC"
+              class="absolute left-0 top-[0.09375rem] w-[10.000195310592687rem] h-0"
+            />
+            <div
+              class="absolute left-[2.8125rem] top-[0.1875rem] text-left text-[0.625rem] font-['SourceHanSansCN'] font-normal text-black"
+            >
+              绑定的事件等等代码<br />
+            </div>
+          </div>
+          <div
+            class="absolute left-[13.75rem] top-[3.375rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （此处连线只是示例，实际会更详细））
+          </div>
+        </div>
+        <div
+          class="absolute left-[2.625rem] top-[45.9375rem] w-[45.9375rem] h-[25.5rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[25rem] top-[19.25rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-1.5 top-3.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              输入框
+            </div>
+          </div>
+          <div
+            class="absolute left-[29.25rem] top-[16.1875rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-[0.9375rem] top-2 text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+            >
+              事情<br />组件
+            </div>
+          </div>
+          <div
+            class="absolute left-[33.0625rem] top-[19.4375rem] w-[3.1875rem] h-[3.3125rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADMAAAAuCAYAAACF6SFvAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAN2SURBVGiB7ZpLaFNZGMf//y+1szEdcVG6k/EBoou2tx3UGURaq9ABkQqzcqEIbhRcuPDRtFBIk1FBGUbUtQs3Ij6QUWijbRXfaYygIlQq7koXQ2t0YZucbxajnfSZ5OSak4K/5bnfuff3516450X4xPYnHT9lKsyvEGmE6lqFrCC1GsDyrLJ/VDlKmPcg38CYeCAtD3o2dL/zw4HFdG5Kdq4X1d2q2kZyre19VPUNyWuGvNRXF35lex+rME3PO34jcITAFtsHz4viHmlOxeqjfxfataAw25+HfkmDZwhsKPRBFjwV8HBvffhBvh3yCtMSP/qjsiIK4QF7NztUccGMf2zvb/pzLFdtzjBbE13rwMmbAFf6o2eDDkOX7Ljjdb1eqEoWuticDLWBk4/dBgEArgQnHzcnQ20LVc0bpiXZuY/KKwCD/svZwCCVV1qSnfvmrZirsWmwY5cILgMIfDM3e4wx+L2vofvqzAuzwnz5dzwCUCZvZE5Shtw085807TNrHeqqEtUbKO8gABAU1RutQ11V2Y3Twkx8yoQBrCqplj2rvvhOMfWZNb9o92hksPROxaFiGu7WRhNA1puhCZxwp2RPtjcBYFsi1GjIZ+6UikNUf+71InEBgAxx0LVQMXz1Z+vQXz9MfBwdAbDMsVMxjFUura6RidToZizuIACwbCI1ulkU9H9O4gAFt4hQPdcifiBUTxS62rWIHyh0tQCscS3iD6wRAFU56xYHVQtOzhYbAuCDawmf+CCAjri28AcdEYJvXWv4AcG3YpQJ1yJ+YJQJIXTAtYgfEDoglcHq+wByLrCVOWOVwer7cnvNoc8Kve7aphgUev32mkOfBQACinOuhYrhq78AQK8XiUMRc6tkiSLW60XiQNYagFEec2dkTyDLeypMX0N4UImzbpTsUOJsT0N4akVp2thM0pOdgA6XXssGHf7P93+mhYk1nhzPiO4EkSqtWIEQqYzozljjyfHs5lmj5v7a6EsCewGYUrkViCGwt782+nLmhTmnALG67qsk96P8AhmS+2N1s3cAgBw7Z83JUBsVF8tjj0ZTSuy5Wxe5Nl9FHtuAx9eBsvi3AQHgjvfHa2bSHuBolGD0PDNpL1cQwGLrPEOehmKjvV1+KPCkAnq4pz7yMN8+ZXeoQYEBBU711XffKrTv9+Mmc1EOB4H+BSM+UuVaDJJDAAAAAElFTkSuQmCC"
+              class="absolute left-0 top-1 w-[3.1875rem] h-[2.875rem]"
+            />
+            <div
+              class="absolute left-[0.5625rem] top-0 w-9 h-[3.3125rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+            >
+              返回上级
+            </div>
+          </div>
+          <div
+            class="absolute left-[20.875rem] top-[6.625rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-1.5 top-3 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              store
+            </div>
+          </div>
+          <div
+            class="absolute left-[15.625rem] top-[18.5625rem] w-[4.25rem] h-[3.875rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAA+CAYAAACSqr0VAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAASdSURBVHic7ZxPbBRVHMc/v9dtiZhUg8QQiPFP8GJDKO2b7YQDHrx4EPWmXhRumnBBiBcTujVcNEES0BATI4IH8WaoBxNF4QBpZ6YFQvAiAQ2BaECim9im0+77eWiL2390d7vdN/3zue3se28/75vZ3dl5v7dCA7h8+fLDpVLJOufagTYReVpVNwHrgUeB5ommo8DfwF0RuaWqN4CrxphLTU1NydatW/9dbFdZrIGjKGo3xrysqi+KiOX/SdfKqKomIvK9c+50Pp+/VA/P6dQ1kCRJ1ovIblV9C2ir59izcFVVTw4PDx/fsWPHnXoNWpdABgcHn3TOvQfsAtbWY8wqGFLVr5xzH3Z1dd1Y6GALCuT8+fOPr1mz5n3gbaBloTILZFREPhsdHT0YhuGftQ5ScyBJkrwDfMD4B2OW+EtVu4Mg+LSWzlUHcuHChU3Nzc0nROSFWl6wgfyUy+XebG9vv1VNp6oCiaLoeWPMKWBDVWr++ENV3wiC4GylHUylDeM43mOM+ZGlEwbABhH5IY7jPZV2qCiQKIoOiMhRIFezmj9yInI0iqIDlTSe9y0Tx3FBRLoX7uUfVe0JgqDwoDYPDCRJkneBQ/WUygD7rbVzzmnOQAYGBl5S1d7FcfKLqr4SBMHp2Z6bNZCLFy8+VSqVEuCxRTXzhKrec87Z2a5sZ3yoqqqUSqWvWaZhAIjIOmPMqUKhMGP+Mw4MDAzsA8KGmHlERPI7d+7cN+N4+YPBwcGNzrlfgEcaZuaXYpqmz23fvv3+1eyUM0RVu1k5YQC0trS0FMoP3D9D4jh+RkR+pYqr1+WAiDjn3LNBEFyHqZPfywoLA0BVDeNzBybOkL6+vtZcLncTaPUl5pni2NjYE2EYFg1AU1PTq6zcMABaJzIYf4uIyGt+ffwzmYEkSbIWuEPj74VmClUdFpH1BuhihYcBICIPAV2TgawyTpcBtvi2yBBbDLDZt0WG2GyAjb4tMsRGA6zzbZEh1hlWv2HKWbvifrvMhwGGfEtkiCED3PNtkSHuGeC2b4sMcdsA13xbZIhrBrji2yJDXDFAv2+LDNFvgH5VHfZtkgGGgH5jrR0SkZ9922SAs9baIQOgqt/4tvHNZAYGoFQqfQsUvRr5pTiRwXggYRgWVfWkXyd/qOrJMAyLMHUd5jDg/Cj5Q0Qc43MHygIJguC6iHzuxcojqvrF5KodTFupE5Ee4J+GW/mjmKZpofzAlEA6OjpuAwcbaeQTETlYvvIPs6zldnZ2HgL6GmblCVWNent7Z9SarZZUTWPWO2bbtm37TUR2LbqZP3bPtXNizluInZ2d3wEzSo6WAfvnqkCEeepBrLUfq2pP/Z38oKo9D6pRhQoKZIIgKDjnlnwls3Oue74qZqhiN0Qcx3tE5DBLr959TFX3BkHwSSWNl/32EOfc6/l8/lylHapal8nn8+fSNLWqeqZ6t8aiqmfSNLXVhAHLc4vZXeCAtfZYLZ1rXrmz1h4bGRlpA44Aaa3j1JEUODIyMtJWaxiwTLapAl8aYz7q6Oj4faGDLemNzCJyQlWPW2vv1mvQ1a3u01i0QMpZSn+G8B+RZclZhJ6hpwAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.875rem]"
+            />
+            <div
+              class="absolute left-[0.6875rem] top-3.5 text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              代码
+            </div>
+          </div>
+          <img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC4AAACKCAYAAADVNHjPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAMOSURBVHic7ZzRcRMxEIa/gQZcgjqIOzh1YNNBOkkJlAAlQAWBCgJv8OR0EDoID2fNKEa+O91J2l2s78XxOPF83uzszm/ZB51qPACPgBP2WMw9cAKegFfGF6Aaxyh8Ov/8CfgIvKC86o6x2oEg/MD4IkywZ6x8IPwXeCdhk4EHvkT3Pwh5ZPPIKG+KHWNr7FIPam6VPfAM/Ek9qFn8AHyVlljDibHqpnCM8/sqWlvlyNsx+A9axQ/Ad2mJNbxwZQwGNFbcAz+4MgYDGsUPwLe5X9Iovsdgf++YGYMBbRU/sqBNQJ/4gME2AQPxLIXnbdqZRFOrDMysea2YTTuzaz5GS6t4Fqz5GC3iA4bTjpOWyMWxcM3HaGiVI/A59480iB+An9ISuWSPwYB0xfdkjsGAtPiitKORJwyv+VVItsrsmz5TSIoPGByDsHIMBqQq7hlHYPYYDEiJ97TTktVrPkaiVTwr13yMhPhtp53WFXfn2+etT9RafNOaj2ktbvJsp8gYDLSs+Oq0k6KleE87LdmUdlK0apViYzDQStz02U6RMRhoUXHPxCd91tJCfMDoGLzdtJOidqt4Cq75mNrit512UtSsuDvfPtd48prixdd8TE3xnnZS1Kp40bSTopa42bRzwvCar0qNVrmnwXvfNcTvMDgGofIYDJSuuKdC2klRWrynnZZUX/MxJVvlSOU1H1NS/A6jacfkB3ovv75YnVKt4ml8xF1KvKedpZSoePW0k6KEeE87LXE0SDsptrZK1Td9ptgq3s92ctlScY/AGAxsER8Yxc1hOu2IsbZVQtoRY6242bOdnnbWsqZVPP0Dve2YvFhLS3JbZfJiLS3JFe8Xa2mJQ3jNx+S0iljaSZEj3tNOCZZW3COYdlIsFVd3tpNTcXP9LZ52Uiyp+OKLtbRkibjpMeikJXJRkXZSzLWKR9Gaz6GnndJMtYqatJNiSrynnZY4FK75mGutoirtpLgmbvKIG5SlnRSpinuUpZ0UKXETR9wp8f/70pTSXFZcZdpJ8f7i/g74DfwScLkN/gIuFKaZuVd/MQAAAABJRU5ErkJggg=="
+            class="absolute left-[18.55875rem] top-[18.00375rem] w-[8.753118238559242rem] h-0"
+          /><img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAM4AAABXCAYAAABMdnpPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAATzSURBVHic7d3p1+djHQfw1z17MxlDpiiKSYrJoRjKMhVFJJW0aJFdKmTPkU5k12KptNDmTIi0adGqlJ04RKUGY5qZ0z/Bgw9P7nPdDk9c15zzfj26z33fD95Pfuf7u6739/pcRMRzNr13gIhB7YvF+Dee6JwlYq2xBL/FchyHdfvGiVi7LMa38H9c/PQvp3WLEzG+dbEU2+GFeF3fOBFj2wXfwxr1tNkRf8X7OmaKGNJCnIiHcCsOxbyn/rYEj8lmWgRqqfJ2XIvV+Ipa00x2DU56HnNFDOnl+Jx6ivwOH8TsZ/j/x7He85ArYjgz8V78GitwFjbrmihiYK/GhfgffoJ9ZK0S0fQCHIi/4GF8Bht1TRQxsNfj62obeRnegomuiSIGtQCfwD24D0fLQj5iSkvxffV0+SZ26BsnYlwvVn3KP3ELDsHcrokiBjUNe+E6rMKXsVXXRBEDewXOwKPq9f73Y1bPQBGjmon98RvV6n8Bm/YMFDGy1+CLqqS8Hu+QkjKiaS4Ows3qePLJ2LBnoIiRbYfL1DbylXizlJQRTQvwSfwd9z71c0rKiIYJvAk/UE+Xb2D7rokiBvYStV75lzpufJCUlBFN07A3fqxKyi9hy66JIga2Kc5UncuNapjFzJ6BIkY1S7X4N6oPzBmq5Y+Ihi3VV7BV6ivZ3jKXL6JpLg7G39Ri/2S1+I+IhiVq+3iN2k5eKiVlRNN6+JQqKO9RpyoXdE0UMagJ9crLlerpcpl6JSYiGjbEKerlypvxMSkpI5qmq5li16vX9y9Ur/NHRMNm6kDYY+qA2P5SUkY0zcIH1FzkR/F5NS85Ihq2UsMsVqkJ/HtJSRnRNE+NSbpFjU06UY1RioiGHdQgvjXq9rBdu6aJGNj6asTrfbgbR8ltyBFNE2p4+DL1dPmaGi4eEQ0bqespHlbXVRyorq+IiEmm4534qSopL8AWXRNFDGyRulpvBX6lrtxLSRnRMFtd2vp7PKIuc92ka6KIgS1W14KvViXlnlJSRjTNw2G4FQ/hBCzsmihiYDvi22ob+bvYpW+ciHGtj2NwP+7Cx6WkjGiawO74oXq6fBXbdk0UMbCX4lT8BzfhI5jTM1DEqGZgX/wcK3G+lJQRU1qEs/E4fon3qA9RREwyGwfgD1iO07Fx10QRA9saF6uS8hrsISVlRNM6qqS8HQ/ieGzQNVHEwN6Iy9U28newc984EeN6ET6NB3AnjsT8rokiBjWBt+IqtXa5FNt0TRQxsJfhNPwXf5KSMmJKM/Bu/EKVlOdh866JIgb2SpyrSsob1IcnJWVEwxx8GH9UX8c+q76eRUTD1rhELfSvxtvk1rCIpvk4AnfgH2pLOSVlxBR2whWqpLxClZYR0bABjlNPlttxuHotJiImmVBrlavV2uUStZaJiIaN1W7YcrU79iEpKSOaZqjDYDeo3uUc1cNERMOrVJO/UjX775KSMqJpjnpH7CZVUp4mJWXElLZRbyGvVm8l7y4lZUTTfHW+5U41lO9Ydf4lIhp2VmNe16gTlW/oGydiXAvV2fwHcZs6s5+SMqJhmpr68iO1drkIr+2aKGJgm6jLj5arOWMHqLljETHJDOynJleuUJMsF3VNFDGwLdRM5JX4mZqVPL1roohBzcFH8Wc1ff9UNY0/IqZwpNpGXobdpKSMeFY2VzeJRURERERErM2eBJuS1UViUcSeAAAAAElFTkSuQmCC"
+            class="absolute left-[19.82375rem] top-[19.716875rem] w-[13.556162113592475rem] h-0"
+          /><img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAI4AAABOCAYAAAD2FS68AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAGvSURBVHic7dxBbRtRGEXhoyIIhAuhEAZCIfwQyiAQAsFQDCVlEAjpYlpNqyZN/O7CGul8G1vyZhZHfrY81yBJ0ikEuPx6lD705Y/nP4ArBqQFAR6BZwxICwI8Aa8YkBaEPRwD0pJwBPSIAelGYQ/oGQPSgmBAKoS/A5JuEo6A5q5XolMKBqRCMCAVggGp8JX9dzAD0pINA1Jhw4BU+MYejwFpyWBAKgxHQNtdr0SnNOzxXDEgLRgMSIXhCCh3vRKd0uD90CoMBqTCYEAqDAakRQ+4CVMhGJAKwYBUCK5SVQiuUlUIrlJVCI4KVQgGpEJwlapCcNKjQjAgFYIBqRAMSIUNN2EqbBiQChsGpMLgqFCFwYBUGFylqjA4KlRhMCAVBlepKgzeD63CYEAqDAakwmBAWhTchKkQDEiFYEAqBEeFKgQDUiG4SlUhOCpUIRiQCsFVqgrBSY8KwYBUCAakQjAgFTY+twkLfkPTGzb+H9Dv16U3bbwf0Av7n5BL7xr+HRU+Ad/vdD06meEI6ILHlW407EfVKx5X+sAD+2eeC3s0Vzyq9AnDEYvvMpLu6Cf+JaSUNWlR8wAAAABJRU5ErkJggg=="
+            class="absolute left-[24.985625rem] top-[9.528125rem] w-[9.670214265071836rem] h-0"
+          />
+          <div
+            class="absolute left-[11.75rem] top-[2.6875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （此处连线只是示例，实际会更详细））
+          </div>
+          <div
+            class="absolute left-[33.0625rem] top-[13.6875rem] w-[12.5625rem] h-[3.8125rem]"
+          >
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEUAAAA+CAYAAAB9aNYrAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAaDSURBVHic7ZxPTBNZHMe/7w0F2tK1VgMJPTiAR9EJWnUvLIoJp5WarG71omQ9eZHN3sgmhQtnuHhyg14WVjehuKcmwrJcVkHd0XpEqIeS0HVLtbSllHlvD9PBUgtSaDvQ+rlMOn9efvnm93tv5uX7K0GR4C5JhELbQHAEhIjgkEC4Vb1KxLQ7/alzfgBhcC4D5CWoIpMR2V+MWEmhBuZOyQoDdYKSb8DhXLPVWlePNkOx1WLtYC3W7I1gRjMAQLHVrj8nhIKp4yJoPArDwjwMgXkYFuYghBb9AJHB+BiSzEM8crgQseddFO461QbO3cxYIyXrG6wxx3loYuwWIRRE1Rsfqn1PUf36CQB4wPgYefji3q4HTyMvonCnZEUlvQ2Q7sTRZmvMcR6J5rPrmVAIaDyK6tdPYJyeQNWbV34w9OUre3YtCv++pRucuGOn29ezotgYAvMwTz2CaeaxHwx9u82cHYuilgkbSjQdFyMdLl3EyEQIBXHAcxfVr//2g7FL5KEs72ScnEXhTsmKKupWbHXdS67be0KMTEwz47B4hyH8t9hLHrzoy/X5nEThLkkEp38ut3aKyx1XCzpn7BYhFITFO6yWFGHnclnOty0Kd51qA+Oj7y/dtEZbL+4oUD2weIdh8f7qB6FdZOTZ5Hae2ZYo3NVyQzlYN7RXy+VzGAJzsA31Q1ha7CIjn5+EPyuKJsi7W/15edfQCyEUxOE7PdsSZktR+JWTTuVQ7eh+F0Rju8JsKgp3SSKrPvDPvz8NWEtBEA1DYA6H7vwcptH35zZbsmm2k9oqE+lwlZQgAJC0N+KD8wcrKB3lTsma7Z6sooAL7kjHNXE/rTK5EHO0Y7m1U0SVMJTt+iei8MstNxRb7Y1Ix9XCR6cjyx1XodhqnfzKSWfmtQ2icJckgsL97lZ/8aLTCWY0I9TVAwBDmWW0MVMYvR5zXBBLbR7ZjKS9EbHT7akv/I+si8JdkghCeku9bDL54LwJZrJ0p2fLx0zhgjvmaC+J95FcYEYzoq3fbsiWtPLhbeWWJRorx84CIN3abwqoK06i6XjZzCWZJO0NSBxttnLXqTZAyxRKOuOnz+sZl+6sNJ8BOL8OaKJwtCWa9t/Xbz6JO9oBDicAVPDvpLakvaHkXudzhRnNqRIibRQClfbjHkkhWLM3AJxJFKBH1so8SzRUHcgJCnApWd+gdzx7gmR9A8AhUYCLiq1O73j2BIqtDiDcmn3roMyhACnbl7ZMVB2I+CVTskAB7tfsD+WOqgP3f8mULFBwEhZCi3rHsSdQdSB+CgLZsDCvdzx7AlUHIlOAv6z4MqcAAFQd2FsKQuWKwJdMAYDKWR+gMJmSkWeTVbO+MI1H9Y5JV4RQEIbAfJj8Lk+qqw+BxzgzrnNY+lL1xgcQTALaJhMh96t9T/WMSXeM0xMA42NAShSthAxlOreoVtRXfs1AmL6bP5DyppYdFu8wADKp/f4oyiobNE/9UXYTrhAKwjQzDhBl3TC4LgrxyGEaiwx85bmrT3Q6YfEOA5z3phsFN377rLJB0/R42BCYK3ZsuqBmyWM/KLuffn6DKCkLd5dtqB/lUEaH7/QADH2ZdtJPvpLJg+ceIRT01HiHixacHli8wxBCwXvZLOvZtw4SSlfN1JjfVKIvdOapRylvrZLVjZ1VFOKRw2Ds0leeX0puflGd2CPhrVzYm24ykYeyTFciP9qG+lEqO3OaZZTGlru2sqVvufNGRl7cE5YWuw7f6dn3wmzw0D547tnq3pxs6KGuHiTtjfmJsohUzvpwcGQwfzZ0Da2/J9JxTdxP5h7z1CMcGL0bBiWX8tqwoKGZjmOOC2JEtVzuKNBiQONR1HiHUTM1VrjWlnT4lRa3cqiuN9JxFTFH+06GKCjr5RJaHECC9eXaV7jzdrnLkgRKR1eOfS2+d97cE1lTOeuDxTuiNlrm0N+Tye4bKy+33ACFO+a4IEZbLyJpL76DoXLWB9PMBEzT42EQ3kd+ezGwm/Hy14JroE5QuBNNx8X46fNYOVb4Ftwq3xOYZiZQNesLA3wAq2xwT7TgZqJmDukE4Fw5dhYrzWeQaMpfs7aWFYaF+TCNL8sgpG+nZbIZxWjr7wS4pNjqxGR9I5L2BiTrG8CMZmi+mGxt/TQeRUVgDhVLwXUxKkLBMAg8YPyvfdXWvxncJYlgggTwEyBEAmAFuJgKQ0y7068eSBgEMjj3g+MtBDZZrD+A+B8t7txpdKc1ngAAAABJRU5ErkJggg=="
+              class="absolute left-0 top-0 w-[4.25rem] h-[3.8125rem]"
+            />
+            <div
+              class="absolute left-[2.4375rem] top-[1.0625rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+            >
+              （此处为演示选中）
+            </div>
+            <div
+              class="absolute left-[0.9375rem] top-[0.36062500000000064rem] w-12 h-[2.1522178649902344rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+            >
+              添加按钮
+            </div>
+          </div>
+          <img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFsAAABrCAYAAAAYTP40AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAIPSURBVHic7dyxTQNBEEbhH9HAlTB04BKuBEq4EtyB6cAluATHRE7JKAFCiJySQbCcQIjUbyXv+xIQIhit0PGk23EiXbspya73ECN5jgeOqSQvSZa+Y4yj0g5803mOYdynHXh1nmMYu7Rn+NR7kFHskxx6DzGSUywUzJT2/N72HmQUleQcCwUzx0JBbdMO3EKB7JMcew8xEgsFZKHAKq1Q5r5jjGNOO/DqO8Y4LBTYPu2fpiCntEMXwEKBVSwU1BwLBWWhwHaxUFDHWCgYCwVWaQc+9x1jHJv4lge1xEJBWSiwQywUzBSvJqMq7fl933mOYVgosCUeOGq9mizIIV5NxlgosIrLU6i1ULyaDFlioaBcnoJZKCALBVaxUFAVCwXlejfMQoG53g2zUEAVCwVVsVBQcywUlFeTYa53w1zvBnk1GVbxA2hQcywUlIUCc70b5no3yEKBVVzvRs1xvRtlocAsFJiFArJQYBXXu1GbWCgoCwXmejfM9W7QejXZQoFULBSU692wJR44yvVumIUCcnkKVvEDaFCud8OWWCgol6dgrneDLBRYxeUplIUCW2KhoCwUmOvdMAsFVLFQUJX/C8Xn+YX89wE0p/he82L+Fspz7PGL+l0o5/goubh1vfvz9w9v+sxydab8vLN8/f768P393fpLt+REV+wj7Q/3Pe3gpyRvSZ6SPHacS9J1+QIsAIxeNU40ZAAAAABJRU5ErkJggg=="
+            class="absolute left-[24.53875rem] top-[10.02rem] w-[8.203606265520287rem] h-0"
+          />
+          <div
+            class="absolute left-[7.875rem] top-[22.625rem] w-[31.5rem] h-[2.625rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （如果进入某个泡泡过后，它的负极泡泡以及它负极同级的泡泡都会消失，并且会有一个“返回上级”）
+          </div>
+        </div>
+        <img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAABRCAYAAAAATIyKAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABkSURBVEiJ7cyxDYAwDETRL1iEktIrMQkjZQTECExAS4eyAc0VSeQBKO4kS5HvxdBn13SZxkUWIyMjIyMjIyMjo/+jA4ikC3XMwAUU4ARWgardBjztr1tF0Tu7TgCvJgUtXMblB+glDtS5cM8VAAAAAElFTkSuQmCC"
+          class="absolute left-[24.71875rem] top-[40.5rem] w-20 h-0"
+        />
+        <div
+          class="absolute left-[25.125rem] top-[43.0625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          若双击“界面”泡泡
+        </div>
+        <div
+          class="absolute left-[59.9375rem] top-[14.6875rem] w-[45.9375rem] h-[25.5rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[5.75rem] top-[3.0625rem] w-[26.5625rem] h-[18.0625rem] border-black rounded-[1.875rem]"
+          >
+            <div
+              class="absolute left-[1.6875rem] top-[0.5625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              todo list
+            </div>
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAAApCAYAAAAYs+SBAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAPSSURBVHic7d2xVupIHMfxL2yz5fgG4xsknd0dur0V0GkF+wb6BMoTYGsl6bYzKa0yt9uOvIFT2jGlHVsQlHXBe8Uco+7vcw4HDiT4b35OEibz77A/AyTAqH5tN55FZD+hfgBUwA8g3/fLOnvsM2YV6sQ5Z/r9PtZarLUYY7DW7luLyP9eCIEQAgBVVVEUBd57WIW8AGav+b7XBNwBU+dcMhqNGAwGGGNe87dEZA8xRvI8J8syvPcBmPDKoL/EAqVzblmW5VJE2nN9fb201i6Bkl84Hf7ZCO6Am+l0ak5PT9/6j0JEGjKZTLi4uAjAkNW5+lYvBfzUGDO9ubnBOddweSLyVlVVMRwOCSGcAZfbttkV8FNr7bQsS100E/nAQgj0er2dId8W8MRaO1e4RT6HEAJpmhJj7AF+87PnAbdAOZ/PbZIk71SeiLyV955erxeBlKff0fnt2XY3FxcXyfHx8XvWJiJvVM9D+f329jYBsvX7myP42Fp7fXd39/7ViUgj0jSlqqrHQ/Xuxmfn5+fnrRQlIs2YTqcAj0FeB3zsnLPj8biNmkSkIc453Op37TE8Bbw/Go3aqklEGlRneQRP5+DLxWKhueUiX0CMkYODgwgcdoGBc07hFvkijDE45wyQdIFv/X6/7ZpEpEF1pkddINGkFpGvpZ6Faro/2U5EPqE64La7em1bLUZEmlVfUzMdYLlcLlsuR0Sa1ul06AJhvQaUiHwNdaZDF4gxxnarEZFGbQZcI7jIF9UFogIu8rVUVQVQdYGsKIqWyxGRJtWZ/tFh1Y3kbrFYGE1XFfn86rnoAJ0uEIEqz/fujiIiH0id5RyebhfNsizbuYOIfB51lgt4CvjMr7RVk4g0YDabrdsbzeDfa7K5JEnK+XzeRl0i0oDDw0NCCH9SB3xzVdVwf3/vjDH26OioleJEZH+TyYQ8zz1wtn5v27ro87IsjdoViXweVVWRpmkAemysi76ts4kzxpTz+VydTUQ+gY32RSnPGhFuux/cxxjP6h3epUAR2c+z3mT/6TK6a8GHyxDCWa/XW095E5EPxntPmqYvdhd93rpo098xxuLq6uqPTqejc3KRD+Ty8pKTk5P48PDwHfhr13YvBRzgHii890mWZdYYg9ZvE2mP957hcEiWZR74zpbD8k27+oNvMwbOnXN2NBoxGAy01LLIO4gxkuc5WZZRz0ab8KxN8C6vCfjaGOhTr6fe7/cfR3Vrra68i7xBCIEYIyEEQggURYH3PrIaqTPqCSy/ap+AbxoA34D1cbutHyKyn8DqBrD1c8Yq3Hstu/QPB7rVFwz7nb8AAAAASUVORK5CYII="
+              class="absolute left-12 top-[2.875rem] w-[15.4375rem] h-10"
+            />
+            <div
+              class="absolute left-[19.625rem] top-12 w-[4.875rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE4AAAAmCAYAAABqDa0qAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAIiSURBVGiB7ZpBTttAFIa/NykSgVbyEdwbsGvCKjlB2hsMJwBOQDgBcALmBiUnSFcN7HIE36CRaBMkhF8XcUJIQ3CsFGeU+ZYzHunXr2fPvPEv5KQ3sg0RWigHQIwSIUR5128kygBIEAYIfX2kU//kfuRZKssmu2qjvQeOVTnx3qT8JALuS9WdL3voVeN+/rFfjeECiNetzBMSfeK8/tG5RZNm0eDdyJ4Zw3e21zSAWCpc343s2aLJfyrudmSvAfu/VXmGq1Xd0ezAi4rL3LXvqcgT7HzlTSuu99taqXD9/pr8IU35drjvbmCm4qTCwnc58IwxXHTVRpAZl5VhXKYoT4j3HjiGzDgN37XcqHICIL1725APdMsW5BMKTSM7tMoW4hsitEzWewZWQTkw6Nb0oOskNoTddHWUyGzRrcf6EKKFTX7gbYJxBQnGFSQYV5BgXEGCcQUJxhXEZL/IAqugDAwSjCtAYoCkbBXeIeOK65etwzuEvlGlU7YO39BHOgJwO7S/QrOfm6RWdZ8NgAiXZavxBQEH2TluuMsVYZPIQzIJ4xiAprhBmnJarqbNR5+YJpimncPhvrsRaJeiyAME2rPJpRC6ycfy0A1AreqOQuU9I9CeNy0bX0wWwtnmaESSppxOQjbzLI2ywjhXkkUk4jUL20yUgQiXw12umuJe7ePfNG5C7942ZCcLT4//xcbeH5qVQXbJkSD0VenUq/nC038BaviaFD8BmiQAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-3 top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+              >
+                添加
+              </div>
+            </div>
+            <div
+              class="absolute left-[5.8125rem] top-[7.125rem] w-[17.6875rem] h-[2.375rem]"
+            >
+              <div class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAAAnCAYAAADpYmEPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACNSURBVHic7dyxCQNBAANBnXH/Ld8X4QXDM1OBgo11tt1B5Ltt92qK351z9vn3CN5FUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkzrwAE3oAHZgFTSCgLNYAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]"
+                />
+                <div
+                  class="absolute left-[0.6875rem] top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  事情1
+                </div>
+              </div>
+              <div class="absolute left-[10.5625rem] top-0 w-[3.25rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADQAAAAgCAYAAABdP1tmAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABHSURBVFiF7c8BDYAwAMCwc2NXiyXscBNPaMiqYLvuZ73jR+bXAac1pGtI15CuIV1DuoZ0Deka0jWka0jXkK4hXUO6hnQN6TZ8jAL5yxZBRgAAAABJRU5ErkJggg=="
+                  class="absolute left-0 top-0 w-[3.25rem] h-8"
+                />
+                <div
+                  class="absolute left-2 top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  完成
+                </div>
+              </div>
+              <div class="absolute left-[14.8125rem] top-0 w-[2.875rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC8AAAAhCAYAAABJLfLcAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABXSURBVFiF7dhBDcAwEMTAvagoSjM4QjM0UgxVHtZJNoJ5u5KcNO1JkrNe2vG7mjuDRtwknko8lXgq8VTiqcRTiacSTyWeSjyVeCrxVOKpxFO1xlca//kPREEFQa3qgCcAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[2.875rem] h-8"
+                />
+                <div
+                  class="absolute left-[0.0625rem] top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  删除
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="absolute left-[59.9375rem] top-[45.5rem] w-[45.9375rem] h-[25.5rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[5.75rem] top-[3.0625rem] w-[26.5625rem] h-[18.0625rem] border-black rounded-[1.875rem]"
+          >
+            <div
+              class="absolute left-[1.6875rem] top-[0.5625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              todo list
+            </div>
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAAApCAYAAAAYs+SBAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAPSSURBVHic7d2xVupIHMfxL2yz5fgG4xsknd0dur0V0GkF+wb6BMoTYGsl6bYzKa0yt9uOvIFT2jGlHVsQlHXBe8Uco+7vcw4HDiT4b35OEibz77A/AyTAqH5tN55FZD+hfgBUwA8g3/fLOnvsM2YV6sQ5Z/r9PtZarLUYY7DW7luLyP9eCIEQAgBVVVEUBd57WIW8AGav+b7XBNwBU+dcMhqNGAwGGGNe87dEZA8xRvI8J8syvPcBmPDKoL/EAqVzblmW5VJE2nN9fb201i6Bkl84Hf7ZCO6Am+l0ak5PT9/6j0JEGjKZTLi4uAjAkNW5+lYvBfzUGDO9ubnBOddweSLyVlVVMRwOCSGcAZfbttkV8FNr7bQsS100E/nAQgj0er2dId8W8MRaO1e4RT6HEAJpmhJj7AF+87PnAbdAOZ/PbZIk71SeiLyV955erxeBlKff0fnt2XY3FxcXyfHx8XvWJiJvVM9D+f329jYBsvX7myP42Fp7fXd39/7ViUgj0jSlqqrHQ/Xuxmfn5+fnrRQlIs2YTqcAj0FeB3zsnLPj8biNmkSkIc453Op37TE8Bbw/Go3aqklEGlRneQRP5+DLxWKhueUiX0CMkYODgwgcdoGBc07hFvkijDE45wyQdIFv/X6/7ZpEpEF1pkddINGkFpGvpZ6Faro/2U5EPqE64La7em1bLUZEmlVfUzMdYLlcLlsuR0Sa1ul06AJhvQaUiHwNdaZDF4gxxnarEZFGbQZcI7jIF9UFogIu8rVUVQVQdYGsKIqWyxGRJtWZ/tFh1Y3kbrFYGE1XFfn86rnoAJ0uEIEqz/fujiIiH0id5RyebhfNsizbuYOIfB51lgt4CvjMr7RVk4g0YDabrdsbzeDfa7K5JEnK+XzeRl0i0oDDw0NCCH9SB3xzVdVwf3/vjDH26OioleJEZH+TyYQ8zz1wtn5v27ro87IsjdoViXweVVWRpmkAemysi76ts4kzxpTz+VydTUQ+gY32RSnPGhFuux/cxxjP6h3epUAR2c+z3mT/6TK6a8GHyxDCWa/XW095E5EPxntPmqYvdhd93rpo098xxuLq6uqPTqejc3KRD+Ty8pKTk5P48PDwHfhr13YvBRzgHii890mWZdYYg9ZvE2mP957hcEiWZR74zpbD8k27+oNvMwbOnXN2NBoxGAy01LLIO4gxkuc5WZZRz0ab8KxN8C6vCfjaGOhTr6fe7/cfR3Vrra68i7xBCIEYIyEEQggURYH3PrIaqTPqCSy/ap+AbxoA34D1cbutHyKyn8DqBrD1c8Yq3Hstu/QPB7rVFwz7nb8AAAAASUVORK5CYII="
+              class="absolute left-12 top-[2.875rem] w-[15.4375rem] h-10"
+            />
+            <div
+              class="absolute left-[19.625rem] top-12 w-[4.875rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE8AAAAnCAYAAABOkxWxAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAQKSURBVGiB7ZpNSBx3GMaf/8y6H7ofdg2zRF1NmEY8GLws1EQiQlyllJJLt3NKGxIC6bGH9OBF9uIlhVyF0JI0h3Y1FNLSUmMCqUENZSkUTZA0Ez9WYx03sjvZD3d19+0hUTZWq2FbZ0fnd1r+H/Dj4WVmWB6GXRJwOt0wm88xxk6D6AgAFxir2e39koVonjE2AwB54GuOsfshRZF3c5XtdCDgdvsZz/eY7aZWscMDscsDZ60NVmcZKo9WFKuuObGpJOKRFDIv1yAPLWLu4Qsknq+MgrFgSFHu/NvdbcOTBEEkohuOamtr15Vm1J069N+blygToQjGrj5BYj59ExwX3G4Stwzv9bTdautudPouif+vaQkT7pMx3DsZoVzuwsDy8tDmfX7zgiQIlx01tm8+/q7FcuyDw3tjWaJU+9wQOzyu6V+jZxvImnqUTI4W7r8xeQG32+/0VtwJhE6gsr58b01LmNhMCgPSGNRIsrNwArn1H5IgiIznvzpzzWcEt4nK+nKcueYD4/lbkiBsPMc2wkM+39PW3egVjrs0ESx1hOMutHU3OonoxvoaBwCSIHTaa2xnD/LLYTf4LolwVFtbA263H1ifPKKeE583aCqmF7quNIPxfA8AmCRBEO2HLSebJK/WXrqg7tQhmO2m1kDG6ebyRO21LVVaO+kKscMDmM3nOA44L/o9WvvoCrHLA8bYaQ4ALA6T1j66wllrA4iOcERU7/Ia33Vvg9VZBgAuDozV7Id/R/aSyqMVAGM13M5HDbbDCK8IjPCKwAivCIzwisAIrwiM8IrACK8IOBDNx6aSWnvoithUEiCa5wDEV9RVrX10RTySAmNshgNj0+pcWmsfXZF5uQYA4Ijonjy4qLGOvpCHFl9VM5DNXpfvGuG9DXMPX4Bj7D43oKrL2cTayOyDqNZOumAiFEHi+cpoSFFkDgAolwsOXv5Day9dMHb1CcBYEHhdt3icTj87lrf4y2x8XbXPra1dCRPuk/H0p4WboaWlL4GCj2TG2KfDvZOqMh7Xzq6EUcbjGO6djIDjgutrG+GFFEWmXO6j2xfDiM2ktDEsUWIzKdy+GAblchcK62ZvtKQep9PPGsiaevrLgt/7XhUqPNa9Ny0xlPE4vv/kNyQWMl/0R6M3C/f+UTF7lEyOvrtqGh3/dq69zMa7DvIzMNwn48fPflczscyHm4MDtggPeDWBTXb7D7PDS+9M9EeaLY4yCE0HpwA0+yCKfmkMf/781whj7P3+aDS81bkdO8mSIHSCqMdebT1Z21IF0e+BxWGCy1u+bzrJK+oq1Lk05MFFyHcXkU2sjVAuF9yqDVrIjuGtIwmCmCdq54DzAEBE9fulDQ8gDsamiegestnrA6q6vJurfwOMBXHDv+N/2gAAAABJRU5ErkJggg=="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-3 top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+              >
+                添加
+              </div>
+            </div>
+            <div
+              class="absolute left-[5.8125rem] top-[7.125rem] w-[17.6875rem] h-[2.375rem]"
+            >
+              <div class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAAAnCAYAAADpYmEPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACNSURBVHic7dyxCQNBAANBnXH/Ld8X4QXDM1OBgo11tt1B5Ltt92qK351z9vn3CN5FUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkzrwAE3oAHZgFTSCgLNYAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]"
+                />
+                <div
+                  class="absolute left-[0.6875rem] top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  事情1
+                </div>
+              </div>
+              <div class="absolute left-[10.5625rem] top-0 w-[3.25rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADQAAAAgCAYAAABdP1tmAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABHSURBVFiF7c8BDYAwAMCwc2NXiyXscBNPaMiqYLvuZ73jR+bXAac1pGtI15CuIV1DuoZ0Deka0jWka0jXkK4hXUO6hnQN6TZ8jAL5yxZBRgAAAABJRU5ErkJggg=="
+                  class="absolute left-0 top-0 w-[3.25rem] h-8"
+                />
+                <div
+                  class="absolute left-2 top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  完成
+                </div>
+              </div>
+              <div class="absolute left-[14.8125rem] top-0 w-[2.875rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC8AAAAhCAYAAABJLfLcAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABXSURBVFiF7dhBDcAwEMTAvagoSjM4QjM0UgxVHtZJNoJ5u5KcNO1JkrNe2vG7mjuDRtwknko8lXgq8VTiqcRTiacSTyWeSjyVeCrxVOKpxFO1xlca//kPREEFQa3qgCcAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[2.875rem] h-8"
+                />
+                <div
+                  class="absolute left-[0.0625rem] top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  删除
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="absolute left-[26.125rem] top-[4.5625rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （此处为演示选中）
+          </div>
+        </div>
+        <div
+          class="absolute left-[50.9375rem] top-[10.1875rem] text-left text-4xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          双层画布
+        </div>
+        <img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHwAAAAzCAYAAABVEGwHAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAGESURBVHic7drtTcNAEIThV4gCXMLRAR2wJVCCS0gHKcElUAIlmA5CBy4hdBB+rC0ThJCQnByZm0eK8vFrpdHZI2fBzMzMbkQA/fLlrtoYdkkBDMAR2NcdxS7lkQz3CIzz567qRLa5jgx2ZD3NUXMg214H7FhDHnDIcjoy1BGYgNf5uy/ZYoK1fI3kyXbIYgKHLK+QhWuaX/v5NxPi8tUAh9yA7w17xA1bUuDyJS9wyPIK2aoPuGHLcvlqQEf+r7yE/IJDlhRkuMt9+Rnfl+UEouXrvvYA/0gAT2S478Ab8AB81BvJtuYFgga4YTfADbsRwXnD7hEpX7YKRBv2FlRaeuCGLc8NuwFu2A3oyMeZXtEVF5yXrx6HLCdww5ZX8IquPJevBjjkBnhFtxGBy5e8wCHLK7hh37SefKr1G5cvIRM/n1AvEAjqySC/CvLZ9dKwvaIrZDndgcuXrGUBoidDPeAFgibsgBN5+S51R7FrKeQ9/DS/l5rD2PUUMvCh8hxmZvYnn5JNiMgANkO/AAAAAElFTkSuQmCC"
+          class="absolute left-[50.176875rem] top-[11.783125rem] w-[7.951249852723843rem] h-0"
+        /><img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAF0AAAAtCAYAAADMU2cCAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAFpSURBVHic7drBacNAEIXhn6QBlTAl+JibtwSVMCW4A5eQElKCS3AJLkHpQOnAOYxgUYzxaXcg+z4QC0aCQRrmrW2BiEgT79s6Ax/Az3ZIQ2/b+g0cgRvwBVhSPUMy4AQswBXwzGJG5MSNX4BP1P1dGTFylm0tmcWMZiK6f9kOR93fVSG6/o6Ctzujdr+CN4FTg1fd35mh4E3lxBcuBW+Cwj54D6nVDMZQ8KaaUfCmMWrwXoiHIR05Ct40BxS8aYwavDcUvN3NxMxX8CYwavBeUfB259Rtp6Pu7+pv8JbUagZjKHhTFRS8aYx98HpmMSNyFLxpDAVvGuPxDQfpqLD/m9EyixmNEW+0KXiTODV4T6j7uzJi5KwoeLszHoN3enFNaVnQaAr77rcn5+mX0AYMOPM8eMv2uTTi1OA9U7t/RWOmOWM/ei7ENlQ6mIit5p14ANLYgRgxKzFySmo1A3DiZp95vaUU+ad+AVeKa0PbYs2gAAAAAElFTkSuQmCC"
+          class="absolute left-[60.550625rem] top-[12.40375rem] w-[6.024040380010745rem] h-0"
+        />
+        <div
+          class="absolute left-[61.75rem] top-[10.75rem] text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          以todo为例
+        </div>
+        <div
+          class="absolute left-[16.625rem] top-[13.5625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          此处的泡泡图谱，类似obsidian的关系图谱
+        </div>
+        <img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJMAAAAJCAYAAAA2GB4wAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABUSURBVFiF7dixDYAwDAXRSybyCGGyjMYorMAI1LTIyEp0b4IrfmEZpG9OIKojtIcALhyUkrwG1YBZmqPVBTCAoxeHaB93dYDW5t2kFA5JaXwN6D8P9HII/kpue1MAAAAASUVORK5CYII="
+          class="absolute left-[49.6875rem] top-[56.46875rem] w-[9.125rem] h-0"
+        /><img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJMAAAAJCAYAAAA2GB4wAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABfSURBVFiF7dWxDYAwDADBT1iAERmBTWCDrMAKbME4NEhACYpkEf4au/zCkjvuCpCADemhfNnLMZeIELWjcB6T9EoCJmAA5tgUfdyagT66Qm3xzakqD0pVFWCMjpD0czuVsQnpIahqdQAAAABJRU5ErkJggg=="
+          class="absolute left-[58.8125rem] top-[60.21875rem] w-[9.125rem] h-0"
+        />
+        <div
+          class="absolute left-[48.875rem] top-[56.9375rem] w-[12.375rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+        >
+          双层画布里面选中，它<br />都可以同步（仅界面）
+        </div>
+        <div
+          class="absolute left-[11.1875rem] top-[75.25rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+        >
+          关于怎么转到设计界面：<br />现在处于架构界面，可以右键具体的泡泡，选择“设计”；或者双击最底层的元素泡泡。如果不是最底层，双击会进入该泡泡内部。<br /><br />关于代码和
+          Store 代码的分层：<br />代码可以按函数作为子泡泡，或者将包含多个函数的函数集作为大泡泡来实现分层。Store
+          类似，但可以更分散，
+        </div>
+      </div>
+      <div
+        class="absolute left-[4.5625rem] top-[119.8125rem] w-[165.8125rem] h-[106.3125rem] overflow-hidden border-black"
+      >
+        <div
+          class="absolute left-[2.625rem] top-[1.875rem] text-left text-2xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          设计页面
+        </div>
+        <div
+          class="absolute left-[14.6875rem] top-9 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+        >
+          设计页面具体为标签页设计，一个标签页对应一个omni代码文件。标签页内包含双层画布，分为
+          Z 轴的里外两层：外层是界面设计，内层是代码设计。<br />
+          ┌──────────────────┬──────────────────────────────────────────────┬────────────┐<br />
+          │ 层 │ 内容 │ 作用 │<br />
+          ├──────────────────┼──────────────────────────────────────────────┼────────────┤<br />
+          │ 上层（界面设计） │ 该组件的真实 DOM 渲染预览 │ 所见即所得 │<br />
+          ├──────────────────┼──────────────────────────────────────────────┼────────────┤<br />
+          │ 下层（代码设计） │ signal / computed / fn / event 等节点 + 连线 │
+          逻辑骨架 │<br />
+          └──────────────────┴──────────────────────────────────────────────┴────────────┘<br /><br />
+          交互：<br />
+          - 单击选中 → 右侧属性面板<br />
+          - 双击组件 → 钻入下层（上层缩小到一角，下层浮现节点图）<br />
+          - 双击 fn 节点 → Monaco 编辑器替换下层<br />
+          - 面包屑导航回退<br />
+        </div>
+        <div
+          class="absolute left-[2.625rem] top-96 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+        >
+          目前以一个标签页为例
+        </div>
+        <div
+          class="absolute left-[2.1875rem] top-[25.75rem] w-[59.125rem] h-[33.375rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[14.3125rem] top-[5.25rem] w-[26.5625rem] h-[18.0625rem] border-black rounded-[1.875rem]"
+          >
+            <div
+              class="absolute left-[1.6875rem] top-[0.5625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+            >
+              todo list
+            </div>
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAAApCAYAAAAYs+SBAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAPSSURBVHic7d2xVupIHMfxL2yz5fgG4xsknd0dur0V0GkF+wb6BMoTYGsl6bYzKa0yt9uOvIFT2jGlHVsQlHXBe8Uco+7vcw4HDiT4b35OEibz77A/AyTAqH5tN55FZD+hfgBUwA8g3/fLOnvsM2YV6sQ5Z/r9PtZarLUYY7DW7luLyP9eCIEQAgBVVVEUBd57WIW8AGav+b7XBNwBU+dcMhqNGAwGGGNe87dEZA8xRvI8J8syvPcBmPDKoL/EAqVzblmW5VJE2nN9fb201i6Bkl84Hf7ZCO6Am+l0ak5PT9/6j0JEGjKZTLi4uAjAkNW5+lYvBfzUGDO9ubnBOddweSLyVlVVMRwOCSGcAZfbttkV8FNr7bQsS100E/nAQgj0er2dId8W8MRaO1e4RT6HEAJpmhJj7AF+87PnAbdAOZ/PbZIk71SeiLyV955erxeBlKff0fnt2XY3FxcXyfHx8XvWJiJvVM9D+f329jYBsvX7myP42Fp7fXd39/7ViUgj0jSlqqrHQ/Xuxmfn5+fnrRQlIs2YTqcAj0FeB3zsnLPj8biNmkSkIc453Op37TE8Bbw/Go3aqklEGlRneQRP5+DLxWKhueUiX0CMkYODgwgcdoGBc07hFvkijDE45wyQdIFv/X6/7ZpEpEF1pkddINGkFpGvpZ6Faro/2U5EPqE64La7em1bLUZEmlVfUzMdYLlcLlsuR0Sa1ul06AJhvQaUiHwNdaZDF4gxxnarEZFGbQZcI7jIF9UFogIu8rVUVQVQdYGsKIqWyxGRJtWZ/tFh1Y3kbrFYGE1XFfn86rnoAJ0uEIEqz/fujiIiH0id5RyebhfNsizbuYOIfB51lgt4CvjMr7RVk4g0YDabrdsbzeDfa7K5JEnK+XzeRl0i0oDDw0NCCH9SB3xzVdVwf3/vjDH26OioleJEZH+TyYQ8zz1wtn5v27ro87IsjdoViXweVVWRpmkAemysi76ts4kzxpTz+VydTUQ+gY32RSnPGhFuux/cxxjP6h3epUAR2c+z3mT/6TK6a8GHyxDCWa/XW095E5EPxntPmqYvdhd93rpo098xxuLq6uqPTqejc3KRD+Ty8pKTk5P48PDwHfhr13YvBRzgHii890mWZdYYg9ZvE2mP957hcEiWZR74zpbD8k27+oNvMwbOnXN2NBoxGAy01LLIO4gxkuc5WZZRz0ab8KxN8C6vCfjaGOhTr6fe7/cfR3Vrra68i7xBCIEYIyEEQggURYH3PrIaqTPqCSy/ap+AbxoA34D1cbutHyKyn8DqBrD1c8Yq3Hstu/QPB7rVFwz7nb8AAAAASUVORK5CYII="
+              class="absolute left-12 top-[2.875rem] w-[15.4375rem] h-10"
+            />
+            <div
+              class="absolute left-[19.625rem] top-12 w-[4.875rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE8AAAAnCAYAAABOkxWxAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAMcSURBVGiB7ZpPSBRRAMZ/jbAUjDgloXPZnVNERJkHu8TuGEEFagQhncqgU3TQQ3iIkA4dwoMepIMIWUYsFUj+gcLQ3T1ZBxMPUiI0sxDjSXbxnfbUYWdlWDdzXXVm8/1gWd6fhY+Pb9/O8r4j7BwN6AJigOGOjTI+H1Qs9wXwCkh4xttyZAd7TKBP1UJmrC1MtCOMHlGprQuhR9SylQYNxxY4tmAjmyM1mWYhtYZjiwTwlLyRf2U78wzgpR5RzSfDl2iONu6Z4KAzPbbKyLNFHFuMkjfRKrXvb+aZwHh3f4t2++GZfRFYDcSHlhl89M0C7lEihaXM69Yj6sDzd5c5de7EPssLPitL6/R2zuLYogcY9K4Vm2fqEXXuxedr/8V5tlc4tuDB1U84tmjFk0CveQYw9/prhyETt5WVpXXuXJzIABdwz8Aaz/pAd3+LGWsP+6Et8NQ3HEPVQkfnZ343kX+k2UyeqUfUufEft/xTVyXcPP1h8+uruHN99x83+ampangyfAmgD/LJM/SI+kumbudc0d8iMrnjCmAepgfgvSDWFgboUoC7UfkjURbRjjBATAGorQv5q6bKcJ+BDYX8meeznOrCDZsmzdsF3uRJdok0rwKkeRUgzasAaV4FSPMqQJpXAdK8ClAAy7GF3zqqCtcvSwEyG9mcz3KqC695MnllUgibAiRTE2l/1VQZqck0wCsFGE1OSfPKYSG1Bu4dRkZkcgl3QvIPpsdWC10WS96elUmp27OEY4tEfGjZT12BJz60XCj/JGBrY+D7668dmmwMbMVtDFhAK25jwPsPwwJuuqWWAxcXZBxb0Ns5C/m2lFWYrynaZ4lsLpuaTF9rjjZS33DsACUGk5WldXpuzBRaUnHvWrF5APMim0uOj/w0VS2knW05eTAqA0h8aJneztmMyOauU2QclDYP8tH8OD/zW5t+s9pUWxfi1PnDcw4upNZ4cPUTX97/SgDXgcVS+3bcSdYjqtkcbSTaHt7sI/8Pt26FPrJjC1ITaZJTaUQml6DCTnIxBnkj73rGRplag4gFZNz3JDDqjv/JH6T/DdQO6VIHAAAAAElFTkSuQmCC"
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-3 top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+              >
+                添加
+              </div>
+            </div>
+            <div
+              class="absolute left-[5.8125rem] top-[7.125rem] w-[17.6875rem] h-[2.375rem]"
+            >
+              <div class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAAAnCAYAAADpYmEPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACNSURBVHic7dyxCQNBAANBnXH/Ld8X4QXDM1OBgo11tt1B5Ltt92qK351z9vn3CN5FUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkzrwAE3oAHZgFTSCgLNYAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]"
+                />
+                <div
+                  class="absolute left-[0.6875rem] top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  事情1
+                </div>
+              </div>
+              <div class="absolute left-[10.5625rem] top-0 w-[3.25rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADQAAAAgCAYAAABdP1tmAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABHSURBVFiF7c8BDYAwAMCwc2NXiyXscBNPaMiqYLvuZ73jR+bXAac1pGtI15CuIV1DuoZ0Deka0jWka0jXkK4hXUO6hnQN6TZ8jAL5yxZBRgAAAABJRU5ErkJggg=="
+                  class="absolute left-0 top-0 w-[3.25rem] h-8"
+                />
+                <div
+                  class="absolute left-2 top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  完成
+                </div>
+              </div>
+              <div class="absolute left-[14.8125rem] top-0 w-[2.875rem] h-8">
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC8AAAAhCAYAAABJLfLcAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABXSURBVFiF7dhBDcAwEMTAvagoSjM4QjM0UgxVHtZJNoJ5u5KcNO1JkrNe2vG7mjuDRtwknko8lXgq8VTiqcRTiacSTyWeSjyVeCrxVOKpxFO1xlca//kPREEFQa3qgCcAAAAASUVORK5CYII="
+                  class="absolute left-0 top-0 w-[2.875rem] h-8"
+                />
+                <div
+                  class="absolute left-[0.0625rem] top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  删除
+                </div>
+              </div>
+            </div>
+            <div
+              class="absolute left-[17.3125rem] top-[4.5625rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+            >
+              （此处为演示选中）
+            </div>
+          </div>
+          <div
+            class="absolute left-[0.6875rem] top-[0.8125rem] w-[13.1875rem] h-[30.3125rem] overflow-hidden border-black"
+          >
+            <div
+              class="absolute left-[0.1875rem] top-1.5 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+            >
+              左侧组件面板（类似现在poiesis<br />中的左侧组件面板，包括组件<br />面板、组件树面板，其他的面<br />板都删了）
+            </div>
+          </div>
+          <div
+            class="absolute left-[15.875rem] top-[2.6875rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （现在是上面的设计画布）
+          </div>
+          <div
+            class="absolute left-[42.5rem] top-5 w-[15.8125rem] h-[29.625rem] overflow-hidden border-black"
+          >
+            <div
+              class="absolute left-0.5 top-1.5 w-[15.625rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+            >
+              右侧属性面板（加载选中元素/组件的属性，类似现在poiesis的右侧面板，包括属性填写（如果是元素的话，其实只需要填写
+              ID 就行了，Class 是绑定的样式，可以说可以在样式里面绑定，ID
+              可以用户自己设置。然后如果是组件的属性的话，除了 ID
+              外，还可以有自定义组件它设置的属性。）、事件绑定、样式填写）
+            </div>
+          </div>
+        </div>
+        <div
+          class="absolute left-[2.1875rem] top-[66.9375rem] w-[59.125rem] h-[33.375rem] overflow-hidden border-black"
+        >
+          <div
+            class="absolute left-[15.875rem] top-[2.6875rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （现在是下面的代码画布）
+          </div>
+          <div
+            class="absolute left-[24.9375rem] top-[22.9375rem] w-[5.875rem] h-[2.9375rem] overflow-hidden border-black"
+          >
+            <div
+              class="absolute left-[-19rem] top-[-2.5625rem] w-[26.5625rem] h-[18.0625rem] border-black rounded-[1.875rem]"
+            >
+              <div
+                class="absolute left-[1.6875rem] top-[0.5625rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+              >
+                todo list
+              </div>
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAAApCAYAAAAYs+SBAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAPSSURBVHic7d2xVupIHMfxL2yz5fgG4xsknd0dur0V0GkF+wb6BMoTYGsl6bYzKa0yt9uOvIFT2jGlHVsQlHXBe8Uco+7vcw4HDiT4b35OEibz77A/AyTAqH5tN55FZD+hfgBUwA8g3/fLOnvsM2YV6sQ5Z/r9PtZarLUYY7DW7luLyP9eCIEQAgBVVVEUBd57WIW8AGav+b7XBNwBU+dcMhqNGAwGGGNe87dEZA8xRvI8J8syvPcBmPDKoL/EAqVzblmW5VJE2nN9fb201i6Bkl84Hf7ZCO6Am+l0ak5PT9/6j0JEGjKZTLi4uAjAkNW5+lYvBfzUGDO9ubnBOddweSLyVlVVMRwOCSGcAZfbttkV8FNr7bQsS100E/nAQgj0er2dId8W8MRaO1e4RT6HEAJpmhJj7AF+87PnAbdAOZ/PbZIk71SeiLyV955erxeBlKff0fnt2XY3FxcXyfHx8XvWJiJvVM9D+f329jYBsvX7myP42Fp7fXd39/7ViUgj0jSlqqrHQ/Xuxmfn5+fnrRQlIs2YTqcAj0FeB3zsnLPj8biNmkSkIc453Op37TE8Bbw/Go3aqklEGlRneQRP5+DLxWKhueUiX0CMkYODgwgcdoGBc07hFvkijDE45wyQdIFv/X6/7ZpEpEF1pkddINGkFpGvpZ6Faro/2U5EPqE64La7em1bLUZEmlVfUzMdYLlcLlsuR0Sa1ul06AJhvQaUiHwNdaZDF4gxxnarEZFGbQZcI7jIF9UFogIu8rVUVQVQdYGsKIqWyxGRJtWZ/tFh1Y3kbrFYGE1XFfn86rnoAJ0uEIEqz/fujiIiH0id5RyebhfNsizbuYOIfB51lgt4CvjMr7RVk4g0YDabrdsbzeDfa7K5JEnK+XzeRl0i0oDDw0NCCH9SB3xzVdVwf3/vjDH26OioleJEZH+TyYQ8zz1wtn5v27ro87IsjdoViXweVVWRpmkAemysi76ts4kzxpTz+VydTUQ+gY32RSnPGhFuux/cxxjP6h3epUAR2c+z3mT/6TK6a8GHyxDCWa/XW095E5EPxntPmqYvdhd93rpo098xxuLq6uqPTqejc3KRD+Ty8pKTk5P48PDwHfhr13YvBRzgHii890mWZdYYg9ZvE2mP957hcEiWZR74zpbD8k27+oNvMwbOnXN2NBoxGAy01LLIO4gxkuc5WZZRz0ab8KxN8C6vCfjaGOhTr6fe7/cfR3Vrra68i7xBCIEYIyEEQggURYH3PrIaqTPqCSy/ap+AbxoA34D1cbutHyKyn8DqBrD1c8Yq3Hstu/QPB7rVFwz7nb8AAAAASUVORK5CYII="
+                class="absolute left-12 top-[2.875rem] w-[15.4375rem] h-10"
+              />
+              <div
+                class="absolute left-[19.625rem] top-12 w-[4.875rem] h-[2.375rem]"
+              >
+                <img
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE8AAAAnCAYAAABOkxWxAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAMcSURBVGiB7ZpPSBRRAMZ/jbAUjDgloXPZnVNERJkHu8TuGEEFagQhncqgU3TQQ3iIkA4dwoMepIMIWUYsFUj+gcLQ3T1ZBxMPUiI0sxDjSXbxnfbUYWdlWDdzXXVm8/1gWd6fhY+Pb9/O8r4j7BwN6AJigOGOjTI+H1Qs9wXwCkh4xttyZAd7TKBP1UJmrC1MtCOMHlGprQuhR9SylQYNxxY4tmAjmyM1mWYhtYZjiwTwlLyRf2U78wzgpR5RzSfDl2iONu6Z4KAzPbbKyLNFHFuMkjfRKrXvb+aZwHh3f4t2++GZfRFYDcSHlhl89M0C7lEihaXM69Yj6sDzd5c5de7EPssLPitL6/R2zuLYogcY9K4Vm2fqEXXuxedr/8V5tlc4tuDB1U84tmjFk0CveQYw9/prhyETt5WVpXXuXJzIABdwz8Aaz/pAd3+LGWsP+6Et8NQ3HEPVQkfnZ343kX+k2UyeqUfUufEft/xTVyXcPP1h8+uruHN99x83+ampangyfAmgD/LJM/SI+kumbudc0d8iMrnjCmAepgfgvSDWFgboUoC7UfkjURbRjjBATAGorQv5q6bKcJ+BDYX8meeznOrCDZsmzdsF3uRJdok0rwKkeRUgzasAaV4FSPMqQJpXAdK8ClAAy7GF3zqqCtcvSwEyG9mcz3KqC695MnllUgibAiRTE2l/1VQZqck0wCsFGE1OSfPKYSG1Bu4dRkZkcgl3QvIPpsdWC10WS96elUmp27OEY4tEfGjZT12BJz60XCj/JGBrY+D7668dmmwMbMVtDFhAK25jwPsPwwJuuqWWAxcXZBxb0Ns5C/m2lFWYrynaZ4lsLpuaTF9rjjZS33DsACUGk5WldXpuzBRaUnHvWrF5APMim0uOj/w0VS2knW05eTAqA0h8aJneztmMyOauU2QclDYP8tH8OD/zW5t+s9pUWxfi1PnDcw4upNZ4cPUTX97/SgDXgcVS+3bcSdYjqtkcbSTaHt7sI/8Pt26FPrJjC1ITaZJTaUQml6DCTnIxBnkj73rGRplag4gFZNz3JDDqjv/JH6T/DdQO6VIHAAAAAElFTkSuQmCC"
+                  class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+                />
+                <div
+                  class="absolute left-3 top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                >
+                  添加
+                </div>
+              </div>
+              <div
+                class="absolute left-[5.8125rem] top-[7.125rem] w-[17.6875rem] h-[2.375rem]"
+              >
+                <div class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]">
+                  <img
+                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAAAnCAYAAADpYmEPAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACNSURBVHic7dyxCQNBAANBnXH/Ld8X4QXDM1OBgo11tt1B5Ltt92qK351z9vn3CN5FUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkBEVKUKQERUpQpARFSlCkzrwAE3oAHZgFTSCgLNYAAAAASUVORK5CYII="
+                    class="absolute left-0 top-0 w-[9.1875rem] h-[2.375rem]"
+                  />
+                  <div
+                    class="absolute left-[0.6875rem] top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                  >
+                    事情1
+                  </div>
+                </div>
+                <div class="absolute left-[10.5625rem] top-0 w-[3.25rem] h-8">
+                  <img
+                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADQAAAAgCAYAAABdP1tmAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABHSURBVFiF7c8BDYAwAMCwc2NXiyXscBNPaMiqYLvuZ73jR+bXAac1pGtI15CuIV1DuoZ0Deka0jWka0jXkK4hXUO6hnQN6TZ8jAL5yxZBRgAAAABJRU5ErkJggg=="
+                    class="absolute left-0 top-0 w-[3.25rem] h-8"
+                  />
+                  <div
+                    class="absolute left-2 top-[0.1875rem] text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                  >
+                    完成
+                  </div>
+                </div>
+                <div class="absolute left-[14.8125rem] top-0 w-[2.875rem] h-8">
+                  <img
+                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC8AAAAhCAYAAABJLfLcAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABXSURBVFiF7dhBDcAwEMTAvagoSjM4QjM0UgxVHtZJNoJ5u5KcNO1JkrNe2vG7mjuDRtwknko8lXgq8VTiqcRTiacSTyWeSjyVeCrxVOKpxFO1xlca//kPREEFQa3qgCcAAAAASUVORK5CYII="
+                    class="absolute left-0 top-0 w-[2.875rem] h-8"
+                  />
+                  <div
+                    class="absolute left-[0.0625rem] top-0.5 text-left text-xl font-['SourceHanSansCN'] font-normal text-black"
+                  >
+                    删除
+                  </div>
+                </div>
+              </div>
+              <div
+                class="absolute left-[17.3125rem] top-[4.5625rem] text-left text-lg font-['SourceHanSansCN'] font-normal text-black"
+              >
+                （此处为演示选中）
+              </div>
+            </div>
+          </div>
+          <img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHAAAABxCAYAAAANvCfuAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAIDSURBVHic7dxdTVxhGEXh1aQCkPBKQAJ1gIN+EnCABCQMEuoACZVQHLQSenGY9Adu4CQc9s56EkIm4eJNVmDm4rBB0sdwAVwffYTe7hL48fRdoYxYwIgFjFjAiAWugJ8YMdrCiPEW25/TOfYM7bEwYryFEeMtjBhvYcR4Nxgx3i1GjGfEAkYsYMQCRixgxAJGLHALfGd7WEqhjFjAiAWMWMCIBe4wYrwTRox3evpSMCMWMGIBIxYwYrgLtk+mRgx2jnh39CF6u3PE26MP0dsZsYARCxixgBELDNvzNUYMNhgx3mDEeIMR4w1GjDcYMd5gxHjDFvHm4Du0w7BFXMeeoT0GI8YbjBhvMGK8wYjxLtkWFtfBd2iHc8Srg+/QDq4OFzBiASMWMGIBIxZYOOIeb7FFnGPP0B4L16TiLYwYb2HEeAsjxlsYMZ4zmQWMWMCIBYxYwIgFjFjAiAXOEZ3JDObqcAEjFjBiASMWMGIBR9wLnICHo4/QPq4OFzBiASMWMGKBB4wYzSX+Ag7WFjBiASMWMGIBIxa4wJnMeIMR4w1GjDcYMd5gxHiDEeMNRow3GDHe4GBtvOHliNe4MBVjeB7x9N9rPr/bOXqtR+ALfx5XvH/phwz4sT3yb0SFGrZxvmfvi/4GflwL+PrX61+88B/Cn97pGL3e8DzYAN/YYko63G+I8ZvQbjTTBgAAAABJRU5ErkJggg=="
+            class="absolute left-[17.79rem] top-[16.084375rem] w-[9.36958176761375rem] h-0"
+          />
+          <div
+            class="absolute left-[19.4375rem] top-[18.875rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+          >
+            点击事件
+          </div>
+          <div class="absolute left-3.5 top-24 w-[21rem] h-[2.375rem]">
+            <div class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]">
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE4AAAAmCAYAAABqDa0qAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABvSURBVGiB7dBBDcAwEMCwtvyhHacVw/KZJtkIouyZeRavna8D/sq4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuOgCbnQDr/RW9zwAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                函数头
+              </div>
+            </div>
+            <div
+              class="absolute left-[15.875rem] top-0 w-[5.125rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE4AAAAmCAYAAABqDa0qAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAABvSURBVGiB7dBBDcAwEMCwtvyhHacVw/KZJtkIouyZeRavna8D/sq4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuMi4yLjIuOgCbnQDr/RW9zwAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                return节点
+              </div>
+            </div>
+            <div
+              class="absolute left-[7.125rem] top-0 w-[6.5625rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGkAAAAmCAYAAADHjLWDAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAB4SURBVGiB7dFBDcAwEMCwrvyhHacNwp5tJBtBpDwz8y6utk8H8M+kAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKcCkAJMCTAowKeADLhsDr5gjc0YAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[6.5625rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                节点内容省略
+              </div>
+            </div>
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAMCAYAAAAUNi9wAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAC2SURBVDiN7ZTRCcIwFEWP2g//mg2aEXQD3UA3cJOOopuIf25h3SDdwI++4CW0qIixggdCHiG8e5JAYHzsAZ8uTvN7PKQBjvTIjpENcLEZgNn3XHrxgAPmdDd7AFrgXGQIddyfsZI1l+xxJofNweoSYPJE4FDjUgTSwDRU69YkggjFodTAAthG0Z2dVMNUQBulja8iEBgOfZXavJaxV2FFBZwktJE6Nys6yTXvH/ijeH7ka/qThRtbUCy9y2sXegAAAABJRU5ErkJggg=="
+              class="absolute left-[13.565rem] top-[1.40625rem] w-[2.5070213900164475rem] h-0"
+            /><img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACMAAAAMCAYAAADoIwS6AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAChSURBVDiN7dPBCcJAEEbhT8g9lpAOxAqMHdiBLcQKxE7sxBK0hFiBW4IHR1hyiTERPfhgmZ/ZhX0wu/z5Leaous0Cm9hso9dm+ZMyZyzzu4qoK2wjV7FSHEydfDVevMUBpxBKMOuxr6I+c5nJTiG+R411n8wQxojXOGL3HNNYEi4vns3FFx5vNk3k8TY1bmi+7KEJkTpvTjWmoZQ63/rnuAMEgSsgPfvuPwAAAABJRU5ErkJggg=="
+              class="absolute left-[5.059375rem] top-[0.96875rem] w-[2.0710051907226115rem] h-0"
+            />
+          </div>
+          <div
+            class="absolute left-[15.375rem] top-[13.0625rem] w-[21rem] h-[2.375rem]"
+          >
+            <div class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]">
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE8AAAAnCAYAAABOkxWxAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAB7SURBVGiB7dqxDQJBAANBH6L/lo8a+A0Q0kwF1sY+2+545L1t9+r3rXPOXr8e8c/EC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLzrzhH/sAVxUFTd0m1oQAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                函数头
+              </div>
+            </div>
+            <div
+              class="absolute left-[15.875rem] top-0 w-[5.125rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE8AAAAnCAYAAABOkxWxAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAB7SURBVGiB7dqxDQJBAANBH6L/lo8a+A0Q0kwF1sY+2+545L1t9+r3rXPOXr8e8c/EC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLxAvEC8QLzrzhH/sAVxUFTd0m1oQAAAAASUVORK5CYII="
+                class="absolute left-0 top-0 w-[4.875rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                return节点
+              </div>
+            </div>
+            <div
+              class="absolute left-[7.125rem] top-0 w-[6.5625rem] h-[2.375rem]"
+            >
+              <img
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGoAAAAnCAYAAADn590lAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACDSURBVHic7duxCQNBAANBnXH/LZ9bcPa/MFOBYGOdbXe83nfb7tXqzc45+zw9gv8IFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARQkUIFSFUhFARZ17xCT/yogVNn/DuXQAAAABJRU5ErkJggg=="
+                class="absolute left-0 top-0 w-[6.5625rem] h-[2.375rem]"
+              />
+              <div
+                class="absolute left-[0.1875rem] top-1 text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+              >
+                节点内容省略
+              </div>
+            </div>
+            <img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAMCAYAAAAUNi9wAAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAC2SURBVDiN7ZTRCcIwFEWP2g//mg2aEXQD3UA3cJOOopuIf25h3SDdwI++4CW0qIixggdCHiG8e5JAYHzsAZ8uTvN7PKQBjvTIjpENcLEZgNn3XHrxgAPmdDd7AFrgXGQIddyfsZI1l+xxJofNweoSYPJE4FDjUgTSwDRU69YkggjFodTAAthG0Z2dVMNUQBulja8iEBgOfZXavJaxV2FFBZwktJE6Nys6yTXvH/ijeH7ka/qThRtbUCy9y2sXegAAAABJRU5ErkJggg=="
+              class="absolute left-[13.565000000000001rem] top-[1.40625rem] w-[2.5070213900164475rem] h-0"
+            /><img
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACMAAAAMCAYAAADoIwS6AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAAChSURBVDiN7dPBCcJAEEbhT8g9lpAOxAqMHdiBLcQKxE7sxBK0hFiBW4IHR1hyiTERPfhgmZ/ZhX0wu/z5Leaous0Cm9hso9dm+ZMyZyzzu4qoK2wjV7FSHEydfDVevMUBpxBKMOuxr6I+c5nJTiG+R411n8wQxojXOGL3HNNYEi4vns3FFx5vNk3k8TY1bmi+7KEJkTpvTjWmoZQ63/rnuAMEgSsgPfvuPwAAAABJRU5ErkJggg=="
+              class="absolute left-[5.059374999999999rem] top-[0.96875rem] w-[2.0710051907226115rem] h-0"
+            />
+          </div>
+          <div
+            class="absolute left-[36.6875rem] top-[8.375rem] w-[18.75rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+          >
+            （也就是说到代码画布中，如果是与选中的元素无关的节点流会变灰，然后与其相关的会有连线来表明关系）<br />（其中具体的节点流中，一般节点是作为骨架，然后具体的代码内容是由代码节点实现。骨架的意思就是一般只有
+            if、else 等大概的节点）
+          </div>
+        </div>
+        <img
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAABzCAYAAAChH5O0AAAAAXNSR0IArs4c6QAAAARzQklUCAgICHwIZIgAAACsSURBVFiF7da7DcJAEIThX1AAlEF4JbgEl4AroRxCx0SUQAlOnYFDRxCwQjwWscAJMJqVLFl7nzUXTGC4nIU9NzPylllhB0wjcBeF4WjBwcNwKdQeQdVM8Bvwbim82WeNFvwL6DboLRiOFhw8VHsEPwBVM8HX4VPtmWSN/lW4AZJznoA1wNgWPbAEVsDMdh1QAxXQnn9dAI0d1vbupZyithz/SueP7p2A8np5AEHpH73C9MXgAAAAAElFTkSuQmCC"
+          class="absolute left-[28.65625rem] top-[59.125rem] w-[7.125274117534005rem] h-0"
+        />
+        <div
+          class="absolute left-[29.5625rem] top-[61.625rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+        >
+          双击添加按钮过后，进入代码画布
+        </div>
+        <div
+          class="absolute left-[29.625rem] top-[64.1875rem] text-left text-base font-['SourceHanSansCN'] font-normal text-black"
+        >
+          其中显示选中的组件，其实是把设计画布截取到组件的位置，然后其他面板隐藏
+        </div>
+      </div>
+      <div
+        class="absolute left-[18.75rem] top-[2.4375rem] text-left text-4xl font-['SourceHanSansCN'] font-normal text-black"
+      >
+        此处一切只是设计演示示例，给你个大致的方向，避免你理解出错或者设计有偏差。
+      </div>
+      <div
+        class="absolute left-[4.5625rem] top-[237.875rem] w-[165.8125rem] h-[108.3125rem] overflow-hidden border-black"
+      >
+        <div
+          class="absolute left-[2.9375rem] top-[3.25rem] text-left text-4xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          关于双向同步保存的 Omni 代码和数据
+        </div>
+        <div
+          class="absolute left-[8.25rem] top-[10.8125rem] w-[151rem] text-left text-4xl font-['SourceHanSansCN'] font-normal text-black"
+        >
+          按照设计文档，是用注释来告诉解析器怎么解析到poiesis。但其实整个poiesis编辑的项目有很多其他数据需要保存，我觉得其实可以大部分数据就直接存到项目根目录中一个
+          json
+          文件，在omni代码文件中每个代码块前必须有一行解析标签，并在json文件中有对应数据，其中
+          JSON
+          保存的数据就是一些poiesis数据，真正的有关编程界面代码的数据都可以从omni代码中解析
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

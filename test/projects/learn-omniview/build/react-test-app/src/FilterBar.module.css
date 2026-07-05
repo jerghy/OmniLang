@@ -1,0 +1,68 @@
+/* Styles for FilterBar */
+.filter-bar {
+  padding: 16px 12px;
+  border: 1px solid #d4d4d8;
+  background: white;
+  border-radius: 12px;
+  margin: 16px 0;
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.search-input {
+  padding: 10px 12px;
+  flex: 1.0px;
+  border-radius: 8px;
+  border: 2px solid #d4d4d8;
+  font-size: 14px;
+}
+.clear-btn {
+  cursor: pointer;
+  background: #f3f4f6;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid #d4d4d8;
+  color: #6b7280;
+  padding: 10px 14px;
+}
+.sort-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.filter-label {
+  color: #374151;
+  font-size: 14px;
+  margin: 0.0px;
+}
+.sort-btn {
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  font-size: 14px;
+  padding: 8px 16px;
+  background: #6366f1;
+}
+.sync-btn {
+  border: none;
+  padding: 8px 16px;
+  background: #10b981;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  color: white;
+}
+.store-info {
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 10px 12px;
+}
+.info-text {
+  font-size: 12px;
+  margin: 0 0 4px 0;
+  color: #6b7280;
+}

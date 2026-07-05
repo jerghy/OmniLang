@@ -2,9 +2,8 @@ import { usePoiesisStore } from "../../store";
 import type { CommandContext } from "./types";
 
 export function createCommandContext(): CommandContext {
-  const s = usePoiesisStore.getState();
   return {
-    getElement: (id) => s.elements.find((e) => e.id === id),
+    getElement: (id) => usePoiesisStore.getState().elements.find((e) => e.id === id),
     get elements() {
       return usePoiesisStore.getState().elements;
     },

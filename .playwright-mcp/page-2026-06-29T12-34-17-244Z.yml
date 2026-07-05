@@ -1,0 +1,129 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - button "首页" [ref=e11] [cursor=pointer]
+      - button "待办" [ref=e12] [cursor=pointer]
+      - button "基础交互" [ref=e13] [cursor=pointer]
+      - button "编译器特性" [ref=e14] [cursor=pointer]
+      - button "运动动画" [ref=e15] [cursor=pointer]
+      - button "CSS 特性" [ref=e16] [cursor=pointer]
+      - button "事件/表单" [ref=e17] [cursor=pointer]
+      - button "语言特性" [ref=e18] [cursor=pointer]
+      - button "设置" [ref=e19] [cursor=pointer]
+      - button "补充" [active] [ref=e20] [cursor=pointer]
+    - generic [ref=e973]:
+      - generic [ref=e974]:
+        - generic [ref=e977]:
+          - 'heading "Ternary ( ? : ) 三元表达式 Demo" [level=3] [ref=e978]'
+          - paragraph [ref=e979]: "演示 cond ? then : else 运算符"
+          - generic [ref=e980]:
+            - 'heading "数值判定: count = 0" [level=4] [ref=e981]'
+            - paragraph [ref=e982]: "结果: Zero or negative"
+            - paragraph [ref=e983]: "直接内联: 非正数哦"
+            - generic [ref=e984]:
+              - button "count + 1" [ref=e985] [cursor=pointer]
+              - button "count - 1" [ref=e986] [cursor=pointer]
+          - generic [ref=e987]:
+            - 'heading "成绩判定: score = 75" [level=4] [ref=e988]'
+            - paragraph [ref=e989]: "等级: C"
+            - generic [ref=e990]:
+              - button "95 → A" [ref=e991] [cursor=pointer]
+              - button "85 → B" [ref=e992] [cursor=pointer]
+              - button "72 → C" [ref=e993] [cursor=pointer]
+              - button "55 → F" [ref=e994] [cursor=pointer]
+          - paragraph [ref=e995]: "三元 ? : 是 if-expr 的紧凑形式，用于值上下文"
+        - generic [ref=e998]:
+          - heading "Block Expression Demo" [level=3] [ref=e999]
+          - paragraph [ref=e1000]: "演示 {;} 块表达式"
+          - generic [ref=e1001]:
+            - 'heading "输入值: a= 10 , b= 5" [level=4] [ref=e1002]'
+            - generic [ref=e1003]:
+              - button "a + 5" [ref=e1004] [cursor=pointer]
+              - button "b + 5" [ref=e1005] [cursor=pointer]
+              - button "Reset" [ref=e1006] [cursor=pointer]
+          - generic [ref=e1007]:
+            - 'heading "块表达式 computed: calculation" [level=4] [ref=e1008]'
+            - paragraph [ref=e1009]: a×2=20, b×3=15
+          - generic [ref=e1010]:
+            - 'heading "块表达式 computed: total = {+,}" [level=4] [ref=e1011]'
+            - paragraph [ref=e1012]: total = 30
+          - generic [ref=e1013]:
+            - 'heading "对比：普通 computed: simpleSum" [level=4] [ref=e1014]'
+            - paragraph [ref=e1015]: simpleSum = a + b = 15
+          - paragraph [ref=e1016]: 块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值
+      - generic [ref=e1019]:
+        - 'heading "@forkey={expr}Demo" [level=3] [ref=e1020]'
+        - paragraph [ref=e1021]: "演示 @foriteminiterablekey={expr}用法"
+        - generic [ref=e1022]:
+          - heading "使用 key= 标识的列表" [level=4] [ref=e1023]:
+            - text: 使用 key=
+            - text: 标识的列表
+          - list [ref=e1024]:
+            - listitem [ref=e1025]: Apple
+            - listitem [ref=e1026]: Banana
+            - listitem [ref=e1027]: Cherry
+            - listitem [ref=e1028]: Date
+            - listitem [ref=e1029]: Elderberry
+        - generic [ref=e1030]:
+          - heading "对比：无 key 的 @for" [level=4] [ref=e1031]
+          - list [ref=e1032]:
+            - listitem [ref=e1033]: Apple
+            - listitem [ref=e1034]: Banana
+            - listitem [ref=e1035]: Cherry
+            - listitem [ref=e1036]: Date
+            - listitem [ref=e1037]: Elderberry
+        - paragraph [ref=e1038]:
+          - text: key=
+          - text: 帮助运行时追踪元素身份，提高列表更新效率
+      - generic [ref=e1041]:
+        - heading "Advanced CSS Selectors Demo" [level=3] [ref=e1042]
+        - paragraph [ref=e1043]: 演示 .class1.class2 组合选择器和 .class1.class2:hover 伪类链接
+        - generic [ref=e1044]:
+          - heading "组合选择器 .activeCard.cardActive" [level=4] [ref=e1045]
+          - paragraph [ref=e1047]: Toggle me to see .activeCard.cardActive style
+          - button "Toggle Active ( OFF )" [ref=e1048] [cursor=pointer]
+        - generic [ref=e1049]:
+          - 'heading "组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active" [level=4] [ref=e1050]'
+          - generic [ref=e1051]:
+            - button "Dark Variant" [ref=e1052] [cursor=pointer]
+            - button "Reset" [ref=e1053] [cursor=pointer]
+          - paragraph [ref=e1054]: .darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类
+        - generic [ref=e1055]:
+          - 'heading "多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus" [level=4] [ref=e1056]'
+          - generic [ref=e1057]:
+            - paragraph [ref=e1058]: Hover or Focus this panel
+            - textbox "Tab to focus me" [ref=e1059]: default
+      - generic [ref=e1062]:
+        - 'heading "Steps Easing: direction=start Demo" [level=3] [ref=e1063]'
+        - paragraph [ref=e1064]: "演示 steps(count, direction: start) 步进缓动"
+        - generic [ref=e1065]:
+          - heading "steps(2, start) — 2 步, 从首帧开始" [level=4] [ref=e1066]
+          - paragraph [ref=e1068]: 2 steps (start)
+        - generic [ref=e1069]:
+          - generic [ref=e1070]:
+            - heading "steps(4, start) — 从首帧" [level=4] [ref=e1071]
+            - paragraph [ref=e1073]: 4 steps start
+          - generic [ref=e1074]:
+            - heading "steps(4, end) — 从尾帧 (对比)" [level=4] [ref=e1075]
+            - paragraph [ref=e1077]: 4 steps end
+        - generic [ref=e1078]:
+          - heading "steps(8, start) + loop — 8 步循环" [level=4] [ref=e1079]
+          - paragraph [ref=e1081]: 8 steps start + loop
+        - paragraph [ref=e1082]: "direction: start 表示每步的起始位置在段首；direction: end 在段尾"
+      - generic [ref=e1085]:
+        - heading "Path Timeline Demo" [level=3] [ref=e1086]
+        - paragraph [ref=e1087]: 演示 direction item 中的 path + pathRotate
+        - generic [ref=e1088]:
+          - 'heading "flyPath: 两个球沿贝塞尔路径运动" [level=4] [ref=e1089]'
+          - generic [ref=e1090]:
+            - paragraph [ref=e1092]: 球 1
+            - paragraph [ref=e1094]: 球 2
+        - generic [ref=e1095]:
+          - 'heading "bouncePath: 回弹路径 (pathRotate: true)" [level=4] [ref=e1096]'
+          - paragraph [ref=e1099]: 球
+        - paragraph [ref=e1100]: "path 定义 SVG 运动路径；pathRotate: true 使元素沿路径方向旋转"
+    - contentinfo [ref=e117]:
+      - paragraph [ref=e118]: OmniView 教学项目 · 74+ 源文件 · omnic run

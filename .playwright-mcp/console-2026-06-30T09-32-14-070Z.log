@@ -1,0 +1,49 @@
+[    1891ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:21548
+[    1965ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5174/src/StatsDashboard.tsx:683
+[    1977ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/favicon.ico:0
+[    4809ms] ReferenceError: ThemeStore_currentBg is not defined
+    at SettingsPage (http://localhost:5174/src/SettingsPage.tsx:688:28)
+    at renderWithHooks (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:11546:26)
+    at mountIndeterminateComponent (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:14924:21)
+    at beginWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3697:24)
+    at invokeGuardedCallback (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3731:39)
+    at beginWork$1 (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19763:15)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19196:20)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19135:13)
+[    4811ms] ReferenceError: ThemeStore_currentBg is not defined
+    at SettingsPage (http://localhost:5174/src/SettingsPage.tsx:688:28)
+    at renderWithHooks (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:11546:26)
+    at mountIndeterminateComponent (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:14924:21)
+    at beginWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3697:24)
+    at invokeGuardedCallback (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:3731:39)
+    at beginWork$1 (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19763:15)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19196:20)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19135:13)
+[    4813ms] [ERROR] The above error occurred in the <SettingsPage> component:
+
+    at SettingsPage (http://localhost:5174/src/SettingsPage.tsx:678:22)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5174/src/App.tsx:730:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:14029
+[    4813ms] ReferenceError: ThemeStore_currentBg is not defined
+    at SettingsPage (http://localhost:5174/src/SettingsPage.tsx:688:28)
+    at renderWithHooks (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:11546:26)
+    at mountIndeterminateComponent (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:14924:21)
+    at beginWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:15912:22)
+    at beginWork$1 (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19751:22)
+    at performUnitOfWork (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19196:20)
+    at workLoopSync (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19135:13)
+    at renderRootSync (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:19114:15)
+    at recoverFromConcurrentError (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5174/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5922cba8:18877:28)
+[    4814ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5174/src/StatsDashboard.tsx:683

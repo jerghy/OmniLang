@@ -124,6 +124,7 @@ mod tests {
                 signal_defaults: HashMap::new(),
                 getters: HashMap::new(),
                 actions: vec![],
+                ..Default::default()
             },
         );
         let mut components = HashMap::new();
@@ -170,6 +171,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_test_ir(components, stores);
@@ -197,6 +199,7 @@ mod tests {
                 signal_defaults: HashMap::new(),
                 getters: HashMap::new(),
                 actions: vec![],
+                ..Default::default()
             },
         );
         let mut components = HashMap::new();
@@ -243,6 +246,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_test_ir(components, stores);

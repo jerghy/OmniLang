@@ -1,0 +1,301 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9] [cursor=pointer]
+      - button "待办" [ref=e10] [cursor=pointer]
+      - button "基础交互" [ref=e11] [cursor=pointer]
+      - button "编译器特性" [ref=e12] [cursor=pointer]
+      - button "运动动画" [ref=e13] [cursor=pointer]
+      - button "CSS 特性" [ref=e14] [cursor=pointer]
+      - button "事件/表单" [active] [ref=e15] [cursor=pointer]
+      - button "语言特性" [ref=e16] [cursor=pointer]
+      - button "设置" [ref=e17] [cursor=pointer]
+      - button "补充" [ref=e18] [cursor=pointer]
+    - generic [ref=e236]:
+      - generic [ref=e237]:
+        - generic [ref=e239]:
+          - heading "Event Shorthand Demo" [level=3] [ref=e240]
+          - generic [ref=e241]:
+            - paragraph [ref=e242]: "Form 1:{fnName(args)}— auto-wraps inline"
+            - button "greet(\"World\")" [ref=e243] [cursor=pointer]
+            - button "farewell(\"World\")" [ref=e244] [cursor=pointer]
+          - generic [ref=e245]:
+            - paragraph [ref=e246]: "Form 2:{store.action}— StoreAction ref"
+            - button "NotificationStore.add(...)" [ref=e247] [cursor=pointer]
+            - button "NotificationStore.clear" [ref=e248] [cursor=pointer]
+          - generic [ref=e249]:
+            - paragraph [ref=e250]: "@eventName syntax (same as onEventName):"
+            - generic [ref=e251]:
+              - button "onPress" [ref=e252] [cursor=pointer]
+              - button "@onPress" [ref=e253] [cursor=pointer]
+          - generic [ref=e254]:
+            - paragraph [ref=e255]: Click a button
+            - paragraph [ref=e256]: Clicks:0
+            - paragraph [ref=e257]: Notifications:0
+          - button "Reset" [ref=e258] [cursor=pointer]
+        - generic [ref=e260]:
+          - heading "Form Controls Demo" [level=3] [ref=e261]
+          - paragraph [ref=e262]: a-tag · select · checkbox · range · number
+          - generic [ref=e263]:
+            - paragraph [ref=e264]: "a-tag link with href / title / target:"
+            - link "Click me (0" [ref=e265] [cursor=pointer]:
+              - /url: "#"
+          - generic [ref=e266]:
+            - paragraph [ref=e267]: "select with option:"
+            - combobox [ref=e268]:
+              - option "Option 1 — First"
+              - option "Option 2 — Second" [selected]
+              - option "Option 3 — Third"
+            - paragraph [ref=e269]: Value:option2
+          - generic [ref=e270]:
+            - paragraph [ref=e271]: "Checkbox with checked attribute:"
+            - generic [ref=e272] [cursor=pointer]:
+              - checkbox "I agree to the terms" [ref=e273]
+              - generic [ref=e274]: I agree to the terms
+            - paragraph [ref=e275]: Status:Unchecked
+          - generic [ref=e276]:
+            - paragraph [ref=e277]: "Number input with min/max/step:"
+            - spinbutton "Enter your age (0-120)" [ref=e278]
+            - paragraph [ref=e279]: Age:25
+          - generic [ref=e280]:
+            - paragraph [ref=e281]: "Range slider with min/max/step:"
+            - slider "Select a value (0-100, step 5)" [ref=e282]: "50"
+            - paragraph [ref=e283]: Range:50/ 100
+          - generic [ref=e284]:
+            - paragraph
+      - main [ref=e286]:
+        - navigation "Event Demo" [ref=e287]:
+          - heading "事件处理器全覆盖" [level=2] [ref=e288]
+          - paragraph [ref=e289]: 双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换
+        - article [ref=e290]:
+          - heading "输入与键盘事件" [level=3] [ref=e291]
+          - textbox "在此输入..." [ref=e292]: idle
+        - article [ref=e293]:
+          - heading "双击与右键" [level=3] [ref=e294]
+          - paragraph [ref=e296] [cursor=pointer]: 双击或右键点击此区域
+        - article [ref=e297]:
+          - heading "拖拽事件" [level=3] [ref=e298]
+          - paragraph [ref=e300]: 拖拽状态:idle
+        - article [ref=e301]:
+          - heading "触摸事件" [level=3] [ref=e302]
+          - paragraph [ref=e304]: 在移动设备上触摸此处
+        - article [ref=e305]:
+          - heading "滚轮事件" [level=3] [ref=e306]
+          - paragraph [ref=e308]: 滚轮计数:0| deltaY:0
+        - article [ref=e309]:
+          - heading "滚动事件" [level=3] [ref=e310]
+          - paragraph [ref=e312]: Scroll Y:00次)
+        - article [ref=e313]:
+          - heading "媒体与资源事件" [level=3] [ref=e314]
+          - img "test" [ref=e315]
+          - paragraph [ref=e317]: 媒体状态:stopped
+        - article [ref=e318]:
+          - heading "动画与过渡事件" [level=3] [ref=e319]
+          - paragraph [ref=e321]: 动画状态:idle
+        - article [ref=e322]:
+          - heading "Toggle 事件" [level=3] [ref=e323]
+          - group [ref=e324]:
+            - generic "点击展开 (toggle count:0" [ref=e325] [cursor=pointer]
+        - article [ref=e326]:
+          - heading "事件日志" [level=3] [ref=e327]
+          - paragraph [ref=e328]: 日志:1条事件
+        - article [ref=e329]:
+          - heading "HTML 语义标签" [level=3] [ref=e330]
+          - generic [ref=e331]:
+            - heading "文本语义" [level=4] [ref=e332]
+            - paragraph [ref=e333]:
+              - text: 粗体 (b)
+              - strong [ref=e334]: 重要 (strong)
+              - text: 斜体 (i)
+              - emphasis [ref=e335]: 强调 (em)
+              - mark [ref=e336]: 高亮 (mark)
+              - text: 小字 (small)
+              - deletion [ref=e337]: 删除 (del)
+              - insertion [ref=e338]: 插入 (ins)
+            - paragraph [ref=e339]:
+              - code [ref=e340]: 代码 (code)
+              - text: 按键 (kbd)输出 (samp)变量 (var)
+            - paragraph [ref=e341]:
+              - superscript [ref=e342]: 上标 (sup)
+              - subscript [ref=e343]: 下标 (sub)
+            - paragraph [ref=e344]:
+              - text: HTML (abbr)
+              - term [ref=e345]: 定义 (dfn)
+            - paragraph [ref=e346]: 短引用 (q)
+            - blockquote [ref=e347]: 块引用 (blockquote)— 来源 (cite)
+            - paragraph [ref=e348]:
+              - time [ref=e349]: 时间 (time)
+            - paragraph [ref=e350]:
+              - generic [ref=e351]: "地址: contact@example.com (address)"
+            - paragraph [ref=e352]: 双向文本 (bdi)双向覆盖 (bdo)
+            - paragraph [ref=e353]:
+              - text: 换行
+              - text: 机会 (wbr)
+          - generic [ref=e354]:
+            - heading "表单标签" [level=4] [ref=e355]
+            - group "分组字段 (fieldset + legend)" [ref=e356]:
+              - generic [ref=e357]: 分组字段 (fieldset + legend)
+              - generic [ref=e358]:
+                - text: "搜索:"
+                - combobox "搜索:" [ref=e359]: stopped
+              - combobox [ref=e360]:
+                - option "苹果" [selected]
+                - option "香蕉"
+          - generic [ref=e361]:
+            - heading "媒体与嵌入" [level=4] [ref=e362]
+            - figure "插图标题 (figure + figcaption)" [ref=e363]:
+              - generic [ref=e364]: 插图标题 (figure + figcaption)
+            - img "responsive" [ref=e369]
+            - generic:
+              - link "Area 1":
+                - /url: "#area1"
+          - generic [ref=e370]:
+            - heading "度量与进度" [level=4] [ref=e371]
+            - progressbar [ref=e372]: 70%
+            - meter [ref=e373]: 60%
+          - generic [ref=e374]:
+            - heading "注音" [level=4] [ref=e375]
+            - generic [ref=e376]:
+              - text: 漢字
+              - generic [ref=e377]: かんじ
+      - generic [ref=e379]:
+        - paragraph [ref=e381]: "Mouse: (00"
+        - generic [ref=e382]:
+          - paragraph [ref=e383]: Scroll Y:0
+          - paragraph [ref=e384]: Wheel Delta:0
+          - paragraph [ref=e385]: "Ctrl held:"
+        - textbox "Press a key" [ref=e386]
+        - paragraph [ref=e387]: "Key:"
+      - generic [ref=e388]:
+        - generic [ref=e390]:
+          - heading "Content (回退内容)" [level=3] [ref=e391]
+          - paragraph [ref=e392]:
+            - text: 演示
+            - code [ref=e393]: "&amp;#123; 回退内容 &amp;#125;"
+            - text: 语法 + 对比有/无自定义内容
+          - generic [ref=e394]:
+            - heading "① Using Default Slot Content" [level=4] [ref=e395]
+            - paragraph [ref=e396]:
+              - text: 消费者
+              - strong [ref=e397]: 没有
+              - text: 提供插槽内容 → 组件显示
+              - code [ref=e398]: "&amp;#123; ... &amp;#125;"
+              - text: 中定义的默认回退。
+            - generic [ref=e400]:
+              - generic [ref=e402]: "header slot:"
+              - generic [ref=e404]: "main slot:"
+              - generic [ref=e406]: "footer slot:"
+          - generic [ref=e407]:
+            - heading "② Overriding Default with Custom Content" [level=4] [ref=e408]
+            - paragraph [ref=e409]:
+              - text: 消费者
+              - strong [ref=e410]: 提供
+              - text: 插槽内容 → 默认回退被覆盖。
+              - code [ref=e411]: footer
+              - text: 插槽没有默认值，若未提供则保持空白。
+            - generic [ref=e413]:
+              - generic [ref=e415]: "header slot:"
+              - generic [ref=e417]: "main slot:"
+              - generic [ref=e419]: "footer slot:"
+          - generic [ref=e420]:
+            - 'heading "③ Toggle: With / Without Custom Content" [level=4] [ref=e421]'
+            - paragraph [ref=e422]: 点击按钮在有/无自定义插槽内容之间切换， 观察默认回退的出现和消失。
+            - button "Provide Custom Content" [ref=e423] [cursor=pointer]
+            - generic [ref=e425]:
+              - generic [ref=e427]: "header slot:"
+              - generic [ref=e429]: "main slot:"
+              - generic [ref=e431]: "footer slot:"
+          - generic [ref=e432]:
+            - heading "💡" [level=4] [ref=e433]
+            - list [ref=e434]:
+              - listitem [ref=e435]:
+                - text: 如果消费者
+                - strong [ref=e436]: 没有
+                - text: 为命名的
+                - code [ref=e437]
+                - text: 提供内容，显示
+                - code [ref=e438]: "&amp;#123; 回退内容 &amp;#125;"
+              - listitem [ref=e439]:
+                - text: 如果消费者
+                - strong [ref=e440]: 有
+                - text: 提供内容，默认回退被完全替换
+              - listitem [ref=e441]:
+                - text: 不带默认值的
+                - code [ref=e442]
+                - text: （无
+                - code [ref=e443]
+                - text: 体）在无内容时渲染空白
+              - listitem [ref=e444]:
+                - text: 匿名插槽
+                - code [ref=e445]
+                - text: 同样支持默认回退
+              - listitem [ref=e446]: 回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）
+        - generic [ref=e448]:
+          - heading "emit Keyword vs Function Call" [level=3] [ref=e449]
+          - paragraph [ref=e450]:
+            - text: 对比
+            - code [ref=e451]: emit eventName(value)
+            - text: 与
+            - code [ref=e452]: eventName(value)
+            - text: 两种事件触发语法
+          - generic [ref=e454]:
+            - heading "Emit Child" [level=4] [ref=e455]
+            - generic [ref=e456]:
+              - heading "EmitChild" [level=4] [ref=e457]
+              - paragraph [ref=e458]:
+                - text: "内部分发计数:"
+                - strong [ref=e459]: "0"
+              - generic [ref=e460]:
+                - button "emit onEmitClick" [ref=e461] [cursor=pointer]
+                - button "onFuncClick()" [ref=e462] [cursor=pointer]
+              - paragraph [ref=e463]:
+                - text: 上方按钮分别用
+                - code [ref=e464]: emit eventName(value)
+                - text: 和
+                - code [ref=e465]: eventName(value)
+                - text: 触发
+          - generic [ref=e466]:
+            - generic [ref=e467]:
+              - heading "emit 触发记录" [level=4] [ref=e468]
+              - paragraph [ref=e470]: 暂无 emit 事件
+            - generic [ref=e471]:
+              - heading "函数调用触发记录" [level=4] [ref=e472]
+              - paragraph [ref=e474]: 暂无 function 事件
+          - generic [ref=e475]:
+            - heading "💡 emit 关键字说明" [level=4] [ref=e476]
+            - list [ref=e477]:
+              - listitem [ref=e478]:
+                - code [ref=e479]: emit eventName(value)
+                - text: 与
+                - code [ref=e480]: eventName(value)
+                - text: 在语义上
+                - strong [ref=e481]: 完全等价
+              - listitem [ref=e482]:
+                - code [ref=e483]: emit
+                - text: 关键字更明确地表达了"这是一个事件发射"的意图
+              - listitem [ref=e484]: 函数调用语法更简洁，适合在回调中快速触发
+              - listitem [ref=e485]: 两者在编译器中都生成相同的代码
+      - generic [ref=e487]:
+        - heading "事件流演示" [level=3] [ref=e488]
+        - paragraph [ref=e489]: event 声明 · @onAction 绑定 · 可选事件 event? · 父→子→父回调链
+        - generic [ref=e490]:
+          - generic [ref=e491]:
+            - strong [ref=e492]: Sender A
+            - paragraph [ref=e493]: Clicks:0
+            - button "Send Action" [ref=e494] [cursor=pointer]
+            - button "Send Count" [ref=e495] [cursor=pointer]
+          - generic [ref=e496]:
+            - strong [ref=e497]: Sender B
+            - paragraph [ref=e498]: Clicks:0
+            - button "Send Action" [ref=e499] [cursor=pointer]
+            - button "Send Count" [ref=e500] [cursor=pointer]
+        - generic [ref=e501]:
+          - generic [ref=e502]:
+            - strong [ref=e503]: Event Log（0entries）
+            - button "Clear" [ref=e504] [cursor=pointer]
+          - paragraph [ref=e506]: No events yet — click buttons above
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

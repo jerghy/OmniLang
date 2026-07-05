@@ -376,6 +376,7 @@ fn test_js_empty_component() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
     let out = w.into_string();
@@ -405,6 +406,7 @@ fn test_ts_empty_component() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "App", &comp, true);
     let out = w.into_string();
@@ -444,6 +446,7 @@ fn test_js_component_with_function() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "App", &comp, false);
     let out = w.into_string();
@@ -489,6 +492,7 @@ fn test_js_component_with_state() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, false);
     let out = w.into_string();
@@ -535,6 +539,7 @@ fn test_ts_component_with_state() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp, true);
     let out = w.into_string();
@@ -579,6 +584,7 @@ fn test_js_generate_store() {
         ]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     generate_store(&mut w, "AppStore", &store, false);
     let out = w.into_string();
@@ -606,6 +612,7 @@ fn test_ts_generate_store() {
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     generate_store(&mut w, "AppStore", &store, true);
     let out = w.into_string();
@@ -725,6 +732,7 @@ fn test_js_full_pipeline_through_trait() {
                         if_mode_default: None,
                         hero_defs: vec![],
                         timelines: vec![],
+                        ..Default::default()
                     },
                 )]),
                 stores: HashMap::new(),
@@ -790,6 +798,7 @@ fn test_ts_full_pipeline_through_trait() {
                         if_mode_default: None,
                         hero_defs: vec![],
                         timelines: vec![],
+                        ..Default::default()
                     },
                 )]),
                 stores: HashMap::new(),

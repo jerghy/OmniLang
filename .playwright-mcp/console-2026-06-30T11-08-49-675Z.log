@@ -1,0 +1,108 @@
+[     169ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     240ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     248ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    2107ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   58040ms] [ERROR] Warning: Invalid DOM property `%s`. Did you mean `%s`?%s datetime dateTime 
+    at time
+    at p
+    at section
+    at article
+    at main
+    at EventsDemo (http://localhost:5173/src/EventsDemo.tsx:676:35)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:518
+[   58040ms] [ERROR] Warning: validateDOMNesting(...): %s cannot appear as a descendant of <%s>.%s <address> p 
+    at address
+    at p
+    at section
+    at article
+    at main
+    at EventsDemo (http://localhost:5173/src/EventsDemo.tsx:676:35)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:518
+[   58041ms] [ERROR] Warning: Invalid DOM property `%s`. Did you mean `%s`?%s srcset srcSet 
+    at source
+    at picture
+    at section
+    at article
+    at main
+    at EventsDemo (http://localhost:5173/src/EventsDemo.tsx:676:35)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:518
+[   58091ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[   65628ms] [ERROR] Warning: React does not recognize the `%s` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `%s` instead. If you accidentally passed it from a parent component, remove it from the DOM element.%s testId testid 
+    at div
+    at div
+    at div
+    at ViewAttributesDemo (http://localhost:5173/src/ViewAttributesDemo.tsx:676:37)
+    at div
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:518
+[   65628ms] TypeError: fullName is not a function
+    at ComputedFnFormDemo (http://localhost:5173/src/ComputedFnFormDemo.tsx:804:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19135:13)
+[   65631ms] TypeError: fullName is not a function
+    at ComputedFnFormDemo (http://localhost:5173/src/ComputedFnFormDemo.tsx:804:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19135:13)
+[   65633ms] [ERROR] The above error occurred in the <ComputedFnFormDemo> component:
+
+    at ComputedFnFormDemo (http://localhost:5173/src/ComputedFnFormDemo.tsx:676:37)
+    at div
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:14029
+[   65632ms] TypeError: fullName is not a function
+    at ComputedFnFormDemo (http://localhost:5173/src/ComputedFnFormDemo.tsx:804:29)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:18877:28)
+[  260904ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[  260911ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[  262121ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[  264844ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[  264851ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[  267191ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683

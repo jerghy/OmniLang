@@ -1,0 +1,98 @@
+/* Styles for NotificationsPanel */
+.panel {
+  padding: 20px 16px;
+  background: white;
+  margin: 16px 0;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+}
+.header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.title {
+  gap: 8px;
+  font-size: 18px;
+  display: flex;
+  color: #1f2937;
+  align-items: center;
+}
+.badge {
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f97316;
+  font-size: 11px;
+}
+.header-actions {
+  gap: 6px;
+  display: flex;
+}
+.btn-sm {
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  color: #374151;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+.btn-clear {
+  padding: 6px 12px;
+  background: #fddddd;
+  border: none;
+  cursor: pointer;
+  color: #dc2626;
+  font-size: 13px;
+  border-radius: 4px;
+}
+.slot-header-area {
+  margin-bottom: 8px;
+}
+.scroll-area {
+  max-height: 200px;
+  padding: 8px;
+  border-radius: 8px;
+  overflow-y: auto;
+  background: #f9fafb;
+}
+.empty-text {
+  color: #9ca3af;
+  padding: 16px;
+  font-size: 14px;
+  text-align: center;
+}
+.notification-item {
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+  padding: 8px;
+  background: white;
+}
+.dot {
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background: #6366f1;
+}
+.item-text {
+  color: #374151;
+  font-size: 14px;
+}
+.footer {
+  margin-top: 12px;
+  justify-content: space-between;
+  align-items: center;
+  display: flex;
+}
+.count-text {
+  font-size: 13px;
+  color: #6b7280;
+}
+.slot-footer-area {
+}

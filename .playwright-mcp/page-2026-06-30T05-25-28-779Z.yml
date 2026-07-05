@@ -1,0 +1,231 @@
+- generic [ref=e4]:
+  - banner [ref=e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=e7]
+    - paragraph [ref=e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - button "首页" [ref=e11] [cursor=pointer]
+      - button "待办" [ref=e12] [cursor=pointer]
+      - button "基础交互" [ref=e13] [cursor=pointer]
+      - button "编译器特性" [ref=e14] [cursor=pointer]
+      - button "运动动画" [ref=e15] [cursor=pointer]
+      - button "CSS 特性" [ref=e16] [cursor=pointer]
+      - button "事件/表单" [ref=e17] [cursor=pointer]
+      - button "语言特性" [ref=e18] [cursor=pointer]
+      - button "设置" [ref=e19] [cursor=pointer]
+      - button "补充" [ref=e20] [cursor=pointer]
+    - generic [ref=e179]:
+      - generic [ref=e180]:
+        - generic [ref=e183]:
+          - heading "ValidationInput Demo" [level=3] [ref=e184]
+          - paragraph [ref=e185]: Enter text
+          - generic [ref=e186]:
+            - textbox "Enter text to validate..." [ref=e187]
+            - button "Validate" [ref=e188] [cursor=pointer]
+            - button "Clear" [ref=e189] [cursor=pointer]
+          - generic [ref=e190]:
+            - paragraph [ref=e191]: "Status: Waiting for input"
+            - paragraph [ref=e192]: "-"
+            - paragraph [ref=e193]: "Chars: 0 | EvenPos: 0"
+          - generic [ref=e194]:
+            - 'heading "Phase 4: 表达式与控制流" [level=4] [ref=e195]'
+            - paragraph [ref=e196]: See lib/transform.omni and StatsDashboard.omni for Phase 4 features
+        - generic [ref=e199]:
+          - heading "Timer Demo" [level=3] [ref=e200]
+          - paragraph [ref=e201]: "Count: 1 / 10"
+          - paragraph [ref=e202]: "Interval: 1000 ms | Status: Running"
+          - generic [ref=e203]:
+            - button "Start" [ref=e204] [cursor=pointer]
+            - button "Stop" [ref=e205] [cursor=pointer]
+            - button "Tick" [active] [ref=e206] [cursor=pointer]
+            - button "Reset" [ref=e207] [cursor=pointer]
+          - generic [ref=e208]:
+            - button "Faster" [ref=e209] [cursor=pointer]
+            - button "Slower" [ref=e210] [cursor=pointer]
+      - generic [ref=e211]:
+        - generic [ref=e214]:
+          - button "Open Modal" [ref=e215] [cursor=pointer]
+          - paragraph [ref=e216]:
+            - text: "Status:"
+            - text: "| Hover: false"
+        - generic [ref=e219]:
+          - generic [ref=e220]:
+            - button "Home" [ref=e221] [cursor=pointer]
+            - button "About" [ref=e222] [cursor=pointer]
+            - button "Settings" [ref=e223] [cursor=pointer]
+          - generic [ref=e226]:
+            - heading "Home Tab" [level=3] [ref=e227]
+            - generic [ref=e229]: "Custom tags: Card, Button, Flex, Text"
+            - paragraph [ref=e230]: "class: map syntax demo on buttons above"
+      - generic [ref=e233]:
+        - generic [ref=e234]:
+          - img "dot" [ref=e235]
+          - heading "DataTable Demo" [level=2] [ref=e236]
+          - separator [ref=e237]
+        - generic [ref=e238]:
+          - paragraph [ref=e239]:
+            - text: "Scroll count: 0"
+            - text: "Sort: ASC"
+          - button "Toggle Sort" [ref=e240] [cursor=pointer]
+          - button "Scroll +1" [ref=e241] [cursor=pointer]
+        - table [ref=e243]:
+          - rowgroup [ref=e244]:
+            - row "ID Name Status Score" [ref=e245]:
+              - columnheader "ID" [ref=e246]
+              - columnheader "Name" [ref=e247]
+              - columnheader "Status" [ref=e248]
+              - columnheader "Score" [ref=e249]
+          - rowgroup [ref=e250]:
+            - row "1 Alpha Active 95" [ref=e251]:
+              - cell "1" [ref=e252]
+              - cell "Alpha" [ref=e253]
+              - cell "Active" [ref=e254]:
+                - generic [ref=e255]: Active
+              - cell "95" [ref=e256]:
+                - generic [ref=e257]: "95"
+            - row "2 Bravo Active 87" [ref=e258]:
+              - cell "2" [ref=e259]
+              - cell "Bravo" [ref=e260]
+              - cell "Active" [ref=e261]:
+                - generic [ref=e262]: Active
+              - cell "87" [ref=e263]:
+                - generic [ref=e264]: "87"
+            - row "3 Charlie Inactive 72" [ref=e265]:
+              - cell "3" [ref=e266]
+              - cell "Charlie" [ref=e267]
+              - cell "Inactive" [ref=e268]:
+                - generic [ref=e269]: Inactive
+              - cell "72" [ref=e270]:
+                - generic [ref=e271]: "72"
+            - row "4 Delta Active 91" [ref=e272]:
+              - cell "4" [ref=e273]
+              - cell "Delta" [ref=e274]
+              - cell "Active" [ref=e275]:
+                - generic [ref=e276]: Active
+              - cell "91" [ref=e277]:
+                - generic [ref=e278]: "91"
+            - row "5 Echo Active 84" [ref=e279]:
+              - cell "5" [ref=e280]
+              - cell "Echo" [ref=e281]
+              - cell "Active" [ref=e282]:
+                - generic [ref=e283]: Active
+              - cell "84" [ref=e284]:
+                - generic [ref=e285]: "84"
+            - row "6 Foxtrot Inactive 66" [ref=e286]:
+              - cell "6" [ref=e287]
+              - cell "Foxtrot" [ref=e288]
+              - cell "Inactive" [ref=e289]:
+                - generic [ref=e290]: Inactive
+              - cell "66" [ref=e291]:
+                - generic [ref=e292]: "66"
+            - row "7 Golf Active 78" [ref=e293]:
+              - cell "7" [ref=e294]
+              - cell "Golf" [ref=e295]
+              - cell "Active" [ref=e296]:
+                - generic [ref=e297]: Active
+              - cell "78" [ref=e298]:
+                - generic [ref=e299]: "78"
+            - row "8 Hotel Active 93" [ref=e300]:
+              - cell "8" [ref=e301]
+              - cell "Hotel" [ref=e302]
+              - cell "Active" [ref=e303]:
+                - generic [ref=e304]: Active
+              - cell "93" [ref=e305]:
+                - generic [ref=e306]: "93"
+            - row "9 India Inactive 59" [ref=e307]:
+              - cell "9" [ref=e308]
+              - cell "India" [ref=e309]
+              - cell "Inactive" [ref=e310]:
+                - generic [ref=e311]: Inactive
+              - cell "59" [ref=e312]:
+                - generic [ref=e313]: "59"
+            - row "10 Juliet Active 88" [ref=e314]:
+              - cell "10" [ref=e315]
+              - cell "Juliet" [ref=e316]
+              - cell "Active" [ref=e317]:
+                - generic [ref=e318]: Active
+              - cell "88" [ref=e319]:
+                - generic [ref=e320]: "88"
+        - generic [ref=e321]:
+          - heading "Summary" [level=3] [ref=e322]
+          - list [ref=e323]:
+            - listitem [ref=e324]:
+              - img "dot" [ref=e325]
+              - text: "Total items:"
+              - generic [ref=e326]: "10"
+            - listitem [ref=e327]:
+              - img "dot" [ref=e328]
+              - text: "Active items:"
+              - generic [ref=e329]: "7"
+            - listitem [ref=e330]:
+              - img "dot" [ref=e331]
+              - text: "Scroll events:"
+              - generic [ref=e332]: "0"
+        - generic [ref=e333]:
+          - heading "Map and Closure Demo" [level=3] [ref=e334]
+          - list [ref=e335]:
+            - listitem [ref=e336]:
+              - img "dot" [ref=e337]
+              - text: "Grade for 95:"
+              - generic [ref=e338]: A
+            - listitem [ref=e339]:
+              - img "dot" [ref=e340]
+              - text: "Grade for 72:"
+              - generic [ref=e341]: C
+            - listitem [ref=e342]:
+              - img "dot" [ref=e343]
+              - text: "Grade for 59:"
+              - generic [ref=e344]: F
+            - listitem [ref=e345]:
+              - img "dot" [ref=e346]
+              - text: "Adj total (s+5):"
+              - generic [ref=e347]: "863"
+        - separator [ref=e348]
+        - generic [ref=e349]:
+          - img "dot" [ref=e350]
+          - paragraph [ref=e351]: DataTable Phase 4 Demo
+      - generic [ref=e354]:
+        - heading "FormPage Demo" [level=2] [ref=e355]
+        - generic [ref=e356]:
+          - generic [ref=e357]:
+            - generic [ref=e358]: Name
+            - textbox "Full name input" [ref=e359]:
+              - /placeholder: Your name
+          - generic [ref=e360]:
+            - generic [ref=e361]: Email
+            - textbox "Email address input" [ref=e362]:
+              - /placeholder: your@email.com
+          - generic [ref=e363]:
+            - generic [ref=e364]: Message
+            - textbox "Message input" [ref=e365]:
+              - /placeholder: Your message (optional)
+          - generic [ref=e366]:
+            - generic [ref=e367]: Disabled field
+            - textbox "Disabled input" [disabled] [ref=e368]:
+              - /placeholder: This field is disabled
+          - generic [ref=e369]:
+            - generic [ref=e370]: Readonly field
+            - textbox "Read-only input" [ref=e371]
+          - generic [ref=e372]:
+            - paragraph [ref=e373]: "Scrollable area (scroll count: 0 )"
+            - paragraph [ref=e374]: "Line 1: Scroll to trigger @onScroll"
+            - paragraph [ref=e375]: "Line 2: More content below"
+            - paragraph [ref=e376]: "Line 3: Keep scrolling"
+            - paragraph [ref=e377]: "Line 4: Almost there"
+            - paragraph [ref=e378]: "Line 5: Bottom reached"
+          - paragraph [ref=e380]: Fill in the form
+          - generic [ref=e381]:
+            - button "Submit form" [ref=e382] [cursor=pointer]: Submit
+            - button "Reset form" [ref=e383] [cursor=pointer]: Reset
+          - button "Conditional submit button" [ref=e385] [cursor=pointer]: Form incomplete
+      - generic [ref=e388]:
+        - generic [ref=e389]:
+          - heading "Notifications" [level=3] [ref=e390]
+          - generic [ref=e391]:
+            - button "Add" [ref=e392] [cursor=pointer]
+            - button "Remove" [ref=e393] [cursor=pointer]
+            - button "Clear" [ref=e394] [cursor=pointer]
+        - paragraph [ref=e398]: No notifications
+        - paragraph [ref=e400]: "Total: 0"
+    - contentinfo [ref=e117]:
+      - paragraph [ref=e118]: OmniView 教学项目 · 74+ 源文件 · omnic run

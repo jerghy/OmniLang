@@ -1,0 +1,75 @@
+/* Styles for App */
+.app {
+  margin: 0 auto;
+  background: #f9fafb;
+  min-height: 100vh;
+  max-width: 1200px;
+  width: 92vw;
+}
+.footer {
+  text-align: center;
+  padding: 24px;
+  border-top: 1px solid #ddd;
+}
+.footer-text {
+  font-size: 13px;
+  color: #888;
+}
+.browser-tabs {
+  margin: 20px 0;
+}
+.tab-strip {
+  display: flex;
+  gap: 0.0px;
+  border-bottom: 1px solid #d4d4d8;
+  padding: 0 8px;
+}
+.browserTab {
+  background: transparent;
+  border-bottom: none;
+  cursor: pointer;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  color: #64748b;
+  bottom: 0.0px;
+  font-size: 13px;
+  transition: all 150ms;
+  font-weight: 500.0px;
+  white-space: nowrap;
+}
+.browserTab:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+.browserTab.tabActive {
+  background: white;
+  color: #6366f1;
+  font-weight: 600.0px;
+  padding-bottom: 11px;
+  border-color: #d4d4d8;
+}
+.tab-content {
+  background: white;
+  padding: 16px;
+  border: 1px solid #d4d4d8;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.demo-section {
+  margin: 16px 0;
+}
+.demo-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.demo-col {
+  flex: 1.0px;
+  min-width: 0.0px;
+}
+.demo-full {
+  margin-bottom: 12px;
+}

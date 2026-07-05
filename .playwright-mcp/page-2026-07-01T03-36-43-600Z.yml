@@ -1,0 +1,125 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9] [cursor=pointer]
+      - button "待办" [ref=e10] [cursor=pointer]
+      - button "基础交互" [ref=e11] [cursor=pointer]
+      - button "编译器特性" [ref=e12] [cursor=pointer]
+      - button "运动动画" [ref=e13] [cursor=pointer]
+      - button "CSS 特性" [ref=e14] [cursor=pointer]
+      - button "事件/表单" [ref=e15] [cursor=pointer]
+      - button "语言特性" [ref=e16] [cursor=pointer]
+      - button "设置" [ref=e17] [cursor=pointer]
+      - button "补充" [active] [ref=e18] [cursor=pointer]
+    - generic [ref=e567]:
+      - generic [ref=e568]:
+        - generic [ref=e570]:
+          - 'heading "Ternary ( ? : ) 三元表达式 Demo" [level=3] [ref=e571]'
+          - paragraph [ref=e572]: "演示 cond ? then : else 运算符"
+          - generic [ref=e573]:
+            - 'heading "数值判定: count =0" [level=4] [ref=e574]'
+            - paragraph [ref=e575]: 结果:Zero or negative
+            - paragraph [ref=e576]: 直接内联:非正数哦
+            - generic [ref=e577]:
+              - button "count + 1" [ref=e578] [cursor=pointer]
+              - button "count - 1" [ref=e579] [cursor=pointer]
+          - generic [ref=e580]:
+            - 'heading "成绩判定: score =75" [level=4] [ref=e581]'
+            - paragraph [ref=e582]: 等级:C
+            - generic [ref=e583]:
+              - button "95 → A" [ref=e584] [cursor=pointer]
+              - button "85 → B" [ref=e585] [cursor=pointer]
+              - button "72 → C" [ref=e586] [cursor=pointer]
+              - button "55 → F" [ref=e587] [cursor=pointer]
+          - paragraph [ref=e588]: "三元 ? : 是 if-expr 的紧凑形式，用于值上下文"
+        - generic [ref=e590]:
+          - heading "Block Expression Demo" [level=3] [ref=e591]
+          - paragraph [ref=e592]: 演示块表达式
+          - generic [ref=e593]:
+            - 'heading "输入值: a=10, b=5" [level=4] [ref=e594]'
+            - generic [ref=e595]:
+              - button "a + 5" [ref=e596] [cursor=pointer]
+              - button "b + 5" [ref=e597] [cursor=pointer]
+              - button "Reset" [ref=e598] [cursor=pointer]
+          - generic [ref=e599]:
+            - 'heading "块表达式 computed: calculation" [level=4] [ref=e600]'
+            - paragraph [ref=e601]: a×2=20, b×3=15
+          - generic [ref=e602]:
+            - 'heading "块表达式 computed: total =" [level=4] [ref=e603]'
+            - paragraph [ref=e604]: total =30
+          - generic [ref=e605]:
+            - 'heading "对比：普通 computed: simpleSum" [level=4] [ref=e606]'
+            - paragraph [ref=e607]: simpleSum = a + b =15
+          - paragraph [ref=e608]: 块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值
+      - generic [ref=e610]:
+        - heading "@forkey=exprDemo" [level=3] [ref=e611]
+        - paragraph [ref=e612]: 演示@foriteminiterablekey=expr用法
+        - generic [ref=e613]:
+          - heading "使用 key=item 标识的列表" [level=4] [ref=e614]
+          - list [ref=e615]:
+            - listitem [ref=e616]: Apple
+            - listitem [ref=e617]: Banana
+            - listitem [ref=e618]: Cherry
+            - listitem [ref=e619]: Date
+            - listitem [ref=e620]: Elderberry
+        - generic [ref=e621]:
+          - heading "对比：无 key 的@for" [level=4] [ref=e622]
+          - list [ref=e623]:
+            - listitem [ref=e624]: Apple
+            - listitem [ref=e625]: Banana
+            - listitem [ref=e626]: Cherry
+            - listitem [ref=e627]: Date
+            - listitem [ref=e628]: Elderberry
+        - paragraph [ref=e629]: key=item 帮助运行时追踪元素身份，提高列表更新效率
+      - generic [ref=e631]:
+        - heading "Advanced CSS Selectors Demo" [level=3] [ref=e632]
+        - paragraph [ref=e633]: 演示 .class1.class2 组合选择器和 .class1.class2:hover 伪类链接
+        - generic [ref=e634]:
+          - heading "组合选择器 .activeCard.cardActive" [level=4] [ref=e635]
+          - paragraph [ref=e637]: Toggle me to see .activeCard.cardActive style
+          - button "Toggle Active (OFF" [ref=e638] [cursor=pointer]
+        - generic [ref=e639]:
+          - 'heading "组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active" [level=4] [ref=e640]'
+          - generic [ref=e641]:
+            - button "Dark Variant" [ref=e642] [cursor=pointer]
+            - button "Reset" [ref=e643] [cursor=pointer]
+          - paragraph [ref=e644]: .darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类
+        - generic [ref=e645]:
+          - 'heading "多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus" [level=4] [ref=e646]'
+          - generic [ref=e647]:
+            - paragraph [ref=e648]: Hover or Focus this panel
+            - textbox "Tab to focus me" [ref=e649]: default
+      - generic [ref=e651]:
+        - 'heading "Steps Easing: direction=start Demo" [level=3] [ref=e652]'
+        - paragraph [ref=e653]: "演示 steps(count, direction: start) 步进缓动"
+        - generic [ref=e654]:
+          - heading "steps(2, start) — 2 步, 从首帧开始" [level=4] [ref=e655]
+          - paragraph [ref=e657]: 2 steps (start)
+        - generic [ref=e658]:
+          - generic [ref=e659]:
+            - heading "steps(4, start) — 从首帧" [level=4] [ref=e660]
+            - paragraph [ref=e662]: 4 steps start
+          - generic [ref=e663]:
+            - heading "steps(4, end) — 从尾帧 (对比)" [level=4] [ref=e664]
+            - paragraph [ref=e666]: 4 steps end
+        - generic [ref=e667]:
+          - heading "steps(8, start) + loop — 8 步循环" [level=4] [ref=e668]
+          - paragraph [ref=e670]: 8 steps start + loop
+        - paragraph [ref=e671]: "direction: start 表示每步的起始位置在段首；direction: end 在段尾"
+      - generic [ref=e673]:
+        - heading "Path Timeline Demo" [level=3] [ref=e674]
+        - paragraph [ref=e675]: 演示 direction item 中的 path + pathRotate
+        - generic [ref=e676]:
+          - 'heading "flyPath: 两个球沿贝塞尔路径运动" [level=4] [ref=e677]'
+          - generic [ref=e678]:
+            - paragraph [ref=e680]: 球 1
+            - paragraph [ref=e682]: 球 2
+        - generic [ref=e683]:
+          - 'heading "bouncePath: 回弹路径 (pathRotate: true)" [level=4] [ref=e684]'
+          - paragraph [ref=e687]: 球
+        - paragraph [ref=e688]: "path 定义 SVG 运动路径；pathRotate: true 使元素沿路径方向旋转"
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

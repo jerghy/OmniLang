@@ -82,7 +82,7 @@ function extractViewTreeRegex(source: string): ViewTreeNode[] {
     const name = match[1];
     result.push({
       id: `comp-${name}`,
-      tag: "Container",
+      tag: "div",
       props: { "data-component": name },
       children: [],
       source_line: source.slice(0, match.index).split("\n").length,
@@ -95,7 +95,7 @@ function extractViewTreeRegex(source: string): ViewTreeNode[] {
     const id = `view-${++nodeId.current}`;
     result.push({
       id,
-      tag: "Container",
+      tag: "div",
       props: {},
       children: [],
       source_line: source.slice(0, match.index).split("\n").length,

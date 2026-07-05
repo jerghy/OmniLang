@@ -1,13 +1,22 @@
 // commands/project-api.ts
-// Project filesystem operations — implemented via Tauri plugins (fs, store)
+// Project filesystem operations — implemented via Tauri plugins (fs, store, dialog)
 // Replaces Python FastAPI backend endpoints: /api/fs/*, /api/project/*
 
 import { readDir, readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { FsEntry, ProjectInfo } from "./types";
 
 const STORE_PATH = "project.json";
+const RECENT_KEY = "recentProjects";
+const MAX_RECENT = 10;
 let cachedProjectDir: string | null = null;
+
+export interface RecentProject {
+  name: string;
+  path: string;
+  openedAt: number; // timestamp
+}
 
 async function getStore(): Promise<Store> {
   return Store.load(STORE_PATH);
@@ -159,6 +168,60 @@ export function createProjectApi() {
         return { ok: true, dir: projectPath };
       } catch (e) {
         return { ok: false, error: String(e) };
+      }
+    },
+
+    // ── Native folder picker ──
+    async openFolderDialog(): Promise<string | null> {
+      try {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: "选择项目文件夹",
+        });
+        return selected ?? null;
+      } catch {
+        return null;
+      }
+    },
+
+    // ── Recent projects ──
+    async getRecentProjects(): Promise<RecentProject[]> {
+      try {
+        const store = await getStore();
+        const val = await store.get<RecentProject[]>(RECENT_KEY);
+        return val ?? [];
+      } catch {
+        return [];
+      }
+    },
+
+    async addRecentProject(name: string, path: string): Promise<void> {
+      try {
+        const store = await getStore();
+        const list = (await store.get<RecentProject[]>(RECENT_KEY)) ?? [];
+        // Remove duplicate if exists
+        const filtered = list.filter((p) => p.path !== path);
+        // Add to front
+        filtered.unshift({ name, path, openedAt: Date.now() });
+        // Keep max
+        const trimmed = filtered.slice(0, MAX_RECENT);
+        await store.set(RECENT_KEY, trimmed);
+        await store.save();
+      } catch {
+        // Non-critical — silently ignore
+      }
+    },
+
+    async removeRecentProject(path: string): Promise<void> {
+      try {
+        const store = await getStore();
+        const list = (await store.get<RecentProject[]>(RECENT_KEY)) ?? [];
+        const filtered = list.filter((p) => p.path !== path);
+        await store.set(RECENT_KEY, filtered);
+        await store.save();
+      } catch {
+        // Non-critical
       }
     },
   };

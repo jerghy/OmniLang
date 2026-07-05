@@ -17,11 +17,11 @@ component ForDirectiveKeyDemo {
 
     view {
         <div class: container>
-            <h3 class: title>@for key={expr} Demo</h3>
-            <p class: subtitle>演示 @for item in iterable key={expr} 用法</p>
+            <h3 class: title>@for key=expr Demo</h3>
+            <p class: subtitle>演示 @for item in iterable key=expr 用法</p>
 
             <div class: card>
-                <h4 class: label>使用 key={item} 标识的列表</h4>
+                <h4 class: label>使用 key=item 标识的列表</h4>
                 <!-- ★ @for key={expr} —— 每个列表项由 key 表达式标识 -->
                 <ul class: list>
                     @for item in items key={item} {
@@ -39,7 +39,7 @@ component ForDirectiveKeyDemo {
                 </ul>
             </div>
 
-            <p class: note>key={item} 帮助运行时追踪元素身份，提高列表更新效率</p>
+            <p class: note>key=item 帮助运行时追踪元素身份，提高列表更新效率</p>
         </div>
     }
     style {

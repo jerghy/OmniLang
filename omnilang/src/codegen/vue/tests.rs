@@ -277,6 +277,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -341,6 +342,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -405,6 +407,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -457,6 +460,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -504,6 +508,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -530,6 +535,7 @@ mod tests {
             signal_defaults: HashMap::new(),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let hook = codegen.gen_store_hook("AppStore", &store);
         assert!(hook.contains("export function useAppStore() {"));
@@ -569,6 +575,7 @@ mod tests {
             signal_defaults: defaults,
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let hook = codegen.gen_store_hook("AppStore", &store);
         assert!(hook.contains("const count = ref<number>(0);"));
@@ -614,6 +621,7 @@ mod tests {
             signal_defaults: defaults,
             getters,
             actions: vec![],
+            ..Default::default()
         };
         let hook = codegen.gen_store_hook("CalcStore", &store);
         assert!(hook.contains("const count = ref<number>(0);"));
@@ -685,6 +693,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -731,6 +740,7 @@ mod tests {
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -774,6 +784,7 @@ mod tests {
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let comp = ComponentIR {
             name: "App".into(),
@@ -794,6 +805,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),

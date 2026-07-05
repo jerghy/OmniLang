@@ -1,0 +1,92 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [active] [ref=e9] [cursor=pointer]
+      - button "待办" [ref=e10] [cursor=pointer]
+      - button "基础交互" [ref=e11] [cursor=pointer]
+      - button "编译器特性" [ref=e12] [cursor=pointer]
+      - button "运动动画" [ref=e13] [cursor=pointer]
+      - button "CSS 特性" [ref=e14] [cursor=pointer]
+      - button "事件/表单" [ref=e15] [cursor=pointer]
+      - button "语言特性" [ref=e16] [cursor=pointer]
+      - button "设置" [ref=e17] [cursor=pointer]
+      - button "补充" [ref=e18] [cursor=pointer]
+    - generic [ref=e579]:
+      - generic [ref=e581]:
+        - generic [ref=e582]:
+          - heading "Dashboard" [level=2] [ref=e583]
+          - paragraph [ref=e584]: Overview of42items · Updatedjust now
+          - button "Refresh" [ref=e585] [cursor=pointer]
+        - generic [ref=e586]:
+          - heading "Statistics" [level=3] [ref=e587]
+          - generic [ref=e588]:
+            - heading "统计面板" [level=3] [ref=e589]
+            - generic [ref=e590]:
+              - generic [ref=e591]: 42总事项
+              - generic [ref=e592]: 有状态
+            - text: 已添加 42 个事项
+          - generic [ref=e593]:
+            - heading "StatsDashboard Demo" [level=3] [ref=e594]
+            - generic [ref=e595]:
+              - paragraph [ref=e596]: MAX_ITEMS:10
+              - paragraph [ref=e597]: prefixed consts declared
+            - generic [ref=e598]:
+              - paragraph [ref=e599]: Counter:0even
+              - generic [ref=e600]:
+                - button "+5" [ref=e601] [cursor=pointer]
+                - button "-3" [ref=e602] [cursor=pointer]
+                - button "x2" [ref=e603] [cursor=pointer]
+                - button "/2" [ref=e604] [cursor=pointer]
+                - button "mod3" [ref=e605] [cursor=pointer]
+            - paragraph [ref=e607]: math_abs(counter) =0| math_sqrt(counter) =0
+            - generic [ref=e608]:
+              - paragraph [ref=e609]: Random:0| Ceil*100 =0| Floor*100 =0
+              - button "Roll Dice" [ref=e610] [cursor=pointer]
+            - paragraph [ref=e612]: First value:10
+            - button "Trigger unmount" [ref=e613] [cursor=pointer]
+        - generic [ref=e614]:
+          - heading "Interactions" [level=3] [ref=e615]
+          - generic [ref=e616]:
+            - generic [ref=e618]:
+              - heading "计数器演示" [level=3] [ref=e619]
+              - paragraph [ref=e620]: "0"
+              - paragraph [ref=e621]: 翻倍：0偶数
+              - generic [ref=e622]:
+                - button [ref=e623] [cursor=pointer]
+                - generic [ref=e624]: 步长1
+                - button [ref=e625] [cursor=pointer]
+              - generic [ref=e626]:
+                - button "步长1" [ref=e627] [cursor=pointer]
+                - button "步长5" [ref=e628] [cursor=pointer]
+                - button "步长10" [ref=e629] [cursor=pointer]
+                - button "重置" [ref=e630] [cursor=pointer]
+            - generic [ref=e632]:
+              - heading "FeatureCard Demo" [level=3] [ref=e633]
+              - textbox "Click" [ref=e634]: idle
+              - text: Idle
+              - paragraph [ref=e635]: X:0| Focus:0
+              - button "Reset" [ref=e636] [cursor=pointer]
+      - generic [ref=e638]:
+        - generic [ref=e639] [cursor=pointer]:
+          - heading "Features (14items)" [level=3] [ref=e640]
+          - generic [ref=e641]: ^
+        - generic [ref=e642]:
+          - generic [ref=e643]: "Store: 全局状态管理"
+          - generic [ref=e644]: "Component: 组件声明与组合"
+          - generic [ref=e645]: "Signal: 响应式信号"
+          - generic [ref=e646]: "Computed: 计算属性"
+          - generic [ref=e647]: "Prop: 外部属性传递"
+          - generic [ref=e648]: "Event: 自定义事件通信"
+          - generic [ref=e649]: "bind:value: 双向绑定"
+          - generic [ref=e650]: "if else: 条件渲染"
+          - generic [ref=e651]: "for empty: 列表渲染加空状态"
+          - generic [ref=e652]: "onPress: 事件处理加内联回调"
+          - generic [ref=e653]: "mount effect: 生命周期"
+          - generic [ref=e654]: "style: 作用域CSS样式"
+          - generic [ref=e655]: "pub fn: 公开工具函数"
+          - generic [ref=e656]: "import export: 跨文件模块"
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

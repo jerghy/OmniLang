@@ -1,0 +1,8 @@
+[     188ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:21548
+[     262ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665
+[     273ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    3729ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665
+[    3729ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:664
+[    3729ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:663
+[    3729ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:664
+[    3729ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:663

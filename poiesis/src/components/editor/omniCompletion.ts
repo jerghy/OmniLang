@@ -88,16 +88,15 @@ const TOP_LEVEL_SNIPPETS: OmniSnippet[] = [
   },
 ];
 
-// OmniView component tags
+// OmniView element tags (actual HTML/OmmiLang tag names)
 const OMNIVIEW_TAGS: string[] = [
-  "Container", "Flex", "Grid", "Stack", "Spacer",
-  "Text", "Heading", "Image", "Link", "Divider",
-  "Button", "Input", "TextArea", "Checkbox", "Select",
-  "List", "ListItem", "Spinner", "Progress", "Alert",
-  "Card", "Form", "Table", "TableRow", "TableCell",
-  "Tabs", "TabPanel", "Modal", "Drawer", "Tooltip",
-  "Icon", "Avatar", "Badge", "Chip", "Switch",
-  "Slider", "Radio", "RadioGroup",
+  "div", "span", "p",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "button", "input", "textarea", "select",
+  "ul", "ol", "li",
+  "img", "a", "form", "label",
+  "section", "article", "header", "footer", "nav", "main",
+  "progress",
 ];
 
 // Store pattern keywords

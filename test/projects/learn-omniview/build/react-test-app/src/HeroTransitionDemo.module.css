@@ -1,0 +1,31 @@
+/* Styles for HeroTransitionDemo */
+.container {
+  background: white;
+  padding: 20px;
+}
+.title {
+  font-size: 18px;
+}
+.btn {
+  padding: 8px;
+  color: white;
+  background: #6366f1;
+}
+.hero-card {
+  border: 1px solid #8b5cf6;
+  padding: 20px;
+  background: #ede9fe;
+}
+.hero-card-small {
+  padding: 10px;
+  background: #f3e8ff;
+}
+.driven-bar {
+  margin-bottom: 12px;
+  background: #dbeafe;
+  height: 40px;
+}
+.signal-box {
+  padding: 12px;
+  background: #fef3c7;
+}

@@ -66,7 +66,7 @@ impl OmniViewGenerator {
                     format!("{}.{}", obj, field)
                 }
             }
-            ExprIR::OptionalChainExpr { object, field } => {
+            ExprIR::OptionalChainExpr { object, field, .. } => {
                 let raw_obj_name = if let ExprIR::IdentifierExpr { name } = object.as_ref() {
                     Some(name.clone())
                 } else {
@@ -137,7 +137,7 @@ impl OmniViewGenerator {
                 let e = self.expr_to_js(else_expr);
                 format!("{} ? {} : {}", c, t, e)
             }
-            ExprIR::MethodCallExpr {
+            ExprIR::MethodCallExpr { is_optional,
                 method,
                 args,
                 object,

@@ -1,0 +1,98 @@
+/* Styles for StylePseudoDemo */
+.container {
+  border-radius: 12px;
+  padding: 20px 16px;
+  margin: 16px 0;
+  border: 1px solid #d4d4d8;
+  background: white;
+}
+.title {
+  font-size: 18px;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+.subtitle {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0 0 16px 0;
+}
+.card {
+  margin-bottom: 14px;
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 8px;
+}
+.label {
+  font-weight: 600.0px;
+  font-size: 14px;
+  margin: 0 0 8px 0;
+  color: #374151;
+}
+.btn-hover {
+  padding: 10px 20px;
+  color: white;
+  cursor: pointer;
+  background: #7c3aed;
+  border-radius: 8px;
+  margin-right: 8px;
+  border: none;
+  font-size: 14px;
+}
+.btn-hover:hover {
+  transform: scale(1.05);
+  background: #6d28d9;
+}
+.btn-focus {
+  font-size: 14px;
+  padding: 10px 20px;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  margin-right: 8px;
+}
+.btn-focus:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2.0px;
+}
+.btn-active {
+  padding: 10px 20px;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  border: none;
+  font-size: 14px;
+  background: #dc2626;
+}
+.btn-active:active {
+  background: #b91c1c;
+  transform: scale(0.97);
+}
+.input-focus {
+  padding: 10px 14px;
+  outline: none;
+  font-size: 14px;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  width: 100%;
+}
+.input-focus:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.3);
+}
+.card-hover {
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  background: #f0fdf4;
+  text-align: center;
+  padding: 20px;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.card-hover:hover {
+  border-color: #86efac;
+  background: #dcfce7;
+  transform: translateY(-2px);
+}

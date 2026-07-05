@@ -1,0 +1,15 @@
+[      69ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     127ms] [LOG] Total items: 0 @ http://localhost:8789/:23050
+[     132ms] [LOG] AddTodo mounted @ http://localhost:8789/:23890
+[     133ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/large.jpg:0
+[     133ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/dot.png:0
+[     133ms] [ERROR] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME @ about:blank:0
+[     141ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     142ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp4:0
+[     145ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     148ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/sample.mp3:0
+[     166ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8789/favicon.ico:0
+[   79821ms] [LOG] Total items: 1 @ http://localhost:8789/:23050
+[   79822ms] [LOG] Total items: 2 @ http://localhost:8789/:23050
+[   99838ms] [LOG] Total items: 3 @ http://localhost:8789/:23050
+[   99838ms] [LOG] Total items: 4 @ http://localhost:8789/:23050

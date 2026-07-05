@@ -1,0 +1,50 @@
+- generic [ref=f1e3]:
+  - banner [ref=f1e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=f1e5]
+    - paragraph [ref=f1e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f1e7]:
+    - generic [ref=f1e8]:
+      - button "首页" [ref=f1e9]
+      - button "待办" [active] [ref=f1e10]
+      - button "基础交互" [ref=f1e11]
+      - button "编译器特性" [ref=f1e12]
+      - button "运动动画" [ref=f1e13]
+      - button "CSS 特性" [ref=f1e14]
+      - button "事件/表单" [ref=f1e15]
+      - button "语言特性" [ref=f1e16]
+      - button "设置" [ref=f1e17]
+      - button "补充" [ref=f1e18]
+    - generic [ref=f1e162]:
+      - generic [ref=f1e163]:
+        - heading "Todo List" [level=2] [ref=f1e164]
+        - paragraph [ref=f1e165]: 0tasks · Filter:all
+        - generic [ref=f1e166]: Loaded ×1
+      - generic [ref=f1e168]:
+        - generic [ref=f1e169]:
+          - textbox "Filter todos..." [ref=f1e170]
+          - button "X" [ref=f1e171] [cursor=pointer]
+        - generic [ref=f1e172]:
+          - paragraph [ref=f1e173]: Showing all 0 items
+          - button "SortASC" [ref=f1e174] [cursor=pointer]
+          - button "Sync" [ref=f1e175] [cursor=pointer]
+        - generic [ref=f1e176]:
+          - paragraph [ref=f1e177]: Store:0items | Filter:all| Changes:0
+          - paragraph [ref=f1e178]: "Last:"
+          - paragraph [ref=f1e179]: Filtered frameworks:55
+      - generic [ref=f1e181]:
+        - heading "待办列表 0" [level=2] [ref=f1e182]:
+          - text: 待办列表
+          - generic [ref=f1e183]: "0"
+        - generic [ref=f1e184]:
+          - generic [ref=f1e185]:
+            - textbox "输入待办事项" [ref=f1e186]
+            - button "添加" [ref=f1e187] [cursor=pointer]
+            - button "清空" [ref=f1e188] [cursor=pointer]
+          - paragraph [ref=f1e189]: 已输入0字符
+        - paragraph [ref=f1e192]: 还没有待办事项，在上方添加吧
+      - generic [ref=f1e193]:
+        - button "Clear All" [ref=f1e194]
+        - button "Sync Reminders" [ref=f1e195]
+        - generic [ref=f1e196]: "Last:"
+    - contentinfo [ref=f1e98]:
+      - paragraph [ref=f1e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

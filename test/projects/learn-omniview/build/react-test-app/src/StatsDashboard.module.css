@@ -1,0 +1,70 @@
+/* Styles for StatsDashboard */
+.dashboard {
+  margin: 16px 0;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+  background: white;
+  padding: 20px 16px;
+}
+.title {
+  margin-bottom: 12px;
+  color: #1f2937;
+  font-size: 18px;
+}
+.const-area {
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.small {
+  color: #6b7280;
+  margin: 2px 0;
+  font-size: 12px;
+}
+.counter-area {
+  margin-bottom: 12px;
+}
+.counter-text {
+  font-size: 24px;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #6366f1;
+}
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+.btn {
+  background: white;
+  padding: 8px 12px;
+  color: #374151;
+  border: 1px solid #d4d4d8;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.math-area {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+.dice-area {
+  border-radius: 6px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fff7ed;
+}
+.array-area {
+  margin-bottom: 12px;
+}
+.btn-danger {
+  padding: 8px 16px;
+  border: 1px solid #fdcaca;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #dc2626;
+  background: #fddddd;
+}

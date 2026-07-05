@@ -2,7 +2,7 @@
 // Unit tests
 // ═══════════════════════════════════════════════════════════
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::*;
@@ -159,8 +159,8 @@ fn test_tsx_stmt_let() {
         }),
         r#type: None,
     };
-    generate_statement_tsx(&mut w, &stmt);
-    assert_eq!(w.into_string(), "const x = 42;\n");
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    assert_eq!(w.into_string(), "let x = 42;\n");
 }
 
 #[test]
@@ -171,12 +171,12 @@ fn test_tsx_stmt_return() {
             name: "result".into(),
         }),
     };
-    generate_statement_tsx(&mut w, &stmt);
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
     assert_eq!(w.into_string(), "return result;\n");
 }
 
 #[test]
-fn test_tsx_stmt_mutation_increment() {
+fn test_tsx_stmt_mutation_increment_local() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent {
@@ -191,12 +191,36 @@ fn test_tsx_stmt_mutation_increment() {
             item: None,
         }),
     };
-    generate_statement_tsx(&mut w, &stmt);
+    // owner=None + not in signal_names → direct assignment
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    assert_eq!(w.into_string(), "count = count + 1;\n");
+}
+
+#[test]
+fn test_tsx_stmt_mutation_increment_signal() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent {
+            target: SignalRefIR {
+                owner: None,
+                name: "count".into(),
+            },
+            operation: "increment".into(),
+            amount: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
+            item: None,
+        }),
+    };
+    // owner=None but "count" IS in signal_names → setter call
+    let mut sig_names = HashSet::new();
+    sig_names.insert("count".to_string());
+    generate_statement_tsx(&mut w, &stmt, &sig_names);
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
 
 #[test]
-fn test_tsx_stmt_mutation_assign() {
+fn test_tsx_stmt_mutation_assign_local() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::MutationStmt {
         intent: Some(MutationIntent {
@@ -211,7 +235,29 @@ fn test_tsx_stmt_mutation_assign() {
             item: None,
         }),
     };
-    generate_statement_tsx(&mut w, &stmt);
+    // owner=None + not in signal_names → direct assignment
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
+    assert_eq!(w.into_string(), "name = \"alice\";\n");
+}
+
+#[test]
+fn test_tsx_stmt_mutation_assign_store() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent {
+            target: SignalRefIR {
+                owner: Some("Store".to_string()),
+                name: "name".into(),
+            },
+            operation: "direct_assign".into(),
+            amount: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!("alice"),
+            }),
+            item: None,
+        }),
+    };
+    // owner=Some → always setter call
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
     assert_eq!(w.into_string(), "setName(\"alice\");\n");
 }
 
@@ -235,10 +281,10 @@ fn test_tsx_stmt_if() {
         else_ifs: vec![],
         else_body: None,
     };
-    generate_statement_tsx(&mut w, &stmt);
+    generate_statement_tsx(&mut w, &stmt, &HashSet::new());
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
-    assert!(out.contains("const x = 1;"));
+    assert!(out.contains("let x = 1;"));
     assert!(out.contains("}"));
 }
 
@@ -266,6 +312,7 @@ fn test_css_empty_component() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
     assert!(css.contains(".container"));
@@ -313,6 +360,7 @@ fn test_css_with_styles() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let css = codegen.gen_component_css("App", &comp);
     assert!(css.contains(".header"));
@@ -342,6 +390,7 @@ fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     }
 }
 
@@ -450,6 +499,7 @@ fn test_tsx_empty_component() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -508,6 +558,7 @@ fn test_tsx_component_with_state() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -569,6 +620,7 @@ fn test_tsx_component_with_props() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -623,6 +675,7 @@ fn test_tsx_component_with_effect() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -670,6 +723,7 @@ fn test_tsx_component_with_lifecycle_mount() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -696,10 +750,11 @@ fn test_store_hook_empty() {
         signal_defaults: HashMap::new(),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let hook = codegen.gen_store_hook("AppStore", &store);
     assert!(hook.contains("export function useAppStore() {"));
-    assert!(hook.contains("import { useState, useCallback } from 'react';"));
+    assert!(hook.contains("import { useState, useCallback, useMemo } from 'react';"));
 }
 
 #[test]
@@ -735,6 +790,7 @@ fn test_store_hook_with_signals() {
         signal_defaults: defaults,
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let hook = codegen.gen_store_hook("AppStore", &store);
     assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
@@ -779,10 +835,11 @@ fn test_store_hook_with_getters() {
         signal_defaults: defaults,
         getters,
         actions: vec![],
+        ..Default::default()
     };
     let hook = codegen.gen_store_hook("CalcStore", &store);
     assert!(hook.contains("const [count, setCount] = useState<number>(0);"));
-    assert!(hook.contains("const doubleCount = useCallback(() => { return count * 2; }, [count]);"));
+    assert!(hook.contains("const doubleCount = useMemo(() => { return count * 2; }, [count]);"));
     assert!(hook.contains("return { count, doubleCount };"));
 }
 
@@ -849,6 +906,7 @@ fn test_full_pipeline_component() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
@@ -905,6 +963,7 @@ fn test_full_pipeline_with_store() {
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
@@ -950,6 +1009,7 @@ fn test_full_pipeline_component_with_store_ref() {
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let comp = ComponentIR {
         name: "App".into(),
@@ -970,6 +1030,7 @@ fn test_full_pipeline_component_with_store_ref() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),

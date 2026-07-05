@@ -1,0 +1,30 @@
+[     187ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:21548
+[     265ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     279ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    2605ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[    2606ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[    2606ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[    2606ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[    2606ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[    7983ms] ReferenceError: text is not defined
+    at onAdd (http://localhost:5173/src/TodoPage.tsx:784:29)
+    at handleAdd (http://localhost:5173/src/TodoList.tsx:684:5)
+    at handleAdd (http://localhost:5173/src/AddTodo.tsx:690:7)
+    at onClick (http://localhost:5173/src/AddTodo.tsx:730:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:7032:15)
+[    7983ms] ReferenceError: text is not defined
+    at onAdd (http://localhost:5173/src/TodoPage.tsx:784:29)
+    at handleAdd (http://localhost:5173/src/TodoList.tsx:684:5)
+    at handleAdd (http://localhost:5173/src/AddTodo.tsx:690:7)
+    at onClick (http://localhost:5173/src/AddTodo.tsx:730:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:7032:15)

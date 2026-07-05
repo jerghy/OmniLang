@@ -107,6 +107,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let mut modules = HashMap::new();

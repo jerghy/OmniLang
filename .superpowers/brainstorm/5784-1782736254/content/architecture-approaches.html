@@ -1,0 +1,77 @@
+<h2>三种架构方案对比</h2>
+<p class="subtitle">poiesis 重设计 — 统一双向编辑器的数据模型选型</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>A: 代码即真相（Annotation 锚点）</h3>
+      <p><strong>.omni 源码是唯一的权威数据源</strong></p>
+      <p>特殊注释标记为可视化工具提供结构化锚点，各类视图通过解析/重写注释区域来同步</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优势</h4>
+          <ul>
+            <li>Git 友好，代码始终可读可手写</li>
+            <li>annotation 就是双向映射的桥梁</li>
+            <li>可以直接用现有编译器</li>
+            <li>编辑器崩溃不会丢数据（源代码完好）</li>
+          </ul>
+        </div>
+        <div class="cons"><h4>劣势</h4>
+          <ul>
+            <li>annotation 粒度决定可视化编辑精度</li>
+            <li>需要设计严格的 annotation 格式</li>
+            <li>代码格式变更可能破坏 annotation</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>B: 语义模型即真相（统一 Projection Model）</h3>
+      <p><strong>内存中的语义图（Elements+Wires+Styles）是唯一真相</strong></p>
+      <p>画布、节点图、代码编辑器都是同一模型的投影；.omni 文件只是序列化产物</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优势</h4>
+          <ul>
+            <li>真正的双向同步，无主次之分</li>
+            <li>模型即文档，天然支持撤销/重做</li>
+            <li>可视化操作可以做到任意粒度</li>
+          </ul>
+        </div>
+        <div class="cons"><h4>劣势</h4>
+          <ul>
+            <li>代码格式/注释/空白在序列化时可能丢失</li>
+            <li>手写代码需要实时解析回模型（可能丢失手写风格）</li>
+            <li>Git diff 可读性差</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>C: 双存储混合（Annotation + 语义模型双向同步）</h3>
+      <p><strong>两种格式共存，通过 annotation 锚点保持实时同步</strong></p>
+      <p>源代码和语义模型各自独立存储，annotation 注释作为同步锚点，变更通过中央分发器协调</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优势</h4>
+          <ul>
+            <li>兼顾代码可读性和工具精度</li>
+            <li>最灵活，可以逐步演进</li>
+            <li>annotation 是非侵入式的增量元数据</li>
+          </ul>
+        </div>
+        <div class="cons"><h4>劣势</h4>
+          <ul>
+            <li>双存储同步是分布式系统难题</li>
+            <li>实现复杂度最高</li>
+            <li>可能出现不一致状态</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

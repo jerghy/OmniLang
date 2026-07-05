@@ -1,0 +1,27 @@
+[     178ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     248ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     259ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[   30317ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   30318ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[   30318ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[   30318ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[   30318ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[   49073ms] [ERROR] Warning: Received NaN for the `%s` attribute. If this is expected, cast the value to a string.%s children 
+    at span
+    at div
+    at TodoItem (http://localhost:5173/src/TodoItem.tsx:674:28)
+    at div
+    at div
+    at TodoList (http://localhost:5173/src/TodoList.tsx:677:28)
+    at section
+    at div
+    at TodoPage (http://localhost:5173/src/TodoPage.tsx:679:21)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:518
+[   49073ms] [LOG] Total items: 2 @ http://localhost:5173/src/TodoPage.tsx:681
+[  171371ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx?t=1782876721500:682
+[  171372ms] [LOG] Total items: 2 @ http://localhost:5173/src/TodoPage.tsx?t=1782876721512:681

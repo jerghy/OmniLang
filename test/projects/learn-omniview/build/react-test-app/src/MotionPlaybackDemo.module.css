@@ -1,0 +1,37 @@
+/* Styles for MotionPlaybackDemo */
+.container {
+  border-radius: 12px;
+  padding: 20px 16px;
+  background: white;
+  margin: 16px 0;
+  border: 1px solid #d4d4d8;
+}
+.title {
+  color: #1f2937;
+  margin: 0 0 4px 0;
+  font-size: 18px;
+}
+.subtitle {
+  margin: 0 0 16px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.card {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  flex: 1.0px;
+  min-width: 160px;
+}
+.label {
+  font-weight: 600.0px;
+  margin: 0.0px;
+  color: #374151;
+  font-size: 13px;
+}

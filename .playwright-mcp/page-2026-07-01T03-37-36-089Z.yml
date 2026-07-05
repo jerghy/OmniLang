@@ -1,0 +1,498 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9] [cursor=pointer]
+      - button "待办" [ref=e10] [cursor=pointer]
+      - button "基础交互" [ref=e11] [cursor=pointer]
+      - button "编译器特性" [ref=e12] [cursor=pointer]
+      - button "运动动画" [active] [ref=e13] [cursor=pointer]
+      - button "CSS 特性" [ref=e14] [cursor=pointer]
+      - button "事件/表单" [ref=e15] [cursor=pointer]
+      - button "语言特性" [ref=e16] [cursor=pointer]
+      - button "设置" [ref=e17] [cursor=pointer]
+      - button "补充" [ref=e18] [cursor=pointer]
+    - generic [ref=e929]:
+      - generic [ref=e931]:
+        - heading "Motion Demo" [level=1] [ref=e932]
+        - paragraph [ref=e933]: Count:0
+        - button "Toggle Modal" [ref=e934]
+        - button "Add Item" [ref=e935]
+        - button "Remove Item" [ref=e936]
+        - generic [ref=e937]: Interactive Panel
+      - generic [ref=e939]:
+        - heading "Motion Playback Properties Demo" [level=3] [ref=e940]
+        - paragraph [ref=e941]: fill · delay · timeScale · interrupt · stagger · path · colorSpace · callback 全覆盖
+        - generic [ref=e942]:
+          - heading "fill forwards" [level=4] [ref=e944]
+          - heading "delay + repeatDelay + repeatRefresh" [level=4] [ref=e946]
+          - heading "timeScale 0.5" [level=4] [ref=e948]
+          - heading "interrupt queue" [level=4] [ref=e950]
+          - heading "respectReducedMotion" [level=4] [ref=e952]
+          - heading "staggerChildren · staggerFrom" [level=4] [ref=e954]
+          - heading "paused · path · pathRotate" [level=4] [ref=e956]
+          - heading "multi-stop · colorSpace lab" [level=4] [ref=e958]
+      - generic [ref=e960]:
+        - heading "缓动函数全家桶" [level=3] [ref=e961]
+        - paragraph [ref=e962]: 24 种未测试缓动 · 点击按钮播放当前屏幕所有 动画
+        - button "Play All Animations" [ref=e963] [cursor=pointer]
+        - heading "Power 曲线（easeIn · power1 · power2 · power3 · power4）" [level=4] [ref=e964]
+        - generic [ref=e965]:
+          - generic [ref=e966]:
+            - strong [ref=e967]: easeIn
+            - paragraph [ref=e968]: 三次方加速
+          - generic [ref=e969]:
+            - strong [ref=e970]: power1In
+            - paragraph [ref=e971]: 二次方入
+          - generic [ref=e972]:
+            - strong [ref=e973]: power1Out
+            - paragraph [ref=e974]: 二次方出
+          - generic [ref=e975]:
+            - strong [ref=e976]: power1InOut
+            - paragraph [ref=e977]: 二次方出入
+          - generic [ref=e978]:
+            - strong [ref=e979]: power2In
+            - paragraph [ref=e980]: 三次方入
+          - generic [ref=e981]:
+            - strong [ref=e982]: power2InOut
+            - paragraph [ref=e983]: 三次方出入
+          - generic [ref=e984]:
+            - strong [ref=e985]: power3In
+            - paragraph [ref=e986]: 四次方入
+          - generic [ref=e987]:
+            - strong [ref=e988]: power3InOut
+            - paragraph [ref=e989]: 四次方出入
+          - generic [ref=e990]:
+            - strong [ref=e991]: power4In
+            - paragraph [ref=e992]: 五次方入
+          - generic [ref=e993]:
+            - strong [ref=e994]: power4Out
+            - paragraph [ref=e995]: 五次方出
+          - generic [ref=e996]:
+            - strong [ref=e997]: power4InOut
+            - paragraph [ref=e998]: 五次方出入
+        - heading "Back 弹回（带可选 intensity 参数）" [level=4] [ref=e999]
+        - generic [ref=e1000]:
+          - generic [ref=e1001]:
+            - strong [ref=e1002]: backIn
+            - paragraph [ref=e1003]: 默认 intensity 1.7
+          - generic [ref=e1004]:
+            - strong [ref=e1005]: backOut
+            - paragraph [ref=e1006]: 默认 intensity 1.7
+          - generic [ref=e1007]:
+            - strong [ref=e1008]: backInOut
+            - paragraph [ref=e1009]: 默认 intensity 1.7
+          - generic [ref=e1010]:
+            - strong [ref=e1011]: backOut(3.5)
+            - paragraph [ref=e1012]: 自定义弹回强度
+        - heading "Bounce 弹跳" [level=4] [ref=e1013]
+        - generic [ref=e1014]:
+          - generic [ref=e1015]:
+            - strong [ref=e1016]: bounceIn
+            - paragraph [ref=e1017]: 弹跳入
+          - generic [ref=e1018]:
+            - strong [ref=e1019]: bounceOut
+            - paragraph [ref=e1020]: 弹跳出
+          - generic [ref=e1021]:
+            - strong [ref=e1022]: bounceInOut
+            - paragraph [ref=e1023]: 弹跳出入
+        - heading "Elastic 弹性（带可选 amplitude/period 参数）" [level=4] [ref=e1024]
+        - generic [ref=e1025]:
+          - generic [ref=e1026]:
+            - strong [ref=e1027]: elasticIn
+            - paragraph [ref=e1028]: 默认振幅 1.0/周期 0.5
+          - generic [ref=e1029]:
+            - strong [ref=e1030]: elasticOut
+            - paragraph [ref=e1031]: 默认振幅 1.0/周期 0.5
+          - generic [ref=e1032]:
+            - strong [ref=e1033]: elasticInOut
+            - paragraph [ref=e1034]: 默认振幅 1.0/周期 0.5
+          - generic [ref=e1035]:
+            - strong [ref=e1036]: elasticOut(2,0.8)
+            - paragraph [ref=e1037]: 自定义振幅/周期
+        - heading "Spring 物理缓动（tension · friction · velocity）" [level=4] [ref=e1038]
+        - generic [ref=e1039]:
+          - generic [ref=e1040]:
+            - strong [ref=e1041]: spring(180,12)
+            - paragraph [ref=e1042]: 默认弹簧参数
+          - generic [ref=e1043]:
+            - strong [ref=e1044]: spring(120,8,2)
+            - paragraph [ref=e1045]: 弹性大·阻尼小
+          - generic [ref=e1046]:
+            - strong [ref=e1047]: spring(400,30)
+            - paragraph [ref=e1048]: 刚硬弹簧·scale
+        - heading "自定义缓动（cubic-bezier · steps）" [level=4] [ref=e1049]
+        - generic [ref=e1050]:
+          - generic [ref=e1051]:
+            - strong [ref=e1052]: cubic(x1,y1,x2,y2)
+            - paragraph [ref=e1053]: 自定义贝塞尔 overshoot
+          - generic [ref=e1054]:
+            - strong [ref=e1055]: steps(6,end)
+            - paragraph [ref=e1056]: 6 帧逐帧动画
+      - generic [ref=e1058]:
+        - heading "全动画属性覆盖" [level=3] [ref=e1059]
+        - paragraph [ref=e1060]: 15 个 keyframe 属性 · scaleX/Y · rotateX/Y/Z · blur · brightness · backgroundColor · color · borderColor · borderRadius · width · height · margin · padding · 点击按钮播放所有 动画
+        - button "Play All Animations" [ref=e1061] [cursor=pointer]
+        - heading "3D 变换组（scaleX · scaleY · rotateX · rotateY · rotateZ）" [level=4] [ref=e1062]
+        - generic [ref=e1063]:
+          - generic [ref=e1064]:
+            - strong [ref=e1065]: scaleX
+            - paragraph [ref=e1066]: X 轴 1→1.8 缩放
+          - generic [ref=e1067]:
+            - strong [ref=e1068]: scaleY
+            - paragraph [ref=e1069]: Y 轴 1→1.5 缩放
+          - generic [ref=e1070]:
+            - strong [ref=e1071]: rotateX
+            - paragraph [ref=e1072]: X 轴 360° 旋转
+          - generic [ref=e1073]:
+            - strong [ref=e1074]: rotateY
+            - paragraph [ref=e1075]: Y 轴 360° 旋转
+          - generic [ref=e1076]:
+            - strong [ref=e1077]: rotateZ
+            - paragraph [ref=e1078]: Z 轴 360° 摆动
+        - heading "滤镜组（blur · brightness）" [level=4] [ref=e1079]
+        - generic [ref=e1080]:
+          - generic [ref=e1081]:
+            - strong [ref=e1082]: blur
+            - paragraph [ref=e1083]: 模糊 0→6px 脉冲
+          - generic [ref=e1084]:
+            - strong [ref=e1085]: brightness
+            - paragraph [ref=e1086]: 亮度 1→2.5 脉冲
+        - heading "颜色组（backgroundColor · color · borderColor · borderRadius）" [level=4] [ref=e1087]
+        - generic [ref=e1088]:
+          - generic [ref=e1089]:
+            - strong [ref=e1090]: backgroundColor + borderRadius
+            - paragraph [ref=e1091]: 背景色与圆角联动
+          - generic [ref=e1092]:
+            - strong [ref=e1093]: color + borderColor
+            - paragraph [ref=e1094]: 文字色与边框色联动
+        - heading "尺寸组（width · height · margin · padding）" [level=4] [ref=e1095]
+        - generic [ref=e1096]:
+          - generic [ref=e1097]:
+            - strong [ref=e1098]: width
+            - paragraph [ref=e1099]: 宽度 60→200px
+          - generic [ref=e1100]:
+            - strong [ref=e1101]: height
+            - paragraph [ref=e1102]: 高度 40→120px
+          - generic [ref=e1103]:
+            - strong [ref=e1104]: margin + padding
+            - paragraph [ref=e1105]: 内外边距联动
+      - generic [ref=e1107]:
+        - heading "Motion Triggers Demo" [level=3] [ref=e1108]
+        - paragraph [ref=e1109]: · · · · · @drag
+        - generic [ref=e1110]:
+          - heading "触发器" [level=4] [ref=e1111]
+          - button "Hover then leave" [ref=e1112] [cursor=pointer]
+        - generic [ref=e1113]:
+          - heading "触发器" [level=4] [ref=e1114]
+          - textbox "Focus me" [ref=e1115]
+        - generic [ref=e1116]:
+          - heading "触发器（持续循环）" [level=4] [ref=e1117]
+          - paragraph [ref=e1119]: ↻
+        - generic [ref=e1120]:
+          - heading "触发器 + 子属性" [level=4] [ref=e1121]
+          - paragraph [ref=e1123]: Slide in once
+          - paragraph [ref=e1125]: Slide in repeat (threshold 0.5)
+        - generic [ref=e1126]:
+          - heading "触发器 + scroll-start/end/scrub" [level=4] [ref=e1127]
+          - paragraph [ref=e1129]: Scroll to animate
+        - generic [ref=e1130]:
+          - heading "@dragHorizontal / @dragVertical 拖拽" [level=4] [ref=e1131]
+          - paragraph [ref=e1133]: Drag me →
+          - paragraph [ref=e1135]: Drag me ↓
+      - generic [ref=e1137]:
+        - heading "Callback Mode" [level=3] [ref=e1138]
+        - paragraph [ref=e1139]:
+          - text: 演示
+          - code [ref=e1140]: onStart
+          - text: 、
+          - code [ref=e1141]: onComplete
+          - text: 、
+          - code [ref=e1142]: onRepeat
+          - text: 、
+          - code [ref=e1143]: onInterrupt
+          - text: 回调与信号的联动
+        - generic [ref=e1144]:
+          - generic [ref=e1145]:
+            - generic [ref=e1146]: "0"
+            - generic [ref=e1147]: onStart 触发
+          - generic [ref=e1148]:
+            - generic [ref=e1149]: "0"
+            - generic [ref=e1150]: onComplete 触发
+          - generic [ref=e1151]:
+            - generic [ref=e1152]: "0"
+            - generic [ref=e1153]: onRepeat 触发
+          - generic [ref=e1154]:
+            - generic [ref=e1155]: —
+            - generic [ref=e1156]: 最近事件
+        - generic [ref=e1157]:
+          - 'heading "① trackedEnter: onStart + onComplete" [level=4] [ref=e1158]'
+          - paragraph [ref=e1159]:
+            - text: 每次点击按钮重新触发运动，
+            - code [ref=e1160]: onStart
+            - text: 和
+            - code [ref=e1161]: onComplete
+            - text: 回调分别更新信号值。
+          - generic [ref=e1162]:
+            - generic [ref=e1164] [cursor=pointer]:
+              - generic [ref=e1165]: ▶
+              - generic [ref=e1166]: Click me
+            - generic [ref=e1167]:
+              - paragraph [ref=e1168]:
+                - code [ref=e1169]: onStart
+                - text: "→ enterCount:"
+                - strong [ref=e1170]: "0"
+              - paragraph [ref=e1171]:
+                - code [ref=e1172]: onComplete
+                - text: "→ completeCount:"
+                - strong [ref=e1173]: "0"
+        - generic [ref=e1174]:
+          - 'heading "② pulseWithCallback: onRepeat" [level=4] [ref=e1175]'
+          - paragraph [ref=e1176]:
+            - text: 循环运动每次重复触发
+            - code [ref=e1177]: onRepeat
+            - text: 回调， 可用于追踪循环动画的执行次数。
+          - generic [ref=e1178]:
+            - generic [ref=e1180] [cursor=pointer]:
+              - generic [ref=e1181]: ○
+              - generic [ref=e1182]: Pulse (循环中:0
+            - generic [ref=e1183]:
+              - paragraph [ref=e1184]:
+                - code [ref=e1185]: onRepeat
+                - text: "→ pulseRepeatCount:"
+                - strong [ref=e1186]: "0"
+              - paragraph [ref=e1187]:
+                - code [ref=e1188]: onUpdate
+                - text: → 每帧触发（不追踪计数）
+        - generic [ref=e1189]:
+          - 'heading "③ interruptWithCallback: onInterrupt" [level=4] [ref=e1190]'
+          - paragraph [ref=e1191]:
+            - text: 快速连续点击触发
+            - code [ref=e1192]: interrupt replace
+            - text: ， 每次中断调用
+            - code [ref=e1193]: onInterrupt
+            - text: 回调。
+          - generic [ref=e1194]:
+            - generic [ref=e1196] [cursor=pointer]:
+              - generic [ref=e1197]: ↺
+              - generic [ref=e1198]: 快速点击我
+            - generic [ref=e1199]:
+              - paragraph [ref=e1200]:
+                - code [ref=e1201]: onInterrupt
+                - text: "→ lastEvent:"
+                - strong [ref=e1202]: —
+              - paragraph [ref=e1203]:
+                - code [ref=e1204]: onComplete
+                - text: → 未被中断时触发
+        - generic [ref=e1205]:
+          - heading "💡 回调模式 vs 函数式监听" [level=4] [ref=e1206]
+          - list [ref=e1207]:
+            - listitem [ref=e1208]:
+              - text: 回调模式定义在
+              - code [ref=e1209]
+              - text: 块内部，与运动声明共处一处
+            - listitem [ref=e1210]: 每个回调接收一个 block 体，可执行任意 OmniLang 语句
+            - listitem [ref=e1211]:
+              - text: 5 种回调：
+              - code [ref=e1212]: onStart
+              - code [ref=e1213]: onUpdate
+              - code [ref=e1214]: onComplete
+              - code [ref=e1215]: onRepeat
+              - code [ref=e1216]: onInterrupt
+            - listitem [ref=e1217]:
+              - text: 注意：MotionPlaybackDemo.omni 中声明的
+              - code [ref=e1218]: callbackOnly
+              - text: 运动在视图中从未被引用 —— 那是**鬼影代码**（dead code），本组件是回调模式的**正确使用示范**
+      - generic [ref=e1220]:
+        - 'heading "Timeline start: Position Modes" [level=3] [ref=e1221]'
+        - paragraph [ref=e1222]:
+          - text: 演示
+          - code [ref=e1223]: "start: \"withPrev\""
+          - code [ref=e1224]: overlap(N)
+          - code [ref=e1225]: afterPrev(N)
+          - code [ref=e1226]: withOffset(N)
+          - code [ref=e1227]: absolute(N)
+          - text: 定位修饰符
+        - generic [ref=e1228]:
+          - 'button "start: 定位模式" [ref=e1229]'
+          - button "then/with 对比" [ref=e1230]
+        - paragraph [ref=e1231]:
+          - text: 每次切换 demo 或点此按钮重新触发时间线：
+          - button "重新触发 (x0" [ref=e1232] [cursor=pointer]
+        - generic [ref=e1233]:
+          - 'heading "with start: Position Modes" [level=4] [ref=e1234]'
+          - generic [ref=e1235]:
+            - generic [ref=e1236]: A-start
+            - generic [ref=e1237]: B-withPrev
+            - generic [ref=e1238]: C-after
+            - generic [ref=e1239]: D-overlap
+            - generic [ref=e1240]: E-afterPrev
+            - generic [ref=e1241]: F-withOffset
+            - generic [ref=e1242]: G-absolute
+          - paragraph [ref=e1243]: A (set) → B (withPrev, 同时) → C (after, 默认) → D (overlap 150ms) → E (afterPrev 200ms) → F (withOffset 100ms) → G (absolute 1200ms)
+        - generic [ref=e1244]:
+          - 'heading "start: 定位修饰符一览" [level=4] [ref=e1245]'
+          - generic [ref=e1246]:
+            - generic [ref=e1247]:
+              - code [ref=e1248]: "start: \"withPrev\""
+              - generic [ref=e1249]: 与上一项同时开始
+              - generic [ref=e1250]: → B 与 A 同时执行
+            - generic [ref=e1251]:
+              - code [ref=e1252]: "start: \"after\""
+              - generic [ref=e1253]: 在上一项结束后开始（默认行为）
+              - generic [ref=e1254]: → C 在 B 之后执行
+            - generic [ref=e1255]:
+              - code [ref=e1256]: "start: \"overlap(N)\""
+              - generic [ref=e1257]: 与上一项重叠 N 毫秒
+              - generic [ref=e1258]: → D 在 C 结束前 150ms 开始
+            - generic [ref=e1259]:
+              - code [ref=e1260]: "start: \"afterPrev(N)\""
+              - generic [ref=e1261]: 上一项结束后 N 毫秒开始
+              - generic [ref=e1262]: → E 在 D 结束后 200ms 开始
+            - generic [ref=e1263]:
+              - code [ref=e1264]: "start: \"withOffset(N)\""
+              - generic [ref=e1265]: 与上一项同时开始，但偏移 N 毫秒
+              - generic [ref=e1266]: → F 与 D 同时但晚 100ms 触发
+            - generic [ref=e1267]:
+              - code [ref=e1268]: "start: \"absolute(N)\""
+              - generic [ref=e1269]: 在时间线绝对时间 N 毫秒处开始
+              - generic [ref=e1270]: → G 在 1200ms 处执行
+        - generic [ref=e1271]:
+          - heading "💡 时间线定位语义" [level=4] [ref=e1272]
+          - list [ref=e1273]:
+            - listitem [ref=e1274]:
+              - code [ref=e1275]: "start:"
+              - text: 修饰符控制时间线项目的
+              - strong [ref=e1276]: 相对/绝对定时
+            - listitem [ref=e1277]:
+              - text: 未指定时默认行为是
+              - code [ref=e1278]: "start: \"after\""
+              - text: （在上一个项目完成后开始）
+            - listitem [ref=e1279]:
+              - code [ref=e1280]: then
+              - text: 连接器等价于
+              - code [ref=e1281]: "start: \"after\""
+              - text: 顺序执行
+            - listitem [ref=e1282]:
+              - code [ref=e1283]: with
+              - text: 连接器等价于
+              - code [ref=e1284]: "start: \"withPrev\""
+              - text: 同时执行
+            - listitem [ref=e1285]:
+              - code [ref=e1286]: "start:"
+              - text: 提供
+              - code [ref=e1287]: then
+              - code [ref=e1288]: with
+              - text: 之外的细粒度控制
+      - generic [ref=e1290]:
+        - heading "Stagger 方向 + 时间线连接器" [level=3] [ref=e1291]
+        - paragraph [ref=e1292]: staggerFrom start/end/edges · then · with · MotionRef
+        - heading "Stagger 方向（start / end / edges — center 已测）" [level=4] [ref=e1293]
+        - generic [ref=e1294]:
+          - strong [ref=e1295]: staggerFrom start
+          - generic [ref=e1296]:
+            - generic [ref=e1297]: "1"
+            - generic [ref=e1298]: "2"
+            - generic [ref=e1299]: "3"
+            - generic [ref=e1300]: "4"
+            - generic [ref=e1301]: "5"
+        - generic [ref=e1302]:
+          - strong [ref=e1303]: staggerFrom end
+          - generic [ref=e1304]:
+            - generic [ref=e1305]: "1"
+            - generic [ref=e1306]: "2"
+            - generic [ref=e1307]: "3"
+            - generic [ref=e1308]: "4"
+            - generic [ref=e1309]: "5"
+        - generic [ref=e1310]:
+          - strong [ref=e1311]: staggerFrom edges
+          - generic [ref=e1312]:
+            - generic [ref=e1313]: "1"
+            - generic [ref=e1314]: "2"
+            - generic [ref=e1315]: "3"
+            - generic [ref=e1316]: "4"
+            - generic [ref=e1317]: "5"
+        - 'heading "时间线连接器: then（顺序） + with（并行）+ MotionRef" [level=4] [ref=e1318]'
+        - generic [ref=e1319]:
+          - generic [ref=e1320]: phase1（set 后）
+          - generic [ref=e1321]: box1 · then →
+          - generic [ref=e1322]: box2 · with（与 refMotion 并行）
+          - generic [ref=e1323]: box3 · then after above
+          - generic [ref=e1324]: outro
+          - generic [ref=e1325]: box4 · with outro
+      - generic [ref=e1327]:
+        - heading "Timeline Motion Demo" [level=3] [ref=e1328]
+        - paragraph [ref=e1329]: · set · stagger · label
+        - generic [ref=e1330]:
+          - heading "header" [level=4] [ref=e1331]
+          - paragraph [ref=e1332]: 包含在 pageEnter timeline 中
+        - generic [ref=e1333]:
+          - heading "body" [level=4] [ref=e1334]
+          - paragraph [ref=e1335]: stagger 0.05s 逐个入场
+        - generic [ref=e1336]:
+          - heading "footer" [level=4] [ref=e1337]
+          - paragraph [ref=e1338]: 最后入场（label outro 之后）
+      - generic [ref=e1340]:
+        - heading "播放属性进阶" [level=3] [ref=e1341]
+        - paragraph [ref=e1342]: direction reverse/alternateReverse · fill backwards/both · interrupt stop/complete/replace
+        - button "Play Direction & Fill" [ref=e1343] [cursor=pointer]
+        - heading "Direction 方向（reverse · alternateReverse）" [level=4] [ref=e1344]
+        - generic [ref=e1345]:
+          - generic [ref=e1346]:
+            - strong [ref=e1347]: direction reverse
+            - paragraph [ref=e1348]: 反向播放（终点→起点）
+          - generic [ref=e1349]:
+            - strong [ref=e1350]: direction alternateReverse
+            - paragraph [ref=e1351]: 交替反向
+        - heading "Fill 填充（backwards · both）" [level=4] [ref=e1352]
+        - generic [ref=e1353]:
+          - generic [ref=e1354]:
+            - strong [ref=e1355]: fill backwards
+            - paragraph [ref=e1356]: delay 500ms 前即跳到 from 态
+          - generic [ref=e1357]:
+            - strong [ref=e1358]: fill both
+            - paragraph [ref=e1359]: 前后都填充·delay 300ms
+        - heading "Interrupt 中断行为（stop · complete · replace）" [level=4] [ref=e1360]
+        - generic [ref=e1361]:
+          - generic [ref=e1362]:
+            - strong [ref=e1363]: interrupt stop
+            - paragraph [ref=e1364]: 中断即停在当前值
+          - generic [ref=e1365]:
+            - strong [ref=e1366]: interrupt complete
+            - paragraph [ref=e1367]: 中断时快速跳到终点
+          - generic [ref=e1368]:
+            - strong [ref=e1369]: interrupt replace
+            - paragraph [ref=e1370]: 中断即替换为新动画
+        - paragraph [ref=e1371]: interrupt demo 使用 direction alternate + loop 来触发多次中断（保持自动重播以测试中断行为）
+        - paragraph [ref=e1372]: direction 与 fill demo 点击上方按钮播放（不需要自动重播即可测试）
+      - generic [ref=e1374]:
+        - heading "Hero Test" [level=3] [ref=e1375]
+        - button "Toggle" [ref=e1376]
+        - paragraph [ref=e1378]: Card 1 (collapsed)
+        - heading "Card 2 ()" [level=4] [ref=e1380]
+        - paragraph [ref=e1382]: progress bar
+        - paragraph [ref=e1384]: "on: signal binding"
+      - generic [ref=e1386]:
+        - heading "组件级特殊语法" [level=3] [ref=e1387]
+        - paragraph [ref=e1388]: "if_mode: wait · slot(name) 括号形式 · hero 组件级 · on: 信号绑定"
+        - 'heading "if_mode: \"wait\"（组件级 if 过渡默认值）" [level=4] [ref=e1389]'
+        - generic [ref=e1390]:
+          - paragraph [ref=e1391]: 当 showPanel 切换时，leave 动画（fadeSlideOut 300ms）会在新内容渲染前完成
+          - button "Show Panel" [ref=e1392] [cursor=pointer]
+        - heading "slot(name) 带括号形式" [level=4] [ref=e1393]
+        - generic [ref=e1394]:
+          - paragraph [ref=e1395]: slot(header) · slot(body) · slot(footer) — 代替的无括号形式
+          - button "Open Slot Demo" [ref=e1396] [cursor=pointer]
+        - heading "组件级" [level=4] [ref=e1397]
+        - generic [ref=e1398]:
+          - paragraph [ref=e1399]: "在组件级定义 cardHero (over: 400, ease: power2Out)"
+          - paragraph [ref=e1401]: ="hero-demo-1" 引用组件级 cardHero
+        - 'heading "on: (signal) 信号绑定" [level=4] [ref=e1402]'
+        - generic [ref=e1403]:
+          - paragraph [ref=e1404]: 点击按钮增加 progressPct（0→100 循环），驱动下方元素动画进度
+          - button "Advance0" [ref=e1405] [cursor=pointer]
+          - paragraph [ref=e1407]: progressPct:0
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

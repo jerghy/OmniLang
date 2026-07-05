@@ -1,5 +1,6 @@
 // Legacy style registry stub — merged into unified store.
 import { usePoiesisStore } from "../../store";
+import type { StyleRegistry } from "../../core/types/style";
 
 export const styleRegistry = {
   classes: {},
@@ -8,7 +9,7 @@ export const styleRegistry = {
 
 // Hybrid: callable as a hook + has .getState()/.setState()/.subscribe()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type StoreFn = { (selector?: (state: any) => unknown): any; getState(): any; setState(p: any): void; subscribe(fn?: (s: any) => unknown): () => void; destroy(): void };
+type StoreFn = { (selector?: (state: any) => unknown): any; getState(): any; setState(p: any): void; subscribe(fn?: (s: any) => unknown): () => void; destroy(): void; getRegistry(componentName: string): StyleRegistry };
 
 const _getState = () => usePoiesisStore.getState() as any;
 
@@ -24,5 +25,6 @@ styleStore.subscribe = (selector?: (s: any) => unknown) => {
   return usePoiesisStore.subscribe((s) => selector?.(s as any));
 };
 styleStore.destroy = () => {};
+styleStore.getRegistry = (_componentName: string): StyleRegistry => ({ variables: [], classes: [] });
 
 export const useStyleRegistryStore = styleStore;

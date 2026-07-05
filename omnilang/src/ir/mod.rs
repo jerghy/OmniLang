@@ -6,10 +6,12 @@ pub mod logic;
 mod lower_ast;
 pub mod lower_logic;
 mod types;
+mod types_motion;
 
 pub use logic::*;
 pub use lower_ast::lower;
 pub use types::*;
+pub use types_motion::*;
 
 pub(crate) use lower_ast::{lower_block, lower_expr, lower_type};
 

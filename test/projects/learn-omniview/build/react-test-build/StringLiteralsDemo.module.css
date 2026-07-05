@@ -1,0 +1,51 @@
+/* Styles for StringLiteralsDemo */
+.container {
+  border: 1px solid #d4d4d8;
+  padding: 20px 16px;
+  margin: 16px 0;
+  background: white;
+  border-radius: 12px;
+}
+.title {
+  font-size: 18px;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+.subtitle {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+.card {
+  border-radius: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  margin-bottom: 14px;
+}
+.label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #374151;
+  margin: 0 0 6px 0;
+}
+.value {
+  margin: 0 0 4px 0;
+  color: #6b7280;
+  font-size: 12px;
+  font-family: monospace;
+}
+.result {
+  margin: 0.0px;
+  font-size: 14px;
+  color: #4b5563;
+}
+.btn-sm {
+  border-radius: 6px;
+  background: #6366f1;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 12px;
+  margin-top: 8px;
+  color: white;
+  border: 1px solid #d4d4d8;
+}

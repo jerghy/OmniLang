@@ -1,0 +1,33 @@
+/* Styles for FeatureList */
+.panel {
+  border: 1px solid #d4d4d8;
+  margin: 16px 0;
+  border-radius: 12px;
+  padding: 16px 12px;
+  background: #fffbeb;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.title {
+  font-size: 16px;
+  color: #b45309;
+}
+.arrow {
+  color: #a16207;
+  font-size: 14px;
+}
+.list {
+  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  padding-top: 12px;
+}
+.tag {
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+}

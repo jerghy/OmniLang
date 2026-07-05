@@ -1,0 +1,78 @@
+[      68ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:21548
+[      75ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   87649ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   87649ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[   87649ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[   87649ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx:682
+[   87649ms] [LOG] Total items: 0 @ http://localhost:5173/src/TodoPage.tsx:681
+[  104750ms] ReferenceError: onAdd is not defined
+    at handleAdd (http://localhost:5173/src/AddTodo.tsx:690:7)
+    at onClick (http://localhost:5173/src/AddTodo.tsx:730:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7032:15)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7049:11)
+[  104751ms] ReferenceError: onAdd is not defined
+    at handleAdd (http://localhost:5173/src/AddTodo.tsx:690:7)
+    at onClick (http://localhost:5173/src/AddTodo.tsx:730:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7032:15)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:7049:11)
+[  318608ms] [LOG] AddTodo mounted @ http://localhost:5173/src/AddTodo.tsx?t=1782814208647:682
+[  318666ms] TypeError: items.map is not a function
+    at TodoList (http://localhost:5173/src/TodoList.tsx?t=1782814208667:756:19)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:11546:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:14580:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:15922:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19135:13)
+[  318668ms] TypeError: items.map is not a function
+    at TodoList (http://localhost:5173/src/TodoList.tsx?t=1782814208667:756:19)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:11546:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:14580:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:15922:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19135:13)
+[  318670ms] [ERROR] The above error occurred in the <TodoList> component:
+
+    at TodoList (http://localhost:5173/src/TodoList.tsx?t=1782814208667:677:28)
+    at section
+    at div
+    at TodoPage (http://localhost:5173/src/TodoPage.tsx?t=1782814208667:679:21)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx?t=1782814208532:730:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:14029
+[  318670ms] TypeError: items.map is not a function
+    at TodoList (http://localhost:5173/src/TodoList.tsx?t=1782814208667:756:19)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:11546:26)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:14580:28)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:15922:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19135:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:19114:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:18734:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=e9bb390e:18877:28)

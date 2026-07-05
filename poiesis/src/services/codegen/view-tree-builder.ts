@@ -2,13 +2,13 @@
 import type { ElementData } from "../../core/types";
 import type { ViewNode } from "./types";
 
-const TAG_HTML_MAP = new Set([
-  "Container", "Flex", "Grid", "Card", "Text", "Heading",
-  "Button", "Input", "TextArea", "Select", "Checkbox",
-  "List", "ListItem", "Image", "Spinner", "Progress",
-  "Alert", "Link", "Form",
-]);
-
+/**
+ * Build a view tree from flat element array.
+ *
+ * Custom components are detected by PascalCase tag names (e.g. "MyCard").
+ * Built-in OmniLang elements use lowercase HTML tag names (div, p, button, etc.)
+ * and are never treated as custom component references.
+ */
 export function buildViewTree(
   elements: ElementData[],
   compName: string,
@@ -34,7 +34,8 @@ export function buildViewTree(
   }
 
   function buildNode(el: ElementData, currentPath: string): ViewNode {
-    const isPascal = /^[A-Z]/.test(el.tag) && !TAG_HTML_MAP.has(el.tag);
+    // Only PascalCase tags that don't match a built-in entry are custom components.
+    const isPascal = /^[A-Z]/.test(el.tag);
     if (isPascal && !pascalCaseTags.includes(el.tag)) {
       pascalCaseTags.push(el.tag);
     }

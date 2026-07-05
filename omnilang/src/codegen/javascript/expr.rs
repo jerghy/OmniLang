@@ -14,7 +14,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir(object, _ts_mode), field)
         }
-        ExprIR::OptionalChainExpr { object, field } => {
+        ExprIR::OptionalChainExpr { object, field, .. } => {
             format!("{}?.{}", format_expr_ir(object, _ts_mode), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
@@ -99,7 +99,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
             entries.insert(0, format!("\"_variant\": \"{}\"", variant));
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::MethodCallExpr {
+        ExprIR::MethodCallExpr { is_optional,
             object,
             method,
             args,

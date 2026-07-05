@@ -1,0 +1,29 @@
+[     108ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     117ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   23041ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   23042ms] [LOG] Timer unmounted, final count: 0 @ http://localhost:5173/src/Timer.tsx:681
+[   42573ms] [LOG] Timer unmounted, final count: 0 @ http://localhost:5173/src/Timer.tsx:681
+[   70154ms] [LOG] Timer unmounted, final count: 0 @ http://localhost:5173/src/Timer.tsx:681
+[   77510ms] [LOG] Timer started @ http://localhost:5173/src/Timer.tsx:687
+[   93381ms] TypeError: onTick is not a function
+    at tick (http://localhost:5173/src/Timer.tsx:701:7)
+    at onClick (http://localhost:5173/src/Timer.tsx:821:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7032:15)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7049:11)
+[   93381ms] TypeError: onTick is not a function
+    at tick (http://localhost:5173/src/Timer.tsx:701:7)
+    at onClick (http://localhost:5173/src/Timer.tsx:821:21)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3731:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:3734:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7012:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7032:15)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7041:13)
+    at dispatchEventsForPlugins (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:7049:11)

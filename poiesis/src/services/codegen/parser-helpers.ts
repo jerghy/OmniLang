@@ -6,7 +6,7 @@ import type { TokenStream } from "./token-stream";
 import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
 import type { ElementData } from "../../core/types/element";
-import { useComponentRegistry } from "../../store/componentRegistry";
+import { useComponentRegistry, getComponentDefinitions } from "../../store/componentRegistry";
 import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "omni-parser" });
@@ -91,7 +91,7 @@ export function createElement(
   // Detect custom component references
   const isPascal = /^[A-Z]/.test(tag);
   const isCustom =
-    isPascal && !!useComponentRegistry.getState().definitions[tag];
+    isPascal && !!(getComponentDefinitions()[tag]);
 
   const el: ElementData = {
     id: finalId,

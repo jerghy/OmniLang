@@ -1,0 +1,32 @@
+/* Styles for SlotPanel */
+.slot-panel {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  padding: 14px;
+}
+.slot-section {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  margin-bottom: 10px;
+}
+.slot-section.main {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+.section-label {
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  display: block;
+  font-size: 11px;
+}
+.default-text {
+  font-size: 13px;
+  margin: 0.0px;
+  color: #64748b;
+  font-style: italic;
+}

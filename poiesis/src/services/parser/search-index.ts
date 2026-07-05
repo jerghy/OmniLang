@@ -125,11 +125,13 @@ export function searchFiles(
 
 export function searchComponents(query: string): SearchResult[] {
   const components = [
-    "Container", "Flex", "Grid", "Text", "Heading", "Image",
-    "Button", "Input", "TextArea", "Select", "List", "ListItem",
-    "Card", "Form", "Divider", "Spinner", "Progress", "Alert",
-    "Link", "Checkbox", "Radio", "Slider", "Icon", "Badge",
-    "Modal", "Dropdown", "Tabs", "Table", "Avatar",
+    "div", "span", "p",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "button", "input", "textarea", "select",
+    "ul", "ol", "li",
+    "img", "a", "form", "label",
+    "section", "article", "header", "footer", "nav", "main",
+    "progress",
   ];
 
   const results: SearchResult[] = [];

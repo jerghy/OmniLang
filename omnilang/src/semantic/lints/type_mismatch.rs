@@ -196,6 +196,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_test_ir(components, HashMap::new());

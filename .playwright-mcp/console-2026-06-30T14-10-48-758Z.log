@@ -1,0 +1,26 @@
+[     165ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0e89e28a:21548
+[     235ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[     248ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[    2501ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[    2501ms] [WARNING] Invalid keyframe value for property offsetDistance: 1 @ http://localhost:5173/src/MotionPlaybackDemo.tsx:699
+[    2502ms] [WARNING] Invalid keyframe value for property borderRadius: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property borderRadius: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property width: 60 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property width: 200 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property height: 40 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property height: 120 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property margin: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property padding: 8 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property margin: 16 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2502ms] [WARNING] Invalid keyframe value for property padding: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property offsetDistance: 1 @ http://localhost:5173/src/MotionPlaybackDemo.tsx:699
+[    2554ms] [WARNING] Invalid keyframe value for property borderRadius: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property borderRadius: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property width: 60 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property width: 200 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property height: 40 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property height: 120 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property margin: 4 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property padding: 8 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property margin: 16 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700
+[    2554ms] [WARNING] Invalid keyframe value for property padding: 24 @ http://localhost:5173/src/AnimPropertiesDemo.tsx:700

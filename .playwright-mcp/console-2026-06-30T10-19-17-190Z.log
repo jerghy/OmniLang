@@ -1,0 +1,83 @@
+[     100ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:21548
+[     108ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[    4022ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:683
+[   10024ms] ReferenceError: a2 is not defined
+    at http://localhost:5173/src/BlockExprDemo.tsx:679:21
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=0bd9a488:1095:29)
+    at BlockExprDemo (http://localhost:5173/src/BlockExprDemo.tsx:678:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+[   10024ms] ReferenceError: item is not defined
+    at ForDirectiveKeyDemo (http://localhost:5173/src/ForDirectiveKeyDemo.tsx:726:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19135:13)
+[   10026ms] ReferenceError: a2 is not defined
+    at http://localhost:5173/src/BlockExprDemo.tsx:679:21
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=0bd9a488:1095:29)
+    at BlockExprDemo (http://localhost:5173/src/BlockExprDemo.tsx:678:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+[   10026ms] ReferenceError: item is not defined
+    at ForDirectiveKeyDemo (http://localhost:5173/src/ForDirectiveKeyDemo.tsx:726:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3697:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:3731:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19763:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19196:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19135:13)
+[   10028ms] [ERROR] The above error occurred in the <BlockExprDemo> component:
+
+    at BlockExprDemo (http://localhost:5173/src/BlockExprDemo.tsx:676:21)
+    at div
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14029
+[   10028ms] [ERROR] The above error occurred in the <ForDirectiveKeyDemo> component:
+
+    at ForDirectiveKeyDemo (http://localhost:5173/src/ForDirectiveKeyDemo.tsx:676:29)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:730:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14029
+[   10028ms] ReferenceError: a2 is not defined
+    at http://localhost:5173/src/BlockExprDemo.tsx:679:21
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=0bd9a488:1095:29)
+    at BlockExprDemo (http://localhost:5173/src/BlockExprDemo.tsx:678:23)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=0bd9a488:19196:20)

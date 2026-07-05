@@ -1,0 +1,85 @@
+/* Styles for ComponentSpecialsDemo */
+.container {
+  border: 1px solid #d4d4d8;
+  padding: 20px 16px;
+  background: white;
+  margin: 16px 0;
+  border-radius: 12px;
+}
+.title {
+  color: #1f2937;
+  font-size: 18px;
+  margin: 0 0 4px 0;
+}
+.subtitle {
+  color: #9ca3af;
+  font-size: 12px;
+  margin: 0 0 14px 0;
+}
+.group-title {
+  font-size: 14px;
+  margin: 20px 0 10px 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+  font-weight: 600.0px;
+  color: #374151;
+}
+.demo-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.hint {
+  color: #9ca3af;
+  margin: 0 0 10px 0;
+  font-size: 11px;
+}
+.btn {
+  background: #6366f1;
+  border-radius: 6px;
+  margin-right: 8px;
+  border: none;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #fff;
+}
+.panel {
+  background: #eef2ff;
+  border-radius: 8px;
+  margin-top: 10px;
+  border: 1px solid #c7d2fe;
+  padding: 14px;
+}
+.panel {
+  font-size: 13px;
+  color: #4338ca;
+  margin: 0.0px;
+}
+.hero-box {
+  padding: 14px;
+  background: #fef3c7;
+  border-radius: 10px;
+  border: 1px solid #fcd34d;
+  text-align: center;
+}
+.hero-box {
+  font-size: 12px;
+  color: #92400e;
+  margin: 0.0px;
+}
+.signal-bar {
+  margin-top: 8px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid #93c5fd;
+  padding: 14px;
+  background: #dbeafe;
+}
+.signal-bar {
+  margin: 0.0px;
+  font-size: 13px;
+  color: #1e40af;
+}

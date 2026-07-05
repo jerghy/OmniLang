@@ -186,7 +186,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_vue(object), field)
         }
-        ExprIR::OptionalChainExpr { object, field } => {
+        ExprIR::OptionalChainExpr { object, field, .. } => {
             format!("{}.{}", format_expr_vue(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
@@ -251,7 +251,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
             entries.insert(0, format!("\"_variant\": \"{}\"", variant));
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::MethodCallExpr {
+        ExprIR::MethodCallExpr { is_optional,
             object,
             method,
             args,

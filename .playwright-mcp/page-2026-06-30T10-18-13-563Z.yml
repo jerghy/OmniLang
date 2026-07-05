@@ -1,0 +1,49 @@
+- generic [ref=f2e3]:
+  - banner [ref=f2e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=f2e5]
+    - paragraph [ref=f2e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f2e7]:
+    - generic [ref=f2e8]:
+      - button "首页" [ref=f2e9] [cursor=pointer]
+      - button "待办" [ref=f2e10] [cursor=pointer]
+      - button "基础交互" [ref=f2e11] [cursor=pointer]
+      - button "编译器特性" [active] [ref=f2e12] [cursor=pointer]
+      - button "运动动画" [ref=f2e13] [cursor=pointer]
+      - button "CSS 特性" [ref=f2e14] [cursor=pointer]
+      - button "事件/表单" [ref=f2e15] [cursor=pointer]
+      - button "语言特性" [ref=f2e16] [cursor=pointer]
+      - button "设置" [ref=f2e17] [cursor=pointer]
+      - button "补充" [ref=f2e18] [cursor=pointer]
+    - generic [ref=f2e100]:
+      - generic [ref=f2e102]:
+        - heading "HTTP GET Demo" [level=3] [ref=f2e103]
+        - paragraph [ref=f2e104]: async action + await http_get + json_parse + match
+        - generic [ref=f2e105]:
+          - textbox [ref=f2e106]: https://jsonplaceholder.typicode.com/todos/1
+          - button "Load" [ref=f2e107] [cursor=pointer]
+          - button "API" [ref=f2e108] [cursor=pointer]
+          - button "Reset" [ref=f2e109] [cursor=pointer]
+        - paragraph [ref=f2e111]: Click Load for direct fetch, API to use api.omni
+      - generic [ref=f2e113]:
+        - heading "HTTP POST Demo" [level=3] [ref=f2e114]
+        - paragraph [ref=f2e115]: json_stringify + http_post + await + match status
+        - generic [ref=f2e116]:
+          - generic [ref=f2e117]: Title
+          - textbox "Enter title..." [ref=f2e118]
+          - generic [ref=f2e119]: Body
+          - textbox "Enter body..." [ref=f2e120]
+          - generic [ref=f2e121]:
+            - button "Submit" [ref=f2e122] [cursor=pointer]
+            - button "Reset" [ref=f2e123] [cursor=pointer]
+      - generic [ref=f2e125]:
+        - heading "Storage Demo" [level=3] [ref=f2e126]
+        - paragraph [ref=f2e127]: storage get/set + json parse/stringify + mount
+        - generic [ref=f2e128]:
+          - generic [ref=f2e129]: Username
+          - textbox "Your name..." [ref=f2e130]
+          - generic [ref=f2e131]:
+            - button "Save" [ref=f2e132] [cursor=pointer]
+            - button "Clear" [ref=f2e133] [cursor=pointer]
+        - paragraph [ref=f2e135]: No saved settings found
+    - contentinfo [ref=f2e98]:
+      - paragraph [ref=f2e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

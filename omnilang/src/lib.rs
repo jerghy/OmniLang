@@ -247,10 +247,23 @@ pub fn compile_multi_to_target(
             errors.push(format!("{}: {}", path, d.message));
         }
 
-        let ir_program = ir::lower(program, &semantics);
+        let mut ir_program = ir::lower(program, &semantics);
 
-        // Merge modules — combine declarations from multiple files
-        for (mod_name, mod_ir) in ir_program.modules {
+        // Annotate components and stores with their source file path,
+        // then merge modules — combine declarations from multiple files.
+        for (mod_name, mut mod_ir) in ir_program.modules {
+            // Stamp source file path onto each component and store
+            for comp in mod_ir.components.values_mut() {
+                if comp.source_file.is_none() {
+                    comp.source_file = Some(path.clone());
+                }
+            }
+            for store in mod_ir.stores.values_mut() {
+                if store.source_file.is_none() {
+                    store.source_file = Some(path.clone());
+                }
+            }
+
             merged_ir
                 .modules
                 .entry(mod_name)

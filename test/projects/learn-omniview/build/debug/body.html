@@ -228,7 +228,7 @@
                               <h3 data-nid="el-h3-105" class="title">
                                 FeatureCard Demo
                               </h3>
-                              <input data-nid="el-input-106" placeholder="Click" class="input" />
+                              <input data-nid="el-input-106" class="input" placeholder="Click" />
                               <div data-nid="el-if-107-b0" style="display:none">
                                 <fragment data-nid="el-fragment-108">
                                   <span data-nid="el-span-109" class="badge-focused">
@@ -532,11 +532,11 @@
                       <label data-nid="el-label-242" class="field-label">
                         Title
                       </label>
-                      <input data-nid="el-input-243" class="field-input" placeholder="Enter title..." />
+                      <input data-nid="el-input-243" placeholder="Enter title..." class="field-input" />
                       <label data-nid="el-label-244" class="field-label">
                         Body
                       </label>
-                      <textarea data-nid="el-textarea-245" class="field-textarea" placeholder="Enter body..." rows="3">
+                      <textarea data-nid="el-textarea-245" rows="3" class="field-textarea" placeholder="Enter body...">
                       </textarea>
                       <div data-nid="el-div-246" class="btn-row">
                         <button data-nid="el-button-247" class="btn-submit">
@@ -596,7 +596,7 @@
                       <label data-nid="el-label-269" class="field-label">
                         Username
                       </label>
-                      <input data-nid="el-input-270" placeholder="Your name..." class="field-input" />
+                      <input data-nid="el-input-270" class="field-input" placeholder="Your name..." />
                       <div data-nid="el-div-271" class="btn-row">
                         <button data-nid="el-button-272" class="btn-save">
                           Save
@@ -631,7 +631,7 @@
                         <span data-nid="el-interp-286"></span>
                       </p>
                       <div data-nid="el-div-287" class="row">
-                        <input data-nid="el-input-288" class="input" placeholder="Enter text to validate..." />
+                        <input data-nid="el-input-288" placeholder="Enter text to validate..." class="input" />
                         <button data-nid="el-button-289" class="btn-validate">
                           <span data-nid="el-interp-290"></span>
                         </button>
@@ -835,7 +835,7 @@
                 <div data-nid="el-DataTable-369" data-component="DataTable">
                   <div data-nid="el-div-370" class="datatable">
                     <div data-nid="el-div-371" class="header-row">
-                      <img data-nid="el-img-372" alt="dot" src="/dot.png" />
+                      <img data-nid="el-img-372" src="/dot.png" alt="dot" />
                       <h2 data-nid="el-h2-373" class="title">
                         DataTable Demo
                       </h2>
@@ -912,17 +912,17 @@
                       </h3>
                       <ul data-nid="el-List-409" class="summary-list">
                         <li data-nid="el-ListItem-410" class="summary-item">
-                          <img data-nid="el-img-411" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-411" src="/dot.png" alt="dot" />
                           Total items:
                           <span data-nid="el-interp-412"></span>
                         </li>
                         <li data-nid="el-ListItem-413" class="summary-item">
-                          <img data-nid="el-img-414" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-414" src="/dot.png" alt="dot" />
                           Active items:
                           <span data-nid="el-interp-415"></span>
                         </li>
                         <li data-nid="el-ListItem-416" class="summary-item">
-                          <img data-nid="el-img-417" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-417" src="/dot.png" alt="dot" />
                           Scroll events:
                           <span data-nid="el-interp-418"></span>
                         </li>
@@ -934,7 +934,7 @@
                       </h3>
                       <ul data-nid="el-List-421" class="features-list">
                         <li data-nid="el-ListItem-422" class="features-item">
-                          <img data-nid="el-img-423" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-423" src="/dot.png" alt="dot" />
                           Grade for 95:
                           <span data-nid="el-interp-424"></span>
                         </li>
@@ -957,7 +957,7 @@
                     </div>
                     <hr data-nid="el-hr-434" />
                     <div data-nid="el-div-435" class="footer-row">
-                      <img data-nid="el-img-436" alt="dot" src="/dot.png" />
+                      <img data-nid="el-img-436" src="/dot.png" alt="dot" />
                       <p data-nid="el-p-437" class="footer-text">
                         DataTable Phase 4 Demo
                       </p>
@@ -973,10 +973,10 @@
                     </h2>
                     <form data-nid="el-form-442" class="form">
                       <div data-nid="el-div-443" class="field">
-                        <label data-nid="el-label-444" class="label" for="name">
+                        <label data-nid="el-label-444" for="name" class="label">
                           Name
                         </label>
-                        <input data-nid="el-input-445" id="name" placeholder="Your name" required data-testid="name-field" data-type="text" aria-label="Full name input" class="input" />
+                        <input data-nid="el-input-445" data-type="text" aria-label="Full name input" data-testid="name-field" class="input" required id="name" placeholder="Your name" />
                         <div data-nid="el-if-446-b0" style="display:none">
                           <fragment data-nid="el-fragment-447">
                             <span data-nid="el-span-448" class="error-text">
@@ -989,7 +989,7 @@
                         <label data-nid="el-label-451" class="label" for="email">
                           Email
                         </label>
-                        <input data-nid="el-input-452" aria-label="Email address input" data-testid="email-field" class="input" placeholder="your@email.com" required data-type="email" id="email" />
+                        <input data-nid="el-input-452" id="email" aria-label="Email address input" data-type="email" required data-testid="email-field" class="input" placeholder="your@email.com" />
                         <div data-nid="el-if-453-b0" style="display:none">
                           <fragment data-nid="el-fragment-454">
                             <span data-nid="el-span-455" class="error-text">
@@ -999,23 +999,23 @@
                         </div>
                       </div>
                       <div data-nid="el-div-457" class="field">
-                        <label data-nid="el-label-458" for="msg" class="label">
+                        <label data-nid="el-label-458" class="label" for="msg">
                           Message
                         </label>
-                        <textarea data-nid="el-textarea-459" data-testid="msg-field" placeholder="Your message (optional)" id="msg" aria-label="Message input" class="textarea">
+                        <textarea data-nid="el-textarea-459" data-testid="msg-field" id="msg" aria-label="Message input" class="textarea" placeholder="Your message (optional)">
                         </textarea>
                       </div>
                       <div data-nid="el-div-460" class="field">
-                        <label data-nid="el-label-461" class="label" for="disabled-field">
+                        <label data-nid="el-label-461" for="disabled-field" class="label">
                           Disabled field
                         </label>
-                        <input data-nid="el-input-462" disabled placeholder="This field is disabled" data-testid="disabled-field" id="disabled-field" class="input" aria-label="Disabled input" />
+                        <input data-nid="el-input-462" disabled placeholder="This field is disabled" data-testid="disabled-field" aria-label="Disabled input" class="input" id="disabled-field" />
                       </div>
                       <div data-nid="el-div-463" class="field">
-                        <label data-nid="el-label-464" class="label" for="readonly-field">
+                        <label data-nid="el-label-464" for="readonly-field" class="label">
                           Readonly field
                         </label>
-                        <input data-nid="el-input-465" aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" value="Read-only value" readonly class="input" />
+                        <input data-nid="el-input-465" class="input" readonly aria-label="Read-only input" id="readonly-field" data-testid="readonly-field" value="Read-only value" />
                       </div>
                       <div data-nid="el-div-466" class="scroll-box">
                         <p data-nid="el-p-467" class="scroll-title">
@@ -1057,15 +1057,15 @@
                         </fragment>
                       </div>
                       <div data-nid="el-div-483" class="actions">
-                        <button data-nid="el-button-484" class="submit-btn" type="submit" aria-label="Submit form" data-testid="submit-btn">
+                        <button data-nid="el-button-484" aria-label="Submit form" class="submit-btn" data-testid="submit-btn" type="submit">
                           Submit
                         </button>
-                        <button data-nid="el-button-485" data-testid="reset-btn" type="button" class="reset-btn" aria-label="Reset form">
+                        <button data-nid="el-button-485" class="reset-btn" type="button" data-testid="reset-btn" aria-label="Reset form">
                           Reset
                         </button>
                       </div>
                       <div data-nid="el-div-486" class="conditional-area">
-                        <button data-nid="el-button-487" class="conditional-btn" aria-label="Conditional submit button" data-testid="conditional-btn">
+                        <button data-nid="el-button-487" class="conditional-btn" data-testid="conditional-btn" aria-label="Conditional submit button">
                           <span data-nid="el-interp-488"></span>
                         </button>
                       </div>
@@ -2278,7 +2278,7 @@
                       <div data-nid="el-div-956" class="tl-label">
                         outro
                       </div>
-                      <div data-nid="el-div-957" class="tl-box" data-box="box4">
+                      <div data-nid="el-div-957" data-box="box4" class="tl-box">
                         box4 · with outro
                       </div>
                     </div>
@@ -3215,7 +3215,7 @@
                         <p data-nid="el-p-1299" class="section-title">
                           a-tag link with href / title / target:
                         </p>
-                        <a data-nid="el-a-1300" title="Demo link — click to count" href="#" class="demo-link">
+                        <a data-nid="el-a-1300" href="#" class="demo-link" title="Demo link — click to count">
                           Click me (
                           <span data-nid="el-interp-1301"></span>
                           )
@@ -3260,7 +3260,7 @@
                         <p data-nid="el-p-1318" class="section-title">
                           Number input with min/max/step:
                         </p>
-                        <input data-nid="el-input-1319" min="0" value max="120" title="Enter your age (0-120)" class="demo-input" type="number" step="1" />
+                        <input data-nid="el-input-1319" type="number" step="1" value max="120" min="0" class="demo-input" title="Enter your age (0-120)" />
                         <p data-nid="el-p-1320" class="select-value">
                           Age:
                           <span data-nid="el-interp-1321"></span>
@@ -3270,7 +3270,7 @@
                         <p data-nid="el-p-1323" class="section-title">
                           Range slider with min/max/step:
                         </p>
-                        <input data-nid="el-input-1324" value min="0" title="Select a value (0-100, step 5)" max="100" step="5" type="range" class="demo-range" />
+                        <input data-nid="el-input-1324" value min="0" type="range" max="100" title="Select a value (0-100, step 5)" class="demo-range" step="5" />
                         <p data-nid="el-p-1325" class="select-value">
                           Range:
                           <span data-nid="el-interp-1326"></span>
@@ -3317,7 +3317,7 @@
                       <h3 data-nid="el-h3-1344" class="card-title">
                         拖拽事件
                       </h3>
-                      <div data-nid="el-div-1345" draggable="true" class="drag-box">
+                      <div data-nid="el-div-1345" class="drag-box" draggable="true">
                         <p data-nid="el-p-1346" class="hint">
                           拖拽状态:
                           <span data-nid="el-interp-1347"></span>
@@ -3365,7 +3365,7 @@
                       <h3 data-nid="el-h3-1365" class="card-title">
                         媒体与资源事件
                       </h3>
-                      <img data-nid="el-img-1366" class="hidden-img" src="about:blank" alt="test" />
+                      <img data-nid="el-img-1366" src="about:blank" alt="test" class="hidden-img" />
                       <div data-nid="el-div-1367" class="media-box">
                         <p data-nid="el-p-1368" class="hint">
                           媒体状态:
@@ -3547,31 +3547,31 @@
                           <figcaption data-nid="el-figcaption-1438">
                             插图标题 (figure + figcaption)
                           </figcaption>
-                          <video data-nid="el-video-1439" controls width="200" class="media">
+                          <video data-nid="el-video-1439" class="media" width="200" controls>
                             <source data-nid="el-source-1440" src="sample.mp4" type="video/mp4" />
                           </video>
-                          <audio data-nid="el-audio-1441" class="media" controls>
+                          <audio data-nid="el-audio-1441" controls class="media">
                             <source data-nid="el-source-1442" type="audio/mpeg" src="sample.mp3" />
                           </audio>
                         </figure>
                         <canvas data-nid="el-canvas-1443" class="canvas">
                         </canvas>
                         <picture data-nid="el-picture-1444">
-                          <source data-nid="el-source-1445" media="(min-width: 800px)" srcset="large.jpg" />
-                          <img data-nid="el-img-1446" src="fallback.jpg" alt="responsive" />
+                          <source data-nid="el-source-1445" srcset="large.jpg" media="(min-width: 800px)" />
+                          <img data-nid="el-img-1446" alt="responsive" src="fallback.jpg" />
                         </picture>
                         <map data-nid="el-map-1447" name="demo-map">
-                          <area data-nid="el-area-1448" shape="rect" href="#area1" coords="0,0,50,50" alt="Area 1" />
+                          <area data-nid="el-area-1448" shape="rect" coords="0,0,50,50" href="#area1" alt="Area 1" />
                         </map>
                       </section>
                       <section data-nid="el-section-1449" class="tag-section">
                         <h4 data-nid="el-h4-1450" class="tag-group">
                           度量与进度
                         </h4>
-                        <progress data-nid="el-progress-1451" max="100" value="70" class="progress">
+                        <progress data-nid="el-progress-1451" class="progress" max="100" value="70">
                           70%
                         </progress>
-                        <meter data-nid="el-meter-1452" class="meter" min="0" max="1" value="0.6">
+                        <meter data-nid="el-meter-1452" class="meter" max="1" value="0.6" min="0">
                           60%
                         </meter>
                       </section>
@@ -3616,7 +3616,7 @@
                         <span data-nid="el-interp-1470"></span>
                       </p>
                     </div>
-                    <input data-nid="el-input-1471" placeholder="Press a key" class="key-input" />
+                    <input data-nid="el-input-1471" class="key-input" placeholder="Press a key" />
                     <p data-nid="el-p-1472">
                       Key:
                       <span data-nid="el-interp-1473"></span>
@@ -4281,7 +4281,7 @@
                         <h4 data-nid="el-h4-1742" class="label">
                           testId 属性标记
                         </h4>
-                        <div data-nid="el-div-1743" class="info-box" data-testid="attr-demo-container">
+                        <div data-nid="el-div-1743" data-testid="attr-demo-container" class="info-box">
                           <p data-nid="el-p-1744" class="info-text">
                             此 div 使用 testId 属性标记，用于测试定位
                           </p>
@@ -4292,7 +4292,7 @@
                           bind:checked 复选框绑定
                         </h4>
                         <label data-nid="el-label-1747" class="checkbox-label">
-                          <input data-nid="el-input-1748" data-testid="agree-checkbox" type="checkbox" />
+                          <input data-nid="el-input-1748" type="checkbox" data-testid="agree-checkbox" />
                           <span data-nid="el-span-1749">
                             同意条款:
                             <span data-nid="el-interp-1750"></span>
@@ -4303,7 +4303,7 @@
                         <h4 data-nid="el-h4-1752" class="label">
                           bind:value 文本输入
                         </h4>
-                        <textarea data-nid="el-textarea-1753" class="rich-input" placeholder="输入文本...">
+                        <textarea data-nid="el-textarea-1753" placeholder="输入文本..." class="rich-input">
                         </textarea>
                         <p data-nid="el-p-1754" class="preview">
                           预览:
@@ -4848,7 +4848,7 @@
                         <p data-nid="el-p-1988">
                           Hover or Focus this panel
                         </p>
-                        <input data-nid="el-input-1989" placeholder="Tab to focus me" class="panel-input" />
+                        <input data-nid="el-input-1989" class="panel-input" placeholder="Tab to focus me" />
                       </div>
                     </div>
                   </div>

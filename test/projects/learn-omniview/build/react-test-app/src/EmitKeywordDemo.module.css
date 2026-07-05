@@ -1,0 +1,108 @@
+/* Styles for EmitKeywordDemo */
+.wrapper {
+  padding: 20px;
+  margin: 16px 0;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #d4d4d8;
+}
+.section-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+.subtitle {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #64748b;
+}
+code {
+  border-radius: 4px;
+  font-size: 12px;
+  background: #f1f5f9;
+  padding: 2px 6px;
+}
+.side-by-side {
+  margin-bottom: 16px;
+}
+.child-column {
+  max-width: 400px;
+}
+.column-label {
+  margin: 0 0 8px 0;
+  font-weight: 600.0px;
+  font-size: 13px;
+  color: #64748b;
+}
+.log-section {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 12px;
+}
+.log-column {
+  flex: 1.0px;
+}
+.log-title {
+  font-weight: 600.0px;
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: #334155;
+}
+.log-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  min-height: 80px;
+}
+.log-empty {
+  color: #94a3b8;
+  text-align: center;
+  padding: 16px 0;
+  font-size: 12px;
+  margin: 0.0px;
+}
+.log-entry {
+  align-items: center;
+  padding: 4px 0;
+  gap: 6px;
+  display: flex;
+}
+.log-badge {
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 700.0px;
+}
+.log-badge.emit {
+  color: #4338ca;
+  background: #e0e7ff;
+}
+.log-badge.func {
+  color: #be185d;
+  background: #fce7f3;
+}
+.log-msg {
+  font-size: 12px;
+  color: #334155;
+}
+.tech-note {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+.note-title {
+  color: #e2e8f0;
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+.note-list {
+  margin: 0.0px;
+  padding-left: 18px;
+}
+.note-list {
+  line-height: 1.5px;
+  color: #94a3b8;
+  font-size: 12px;
+  margin-bottom: 4px;
+}

@@ -1,0 +1,50 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9]
+      - button "待办" [active] [ref=e10]
+      - button "基础交互" [ref=e11]
+      - button "编译器特性" [ref=e12]
+      - button "运动动画" [ref=e13]
+      - button "CSS 特性" [ref=e14]
+      - button "事件/表单" [ref=e15]
+      - button "语言特性" [ref=e16]
+      - button "设置" [ref=e17]
+      - button "补充" [ref=e18]
+    - generic [ref=e102]:
+      - generic [ref=e103]:
+        - heading "Todo List" [level=2] [ref=e104]
+        - paragraph [ref=e105]: 0tasks · Filter:all
+        - generic [ref=e106]: Loaded ×1
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - textbox "Filter todos..." [ref=e110]
+          - button "X" [ref=e111] [cursor=pointer]
+        - generic [ref=e112]:
+          - paragraph [ref=e113]: Showing all 0 items
+          - button "SortASC" [ref=e114] [cursor=pointer]
+          - button "Sync" [ref=e115] [cursor=pointer]
+        - generic [ref=e116]:
+          - paragraph [ref=e117]: Store:0items | Filter:all| Changes:0
+          - paragraph [ref=e118]: "Last:"
+          - paragraph [ref=e119]: Filtered frameworks:55
+      - generic [ref=e121]:
+        - heading "待办列表 0" [level=2] [ref=e122]:
+          - text: 待办列表
+          - generic [ref=e123]: "0"
+        - generic [ref=e124]:
+          - generic [ref=e125]:
+            - textbox "输入待办事项" [ref=e126]
+            - button "添加" [ref=e127] [cursor=pointer]
+            - button "清空" [ref=e128] [cursor=pointer]
+          - paragraph [ref=e129]: 已输入0字符
+        - paragraph [ref=e132]: 还没有待办事项，在上方添加吧
+      - generic [ref=e133]:
+        - button "Clear All" [ref=e134]
+        - button "Sync Reminders" [ref=e135]
+        - generic [ref=e136]: "Last:"
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

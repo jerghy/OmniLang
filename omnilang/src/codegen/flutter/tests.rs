@@ -586,6 +586,7 @@ fn test_empty_component() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -673,6 +674,7 @@ fn test_component_with_state() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -738,6 +740,7 @@ fn test_component_with_props() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -791,6 +794,7 @@ fn test_component_with_mount_lifecycle() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -844,6 +848,7 @@ fn test_component_with_unmount_lifecycle() {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         },
     );
     let ir = make_ir(components);
@@ -871,6 +876,7 @@ fn test_store_dart_empty() {
         signal_defaults: HashMap::new(),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("EmptyStore", &store);
     assert!(store_dart.contains("class EmptyStore {"));
@@ -910,6 +916,7 @@ fn test_store_dart_with_signals() {
         signal_defaults: defaults,
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("AppStore", &store);
     assert!(store_dart.contains("class AppStore extends ChangeNotifier {"));
@@ -958,6 +965,7 @@ fn test_store_dart_with_getters() {
         signal_defaults: defaults,
         getters,
         actions: vec![],
+        ..Default::default()
     };
     let store_dart = codegen.gen_store_dart("CalcStore", &store);
     assert!(store_dart.contains("get doubleCount {"));
@@ -1011,6 +1019,7 @@ fn test_full_pipeline_component() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
@@ -1059,6 +1068,7 @@ fn test_full_pipeline_with_store() {
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),
@@ -1104,6 +1114,7 @@ fn test_full_pipeline_component_with_store_ref() {
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     let comp = ComponentIR {
         name: "App".into(),
@@ -1124,6 +1135,7 @@ fn test_full_pipeline_component_with_store_ref() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     let ir = IRProgram {
         version: "0.1".into(),

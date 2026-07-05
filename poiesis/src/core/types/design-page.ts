@@ -9,12 +9,23 @@ export interface Breadcrumb {
   filePath?: string;   // .omni file path
 }
 
+export type TabType = "component" | "store" | "code";
+
+/** Detect editor tab type from file path. */
+export function detectTabType(filePath: string): TabType {
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.includes("/stores/") || normalized.startsWith("stores/")) return "store";
+  if (normalized.includes("/lib/") || normalized.startsWith("lib/")) return "code";
+  return "component";
+}
+
 export interface DesignTab {
   id: string;
   filePath: string;        // relative to project root, e.g. "src/components/TodoItem.omni"
   componentName: string;
   isDirty: boolean;
   pidMap: PidMap;
+  tabType: TabType;        // determines which editor to show
 }
 
 export interface DesignPageState {

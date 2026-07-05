@@ -5,6 +5,61 @@
 use crate::codegen::sanitize_css_value;
 use crate::ir::*;
 
+/// Check if a StatementIR references a given identifier anywhere in its tree.
+fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
+    match stmt {
+        StatementIR::LetStmtIR { value, .. } => {
+            value
+                .as_ref()
+                .map_or(false, |v| getter_expr_contains_ident(v, ident))
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            getter_expr_contains_ident(condition, ident)
+                || then_body
+                    .statements
+                    .iter()
+                    .any(|s| statement_contains_ident(s, ident))
+                || else_ifs.iter().any(|(cond, body)| {
+                    getter_expr_contains_ident(cond, ident)
+                        || body
+                            .statements
+                            .iter()
+                            .any(|s| statement_contains_ident(s, ident))
+                })
+                || else_body.as_ref().map_or(false, |b| {
+                    b.statements
+                        .iter()
+                        .any(|s| statement_contains_ident(s, ident))
+                })
+        }
+        StatementIR::ReturnStmtIR { value } => value
+            .as_ref()
+            .map_or(false, |v| getter_expr_contains_ident(v, ident)),
+        StatementIR::ExprStmtIR { expr } => getter_expr_contains_ident(expr, ident),
+        StatementIR::MutationStmt { intent, .. } => {
+            if let Some(intent) = intent {
+                intent.target.name == *ident
+                    || intent
+                        .amount
+                        .as_ref()
+                        .map_or(false, |a| getter_expr_contains_ident(a, ident))
+                    || intent
+                        .item
+                        .as_ref()
+                        .map_or(false, |i| getter_expr_contains_ident(i, ident))
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 /// Check if an ExprIR references a given identifier anywhere in its tree.
 pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
     match expr {
@@ -38,6 +93,12 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
         ExprIR::StoreFieldAccessExpr { ref call_args, .. } => call_args
             .iter()
             .any(|a| getter_expr_contains_ident(a, ident)),
+        ExprIR::BlockExpr { statements, tail } => {
+            statements
+                .iter()
+                .any(|s| statement_contains_ident(s, ident))
+                || getter_expr_contains_ident(tail, ident)
+        }
         _ => false,
     }
 }
@@ -145,13 +206,47 @@ pub(super) fn to_jsx_attr(prop_name: &str) -> String {
         "formmethod" => "formMethod".into(),
         "formnovalidate" => "formNoValidate".into(),
         "formtarget" => "formTarget".into(),
+        "datetime" => "dateTime".into(),
+        "srcset" => "srcSet".into(),
+        "testId" => "data-testid".into(),
         _ => prop_name.to_string(),
     }
 }
 
+/// Map OmniView custom element tags to their React/HTML equivalents.
+/// OmniView uses PascalCase aliases (Button, Card, Text, Flex, etc.) for native HTML elements.
+pub(super) fn to_react_tag(tag: &str) -> String {
+    match tag {
+        "Text" => "span".into(),
+        "Button" => "button".into(),
+        "Card" | "Container" => "div".into(),
+        "Flex" => "div".into(),
+        "Heading" => "h2".into(),
+        "Image" | "Img" => "img".into(),
+        "TextInput" | "Input" => "input".into(),
+        "Link" => "a".into(),
+        "List" => "ul".into(),
+        "ListItem" => "li".into(),
+        "CheckBox" | "Checkbox" => "input".into(),
+        "Select" => "select".into(),
+        "TextArea" | "Textarea" => "textarea".into(),
+        // For other PascalCase tags not in the map, lowercase the first letter
+        // to avoid React treating them as component references.
+        t if t.chars().next().is_some_and(|c| c.is_uppercase()) => {
+            t.to_lowercase()
+        }
+        t => t.to_string(),
+    }
+}
+
 /// Map OmniView event names to React event handler prop names.
+/// Event names from the IR may or may not have an "on" prefix — we normalize first.
 pub(super) fn to_react_event(event_name: &str) -> String {
-    match event_name {
+    // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
+    let stem = event_name.strip_prefix("on").unwrap_or(event_name);
+    // Lowercase for case-insensitive matching
+    let stem_lower = stem.to_lowercase();
+    match stem_lower.as_str() {
         "click" => "onClick".into(),
         "change" => "onChange".into(),
         "input" => "onInput".into(),
@@ -181,7 +276,8 @@ pub(super) fn to_react_event(event_name: &str) -> String {
         "dragover" => "onDragOver".into(),
         "dragleave" => "onDragLeave".into(),
         "drop" => "onDrop".into(),
-        _ => format!("on{}", capitalize_first(event_name)),
+        "press" => "onClick".into(),
+        _ => format!("on{}", capitalize_first(stem)),
     }
 }
 

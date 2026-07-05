@@ -4,12 +4,15 @@ export const CATEGORY_LABELS: Record<string, string> = {
   Custom: "★ 自定义",
 };
 export const CATEGORY_ORDER = ["Custom", "Layout", "Typography", "Actions", "Forms", "Data", "Media", "Feedback", "Navigation"];
+/** Icons keyed by OmniLang element tag name (not semantic alias). */
 export const COMPONENT_ICONS: Record<string, string> = {
-  Container: "📦", Flex: "↔", Grid: "⊞", Card: "🃏",
-  Text: "📝", Heading: "📰",
-  Button: "🔘", Input: "📋", TextArea: "📄", Select: "📌", Checkbox: "☑",
-  List: "📃", ListItem: "📎",
-  Image: "🖼",
-  Spinner: "⏳", Progress: "📊", Alert: "⚠",
-  Link: "🔗", Form: "📨",
+  div: "📦", span: "🔤", p: "📝",
+  h1: "📰", h2: "📰", h3: "📰", h4: "📰", h5: "📰", h6: "📰",
+  button: "🔘", input: "📋", textarea: "📄", select: "📌",
+  ul: "📃", ol: "📋", li: "📎",
+  img: "🖼",
+  progress: "📊",
+  a: "🔗", form: "📨",
+  section: "🧱", article: "📄", header: "🧱", footer: "🧱", nav: "🧭", main: "🧱",
+  label: "🏷",
 };

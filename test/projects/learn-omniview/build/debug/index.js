@@ -1527,91 +1527,12 @@ window.resolveEasing = resolveEasing;
 
 })();
 
-const NotificationStore_notifications = __omni_signal("NotificationStore_notifications", []);
-const NotificationStore_maxCount = __omni_signal("NotificationStore_maxCount", 5);
-const NotificationStore_unreadCount = __omni_computed("NotificationStore_unreadCount", () => ((NotificationStore_notifications.value || []).length));
-function NotificationStore_add(message) {
-  if (message === "") {
-  return "empty message ignored";
-  }
-  if ((NotificationStore_notifications.value || []).length >= NotificationStore_maxCount.value) {
-  return "max notifications reached";
-  }
-  NotificationStore_notifications.value.push(message); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
-  localStorage.setItem("notification-count", String(NotificationStore_unreadCount.value));
-  return "added";
-}
-
-function NotificationStore_addWithPriority(title, body, priority) {
-  let full = title + ": " + body;
-  if (priority > 5) {
-  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
-  return "high priority added";
-  }
-  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
-  return "added";
-}
-
-function NotificationStore_removeLast() {
-  if ((NotificationStore_notifications.value || []).length === 0) {
-  return "no notifications";
-  }
-  NotificationStore_notifications.value.pop(); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
-  return "removed";
-}
-
-function NotificationStore_clear() {
-  NotificationStore_notifications.set([]);
-}
-
-function NotificationStore_clearAll() {
-  NotificationStore_notifications.set([]);
-  localStorage.setItem("notification-count", "0");
-}
-
-
-const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
-const ThemeStore_toggleCount = __omni_signal("ThemeStore_toggleCount", 0);
-const ThemeStore_currentMuted = __omni_computed("ThemeStore_currentMuted", () => (ThemeStore_mode.value === "dark" ? "#1f2937" : "#f9fafb"));
-const ThemeStore_currentBg = __omni_computed("ThemeStore_currentBg", () => (ThemeStore_mode.value === "dark" ? "#111827" : "#ffffff"));
-const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "dark" ? "Dark" : "Light"));
-const ThemeStore_nextLabel = __omni_computed("ThemeStore_nextLabel", () => (ThemeStore_mode.value === "dark" ? "Light" : "Dark"));
-const ThemeStore_currentText = __omni_computed("ThemeStore_currentText", () => (ThemeStore_mode.value === "dark" ? "#f9fafb" : "#111827"));
-const ThemeStore_currentPrimary = __omni_computed("ThemeStore_currentPrimary", () => (ThemeStore_mode.value === "dark" ? "#a5b4fc" : "#6366f1"));
-const ThemeStore_currentBorder = __omni_computed("ThemeStore_currentBorder", () => (ThemeStore_mode.value === "dark" ? "#4b5563" : "#d4d4d8"));
-function ThemeStore_load() {
-  let raw = localStorage.getItem("theme-mode");
-  if (raw !== null) {
-  ThemeStore_mode.set(raw);
-  }
-}
-
-function ThemeStore_toggle() {
-  if (ThemeStore_mode.value === "dark") {
-  ThemeStore_mode.set("light");
-  } else {
-  ThemeStore_mode.set("dark");
-  }
-  ThemeStore_toggleCount.set(ThemeStore_toggleCount.value + 1);
-  localStorage.setItem("theme-mode", ThemeStore_mode.value);
-}
-
-function ThemeStore_setMode(newMode) {
-  if (newMode === "dark") {
-  ThemeStore_mode.set("dark");
-  } else {
-  ThemeStore_mode.set("light");
-  }
-  localStorage.setItem("theme-mode", ThemeStore_mode.value);
-}
-
-
-const TodoStore_items = __omni_signal("TodoStore_items", []);
-const TodoStore_lastAction = __omni_signal("TodoStore_lastAction", "");
 const TodoStore_filter = __omni_signal("TodoStore_filter", "all");
-const TodoStore_filterStatus = __omni_computed("TodoStore_filterStatus", () => (TodoStore_filter.value));
-const TodoStore_totalCount = __omni_computed("TodoStore_totalCount", () => ((TodoStore_items.value).length));
+const TodoStore_lastAction = __omni_signal("TodoStore_lastAction", "");
+const TodoStore_items = __omni_signal("TodoStore_items", []);
 const TodoStore_hasItems = __omni_computed("TodoStore_hasItems", () => (!(TodoStore_items.value).length === 0));
+const TodoStore_totalCount = __omni_computed("TodoStore_totalCount", () => ((TodoStore_items.value).length));
+const TodoStore_filterStatus = __omni_computed("TodoStore_filterStatus", () => (TodoStore_filter.value));
 function TodoStore_load() {
   let raw = localStorage.getItem("todo-items");
   if (raw !== null) {
@@ -1692,56 +1613,168 @@ function TodoStore_clear() {
 }
 
 
-
-// pub fn base64_roundtrip
-function base64_roundtrip(original) {
-  let encoded = encode_base64_encode(original);
-  let decoded = encode_base64_decode(encoded);
-  return decoded === original;
-}
-
-
-// pub fn demo_constants
-function demo_constants() {
-  let result = {};
-  result = "pi";
-  result = "e";
-  return result;
-}
-
-
-// pub fn octal_perms
-function octal_perms() {
-  return 493;
-}
-
-
-// pub fn find_max_index
-function find_max_index(values) {
-  let max_idx = 0;
-  let i = 1;
-  while (i < (values || []).length) {
-  if ((values || [])[i] > (values || [])[max_idx]) {
-  max_idx = i;
+const NotificationStore_notifications = __omni_signal("NotificationStore_notifications", []);
+const NotificationStore_maxCount = __omni_signal("NotificationStore_maxCount", 5);
+const NotificationStore_unreadCount = __omni_computed("NotificationStore_unreadCount", () => ((NotificationStore_notifications.value || []).length));
+function NotificationStore_add(message) {
+  if (message === "") {
+  return "empty message ignored";
   }
+  if ((NotificationStore_notifications.value || []).length >= NotificationStore_maxCount.value) {
+  return "max notifications reached";
+  }
+  NotificationStore_notifications.value.push(message); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  localStorage.setItem("notification-count", String(NotificationStore_unreadCount.value));
+  return "added";
+}
+
+function NotificationStore_addWithPriority(title, body, priority) {
+  let full = title + ": " + body;
+  if (priority > 5) {
+  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  return "high priority added";
+  }
+  NotificationStore_notifications.value.push(full); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  return "added";
+}
+
+function NotificationStore_removeLast() {
+  if ((NotificationStore_notifications.value || []).length === 0) {
+  return "no notifications";
+  }
+  NotificationStore_notifications.value.pop(); NotificationStore_notifications.set(NotificationStore_notifications.value.slice());
+  return "removed";
+}
+
+function NotificationStore_clear() {
+  NotificationStore_notifications.set([]);
+}
+
+function NotificationStore_clearAll() {
+  NotificationStore_notifications.set([]);
+  localStorage.setItem("notification-count", "0");
+}
+
+
+const ThemeStore_mode = __omni_signal("ThemeStore_mode", "light");
+const ThemeStore_toggleCount = __omni_signal("ThemeStore_toggleCount", 0);
+const ThemeStore_currentBorder = __omni_computed("ThemeStore_currentBorder", () => (ThemeStore_mode.value === "dark" ? "#4b5563" : "#d4d4d8"));
+const ThemeStore_modeLabel = __omni_computed("ThemeStore_modeLabel", () => (ThemeStore_mode.value === "dark" ? "Dark" : "Light"));
+const ThemeStore_nextLabel = __omni_computed("ThemeStore_nextLabel", () => (ThemeStore_mode.value === "dark" ? "Light" : "Dark"));
+const ThemeStore_currentBg = __omni_computed("ThemeStore_currentBg", () => (ThemeStore_mode.value === "dark" ? "#111827" : "#ffffff"));
+const ThemeStore_currentText = __omni_computed("ThemeStore_currentText", () => (ThemeStore_mode.value === "dark" ? "#f9fafb" : "#111827"));
+const ThemeStore_currentMuted = __omni_computed("ThemeStore_currentMuted", () => (ThemeStore_mode.value === "dark" ? "#1f2937" : "#f9fafb"));
+const ThemeStore_currentPrimary = __omni_computed("ThemeStore_currentPrimary", () => (ThemeStore_mode.value === "dark" ? "#a5b4fc" : "#6366f1"));
+function ThemeStore_load() {
+  let raw = localStorage.getItem("theme-mode");
+  if (raw !== null) {
+  ThemeStore_mode.set(raw);
+  }
+}
+
+function ThemeStore_toggle() {
+  if (ThemeStore_mode.value === "dark") {
+  ThemeStore_mode.set("light");
+  } else {
+  ThemeStore_mode.set("dark");
+  }
+  ThemeStore_toggleCount.set(ThemeStore_toggleCount.value + 1);
+  localStorage.setItem("theme-mode", ThemeStore_mode.value);
+}
+
+function ThemeStore_setMode(newMode) {
+  if (newMode === "dark") {
+  ThemeStore_mode.set("dark");
+  } else {
+  ThemeStore_mode.set("light");
+  }
+  localStorage.setItem("theme-mode", ThemeStore_mode.value);
+}
+
+
+
+// pub fn windows_path
+function windows_path() {
+  return "C:\\Users\\Admin\\Docs";
+}
+
+
+// pub fn japanese_hello
+function japanese_hello() {
+  return "こんにちは";
+}
+
+
+// pub fn calculate_average
+function calculate_average(values) {
+  let sum = 0.0;
+  let count = 0;
+  let i = 0;
+  while (i < (values || []).length) {
+  sum = sum + (values || [])[i];
+  count = count + 1;
   i = i + 1;
   }
-  return max_idx;
+  if (count !== 0) {
+  return sum / count;
+  }
+  return 0.0;
 }
 
 
-// pub fn type_system_summary
-function type_system_summary() {
-  return "i8=" + String(demo_i8()) + " i16=" + String(demo_i16()) + " u8=" + String(demo_u8()) + " u16=" + String(demo_u16()) + " u32=" + String(demo_u32()) + " f32=" + String(demo_f32()) + " isize=" + String(demo_isize()) + " usize=" + String(demo_usize());
+// pub fn demo_ends_with
+function demo_ends_with(text, suffix) {
+  return (text).endsWith(suffix);
 }
 
 
-// pub fn demo_println_vs_print
-function demo_println_vs_print() {
-  console.log("line 1");
-  console.log("inline ");
-  console.log("inline 2");
-  return 0;
+// pub fn demo_split_join
+function demo_split_join(text, sep) {
+  let parts = (text).split(sep);
+  return (parts).join(" | ");
+}
+
+
+// pub fn quoted_value
+function quoted_value() {
+  return "He said \"Hello\" to me";
+}
+
+
+// pub fn validate_email
+function validate_email(email) {
+  return regex_match(email, "^[\\w.]+@[\\w]+\\.[a-z]+$");
+}
+
+
+// pub fn err_result
+function err_result(error) {
+  return {"_variant": "Err", "error": error};
+}
+
+
+// pub fn demo_timeout
+async function demo_timeout() {
+  let task = async_spawn(slow_task());
+  return await async_timeout(task, 50);
+}
+
+
+// pub fn url_decode_demo
+function url_decode_demo(encoded) {
+  return encode_url_decode(encoded);
+}
+
+
+// pub fn demo_isize
+function demo_isize() {
+  return -42;
+}
+
+
+// pub fn json_fragment
+function json_fragment() {
+  return "{\"key\": \"value\"}";
 }
 
 
@@ -1756,9 +1789,671 @@ function find_first_match(values, min_len) {
 }
 
 
+// pub fn filter_positive
+function filter_positive(nums) {
+  let result = [];
+  for (const n of nums) {
+  if (n <= 0) {
+  continue;
+  }
+  result = n;
+  }
+  return result;
+}
+
+
+// pub fn color_from_hex
+function color_from_hex() {
+  let r = 255;
+  let g = 128;
+  let b = 64;
+  return "rgb(" + String(r) + "," + String(g) + "," + String(b) + ")";
+}
+
+
+// pub fn complex_parse
+function complex_parse(key, raw) {
+  let config = parse_config(raw);
+  try {
+  let value = get_or_throw(config, key);
+  return "found: " + value;
+  } catch (err) {
+  return "not found: " + err;
+  } finally {
+  console.log("parse complete for key=" + key);
+  }
+}
+
+
+// pub fn demo_find
+function demo_find(arr, target) {
+  return (arr).find(((s) => s === target));
+}
+
+
+// pub fn format_count
+function format_count(n) {
+  if (n === 0) {
+  return "零";
+  }
+  return String(n);
+}
+
+
+// pub fn sanitize_input
+function sanitize_input(text) {
+  let cleaned = regex_replace(text, "<[^>]+>", "");
+  return regex_replace(cleaned, "\\s+", " ");
+}
+
+
+// pub fn binary_mask
+function binary_mask() {
+  return 240;
+}
+
+
+// pub fn demo_trig
+function demo_trig(angle) {
+  let result = {};
+  result = "sin";
+  result = "cos";
+  result = "tan";
+  return result;
+}
+
+
+// pub fn validate_not_empty
+function validate_not_empty(fields) {
+  for (const field of fields) {
+  if (field === "") {
+  return "错误: 发现空字段";
+  }
+  }
+  return "通过";
+}
+
+
+// pub fn timestamp_to_string
+function timestamp_to_string(ts) {
+  return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
+}
+
+
+// pub fn try_catch_divide
+function try_catch_divide(a, b) {
+  try {
+  let result = safe_divide(a, b);
+  return "result: " + String(result);
+  } catch (err) {
+  return "error: " + err;
+  }
+}
+
+
+// pub fn demo_pow
+function demo_pow(base, exp) {
+  return Math.pow(base, exp);
+}
+
+
+// pub fn demo_remove
+function demo_remove(arr, idx) {
+  return ((arr).splice(idx, 1), (arr).slice());
+}
+
+
+// pub fn format_result
+function format_result(result) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Valid") {  const message = _v.message;  return "通过: " + message; } if (_v._variant === "Invalid") {  const errors = _v.errors;  return "失败: 发现 " + (errors || []).length + " 个错误"; } if (_v._variant === "Pending") {  return "验证中..."; }; throw new Error('match: no arm matched'); })();
+}
+
+
+// pub fn emoji_smile
+function emoji_smile() {
+  return "Smile: 😀";
+}
+
+
+// pub fn demo_usize
+function demo_usize() {
+  return 100;
+}
+
+
+// pub fn demo_i64
+function demo_i64() {
+  return 9223372036854775807;
+}
+
+
+// pub fn demo_u16
+function demo_u16() {
+  return 65535;
+}
+
+
+// pub fn binary_flags
+function binary_flags() {
+  return 170;
+}
+
+
+// pub fn avogadro_approx
+function avogadro_approx() {
+  return 6.022e+23;
+}
+
+
+// pub fn get_time_parts
+function get_time_parts() {
+  let now = datetime_now();
+  let parts = {};
+  parts = "hour";
+  parts = "minute";
+  parts = "second";
+  return parts;
+}
+
+
+// pub fn count_consonants
+function count_consonants(text) {
+  let count = 0;
+  let i = 0;
+  while (i < (text || []).length) {
+  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
+  i = i + 1;
+  continue;
+  }
+  count = count + 1;
+  i = i + 1;
+  }
+  return count;
+}
+
+
+// pub fn octal_perms
+function octal_perms() {
+  return 493;
+}
+
+
+// pub fn unwrap_or_default
+function unwrap_or_default(result, default_) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return data; } if (_v._variant === "Err") {  return default_; } if (_v._variant === "Loading") {  return default_; }; throw new Error('match: no arm matched'); })();
+}
+
+
+// pub fn loading_result
+function loading_result() {
+  return {"_variant": "Loading"};
+}
+
+
+// pub fn validate_all
+function validate_all(items, min_len) {
+  let errors = [];
+  for (const item of TodoStore_items.value) {
+  if (item === "") {
+  errors = "发现空字符串";
+  }
+  if ((item || []).length < min_len) {
+  errors = "长度不足: " + item;
+  }
+  }
+  return errors;
+}
+
+
+// pub fn demo_logs
+function demo_logs(x) {
+  let result = {};
+  result = "log";
+  result = "log2";
+  result = "log10";
+  return result;
+}
+
+
+// pub fn safe_divide
+function safe_divide(a, b) {
+  if (b === 0.0) {
+  throw "division by zero";
+  }
+  return a / b;
+}
+
+
+// pub fn has_errors
+function has_errors(items) {
+  for (const item of TodoStore_items.value) {
+  if (item === "") {
+  return true;
+  }
+  if ((item || []).length > 100) {
+  return true;
+  }
+  }
+  return false;
+}
+
+
+// pub fn emoji_fire
+function emoji_fire() {
+  return "Fire: 🔥";
+}
+
+
+// pub fn safe_get
+function safe_get(map, key) {
+  try {
+  return get_or_throw(map, key);
+  } catch (err) {
+  return "fallback:" + err;
+  }
+}
+
+
+// pub fn base64_roundtrip
+function base64_roundtrip(original) {
+  let encoded = encode_base64_encode(original);
+  let decoded = encode_base64_decode(encoded);
+  return decoded === original;
+}
+
+
 // pub fn demo_contains
 function demo_contains(arr, item) {
   return (arr).includes(item);
+}
+
+
+// pub fn needs_attention
+function needs_attention(percentage, count) {
+  if (percentage > 90.0 || count <= 0) {
+  return true;
+  }
+  if (percentage < 10.0 && count !== 0) {
+  return true;
+  }
+  return false;
+}
+
+
+// pub fn demo_i8
+function demo_i8() {
+  return 127;
+}
+
+
+// pub fn parse_config
+function parse_config(raw) {
+  let map = {};
+  if (raw !== "") {
+  map = "parsed";
+  map = "length";
+  }
+  return map;
+}
+
+
+// pub fn extract_numbers
+function extract_numbers(text) {
+  return regex_search(text, "\\d+");
+}
+
+
+// pub fn demo_math_min_max
+function demo_math_min_max(a, b) {
+  let result = {};
+  result = "min";
+  result = "max";
+  return result;
+}
+
+
+// pub fn demo_random_in_range
+function demo_random_in_range(min, max) {
+  return math_random_int(min, max);
+}
+
+
+// pub fn find_first_long
+function find_first_long(values, min_len) {
+  let i = 0;
+  while (i < (values || []).length) {
+  if ((values || [])[i] === "") {
+  i = i + 1;
+  continue;
+  }
+  if (((values || [])[i] || []).length >= min_len) {
+  return (values || [])[i];
+  }
+  i = i + 1;
+  }
+  return "";
+}
+
+
+// pub fn emoji_rocket
+function emoji_rocket() {
+  return "Rocket: 🚀";
+}
+
+
+// pub fn find_index
+function find_index(values, target) {
+  let i = 0;
+  while (i < (values || []).length) {
+  if ((values || [])[i] === target) {
+  break;
+  }
+  i = i + 1;
+  }
+  if (i < (values || []).length) {
+  return i;
+  }
+  return -1;
+}
+
+
+// pub fn demo_clamp
+function demo_clamp(val, min, max) {
+  return math_clamp(val, min, max);
+}
+
+
+// pub fn test_regex_search
+function test_regex_search() {
+  return regex_search("apple banana cherry apple", "apple");
+}
+
+
+// pub fn count_valid
+function count_valid(values, min_len) {
+  let count = 0;
+  for (const value of values) {
+  if (value === "") {
+  continue;
+  }
+  if ((value || []).length < min_len) {
+  continue;
+  }
+  count = count + 1;
+  }
+  return count;
+}
+
+
+// pub fn is_in_range
+function is_in_range(value, min, max) {
+  return value >= min && value <= max;
+}
+
+
+// pub fn test_regex_match
+function test_regex_match() {
+  return regex_match("hello@example.com", "^[\\w.]+@[\\w]+\\.[a-z]+$");
+}
+
+
+// pub fn hex_max
+function hex_max() {
+  return 255;
+}
+
+
+// pub fn regex_demo_summary
+function regex_demo_summary() {
+  let emailTest = test_regex_match();
+  let searchResult = test_regex_search();
+  let replaceResult = test_regex_replace();
+  let emailValid = validate_email("user@example.com");
+  let nums = extract_numbers("abc 123 def 456");
+  return "match=" + String(emailTest) + " search_count=" + String((searchResult || []).length) + " replace=" + replaceResult + " valid_email=" + String(emailValid) + " nums=" + String((nums || []).length);
+}
+
+
+// pub fn url_encode_demo
+function url_encode_demo(url) {
+  return encode_url_encode(url);
+}
+
+
+// pub fn physics_summary
+function physics_summary() {
+  let charge = -electron_charge();
+  let molecules = avogadro_approx();
+  return "e⁻ = " + String(charge) + " | NA = " + String(molecules);
+}
+
+
+// pub fn find_first_vowel
+function find_first_vowel(text) {
+  let i = 0;
+  while (i < (text || []).length) {
+  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
+  break;
+  }
+  i = i + 1;
+  }
+  if (i < (text || []).length) {
+  return i;
+  }
+  return -1;
+}
+
+
+// pub fn demo_i16
+function demo_i16() {
+  return 32767;
+}
+
+
+// pub fn type_system_summary
+function type_system_summary() {
+  return "i8=" + String(demo_i8()) + " i16=" + String(demo_i16()) + " u8=" + String(demo_u8()) + " u16=" + String(demo_u16()) + " u32=" + String(demo_u32()) + " f32=" + String(demo_f32()) + " isize=" + String(demo_isize()) + " usize=" + String(demo_usize());
+}
+
+
+// pub fn get_date_parts
+function get_date_parts() {
+  let now = datetime_now();
+  let parts = {};
+  parts = "year";
+  parts = "month";
+  parts = "day";
+  return parts;
+}
+
+
+// pub fn count_non_empty
+function count_non_empty(items) {
+  let count = 0;
+  let i = 0;
+  while (i < (TodoStore_items.value || []).length) {
+  if ((TodoStore_items.value || [])[i] === "") {
+  i = i + 1;
+  continue;
+  }
+  count = count + 1;
+  i = i + 1;
+  }
+  return count;
+}
+
+
+// pub fn hex_roundtrip
+function hex_roundtrip(original) {
+  let encoded = encode_hex_encode(original);
+  let decoded = encode_hex_decode(encoded);
+  return decoded === original;
+}
+
+
+// pub fn status_message
+function status_message(ok) {
+  if (ok) {
+  return "✅ Success";
+  }
+  return "❌ Failed";
+}
+
+
+// pub fn math_summary
+function math_summary() {
+  let mm = demo_math_min_max(3.0, 7.0);
+  let trig = demo_trig(0.5);
+  let constants = demo_constants();
+  return "min=" + String((mm || [])["min"]) + " max=" + String((mm || [])["max"]) + " sin=" + String((trig || [])["sin"]) + " pi=" + String((constants || [])["pi"]) + " clamp=" + String(demo_clamp(5.0, 1.0, 10.0)) + " pow=" + String(demo_pow(2.0, 8.0)) + " round=" + String(Math.round(3.7));
+}
+
+
+// pub fn indented_block
+function indented_block() {
+  return "\tLine 1\n\tLine 2";
+}
+
+
+// pub fn demo_u32
+function demo_u32() {
+  return 4294967295;
+}
+
+
+// pub fn hex_demo
+function hex_demo() {
+  return encode_hex_encode("Hello OmniLang");
+}
+
+
+// pub fn demo_case
+function demo_case(text) {
+  let result = {};
+  result = "upper";
+  result = "lower";
+  return result;
+}
+
+
+// pub fn now_formatted
+function now_formatted() {
+  let now = datetime_now();
+  return datetime_format(now, "%Y-%m-%d %H:%M:%S");
+}
+
+
+// pub fn tabular_data
+function tabular_data() {
+  return "Name\tAge\tCity";
+}
+
+
+// pub fn demo_u8
+function demo_u8() {
+  return 255;
+}
+
+
+// pub fn demo_constants
+function demo_constants() {
+  let result = {};
+  result = "pi";
+  result = "e";
+  return result;
+}
+
+
+// pub fn demo_sleep_and_return
+async function demo_sleep_and_return() {
+  await async_sleep(10);
+  return "slept 10ms";
+}
+
+
+// pub fn abs_diff
+function abs_diff(a, b) {
+  let diff = a - b;
+  if (diff < 0) {
+  return -diff;
+  }
+  return diff;
+}
+
+
+// pub fn get_or_throw
+function get_or_throw(map, key) {
+  if (map.contains(key)) {
+  return (map || [])[key];
+  }
+  throw "key not found: " + key;
+}
+
+
+// pub fn format_card
+function format_card(name, title) {
+  return "┌──────────────────────┐\n\tName:\t" + name + "\n\tTitle:\t" + title + "\n└──────────────────────┘";
+}
+
+
+// pub fn electron_charge
+function electron_charge() {
+  return 1.6e-19;
+}
+
+
+// pub fn million
+function million() {
+  return 1000000.0;
+}
+
+
+// pub fn all_extractors
+function all_extractors() {
+  let now = datetime_now();
+  let result = {};
+  result = "year";
+  result = "month";
+  result = "day";
+  result = "hour";
+  result = "minute";
+  result = "second";
+  return result;
+}
+
+
+// pub fn demo_println_vs_print
+function demo_println_vs_print() {
+  console.log("line 1");
+  console.log("inline ");
+  console.log("inline 2");
+  return 0;
+}
+
+
+// pub fn demo_void
+function demo_void() {
+return console.log("void function called");
+}
+
+
+// pub fn demo_print_concat
+function demo_print_concat() {
+  console.log("Hello ");
+  console.log("World");
+  return "print demo ok";
+}
+
+
+// pub fn negate
+function negate(x) {
+  return -x;
+}
+
+
+// pub fn demo_replace
+function demo_replace(text, from, to) {
+  return (text).replaceAll(from, to);
 }
 
 
@@ -1780,502 +2475,17 @@ function classify_range(value) {
 }
 
 
-// pub fn demo_timeout
-async function demo_timeout() {
-  let task = async_spawn(slow_task());
-  return await async_timeout(task, 50);
+// pub fn demo_race
+async function demo_race() {
+  let a = async_spawn(slow_task());
+  let b = async_spawn(fast_task());
+  return await async_race([a, b]);
 }
 
 
-// pub fn abs_diff
-function abs_diff(a, b) {
-  let diff = a - b;
-  if (diff < 0) {
-  return -diff;
-  }
-  return diff;
-}
-
-
-// pub fn count_valid
-function count_valid(values, min_len) {
-  let count = 0;
-  for (const value of values) {
-  if (value === "") {
-  continue;
-  }
-  if ((value || []).length < min_len) {
-  continue;
-  }
-  count = count + 1;
-  }
-  return count;
-}
-
-
-// pub fn avogadro_approx
-function avogadro_approx() {
-  return 6.022e+23;
-}
-
-
-// pub fn emoji_fire
-function emoji_fire() {
-  return "Fire: 🔥";
-}
-
-
-// pub fn encode_summary
-function encode_summary() {
-  let b64Ok = base64_roundtrip("test");
-  let hexOk = hex_roundtrip("OmniLang");
-  let urlEnc = url_encode_demo("hello world");
-  return "base64=" + String(b64Ok) + " hex=" + String(hexOk) + " url_enc=" + urlEnc;
-}
-
-
-// pub fn error_message
-function error_message(result) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return ""; } if (_v._variant === "Err") {  const error = _v.error;  return error; } if (_v._variant === "Loading") {  return "still loading..."; }; throw new Error('match: no arm matched'); })();
-}
-
-
-// pub fn complex_parse
-function complex_parse(key, raw) {
-  let config = parse_config(raw);
-  try {
-  let value = get_or_throw(config, key);
-  return "found: " + value;
-  } catch (err) {
-  return "not found: " + err;
-  } finally {
-  console.log("parse complete for key=" + key);
-  }
-}
-
-
-// pub fn filter_positive
-function filter_positive(nums) {
-  let result = [];
-  for (const n of nums) {
-  if (n <= 0) {
-  continue;
-  }
-  result = n;
-  }
-  return result;
-}
-
-
-// pub fn get_time_parts
-function get_time_parts() {
-  let now = datetime_now();
-  let parts = {};
-  parts = "hour";
-  parts = "minute";
-  parts = "second";
-  return parts;
-}
-
-
-// pub fn status_message
-function status_message(ok) {
-  if (ok) {
-  return "✅ Success";
-  }
-  return "❌ Failed";
-}
-
-
-// pub fn count_non_empty
-function count_non_empty(items) {
-  let count = 0;
-  let i = 0;
-  while (i < (TodoStore_items.value || []).length) {
-  if ((TodoStore_items.value || [])[i] === "") {
-  i = i + 1;
-  continue;
-  }
-  count = count + 1;
-  i = i + 1;
-  }
-  return count;
-}
-
-
-// pub fn demo_concat
-function demo_concat(a, b) {
-  return (a) + (b);
-}
-
-
-// pub fn demo_random_in_range
-function demo_random_in_range(min, max) {
-  return math_random_int(min, max);
-}
-
-
-// pub fn calculate_average
-function calculate_average(values) {
-  let sum = 0.0;
-  let count = 0;
-  let i = 0;
-  while (i < (values || []).length) {
-  sum = sum + (values || [])[i];
-  count = count + 1;
-  i = i + 1;
-  }
-  if (count !== 0) {
-  return sum / count;
-  }
-  return 0.0;
-}
-
-
-// pub fn emoji_smile
-function emoji_smile() {
-  return "Smile: 😀";
-}
-
-
-// pub fn unwrap_or_default
-function unwrap_or_default(result, default_) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return data; } if (_v._variant === "Err") {  return default_; } if (_v._variant === "Loading") {  return default_; }; throw new Error('match: no arm matched'); })();
-}
-
-
-// pub fn demo_pow
-function demo_pow(base, exp) {
-  return Math.pow(base, exp);
-}
-
-
-// pub fn safe_get
-function safe_get(map, key) {
-  try {
-  return get_or_throw(map, key);
-  } catch (err) {
-  return "fallback:" + err;
-  }
-}
-
-
-// pub fn test_regex_search
-function test_regex_search() {
-  return regex_search("apple banana cherry apple", "apple");
-}
-
-
-// pub fn sum_until_negative
-function sum_until_negative(nums) {
-  let sum = 0;
-  let i = 0;
-  while (i < (nums || []).length) {
-  if ((nums || [])[i] < 0) {
-  break;
-  }
-  sum = sum + (nums || [])[i];
-  i = i + 1;
-  }
-  return sum;
-}
-
-
-// pub fn sanitize_input
-function sanitize_input(text) {
-  let cleaned = regex_replace(text, "<[^>]+>", "");
-  return regex_replace(cleaned, "\\s+", " ");
-}
-
-
-// pub fn get_or_throw
-function get_or_throw(map, key) {
-  if (map.contains(key)) {
-  return (map || [])[key];
-  }
-  throw "key not found: " + key;
-}
-
-
-// pub fn negate
-function negate(x) {
-  return -x;
-}
-
-
-// pub fn math_summary
-function math_summary() {
-  let mm = demo_math_min_max(3.0, 7.0);
-  let trig = demo_trig(0.5);
-  let constants = demo_constants();
-  return "min=" + String((mm || [])["min"]) + " max=" + String((mm || [])["max"]) + " sin=" + String((trig || [])["sin"]) + " pi=" + String((constants || [])["pi"]) + " clamp=" + String(demo_clamp(5.0, 1.0, 10.0)) + " pow=" + String(demo_pow(2.0, 8.0)) + " round=" + String(Math.round(3.7));
-}
-
-
-// pub fn indented_block
-function indented_block() {
-  return "\tLine 1\n\tLine 2";
-}
-
-
-// pub fn is_in_range
-function is_in_range(value, min, max) {
-  return value >= min && value <= max;
-}
-
-
-// pub fn demo_logs
-function demo_logs(x) {
-  let result = {};
-  result = "log";
-  result = "log2";
-  result = "log10";
-  return result;
-}
-
-
-// pub fn loading_result
-function loading_result() {
-  return {"_variant": "Loading"};
-}
-
-
-// pub fn demo_i16
-function demo_i16() {
-  return 32767;
-}
-
-
-// pub fn needs_attention
-function needs_attention(percentage, count) {
-  if (percentage > 90.0 || count <= 0) {
-  return true;
-  }
-  if (percentage < 10.0 && count !== 0) {
-  return true;
-  }
-  return false;
-}
-
-
-// pub fn windows_path
-function windows_path() {
-  return "C:\\Users\\Admin\\Docs";
-}
-
-
-// pub fn demo_u8
-function demo_u8() {
-  return 255;
-}
-
-
-// pub fn tabular_data
-function tabular_data() {
-  return "Name\tAge\tCity";
-}
-
-
-// pub fn json_fragment
-function json_fragment() {
-  return "{\"key\": \"value\"}";
-}
-
-
-// pub fn demo_f32
-function demo_f32() {
-  return 3.14;
-}
-
-
-// pub fn demo_void
-function demo_void() {
-return console.log("void function called");
-}
-
-
-// pub fn demo_replace
-function demo_replace(text, from, to) {
-  return (text).replaceAll(from, to);
-}
-
-
-// pub fn regex_demo_summary
-function regex_demo_summary() {
-  let emailTest = test_regex_match();
-  let searchResult = test_regex_search();
-  let replaceResult = test_regex_replace();
-  let emailValid = validate_email("user@example.com");
-  let nums = extract_numbers("abc 123 def 456");
-  return "match=" + String(emailTest) + " search_count=" + String((searchResult || []).length) + " replace=" + replaceResult + " valid_email=" + String(emailValid) + " nums=" + String((nums || []).length);
-}
-
-
-// pub fn hex_roundtrip
-function hex_roundtrip(original) {
-  let encoded = encode_hex_encode(original);
-  let decoded = encode_hex_decode(encoded);
-  return decoded === original;
-}
-
-
-// pub fn demo_case
-function demo_case(text) {
-  let result = {};
-  result = "upper";
-  result = "lower";
-  return result;
-}
-
-
-// pub fn validate_email
-function validate_email(email) {
-  return regex_match(email, "^[\\w.]+@[\\w]+\\.[a-z]+$");
-}
-
-
-// pub fn validate_not_empty
-function validate_not_empty(fields) {
-  for (const field of fields) {
-  if (field === "") {
-  return "错误: 发现空字段";
-  }
-  }
-  return "通过";
-}
-
-
-// pub fn try_catch_divide
-function try_catch_divide(a, b) {
-  try {
-  let result = safe_divide(a, b);
-  return "result: " + String(result);
-  } catch (err) {
-  return "error: " + err;
-  }
-}
-
-
-// pub fn demo_map
-function demo_map(arr) {
-  return (arr).map(((x) => x * 2));
-}
-
-
-// pub fn find_first_vowel
-function find_first_vowel(text) {
-  let i = 0;
-  while (i < (text || []).length) {
-  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
-  break;
-  }
-  i = i + 1;
-  }
-  if (i < (text || []).length) {
-  return i;
-  }
-  return -1;
-}
-
-
-// pub fn url_decode_demo
-function url_decode_demo(encoded) {
-  return encode_url_decode(encoded);
-}
-
-
-// pub fn all_extractors
-function all_extractors() {
-  let now = datetime_now();
-  let result = {};
-  result = "year";
-  result = "month";
-  result = "day";
-  result = "hour";
-  result = "minute";
-  result = "second";
-  return result;
-}
-
-
-// pub fn demo_print_concat
-function demo_print_concat() {
-  console.log("Hello ");
-  console.log("World");
-  return "print demo ok";
-}
-
-
-// pub fn demo_parallel
-async function demo_parallel() {
-  let a = async_spawn(task_a());
-  let b = async_spawn(task_b());
-  return await async_all([a, b]);
-}
-
-
-// pub fn ok_result
-function ok_result(data) {
-  return {"_variant": "Ok", "data": data};
-}
-
-
-// pub fn safe_divide
-function safe_divide(a, b) {
-  if (b === 0.0) {
-  throw "division by zero";
-  }
-  return a / b;
-}
-
-
-// pub fn format_card
-function format_card(name, title) {
-  return "┌──────────────────────┐\n\tName:\t" + name + "\n\tTitle:\t" + title + "\n└──────────────────────┘";
-}
-
-
-// pub fn japanese_hello
-function japanese_hello() {
-  return "こんにちは";
-}
-
-
-// pub fn numbered_list
-function numbered_list() {
-  return "1.\n2.\n3.\n4.";
-}
-
-
-// pub fn fetch_demo
-async function fetch_demo(url) {
-  if (url === "") {
-  return {"_variant": "Err", "error": "url is empty"};
-  }
-  let raw = await fetch(url).then(r => r.text());
-  return {"_variant": "Ok", "data": raw};
-}
-
-
-// pub fn timestamp_to_string
-function timestamp_to_string(ts) {
-  return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
-}
-
-
-// pub fn find_index
-function find_index(values, target) {
-  let i = 0;
-  while (i < (values || []).length) {
-  if ((values || [])[i] === target) {
-  break;
-  }
-  i = i + 1;
-  }
-  if (i < (values || []).length) {
-  return i;
-  }
-  return -1;
+// pub fn hex_color_code
+function hex_color_code() {
+  return 6699;
 }
 
 
@@ -2295,110 +2505,9 @@ function try_catch_finally_divide(a, b) {
 }
 
 
-// pub fn extract_numbers
-function extract_numbers(text) {
-  return regex_search(text, "\\d+");
-}
-
-
-// pub fn demo_u64
-function demo_u64() {
-  return 18446744073709551615;
-}
-
-
-// pub fn multiline_greeting
-function multiline_greeting() {
-  return "Hello\nWorld\n!";
-}
-
-
-// pub fn demo_isize
-function demo_isize() {
-  return -42;
-}
-
-
-// pub fn demo_u16
-function demo_u16() {
-  return 65535;
-}
-
-
-// pub fn binary_flags
-function binary_flags() {
-  return 170;
-}
-
-
-// pub fn demo_u32
-function demo_u32() {
-  return 4294967295;
-}
-
-
-// pub fn hex_demo
-function hex_demo() {
-  return encode_hex_encode("Hello OmniLang");
-}
-
-
-// pub fn octal_small
-function octal_small() {
-  return 8;
-}
-
-
-// pub fn get_date_parts
-function get_date_parts() {
-  let now = datetime_now();
-  let parts = {};
-  parts = "year";
-  parts = "month";
-  parts = "day";
-  return parts;
-}
-
-
-// pub fn physics_summary
-function physics_summary() {
-  let charge = -electron_charge();
-  let molecules = avogadro_approx();
-  return "e⁻ = " + String(charge) + " | NA = " + String(molecules);
-}
-
-
-// pub fn demo_split_join
-function demo_split_join(text, sep) {
-  let parts = (text).split(sep);
-  return (parts).join(" | ");
-}
-
-
-// pub fn test_regex_replace
-function test_regex_replace() {
-  return regex_replace("Hello 2024 World 2024", "\\d{4}", "2025");
-}
-
-
-// pub fn million
-function million() {
-  return 1000000.0;
-}
-
-
-// pub fn hex_color_code
-function hex_color_code() {
-  return 6699;
-}
-
-
-// pub fn color_from_hex
-function color_from_hex() {
-  let r = 255;
-  let g = 128;
-  let b = 64;
-  return "rgb(" + String(r) + "," + String(g) + "," + String(b) + ")";
+// pub fn demo_map
+function demo_map(arr) {
+  return (arr).map(((x) => x * 2));
 }
 
 
@@ -2413,171 +2522,67 @@ function validate_length(values, min_len) {
 }
 
 
-// pub fn test_regex_match
-function test_regex_match() {
-  return regex_match("hello@example.com", "^[\\w.]+@[\\w]+\\.[a-z]+$");
+// pub fn demo_f32
+function demo_f32() {
+  return 3.14;
 }
 
 
-// pub fn binary_mask
-function binary_mask() {
-  return 240;
+// pub fn octal_small
+function octal_small() {
+  return 8;
 }
 
 
-// pub fn now_formatted
-function now_formatted() {
-  let now = datetime_now();
-  return datetime_format(now, "%Y-%m-%d %H:%M:%S");
-}
-
-
-// pub fn emoji_rocket
-function emoji_rocket() {
-  return "Rocket: 🚀";
-}
-
-
-// pub fn demo_find
-function demo_find(arr, target) {
-  return (arr).find(((s) => s === target));
-}
-
-
-// pub fn demo_remove
-function demo_remove(arr, idx) {
-  return ((arr).splice(idx, 1), (arr).slice());
-}
-
-
-// pub fn format_result
-function format_result(result) {
-return /*match*/ (() => { const _v = result; if (_v._variant === "Valid") {  const message = _v.message;  return "通过: " + message; } if (_v._variant === "Invalid") {  const errors = _v.errors;  return "失败: 发现 " + (errors || []).length + " 个错误"; } if (_v._variant === "Pending") {  return "验证中..."; }; throw new Error('match: no arm matched'); })();
-}
-
-
-// pub fn hex_max
-function hex_max() {
-  return 255;
-}
-
-
-// pub fn demo_ends_with
-function demo_ends_with(text, suffix) {
-  return (text).endsWith(suffix);
-}
-
-
-// pub fn demo_race
-async function demo_race() {
-  let a = async_spawn(slow_task());
-  let b = async_spawn(fast_task());
-  return await async_race([a, b]);
-}
-
-
-// pub fn validate_all
-function validate_all(items, min_len) {
-  let errors = [];
-  for (const item of TodoStore_items.value) {
-  if (item === "") {
-  errors = "发现空字符串";
+// pub fn find_max_index
+function find_max_index(values) {
+  let max_idx = 0;
+  let i = 1;
+  while (i < (values || []).length) {
+  if ((values || [])[i] > (values || [])[max_idx]) {
+  max_idx = i;
   }
-  if ((item || []).length < min_len) {
-  errors = "长度不足: " + item;
+  i = i + 1;
   }
-  }
-  return errors;
+  return max_idx;
 }
 
 
-// pub fn format_count
-function format_count(n) {
-  if (n === 0) {
-  return "零";
-  }
-  return String(n);
+// pub fn demo_parallel
+async function demo_parallel() {
+  let a = async_spawn(task_a());
+  let b = async_spawn(task_b());
+  return await async_all([a, b]);
 }
 
 
-// pub fn parse_config
-function parse_config(raw) {
-  let map = {};
-  if (raw !== "") {
-  map = "parsed";
-  map = "length";
-  }
-  return map;
+// pub fn error_message
+function error_message(result) {
+return /*match*/ (() => { const _v = result; if (_v._variant === "Ok") {  const data = _v.data;  return ""; } if (_v._variant === "Err") {  const error = _v.error;  return error; } if (_v._variant === "Loading") {  return "still loading..."; }; throw new Error('match: no arm matched'); })();
 }
 
 
-// pub fn demo_clamp
-function demo_clamp(val, min, max) {
-  return math_clamp(val, min, max);
+// pub fn multiline_greeting
+function multiline_greeting() {
+  return "Hello\nWorld\n!";
 }
 
 
-// pub fn demo_trig
-function demo_trig(angle) {
-  let result = {};
-  result = "sin";
-  result = "cos";
-  result = "tan";
-  return result;
+// pub fn demo_concat
+function demo_concat(a, b) {
+  return (a) + (b);
 }
 
 
-// pub fn err_result
-function err_result(error) {
-  return {"_variant": "Err", "error": error};
+// pub fn ok_result
+function ok_result(data) {
+  return {"_variant": "Ok", "data": data};
 }
 
 
-// pub fn demo_i64
-function demo_i64() {
-  return 9223372036854775807;
-}
-
-
-// pub fn demo_sleep_and_return
-async function demo_sleep_and_return() {
-  await async_sleep(10);
-  return "slept 10ms";
-}
-
-
-// pub fn demo_i8
-function demo_i8() {
-  return 127;
-}
-
-
-// pub fn has_errors
-function has_errors(items) {
-  for (const item of TodoStore_items.value) {
-  if (item === "") {
-  return true;
-  }
-  if ((item || []).length > 100) {
-  return true;
-  }
-  }
-  return false;
-}
-
-
-// pub fn url_encode_demo
-function url_encode_demo(url) {
-  return encode_url_encode(url);
-}
-
-
-// pub fn demo_math_min_max
-function demo_math_min_max(a, b) {
-  let result = {};
-  result = "min";
-  result = "max";
-  return result;
+// pub fn demo_u64
+function demo_u64() {
+  return 18446744073709551615;
 }
 
 
@@ -2587,109 +2592,185 @@ function demo_substring(text, start, end) {
 }
 
 
-// pub fn count_consonants
-function count_consonants(text) {
-  let count = 0;
+// pub fn encode_summary
+function encode_summary() {
+  let b64Ok = base64_roundtrip("test");
+  let hexOk = hex_roundtrip("OmniLang");
+  let urlEnc = url_encode_demo("hello world");
+  return "base64=" + String(b64Ok) + " hex=" + String(hexOk) + " url_enc=" + urlEnc;
+}
+
+
+// pub fn fetch_demo
+async function fetch_demo(url) {
+  if (url === "") {
+  return {"_variant": "Err", "error": "url is empty"};
+  }
+  let raw = await fetch(url).then(r => r.text());
+  return {"_variant": "Ok", "data": raw};
+}
+
+
+// pub fn sum_until_negative
+function sum_until_negative(nums) {
+  let sum = 0;
   let i = 0;
-  while (i < (text || []).length) {
-  if ((text || [])[i] === "a" || (text || [])[i] === "e" || (text || [])[i] === "i" || (text || [])[i] === "o" || (text || [])[i] === "u") {
-  i = i + 1;
-  continue;
+  while (i < (nums || []).length) {
+  if ((nums || [])[i] < 0) {
+  break;
   }
-  count = count + 1;
+  sum = sum + (nums || [])[i];
   i = i + 1;
   }
-  return count;
+  return sum;
 }
 
 
-// pub fn quoted_value
-function quoted_value() {
-  return "He said \"Hello\" to me";
+// pub fn numbered_list
+function numbered_list() {
+  return "1.\n2.\n3.\n4.";
 }
 
 
-// pub fn find_first_long
-function find_first_long(values, min_len) {
-  let i = 0;
-  while (i < (values || []).length) {
-  if ((values || [])[i] === "") {
-  i = i + 1;
-  continue;
-  }
-  if (((values || [])[i] || []).length >= min_len) {
-  return (values || [])[i];
-  }
-  i = i + 1;
-  }
-  return "";
-}
-
-
-// pub fn demo_usize
-function demo_usize() {
-  return 100;
-}
-
-
-// pub fn electron_charge
-function electron_charge() {
-  return 1.6e-19;
+// pub fn test_regex_replace
+function test_regex_replace() {
+  return regex_replace("Hello 2024 World 2024", "\\d{4}", "2025");
 }
 
 
 /// ── Module Motion Definitions: input.omni ──
 
-const __omni_motion_trackedEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8, "y": -20}, "to": {"scale": 1, "opacity": 1, "y": 0}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
+const __omni_motion_unbounce = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 150, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_pulseWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1, "opacity": 0.7}, "to": {"opacity": 1, "scale": 1.1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
+const __omni_motion_focusGlow = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 3px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
 };
-const __omni_motion_interruptWithCallback = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotate": 0, "x": 0}, "to": {"rotate": 15, "x": 40}, "over": 300, "easing": "power1Out", "interrupt": "replace", "callbacks": {"onStart": function() { null }, "onInterrupt": function() { null }, "onComplete": function() { null }}}, overrides || {}));
+const __omni_motion_autoSpin = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 2000, "easing": "linear", "iterations": Infinity}, overrides || {}));
+};
+const __omni_motion_slideInView = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 30}, "to": {"y": 0, "opacity": 1}, "over": 400, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_scrollFade = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.95, "opacity": 0.3}, "to": {"opacity": 1, "scale": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_dragSlide = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 100}, "over": 300, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_stepCount2 = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 800, "easing": "steps(2,start)"}, overrides || {}));
+};
+const __omni_motion_stepCount4Start = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -30}, "to": {"x": 0, "opacity": 1}, "over": 1200, "easing": "steps(4,start)"}, overrides || {}));
+};
+const __omni_motion_stepCount4End = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 30, "opacity": 0}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,end)"}, overrides || {}));
+};
+const __omni_motion_stepCount8 = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 1600, "easing": "steps(8,start)", "iterations": Infinity}, overrides || {}));
+};
+const __omni_motion_dirReverse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 0.3}, "to": {"opacity": 1, "x": 160}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
+};
+const __omni_motion_dirAltReverse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
+};
+const __omni_motion_fillBackwards = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
+};
+const __omni_motion_fillBoth = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8}, "to": {"scale": 1.2, "opacity": 1}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
+};
+const __omni_motion_intStop = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
+};
+const __omni_motion_intComplete = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
+};
+const __omni_motion_intReplace = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
+};
+const __omni_motion_fadeSlideOut = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 1}, "to": {"opacity": 0, "x": 30}, "over": 300, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_fadeEnter = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"y": 0, "opacity": 1}, "over": 400, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_scaleGlow = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 4px rgba(99,102,241,0.4)", "scale": 1.08}, "over": 200, "easing": "easeOut"}, overrides || {}));
 };
 const __omni_motion_pulseAccent = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"--accent-h": 221}, "to": {"--accent-h": 350}, "over": 600, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
 };
-const __omni_motion_fillDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
-};
-const __omni_motion_delayedEntrance = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
-};
-const __omni_motion_slowSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
-};
-const __omni_motion_interruptDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
-};
-const __omni_motion_accessibleAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
-};
-const __omni_motion_staggeredList = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 10, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
-};
-const __omni_motion_pathAnim = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
-};
-const __omni_motion_multiStopColor = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.5, "background": "#ff0000"}, "to": {"background": "#0000ff", "opacity": 1, "scale": 1}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_callbackOnly = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
-};
 const __omni_motion_refMotion = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1, "opacity": 0.5}, "to": {"scale": 1.0, "opacity": 1}, "over": 400, "easing": "power2Out"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1, "opacity": 0.5}, "to": {"opacity": 1, "scale": 1.0}, "over": 400, "easing": "power2Out"}, overrides || {}));
 };
 const __omni_motion_staggerStart = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "start"}, overrides || {}));
 };
 const __omni_motion_staggerEnd = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "end"}, overrides || {}));
 };
 const __omni_motion_staggerEdges = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 15, "opacity": 0}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 15}, "to": {"y": 0, "opacity": 1}, "over": 300, "easing": "power2Out", "delayChildren": 30, "staggerChildren": 25, "staggerFrom": "edges"}, overrides || {}));
+};
+const __omni_motion_scaleXDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_scaleYDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_rotateXDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
+};
+const __omni_motion_rotateYDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
+};
+const __omni_motion_rotateZDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_blurDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_brightnessDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_bgColorDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"backgroundColor": "#6366f1", "borderRadius": 4}, "to": {"backgroundColor": "#f97316", "borderRadius": 24}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
+};
+const __omni_motion_textColorDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"color": "#1f2937", "borderColor": "#d4d4d8"}, "to": {"borderColor": "#dc2626", "color": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_widthDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_heightDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
+};
+const __omni_motion_spacingDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"margin": 4, "padding": 8}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
+};
+const __omni_motion_trackedEnter = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": -20, "scale": 0.8, "opacity": 0}, "to": {"y": 0, "scale": 1, "opacity": 1}, "over": 600, "easing": "power2Out", "callbacks": {"onStart": function() { null }, "onComplete": function() { null }}}, overrides || {}));
+};
+const __omni_motion_pulseWithCallback = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.7, "scale": 1}, "to": {"opacity": 1, "scale": 1.1}, "over": 400, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate", "repeatDelay": 200, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onRepeat": function() { null }}}, overrides || {}));
+};
+const __omni_motion_interruptWithCallback = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "rotate": 0}, "to": {"x": 40, "rotate": 15}, "over": 300, "easing": "power1Out", "interrupt": "replace", "callbacks": {"onStart": function() { null }, "onInterrupt": function() { null }, "onComplete": function() { null }}}, overrides || {}));
+};
+const __omni_motion_fadeInUp = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"y": 0, "opacity": 1}, "over": 400, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_scalePress = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
+};
+const __omni_motion_listItem = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"opacity": 1, "x": 0}, "over": 300, "easing": "power2Out"}, overrides || {}));
+};
+const __omni_motion_pulse = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
 };
 const __omni_motion_power1InMove = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 800, "easing": "power1In"}, overrides || {}));
@@ -2758,7 +2839,7 @@ const __omni_motion_elasticCustomMove = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1500, "easing": "elasticOut"}, overrides || {}));
 };
 const __omni_motion_springDefault = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"x": 180, "opacity": 1}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 0.3}, "to": {"opacity": 1, "x": 180}, "over": 1000, "easing": new SpringSolver(180, 12, 1, 0)}, overrides || {}));
 };
 const __omni_motion_springBouncy = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 200}, "over": 1000, "easing": new SpringSolver(120, 8, 1, 2)}, overrides || {}));
@@ -2772,136 +2853,55 @@ const __omni_motion_cubicCustom = function(el, overrides) {
 const __omni_motion_stepsDemo = function(el, overrides) {
    return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 1000, "easing": "steps(6,end)"}, overrides || {}));
 };
-const __omni_motion_unbounce = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 150, "easing": "easeOut"}, overrides || {}));
+const __omni_motion_fillDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 400, "easing": "easeOut", "fill": "forwards"}, overrides || {}));
 };
-const __omni_motion_focusGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"boxShadow": "0 0 0 3px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
+const __omni_motion_delayedEntrance = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "power2Out", "delay": 200, "repeatDelay": 100, "repeatRefresh": true}, overrides || {}));
 };
-const __omni_motion_autoSpin = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 2000, "easing": "linear", "iterations": Infinity}, overrides || {}));
+const __omni_motion_slowSpin = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"to": {"rotate": 360}, "over": 5000, "easing": "linear", "iterations": Infinity, "timeScale": 0.5}, overrides || {}));
 };
-const __omni_motion_slideInView = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 30}, "to": {"y": 0, "opacity": 1}, "over": 400, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_interruptDemo = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.2}, "over": 300, "easing": "easeOut", "interrupt": "compose"}, overrides || {}));
 };
-const __omni_motion_scrollFade = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.95, "opacity": 0.3}, "to": {"scale": 1, "opacity": 1}, "over": 500, "easing": "easeOut"}, overrides || {}));
+const __omni_motion_accessibleAnim = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 400, "easing": "easeOut", "respectReducedMotion": true}, overrides || {}));
 };
-const __omni_motion_dragSlide = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 100}, "over": 300, "easing": "power2Out"}, overrides || {}));
+const __omni_motion_staggeredList = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"y": 10, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 300, "easing": "easeOut", "delayChildren": 50, "staggerChildren": 30, "staggerFrom": "center"}, overrides || {}));
+};
+const __omni_motion_pathAnim = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"offsetDistance": 0}, "to": {"offsetDistance": 1}, "over": 1000, "easing": "easeInOut", "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true, "paused": true, "path": "M0,0 C50,-50 100,50 150,0", "pathRotate": true}, overrides || {}));
+};
+const __omni_motion_multiStopColor = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.5, "opacity": 0, "background": "#ff0000"}, "to": {"background": "#0000ff", "opacity": 1, "scale": 1}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
+};
+const __omni_motion_callbackOnly = function(el, overrides) {
+   return new AnimationPlayer(el, Object.assign({"over": 0.3, "callbacks": {"onStart": function() { null }, "onUpdate": function() { null }, "onComplete": function() { null }, "onRepeat": function() { null }, "onInterrupt": function() { null }}}, overrides || {}));
 };
 const __omni_motion_heroMove = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.8, "opacity": 0, "x": -100}, "to": {"opacity": 1, "scale": 1, "x": 0}, "over": 500, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_stepCount2 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0}, "to": {"opacity": 1}, "over": 800, "easing": "steps(2,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4Start = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -30}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,start)"}, overrides || {}));
-};
-const __omni_motion_stepCount4End = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 30, "opacity": 0}, "to": {"opacity": 1, "x": 0}, "over": 1200, "easing": "steps(4,end)"}, overrides || {}));
-};
-const __omni_motion_stepCount8 = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 20}, "to": {"y": 0, "opacity": 1}, "over": 1600, "easing": "steps(8,start)", "iterations": Infinity}, overrides || {}));
-};
-const __omni_motion_fadeSlideOut = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0, "opacity": 1}, "to": {"x": 30, "opacity": 0}, "over": 300, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeEnter = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "y": 10}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleGlow = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.08, "boxShadow": "0 0 0 4px rgba(99,102,241,0.4)"}, "over": 200, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_fadeInUp = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"y": 20, "opacity": 0}, "to": {"opacity": 1, "y": 0}, "over": 400, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_scalePress = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 0.95}, "over": 100, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_listItem = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "x": -20}, "to": {"x": 0, "opacity": 1}, "over": 300, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_pulse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"to": {"scale": 1.05}, "over": 800, "easing": "easeInOut", "iterations": Infinity, "direction": "alternate"}, overrides || {}));
-};
-const __omni_motion_scaleXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleX": 1}, "to": {"scaleX": 1.8}, "over": 600, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_scaleYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scaleY": 1}, "to": {"scaleY": 1.5}, "over": 500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_rotateXDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateX": 0}, "to": {"rotateX": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateYDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateY": 0}, "to": {"rotateY": 360}, "over": 2000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_rotateZDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"rotateZ": 0}, "to": {"rotateZ": 360}, "over": 1500, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_blurDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"blur": 0}, "to": {"blur": 6}, "over": 800, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_brightnessDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"brightness": 1}, "to": {"brightness": 2.5}, "over": 700, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_bgColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"borderRadius": 4, "backgroundColor": "#6366f1"}, "to": {"backgroundColor": "#f97316", "borderRadius": 24}, "over": 1200, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_textColorDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"color": "#1f2937", "borderColor": "#d4d4d8"}, "to": {"borderColor": "#dc2626", "color": "#dc2626"}, "over": 800, "easing": "power2Out"}, overrides || {}));
-};
-const __omni_motion_widthDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"width": 60}, "to": {"width": 200}, "over": 900, "easing": "easeOut"}, overrides || {}));
-};
-const __omni_motion_heightDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"height": 40}, "to": {"height": 120}, "over": 700, "easing": "power3Out"}, overrides || {}));
-};
-const __omni_motion_spacingDemo = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"margin": 4, "padding": 8}, "to": {"padding": 24, "margin": 16}, "over": 1000, "easing": "easeInOut"}, overrides || {}));
-};
-const __omni_motion_dirReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0.3, "x": 0}, "to": {"opacity": 1, "x": 160}, "over": 600, "easing": "power2Out", "direction": "reverse"}, overrides || {}));
-};
-const __omni_motion_dirAltReverse = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.4}, "over": 800, "easing": "power2Out", "direction": "alternate-reverse"}, overrides || {}));
-};
-const __omni_motion_fillBackwards = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": -20, "opacity": 0}, "to": {"x": 0, "opacity": 1}, "over": 1000, "easing": "power2Out", "fill": "backwards", "delay": 500}, overrides || {}));
-};
-const __omni_motion_fillBoth = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 0.8, "opacity": 0}, "to": {"scale": 1.2, "opacity": 1}, "over": 600, "easing": "power2Out", "fill": "forwards", "delay": 300}, overrides || {}));
-};
-const __omni_motion_intStop = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "cancel"}, overrides || {}));
-};
-const __omni_motion_intComplete = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"scale": 1}, "to": {"scale": 1.3}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "finish"}, overrides || {}));
-};
-const __omni_motion_intReplace = function(el, overrides) {
-   return new AnimationPlayer(el, Object.assign({"from": {"x": 0}, "to": {"x": 180}, "over": 400, "easing": "easeOut", "iterations": Infinity, "direction": "alternate", "interrupt": "replace"}, overrides || {}));
+   return new AnimationPlayer(el, Object.assign({"from": {"opacity": 0, "scale": 0.8, "x": -100}, "to": {"scale": 1, "x": 0, "opacity": 1}, "over": 500, "easing": "power3Out"}, overrides || {}));
 };
 
 /// ── Module Timeline Definitions: input.omni ──
 
-function __omni_motion_pageEnter(el, config) {
+function __omni_motion_connectorDemo(el, config) {
   var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
   var __childIdx = 0;
   var __timeouts = [];
-/// ── @timeline pageEnter ──
+/// ── @timeline connectorDemo ──
 __timeouts.push(setTimeout(function() {
   const el = __children[0];
   if (el) {
    const config = {
-    "from": {"y": -20},
+    "from": {"x": -20},
     "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_2", player);
+   __omni_animations.set("tl_connectorDemo_item_1", player);
    player.play();
   }
 }, 0));
@@ -2909,12 +2909,12 @@ __timeouts.push(setTimeout(function() {
   const el = __children[1];
   if (el) {
    const config = {
-        "to": {"y": 0, "opacity": 1},
+        "to": {"opacity": 1, "x": 0},
     "over": 300,
-    "easing": "easeOut"
+    "easing": "power2Out"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_3", player);
+   __omni_animations.set("tl_connectorDemo_item_2", player);
    player.play();
   }
 }, 0.3));
@@ -2923,11 +2923,12 @@ __timeouts.push(setTimeout(function() {
   if (el) {
    const config = {
     "from": {"opacity": 0},
-        "over": 0.3,
+    "to": {"x": 40},
+    "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_4", player);
+   __omni_animations.set("tl_connectorDemo_item_3", player);
    player.play();
   }
 }, 300.3));
@@ -2935,15 +2936,23 @@ __timeouts.push(setTimeout(function() {
   const el = __children[3];
   if (el) {
    const config = {
-        "to": {"opacity": 1},
-    "over": 400,
-    "easing": "easeOut"
+        "to": {"x": 0, "opacity": 1},
+    "over": 300,
+    "easing": "power2Out"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_5", player);
+   __omni_animations.set("tl_connectorDemo_item_4", player);
    player.play();
   }
-}, 200));
+}, 300.6));
+__timeouts.push(setTimeout(function() {
+  if (!el) return;
+  el.querySelectorAll("[data-nid]").forEach(function(child) {
+   const player = __omni_motion_refMotion(child, {});
+   __omni_animations.set(child.getAttribute('data-nid') + '_refMotion', player);
+   player.play();
+  });
+}, 600.6));
 __timeouts.push(setTimeout(function() {
   const el = __children[4];
   if (el) {
@@ -2954,26 +2963,208 @@ __timeouts.push(setTimeout(function() {
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_7", player);
+   __omni_animations.set("tl_connectorDemo_item_6", player);
    player.play();
   }
-}, 600));
+}, 600.6));
 __timeouts.push(setTimeout(function() {
   const el = __children[5];
   if (el) {
    const config = {
         "to": {"y": 0, "opacity": 1},
     "over": 300,
+    "easing": "power2Out"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_connectorDemo_item_7", player);
+   player.play();
+  }
+}, 600.9));
+__timeouts.push(setTimeout(function() {
+  const el = __children[6];
+  if (el) {
+   const config = {
+    "from": {"y": -10},
+    "to": {"opacity": 0},
+    "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_pageEnter_item_8", player);
+   __omni_animations.set("tl_connectorDemo_item_9", player);
    player.play();
   }
-}, 600.3));
-__omni_timeline_labels.set("pageEnter", {"intro": 0, "outro": 600});
+}, 900.9));
+__timeouts.push(setTimeout(function() {
+  const el = __children[7];
+  if (el) {
+   const config = {
+        "to": {"y": 0, "opacity": 1},
+    "over": 200,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_connectorDemo_item_10", player);
+   player.play();
+  }
+}, 901.1999999999999));
+__omni_timeline_labels.set("connectorDemo", {"phase1": 0, "outro": 900.9});
   return {
-   name: "pageEnter",
+   name: "connectorDemo",
+   type: "timeline",
+   kill: function() {
+    __timeouts.forEach(function(t) { clearTimeout(t); });
+    // Also cancel any running WAAPI animations on children
+    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
+     c.getAnimations().forEach(function(a) { a.cancel(); });
+    });
+   }
+  };
+};
+function __omni_motion_flyPath(el, config) {
+  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
+  var __childIdx = 0;
+  var __timeouts = [];
+/// ── @timeline flyPath ──
+__timeouts.push(setTimeout(function() {
+  const el = __children[0];
+  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[1];
+  if (el) {
+   const config = {
+    "from": {"x": 0, "opacity": 0},
+    "to": {"y": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_flyPath_item_2", player);
+   player.play();
+  }
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[2];
+  if (el) {
+   const config = {
+        "to": {"opacity": 1, "x": 200, "y": 0},
+    "over": 1200,
+    "easing": "easeOut",
+    "path": "M0,0 C50,-60 150,-60 200,0",
+    "pathRotate": true
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_flyPath_item_3", player);
+   player.play();
+  }
+}, 0.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[3];
+  if (el) {
+   const config = {
+    "from": {"x": 0, "opacity": 0},
+    "to": {"y": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_flyPath_item_4", player);
+   player.play();
+  }
+}, 1200.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[4];
+  if (el) {
+   const config = {
+        "to": {"x": 200, "opacity": 1, "y": 0},
+    "over": 1200,
+    "easing": "easeInOut",
+    "path": "M0,0 Q100,-80 200,0",
+    "pathRotate": true
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_flyPath_item_5", player);
+   player.play();
+  }
+}, 1200.6));
+__omni_timeline_labels.set("flyPath", {"start": 0, "end": 2400.6});
+  return {
+   name: "flyPath",
+   type: "timeline",
+   kill: function() {
+    __timeouts.forEach(function(t) { clearTimeout(t); });
+    // Also cancel any running WAAPI animations on children
+    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
+     c.getAnimations().forEach(function(a) { a.cancel(); });
+    });
+   }
+  };
+};
+function __omni_motion_bouncePath(el, config) {
+  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
+  var __childIdx = 0;
+  var __timeouts = [];
+/// ── @timeline bouncePath ──
+__timeouts.push(setTimeout(function() {
+  const el = __children[0];
+  if (el) {
+   const config = {
+    "from": {"y": -40},
+    "to": {"opacity": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_bouncePath_item_0", player);
+   player.play();
+  }
+}, 0));
+__timeouts.push(setTimeout(function() {
+  const el = __children[1];
+  if (el) {
+   const config = {
+        "to": {"opacity": 1, "y": 0},
+    "over": 800,
+    "easing": "easeOut",
+    "path": "M0,0 Q25,-20 50,0 Q75,-10 100,0",
+    "pathRotate": false
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_bouncePath_item_1", player);
+   player.play();
+  }
+}, 0.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[2];
+  if (el) {
+   const config = {
+    "from": {"opacity": 1},
+    "to": {"y": 0},
+    "over": 0.3,
+    "easing": "easeOut"
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_bouncePath_item_2", player);
+   player.play();
+  }
+}, 800.3));
+__timeouts.push(setTimeout(function() {
+  const el = __children[3];
+  if (el) {
+   const config = {
+        "to": {"opacity": 0, "y": -40},
+    "over": 600,
+    "easing": "easeIn",
+    "path": "M100,0 Q75,-10 50,0 Q25,-20 0,0",
+    "pathRotate": true
+   };
+   const player = new AnimationPlayer(el, config);
+   __omni_animations.set("tl_bouncePath_item_3", player);
+   player.play();
+  }
+}, 800.5999999999999));
+  return {
+   name: "bouncePath",
    type: "timeline",
    kill: function() {
     __timeouts.forEach(function(t) { clearTimeout(t); });
@@ -2997,8 +3188,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[1];
   if (el) {
    const config = {
-    "from": {"opacity": 0},
-    "to": {"scale": 0.5},
+    "from": {"scale": 0.5},
+    "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3011,7 +3202,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[2];
   if (el) {
    const config = {
-        "to": {"opacity": 1, "scale": 1},
+        "to": {"scale": 1, "opacity": 1},
     "over": 300,
     "easing": "easeOut"
    };
@@ -3038,7 +3229,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[4];
   if (el) {
    const config = {
-        "to": {"x": 0, "opacity": 1},
+        "to": {"opacity": 1, "x": 0},
     "over": 300,
     "easing": "easeOut"
    };
@@ -3051,8 +3242,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[5];
   if (el) {
    const config = {
-    "from": {"y": 10},
-    "to": {"opacity": 0},
+    "from": {"opacity": 0},
+    "to": {"y": 10},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3092,7 +3283,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[8];
   if (el) {
    const config = {
-        "to": {"rotate": 0, "opacity": 1},
+        "to": {"opacity": 1, "rotate": 0},
     "over": 200,
     "easing": "easeOut"
    };
@@ -3132,8 +3323,8 @@ __timeouts.push(setTimeout(function() {
   const el = __children[11];
   if (el) {
    const config = {
-    "from": {"x": 20, "opacity": 0},
-    "to": {"y": -10},
+    "from": {"opacity": 0, "y": -10},
+    "to": {"x": 20},
     "over": 0.3,
     "easing": "easeOut"
    };
@@ -3146,7 +3337,7 @@ __timeouts.push(setTimeout(function() {
   const el = __children[12];
   if (el) {
    const config = {
-        "to": {"y": 0, "x": 0, "opacity": 1},
+        "to": {"opacity": 1, "x": 0, "y": 0},
     "over": 400,
     "easing": "power2Out"
    };
@@ -3244,22 +3435,22 @@ __omni_timeline_labels.set("simpleThenWith", {"start": 0, "then-item": 200.3, "w
    }
   };
 };
-function __omni_motion_connectorDemo(el, config) {
+function __omni_motion_pageEnter(el, config) {
   var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
   var __childIdx = 0;
   var __timeouts = [];
-/// ── @timeline connectorDemo ──
+/// ── @timeline pageEnter ──
 __timeouts.push(setTimeout(function() {
   const el = __children[0];
   if (el) {
    const config = {
-    "from": {"x": -20},
+    "from": {"y": -20},
     "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_1", player);
+   __omni_animations.set("tl_pageEnter_item_2", player);
    player.play();
   }
 }, 0));
@@ -3267,12 +3458,12 @@ __timeouts.push(setTimeout(function() {
   const el = __children[1];
   if (el) {
    const config = {
-        "to": {"opacity": 1, "x": 0},
+        "to": {"y": 0, "opacity": 1},
     "over": 300,
-    "easing": "power2Out"
+    "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_2", player);
+   __omni_animations.set("tl_pageEnter_item_3", player);
    player.play();
   }
 }, 0.3));
@@ -3281,12 +3472,11 @@ __timeouts.push(setTimeout(function() {
   if (el) {
    const config = {
     "from": {"opacity": 0},
-    "to": {"x": 40},
-    "over": 0.3,
+        "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_3", player);
+   __omni_animations.set("tl_pageEnter_item_4", player);
    player.play();
   }
 }, 300.3));
@@ -3294,235 +3484,45 @@ __timeouts.push(setTimeout(function() {
   const el = __children[3];
   if (el) {
    const config = {
-        "to": {"opacity": 1, "x": 0},
-    "over": 300,
-    "easing": "power2Out"
+        "to": {"opacity": 1},
+    "over": 400,
+    "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_4", player);
+   __omni_animations.set("tl_pageEnter_item_5", player);
    player.play();
   }
-}, 300.6));
-__timeouts.push(setTimeout(function() {
-  if (!el) return;
-  el.querySelectorAll("[data-nid]").forEach(function(child) {
-   const player = __omni_motion_refMotion(child, {});
-   __omni_animations.set(child.getAttribute('data-nid') + '_refMotion', player);
-   player.play();
-  });
-}, 600.6));
+}, 200));
 __timeouts.push(setTimeout(function() {
   const el = __children[4];
   if (el) {
    const config = {
-    "from": {"opacity": 0},
-    "to": {"y": 20},
+    "from": {"y": 20},
+    "to": {"opacity": 0},
     "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_6", player);
+   __omni_animations.set("tl_pageEnter_item_7", player);
    player.play();
   }
-}, 600.6));
+}, 600));
 __timeouts.push(setTimeout(function() {
   const el = __children[5];
   if (el) {
    const config = {
-        "to": {"opacity": 1, "y": 0},
+        "to": {"y": 0, "opacity": 1},
     "over": 300,
-    "easing": "power2Out"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_7", player);
-   player.play();
-  }
-}, 600.9));
-__timeouts.push(setTimeout(function() {
-  const el = __children[6];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -10},
-    "over": 0.3,
     "easing": "easeOut"
    };
    const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_9", player);
+   __omni_animations.set("tl_pageEnter_item_8", player);
    player.play();
   }
-}, 900.9));
-__timeouts.push(setTimeout(function() {
-  const el = __children[7];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 200,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_connectorDemo_item_10", player);
-   player.play();
-  }
-}, 901.1999999999999));
-__omni_timeline_labels.set("connectorDemo", {"phase1": 0, "outro": 900.9});
+}, 600.3));
+__omni_timeline_labels.set("pageEnter", {"intro": 0, "outro": 600});
   return {
-   name: "connectorDemo",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_flyPath(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline flyPath ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) el.style.cssText = Object.entries({"opacity": 1}).map(([k,v]) => k + ':' + v).join(';');
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-    "from": {"y": 0, "opacity": 0},
-    "to": {"x": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_2", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-        "to": {"x": 200, "y": 0, "opacity": 1},
-    "over": 1200,
-    "easing": "easeOut",
-    "path": "M0,0 C50,-60 150,-60 200,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_3", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-    "from": {"y": 0, "opacity": 0},
-    "to": {"x": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_4", player);
-   player.play();
-  }
-}, 1200.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[4];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "x": 200, "y": 0},
-    "over": 1200,
-    "easing": "easeInOut",
-    "path": "M0,0 Q100,-80 200,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_flyPath_item_5", player);
-   player.play();
-  }
-}, 1200.6));
-__omni_timeline_labels.set("flyPath", {"start": 0, "end": 2400.6});
-  return {
-   name: "flyPath",
-   type: "timeline",
-   kill: function() {
-    __timeouts.forEach(function(t) { clearTimeout(t); });
-    // Also cancel any running WAAPI animations on children
-    if (el) el.querySelectorAll('[data-nid]').forEach(function(c) {
-     c.getAnimations().forEach(function(a) { a.cancel(); });
-    });
-   }
-  };
-};
-function __omni_motion_bouncePath(el, config) {
-  var __children = el ? Array.from(el.querySelectorAll('[data-nid]')) : [];
-  var __childIdx = 0;
-  var __timeouts = [];
-/// ── @timeline bouncePath ──
-__timeouts.push(setTimeout(function() {
-  const el = __children[0];
-  if (el) {
-   const config = {
-    "from": {"opacity": 0},
-    "to": {"y": -40},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_0", player);
-   player.play();
-  }
-}, 0));
-__timeouts.push(setTimeout(function() {
-  const el = __children[1];
-  if (el) {
-   const config = {
-        "to": {"opacity": 1, "y": 0},
-    "over": 800,
-    "easing": "easeOut",
-    "path": "M0,0 Q25,-20 50,0 Q75,-10 100,0",
-    "pathRotate": false
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_1", player);
-   player.play();
-  }
-}, 0.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[2];
-  if (el) {
-   const config = {
-    "from": {"opacity": 1},
-    "to": {"y": 0},
-    "over": 0.3,
-    "easing": "easeOut"
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_2", player);
-   player.play();
-  }
-}, 800.3));
-__timeouts.push(setTimeout(function() {
-  const el = __children[3];
-  if (el) {
-   const config = {
-        "to": {"opacity": 0, "y": -40},
-    "over": 600,
-    "easing": "easeIn",
-    "path": "M100,0 Q75,-10 50,0 Q25,-20 0,0",
-    "pathRotate": true
-   };
-   const player = new AnimationPlayer(el, config);
-   __omni_animations.set("tl_bouncePath_item_3", player);
-   player.play();
-  }
-}, 800.5999999999999));
-  return {
-   name: "bouncePath",
+   name: "pageEnter",
    type: "timeline",
    kill: function() {
     __timeouts.forEach(function(t) { clearTimeout(t); });
@@ -3534,59 +3534,238 @@ __timeouts.push(setTimeout(function() {
   };
 };
 
-/// ── Component: TernaryExprDemo ──
+/// ── Component: InlineStoreDemo ──
 
-const TernaryExprDemo_count = __omni_signal("TernaryExprDemo_count", 0);
-const TernaryExprDemo_score = __omni_signal("TernaryExprDemo_score", 75);
-const TernaryExprDemo_label = __omni_computed("TernaryExprDemo_label", () => (TernaryExprDemo_count.value > 0 ? "Positive" : "Zero or negative"));
-const TernaryExprDemo_grade = __omni_computed("TernaryExprDemo_grade", () => (TernaryExprDemo_score.value >= 90 ? "A" : TernaryExprDemo_score.value >= 80 ? "B" : TernaryExprDemo_score.value >= 70 ? "C" : TernaryExprDemo_score.value >= 60 ? "D" : "F"));
-function TernaryExprDemo_inc() {
-  TernaryExprDemo_count.set(TernaryExprDemo_count.value + 1);
+const InlineStoreDemo_items = __omni_signal("InlineStoreDemo_items", []);
+const InlineStoreDemo_totalPrice = __omni_signal("InlineStoreDemo_totalPrice", 0.0);
+const InlineStoreDemo_log = __omni_signal("InlineStoreDemo_log", "");
+const InlineStoreDemo_itemCount = __omni_computed("InlineStoreDemo_itemCount", () => ((InlineStoreDemo_items.value || []).length));
+const InlineStoreDemo_summary = __omni_computed("InlineStoreDemo_summary", () => ((InlineStoreDemo_items.value || []).length === 0 ? "cart empty" : "total: " + String((InlineStoreDemo_items.value || []).length) + " items"));
+function InlineStoreDemo_addApple() {
+  InlineStoreDemo_addItem("Apple", 5.0);
+  InlineStoreDemo_log.set("Added: Apple ¥5.0");
 }
 
-function TernaryExprDemo_dec() {
-  TernaryExprDemo_count.set(TernaryExprDemo_count.value - 1);
+function InlineStoreDemo_addBook() {
+  InlineStoreDemo_addItem("OmniView Guide", 39.9);
+  InlineStoreDemo_log.set("Added: OmniView Guide ¥39.9");
 }
 
-function TernaryExprDemo_setScore(s) {
-  TernaryExprDemo_score.set(s);
+function InlineStoreDemo_addLaptop() {
+  InlineStoreDemo_addItem("Laptop", 5999.0);
+  InlineStoreDemo_log.set("Added: Laptop ¥5999.0");
+}
+
+function InlineStoreDemo_remove() {
+  InlineStoreDemo_removeLast();
+  InlineStoreDemo_log.set("Removed last item");
+}
+
+function InlineStoreDemo_clearCart() {
+  InlineStoreDemo_clear();
+  InlineStoreDemo_log.set("Cart cleared");
+}
+
+function InlineStoreDemo_addItem(name, price) {
+  InlineStoreDemo_items.value.push(name); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
+  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value + price);
+}
+
+function InlineStoreDemo_removeLast() {
+  if ((InlineStoreDemo_items.value || []).length > 0) {
+  InlineStoreDemo_items.value.pop(); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
+  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value - 10.0);
+  }
+}
+
+function InlineStoreDemo_clear() {
+  InlineStoreDemo_items.set([]);
+  InlineStoreDemo_totalPrice.set(0.0);
 }
 
 
 
-/// ── Component: SettingsPage ──
+/// ── Component: BlockExprDemo ──
 
-const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
-const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
-function SettingsPage_toggleAbout() {
-  SettingsPage_aboutExpanded.set(!SettingsPage_aboutExpanded.value);
+const BlockExprDemo_a = __omni_signal("BlockExprDemo_a", 10);
+const BlockExprDemo_b = __omni_signal("BlockExprDemo_b", 5);
+const BlockExprDemo_calculation = __omni_computed("BlockExprDemo_calculation", () => ((function(){ let a2 = BlockExprDemo_a.value * 2;let b2 = BlockExprDemo_b.value * 3;return "a×2=" + String(a2) + ", b×3=" + String(b2); })()));
+const BlockExprDemo_total = __omni_computed("BlockExprDemo_total", () => ((function(){ let tmp = BlockExprDemo_a.value + BlockExprDemo_b.value;let doubled = tmp * 2;return doubled; })()));
+const BlockExprDemo_simpleSum = __omni_computed("BlockExprDemo_simpleSum", () => (BlockExprDemo_a.value + BlockExprDemo_b.value));
+function BlockExprDemo_incA() {
+  BlockExprDemo_a.set(BlockExprDemo_a.value + 5);
+}
+
+function BlockExprDemo_incB() {
+  BlockExprDemo_b.set(BlockExprDemo_b.value + 5);
+}
+
+function BlockExprDemo_reset() {
+  BlockExprDemo_a.set(10);
+  BlockExprDemo_b.set(5);
 }
 
 
 
-/// ── Component: UserSettings ──
+/// ── Component: MotionCallbackDemo ──
 
-const UserSettings_username = __omni_signal("UserSettings_username", "");
-const UserSettings_fontSize = __omni_signal("UserSettings_fontSize", "medium");
-const UserSettings_autoSave = __omni_signal("UserSettings_autoSave", true);
-const UserSettings_savedText = __omni_signal("UserSettings_savedText", "");
-function UserSettings_saveSettings() {
-  let payload = JSON.stringify(UserSettings_username.value);
-  localStorage.setItem("user-settings", payload);
-  UserSettings_savedText.set("Settings saved at " + "now");
+const MotionCallbackDemo_enterCount = __omni_signal("MotionCallbackDemo_enterCount", 0);
+const MotionCallbackDemo_completeCount = __omni_signal("MotionCallbackDemo_completeCount", 0);
+const MotionCallbackDemo_repeatCount = __omni_signal("MotionCallbackDemo_repeatCount", 0);
+const MotionCallbackDemo_lastEvent = __omni_signal("MotionCallbackDemo_lastEvent", "—");
+const MotionCallbackDemo_isPlaying = __omni_signal("MotionCallbackDemo_isPlaying", false);
+const MotionCallbackDemo_isPulsing = __omni_signal("MotionCallbackDemo_isPulsing", false);
+const MotionCallbackDemo_pulseRepeatCount = __omni_signal("MotionCallbackDemo_pulseRepeatCount", 0);
+function MotionCallbackDemo_handleEnterStart() {
+  MotionCallbackDemo_enterCount.set(MotionCallbackDemo_enterCount.value + 1);
+  MotionCallbackDemo_lastEvent.set("onStart @ " + String(MotionCallbackDemo_enterCount.value));
+  MotionCallbackDemo_isPlaying.set(true);
 }
 
-function UserSettings_clearSettings() {
-  localStorage.setItem("user-settings", "");
-  UserSettings_username.set("");
-  UserSettings_savedText.set("Settings cleared");
+function MotionCallbackDemo_handleEnterComplete() {
+  MotionCallbackDemo_completeCount.set(MotionCallbackDemo_completeCount.value + 1);
+  MotionCallbackDemo_lastEvent.set("onComplete #" + String(MotionCallbackDemo_completeCount.value));
+  MotionCallbackDemo_isPlaying.set(false);
+}
+
+function MotionCallbackDemo_handlePulseStart() {
+  MotionCallbackDemo_isPulsing.set(true);
+}
+
+function MotionCallbackDemo_handlePulseRepeat() {
+  MotionCallbackDemo_pulseRepeatCount.set(MotionCallbackDemo_pulseRepeatCount.value + 1);
+  MotionCallbackDemo_lastEvent.set("onRepeat x" + String(MotionCallbackDemo_pulseRepeatCount.value));
+}
+
+function MotionCallbackDemo_handleInterrupt() {
+  MotionCallbackDemo_lastEvent.set("onInterrupt — motion was interrupted");
+  MotionCallbackDemo_isPlaying.set(false);
 }
 
 
 
-/// ── Component: StatsPanel ──
+/// ── Component: EmitEventDemo ──
 
-const StatsPanel_total = __omni_signal("StatsPanel_total", 0);
+const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
+const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
+function EmitEventDemo_onChildAction(msg) {
+  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + 1);
+  ((EmitEventDemo_messages.value).push(String(EmitEventDemo_totalCount.value) + ": " + msg), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_onOptionalAck(msg) {
+  ((EmitEventDemo_messages.value).push("[ACK] " + msg), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_onChildCount(n) {
+  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + n);
+  ((EmitEventDemo_messages.value).push("[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)), (EmitEventDemo_messages.value).slice());
+}
+
+function EmitEventDemo_clearLog() {
+  EmitEventDemo_messages.set([]);
+  EmitEventDemo_totalCount.set(0);
+}
+
+
+
+/// ── Component: NotificationsPanel ──
+
+const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeVisible", false);
+
+
+/// ── Component: SlotDefaultDemo ──
+
+const SlotDefaultDemo_useCustomContent = __omni_signal("SlotDefaultDemo_useCustomContent", false);
+function SlotDefaultDemo_toggleContent() {
+  SlotDefaultDemo_useCustomContent.set(!SlotDefaultDemo_useCustomContent.value);
+}
+
+
+
+/// ── Component: ThemeCssVarsDemo ──
+
+const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
+const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
+function ThemeCssVarsDemo_toggleScale() {
+  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
+  ThemeCssVarsDemo_boxScale.set(1.05);
+  } else {
+  ThemeCssVarsDemo_boxScale.set(1.0);
+  }
+}
+
+function ThemeCssVarsDemo_toggleBorder() {
+  if (ThemeCssVarsDemo_borderWidth.value === 2) {
+  ThemeCssVarsDemo_borderWidth.set(4);
+  } else {
+  ThemeCssVarsDemo_borderWidth.set(2);
+  }
+}
+
+
+
+/// ── Component: FilterBar ──
+
+const FilterBar_searchText = __omni_signal("FilterBar_searchText", "");
+const FilterBar_sortAsc = __omni_signal("FilterBar_sortAsc", true);
+const FilterBar_changeCount = __omni_signal("FilterBar_changeCount", 0);
+const FilterBar_demoFrameworks = __omni_signal("FilterBar_demoFrameworks", ["React", "Vue", "Svelte", "Solid", "Angular"]);
+const FilterBar_filteredFrameworks = __omni_computed("FilterBar_filteredFrameworks", () => ((FilterBar_demoFrameworks.value).filter(((f) => FilterBar_searchText.value === "" ? true : f === FilterBar_searchText.value))));
+const FilterBar_sortLabel = __omni_computed("FilterBar_sortLabel", () => (FilterBar_sortAsc.value ? "ASC" : "DESC"));
+function FilterBar_handleSortToggle() {
+  if (FilterBar_sortAsc.value) {
+  FilterBar_sortAsc.set(false);
+  } else {
+  FilterBar_sortAsc.set(true);
+  }
+}
+
+
+
+/// ── Component: OptionalChainDemo ──
+
+const OptionalChainDemo_user = __omni_signal("OptionalChainDemo_user", "Alice");
+const OptionalChainDemo_showDetails = __omni_signal("OptionalChainDemo_showDetails", false);
+const OptionalChainDemo_nameLen = __omni_computed("OptionalChainDemo_nameLen", () => ((OptionalChainDemo_user.value || []).length ?? 0));
+const OptionalChainDemo_displayName = __omni_computed("OptionalChainDemo_displayName", () => (OptionalChainDemo_user.value ?? "Guest"));
+function OptionalChainDemo_clearUser() {
+  OptionalChainDemo_user.set(null);
+}
+
+function OptionalChainDemo_setUser() {
+  OptionalChainDemo_user.set("Bob");
+}
+
+function OptionalChainDemo_toggle() {
+  OptionalChainDemo_showDetails.set(!OptionalChainDemo_showDetails.value);
+}
+
+
+
+/// ── Component: CssVarsDemo ──
+
+const CssVarsDemo_accentColor = __omni_signal("CssVarsDemo_accentColor", "#6366f1");
+const CssVarsDemo_accentHue = __omni_signal("CssVarsDemo_accentHue", 221);
+const CssVarsDemo_themeMode = __omni_signal("CssVarsDemo_themeMode", "light");
+function CssVarsDemo_cycleAccent() {
+  if (CssVarsDemo_accentColor.value === "#6366f1") {
+  CssVarsDemo_accentColor.set("#ec4899");
+  } else if (CssVarsDemo_accentColor.value === "#ec4899") {
+  CssVarsDemo_accentColor.set("#14b8a6");
+  } else {
+  CssVarsDemo_accentColor.set("#6366f1");
+  }
+}
+
+function CssVarsDemo_toggleMode() {
+  if (CssVarsDemo_themeMode.value === "light") {
+  CssVarsDemo_themeMode.set("dark");
+  } else {
+  CssVarsDemo_themeMode.set("light");
+  }
+}
+
 
 
 /// ── Component: EmitChild ──
@@ -3612,12 +3791,102 @@ function EmitChild_handleFunc() {
 
 
 
-/// ── Component: FeatureList ──
+/// ── Component: DataFetching ──
 
-const FeatureList_isOpen = __omni_signal("FeatureList_isOpen", true);
-const FeatureList_features = __omni_signal("FeatureList_features", ["Store: 全局状态管理", "Component: 组件声明与组合", "Signal: 响应式信号", "Computed: 计算属性", "Prop: 外部属性传递", "Event: 自定义事件通信", "bind:value: 双向绑定", "if else: 条件渲染", "for empty: 列表渲染加空状态", "onPress: 事件处理加内联回调", "mount effect: 生命周期", "style: 作用域CSS样式", "pub fn: 公开工具函数", "import export: 跨文件模块"]);
-function FeatureList_toggle() {
-  FeatureList_isOpen.set(!FeatureList_isOpen.value);
+const DataFetching_status = __omni_signal("DataFetching_status", "idle");
+const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
+const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
+const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
+const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
+function DataFetching_reset() {
+  DataFetching_status.set("idle");
+  DataFetching_resultText.set("");
+  DataFetching_errorMsg.set("");
+}
+
+async function DataFetching_loadData() {
+  DataFetching_status.set("loading");
+  let raw = await fetch(DataFetching_url.value).then(r => r.text());
+  if (raw === "") {
+  DataFetching_status.set("error");
+  DataFetching_errorMsg.set("Empty response from server");
+  console.error(DataFetching_errorMsg.value);
+  return undefined;
+  }
+  let parsed = JSON.parse(raw);
+  DataFetching_resultText.set(JSON.stringify(parsed));
+  DataFetching_status.set("success");
+  console.log("Fetch completed");
+}
+
+async function DataFetching_loadViaApi() {
+  DataFetching_status.set("loading");
+  let result = await fetch_demo(DataFetching_url.value);
+  let msg = error_message(result);
+  if (msg === "") {
+  DataFetching_status.set("success");
+  DataFetching_resultText.set("api.omni fetch_demo OK");
+  console.log("Fetch completed");
+  } else {
+  DataFetching_status.set("error");
+  DataFetching_errorMsg.set(msg);
+  console.error(msg);
+  }
+}
+
+
+
+/// ── Component: StaggerAndTimelineDemo ──
+
+
+
+/// ── Component: StringLiteralsDemo ──
+
+const StringLiteralsDemo_backtickResult = __omni_signal("StringLiteralsDemo_backtickResult", "Hello \"OmniView\" world");
+const StringLiteralsDemo_singleQuoteResult = __omni_signal("StringLiteralsDemo_singleQuoteResult", "Single-quoted text with \"double\" inside");
+const StringLiteralsDemo_mixed = __omni_signal("StringLiteralsDemo_mixed", "Backtick with 'single' and \"double\" quotes");
+const StringLiteralsDemo_userName = __omni_signal("StringLiteralsDemo_userName", "OmniView");
+const StringLiteralsDemo_version = __omni_signal("StringLiteralsDemo_version", 1.0);
+const StringLiteralsDemo_interpolated = __omni_signal("StringLiteralsDemo_interpolated", "Hello ${userName}, current version is ${version}");
+function StringLiteralsDemo_buildGreeting(name, age) {
+  return "User ${name} is ${age} years old";
+}
+
+function StringLiteralsDemo_updateTemplate() {
+  StringLiteralsDemo_userName.set("User" + String(StringLiteralsDemo_version.value));
+  StringLiteralsDemo_interpolated.set("Hello ${userName}, v${version}");
+}
+
+
+
+/// ── Component: EventShorthand ──
+
+const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
+const EventShorthand_count = __omni_signal("EventShorthand_count", 0);
+function EventShorthand_greet(name) {
+  EventShorthand_msg.set("Hello " + name + "!");
+  EventShorthand_count.set(EventShorthand_count.value + 1);
+}
+
+function EventShorthand_farewell(name) {
+  EventShorthand_msg.set("Goodbye " + name + "!");
+  EventShorthand_count.set(EventShorthand_count.value + 1);
+}
+
+function EventShorthand_reset() {
+  EventShorthand_msg.set("Click a button");
+  EventShorthand_count.set(0);
+}
+
+
+
+/// ── Component: Dashboard ──
+
+const Dashboard_totalItems = __omni_signal("Dashboard_totalItems", 42);
+const Dashboard_lastUpdated = __omni_signal("Dashboard_lastUpdated", "just now");
+function Dashboard_refresh() {
+  Dashboard_totalItems.set(Dashboard_totalItems.value + 1);
+  Dashboard_lastUpdated.set("updated");
 }
 
 
@@ -3679,6 +3948,333 @@ function ValidationInput_validate(text) {
 
 
 
+/// ── Component: EasingFunctionsDemo ──
+
+const EasingFunctionsDemo_playAll = __omni_signal("EasingFunctionsDemo_playAll", false);
+function EasingFunctionsDemo_toggleAll() {
+  EasingFunctionsDemo_playAll.set(!EasingFunctionsDemo_playAll.value);
+}
+
+
+
+/// ── Component: ForDirectiveKeyDemo ──
+
+const ForDirectiveKeyDemo_items = __omni_signal("ForDirectiveKeyDemo_items", ["Apple", "Banana", "Cherry", "Date", "Elderberry"]);
+
+
+/// ── Component: Constants ──
+
+const Constants_APP_NAME = __omni_signal("Constants_APP_NAME", "OmniView Learn");
+const Constants_APP_VERSION = __omni_signal("Constants_APP_VERSION", "1.0.0");
+const Constants_logoUrl = __omni_signal("Constants_logoUrl", "/assets/omnilang-logo.png");
+const Constants_apiBase = __omni_signal("Constants_apiBase", "https://api.omnilang.dev/v1");
+
+
+/// ── Component: PlaybackAdvancedDemo ──
+
+const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
+function PlaybackAdvancedDemo_toggleDirFill() {
+  PlaybackAdvancedDemo_playDirFill.set(!PlaybackAdvancedDemo_playDirFill.value);
+}
+
+
+
+/// ── Component: TernaryExprDemo ──
+
+const TernaryExprDemo_count = __omni_signal("TernaryExprDemo_count", 0);
+const TernaryExprDemo_score = __omni_signal("TernaryExprDemo_score", 75);
+const TernaryExprDemo_label = __omni_computed("TernaryExprDemo_label", () => (TernaryExprDemo_count.value > 0 ? "Positive" : "Zero or negative"));
+const TernaryExprDemo_grade = __omni_computed("TernaryExprDemo_grade", () => (TernaryExprDemo_score.value >= 90 ? "A" : TernaryExprDemo_score.value >= 80 ? "B" : TernaryExprDemo_score.value >= 70 ? "C" : TernaryExprDemo_score.value >= 60 ? "D" : "F"));
+function TernaryExprDemo_inc() {
+  TernaryExprDemo_count.set(TernaryExprDemo_count.value + 1);
+}
+
+function TernaryExprDemo_dec() {
+  TernaryExprDemo_count.set(TernaryExprDemo_count.value - 1);
+}
+
+function TernaryExprDemo_setScore(s) {
+  TernaryExprDemo_score.set(s);
+}
+
+
+
+/// ── Component: EmitKeywordDemo ──
+
+const EmitKeywordDemo_emitLog = __omni_signal("EmitKeywordDemo_emitLog", []);
+const EmitKeywordDemo_funcLog = __omni_signal("EmitKeywordDemo_funcLog", []);
+function EmitKeywordDemo_onEmitReceived(val) {
+  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_emitLog.value || []);
+  EmitKeywordDemo_emitLog.set(newLog);
+}
+
+function EmitKeywordDemo_onFuncReceived(val) {
+  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_funcLog.value || []);
+  EmitKeywordDemo_funcLog.set(newLog);
+}
+
+function EmitKeywordDemo_recordEmit(val) {
+  EmitKeywordDemo_emitLog.set(EmitKeywordDemo_emitLog.value.concat([val]));
+}
+
+function EmitKeywordDemo_recordFunc(val) {
+  EmitKeywordDemo_funcLog.set(EmitKeywordDemo_funcLog.value.concat([val]));
+}
+
+
+
+/// ── Component: FeatureList ──
+
+const FeatureList_isOpen = __omni_signal("FeatureList_isOpen", true);
+const FeatureList_features = __omni_signal("FeatureList_features", ["Store: 全局状态管理", "Component: 组件声明与组合", "Signal: 响应式信号", "Computed: 计算属性", "Prop: 外部属性传递", "Event: 自定义事件通信", "bind:value: 双向绑定", "if else: 条件渲染", "for empty: 列表渲染加空状态", "onPress: 事件处理加内联回调", "mount effect: 生命周期", "style: 作用域CSS样式", "pub fn: 公开工具函数", "import export: 跨文件模块"]);
+function FeatureList_toggle() {
+  FeatureList_isOpen.set(!FeatureList_isOpen.value);
+}
+
+
+
+/// ── Component: SlotContainer ──
+
+function SlotContainer_onClose(...args) {
+  const el = document.querySelector('[data-component="SlotContainer"]');
+  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args[0], bubbles: true }));
+}
+
+
+/// ── Component: TodoItem ──
+
+const TodoItem_checked = __omni_signal("TodoItem_checked", false);
+const TodoItem_index = __omni_signal("TodoItem_index", 0);
+function TodoItem_onDelete(...args) {
+  const el = document.querySelector('[data-component="TodoItem"]');
+  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: true }));
+}
+function TodoItem_toggle() {
+  TodoItem_checked.set(!TodoItem_checked.value);
+}
+
+function TodoItem_handleDelete() {
+  TodoItem_onDelete(TodoItem_index.value);
+}
+
+
+
+/// ── Component: Timer ──
+
+const Timer_count = __omni_signal("Timer_count", 0);
+const Timer_running = __omni_signal("Timer_running", false);
+const Timer_interval = __omni_signal("Timer_interval", 1000);
+function Timer_onTick(...args) {
+  const el = document.querySelector('[data-component="Timer"]');
+  if (el) el.dispatchEvent(new CustomEvent('tick', { detail: args[0], bubbles: true }));
+}
+function Timer_onComplete(...args) {
+  const el = document.querySelector('[data-component="Timer"]');
+  if (el) el.dispatchEvent(new CustomEvent('complete', { detail: args[0], bubbles: true }));
+}
+function Timer_start() {
+  Timer_running.set(true);
+  Timer_count.set(0);
+  console.log("Timer started");
+}
+
+function Timer_stop() {
+  Timer_running.set(false);
+  console.log("Timer stopped");
+}
+
+function Timer_reset() {
+  Timer_count.set(0);
+  Timer_running.set(false);
+}
+
+function Timer_tick() {
+  if (Timer_running.value) {
+  Timer_count.set(Timer_count.value + 1);
+  Timer_onTick(Timer_count.value);
+  if (Timer_count.value >= 10) {
+  Timer_running.set(false);
+  Timer_onComplete("Timer finished after 10 ticks");
+  }
+  }
+}
+
+function Timer_faster() {
+  if (Timer_interval.value > 100) {
+  Timer_interval.set(Timer_interval.value - 100);
+  }
+}
+
+function Timer_slower() {
+  Timer_interval.set(Timer_interval.value + 100);
+}
+
+// @unmount Timer
+window.__omni_unmount_Timer = () => {
+  Timer_running.set(false);
+  console.log("Timer unmounted, final count: " + String(Timer_count.value));
+};
+
+
+/// ── Component: UserSettings ──
+
+const UserSettings_username = __omni_signal("UserSettings_username", "");
+const UserSettings_fontSize = __omni_signal("UserSettings_fontSize", "medium");
+const UserSettings_autoSave = __omni_signal("UserSettings_autoSave", true);
+const UserSettings_savedText = __omni_signal("UserSettings_savedText", "");
+function UserSettings_saveSettings() {
+  let payload = JSON.stringify(UserSettings_username.value);
+  localStorage.setItem("user-settings", payload);
+  UserSettings_savedText.set("Settings saved at " + "now");
+}
+
+function UserSettings_clearSettings() {
+  localStorage.setItem("user-settings", "");
+  UserSettings_username.set("");
+  UserSettings_savedText.set("Settings cleared");
+}
+
+
+
+/// ── Component: TypeSystemDemo ──
+
+const TypeSystemDemo_summary = __omni_signal("TypeSystemDemo_summary", "");
+function TypeSystemDemo_loadSummary() {
+  TypeSystemDemo_summary.set(type_system_summary());
+}
+
+
+
+/// ── Component: EventDataDemo ──
+
+const EventDataDemo_scrollY = __omni_signal("EventDataDemo_scrollY", 0);
+const EventDataDemo_keyPressed = __omni_signal("EventDataDemo_keyPressed", "");
+const EventDataDemo_mouseX = __omni_signal("EventDataDemo_mouseX", 0);
+const EventDataDemo_mouseY = __omni_signal("EventDataDemo_mouseY", 0);
+const EventDataDemo_wheelDelta = __omni_signal("EventDataDemo_wheelDelta", 0.0);
+const EventDataDemo_ctrlHeld = __omni_signal("EventDataDemo_ctrlHeld", false);
+function EventDataDemo_handleScroll(e) {
+  EventDataDemo_scrollY.set(e.y);
+}
+
+function EventDataDemo_handleKeyDown(e) {
+  EventDataDemo_keyPressed.set(e.key);
+  EventDataDemo_ctrlHeld.set(e.ctrl);
+}
+
+function EventDataDemo_handleMouseMove(e) {
+  EventDataDemo_mouseX.set(e.x);
+  EventDataDemo_mouseY.set(e.y);
+}
+
+function EventDataDemo_handleWheel(e) {
+  EventDataDemo_wheelDelta.set(e.deltaY);
+  EventDataDemo_ctrlHeld.set(e.ctrl);
+}
+
+
+
+/// ── Component: EventsDemo ──
+
+const EventsDemo_eventLog = __omni_signal("EventsDemo_eventLog", []);
+const EventsDemo_dragStatus = __omni_signal("EventsDemo_dragStatus", "idle");
+const EventsDemo_wheelCount = __omni_signal("EventsDemo_wheelCount", 0);
+const EventsDemo_mediaStatus = __omni_signal("EventsDemo_mediaStatus", "stopped");
+const EventsDemo_animStatus = __omni_signal("EventsDemo_animStatus", "idle");
+const EventsDemo_toggleCount = __omni_signal("EventsDemo_toggleCount", 0);
+const EventsDemo_scrollY = __omni_signal("EventsDemo_scrollY", 0);
+const EventsDemo_scrollCount = __omni_signal("EventsDemo_scrollCount", 0);
+const EventsDemo_deltaY = __omni_signal("EventsDemo_deltaY", 0.0);
+function EventsDemo_addLog(msg) {
+  EventsDemo_eventLog.value.push(msg); EventsDemo_eventLog.set(EventsDemo_eventLog.value.slice());
+}
+
+function EventsDemo_handleScroll(e) {
+  EventsDemo_scrollY.set(e.y);
+  EventsDemo_scrollCount.set(EventsDemo_scrollCount.value + 1);
+}
+
+function EventsDemo_handleWheel(e) {
+  EventsDemo_deltaY.set(e.deltaY);
+  EventsDemo_wheelCount.set(EventsDemo_wheelCount.value + 1);
+}
+
+
+
+/// ── Component: ComputedFnFormDemo ──
+
+const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
+const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
+const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
+const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
+const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => ((function(){ if (ComputedFnFormDemo_firstName.value === "" && ComputedFnFormDemo_lastName.value === "") { return "Anonymous" };if (ComputedFnFormDemo_lastName.value === "") { return ComputedFnFormDemo_firstName.value };return ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value;return null; })()));
+function ComputedFnFormDemo_clearLast() {
+  ComputedFnFormDemo_lastName.set("");
+}
+
+function ComputedFnFormDemo_setLast() {
+  ComputedFnFormDemo_lastName.set("San");
+  ComputedFnFormDemo_counter.set(ComputedFnFormDemo_counter.value + 1);
+}
+
+
+
+/// ── Component: TodoPage ──
+
+const TodoPage_pageLoadCount = __omni_signal("TodoPage_pageLoadCount", 0);
+
+
+/// ── Component: StylePseudoDemo ──
+
+const StylePseudoDemo_clicked = __omni_signal("StylePseudoDemo_clicked", 0);
+function StylePseudoDemo_increment() {
+  StylePseudoDemo_clicked.set(StylePseudoDemo_clicked.value + 1);
+}
+
+
+
+/// ── Component: FormControlsDemo ──
+
+const FormControlsDemo_selected = __omni_signal("FormControlsDemo_selected", "option2");
+const FormControlsDemo_agreed = __omni_signal("FormControlsDemo_agreed", false);
+const FormControlsDemo_age = __omni_signal("FormControlsDemo_age", 25);
+const FormControlsDemo_rangeVal = __omni_signal("FormControlsDemo_rangeVal", 50);
+const FormControlsDemo_linkClicked = __omni_signal("FormControlsDemo_linkClicked", 0);
+const FormControlsDemo_statusText = __omni_signal("FormControlsDemo_statusText", "");
+function FormControlsDemo_handleSelect() {
+  FormControlsDemo_statusText.set("Selected: " + FormControlsDemo_selected.value);
+}
+
+function FormControlsDemo_handleAgree() {
+  FormControlsDemo_agreed.set(!FormControlsDemo_agreed.value);
+  FormControlsDemo_statusText.set(FormControlsDemo_agreed.value ? "Agreed ✓" : "Not agreed");
+}
+
+function FormControlsDemo_handleAgeChange() {
+  FormControlsDemo_statusText.set("Age set to: " + String(FormControlsDemo_age.value));
+}
+
+function FormControlsDemo_handleRangeChange() {
+  FormControlsDemo_statusText.set("Range: " + String(FormControlsDemo_rangeVal.value));
+}
+
+function FormControlsDemo_handleLinkClick() {
+  FormControlsDemo_linkClicked.set(FormControlsDemo_linkClicked.value + 1);
+  FormControlsDemo_statusText.set("Link clicked " + String(FormControlsDemo_linkClicked.value) + " times");
+}
+
+
+
+/// ── Component: SettingsPage ──
+
+const SettingsPage_themeColors = __omni_signal("SettingsPage_themeColors", ["primary", "primaryLight", "success", "warning", "danger", "bgLight", "textLight", "bgDark", "textDark"]);
+const SettingsPage_aboutExpanded = __omni_signal("SettingsPage_aboutExpanded", false);
+function SettingsPage_toggleAbout() {
+  SettingsPage_aboutExpanded.set(!SettingsPage_aboutExpanded.value);
+}
+
+
+
 /// ── Component: DataSubmit ──
 
 const DataSubmit_title = __omni_signal("DataSubmit_title", "");
@@ -3712,333 +4308,16 @@ async function DataSubmit_submitForm() {
 
 
 
-/// ── Component: MotionTriggersDemo ──
+/// ── Component: App ──
 
-const MotionTriggersDemo_isHovered = __omni_signal("MotionTriggersDemo_isHovered", false);
-const MotionTriggersDemo_isFocused = __omni_signal("MotionTriggersDemo_isFocused", false);
-const MotionTriggersDemo_dragX = __omni_signal("MotionTriggersDemo_dragX", 0);
-
-
-/// ── Component: TimelineMotionDemo ──
-
-
-
-/// ── Component: HeroTransitionDemo ──
-
-const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
-const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
-function HeroTransitionDemo_toggle() {
-  HeroTransitionDemo_isExpanded.set(!HeroTransitionDemo_isExpanded.value);
+const App_completionRate = __omni_signal("App_completionRate", 42.0);
+const App_activeTab = __omni_signal("App_activeTab", "home");
+function App_switchTab(tab) {
+  App_activeTab.set(tab);
 }
 
-function HeroTransitionDemo_advance() {
-  if (HeroTransitionDemo_progress.value < 1.0) {
-  HeroTransitionDemo_progress.set(HeroTransitionDemo_progress.value + 0.1);
-  }
-}
-
-
-
-/// ── Component: TimelinePositionDemo ──
-
-const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
-const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
-function TimelinePositionDemo_switchDemo(name) {
-  TimelinePositionDemo_activeDemo.set(name);
-}
-
-function TimelinePositionDemo_replayCount() {
-  TimelinePositionDemo_playCount.set(TimelinePositionDemo_playCount.value + 1);
-}
-
-
-
-/// ── Component: StringLiteralsDemo ──
-
-const StringLiteralsDemo_backtickResult = __omni_signal("StringLiteralsDemo_backtickResult", "Hello \"OmniView\" world");
-const StringLiteralsDemo_singleQuoteResult = __omni_signal("StringLiteralsDemo_singleQuoteResult", "Single-quoted text with \"double\" inside");
-const StringLiteralsDemo_mixed = __omni_signal("StringLiteralsDemo_mixed", "Backtick with 'single' and \"double\" quotes");
-const StringLiteralsDemo_userName = __omni_signal("StringLiteralsDemo_userName", "OmniView");
-const StringLiteralsDemo_version = __omni_signal("StringLiteralsDemo_version", 1.0);
-const StringLiteralsDemo_interpolated = __omni_signal("StringLiteralsDemo_interpolated", "Hello ${userName}, current version is ${version}");
-function StringLiteralsDemo_buildGreeting(name, age) {
-  return "User ${name} is ${age} years old";
-}
-
-function StringLiteralsDemo_updateTemplate() {
-  StringLiteralsDemo_userName.set("User" + String(StringLiteralsDemo_version.value));
-  StringLiteralsDemo_interpolated.set("Hello ${userName}, v${version}");
-}
-
-
-
-/// ── Component: AdvancedPseudoDemo ──
-
-const AdvancedPseudoDemo_isActive = __omni_signal("AdvancedPseudoDemo_isActive", false);
-const AdvancedPseudoDemo_variant = __omni_signal("AdvancedPseudoDemo_variant", "default");
-function AdvancedPseudoDemo_toggle() {
-  AdvancedPseudoDemo_isActive.set(!AdvancedPseudoDemo_isActive.value);
-}
-
-function AdvancedPseudoDemo_setDefault() {
-  AdvancedPseudoDemo_variant.set("default");
-}
-
-function AdvancedPseudoDemo_setDark() {
-  AdvancedPseudoDemo_variant.set("dark");
-}
-
-
-
-/// ── Component: CssVarsDemo ──
-
-const CssVarsDemo_accentColor = __omni_signal("CssVarsDemo_accentColor", "#6366f1");
-const CssVarsDemo_accentHue = __omni_signal("CssVarsDemo_accentHue", 221);
-const CssVarsDemo_themeMode = __omni_signal("CssVarsDemo_themeMode", "light");
-function CssVarsDemo_cycleAccent() {
-  if (CssVarsDemo_accentColor.value === "#6366f1") {
-  CssVarsDemo_accentColor.set("#ec4899");
-  } else if (CssVarsDemo_accentColor.value === "#ec4899") {
-  CssVarsDemo_accentColor.set("#14b8a6");
-  } else {
-  CssVarsDemo_accentColor.set("#6366f1");
-  }
-}
-
-function CssVarsDemo_toggleMode() {
-  if (CssVarsDemo_themeMode.value === "light") {
-  CssVarsDemo_themeMode.set("dark");
-  } else {
-  CssVarsDemo_themeMode.set("light");
-  }
-}
-
-
-
-/// ── Component: EmitKeywordDemo ──
-
-const EmitKeywordDemo_emitLog = __omni_signal("EmitKeywordDemo_emitLog", []);
-const EmitKeywordDemo_funcLog = __omni_signal("EmitKeywordDemo_funcLog", []);
-function EmitKeywordDemo_onEmitReceived(val) {
-  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_emitLog.value || []);
-  EmitKeywordDemo_emitLog.set(newLog);
-}
-
-function EmitKeywordDemo_onFuncReceived(val) {
-  let newLog = ((_a) => { _a.push(val); return _a.slice(); })(EmitKeywordDemo_funcLog.value || []);
-  EmitKeywordDemo_funcLog.set(newLog);
-}
-
-function EmitKeywordDemo_recordEmit(val) {
-  EmitKeywordDemo_emitLog.set(EmitKeywordDemo_emitLog.value.concat([val]));
-}
-
-function EmitKeywordDemo_recordFunc(val) {
-  EmitKeywordDemo_funcLog.set(EmitKeywordDemo_funcLog.value.concat([val]));
-}
-
-
-
-/// ── Component: InlineStoreDemo ──
-
-const InlineStoreDemo_items = __omni_signal("InlineStoreDemo_items", []);
-const InlineStoreDemo_totalPrice = __omni_signal("InlineStoreDemo_totalPrice", 0.0);
-const InlineStoreDemo_log = __omni_signal("InlineStoreDemo_log", "");
-const InlineStoreDemo_itemCount = __omni_computed("InlineStoreDemo_itemCount", () => ((InlineStoreDemo_items.value || []).length));
-const InlineStoreDemo_summary = __omni_computed("InlineStoreDemo_summary", () => ((InlineStoreDemo_items.value || []).length === 0 ? "cart empty" : "total: " + String((InlineStoreDemo_items.value || []).length) + " items"));
-function InlineStoreDemo_addApple() {
-  InlineStoreDemo_addItem("Apple", 5.0);
-  InlineStoreDemo_log.set("Added: Apple ¥5.0");
-}
-
-function InlineStoreDemo_addBook() {
-  InlineStoreDemo_addItem("OmniView Guide", 39.9);
-  InlineStoreDemo_log.set("Added: OmniView Guide ¥39.9");
-}
-
-function InlineStoreDemo_addLaptop() {
-  InlineStoreDemo_addItem("Laptop", 5999.0);
-  InlineStoreDemo_log.set("Added: Laptop ¥5999.0");
-}
-
-function InlineStoreDemo_remove() {
-  InlineStoreDemo_removeLast();
-  InlineStoreDemo_log.set("Removed last item");
-}
-
-function InlineStoreDemo_clearCart() {
-  InlineStoreDemo_clear();
-  InlineStoreDemo_log.set("Cart cleared");
-}
-
-function InlineStoreDemo_addItem(name, price) {
-  InlineStoreDemo_items.value.push(name); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
-  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value + price);
-}
-
-function InlineStoreDemo_removeLast() {
-  if ((InlineStoreDemo_items.value || []).length > 0) {
-  InlineStoreDemo_items.value.pop(); InlineStoreDemo_items.set(InlineStoreDemo_items.value.slice());
-  InlineStoreDemo_totalPrice.set(InlineStoreDemo_totalPrice.value - 10.0);
-  }
-}
-
-function InlineStoreDemo_clear() {
-  InlineStoreDemo_items.set([]);
-  InlineStoreDemo_totalPrice.set(0.0);
-}
-
-
-
-/// ── Component: TodoItem ──
-
-const TodoItem_checked = __omni_signal("TodoItem_checked", false);
-const TodoItem_index = __omni_signal("TodoItem_index", 0);
-function TodoItem_onDelete(...args) {
-  const el = document.querySelector('[data-component="TodoItem"]');
-  if (el) el.dispatchEvent(new CustomEvent('delete', { detail: args[0], bubbles: true }));
-}
-function TodoItem_toggle() {
-  TodoItem_checked.set(!TodoItem_checked.value);
-}
-
-function TodoItem_handleDelete() {
-  TodoItem_onDelete(TodoItem_index.value);
-}
-
-
-
-/// ── Component: ComputedFnFormDemo ──
-
-const ComputedFnFormDemo_firstName = __omni_signal("ComputedFnFormDemo_firstName", "Zhang");
-const ComputedFnFormDemo_lastName = __omni_signal("ComputedFnFormDemo_lastName", "");
-const ComputedFnFormDemo_counter = __omni_signal("ComputedFnFormDemo_counter", 0);
-const ComputedFnFormDemo_simple = __omni_computed("ComputedFnFormDemo_simple", () => (ComputedFnFormDemo_firstName.value + " " + ComputedFnFormDemo_lastName.value));
-const ComputedFnFormDemo_fullName = __omni_computed("ComputedFnFormDemo_fullName", () => (null));
-function ComputedFnFormDemo_clearLast() {
-  ComputedFnFormDemo_lastName.set("");
-}
-
-function ComputedFnFormDemo_setLast() {
-  ComputedFnFormDemo_lastName.set("San");
-  ComputedFnFormDemo_counter.set(ComputedFnFormDemo_counter.value + 1);
-}
-
-
-
-/// ── Component: Header ──
-
-
-
-/// ── Component: ForDirectiveKeyDemo ──
-
-const ForDirectiveKeyDemo_items = __omni_signal("ForDirectiveKeyDemo_items", ["Apple", "Banana", "Cherry", "Date", "Elderberry"]);
-
-
-/// ── Component: BlockExprDemo ──
-
-const BlockExprDemo_a = __omni_signal("BlockExprDemo_a", 10);
-const BlockExprDemo_b = __omni_signal("BlockExprDemo_b", 5);
-const BlockExprDemo_calculation = __omni_computed("BlockExprDemo_calculation", () => ((function(){ let a2 = BlockExprDemo_a.value * 2;let b2 = BlockExprDemo_b.value * 3;return "a×2=" + String(a2) + ", b×3=" + String(b2); })()));
-const BlockExprDemo_total = __omni_computed("BlockExprDemo_total", () => ((function(){ let tmp = BlockExprDemo_a.value + BlockExprDemo_b.value;let doubled = tmp * 2;return doubled; })()));
-const BlockExprDemo_simpleSum = __omni_computed("BlockExprDemo_simpleSum", () => (BlockExprDemo_a.value + BlockExprDemo_b.value));
-function BlockExprDemo_incA() {
-  BlockExprDemo_a.set(BlockExprDemo_a.value + 5);
-}
-
-function BlockExprDemo_incB() {
-  BlockExprDemo_b.set(BlockExprDemo_b.value + 5);
-}
-
-function BlockExprDemo_reset() {
-  BlockExprDemo_a.set(10);
-  BlockExprDemo_b.set(5);
-}
-
-
-
-/// ── Component: StatsDashboard ──
-
-const StatsDashboard_MAX_ITEMS = __omni_signal("StatsDashboard_MAX_ITEMS", 10);
-const StatsDashboard_$iconUrl = __omni_signal("StatsDashboard_$iconUrl", "/assets/icon.png");
-const StatsDashboard_$apiBase = __omni_signal("StatsDashboard_$apiBase", "https://api.example.com");
-const StatsDashboard_counter = __omni_signal("StatsDashboard_counter", 0);
-const StatsDashboard_removed = __omni_signal("StatsDashboard_removed", false);
-const StatsDashboard_randomValue = __omni_signal("StatsDashboard_randomValue", 0.0);
-function StatsDashboard_addFive() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value + 5);
-}
-
-function StatsDashboard_subThree() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value - 3);
-}
-
-function StatsDashboard_double() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value * 2);
-}
-
-function StatsDashboard_halve() {
-  StatsDashboard_counter.set(StatsDashboard_counter.value / 2);
-}
-
-function StatsDashboard_modThree() {
-  let x = StatsDashboard_counter.value;
-  x %= 3;
-  StatsDashboard_counter.set(x);
-}
-
-function StatsDashboard_getModStatus() {
-  if (StatsDashboard_counter.value % 2 === 0) {
-  return "even";
-  }
-  return "odd";
-}
-
-function StatsDashboard_getFirst() {
-  let arr = [10, 20, 30, 40, 50];
-  return (arr || [])[0];
-}
-
-function StatsDashboard_removeContainer() {
-  StatsDashboard_removed.set(true);
-}
-
-function StatsDashboard_rollDice() {
-  StatsDashboard_randomValue.set(Math.random());
-}
-
-// @unmount StatsDashboard
-window.__omni_unmount_StatsDashboard = () => {
-  console.log("StatsDashboard unmounting, counter: " + String(StatsDashboard_counter.value));
-};
-
-
-/// ── Component: EventShorthand ──
-
-const EventShorthand_msg = __omni_signal("EventShorthand_msg", "Click a button");
-const EventShorthand_count = __omni_signal("EventShorthand_count", 0);
-function EventShorthand_greet(name) {
-  EventShorthand_msg.set("Hello " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
-}
-
-function EventShorthand_farewell(name) {
-  EventShorthand_msg.set("Goodbye " + name + "!");
-  EventShorthand_count.set(EventShorthand_count.value + 1);
-}
-
-function EventShorthand_reset() {
-  EventShorthand_msg.set("Click a button");
-  EventShorthand_count.set(0);
-}
-
-
-
-/// ── Component: StylePseudoDemo ──
-
-const StylePseudoDemo_clicked = __omni_signal("StylePseudoDemo_clicked", 0);
-function StylePseudoDemo_increment() {
-  StylePseudoDemo_clicked.set(StylePseudoDemo_clicked.value + 1);
+function App_isActive(tab) {
+  return App_activeTab.value === tab;
 }
 
 
@@ -4060,55 +4339,6 @@ function TodoList_handleDelete(index) {
 
 function TodoList_handleAdd(text) {
   TodoList_onAdd(text);
-}
-
-
-
-/// ── Component: Modal ──
-
-const Modal_isOpen = __omni_signal("Modal_isOpen", false);
-const Modal_isHovering = __omni_signal("Modal_isHovering", false);
-const Modal_lastAction = __omni_signal("Modal_lastAction", "");
-function Modal_open() {
-  Modal_isOpen.set(true);
-  Modal_lastAction.set("opened");
-}
-
-function Modal_close() {
-  Modal_isOpen.set(false);
-  Modal_lastAction.set("closed");
-}
-
-function Modal_handleKeyDown(e) {
-  if (e.key === "Escape") {
-  Modal_close();
-  }
-}
-
-function Modal_handleMouseEnter() {
-  Modal_isHovering.set(true);
-}
-
-function Modal_handleMouseLeave() {
-  Modal_isHovering.set(false);
-}
-
-function Modal_handleOverlayClick() {
-  Modal_close();
-}
-
-function Modal_getOverlayClass() {
-  if (Modal_isOpen.value) {
-  return "overlay visible";
-  }
-  return "overlay hidden";
-}
-
-function Modal_getModalClass() {
-  if (Modal_isHovering.value) {
-  return "modal-content hover";
-  }
-  return "modal-content";
 }
 
 
@@ -4223,139 +4453,24 @@ function FormPage_isFormValid() {
 
 
 
-/// ── Component: NullishDemo ──
+/// ── Component: AnimPropertiesDemo ──
 
-const NullishDemo_inputName = __omni_signal("NullishDemo_inputName", "test");
-const NullishDemo_displayName = __omni_computed("NullishDemo_displayName", () => (NullishDemo_inputName.value ?? "Anonymous"));
-
-
-/// ── Component: Counter ──
-
-const Counter_count = __omni_signal("Counter_count", 0);
-const Counter_step = __omni_signal("Counter_step", 1);
-const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
-const Counter_label = __omni_computed("Counter_label", () => (Counter_count.value % 2 === 0 ? "偶数" : "奇数"));
-function Counter_inc() {
-  Counter_count.set(Counter_count.value + Counter_step.value);
-}
-
-function Counter_dec() {
-  Counter_count.set(Counter_count.value - Counter_step.value);
-}
-
-function Counter_reset() {
-  Counter_count.set(0);
+const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
+function AnimPropertiesDemo_toggleAll() {
+  AnimPropertiesDemo_playAll.set(!AnimPropertiesDemo_playAll.value);
 }
 
 
 
-/// ── Component: PathTimelineDemo ──
+/// ── Component: TimelineMotionDemo ──
 
 
 
-/// ── Component: FormControlsDemo ──
-
-const FormControlsDemo_selected = __omni_signal("FormControlsDemo_selected", "option2");
-const FormControlsDemo_agreed = __omni_signal("FormControlsDemo_agreed", false);
-const FormControlsDemo_age = __omni_signal("FormControlsDemo_age", 25);
-const FormControlsDemo_rangeVal = __omni_signal("FormControlsDemo_rangeVal", 50);
-const FormControlsDemo_linkClicked = __omni_signal("FormControlsDemo_linkClicked", 0);
-const FormControlsDemo_statusText = __omni_signal("FormControlsDemo_statusText", "");
-function FormControlsDemo_handleSelect() {
-  FormControlsDemo_statusText.set("Selected: " + FormControlsDemo_selected.value);
-}
-
-function FormControlsDemo_handleAgree() {
-  FormControlsDemo_agreed.set(!FormControlsDemo_agreed.value);
-  FormControlsDemo_statusText.set(FormControlsDemo_agreed.value ? "Agreed ✓" : "Not agreed");
-}
-
-function FormControlsDemo_handleAgeChange() {
-  FormControlsDemo_statusText.set("Age set to: " + String(FormControlsDemo_age.value));
-}
-
-function FormControlsDemo_handleRangeChange() {
-  FormControlsDemo_statusText.set("Range: " + String(FormControlsDemo_rangeVal.value));
-}
-
-function FormControlsDemo_handleLinkClick() {
-  FormControlsDemo_linkClicked.set(FormControlsDemo_linkClicked.value + 1);
-  FormControlsDemo_statusText.set("Link clicked " + String(FormControlsDemo_linkClicked.value) + " times");
-}
+/// ── Component: Header ──
 
 
 
-/// ── Component: EmitEventChild ──
-
-const EmitEventChild_clickCount = __omni_signal("EmitEventChild_clickCount", 0);
-const EmitEventChild_label = __omni_signal("EmitEventChild_label", "Child");
-function EmitEventChild_onAction(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args[0], bubbles: true }));
-}
-function EmitEventChild_onOptionalAck(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args[0], bubbles: true }));
-}
-function EmitEventChild_onCount(...args) {
-  const el = document.querySelector('[data-component="EmitEventChild"]');
-  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: true }));
-}
-function EmitEventChild_doAction() {
-  EmitEventChild_clickCount.set(EmitEventChild_clickCount.value + 1);
-  EmitEventChild_onAction(EmitEventChild_label.value + " #" + String(EmitEventChild_clickCount.value));
-  if (EmitEventChild_onOptionalAck !== null) {
-  EmitEventChild_onOptionalAck("ack for " + String(EmitEventChild_clickCount.value));
-  }
-}
-
-function EmitEventChild_incrementParent() {
-  EmitEventChild_onCount(EmitEventChild_clickCount.value);
-}
-
-
-
-/// ── Component: AddTodo ──
-
-const AddTodo_input = __omni_signal("AddTodo_input", "");
-const AddTodo_hint = __omni_computed("AddTodo_hint", () => (AddTodo_input.value === "" ? "输入待办事项" : "已输入 " + String((AddTodo_input.value || []).length) + " 字符"));
-function AddTodo_onAdd(...args) {
-  const el = document.querySelector('[data-component="AddTodo"]');
-  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: true }));
-}
-function AddTodo_handleAdd() {
-  if (AddTodo_input.value !== "") {
-  AddTodo_onAdd(AddTodo_input.value);
-  AddTodo_input.set("");
-  } else {
-  console.warn("Input is empty");
-  }
-}
-
-
-
-/// ── Component: NotificationsPanel ──
-
-const NotificationsPanel_badgeVisible = __omni_signal("NotificationsPanel_badgeVisible", false);
-
-
-/// ── Component: PlaybackAdvancedDemo ──
-
-const PlaybackAdvancedDemo_playDirFill = __omni_signal("PlaybackAdvancedDemo_playDirFill", false);
-function PlaybackAdvancedDemo_toggleDirFill() {
-  PlaybackAdvancedDemo_playDirFill.set(!PlaybackAdvancedDemo_playDirFill.value);
-}
-
-
-
-/// ── Component: Dashboard ──
-
-const Dashboard_totalItems = __omni_signal("Dashboard_totalItems", 42);
-const Dashboard_lastUpdated = __omni_signal("Dashboard_lastUpdated", "just now");
-function Dashboard_refresh() {
-  Dashboard_totalItems.set(Dashboard_totalItems.value + 1);
-  Dashboard_lastUpdated.set("updated");
-}
+/// ── Component: CssUnitsDemo ──
 
 
 
@@ -4366,6 +4481,215 @@ function MotionPlaybackDemo_trigger() {
   MotionPlaybackDemo_play.set(!MotionPlaybackDemo_play.value);
 }
 
+
+
+/// ── Component: MotionDemo ──
+
+const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
+const MotionDemo_isOpen = __omni_signal("MotionDemo_isOpen", false);
+function MotionDemo_toggleModal() {
+  MotionDemo_isOpen.set(!MotionDemo_isOpen.value);
+}
+
+function MotionDemo_addItem() {
+  MotionDemo_count.set(MotionDemo_count.value + 1);
+}
+
+function MotionDemo_removeItem() {
+  MotionDemo_count.set(MotionDemo_count.value - 1);
+}
+
+
+
+/// ── Component: MotionTriggersDemo ──
+
+const MotionTriggersDemo_isHovered = __omni_signal("MotionTriggersDemo_isHovered", false);
+const MotionTriggersDemo_isFocused = __omni_signal("MotionTriggersDemo_isFocused", false);
+const MotionTriggersDemo_dragX = __omni_signal("MotionTriggersDemo_dragX", 0);
+
+
+/// ── Component: FeatureCard ──
+
+const FeatureCard_status = __omni_signal("FeatureCard_status", "idle");
+const FeatureCard_focusCount = __omni_signal("FeatureCard_focusCount", 0);
+function FeatureCard_getOriginX() {
+  let p = {"x": 0, "y": 0};
+  return p.x;
+}
+
+function FeatureCard_getStats() {
+  return {"name": "demo", "count": FeatureCard_focusCount.value, "percentage": 75.5, "active": true};
+}
+
+function FeatureCard_handleFocus() {
+  FeatureCard_focusCount.set(FeatureCard_focusCount.value + 1);
+  FeatureCard_status.set("focused");
+}
+
+function FeatureCard_handleBlur() {
+  FeatureCard_status.set("blurred");
+}
+
+function FeatureCard_reset() {
+  FeatureCard_focusCount.set(0);
+  FeatureCard_status.set("idle");
+}
+
+
+
+/// ── Component: HeroTransitionDemo ──
+
+const HeroTransitionDemo_isExpanded = __omni_signal("HeroTransitionDemo_isExpanded", false);
+const HeroTransitionDemo_progress = __omni_signal("HeroTransitionDemo_progress", 0.0);
+function HeroTransitionDemo_toggle() {
+  HeroTransitionDemo_isExpanded.set(!HeroTransitionDemo_isExpanded.value);
+}
+
+function HeroTransitionDemo_advance() {
+  if (HeroTransitionDemo_progress.value < 1.0) {
+  HeroTransitionDemo_progress.set(HeroTransitionDemo_progress.value + 0.1);
+  }
+}
+
+
+
+/// ── Component: SlotPanel ──
+
+
+
+/// ── Component: AdvancedPseudoDemo ──
+
+const AdvancedPseudoDemo_isActive = __omni_signal("AdvancedPseudoDemo_isActive", false);
+const AdvancedPseudoDemo_variant = __omni_signal("AdvancedPseudoDemo_variant", "default");
+function AdvancedPseudoDemo_toggle() {
+  AdvancedPseudoDemo_isActive.set(!AdvancedPseudoDemo_isActive.value);
+}
+
+function AdvancedPseudoDemo_setDefault() {
+  AdvancedPseudoDemo_variant.set("default");
+}
+
+function AdvancedPseudoDemo_setDark() {
+  AdvancedPseudoDemo_variant.set("dark");
+}
+
+
+
+/// ── Component: Modal ──
+
+const Modal_isOpen = __omni_signal("Modal_isOpen", false);
+const Modal_isHovering = __omni_signal("Modal_isHovering", false);
+const Modal_lastAction = __omni_signal("Modal_lastAction", "");
+function Modal_open() {
+  Modal_isOpen.set(true);
+  Modal_lastAction.set("opened");
+}
+
+function Modal_close() {
+  Modal_isOpen.set(false);
+  Modal_lastAction.set("closed");
+}
+
+function Modal_handleKeyDown(e) {
+  if (e.key === "Escape") {
+  Modal_close();
+  }
+}
+
+function Modal_handleMouseEnter() {
+  Modal_isHovering.set(true);
+}
+
+function Modal_handleMouseLeave() {
+  Modal_isHovering.set(false);
+}
+
+function Modal_handleOverlayClick() {
+  Modal_close();
+}
+
+function Modal_getOverlayClass() {
+  if (Modal_isOpen.value) {
+  return "overlay visible";
+  }
+  return "overlay hidden";
+}
+
+function Modal_getModalClass() {
+  if (Modal_isHovering.value) {
+  return "modal-content hover";
+  }
+  return "modal-content";
+}
+
+
+
+/// ── Component: StatsDashboard ──
+
+const StatsDashboard_MAX_ITEMS = __omni_signal("StatsDashboard_MAX_ITEMS", 10);
+const StatsDashboard_$iconUrl = __omni_signal("StatsDashboard_$iconUrl", "/assets/icon.png");
+const StatsDashboard_$apiBase = __omni_signal("StatsDashboard_$apiBase", "https://api.example.com");
+const StatsDashboard_counter = __omni_signal("StatsDashboard_counter", 0);
+const StatsDashboard_removed = __omni_signal("StatsDashboard_removed", false);
+const StatsDashboard_randomValue = __omni_signal("StatsDashboard_randomValue", 0.0);
+function StatsDashboard_addFive() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value + 5);
+}
+
+function StatsDashboard_subThree() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value - 3);
+}
+
+function StatsDashboard_double() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value * 2);
+}
+
+function StatsDashboard_halve() {
+  StatsDashboard_counter.set(StatsDashboard_counter.value / 2);
+}
+
+function StatsDashboard_modThree() {
+  let x = StatsDashboard_counter.value;
+  x %= 3;
+  StatsDashboard_counter.set(x);
+}
+
+function StatsDashboard_getModStatus() {
+  if (StatsDashboard_counter.value % 2 === 0) {
+  return "even";
+  }
+  return "odd";
+}
+
+function StatsDashboard_getFirst() {
+  let arr = [10, 20, 30, 40, 50];
+  return (arr || [])[0];
+}
+
+function StatsDashboard_removeContainer() {
+  StatsDashboard_removed.set(true);
+}
+
+function StatsDashboard_rollDice() {
+  StatsDashboard_randomValue.set(Math.random());
+}
+
+// @unmount StatsDashboard
+window.__omni_unmount_StatsDashboard = () => {
+  console.log("StatsDashboard unmounting, counter: " + String(StatsDashboard_counter.value));
+};
+
+
+/// ── Component: ThemeSwitcher ──
+
+const ThemeSwitcher_isHovered = __omni_signal("ThemeSwitcher_isHovered", false);
+const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", () => (ThemeSwitcher_isHovered.value ? "Switch to " + ThemeStore_nextLabel.value : ThemeStore_modeLabel.value + " Mode"));
+
+
+/// ── Component: ViewAttributesDemo ──
+
+const ViewAttributesDemo_isChecked = __omni_signal("ViewAttributesDemo_isChecked", false);
+const ViewAttributesDemo_richText = __omni_signal("ViewAttributesDemo_richText", "");
 
 
 /// ── Component: TabPanel ──
@@ -4393,6 +4717,24 @@ function TabPanel_getBtnColor(tab) {
   }
   return "#374151";
 }
+
+
+
+/// ── Component: TimelinePositionDemo ──
+
+const TimelinePositionDemo_activeDemo = __omni_signal("TimelinePositionDemo_activeDemo", "position");
+const TimelinePositionDemo_playCount = __omni_signal("TimelinePositionDemo_playCount", 0);
+function TimelinePositionDemo_switchDemo(name) {
+  TimelinePositionDemo_activeDemo.set(name);
+}
+
+function TimelinePositionDemo_replayCount() {
+  TimelinePositionDemo_playCount.set(TimelinePositionDemo_playCount.value + 1);
+}
+
+
+
+/// ── Component: PathTimelineDemo ──
 
 
 
@@ -4480,260 +4822,15 @@ function DataTable_getBonusTotal() {
 
 
 
-/// ── Component: OptionalChainDemo ──
+/// ── Component: NullishDemo ──
 
-const OptionalChainDemo_user = __omni_signal("OptionalChainDemo_user", "Alice");
-const OptionalChainDemo_showDetails = __omni_signal("OptionalChainDemo_showDetails", false);
-const OptionalChainDemo_nameLen = __omni_computed("OptionalChainDemo_nameLen", () => (null ?? 0));
-const OptionalChainDemo_displayName = __omni_computed("OptionalChainDemo_displayName", () => (OptionalChainDemo_user.value ?? "Guest"));
-function OptionalChainDemo_clearUser() {
-  OptionalChainDemo_user.set(null);
-}
-
-function OptionalChainDemo_setUser() {
-  OptionalChainDemo_user.set("Bob");
-}
-
-function OptionalChainDemo_toggle() {
-  OptionalChainDemo_showDetails.set(!OptionalChainDemo_showDetails.value);
-}
+const NullishDemo_inputName = __omni_signal("NullishDemo_inputName", "test");
+const NullishDemo_displayName = __omni_computed("NullishDemo_displayName", () => (NullishDemo_inputName.value ?? "Anonymous"));
 
 
+/// ── Component: StatsPanel ──
 
-/// ── Component: Timer ──
-
-const Timer_count = __omni_signal("Timer_count", 0);
-const Timer_running = __omni_signal("Timer_running", false);
-const Timer_interval = __omni_signal("Timer_interval", 1000);
-function Timer_onTick(...args) {
-  const el = document.querySelector('[data-component="Timer"]');
-  if (el) el.dispatchEvent(new CustomEvent('tick', { detail: args[0], bubbles: true }));
-}
-function Timer_onComplete(...args) {
-  const el = document.querySelector('[data-component="Timer"]');
-  if (el) el.dispatchEvent(new CustomEvent('complete', { detail: args[0], bubbles: true }));
-}
-function Timer_start() {
-  Timer_running.set(true);
-  Timer_count.set(0);
-  console.log("Timer started");
-}
-
-function Timer_stop() {
-  Timer_running.set(false);
-  console.log("Timer stopped");
-}
-
-function Timer_reset() {
-  Timer_count.set(0);
-  Timer_running.set(false);
-}
-
-function Timer_tick() {
-  if (Timer_running.value) {
-  Timer_count.set(Timer_count.value + 1);
-  Timer_onTick(Timer_count.value);
-  if (Timer_count.value >= 10) {
-  Timer_running.set(false);
-  Timer_onComplete("Timer finished after 10 ticks");
-  }
-  }
-}
-
-function Timer_faster() {
-  if (Timer_interval.value > 100) {
-  Timer_interval.set(Timer_interval.value - 100);
-  }
-}
-
-function Timer_slower() {
-  Timer_interval.set(Timer_interval.value + 100);
-}
-
-// @unmount Timer
-window.__omni_unmount_Timer = () => {
-  Timer_running.set(false);
-  console.log("Timer unmounted, final count: " + String(Timer_count.value));
-};
-
-
-/// ── Component: Constants ──
-
-const Constants_APP_NAME = __omni_signal("Constants_APP_NAME", "OmniView Learn");
-const Constants_APP_VERSION = __omni_signal("Constants_APP_VERSION", "1.0.0");
-const Constants_logoUrl = __omni_signal("Constants_logoUrl", "/assets/omnilang-logo.png");
-const Constants_apiBase = __omni_signal("Constants_apiBase", "https://api.omnilang.dev/v1");
-
-
-/// ── Component: FeatureCard ──
-
-const FeatureCard_status = __omni_signal("FeatureCard_status", "idle");
-const FeatureCard_focusCount = __omni_signal("FeatureCard_focusCount", 0);
-function FeatureCard_getOriginX() {
-  let p = {"x": 0, "y": 0};
-  return p.x;
-}
-
-function FeatureCard_getStats() {
-  return {"name": "demo", "count": FeatureCard_focusCount.value, "percentage": 75.5, "active": true};
-}
-
-function FeatureCard_handleFocus() {
-  FeatureCard_focusCount.set(FeatureCard_focusCount.value + 1);
-  FeatureCard_status.set("focused");
-}
-
-function FeatureCard_handleBlur() {
-  FeatureCard_status.set("blurred");
-}
-
-function FeatureCard_reset() {
-  FeatureCard_focusCount.set(0);
-  FeatureCard_status.set("idle");
-}
-
-
-
-/// ── Component: ThemeSwitcher ──
-
-const ThemeSwitcher_isHovered = __omni_signal("ThemeSwitcher_isHovered", false);
-const ThemeSwitcher_buttonLabel = __omni_computed("ThemeSwitcher_buttonLabel", () => (ThemeSwitcher_isHovered.value ? "Switch to " + ThemeStore_nextLabel.value : ThemeStore_modeLabel.value + " Mode"));
-
-
-/// ── Component: SlotDefaultDemo ──
-
-const SlotDefaultDemo_useCustomContent = __omni_signal("SlotDefaultDemo_useCustomContent", false);
-function SlotDefaultDemo_toggleContent() {
-  SlotDefaultDemo_useCustomContent.set(!SlotDefaultDemo_useCustomContent.value);
-}
-
-
-
-/// ── Component: CssUnitsDemo ──
-
-
-
-/// ── Component: DataFetching ──
-
-const DataFetching_status = __omni_signal("DataFetching_status", "idle");
-const DataFetching_resultText = __omni_signal("DataFetching_resultText", "");
-const DataFetching_errorMsg = __omni_signal("DataFetching_errorMsg", "");
-const DataFetching_url = __omni_signal("DataFetching_url", "https://jsonplaceholder.typicode.com/todos/1");
-const DataFetching_apiDemoText = __omni_signal("DataFetching_apiDemoText", "");
-function DataFetching_reset() {
-  DataFetching_status.set("idle");
-  DataFetching_resultText.set("");
-  DataFetching_errorMsg.set("");
-}
-
-async function DataFetching_loadData() {
-  DataFetching_status.set("loading");
-  let raw = await fetch(DataFetching_url.value).then(r => r.text());
-  if (raw === "") {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set("Empty response from server");
-  console.error(DataFetching_errorMsg.value);
-  return undefined;
-  }
-  let parsed = JSON.parse(raw);
-  DataFetching_resultText.set(JSON.stringify(parsed));
-  DataFetching_status.set("success");
-  console.log("Fetch completed");
-}
-
-async function DataFetching_loadViaApi() {
-  DataFetching_status.set("loading");
-  let result = await fetch_demo(DataFetching_url.value);
-  let msg = error_message(result);
-  if (msg === "") {
-  DataFetching_status.set("success");
-  DataFetching_resultText.set("api.omni fetch_demo OK");
-  console.log("Fetch completed");
-  } else {
-  DataFetching_status.set("error");
-  DataFetching_errorMsg.set(msg);
-  console.error(msg);
-  }
-}
-
-
-
-/// ── Component: SlotContainer ──
-
-function SlotContainer_onClose(...args) {
-  const el = document.querySelector('[data-component="SlotContainer"]');
-  if (el) el.dispatchEvent(new CustomEvent('close', { detail: args[0], bubbles: true }));
-}
-
-
-/// ── Component: FilterBar ──
-
-const FilterBar_searchText = __omni_signal("FilterBar_searchText", "");
-const FilterBar_sortAsc = __omni_signal("FilterBar_sortAsc", true);
-const FilterBar_changeCount = __omni_signal("FilterBar_changeCount", 0);
-const FilterBar_demoFrameworks = __omni_signal("FilterBar_demoFrameworks", ["React", "Vue", "Svelte", "Solid", "Angular"]);
-const FilterBar_filteredFrameworks = __omni_computed("FilterBar_filteredFrameworks", () => ((FilterBar_demoFrameworks.value).filter(((f) => FilterBar_searchText.value === "" ? true : f === FilterBar_searchText.value))));
-const FilterBar_sortLabel = __omni_computed("FilterBar_sortLabel", () => (FilterBar_sortAsc.value ? "ASC" : "DESC"));
-function FilterBar_handleSortToggle() {
-  if (FilterBar_sortAsc.value) {
-  FilterBar_sortAsc.set(false);
-  } else {
-  FilterBar_sortAsc.set(true);
-  }
-}
-
-
-
-/// ── Component: ViewAttributesDemo ──
-
-const ViewAttributesDemo_isChecked = __omni_signal("ViewAttributesDemo_isChecked", false);
-const ViewAttributesDemo_richText = __omni_signal("ViewAttributesDemo_richText", "");
-
-
-/// ── Component: TypeSystemDemo ──
-
-const TypeSystemDemo_summary = __omni_signal("TypeSystemDemo_summary", "");
-function TypeSystemDemo_loadSummary() {
-  TypeSystemDemo_summary.set(type_system_summary());
-}
-
-
-
-/// ── Component: MotionCallbackDemo ──
-
-const MotionCallbackDemo_enterCount = __omni_signal("MotionCallbackDemo_enterCount", 0);
-const MotionCallbackDemo_completeCount = __omni_signal("MotionCallbackDemo_completeCount", 0);
-const MotionCallbackDemo_repeatCount = __omni_signal("MotionCallbackDemo_repeatCount", 0);
-const MotionCallbackDemo_lastEvent = __omni_signal("MotionCallbackDemo_lastEvent", "—");
-const MotionCallbackDemo_isPlaying = __omni_signal("MotionCallbackDemo_isPlaying", false);
-const MotionCallbackDemo_isPulsing = __omni_signal("MotionCallbackDemo_isPulsing", false);
-const MotionCallbackDemo_pulseRepeatCount = __omni_signal("MotionCallbackDemo_pulseRepeatCount", 0);
-function MotionCallbackDemo_handleEnterStart() {
-  MotionCallbackDemo_enterCount.set(MotionCallbackDemo_enterCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onStart @ " + String(MotionCallbackDemo_enterCount.value));
-  MotionCallbackDemo_isPlaying.set(true);
-}
-
-function MotionCallbackDemo_handleEnterComplete() {
-  MotionCallbackDemo_completeCount.set(MotionCallbackDemo_completeCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onComplete #" + String(MotionCallbackDemo_completeCount.value));
-  MotionCallbackDemo_isPlaying.set(false);
-}
-
-function MotionCallbackDemo_handlePulseStart() {
-  MotionCallbackDemo_isPulsing.set(true);
-}
-
-function MotionCallbackDemo_handlePulseRepeat() {
-  MotionCallbackDemo_pulseRepeatCount.set(MotionCallbackDemo_pulseRepeatCount.value + 1);
-  MotionCallbackDemo_lastEvent.set("onRepeat x" + String(MotionCallbackDemo_pulseRepeatCount.value));
-}
-
-function MotionCallbackDemo_handleInterrupt() {
-  MotionCallbackDemo_lastEvent.set("onInterrupt — motion was interrupted");
-  MotionCallbackDemo_isPlaying.set(false);
-}
-
+const StatsPanel_total = __omni_signal("StatsPanel_total", 0);
 
 
 /// ── Component: ComponentSpecialsDemo ──
@@ -4767,168 +4864,71 @@ function ComponentSpecialsDemo_increment() {
 
 
 
-/// ── Component: SlotPanel ──
+/// ── Component: Counter ──
 
-
-
-/// ── Component: TodoPage ──
-
-const TodoPage_pageLoadCount = __omni_signal("TodoPage_pageLoadCount", 0);
-
-
-/// ── Component: EmitEventDemo ──
-
-const EmitEventDemo_messages = __omni_signal("EmitEventDemo_messages", []);
-const EmitEventDemo_totalCount = __omni_signal("EmitEventDemo_totalCount", 0);
-function EmitEventDemo_onChildAction(msg) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + 1);
-  ((EmitEventDemo_messages.value).push(String(EmitEventDemo_totalCount.value) + ": " + msg), (EmitEventDemo_messages.value).slice());
+const Counter_count = __omni_signal("Counter_count", 0);
+const Counter_step = __omni_signal("Counter_step", 1);
+const Counter_doubled = __omni_computed("Counter_doubled", () => (Counter_count.value * 2));
+const Counter_label = __omni_computed("Counter_label", () => (Counter_count.value % 2 === 0 ? "偶数" : "奇数"));
+function Counter_inc() {
+  Counter_count.set(Counter_count.value + Counter_step.value);
 }
 
-function EmitEventDemo_onOptionalAck(msg) {
-  ((EmitEventDemo_messages.value).push("[ACK] " + msg), (EmitEventDemo_messages.value).slice());
+function Counter_dec() {
+  Counter_count.set(Counter_count.value - Counter_step.value);
 }
 
-function EmitEventDemo_onChildCount(n) {
-  EmitEventDemo_totalCount.set(EmitEventDemo_totalCount.value + n);
-  ((EmitEventDemo_messages.value).push("[COUNT] += " + String(n) + ", total=" + String(EmitEventDemo_totalCount.value)), (EmitEventDemo_messages.value).slice());
-}
-
-function EmitEventDemo_clearLog() {
-  EmitEventDemo_messages.set([]);
-  EmitEventDemo_totalCount.set(0);
+function Counter_reset() {
+  Counter_count.set(0);
 }
 
 
 
-/// ── Component: EventsDemo ──
+/// ── Component: EmitEventChild ──
 
-const EventsDemo_eventLog = __omni_signal("EventsDemo_eventLog", []);
-const EventsDemo_dragStatus = __omni_signal("EventsDemo_dragStatus", "idle");
-const EventsDemo_wheelCount = __omni_signal("EventsDemo_wheelCount", 0);
-const EventsDemo_mediaStatus = __omni_signal("EventsDemo_mediaStatus", "stopped");
-const EventsDemo_animStatus = __omni_signal("EventsDemo_animStatus", "idle");
-const EventsDemo_toggleCount = __omni_signal("EventsDemo_toggleCount", 0);
-const EventsDemo_scrollY = __omni_signal("EventsDemo_scrollY", 0);
-const EventsDemo_scrollCount = __omni_signal("EventsDemo_scrollCount", 0);
-const EventsDemo_deltaY = __omni_signal("EventsDemo_deltaY", 0.0);
-function EventsDemo_addLog(msg) {
-  EventsDemo_eventLog.value.push(msg); EventsDemo_eventLog.set(EventsDemo_eventLog.value.slice());
+const EmitEventChild_clickCount = __omni_signal("EmitEventChild_clickCount", 0);
+const EmitEventChild_label = __omni_signal("EmitEventChild_label", "Child");
+function EmitEventChild_onAction(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('action', { detail: args[0], bubbles: true }));
 }
-
-function EventsDemo_handleScroll(e) {
-  EventsDemo_scrollY.set(e.y);
-  EventsDemo_scrollCount.set(EventsDemo_scrollCount.value + 1);
+function EmitEventChild_onOptionalAck(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('optionalack', { detail: args[0], bubbles: true }));
 }
-
-function EventsDemo_handleWheel(e) {
-  EventsDemo_deltaY.set(e.deltaY);
-  EventsDemo_wheelCount.set(EventsDemo_wheelCount.value + 1);
+function EmitEventChild_onCount(...args) {
+  const el = document.querySelector('[data-component="EmitEventChild"]');
+  if (el) el.dispatchEvent(new CustomEvent('count', { detail: args[0], bubbles: true }));
 }
-
-
-
-/// ── Component: App ──
-
-const App_completionRate = __omni_signal("App_completionRate", 42.0);
-const App_activeTab = __omni_signal("App_activeTab", "home");
-function App_switchTab(tab) {
-  App_activeTab.set(tab);
-}
-
-function App_isActive(tab) {
-  return App_activeTab.value === tab;
-}
-
-
-
-/// ── Component: StaggerAndTimelineDemo ──
-
-
-
-/// ── Component: EasingFunctionsDemo ──
-
-const EasingFunctionsDemo_playAll = __omni_signal("EasingFunctionsDemo_playAll", false);
-function EasingFunctionsDemo_toggleAll() {
-  EasingFunctionsDemo_playAll.set(!EasingFunctionsDemo_playAll.value);
-}
-
-
-
-/// ── Component: EventDataDemo ──
-
-const EventDataDemo_scrollY = __omni_signal("EventDataDemo_scrollY", 0);
-const EventDataDemo_keyPressed = __omni_signal("EventDataDemo_keyPressed", "");
-const EventDataDemo_mouseX = __omni_signal("EventDataDemo_mouseX", 0);
-const EventDataDemo_mouseY = __omni_signal("EventDataDemo_mouseY", 0);
-const EventDataDemo_wheelDelta = __omni_signal("EventDataDemo_wheelDelta", 0.0);
-const EventDataDemo_ctrlHeld = __omni_signal("EventDataDemo_ctrlHeld", false);
-function EventDataDemo_handleScroll(e) {
-  EventDataDemo_scrollY.set(e.y);
-}
-
-function EventDataDemo_handleKeyDown(e) {
-  EventDataDemo_keyPressed.set(e.key);
-  EventDataDemo_ctrlHeld.set(e.ctrl);
-}
-
-function EventDataDemo_handleMouseMove(e) {
-  EventDataDemo_mouseX.set(e.x);
-  EventDataDemo_mouseY.set(e.y);
-}
-
-function EventDataDemo_handleWheel(e) {
-  EventDataDemo_wheelDelta.set(e.deltaY);
-  EventDataDemo_ctrlHeld.set(e.ctrl);
-}
-
-
-
-/// ── Component: ThemeCssVarsDemo ──
-
-const ThemeCssVarsDemo_boxScale = __omni_signal("ThemeCssVarsDemo_boxScale", 1.0);
-const ThemeCssVarsDemo_borderWidth = __omni_signal("ThemeCssVarsDemo_borderWidth", 2);
-function ThemeCssVarsDemo_toggleScale() {
-  if (ThemeCssVarsDemo_boxScale.value === 1.0) {
-  ThemeCssVarsDemo_boxScale.set(1.05);
-  } else {
-  ThemeCssVarsDemo_boxScale.set(1.0);
+function EmitEventChild_doAction() {
+  EmitEventChild_clickCount.set(EmitEventChild_clickCount.value + 1);
+  EmitEventChild_onAction(EmitEventChild_label.value + " #" + String(EmitEventChild_clickCount.value));
+  if (EmitEventChild_onOptionalAck !== null) {
+  EmitEventChild_onOptionalAck("ack for " + String(EmitEventChild_clickCount.value));
   }
 }
 
-function ThemeCssVarsDemo_toggleBorder() {
-  if (ThemeCssVarsDemo_borderWidth.value === 2) {
-  ThemeCssVarsDemo_borderWidth.set(4);
+function EmitEventChild_incrementParent() {
+  EmitEventChild_onCount(EmitEventChild_clickCount.value);
+}
+
+
+
+/// ── Component: AddTodo ──
+
+const AddTodo_input = __omni_signal("AddTodo_input", "");
+const AddTodo_hint = __omni_computed("AddTodo_hint", () => (AddTodo_input.value === "" ? "输入待办事项" : "已输入 " + String((AddTodo_input.value || []).length) + " 字符"));
+function AddTodo_onAdd(...args) {
+  const el = document.querySelector('[data-component="AddTodo"]');
+  if (el) el.dispatchEvent(new CustomEvent('add', { detail: args[0], bubbles: true }));
+}
+function AddTodo_handleAdd() {
+  if (AddTodo_input.value !== "") {
+  AddTodo_onAdd(AddTodo_input.value);
+  AddTodo_input.set("");
   } else {
-  ThemeCssVarsDemo_borderWidth.set(2);
+  console.warn("Input is empty");
   }
-}
-
-
-
-/// ── Component: AnimPropertiesDemo ──
-
-const AnimPropertiesDemo_playAll = __omni_signal("AnimPropertiesDemo_playAll", false);
-function AnimPropertiesDemo_toggleAll() {
-  AnimPropertiesDemo_playAll.set(!AnimPropertiesDemo_playAll.value);
-}
-
-
-
-/// ── Component: MotionDemo ──
-
-const MotionDemo_count = __omni_signal("MotionDemo_count", 0);
-const MotionDemo_isOpen = __omni_signal("MotionDemo_isOpen", false);
-function MotionDemo_toggleModal() {
-  MotionDemo_isOpen.set(!MotionDemo_isOpen.value);
-}
-
-function MotionDemo_addItem() {
-  MotionDemo_count.set(MotionDemo_count.value + 1);
-}
-
-function MotionDemo_removeItem() {
-  MotionDemo_count.set(MotionDemo_count.value - 1);
 }
 
 
@@ -5173,7 +5173,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                               <h3 data-nid="el-h3-105" class="title">
                                 FeatureCard Demo
                               </h3>
-                              <input data-nid="el-input-106" placeholder="Click" class="input" />
+                              <input data-nid="el-input-106" class="input" placeholder="Click" />
                               <div data-nid="el-if-107-b0" style="display:none">
                                 <fragment data-nid="el-fragment-108">
                                   <span data-nid="el-span-109" class="badge-focused">
@@ -5477,11 +5477,11 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <label data-nid="el-label-242" class="field-label">
                         Title
                       </label>
-                      <input data-nid="el-input-243" class="field-input" placeholder="Enter title..." />
+                      <input data-nid="el-input-243" placeholder="Enter title..." class="field-input" />
                       <label data-nid="el-label-244" class="field-label">
                         Body
                       </label>
-                      <textarea data-nid="el-textarea-245" class="field-textarea" placeholder="Enter body..." rows="3">
+                      <textarea data-nid="el-textarea-245" rows="3" class="field-textarea" placeholder="Enter body...">
                       </textarea>
                       <div data-nid="el-div-246" class="btn-row">
                         <button data-nid="el-button-247" class="btn-submit">
@@ -5541,7 +5541,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <label data-nid="el-label-269" class="field-label">
                         Username
                       </label>
-                      <input data-nid="el-input-270" placeholder="Your name..." class="field-input" />
+                      <input data-nid="el-input-270" class="field-input" placeholder="Your name..." />
                       <div data-nid="el-div-271" class="btn-row">
                         <button data-nid="el-button-272" class="btn-save">
                           Save
@@ -5576,7 +5576,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <span data-nid="el-interp-286"></span>
                       </p>
                       <div data-nid="el-div-287" class="row">
-                        <input data-nid="el-input-288" class="input" placeholder="Enter text to validate..." />
+                        <input data-nid="el-input-288" placeholder="Enter text to validate..." class="input" />
                         <button data-nid="el-button-289" class="btn-validate">
                           <span data-nid="el-interp-290"></span>
                         </button>
@@ -5780,7 +5780,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                 <div data-nid="el-DataTable-369" data-component="DataTable">
                   <div data-nid="el-div-370" class="datatable">
                     <div data-nid="el-div-371" class="header-row">
-                      <img data-nid="el-img-372" alt="dot" src="/dot.png" />
+                      <img data-nid="el-img-372" src="/dot.png" alt="dot" />
                       <h2 data-nid="el-h2-373" class="title">
                         DataTable Demo
                       </h2>
@@ -5857,17 +5857,17 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       </h3>
                       <ul data-nid="el-List-409" class="summary-list">
                         <li data-nid="el-ListItem-410" class="summary-item">
-                          <img data-nid="el-img-411" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-411" src="/dot.png" alt="dot" />
                           Total items:
                           <span data-nid="el-interp-412"></span>
                         </li>
                         <li data-nid="el-ListItem-413" class="summary-item">
-                          <img data-nid="el-img-414" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-414" src="/dot.png" alt="dot" />
                           Active items:
                           <span data-nid="el-interp-415"></span>
                         </li>
                         <li data-nid="el-ListItem-416" class="summary-item">
-                          <img data-nid="el-img-417" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-417" src="/dot.png" alt="dot" />
                           Scroll events:
                           <span data-nid="el-interp-418"></span>
                         </li>
@@ -5879,7 +5879,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       </h3>
                       <ul data-nid="el-List-421" class="features-list">
                         <li data-nid="el-ListItem-422" class="features-item">
-                          <img data-nid="el-img-423" alt="dot" src="/dot.png" />
+                          <img data-nid="el-img-423" src="/dot.png" alt="dot" />
                           Grade for 95:
                           <span data-nid="el-interp-424"></span>
                         </li>
@@ -5902,7 +5902,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </div>
                     <hr data-nid="el-hr-434" />
                     <div data-nid="el-div-435" class="footer-row">
-                      <img data-nid="el-img-436" alt="dot" src="/dot.png" />
+                      <img data-nid="el-img-436" src="/dot.png" alt="dot" />
                       <p data-nid="el-p-437" class="footer-text">
                         DataTable Phase 4 Demo
                       </p>
@@ -5918,10 +5918,10 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                     </h2>
                     <form data-nid="el-form-442" class="form">
                       <div data-nid="el-div-443" class="field">
-                        <label data-nid="el-label-444" class="label" for="name">
+                        <label data-nid="el-label-444" for="name" class="label">
                           Name
                         </label>
-                        <input data-nid="el-input-445" id="name" placeholder="Your name" required data-testid="name-field" data-type="text" aria-label="Full name input" class="input" />
+                        <input data-nid="el-input-445" data-type="text" aria-label="Full name input" data-testid="name-field" class="input" required id="name" placeholder="Your name" />
                         <div data-nid="el-if-446-b0" style="display:none">
                           <fragment data-nid="el-fragment-447">
                             <span data-nid="el-span-448" class="error-text">
@@ -5934,7 +5934,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <label data-nid="el-label-451" class="label" for="email">
                           Email
                         </label>
-                        <input data-nid="el-input-452" aria-label="Email address input" data-testid="email-field" class="input" placeholder="your@email.com" required data-type="email" id="email" />
+                        <input data-nid="el-input-452" id="email" aria-label="Email address input" data-type="email" required data-testid="email-field" class="input" placeholder="your@email.com" />
                         <div data-nid="el-if-453-b0" style="display:none">
                           <fragment data-nid="el-fragment-454">
                             <span data-nid="el-span-455" class="error-text">
@@ -5944,23 +5944,23 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </div>
                       </div>
                       <div data-nid="el-div-457" class="field">
-                        <label data-nid="el-label-458" for="msg" class="label">
+                        <label data-nid="el-label-458" class="label" for="msg">
                           Message
                         </label>
-                        <textarea data-nid="el-textarea-459" data-testid="msg-field" placeholder="Your message (optional)" id="msg" aria-label="Message input" class="textarea">
+                        <textarea data-nid="el-textarea-459" data-testid="msg-field" id="msg" aria-label="Message input" class="textarea" placeholder="Your message (optional)">
                         </textarea>
                       </div>
                       <div data-nid="el-div-460" class="field">
-                        <label data-nid="el-label-461" class="label" for="disabled-field">
+                        <label data-nid="el-label-461" for="disabled-field" class="label">
                           Disabled field
                         </label>
-                        <input data-nid="el-input-462" disabled placeholder="This field is disabled" data-testid="disabled-field" id="disabled-field" class="input" aria-label="Disabled input" />
+                        <input data-nid="el-input-462" disabled placeholder="This field is disabled" data-testid="disabled-field" aria-label="Disabled input" class="input" id="disabled-field" />
                       </div>
                       <div data-nid="el-div-463" class="field">
-                        <label data-nid="el-label-464" class="label" for="readonly-field">
+                        <label data-nid="el-label-464" for="readonly-field" class="label">
                           Readonly field
                         </label>
-                        <input data-nid="el-input-465" aria-label="Read-only input" data-testid="readonly-field" id="readonly-field" value="Read-only value" readonly class="input" />
+                        <input data-nid="el-input-465" class="input" readonly aria-label="Read-only input" id="readonly-field" data-testid="readonly-field" value="Read-only value" />
                       </div>
                       <div data-nid="el-div-466" class="scroll-box">
                         <p data-nid="el-p-467" class="scroll-title">
@@ -6002,15 +6002,15 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         </fragment>
                       </div>
                       <div data-nid="el-div-483" class="actions">
-                        <button data-nid="el-button-484" class="submit-btn" type="submit" aria-label="Submit form" data-testid="submit-btn">
+                        <button data-nid="el-button-484" aria-label="Submit form" class="submit-btn" data-testid="submit-btn" type="submit">
                           Submit
                         </button>
-                        <button data-nid="el-button-485" data-testid="reset-btn" type="button" class="reset-btn" aria-label="Reset form">
+                        <button data-nid="el-button-485" class="reset-btn" type="button" data-testid="reset-btn" aria-label="Reset form">
                           Reset
                         </button>
                       </div>
                       <div data-nid="el-div-486" class="conditional-area">
-                        <button data-nid="el-button-487" class="conditional-btn" aria-label="Conditional submit button" data-testid="conditional-btn">
+                        <button data-nid="el-button-487" class="conditional-btn" data-testid="conditional-btn" aria-label="Conditional submit button">
                           <span data-nid="el-interp-488"></span>
                         </button>
                       </div>
@@ -7223,7 +7223,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <div data-nid="el-div-956" class="tl-label">
                         outro
                       </div>
-                      <div data-nid="el-div-957" class="tl-box" data-box="box4">
+                      <div data-nid="el-div-957" data-box="box4" class="tl-box">
                         box4 · with outro
                       </div>
                     </div>
@@ -8160,7 +8160,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1299" class="section-title">
                           a-tag link with href / title / target:
                         </p>
-                        <a data-nid="el-a-1300" title="Demo link — click to count" href="#" class="demo-link">
+                        <a data-nid="el-a-1300" href="#" class="demo-link" title="Demo link — click to count">
                           Click me (
                           <span data-nid="el-interp-1301"></span>
                           )
@@ -8205,7 +8205,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1318" class="section-title">
                           Number input with min/max/step:
                         </p>
-                        <input data-nid="el-input-1319" min="0" value max="120" title="Enter your age (0-120)" class="demo-input" type="number" step="1" />
+                        <input data-nid="el-input-1319" type="number" step="1" value max="120" min="0" class="demo-input" title="Enter your age (0-120)" />
                         <p data-nid="el-p-1320" class="select-value">
                           Age:
                           <span data-nid="el-interp-1321"></span>
@@ -8215,7 +8215,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1323" class="section-title">
                           Range slider with min/max/step:
                         </p>
-                        <input data-nid="el-input-1324" value min="0" title="Select a value (0-100, step 5)" max="100" step="5" type="range" class="demo-range" />
+                        <input data-nid="el-input-1324" value min="0" type="range" max="100" title="Select a value (0-100, step 5)" class="demo-range" step="5" />
                         <p data-nid="el-p-1325" class="select-value">
                           Range:
                           <span data-nid="el-interp-1326"></span>
@@ -8262,7 +8262,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h3 data-nid="el-h3-1344" class="card-title">
                         拖拽事件
                       </h3>
-                      <div data-nid="el-div-1345" draggable="true" class="drag-box">
+                      <div data-nid="el-div-1345" class="drag-box" draggable="true">
                         <p data-nid="el-p-1346" class="hint">
                           拖拽状态:
                           <span data-nid="el-interp-1347"></span>
@@ -8310,7 +8310,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                       <h3 data-nid="el-h3-1365" class="card-title">
                         媒体与资源事件
                       </h3>
-                      <img data-nid="el-img-1366" class="hidden-img" src="about:blank" alt="test" />
+                      <img data-nid="el-img-1366" src="about:blank" alt="test" class="hidden-img" />
                       <div data-nid="el-div-1367" class="media-box">
                         <p data-nid="el-p-1368" class="hint">
                           媒体状态:
@@ -8492,31 +8492,31 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           <figcaption data-nid="el-figcaption-1438">
                             插图标题 (figure + figcaption)
                           </figcaption>
-                          <video data-nid="el-video-1439" controls width="200" class="media">
+                          <video data-nid="el-video-1439" class="media" width="200" controls>
                             <source data-nid="el-source-1440" src="sample.mp4" type="video/mp4" />
                           </video>
-                          <audio data-nid="el-audio-1441" class="media" controls>
+                          <audio data-nid="el-audio-1441" controls class="media">
                             <source data-nid="el-source-1442" type="audio/mpeg" src="sample.mp3" />
                           </audio>
                         </figure>
                         <canvas data-nid="el-canvas-1443" class="canvas">
                         </canvas>
                         <picture data-nid="el-picture-1444">
-                          <source data-nid="el-source-1445" media="(min-width: 800px)" srcset="large.jpg" />
-                          <img data-nid="el-img-1446" src="fallback.jpg" alt="responsive" />
+                          <source data-nid="el-source-1445" srcset="large.jpg" media="(min-width: 800px)" />
+                          <img data-nid="el-img-1446" alt="responsive" src="fallback.jpg" />
                         </picture>
                         <map data-nid="el-map-1447" name="demo-map">
-                          <area data-nid="el-area-1448" shape="rect" href="#area1" coords="0,0,50,50" alt="Area 1" />
+                          <area data-nid="el-area-1448" shape="rect" coords="0,0,50,50" href="#area1" alt="Area 1" />
                         </map>
                       </section>
                       <section data-nid="el-section-1449" class="tag-section">
                         <h4 data-nid="el-h4-1450" class="tag-group">
                           度量与进度
                         </h4>
-                        <progress data-nid="el-progress-1451" max="100" value="70" class="progress">
+                        <progress data-nid="el-progress-1451" class="progress" max="100" value="70">
                           70%
                         </progress>
-                        <meter data-nid="el-meter-1452" class="meter" min="0" max="1" value="0.6">
+                        <meter data-nid="el-meter-1452" class="meter" max="1" value="0.6" min="0">
                           60%
                         </meter>
                       </section>
@@ -8561,7 +8561,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <span data-nid="el-interp-1470"></span>
                       </p>
                     </div>
-                    <input data-nid="el-input-1471" placeholder="Press a key" class="key-input" />
+                    <input data-nid="el-input-1471" class="key-input" placeholder="Press a key" />
                     <p data-nid="el-p-1472">
                       Key:
                       <span data-nid="el-interp-1473"></span>
@@ -9226,7 +9226,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <h4 data-nid="el-h4-1742" class="label">
                           testId 属性标记
                         </h4>
-                        <div data-nid="el-div-1743" class="info-box" data-testid="attr-demo-container">
+                        <div data-nid="el-div-1743" data-testid="attr-demo-container" class="info-box">
                           <p data-nid="el-p-1744" class="info-text">
                             此 div 使用 testId 属性标记，用于测试定位
                           </p>
@@ -9237,7 +9237,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                           bind:checked 复选框绑定
                         </h4>
                         <label data-nid="el-label-1747" class="checkbox-label">
-                          <input data-nid="el-input-1748" data-testid="agree-checkbox" type="checkbox" />
+                          <input data-nid="el-input-1748" type="checkbox" data-testid="agree-checkbox" />
                           <span data-nid="el-span-1749">
                             同意条款:
                             <span data-nid="el-interp-1750"></span>
@@ -9248,7 +9248,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <h4 data-nid="el-h4-1752" class="label">
                           bind:value 文本输入
                         </h4>
-                        <textarea data-nid="el-textarea-1753" class="rich-input" placeholder="输入文本...">
+                        <textarea data-nid="el-textarea-1753" placeholder="输入文本..." class="rich-input">
                         </textarea>
                         <p data-nid="el-p-1754" class="preview">
                           预览:
@@ -9793,7 +9793,7 @@ document.getElementById("root").innerHTML = `<div id="root" data-component="App"
                         <p data-nid="el-p-1988">
                           Hover or Focus this panel
                         </p>
-                        <input data-nid="el-input-1989" placeholder="Tab to focus me" class="panel-input" />
+                        <input data-nid="el-input-1989" class="panel-input" placeholder="Tab to focus me" />
                       </div>
                     </div>
                   </div>
@@ -10193,7 +10193,7 @@ function __ononPress_el_button_183() {
 }
 { const el = __omni_el("el-button-183"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_183({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-185"); if (el) try { el.textContent = String((AddTodo_input.value || []).length); } catch(e) {} });
-{ const el = __omni_el("el-AddTodo-178"); if (el) el.addEventListener("add", (e) => {   TodoList_handleAdd({}); }); }
+{ const el = __omni_el("el-AddTodo-178"); if (el) el.addEventListener("add", (e) => {   TodoList_handleAdd(e.detail); }); }
 __omni_forHandlers["TodoItem_toggle"] = TodoItem_toggle;
 __omni_forHandlers["TodoItem_handleDelete"] = TodoItem_handleDelete;
 
@@ -10356,11 +10356,11 @@ __omni_effect(() => { TodoList_items.set(TodoStore_items.value); });
 function __ononDelete_el_TodoList_173(index) {
   TodoStore_remove();
 }
-{ const el = __omni_el("el-TodoList-173"); if (el) el.addEventListener("delete", (e) => {   __ononDelete_el_TodoList_173({}); }); }
+{ const el = __omni_el("el-TodoList-173"); if (el) el.addEventListener("delete", (e) => {   __ononDelete_el_TodoList_173(e.detail); }); }
 function __ononAdd_el_TodoList_173(text) {
   TodoStore_add(text);
 }
-{ const el = __omni_el("el-TodoList-173"); if (el) el.addEventListener("add", (e) => {   __ononAdd_el_TodoList_173({}); }); }
+{ const el = __omni_el("el-TodoList-173"); if (el) el.addEventListener("add", (e) => {   __ononAdd_el_TodoList_173(e.detail); }); }
 function __ononPress_el_button_202() {
   TodoStore_clear();
 }
@@ -10454,9 +10454,9 @@ __omni_effect(() => { const el = __omni_el("el-interp-311"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-326"); if (el) try { el.textContent = String(Modal_lastAction.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-327"); if (el) try { el.textContent = String(Modal_isHovering.value); } catch(e) {} });
 { const el = __omni_el("el-div-330"); if (el) el.addEventListener("click", (e) => {   Modal_handleOverlayClick({}); }); }
-{ const el = __omni_el("el-div-331"); if (el) el.addEventListener("keydown", (e) => {   Modal_handleKeyDown({ key: e.key ?? "" }); }); }
-{ const el = __omni_el("el-div-331"); if (el) el.addEventListener("mouseleave", (e) => {   Modal_handleMouseLeave({}); }); }
 { const el = __omni_el("el-div-331"); if (el) el.addEventListener("mouseenter", (e) => {   Modal_handleMouseEnter({}); }); }
+{ const el = __omni_el("el-div-331"); if (el) el.addEventListener("mouseleave", (e) => {   Modal_handleMouseLeave({}); }); }
+{ const el = __omni_el("el-div-331"); if (el) el.addEventListener("keydown", (e) => {   Modal_handleKeyDown({ key: e.key ?? "" }); }); }
 { const el = __omni_el("el-button-334"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
 { const el = __omni_el("el-button-339"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
 { const el = __omni_el("el-button-340"); if (el) el.addEventListener("click", (e) => {   Modal_close({}); }); }
@@ -10617,9 +10617,9 @@ __omni_effect(() => { const el = __omni_el("el-interp-427"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-430"); if (el) try { el.textContent = String(DataTable_getGradeForScore(59)); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-433"); if (el) try { el.textContent = String(DataTable_getBonusTotal()); } catch(e) {} });
 { const el = __omni_el("el-form-442"); if (el) el.addEventListener("submit", (e) => {   e.preventDefault(); FormPage_handleSubmit({}); }); }
-{ const el = __omni_el("el-input-445"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleNameFocus({}); }); }
 { const el = __omni_el("el-input-445"); if (el) el.addEventListener("input", (e) => {   FormPage_handleNameChange({}); }); }
 { const el = __omni_el("el-input-445"); if (el) el.addEventListener("blur", (e) => {   FormPage_handleNameBlur({}); }); }
+{ const el = __omni_el("el-input-445"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleNameFocus({}); }); }
 let _guard_value_el_input_445 = false;
 { const el = __omni_el("el-input-445"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_445) { FormPage_name.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-445"); if (el) { _guard_value_el_input_445 = true; el.value = FormPage_name.value; _guard_value_el_input_445 = false; } });
@@ -10632,9 +10632,9 @@ __omni_effect(() => {
   if (FormPage_nameError.value !== "") { _show("el-if-446-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
+{ const el = __omni_el("el-input-452"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleEmailFocus({}); }); }
 { const el = __omni_el("el-input-452"); if (el) el.addEventListener("blur", (e) => {   FormPage_handleEmailBlur({}); }); }
 { const el = __omni_el("el-input-452"); if (el) el.addEventListener("input", (e) => {   FormPage_handleEmailChange({}); }); }
-{ const el = __omni_el("el-input-452"); if (el) el.addEventListener("focus", (e) => {   FormPage_handleEmailFocus({}); }); }
 let _guard_value_el_input_452 = false;
 { const el = __omni_el("el-input-452"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_452) { FormPage_email.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-452"); if (el) { _guard_value_el_input_452 = true; el.value = FormPage_email.value; _guard_value_el_input_452 = false; } });
@@ -10876,7 +10876,7 @@ __omni_effect(() => {
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
 __omni_effect(() => { const el = __omni_el("el-interp-529"); if (el) try { el.textContent = String(MotionDemo_count.value); } catch(e) {} });
-{ const el = __omni_el("el-button-530"); if (el) el.addEventListener("click", (e) => {   MotionDemo_toggleModal({}); }); }
+{ const el = __omni_el("el-button-530"); if (el) el.addEventListener("click", (e) => {   MotionDemo_toggleModal(e.detail); }); }
 // @press trigger
 (function() {
   const el = __omni_el("el-button-530");
@@ -10907,7 +10907,7 @@ __omni_effect(() => {
   if (MotionDemo_isOpen.value) { _show("el-if-531-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-535"); if (el) el.addEventListener("click", (e) => {   MotionDemo_addItem({}); }); }
+{ const el = __omni_el("el-button-535"); if (el) el.addEventListener("click", (e) => {   MotionDemo_addItem(e.detail); }); }
 // @press trigger
 (function() {
   const el = __omni_el("el-button-535");
@@ -10919,7 +10919,7 @@ __omni_effect(() => {
    el.addEventListener("mouseup", function() { __omni_getAnimation("el-button-535", "press")?.reverse(); });
   }
 })();
-{ const el = __omni_el("el-button-536"); if (el) el.addEventListener("click", (e) => {   MotionDemo_removeItem({}); }); }
+{ const el = __omni_el("el-button-536"); if (el) el.addEventListener("click", (e) => {   MotionDemo_removeItem(e.detail); }); }
 // @press trigger
 (function() {
   const el = __omni_el("el-button-536");
@@ -10936,7 +10936,7 @@ var __omni_states_el_div_537 = {
   "hover": { to: { "opacity": "1", "transform": "scale(1.05)" }, over: 150, ease: "ease-out" },
   "pressed": { to: { "opacity": "0.8", "transform": "scale(0.95)" }, over: 100, ease: "ease-out" },
 };
-{ const el = __omni_el("el-button-565"); if (el) el.addEventListener("click", (e) => {   EasingFunctionsDemo_toggleAll({}); }); }
+{ const el = __omni_el("el-button-565"); if (el) el.addEventListener("click", (e) => {   EasingFunctionsDemo_toggleAll(e.detail); }); }
 // @press trigger
 (function() {
   const el = __omni_el("el-button-565");
@@ -10949,7 +10949,7 @@ var __omni_states_el_div_537 = {
   }
 })();
 __omni_effect(() => { const el = __omni_el("el-interp-566"); if (el) try { el.textContent = String(EasingFunctionsDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) {} });
-{ const el = __omni_el("el-button-665"); if (el) el.addEventListener("click", (e) => {   AnimPropertiesDemo_toggleAll({}); }); }
+{ const el = __omni_el("el-button-665"); if (el) el.addEventListener("click", (e) => {   AnimPropertiesDemo_toggleAll(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-666"); if (el) try { el.textContent = String(AnimPropertiesDemo_playAll.value ? "Reset" : "Play All Animations"); } catch(e) {} });
 // @hover trigger
 (function() {
@@ -11229,8 +11229,8 @@ __omni_effect(() => { const el = __omni_el("el-interp-754"); if (el) try { el.te
 __omni_effect(() => { const el = __omni_el("el-interp-758"); if (el) try { el.textContent = String(MotionCallbackDemo_completeCount.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-762"); if (el) try { el.textContent = String(MotionCallbackDemo_pulseRepeatCount.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-766"); if (el) try { el.textContent = String(MotionCallbackDemo_lastEvent.value); } catch(e) {} });
-{ const el = __omni_el("el-div-775"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_trackedEnter(el, {}); __omni_animations.set("el-div-775_click", p); p.play(); } }); }
 { const el = __omni_el("el-div-775"); if (el) el.addEventListener("click", (e) => {   MotionCallbackDemo_handleEnterStart({}); }); }
+{ const el = __omni_el("el-div-775"); if (el) el.addEventListener("click", (e) => { if (el.offsetParent !== null) { var p = __omni_motion_trackedEnter(el, {}); __omni_animations.set("el-div-775_click", p); p.play(); } }); }
 __omni_effect(() => { const el = __omni_el("el-interp-778"); if (el) try { el.textContent = String(MotionCallbackDemo_isPlaying.value ? "Animating..." : "Click me"); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-783"); if (el) try { el.textContent = String(MotionCallbackDemo_enterCount.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-787"); if (el) try { el.textContent = String(MotionCallbackDemo_completeCount.value); } catch(e) {} });
@@ -11266,7 +11266,7 @@ __omni_effect(() => {
   if (TimelinePositionDemo_activeDemo.value === "simple") { _show("el-if-866-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-977"); if (el) el.addEventListener("click", (e) => {   PlaybackAdvancedDemo_toggleDirFill({}); }); }
+{ const el = __omni_el("el-button-977"); if (el) el.addEventListener("click", (e) => {   PlaybackAdvancedDemo_toggleDirFill(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-978"); if (el) try { el.textContent = String(PlaybackAdvancedDemo_playDirFill.value ? "Reset" : "Play Direction & Fill"); } catch(e) {} });
 { const el = __omni_el("el-button-1012"); if (el) el.addEventListener("click", (e) => {   HeroTransitionDemo_toggle({}); }); }
 
@@ -11277,7 +11277,7 @@ __omni_effect(() => {
   if (HeroTransitionDemo_isExpanded.value) { _show("el-if-1013-b0"); }
   else { _show("el-if-1013-else"); }
 });
-{ const el = __omni_el("el-button-1034"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_toggle({}); }); }
+{ const el = __omni_el("el-button-1034"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_toggle(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1035"); if (el) try { el.textContent = String(ComponentSpecialsDemo_showPanel.value ? "Hide Panel" : "Show Panel"); } catch(e) {} });
 
 /// ── @if conditional el-if-1036 ──
@@ -11287,9 +11287,9 @@ __omni_effect(() => {
   if (ComponentSpecialsDemo_showPanel.value) { _show("el-if-1036-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-1043"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_openSlot({}); }); }
+{ const el = __omni_el("el-button-1043"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_openSlot(e.detail); }); }
 { const el = __omni_el("el-button-1051"); if (el) el.addEventListener("click", (e) => {   SlotContainer_onClose({ x: e.clientX ?? 0, y: e.clientY ?? 0, button: e.button ?? 0, pressure: e.pressure ?? 0, tiltX: e.tiltX ?? 0, tiltY: e.tiltY ?? 0, pointerType: e.pointerType ?? "", alt: e.altKey ?? false, ctrl: e.ctrlKey ?? false, shift: e.shiftKey ?? false, meta: e.metaKey ?? false }); }); }
-{ const el = __omni_el("el-SlotContainer-1046"); if (el) el.addEventListener("close", (e) => {   ComponentSpecialsDemo_closeSlot({}); }); }
+{ const el = __omni_el("el-SlotContainer-1046"); if (el) el.addEventListener("close", (e) => {   ComponentSpecialsDemo_closeSlot(e.detail); }); }
 
 /// ── @if conditional el-if-1044 ──
 __omni_effect(() => {
@@ -11298,7 +11298,7 @@ __omni_effect(() => {
   if (ComponentSpecialsDemo_slotVisible.value) { _show("el-if-1044-b0"); }
   else { _nids.forEach(id => { const e = __omni_el(id); if (e) e.style.display = "none"; }); }
 });
-{ const el = __omni_el("el-button-1060"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_advancePct({}); }); }
+{ const el = __omni_el("el-button-1060"); if (el) el.addEventListener("click", (e) => {   ComponentSpecialsDemo_advancePct(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1061"); if (el) try { el.textContent = String(String(ComponentSpecialsDemo_progressPct.value)); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1064"); if (el) try { el.textContent = String(String(ComponentSpecialsDemo_progressPct.value)); } catch(e) {} });
 
@@ -11395,14 +11395,6 @@ __omni_effect(() => { const el = __omni_el("el-interp-1321"); if (el) try { el.t
 { const el = __omni_el("el-input-1324"); if (el) el.addEventListener("input", (e) => {   FormControlsDemo_handleRangeChange({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1326"); if (el) try { el.textContent = String(FormControlsDemo_rangeVal.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1329"); if (el) try { el.textContent = String(FormControlsDemo_statusText.value); } catch(e) {} });
-function __ononPaste_el_input_1338() {
-  EventsDemo_addLog("paste");
-}
-{ const el = __omni_el("el-input-1338"); if (el) el.addEventListener("paste", (e) => {   __ononPaste_el_input_1338({}); }); }
-function __ononKeyUp_el_input_1338() {
-  EventsDemo_addLog("keyup");
-}
-{ const el = __omni_el("el-input-1338"); if (el) el.addEventListener("keyup", (e) => {   __ononKeyUp_el_input_1338({}); }); }
 function __ononInput_el_input_1338() {
   EventsDemo_addLog("input");
 }
@@ -11411,21 +11403,33 @@ function __ononCopy_el_input_1338() {
   EventsDemo_addLog("copy");
 }
 { const el = __omni_el("el-input-1338"); if (el) el.addEventListener("copy", (e) => {   __ononCopy_el_input_1338({}); }); }
+function __ononPaste_el_input_1338() {
+  EventsDemo_addLog("paste");
+}
+{ const el = __omni_el("el-input-1338"); if (el) el.addEventListener("paste", (e) => {   __ononPaste_el_input_1338({}); }); }
 function __ononCut_el_input_1338() {
   EventsDemo_addLog("cut");
 }
 { const el = __omni_el("el-input-1338"); if (el) el.addEventListener("cut", (e) => {   __ononCut_el_input_1338({}); }); }
+function __ononKeyUp_el_input_1338() {
+  EventsDemo_addLog("keyup");
+}
+{ const el = __omni_el("el-input-1338"); if (el) el.addEventListener("keyup", (e) => {   __ononKeyUp_el_input_1338({}); }); }
 let _guard_value_el_input_1338 = false;
 { const el = __omni_el("el-input-1338"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1338) { EventsDemo_dragStatus.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-1338"); if (el) { _guard_value_el_input_1338 = true; el.value = EventsDemo_dragStatus.value; _guard_value_el_input_1338 = false; } });
-function __ononDoubleClick_el_div_1341() {
-  EventsDemo_addLog("double-click");
-}
-{ const el = __omni_el("el-div-1341"); if (el) el.addEventListener("doubleclick", (e) => {   __ononDoubleClick_el_div_1341({}); }); }
 function __ononContextMenu_el_div_1341() {
   EventsDemo_addLog("context-menu");
 }
 { const el = __omni_el("el-div-1341"); if (el) el.addEventListener("contextmenu", (e) => {   __ononContextMenu_el_div_1341({}); }); }
+function __ononDoubleClick_el_div_1341() {
+  EventsDemo_addLog("double-click");
+}
+{ const el = __omni_el("el-div-1341"); if (el) el.addEventListener("doubleclick", (e) => {   __ononDoubleClick_el_div_1341({}); }); }
+function __ononDragOver_el_div_1345() {
+  EventsDemo_dragStatus.set("dragover");
+}
+{ const el = __omni_el("el-div-1345"); if (el) el.addEventListener("dragover", (e) => {   __ononDragOver_el_div_1345(e.detail); }); }
 function __ononDrop_el_div_1345() {
   EventsDemo_dragStatus.set("dropped");
 }
@@ -11434,10 +11438,6 @@ function __ononDragStart_el_div_1345() {
   EventsDemo_dragStatus.set("dragging");
 }
 { const el = __omni_el("el-div-1345"); if (el) el.addEventListener("dragstart", (e) => {   __ononDragStart_el_div_1345({}); }); }
-function __ononDragOver_el_div_1345() {
-  EventsDemo_dragStatus.set("dragover");
-}
-{ const el = __omni_el("el-div-1345"); if (el) el.addEventListener("dragover", (e) => {   __ononDragOver_el_div_1345({}); }); }
 function __ononDragEnd_el_div_1345() {
   EventsDemo_dragStatus.set("ended");
 }
@@ -11447,28 +11447,28 @@ function __ononTouchStart_el_div_1350() {
   EventsDemo_addLog("touchstart");
 }
 { const el = __omni_el("el-div-1350"); if (el) el.addEventListener("touchstart", (e) => {   __ononTouchStart_el_div_1350({}); }); }
-function __ononTouchMove_el_div_1350() {
-  EventsDemo_addLog("touchmove");
-}
-{ const el = __omni_el("el-div-1350"); if (el) el.addEventListener("touchmove", (e) => {   __ononTouchMove_el_div_1350({}); }); }
 function __ononTouchEnd_el_div_1350() {
   EventsDemo_addLog("touchend");
 }
 { const el = __omni_el("el-div-1350"); if (el) el.addEventListener("touchend", (e) => {   __ononTouchEnd_el_div_1350({}); }); }
+function __ononTouchMove_el_div_1350() {
+  EventsDemo_addLog("touchmove");
+}
+{ const el = __omni_el("el-div-1350"); if (el) el.addEventListener("touchmove", (e) => {   __ononTouchMove_el_div_1350({}); }); }
 { const el = __omni_el("el-div-1354"); if (el) el.addEventListener("wheel", (e) => {   EventsDemo_handleWheel({ deltaY: e.deltaY ?? 0 }); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1356"); if (el) try { el.textContent = String(EventsDemo_wheelCount.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1357"); if (el) try { el.textContent = String(EventsDemo_deltaY.value); } catch(e) {} });
 { const el = __omni_el("el-div-1360"); if (el) el.addEventListener("scroll", (e) => {   EventsDemo_handleScroll({ y: e.target?.scrollTop ?? 0 }); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1362"); if (el) try { el.textContent = String(EventsDemo_scrollY.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1363"); if (el) try { el.textContent = String(EventsDemo_scrollCount.value); } catch(e) {} });
-function __ononLoad_el_img_1366() {
-  EventsDemo_addLog("img-loaded");
-}
-{ const el = __omni_el("el-img-1366"); if (el) el.addEventListener("load", (e) => {   __ononLoad_el_img_1366({}); }); }
 function __ononError_el_img_1366() {
   EventsDemo_addLog("img-error");
 }
 { const el = __omni_el("el-img-1366"); if (el) el.addEventListener("error", (e) => {   __ononError_el_img_1366({}); }); }
+function __ononLoad_el_img_1366() {
+  EventsDemo_addLog("img-loaded");
+}
+{ const el = __omni_el("el-img-1366"); if (el) el.addEventListener("load", (e) => {   __ononLoad_el_img_1366({}); }); }
 function __ononEnded_el_div_1367() {
   EventsDemo_mediaStatus.set("ended");
 }
@@ -11482,14 +11482,6 @@ function __ononPause_el_div_1367() {
 }
 { const el = __omni_el("el-div-1367"); if (el) el.addEventListener("pause", (e) => {   __ononPause_el_div_1367({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1369"); if (el) try { el.textContent = String(EventsDemo_mediaStatus.value); } catch(e) {} });
-function __ononAnimationStart_el_div_1372() {
-  EventsDemo_animStatus.set("anim-start");
-}
-{ const el = __omni_el("el-div-1372"); if (el) el.addEventListener("animationstart", (e) => {   __ononAnimationStart_el_div_1372({}); }); }
-function __ononAnimationEnd_el_div_1372() {
-  EventsDemo_animStatus.set("anim-end");
-}
-{ const el = __omni_el("el-div-1372"); if (el) el.addEventListener("animationend", (e) => {   __ononAnimationEnd_el_div_1372({}); }); }
 function __ononTransitionEnd_el_div_1372() {
   EventsDemo_animStatus.set("trans-end");
 }
@@ -11498,6 +11490,14 @@ function __ononAnimationIteration_el_div_1372() {
   EventsDemo_animStatus.set("anim-iter");
 }
 { const el = __omni_el("el-div-1372"); if (el) el.addEventListener("animationiteration", (e) => {   __ononAnimationIteration_el_div_1372({}); }); }
+function __ononAnimationEnd_el_div_1372() {
+  EventsDemo_animStatus.set("anim-end");
+}
+{ const el = __omni_el("el-div-1372"); if (el) el.addEventListener("animationend", (e) => {   __ononAnimationEnd_el_div_1372({}); }); }
+function __ononAnimationStart_el_div_1372() {
+  EventsDemo_animStatus.set("anim-start");
+}
+{ const el = __omni_el("el-div-1372"); if (el) el.addEventListener("animationstart", (e) => {   __ononAnimationStart_el_div_1372({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1374"); if (el) try { el.textContent = String(EventsDemo_animStatus.value); } catch(e) {} });
 function __ononToggle_el_details_1377() {
   EventsDemo_toggleCount.set(EventsDemo_toggleCount.value + 1);
@@ -11534,8 +11534,8 @@ __omni_effect(() => {
 __omni_effect(() => { const el = __omni_el("el-interp-1564"); if (el) try { el.textContent = String(EmitChild_count.value); } catch(e) {} });
 { const el = __omni_el("el-button-1566"); if (el) el.addEventListener("click", (e) => {   EmitChild_handleEmit({}); }); }
 { const el = __omni_el("el-button-1567"); if (el) el.addEventListener("click", (e) => {   EmitChild_handleFunc({}); }); }
-{ const el = __omni_el("el-EmitChild-1559"); if (el) el.addEventListener("emitclick", (e) => {   EmitKeywordDemo_recordEmit({}); }); }
-{ const el = __omni_el("el-EmitChild-1559"); if (el) el.addEventListener("funcclick", (e) => {   EmitKeywordDemo_recordFunc({}); }); }
+{ const el = __omni_el("el-EmitChild-1559"); if (el) el.addEventListener("funcclick", (e) => {   EmitKeywordDemo_recordFunc(e.detail); }); }
+{ const el = __omni_el("el-EmitChild-1559"); if (el) el.addEventListener("emitclick", (e) => {   EmitKeywordDemo_recordEmit(e.detail); }); }
 
 /// ── @if conditional el-if-1575 ──
 __omni_effect(() => {
@@ -11731,16 +11731,16 @@ __omni_effect(() => { const el = __omni_el("el-interp-1618"); if (el) try { el.t
 { const el = __omni_el("el-button-1619"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
 { const el = __omni_el("el-button-1620"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
 __omni_effect(() => { EmitEventChild_label.set("Sender A"); });
-{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount({}); }); }
-{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction({}); }); }
-{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("optionalack", (e) => {   EmitEventDemo_onOptionalAck({}); }); }
+{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
+{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
+{ const el = __omni_el("el-EmitEventChild-1613"); if (el) el.addEventListener("optionalack", (e) => {   EmitEventDemo_onOptionalAck(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1624"); if (el) try { el.textContent = String(EmitEventChild_label.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1626"); if (el) try { el.textContent = String(EmitEventChild_clickCount.value); } catch(e) {} });
 { const el = __omni_el("el-button-1627"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_doAction({}); }); }
 { const el = __omni_el("el-button-1628"); if (el) el.addEventListener("click", (e) => {   EmitEventChild_incrementParent({}); }); }
 __omni_effect(() => { EmitEventChild_label.set("Sender B"); });
-{ const el = __omni_el("el-EmitEventChild-1621"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction({}); }); }
-{ const el = __omni_el("el-EmitEventChild-1621"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount({}); }); }
+{ const el = __omni_el("el-EmitEventChild-1621"); if (el) el.addEventListener("action", (e) => {   EmitEventDemo_onChildAction(e.detail); }); }
+{ const el = __omni_el("el-EmitEventChild-1621"); if (el) el.addEventListener("count", (e) => {   EmitEventDemo_onChildCount(e.detail); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1632"); if (el) try { el.textContent = String(String((EmitEventDemo_messages.value || []).length)); } catch(e) {} });
 { const el = __omni_el("el-button-1633"); if (el) el.addEventListener("click", (e) => {   EmitEventDemo_clearLog({}); }); }
 
@@ -11871,12 +11871,12 @@ __omni_effect(() => { const el = __omni_el("el-interp-1723"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-1726"); if (el) try { el.textContent = String(demo_usize()); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1732"); if (el) try { el.textContent = String(demo_f32()); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-interp-1735"); if (el) try { el.textContent = String(TypeSystemDemo_summary.value); } catch(e) {} });
-let _guard_checked_el_input_1748 = false;
-{ const el = __omni_el("el-input-1748"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_1748) { ViewAttributesDemo_isChecked.set(e.target.checked); } }); }
-__omni_effect(() => { const el = __omni_el("el-input-1748"); if (el) { _guard_checked_el_input_1748 = true; el.checked = ViewAttributesDemo_isChecked.value; _guard_checked_el_input_1748 = false; } });
 let _guard_value_el_input_1748 = false;
 { const el = __omni_el("el-input-1748"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_input_1748) { ViewAttributesDemo_richText.set(e.target.value); } }); }
 __omni_effect(() => { const el = __omni_el("el-input-1748"); if (el) { _guard_value_el_input_1748 = true; el.value = ViewAttributesDemo_richText.value; _guard_value_el_input_1748 = false; } });
+let _guard_checked_el_input_1748 = false;
+{ const el = __omni_el("el-input-1748"); if (el) el.addEventListener("change", (e) => { if (!_guard_checked_el_input_1748) { ViewAttributesDemo_isChecked.set(e.target.checked); } }); }
+__omni_effect(() => { const el = __omni_el("el-input-1748"); if (el) { _guard_checked_el_input_1748 = true; el.checked = ViewAttributesDemo_isChecked.value; _guard_checked_el_input_1748 = false; } });
 __omni_effect(() => { const el = __omni_el("el-interp-1750"); if (el) try { el.textContent = String(String(ViewAttributesDemo_isChecked.value)); } catch(e) {} });
 let _guard_value_el_textarea_1753 = false;
 { const el = __omni_el("el-textarea-1753"); if (el) el.addEventListener("input", (e) => { if (!_guard_value_el_textarea_1753) { ViewAttributesDemo_richText.set(e.target.value); } }); }
@@ -11927,10 +11927,6 @@ __omni_effect(() => { const el = __omni_el("el-interp-1846"); if (el) try { el.t
 __omni_effect(() => { const el = __omni_el("el-interp-1848"); if (el) try { el.textContent = String(ThemeStore_toggleCount.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-button-1849"); if (el) el.style.background=ThemeStore_currentPrimary.value; });
 __omni_effect(() => { const el = __omni_el("el-button-1849"); if (el) el.style.color=ThemeStore_currentBg.value; });
-function __ononMouseEnter_el_button_1849() {
-  ThemeSwitcher_isHovered.set(true);
-}
-{ const el = __omni_el("el-button-1849"); if (el) el.addEventListener("mouseenter", (e) => {   __ononMouseEnter_el_button_1849({}); }); }
 function __ononMouseLeave_el_button_1849() {
   ThemeSwitcher_isHovered.set(false);
 }
@@ -11939,6 +11935,10 @@ function __ononPress_el_button_1849() {
   ThemeStore_toggle();
 }
 { const el = __omni_el("el-button-1849"); if (el) el.addEventListener("click", (e) => {   __ononPress_el_button_1849({}); }); }
+function __ononMouseEnter_el_button_1849() {
+  ThemeSwitcher_isHovered.set(true);
+}
+{ const el = __omni_el("el-button-1849"); if (el) el.addEventListener("mouseenter", (e) => {   __ononMouseEnter_el_button_1849({}); }); }
 __omni_effect(() => { const el = __omni_el("el-interp-1850"); if (el) try { el.textContent = String(ThemeSwitcher_buttonLabel.value); } catch(e) {} });
 __omni_effect(() => { const el = __omni_el("el-div-1851"); if (el) el.style.background=ThemeStore_currentMuted.value; });
 __omni_effect(() => { const el = __omni_el("el-p-1852"); if (el) el.style.color=ThemeStore_currentText.value; });
@@ -12332,12 +12332,18 @@ __omni_effect(() => {
 });
 
 /// ── Mount Lifecycle ──
-__omni_motion_pageEnter(null, {});
-__omni_motion_positionDemo(null, {});
-__omni_motion_simpleThenWith(null, {});
 __omni_motion_connectorDemo(null, {});
 __omni_motion_flyPath(null, {});
 __omni_motion_bouncePath(null, {});
+__omni_motion_positionDemo(null, {});
+__omni_motion_simpleThenWith(null, {});
+__omni_motion_pageEnter(null, {});
+// @effect NotificationsPanel
+__omni_effect(() => {
+  if (NotificationStore_unreadCount.value > 0) {
+  NotificationsPanel_badgeVisible.set(true);
+  }
+});
 // @mount UserSettings
   let raw = localStorage.getItem("user-settings");
   if (raw !== "") {
@@ -12355,22 +12361,6 @@ __omni_motion_bouncePath(null, {});
 __omni_effect(() => {
   UserSettings_saveSettings();
 });
-// @mount AddTodo
-  console.log("AddTodo mounted");
-// @effect AddTodo
-__omni_effect(() => {
-  if ((AddTodo_input.value || []).length > 20) {
-  console.log("输入较长：" + String((AddTodo_input.value || []).length) + " 字符");
-  }
-});
-// @effect NotificationsPanel
-__omni_effect(() => {
-  if (NotificationStore_unreadCount.value > 0) {
-  NotificationsPanel_badgeVisible.set(true);
-  }
-});
-// @mount DataTable
-  DataTable_initRows();
 // @mount TypeSystemDemo
   TypeSystemDemo_loadSummary();
 // @mount TodoPage
@@ -13188,8 +13178,18 @@ __omni_effect(() => {
 })();
 // @enter replay (watches all signals)
 __omni_effect(function __omni_enter_replay() {
-  CssVarsDemo_accentColor.value; CssVarsDemo_accentHue.value; CssVarsDemo_themeMode.value; FilterBar_searchText.value; FilterBar_sortAsc.value; FilterBar_changeCount.value; FilterBar_demoFrameworks.value; Counter_count.value; Counter_step.value; InlineStoreDemo_items.value; InlineStoreDemo_totalPrice.value; InlineStoreDemo_log.value; MotionTriggersDemo_isHovered.value; MotionTriggersDemo_isFocused.value; MotionTriggersDemo_dragX.value; UserSettings_username.value; UserSettings_fontSize.value; UserSettings_autoSave.value; UserSettings_savedText.value; TimelinePositionDemo_activeDemo.value; TimelinePositionDemo_playCount.value; BlockExprDemo_a.value; BlockExprDemo_b.value; FormPage_name.value; FormPage_email.value; FormPage_message.value; FormPage_nameError.value; FormPage_emailError.value; FormPage_submitted.value; FormPage_scrollPos.value; FormPage_focusField.value; AdvancedPseudoDemo_isActive.value; AdvancedPseudoDemo_variant.value; ValidationInput_input.value; ValidationInput_result.value; ValidationInput_isProcessing.value; DataFetching_status.value; DataFetching_resultText.value; DataFetching_errorMsg.value; DataFetching_url.value; DataFetching_apiDemoText.value; TabPanel_activeTab.value; FeatureList_isOpen.value; FeatureList_features.value; ThemeSwitcher_isHovered.value; MotionPlaybackDemo_play.value; TodoPage_pageLoadCount.value; EventDataDemo_scrollY.value; EventDataDemo_keyPressed.value; EventDataDemo_mouseX.value; EventDataDemo_mouseY.value; EventDataDemo_wheelDelta.value; EventDataDemo_ctrlHeld.value; Modal_isOpen.value; Modal_isHovering.value; Modal_lastAction.value; Constants_APP_NAME.value; Constants_APP_VERSION.value; Constants_logoUrl.value; Constants_apiBase.value; EmitChild_count.value; AddTodo_input.value; NullishDemo_inputName.value; StylePseudoDemo_clicked.value; OptionalChainDemo_user.value; OptionalChainDemo_showDetails.value; App_completionRate.value; App_activeTab.value; AnimPropertiesDemo_playAll.value; StatsDashboard_MAX_ITEMS.value; StatsDashboard_$iconUrl.value; StatsDashboard_$apiBase.value; StatsDashboard_counter.value; StatsDashboard_removed.value; StatsDashboard_randomValue.value; EmitEventChild_clickCount.value; Dashboard_totalItems.value; Dashboard_lastUpdated.value; FormControlsDemo_selected.value; FormControlsDemo_agreed.value; FormControlsDemo_age.value; FormControlsDemo_rangeVal.value; FormControlsDemo_linkClicked.value; FormControlsDemo_statusText.value; ForDirectiveKeyDemo_items.value; ComputedFnFormDemo_firstName.value; ComputedFnFormDemo_lastName.value; ComputedFnFormDemo_counter.value; DataTable_scrollCount.value; DataTable_rows.value; DataTable_sortAsc.value; SettingsPage_themeColors.value; SettingsPage_aboutExpanded.value; TernaryExprDemo_count.value; TernaryExprDemo_score.value; PlaybackAdvancedDemo_playDirFill.value; EmitEventDemo_messages.value; EmitEventDemo_totalCount.value; TodoItem_checked.value; MotionDemo_count.value; MotionDemo_isOpen.value; StringLiteralsDemo_backtickResult.value; StringLiteralsDemo_singleQuoteResult.value; StringLiteralsDemo_mixed.value; StringLiteralsDemo_userName.value; StringLiteralsDemo_version.value; StringLiteralsDemo_interpolated.value; HeroTransitionDemo_isExpanded.value; HeroTransitionDemo_progress.value; ViewAttributesDemo_isChecked.value; ViewAttributesDemo_richText.value; ThemeCssVarsDemo_boxScale.value; ThemeCssVarsDemo_borderWidth.value; EasingFunctionsDemo_playAll.value; EventsDemo_eventLog.value; EventsDemo_dragStatus.value; EventsDemo_wheelCount.value; EventsDemo_mediaStatus.value; EventsDemo_animStatus.value; EventsDemo_toggleCount.value; EventsDemo_scrollY.value; EventsDemo_scrollCount.value; EventsDemo_deltaY.value; ComponentSpecialsDemo_showPanel.value; ComponentSpecialsDemo_slotVisible.value; ComponentSpecialsDemo_progressPct.value; ComponentSpecialsDemo_counter.value; EventShorthand_msg.value; EventShorthand_count.value; FeatureCard_status.value; FeatureCard_focusCount.value; EmitKeywordDemo_emitLog.value; EmitKeywordDemo_funcLog.value; MotionCallbackDemo_enterCount.value; MotionCallbackDemo_completeCount.value; MotionCallbackDemo_repeatCount.value; MotionCallbackDemo_lastEvent.value; MotionCallbackDemo_isPlaying.value; MotionCallbackDemo_isPulsing.value; MotionCallbackDemo_pulseRepeatCount.value; TypeSystemDemo_summary.value; DataSubmit_title.value; DataSubmit_body.value; DataSubmit_submitStatus.value; DataSubmit_responseText.value; SlotDefaultDemo_useCustomContent.value; Timer_count.value; Timer_running.value; Timer_interval.value; NotificationsPanel_badgeVisible.value;
+  ComputedFnFormDemo_firstName.value; ComputedFnFormDemo_lastName.value; ComputedFnFormDemo_counter.value; MotionTriggersDemo_isHovered.value; MotionTriggersDemo_isFocused.value; MotionTriggersDemo_dragX.value; ValidationInput_input.value; ValidationInput_result.value; ValidationInput_isProcessing.value; EventsDemo_eventLog.value; EventsDemo_dragStatus.value; EventsDemo_wheelCount.value; EventsDemo_mediaStatus.value; EventsDemo_animStatus.value; EventsDemo_toggleCount.value; EventsDemo_scrollY.value; EventsDemo_scrollCount.value; EventsDemo_deltaY.value; OptionalChainDemo_user.value; OptionalChainDemo_showDetails.value; SettingsPage_themeColors.value; SettingsPage_aboutExpanded.value; TernaryExprDemo_count.value; TernaryExprDemo_score.value; InlineStoreDemo_items.value; InlineStoreDemo_totalPrice.value; InlineStoreDemo_log.value; StatsDashboard_MAX_ITEMS.value; StatsDashboard_$iconUrl.value; StatsDashboard_$apiBase.value; StatsDashboard_counter.value; StatsDashboard_removed.value; StatsDashboard_randomValue.value; NotificationsPanel_badgeVisible.value; Modal_isOpen.value; Modal_isHovering.value; Modal_lastAction.value; HeroTransitionDemo_isExpanded.value; HeroTransitionDemo_progress.value; MotionPlaybackDemo_play.value; ForDirectiveKeyDemo_items.value; SlotDefaultDemo_useCustomContent.value; FormPage_name.value; FormPage_email.value; FormPage_message.value; FormPage_nameError.value; FormPage_emailError.value; FormPage_submitted.value; FormPage_scrollPos.value; FormPage_focusField.value; AdvancedPseudoDemo_isActive.value; AdvancedPseudoDemo_variant.value; FilterBar_searchText.value; FilterBar_sortAsc.value; FilterBar_changeCount.value; FilterBar_demoFrameworks.value; EmitChild_count.value; NullishDemo_inputName.value; PlaybackAdvancedDemo_playDirFill.value; TodoItem_checked.value; TabPanel_activeTab.value; App_completionRate.value; App_activeTab.value; EmitEventDemo_messages.value; EmitEventDemo_totalCount.value; EmitEventChild_clickCount.value; TodoPage_pageLoadCount.value; StylePseudoDemo_clicked.value; ThemeSwitcher_isHovered.value; EmitKeywordDemo_emitLog.value; EmitKeywordDemo_funcLog.value; Counter_count.value; Counter_step.value; TimelinePositionDemo_activeDemo.value; TimelinePositionDemo_playCount.value; BlockExprDemo_a.value; BlockExprDemo_b.value; FeatureCard_status.value; FeatureCard_focusCount.value; Constants_APP_NAME.value; Constants_APP_VERSION.value; Constants_logoUrl.value; Constants_apiBase.value; FormControlsDemo_selected.value; FormControlsDemo_agreed.value; FormControlsDemo_age.value; FormControlsDemo_rangeVal.value; FormControlsDemo_linkClicked.value; FormControlsDemo_statusText.value; EventShorthand_msg.value; EventShorthand_count.value; DataTable_scrollCount.value; DataTable_rows.value; DataTable_sortAsc.value; UserSettings_username.value; UserSettings_fontSize.value; UserSettings_autoSave.value; UserSettings_savedText.value; CssVarsDemo_accentColor.value; CssVarsDemo_accentHue.value; CssVarsDemo_themeMode.value; ComponentSpecialsDemo_showPanel.value; ComponentSpecialsDemo_slotVisible.value; ComponentSpecialsDemo_progressPct.value; ComponentSpecialsDemo_counter.value; TypeSystemDemo_summary.value; FeatureList_isOpen.value; FeatureList_features.value; Timer_count.value; Timer_running.value; Timer_interval.value; DataSubmit_title.value; DataSubmit_body.value; DataSubmit_submitStatus.value; DataSubmit_responseText.value; MotionDemo_count.value; MotionDemo_isOpen.value; Dashboard_totalItems.value; Dashboard_lastUpdated.value; EasingFunctionsDemo_playAll.value; AnimPropertiesDemo_playAll.value; AddTodo_input.value; DataFetching_status.value; DataFetching_resultText.value; DataFetching_errorMsg.value; DataFetching_url.value; DataFetching_apiDemoText.value; StringLiteralsDemo_backtickResult.value; StringLiteralsDemo_singleQuoteResult.value; StringLiteralsDemo_mixed.value; StringLiteralsDemo_userName.value; StringLiteralsDemo_version.value; StringLiteralsDemo_interpolated.value; ViewAttributesDemo_isChecked.value; ViewAttributesDemo_richText.value; MotionCallbackDemo_enterCount.value; MotionCallbackDemo_completeCount.value; MotionCallbackDemo_repeatCount.value; MotionCallbackDemo_lastEvent.value; MotionCallbackDemo_isPlaying.value; MotionCallbackDemo_isPulsing.value; MotionCallbackDemo_pulseRepeatCount.value; EventDataDemo_scrollY.value; EventDataDemo_keyPressed.value; EventDataDemo_mouseX.value; EventDataDemo_mouseY.value; EventDataDemo_wheelDelta.value; EventDataDemo_ctrlHeld.value; ThemeCssVarsDemo_boxScale.value; ThemeCssVarsDemo_borderWidth.value;
   (function() { var el = __omni_el("el-h1-527"); if (el) { var _old = __omni_animations.get("el-h1-527_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-h1-527_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-533"); if (el) { var _old = __omni_animations.get("el-div-533_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeInUp(el, {trigger: "enter"}); __omni_animations.set("el-div-533_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-544"); if (el) { var _old = __omni_animations.get("el-div-544_enter"); if (_old) _old.kill(); var p = __omni_motion_fillDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-544_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-546"); if (el) { var _old = __omni_animations.get("el-div-546_enter"); if (_old) _old.kill(); var p = __omni_motion_delayedEntrance(el, {trigger: "enter"}); __omni_animations.set("el-div-546_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-548"); if (el) { var _old = __omni_animations.get("el-div-548_enter"); if (_old) _old.kill(); var p = __omni_motion_slowSpin(el, {trigger: "enter"}); __omni_animations.set("el-div-548_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-550"); if (el) { var _old = __omni_animations.get("el-div-550_enter"); if (_old) _old.kill(); var p = __omni_motion_interruptDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-550_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-552"); if (el) { var _old = __omni_animations.get("el-div-552_enter"); if (_old) _old.kill(); var p = __omni_motion_accessibleAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-552_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-554"); if (el) { var _old = __omni_animations.get("el-div-554_enter"); if (_old) _old.kill(); var p = __omni_motion_staggeredList(el, {trigger: "enter"}); __omni_animations.set("el-div-554_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-556"); if (el) { var _old = __omni_animations.get("el-div-556_enter"); if (_old) _old.kill(); var p = __omni_motion_pathAnim(el, {trigger: "enter"}); __omni_animations.set("el-div-556_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-558"); if (el) { var _old = __omni_animations.get("el-div-558_enter"); if (_old) _old.kill(); var p = __omni_motion_multiStopColor(el, {trigger: "enter"}); __omni_animations.set("el-div-558_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-569"); if (el) { var _old = __omni_animations.get("el-div-569_enter"); if (_old) _old.kill(); var p = __omni_motion_easeInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-569_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-572"); if (el) { var _old = __omni_animations.get("el-div-572_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-572_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-575"); if (el) { var _old = __omni_animations.get("el-div-575_enter"); if (_old) _old.kill(); var p = __omni_motion_power1OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-575_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-578"); if (el) { var _old = __omni_animations.get("el-div-578_enter"); if (_old) _old.kill(); var p = __omni_motion_power1InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-578_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-581"); if (el) { var _old = __omni_animations.get("el-div-581_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-581_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-584"); if (el) { var _old = __omni_animations.get("el-div-584_enter"); if (_old) _old.kill(); var p = __omni_motion_power2InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-584_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-587"); if (el) { var _old = __omni_animations.get("el-div-587_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-587_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-590"); if (el) { var _old = __omni_animations.get("el-div-590_enter"); if (_old) _old.kill(); var p = __omni_motion_power3InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-590_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-593"); if (el) { var _old = __omni_animations.get("el-div-593_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InMove(el, {trigger: "enter"}); __omni_animations.set("el-div-593_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-596"); if (el) { var _old = __omni_animations.get("el-div-596_enter"); if (_old) _old.kill(); var p = __omni_motion_power4OutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-596_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-599"); if (el) { var _old = __omni_animations.get("el-div-599_enter"); if (_old) _old.kill(); var p = __omni_motion_power4InOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-599_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-604"); if (el) { var _old = __omni_animations.get("el-div-604_enter"); if (_old) _old.kill(); var p = __omni_motion_backInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-604_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-607"); if (el) { var _old = __omni_animations.get("el-div-607_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-607_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-610"); if (el) { var _old = __omni_animations.get("el-div-610_enter"); if (_old) _old.kill(); var p = __omni_motion_backInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-610_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-613"); if (el) { var _old = __omni_animations.get("el-div-613_enter"); if (_old) _old.kill(); var p = __omni_motion_backOutIntensity(el, {trigger: "enter"}); __omni_animations.set("el-div-613_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-618"); if (el) { var _old = __omni_animations.get("el-div-618_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-618_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-621"); if (el) { var _old = __omni_animations.get("el-div-621_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-621_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-624"); if (el) { var _old = __omni_animations.get("el-div-624_enter"); if (_old) _old.kill(); var p = __omni_motion_bounceInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-624_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-629"); if (el) { var _old = __omni_animations.get("el-div-629_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInMove(el, {trigger: "enter"}); __omni_animations.set("el-div-629_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-632"); if (el) { var _old = __omni_animations.get("el-div-632_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-632_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-635"); if (el) { var _old = __omni_animations.get("el-div-635_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticInOutMove(el, {trigger: "enter"}); __omni_animations.set("el-div-635_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-638"); if (el) { var _old = __omni_animations.get("el-div-638_enter"); if (_old) _old.kill(); var p = __omni_motion_elasticCustomMove(el, {trigger: "enter"}); __omni_animations.set("el-div-638_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-643"); if (el) { var _old = __omni_animations.get("el-div-643_enter"); if (_old) _old.kill(); var p = __omni_motion_springDefault(el, {trigger: "enter"}); __omni_animations.set("el-div-643_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-646"); if (el) { var _old = __omni_animations.get("el-div-646_enter"); if (_old) _old.kill(); var p = __omni_motion_springBouncy(el, {trigger: "enter"}); __omni_animations.set("el-div-646_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-649"); if (el) { var _old = __omni_animations.get("el-div-649_enter"); if (_old) _old.kill(); var p = __omni_motion_springStiff(el, {trigger: "enter"}); __omni_animations.set("el-div-649_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-654"); if (el) { var _old = __omni_animations.get("el-div-654_enter"); if (_old) _old.kill(); var p = __omni_motion_cubicCustom(el, {trigger: "enter"}); __omni_animations.set("el-div-654_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-657"); if (el) { var _old = __omni_animations.get("el-div-657_enter"); if (_old) _old.kill(); var p = __omni_motion_stepsDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-657_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-669"); if (el) { var _old = __omni_animations.get("el-div-669_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-669_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-672"); if (el) { var _old = __omni_animations.get("el-div-672_enter"); if (_old) _old.kill(); var p = __omni_motion_scaleYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-672_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-675"); if (el) { var _old = __omni_animations.get("el-div-675_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateXDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-675_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-678"); if (el) { var _old = __omni_animations.get("el-div-678_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateYDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-678_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-681"); if (el) { var _old = __omni_animations.get("el-div-681_enter"); if (_old) _old.kill(); var p = __omni_motion_rotateZDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-681_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-686"); if (el) { var _old = __omni_animations.get("el-div-686_enter"); if (_old) _old.kill(); var p = __omni_motion_blurDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-686_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-689"); if (el) { var _old = __omni_animations.get("el-div-689_enter"); if (_old) _old.kill(); var p = __omni_motion_brightnessDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-689_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-694"); if (el) { var _old = __omni_animations.get("el-div-694_enter"); if (_old) _old.kill(); var p = __omni_motion_bgColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-694_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-697"); if (el) { var _old = __omni_animations.get("el-div-697_enter"); if (_old) _old.kill(); var p = __omni_motion_textColorDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-697_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-702"); if (el) { var _old = __omni_animations.get("el-div-702_enter"); if (_old) _old.kill(); var p = __omni_motion_widthDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-702_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-705"); if (el) { var _old = __omni_animations.get("el-div-705_enter"); if (_old) _old.kill(); var p = __omni_motion_heightDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-705_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-708"); if (el) { var _old = __omni_animations.get("el-div-708_enter"); if (_old) _old.kill(); var p = __omni_motion_spacingDemo(el, {trigger: "enter"}); __omni_animations.set("el-div-708_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-794"); if (el) { var _old = __omni_animations.get("el-div-794_enter"); if (_old) _old.kill(); var p = __omni_motion_pulseWithCallback(el, {trigger: "enter"}); __omni_animations.set("el-div-794_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-855"); if (el) { var _old = __omni_animations.get("el-div-855_timeline"); if (_old) _old.kill(); var p = __omni_motion_positionDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-855_timeline", p); } })(); (function() { var el = __omni_el("el-div-868"); if (el) { var _old = __omni_animations.get("el-div-868_timeline"); if (_old) _old.kill(); var p = __omni_motion_simpleThenWith(el, {trigger: "timeline"}); __omni_animations.set("el-div-868_timeline", p); } })(); (function() { var el = __omni_el("el-div-928"); if (el) { var _old = __omni_animations.get("el-div-928_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerStart(el, {trigger: "enter"}); __omni_animations.set("el-div-928_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-936"); if (el) { var _old = __omni_animations.get("el-div-936_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEnd(el, {trigger: "enter"}); __omni_animations.set("el-div-936_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-944"); if (el) { var _old = __omni_animations.get("el-div-944_enter"); if (_old) _old.kill(); var p = __omni_motion_staggerEdges(el, {trigger: "enter"}); __omni_animations.set("el-div-944_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-951"); if (el) { var _old = __omni_animations.get("el-div-951_timeline"); if (_old) _old.kill(); var p = __omni_motion_connectorDemo(el, {trigger: "timeline"}); __omni_animations.set("el-div-951_timeline", p); } })(); (function() { var el = __omni_el("el-div-960"); if (el) { var _old = __omni_animations.get("el-div-960_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-960_timeline", p); } })(); (function() { var el = __omni_el("el-div-963"); if (el) { var _old = __omni_animations.get("el-div-963_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-963_timeline", p); } })(); (function() { var el = __omni_el("el-div-966"); if (el) { var _old = __omni_animations.get("el-div-966_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-966_timeline", p); } })(); (function() { var el = __omni_el("el-div-969"); if (el) { var _old = __omni_animations.get("el-div-969_timeline"); if (_old) _old.kill(); var p = __omni_motion_pageEnter(el, {trigger: "timeline"}); __omni_animations.set("el-div-969_timeline", p); } })(); (function() { var el = __omni_el("el-div-981"); if (el) { var _old = __omni_animations.get("el-div-981_enter"); if (_old) _old.kill(); var p = __omni_motion_dirReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-981_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-984"); if (el) { var _old = __omni_animations.get("el-div-984_enter"); if (_old) _old.kill(); var p = __omni_motion_dirAltReverse(el, {trigger: "enter"}); __omni_animations.set("el-div-984_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-989"); if (el) { var _old = __omni_animations.get("el-div-989_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBackwards(el, {trigger: "enter"}); __omni_animations.set("el-div-989_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-992"); if (el) { var _old = __omni_animations.get("el-div-992_enter"); if (_old) _old.kill(); var p = __omni_motion_fillBoth(el, {trigger: "enter"}); __omni_animations.set("el-div-992_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1038"); if (el) { var _old = __omni_animations.get("el-div-1038_enter"); if (_old) _old.kill(); var p = __omni_motion_fadeEnter(el, {trigger: "enter"}); __omni_animations.set("el-div-1038_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-1997"); if (el) { var _old = __omni_animations.get("el-div-1997_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount2(el, {trigger: "enter"}); __omni_animations.set("el-div-1997_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-2002"); if (el) { var _old = __omni_animations.get("el-div-2002_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount4Start(el, {trigger: "enter"}); __omni_animations.set("el-div-2002_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-2006"); if (el) { var _old = __omni_animations.get("el-div-2006_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount4End(el, {trigger: "enter"}); __omni_animations.set("el-div-2006_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-2010"); if (el) { var _old = __omni_animations.get("el-div-2010_enter"); if (_old) _old.kill(); var p = __omni_motion_stepCount8(el, {trigger: "enter"}); __omni_animations.set("el-div-2010_enter", p); if (el.offsetParent !== null) p.play(); } })(); (function() { var el = __omni_el("el-div-2021"); if (el) { var _old = __omni_animations.get("el-div-2021_timeline"); if (_old) _old.kill(); var p = __omni_motion_flyPath(el, {trigger: "timeline"}); __omni_animations.set("el-div-2021_timeline", p); } })(); (function() { var el = __omni_el("el-div-2023"); if (el) { var _old = __omni_animations.get("el-div-2023_timeline"); if (_old) _old.kill(); var p = __omni_motion_flyPath(el, {trigger: "timeline"}); __omni_animations.set("el-div-2023_timeline", p); } })(); (function() { var el = __omni_el("el-div-2028"); if (el) { var _old = __omni_animations.get("el-div-2028_timeline"); if (_old) _old.kill(); var p = __omni_motion_bouncePath(el, {trigger: "timeline"}); __omni_animations.set("el-div-2028_timeline", p); } })()
+});
+// @mount DataTable
+  DataTable_initRows();
+// @mount AddTodo
+  console.log("AddTodo mounted");
+// @effect AddTodo
+__omni_effect(() => {
+  if ((AddTodo_input.value || []).length > 20) {
+  console.log("输入较长：" + String((AddTodo_input.value || []).length) + " 字符");
+  }
 });
 
 })();

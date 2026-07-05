@@ -1,0 +1,56 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=f4e5]
+    - paragraph [ref=f4e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f4e7]:
+    - generic [ref=f4e8]:
+      - button "首页" [ref=f4e9] [cursor=pointer]
+      - button "待办" [ref=f4e10] [cursor=pointer]
+      - button "基础交互" [ref=f4e11] [cursor=pointer]
+      - button "编译器特性" [ref=f4e12] [cursor=pointer]
+      - button "运动动画" [ref=f4e13] [cursor=pointer]
+      - button "CSS 特性" [ref=f4e14] [cursor=pointer]
+      - button "事件/表单" [ref=f4e15] [cursor=pointer]
+      - button "语言特性" [ref=f4e16] [cursor=pointer]
+      - button "设置" [active] [ref=f4e17] [cursor=pointer]
+      - button "补充" [ref=f4e18] [cursor=pointer]
+    - generic [ref=f4e102]:
+      - generic [ref=f4e103]:
+        - heading "Settings" [level=2] [ref=f4e104]
+        - paragraph [ref=f4e105]: Customize your experience
+      - generic [ref=f4e106]:
+        - heading "Appearance" [level=3] [ref=f4e107]
+        - generic [ref=f4e108]:
+          - generic [ref=f4e109]:
+            - generic [ref=f4e110]: Light
+            - paragraph [ref=f4e111]: Toggled0times
+          - button "Light Mode" [ref=f4e112] [cursor=pointer]
+          - generic [ref=f4e113]:
+            - paragraph [ref=f4e114]: "Current palette:"
+            - generic [ref=f4e115]:
+              - generic [ref=f4e116]: BG
+              - generic [ref=f4e117]: TX
+              - generic [ref=f4e118]: PR
+              - generic [ref=f4e119]: BD
+              - generic [ref=f4e120]: MU
+          - generic [ref=f4e121]:
+            - button "Light" [ref=f4e122] [cursor=pointer]
+            - button "Dark" [ref=f4e123] [cursor=pointer]
+      - generic [ref=f4e124]:
+        - heading "Theme Colors" [level=3] [ref=f4e125]
+        - generic [ref=f4e126]:
+          - generic [ref=f4e129]: primary
+          - generic [ref=f4e132]: primaryLight
+          - generic [ref=f4e135]: success
+          - generic [ref=f4e138]: warning
+          - generic [ref=f4e141]: danger
+          - generic [ref=f4e144]: bgLight
+          - generic [ref=f4e147]: textLight
+          - generic [ref=f4e150]: bgDark
+          - generic [ref=f4e153]: textDark
+      - generic [ref=f4e155] [cursor=pointer]:
+        - heading "About" [level=3] [ref=f4e156]
+        - generic [ref=f4e157]: v
+      - generic [ref=f4e159]: Current:Lightmode | Toggles:0
+    - contentinfo [ref=f4e98]:
+      - paragraph [ref=f4e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

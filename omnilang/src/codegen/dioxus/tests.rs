@@ -321,6 +321,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -381,6 +382,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -442,6 +444,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -496,6 +499,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -555,6 +559,7 @@ mod tests {
                 if_mode_default: None,
                 hero_defs: vec![],
                 timelines: vec![],
+                ..Default::default()
             },
         );
         let ir = make_ir(components);
@@ -581,6 +586,7 @@ mod tests {
             signal_defaults: HashMap::new(),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let mod_str = codegen.gen_store_module("EmptyStore", &store);
         assert!(mod_str.contains("pub struct EmptyStore;"));
@@ -620,6 +626,7 @@ mod tests {
             signal_defaults: defaults,
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let mod_str = codegen.gen_store_module("AppStore", &store);
         assert!(mod_str.contains("pub struct AppStore {"));
@@ -693,6 +700,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -736,6 +744,7 @@ mod tests {
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),
@@ -781,6 +790,7 @@ mod tests {
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         let comp = ComponentIR {
             name: "App".into(),
@@ -801,6 +811,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         let ir = IRProgram {
             version: "0.1".into(),

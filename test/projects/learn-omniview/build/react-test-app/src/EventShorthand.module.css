@@ -1,0 +1,109 @@
+/* Styles for EventShorthand */
+.event-shorthand {
+  border-radius: 12px;
+  padding: 20px 16px;
+  margin: 16px 0;
+  background: white;
+  border: 1px solid #d4d4d8;
+}
+.title {
+  margin: 0 0 16px 0;
+  color: #1f2937;
+  font-size: 18px;
+}
+.section {
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.section-title {
+  font-weight: 600.0px;
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+.demo-row {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  border-radius: 8px;
+  background: #6366f1;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 16px;
+  color: white;
+}
+.btn-alt {
+  background: #10b981;
+  color: white;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+.btn-store {
+  font-size: 13px;
+  background: #f59e0b;
+  color: white;
+  margin-right: 6px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 8px 16px;
+}
+.btn-on {
+  border-radius: 8px;
+  background: #6366f1;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  padding: 8px 16px;
+}
+.btn-at {
+  font-size: 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #8b5cf6;
+  padding: 8px 16px;
+  color: white;
+}
+.result-area {
+  background: #f0fdf4;
+  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #bbf7d0;
+}
+.result-text {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600.0px;
+  color: #166534;
+}
+.result-count {
+  margin: 0.0px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.store-info {
+  margin: 4px 0 0 0;
+  color: #f59e0b;
+  font-size: 12px;
+}
+.btn-reset {
+  border-radius: 8px;
+  cursor: pointer;
+  background: #f3f4f6;
+  margin-top: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  border: 1px solid #d4d4d8;
+  color: #374151;
+}

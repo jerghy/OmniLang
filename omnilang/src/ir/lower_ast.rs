@@ -2,19 +2,20 @@
 
 use super::logic::*;
 use super::types::*;
+use super::types_motion::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use std::cell::Cell;
 use std::collections::HashMap;
 
 // Disambiguate: IR types shadow the AST ones used in pattern matching
-use super::types::DirectionValue;
-use super::types::FillValue;
-use super::types::InterruptValue;
-use super::types::LoopValue;
-use super::types::StaggerDirection;
-use super::types::TriggerKind;
-use super::types::WhenValue;
+use crate::ir::DirectionValue;
+use crate::ir::FillValue;
+use crate::ir::InterruptValue;
+use crate::ir::LoopValue;
+use crate::ir::StaggerDirection;
+use crate::ir::TriggerKind;
+use crate::ir::WhenValue;
 // ═══════════════════════════════════════════════════════
 // Lowering: AST -> IR
 // ═══════════════════════════════════════════════════════
@@ -374,6 +375,7 @@ pub(super) fn lower_component(
 
     ComponentIR {
         name: comp.name.clone(),
+        source_file: None,
         generic_params: vec![],
         props,
         prop_defaults,
@@ -698,6 +700,7 @@ pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String
 
     StoreIR {
         name: store.name.clone(),
+        source_file: None,
         signals,
         signal_defaults,
         getters,
@@ -1884,6 +1887,14 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                     name: name.clone(),
                     args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
                 }
+            } else if let Expr::OptionalChain { object, field, .. } = func.as_ref() {
+                // user?.len() — treat as optional method call
+                ExprIR::MethodCallExpr {
+                    object: Box::new(lower_expr(object, variant_map)),
+                    method: field.clone(),
+                    args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                    is_optional: true,
+                }
             } else {
                 ExprIR::LiteralExpr {
                     value: serde_json::Value::Null,
@@ -1922,6 +1933,7 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                     object: Box::new(lower_expr(object, variant_map)),
                     method: method.clone(),
                     args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                    is_optional: false,
                 }
             }
         }
@@ -2111,9 +2123,9 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
         ExprIR::LiteralExpr { value } => value.clone(),
         ExprIR::IdentifierExpr { name } => serde_json::json!({"$signal": name}),
         ExprIR::FieldAccessExpr { object, field } => {
-            // Resolve ThemeStore.currentBg → flat JS name ThemeStore_currentBg
+            // Resolve ThemeStore.currentBg → JS name ThemeStore.currentBg
             if let ExprIR::IdentifierExpr { name: obj_name } = object.as_ref() {
-                serde_json::json!({"$signal": format!("{}_{}", obj_name, field)})
+                serde_json::json!({"$signal": format!("{}.{}", obj_name, field)})
             } else {
                 let obj = lower_expr_to_json_from_ir(object);
                 serde_json::json!({"$signal_concat": [obj, field.as_str()]})
@@ -2140,7 +2152,7 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
             field_name,
             ..
         } => {
-            serde_json::json!({"$signal": format!("{}_{}", store_alias, field_name)})
+            serde_json::json!({"$signal": format!("{}.{}", store_alias, field_name)})
         }
         other => serde_json::Value::String(format!("{:?}", other)),
     }

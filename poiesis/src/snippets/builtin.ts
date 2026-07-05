@@ -275,10 +275,10 @@ export const BUILTIN_SNIPPETS: OmniSnippet[] = [
   },
   {
     id: "view-card",
-    label: "Card",
-    description: "Card with shadow",
+    label: "div (Card)",
+    description: "Container div with shadow styling",
     context: "view_interpolation",
-    body: `Card {
+    body: `div {
     padding: "$1";
     border_radius: "$2";
     $3

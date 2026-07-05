@@ -4,6 +4,7 @@
  *  自定义组件通过 useComponentRegistry 动态注入。 */
 
 import React, { useState, useMemo } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
 import { usePoiesisStore } from "../../store";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
@@ -12,6 +13,116 @@ import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/con
 // Re-export for backward compatibility
 export { COMPONENT_PROTOCOL };
 export type { EventMeta } from "../../data/componentProtocol";
+
+// ═══════════════════════════════════════════════
+// PaletteDraggableItem — wraps each palette entry with @dnd-kit useDraggable
+// ═══════════════════════════════════════════════
+
+interface PaletteItemData {
+  component: string;
+  description: string;
+  category: string;
+  isCustom: boolean;
+  icon: string;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+
+function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
+  const { component, description, isCustom, icon, onEdit, onDelete } = data;
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `palette-${component}`,
+    data: { tag: component },
+  });
+
+  return (
+    <div
+      style={{ display: "flex", alignItems: "center", padding: isCustom ? "2px 4px" : "3px 4px", borderRadius: 4, marginBottom: 1 }}
+    >
+      {/* Drag handle — spread @dnd-kit listeners & attributes here */}
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        title={description || component}
+        style={{
+          flex: 1,
+          padding: "3px 6px",
+          borderRadius: 3,
+          cursor: isDragging ? "grabbing" : "grab",
+          fontSize: 11,
+          border: "1px solid transparent",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          opacity: isDragging ? 0.4 : 1,
+          touchAction: "none",
+        }}
+        onMouseEnter={(e) => {
+          if (isDragging) return;
+          e.currentTarget.style.borderColor = "#d1d5db";
+          e.currentTarget.style.background = "#F9FAFB";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "transparent";
+          e.currentTarget.style.background = "transparent";
+        }}
+      >
+        {/* Icon */}
+        <span style={{ fontSize: 13, width: 18, textAlign: "center", flexShrink: 0 }}>
+          {icon}
+        </span>
+        <span
+          style={{
+            color: isCustom ? "#4F46E5" : "#374151",
+            fontWeight: isCustom ? 600 : 400,
+          }}
+        >
+          {component}
+        </span>
+      </div>
+
+      {/* Edit button (custom components only) */}
+      {isCustom && onEdit && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          style={{
+            padding: "1px 6px", fontSize: 10, border: "none",
+            background: "transparent", cursor: "pointer", color: "#6B7280",
+            borderRadius: 3,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.color = "#4F46E5"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B7280"; }}
+          title={`编辑 ${component}`}
+        >
+          ✎
+        </button>
+      )}
+      {isCustom && onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            padding: "1px 6px", fontSize: 10, border: "none",
+            background: "transparent", cursor: "pointer", color: "#dc2626",
+            borderRadius: 3, opacity: 0.5,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.5"; }}
+          title={`删除 ${component}`}
+        >
+          🗑
+        </button>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════
 // Component
@@ -25,16 +136,17 @@ export function ComponentPalette() {
   // NOTE: definitions, enterComponentCanvas, defineComponent, removeComponent not in PoiesisState — migration needed
   const storeAny = usePoiesisStore as any;
   const registryAny = useComponentRegistry as any;
-  const definitions = registryAny((s: any) => s.definitions) ?? {};
+  const definitions = registryAny((s: any) => s.componentDefs) ?? {};
   const enterCanvas = storeAny((s: any) => s.enterComponentCanvas) ?? (() => {});
   const defineComponent = registryAny((s: any) => s.defineComponent) ?? (() => {});
   const removeComponent = registryAny((s: any) => s.removeComponent) ?? (() => {});
 
-  // Build unified metadata list
+  // Build unified metadata list — re-compute when custom component definitions change
   const allMeta = useMemo(() => {
     const unified = getUnifiedComponentMeta();
     return Object.values(unified);
-  }, []); // getUnifiedComponentMeta() reads fresh data from store internally
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definitions]);
 
   // Filter by search
   const filtered = useMemo(() => {
@@ -74,11 +186,6 @@ export function ComponentPalette() {
       else next.add(cat);
       return next;
     });
-  };
-
-  const handleDragStart = (e: React.DragEvent, tag: string) => {
-    e.dataTransfer.setData("application/omni-component", tag);
-    e.dataTransfer.effectAllowed = "copy";
   };
 
   const handleCreate = (name: string) => {
@@ -158,86 +265,27 @@ export function ComponentPalette() {
               {!isCollapsed && items.map((m) => {
                 const isCustomComp = definitions[m.component] !== undefined;
                 return (
-                  <div
+                  <PaletteDraggableItem
                     key={m.component}
-                    style={{
-                      display: "flex", alignItems: "center",
-                      padding: isCustomComp ? "2px 4px" : "3px 4px",
-                      borderRadius: 4, marginBottom: 1,
-                    }}
-                  >
-                    {/* Drag handle */}
-                    <div
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, m.component)}
-                      title={m.description || m.component}
-                      style={{
-                        flex: 1, padding: "3px 6px", borderRadius: 3, cursor: "grab",
-                        fontSize: 11, border: "1px solid transparent",
-                        display: "flex", alignItems: "center", gap: 4,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "#d1d5db";
-                        e.currentTarget.style.background = "#F9FAFB";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "transparent";
-                        e.currentTarget.style.background = "transparent";
-                      }}
-                    >
-                      {/* Icon */}
-                      <span style={{ fontSize: 13, width: 18, textAlign: "center", flexShrink: 0 }}>
-                        {isCustomComp ? "★" : COMPONENT_ICONS[m.component] || "▪"}
-                      </span>
-                      <span style={{ color: isCustomComp ? "#4F46E5" : "#374151", fontWeight: isCustomComp ? 600 : 400 }}>
-                        {m.component}
-                      </span>
-                    </div>
-
-                    {/* Edit button (custom components only) */}
-                    {isCustomComp && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            enterCanvas(m.component);
-                          }}
-                          style={{
-                            padding: "1px 6px", fontSize: 10, border: "none",
-                            background: "transparent", cursor: "pointer", color: "#6B7280",
-                            borderRadius: 3,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.color = "#4F46E5"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B7280"; }}
-                          title={`编辑 ${m.component}`}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
+                    data={{
+                      component: m.component,
+                      description: m.description,
+                      category: m.category,
+                      isCustom: isCustomComp,
+                      icon: isCustomComp ? "★" : COMPONENT_ICONS[m.component] || "▪",
+                      onEdit: isCustomComp ? () => enterCanvas(m.component) : undefined,
+                      onDelete: isCustomComp
+                        ? () => {
                             if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
                               removeComponent(m.component);
-                              // Also delete the .omni file on disk
                               import("../../commands").then(({ api }) => {
                                 api.annotation.deleteComponentDefinitions([m.component]).catch(() => {});
                               });
                             }
-                          }}
-                          style={{
-                            padding: "1px 6px", fontSize: 10, border: "none",
-                            background: "transparent", cursor: "pointer", color: "#dc2626",
-                            borderRadius: 3, opacity: 0.5,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.opacity = "1"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.5"; }}
-                          title={`删除 ${m.component}`}
-                        >
-                          🗑
-                        </button>
-                      </>
-                    )}
-                  </div>
+                          }
+                        : undefined,
+                    }}
+                  />
                 );
               })}
             </div>

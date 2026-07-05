@@ -101,15 +101,18 @@ export function getComponentEvents(componentName: string): Record<string, EventM
   return { ...UNIVERSAL_EVENTS, ...specialEvents };
 }
 
+/**
+ * Built-in component protocol keyed by OmniLang tag name.
+ *
+ * These are the actual element names used in .omni source code, not semantic aliases.
+ * When a user drags a component from the palette, the element's `tag` field is set
+ * to the key below, ensuring the generated .omni code uses the correct tag.
+ *
+ * Custom components (PascalCase) are registered separately via componentDefs.
+ */
 export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
-  Container: {
-    component: "Container", category: "Layout", description: "通用容器",
-    props: {}, events: {},
-    styleProperties: ["padding", "margin", "gap", "background_color", "border_radius", "width", "height"],
-    children: true,
-  },
-  Flex: {
-    component: "Flex", category: "Layout", description: "弹性布局",
+  div: {
+    component: "div", category: "Layout", description: "通用容器 / 布局块",
     props: {
       direction: { type: "enum", values: ["row", "column"], default: "row", editor: "select" },
       gap: { type: "string", default: "8px", editor: "text" },
@@ -117,41 +120,67 @@ export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
       justify: { type: "enum", values: ["start", "center", "end", "between", "around"], default: "start", editor: "select" },
     },
     events: {},
-    styleProperties: ["padding", "margin", "width", "height"],
+    styleProperties: ["padding", "margin", "gap", "background_color", "border_radius", "width", "height", "shadow"],
     children: true,
   },
-  Grid: {
-    component: "Grid", category: "Layout", description: "网格布局",
-    props: { columns: { type: "string", default: "2", editor: "text" }, gap: { type: "string", default: "16px", editor: "text" } },
+  span: {
+    component: "span", category: "Typography", description: "内联文本 / 行内元素",
+    props: { label: { type: "string", default: "text", editor: "text" } },
     events: {},
-    styleProperties: ["padding", "margin", "width", "height"],
+    styleProperties: ["font_size", "font_weight", "color"],
     children: true,
   },
-  Card: {
-    component: "Card", category: "Layout", description: "卡片容器",
-    props: {}, events: {},
-    styleProperties: ["padding", "margin", "border_radius", "shadow", "background_color", "width", "height"],
-    children: true,
-  },
-  Text: {
-    component: "Text", category: "Typography", description: "文本",
+  p: {
+    component: "p", category: "Typography", description: "段落 / 块级文本",
     props: { label: { type: "string", default: "Text", editor: "text" } },
     events: {},
     styleProperties: ["font_size", "font_weight", "color", "text_align"],
-    children: false,
+    children: true,
   },
-  Heading: {
-    component: "Heading", category: "Typography", description: "标题",
-    props: {
-      level: { type: "enum", values: ["1", "2", "3", "4"], default: "1", editor: "select" },
-      label: { type: "string", default: "Heading", editor: "text" },
-    },
+  h1: {
+    component: "h1", category: "Typography", description: "一级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
     events: {},
     styleProperties: ["font_size", "font_weight", "color"],
-    children: false,
+    children: true,
   },
-  Button: {
-    component: "Button", category: "Actions", description: "按钮",
+  h2: {
+    component: "h2", category: "Typography", description: "二级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
+    children: true,
+  },
+  h3: {
+    component: "h3", category: "Typography", description: "三级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
+    children: true,
+  },
+  h4: {
+    component: "h4", category: "Typography", description: "四级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
+    children: true,
+  },
+  h5: {
+    component: "h5", category: "Typography", description: "五级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
+    children: true,
+  },
+  h6: {
+    component: "h6", category: "Typography", description: "六级标题",
+    props: { label: { type: "string", default: "Heading", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
+    children: true,
+  },
+  button: {
+    component: "button", category: "Actions", description: "按钮",
     props: {
       label: { type: "string", default: "Button", editor: "text" },
       variant: { type: "enum", values: ["primary", "secondary", "danger", "ghost", "outline"], default: "primary", editor: "select" },
@@ -166,11 +195,11 @@ export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
     styleProperties: ["width", "padding", "background_color", "border_radius", "font_size"],
     children: true,
   },
-  Input: {
-    component: "Input", category: "Forms", description: "输入框",
+  input: {
+    component: "input", category: "Forms", description: "输入框",
     props: {
       placeholder: { type: "string", default: "", editor: "text" },
-      type: { type: "enum", values: ["text", "password", "email", "number"], default: "text", editor: "select" },
+      type: { type: "enum", values: ["text", "password", "email", "number", "checkbox"], default: "text", editor: "select" },
     },
     events: {
       onChange: { id: "evt-input-change-001", description: "值变化", payload: "String" },
@@ -180,77 +209,106 @@ export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
     styleProperties: ["width", "padding", "border_radius", "font_size"],
     children: false,
   },
-  TextArea: {
-    component: "TextArea", category: "Forms", description: "多行输入",
+  textarea: {
+    component: "textarea", category: "Forms", description: "多行输入",
     props: { placeholder: { type: "string", default: "", editor: "text" }, rows: { type: "string", default: "3", editor: "text" } },
     events: { onChange: { id: "evt-textarea-change-001", description: "值变化", payload: "String" } },
     styleProperties: ["width", "padding"],
     children: false,
   },
-  Select: {
-    component: "Select", category: "Forms", description: "下拉选择",
+  select: {
+    component: "select", category: "Forms", description: "下拉选择",
     props: { options: { type: "string", default: "", editor: "text" }, placeholder: { type: "string", default: "", editor: "text" } },
     events: { onChange: { id: "evt-select-change-001", description: "值变化", payload: "String" } },
     styleProperties: ["width", "padding"],
     children: false,
   },
-  Checkbox: {
-    component: "Checkbox", category: "Forms", description: "复选框",
-    props: { label: { type: "string", default: "", editor: "text" }, checked: { type: "bool", default: false, editor: "checkbox" } },
-    events: { onChange: { id: "evt-checkbox-change-001", description: "值变化", payload: "bool" } },
-    styleProperties: [],
-    children: false,
-  },
-  List: {
-    component: "List", category: "Data", description: "列表",
+  ul: {
+    component: "ul", category: "Data", description: "无序列表",
     props: {}, events: {},
     styleProperties: ["padding", "margin", "gap"],
     children: true,
   },
-  ListItem: {
-    component: "ListItem", category: "Data", description: "列表项",
+  ol: {
+    component: "ol", category: "Data", description: "有序列表",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "gap"],
+    children: true,
+  },
+  li: {
+    component: "li", category: "Data", description: "列表项",
     props: {}, events: {},
     styleProperties: ["padding", "margin"],
     children: true,
   },
-  Image: {
-    component: "Image", category: "Media", description: "图片",
+  img: {
+    component: "img", category: "Media", description: "图片",
     props: { src: { type: "string", default: "", editor: "text" }, alt: { type: "string", default: "", editor: "text" } },
     events: {},
     styleProperties: ["width", "height", "border_radius"],
     children: false,
   },
-  Spinner: {
-    component: "Spinner", category: "Feedback", description: "加载动画",
-    props: {}, events: {},
-    styleProperties: ["width", "height"],
-    children: false,
-  },
-  Progress: {
-    component: "Progress", category: "Feedback", description: "进度条",
-    props: { value: { type: "string", default: "0", editor: "text" }, max: { type: "string", default: "100", editor: "text" } },
+  progress: {
+    component: "progress", category: "Feedback", description: "进度条",
+    props: { value: { type: "string", default: "50", editor: "text" }, max: { type: "string", default: "100", editor: "text" } },
     events: {},
     styleProperties: ["width"],
     children: false,
   },
-  Alert: {
-    component: "Alert", category: "Feedback", description: "提示框",
-    props: { type: { type: "enum", values: ["info", "success", "warning", "error"], default: "info", editor: "select" }, label: { type: "string", default: "", editor: "text" } },
-    events: {},
-    styleProperties: ["padding", "border_radius"],
-    children: true,
-  },
-  Link: {
-    component: "Link", category: "Navigation", description: "链接",
+  a: {
+    component: "a", category: "Navigation", description: "链接 / 超链接",
     props: { href: { type: "string", default: "#", editor: "text" }, label: { type: "string", default: "Link", editor: "text" } },
     events: {},
     styleProperties: ["color", "font_size"],
-    children: false,
+    children: true,
   },
-  Form: {
-    component: "Form", category: "Forms", description: "表单",
+  form: {
+    component: "form", category: "Forms", description: "表单",
     props: {}, events: { onSubmit: { id: "evt-form-submit-001", description: "提交", payload: null } },
     styleProperties: ["padding", "gap", "width"],
+    children: true,
+  },
+  section: {
+    component: "section", category: "Layout", description: "页面分区",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  article: {
+    component: "article", category: "Layout", description: "文章 / 独立内容",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  header: {
+    component: "header", category: "Layout", description: "页头",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  footer: {
+    component: "footer", category: "Layout", description: "页脚",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  nav: {
+    component: "nav", category: "Navigation", description: "导航",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  main: {
+    component: "main", category: "Layout", description: "主内容区",
+    props: {}, events: {},
+    styleProperties: ["padding", "margin", "width", "height"],
+    children: true,
+  },
+  label: {
+    component: "label", category: "Forms", description: "表单标签",
+    props: { label: { type: "string", default: "Label", editor: "text" }, for: { type: "string", default: "", editor: "text" } },
+    events: {},
+    styleProperties: ["font_size", "font_weight", "color"],
     children: true,
   },
 };

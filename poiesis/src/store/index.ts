@@ -3,6 +3,7 @@ import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
 import type { DesignPageState, DesignTab, Breadcrumb } from "../core/types/design-page";
+import { detectTabType } from "../core/types/design-page";
 import type { PidEntry } from "../core/types/pid";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
 import type { StyleProperty } from "../core/types/style";
@@ -76,7 +77,7 @@ export interface PoiesisState {
   setBubblesAndEdges: (bubbles: BubbleNode[], edges: BubbleEdge[]) => void;
 
   // Design page
-  openTab: (filePath: string, componentName: string) => void;
+  openTab: (filePath: string, componentName: string, tabType?: import("../core/types/design-page").TabType) => void;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
   reorderTabs: (tabOrder: string[]) => void;
@@ -110,8 +111,15 @@ export interface PoiesisState {
   removeComponentDef: (name: string) => void;
   getComponentDef: (name: string) => ComponentDef | undefined;
 
+  // Custom component lifecycle (used by ComponentPalette)
+  defineComponent: (name: string, def: Record<string, unknown>) => void;
+  removeComponent: (name: string) => void;
+  enterComponentCanvas: (name: string) => void;
+
   // Project
   setProjectDir: (dir: string) => void;
+  setProjectName: (name: string) => void;
+  resetEditorState: () => void;
   openFile: (path: string, content: string) => void;
   setActiveFileContent: (content: string) => void;
   markDirty: () => void;
@@ -171,7 +179,7 @@ function createInitialDesignPageState(): DesignPageState {
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Initial values ──
-  currentPage: "architecture",
+  currentPage: "design",
   architecture: createInitialArchitectureState(),
   designPage: createInitialDesignPageState(),
   elements: [],
@@ -381,11 +389,18 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     if (!el) return s;
     const oldParentId = el.parentId;
     let elements = s.elements.map(e => e.id === elementId ? { ...e, parentId: newParentId } : e);
+    let rootOrder = s.rootOrder;
+
+    // Remove from old parent
     if (oldParentId) {
       elements = elements.map(e =>
         e.id === oldParentId ? { ...e, children: e.children.filter(cid => cid !== elementId) } : e
       );
+    } else {
+      rootOrder = rootOrder.filter(id => id !== elementId);
     }
+
+    // Add to new parent
     if (newParentId) {
       const newParent = elements.find(e => e.id === newParentId);
       if (newParent) {
@@ -398,13 +413,24 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
         }
         elements = elements.map(e => e.id === newParentId ? { ...e, children: newChildren } : e);
       }
+    } else {
+      // Moving to root level — insert into rootOrder
+      if (targetSiblingId && rootOrder.includes(targetSiblingId)) {
+        const targetIdx = rootOrder.indexOf(targetSiblingId);
+        const insertAt = position === "before" ? targetIdx : targetIdx + 1;
+        rootOrder = [...rootOrder];
+        rootOrder.splice(insertAt, 0, elementId);
+      } else {
+        rootOrder = [...rootOrder, elementId];
+      }
     }
+
     const undoUpdate = buildUndoUpdate(
       s.undoStacks,
       s.designPage.activeTabId,
       { type: "moveElement", elementId, oldParentId },
     );
-    return { ...undoUpdate, elements, isDirty: true };
+    return { ...undoUpdate, elements, rootOrder, isDirty: true };
   }),
 
   setElementClassRefs: (elementId, classRefs) => set((s) => ({
@@ -465,8 +491,41 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   }),
   getComponentDef: (name) => get().componentDefs[name],
 
+  // ── Custom component lifecycle (used by ComponentPalette) ──
+  defineComponent: (name, def) => {
+    const s = get();
+    // Register the component definition so it appears in the palette
+    s.setComponentDef(name, def as ComponentDef);
+    // Open the component in a new tab for editing
+    // The .omni file is persisted when the user saves (Ctrl+S)
+    const filePath = `src/components/${name}.omni`;
+    s.openTab(filePath, name, detectTabType(filePath));
+  },
+
+  removeComponent: (name) => {
+    const s = get();
+    s.removeComponentDef(name);
+    // Close any tabs for this component
+    const tabs = s.designPage.openTabs;
+    const tab = tabs.find((t) => t.componentName === name);
+    if (tab) s.closeTab(tab.id);
+  },
+
+  enterComponentCanvas: (name) => {
+    const s = get();
+    const filePath = `src/components/${name}.omni`;
+    // Check if tab already open
+    const existing = s.designPage.openTabs.find((t) => t.componentName === name);
+    if (existing) {
+      s.switchTab(existing.id);
+    } else {
+      s.openTab(filePath, name, detectTabType(filePath));
+    }
+  },
+
   // ── Project ──
   setProjectDir: (dir) => set({ projectDir: dir }),
+  setProjectName: (name) => set({ projectName: name }),
   openFile: (path, content) => set({ activeFilePath: path, activeFileContent: content }),
   setActiveFileContent: (content) => set({ activeFileContent: content }),
   markDirty: () => set({ isDirty: true }),
@@ -505,9 +564,33 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Navigation ──
   navigateTo: (page) => set({ currentPage: page }),
 
+  // ── Reset editor state (keep project dir/name) ──
+  resetEditorState: () => set({
+    currentPage: "design",
+    architecture: createInitialArchitectureState(),
+    designPage: createInitialDesignPageState(),
+    elements: [],
+    wires: [],
+    rootOrder: [],
+    selectedElementIds: [],
+    tabData: {},
+    componentDefs: {},
+    pidIndex: {},
+    isDirty: false,
+    activeFilePath: null,
+    activeFileContent: null,
+    compileErrors: [],
+    previewUrl: null,
+    nodeMeta: {},
+    wireMeta: {},
+    canvasStates: {},
+    panels: { ...DEFAULT_PANEL_LAYOUT },
+    undoStacks: {},
+  }),
+
   // ── New project ──
   newProject: () => set({
-    currentPage: "architecture",
+    currentPage: "design",
     architecture: createInitialArchitectureState(),
     designPage: createInitialDesignPageState(),
     elements: [],

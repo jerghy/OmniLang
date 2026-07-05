@@ -18,7 +18,7 @@ import { uid } from "../../core/utils";
 import { classNameToVariable, variableToClassName } from "../../core/types";
 import type { StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
 import type { PidMap } from "../../core/types/pid";
-import { useComponentRegistry } from "../../core/state/componentRegistry";
+import { getComponentDefinitions } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
   StageResult,
@@ -324,7 +324,7 @@ function runPhaseA(
   const { roots } = viewTreeResult;
   let { pascalCaseTags } = viewTreeResult;
 
-  const registryDefs = useComponentRegistry.getState().definitions;
+  const registryDefs = getComponentDefinitions();
   if (shouldExpand) {
     pascalCaseTags = pascalCaseTags.filter((tag) => !(tag in registryDefs));
   }
@@ -424,7 +424,7 @@ function runPhaseC(
   // If applyStyles failed, roots may be partially modified (some nodes got
   // resolvedStyle, others didn't).  Skip style collection and let the fatal
   // error check below short-circuit the pipeline with null value.
-  const registry = useStyleRegistryStore.getState().getRegistry(options.componentName);
+  const registry = (useStyleRegistryStore as unknown as { getRegistry: (name: string) => { variables: unknown[]; classes: unknown[] } }).getRegistry(options.componentName);
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(expandedElements, registry, phaseA.roots);
@@ -500,7 +500,7 @@ function buildComponentPart(
 
   // Read props/events from the component registry so they appear
   // as `prop name: Type = default;` and `event name;` in the output.
-  const registryDef: unknown = useComponentRegistry.getState().definitions[options.componentName];
+  const registryDef: unknown = getComponentDefinitions()[options.componentName];
   const registryRecord = registryDef && typeof registryDef === "object"
     ? (registryDef as Record<string, unknown>)
     : null;
@@ -543,24 +543,30 @@ function buildComponentPart(
     consts: consts.length > 0 ? consts : undefined,
     storeRefs: [...phaseA.bindings.storeRefs.keys()],
     fns: phaseB.lowered.functions,
-    view: phaseA.roots.length > 0 ? {
-      id: viewWrapperId,
-      path: viewWrapperId,
-      tag: "div",
-      props: {},
-      children: phaseA.roots,
-      kind: "element" as const,
-      resolvedStyle: {
-        htmlTag: "div",
-        cssClassName: `${options.componentName.toLowerCase()}_view`,
-        contentText: undefined,
-        htmlAttrs: {},
-        eventBindings: {},
-        bindings: {},
-        cssRules: {},
-        usedClassNames: [],
-      },
-    } : null,
+    // When there's exactly one root, use it directly — don't wrap it in an extra div.
+    // When there are multiple roots, wrap them in a container div for single-root view block.
+    view: phaseA.roots.length === 1
+      ? phaseA.roots[0]
+      : phaseA.roots.length > 0
+        ? {
+            id: viewWrapperId,
+            path: viewWrapperId,
+            tag: "div",
+            props: {},
+            children: phaseA.roots,
+            kind: "element" as const,
+            resolvedStyle: {
+              htmlTag: "div",
+              cssClassName: `${options.componentName.toLowerCase()}_view`,
+              contentText: undefined,
+              htmlAttrs: {},
+              eventBindings: {},
+              bindings: {},
+              cssRules: {},
+              usedClassNames: [],
+            },
+          }
+        : null,
     style: phaseC.styleCollection.componentStyle,
   };
 }
@@ -635,6 +641,9 @@ export function generateOmniFiles(options: {
   codeTabs: CodeTab[];
   componentName: string;
   rootOrder?: string[];
+  forSave?: boolean;
+  /** Target file path relative to project root (e.g. "src/components/MyCard.omni"). Default: "src/main.omni". */
+  filePath?: string;
 }): StageResult<Record<string, string>> {
   // Run the full pipeline for the main source
   const mainResult = generateOmniSource(options);
@@ -644,8 +653,9 @@ export function generateOmniFiles(options: {
     return { value: null, errors: allErrors };
   }
 
+  const targetPath = options.filePath ?? "src/main.omni";
   const files: Record<string, string> = {
-    "src/main.omni": mainResult.value,
+    [targetPath]: mainResult.value,
   };
 
   // Re-extract stores (fast — just iterates elements)

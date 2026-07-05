@@ -299,6 +299,7 @@ fn test_generate_component_empty() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
     let out = w.into_string();
@@ -339,6 +340,7 @@ fn test_generate_component_with_function() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "App", &comp);
     let out = w.into_string();
@@ -384,6 +386,7 @@ fn test_generate_component_with_state() {
         if_mode_default: None,
         hero_defs: vec![],
         timelines: vec![],
+        ..Default::default()
     };
     generate_component(&mut w, "Counter", &comp);
     let out = w.into_string();
@@ -426,6 +429,7 @@ fn test_generate_store() {
         ]),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     generate_store(&mut w, "AppStore", &store);
     let out = w.into_string();
@@ -443,6 +447,7 @@ fn test_generate_store_empty() {
         signal_defaults: HashMap::new(),
         getters: HashMap::new(),
         actions: vec![],
+        ..Default::default()
     };
     generate_store(&mut w, "EmptyStore", &store);
     let out = w.into_string();
@@ -618,6 +623,7 @@ fn test_full_pipeline_through_trait() {
                         if_mode_default: None,
                         hero_defs: vec![],
                         timelines: vec![],
+                        ..Default::default()
                     },
                 )]),
                 stores: HashMap::new(),
@@ -664,6 +670,7 @@ fn test_full_pipeline_with_store() {
                         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
                         getters: HashMap::new(),
                         actions: vec![],
+                        ..Default::default()
                     },
                 )]),
                 ..Default::default()

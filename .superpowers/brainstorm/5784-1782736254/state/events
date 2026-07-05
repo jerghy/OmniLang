@@ -1,0 +1,1 @@
+{"type":"click","text":"🔗 Node Graph（节点图）\n      Unreal Blueprints / Houdini / Node-RED / Blender\n      节点 + 连线 = 数据流/控制流。业界最主流的可视编程范式\n      \n        ✅ 非常适合 poiesispoiesis 已经有 @xyflow/react 节点图执行流+数据流双类型连线直观展示 signal → computed → view 的依赖链可以任意折叠/展开粒度\n        ⚠️ 挑战复杂图会变\"意大利面条\"某些操作用代码写更简洁","choice":"b","id":null,"timestamp":1782742549725}

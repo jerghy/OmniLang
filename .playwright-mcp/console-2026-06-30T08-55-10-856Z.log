@@ -1,0 +1,76 @@
+[     198ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:21548
+[     270ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665
+[     279ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[   26018ms] [ERROR] Warning: Functions are not valid as a React child. This may happen if you return a Component instead of <Component /> from render. Or maybe you meant to call this function rather than return it.%s 
+    at p
+    at header
+    at div
+    at TodoPage (http://localhost:5173/src/TodoPage.tsx:661:21)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:712:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:518
+[   26019ms] ReferenceError: array_filter is not defined
+    at http://localhost:5173/src/FilterBar.tsx:665:5
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=5df97ca0:1095:29)
+    at FilterBar (http://localhost:5173/src/FilterBar.tsx:664:30)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+[   26020ms] ReferenceError: array_filter is not defined
+    at http://localhost:5173/src/FilterBar.tsx:665:5
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=5df97ca0:1095:29)
+    at FilterBar (http://localhost:5173/src/FilterBar.tsx:664:30)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3672:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:3697:24)
+[   26021ms] [ERROR] The above error occurred in the <FilterBar> component:
+
+    at FilterBar (http://localhost:5173/src/FilterBar.tsx:659:21)
+    at section
+    at div
+    at TodoPage (http://localhost:5173/src/TodoPage.tsx:661:21)
+    at div
+    at section
+    at div
+    at div
+    at div
+    at App (http://localhost:5173/src/App.tsx:712:21)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14029
+[   26021ms] ReferenceError: array_filter is not defined
+    at http://localhost:5173/src/FilterBar.tsx:665:5
+    at mountMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12192:27)
+    at Object.useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:12516:24)
+    at useMemo (http://localhost:5173/node_modules/.vite/deps/chunk-REFQX4J5.js?v=5df97ca0:1095:29)
+    at FilterBar (http://localhost:5173/src/FilterBar.tsx:664:30)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:11546:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:14924:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:15912:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19751:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:19196:20)
+[   26022ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665
+[  120424ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665
+[  120784ms] [ERROR] Warning: React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://reactjs.org/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%s App 1. useState                   useState
+2. useState                   useState
+3. useState                   useState
+4. useCallback                useMemo
+ 
+    at App (http://localhost:5173/src/App.tsx?t=1782809829872:712:21) @ http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=5df97ca0:518
+[  120788ms] [LOG] StatsDashboard unmounting, counter: 0 @ http://localhost:5173/src/StatsDashboard.tsx:665

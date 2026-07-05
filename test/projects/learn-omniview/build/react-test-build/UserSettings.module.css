@@ -1,0 +1,68 @@
+/* Styles for UserSettings */
+.user-settings {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 20px 16px;
+  margin: 16px 0;
+}
+.title {
+  font-size: 18px;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+}
+.desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+}
+.form {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 600.0px;
+  color: #374151;
+}
+.field-input {
+  padding: 8px 12px;
+  border: 1px solid #d4d4d8;
+  font-size: 14px;
+  border-radius: 6px;
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-save {
+  border: none;
+  font-size: 13px;
+  background: #6366f1;
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: #fff;
+  cursor: pointer;
+}
+.btn-clear {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: #fff;
+  background: #f97316;
+  border: none;
+  font-size: 13px;
+}
+.info-bar {
+  background: #f9fafb;
+  border: 1px solid #d4d4d8;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.info-text {
+  color: #374151;
+  margin: 0.0px;
+  font-size: 13px;
+}

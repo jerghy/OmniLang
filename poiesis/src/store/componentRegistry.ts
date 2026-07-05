@@ -2,10 +2,17 @@
 import { usePoiesisStore } from "./index";
 import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
 import type { ComponentProtocolEntry } from "../data/componentProtocol";
+import type { ComponentDefinition } from "../core/state/componentRegistry";
 
 // Typed as any so legacy code accessing non-existent properties compiles
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const useComponentRegistry = usePoiesisStore as any;
+
+/** Safe accessor — handles the componentDefs vs definitions mismatch. */
+export function getComponentDefinitions(): Record<string, ComponentDefinition> {
+  const state = useComponentRegistry.getState();
+  return (state?.componentDefs ?? state?.definitions ?? {}) as Record<string, ComponentDefinition>;
+}
 
 /** Return unified component metadata (built-in + custom). */
 export function getUnifiedComponentMeta(): Record<string, ComponentProtocolEntry> {

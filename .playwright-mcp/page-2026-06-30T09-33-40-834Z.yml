@@ -1,0 +1,56 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9]
+      - button "待办" [ref=e10]
+      - button "基础交互" [ref=e11]
+      - button "编译器特性" [ref=e12]
+      - button "运动动画" [ref=e13]
+      - button "CSS 特性" [ref=e14]
+      - button "事件/表单" [ref=e15]
+      - button "语言特性" [ref=e16]
+      - button "设置" [active] [ref=e17]
+      - button "补充" [ref=e18]
+    - generic [ref=e102]:
+      - generic [ref=e103]:
+        - heading "Settings" [level=2] [ref=e104]
+        - paragraph [ref=e105]: Customize your experience
+      - generic [ref=e106]:
+        - heading "Appearance" [level=3] [ref=e107]
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e110]: Light
+            - paragraph [ref=e111]: Toggled0times
+          - button "Light Mode" [ref=e112] [cursor=pointer]
+          - generic [ref=e113]:
+            - paragraph [ref=e114]: "Current palette:"
+            - generic [ref=e115]:
+              - generic [ref=e116]: BG
+              - generic [ref=e117]: TX
+              - generic [ref=e118]: PR
+              - generic [ref=e119]: BD
+              - generic [ref=e120]: MU
+          - generic [ref=e121]:
+            - button "Light" [ref=e122]
+            - button "Dark" [ref=e123]
+      - generic [ref=e124]:
+        - heading "Theme Colors" [level=3] [ref=e125]
+        - generic [ref=e126]:
+          - generic [ref=e129]: primary
+          - generic [ref=e132]: primaryLight
+          - generic [ref=e135]: success
+          - generic [ref=e138]: warning
+          - generic [ref=e141]: danger
+          - generic [ref=e144]: bgLight
+          - generic [ref=e147]: textLight
+          - generic [ref=e150]: bgDark
+          - generic [ref=e153]: textDark
+      - generic [ref=e155] [cursor=pointer]:
+        - heading "About" [level=3] [ref=e156]
+        - generic [ref=e157]: v
+      - generic [ref=e159]: Current:Lightmode | Toggles:0
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

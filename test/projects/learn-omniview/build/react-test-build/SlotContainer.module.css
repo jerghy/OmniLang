@@ -1,0 +1,39 @@
+/* Styles for SlotContainer */
+.slot-box {
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.slot-header {
+  padding: 12px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600.0px;
+  background: #f3f0ff;
+  color: #374151;
+}
+.slot-body {
+  font-size: 13px;
+  color: #4b5563;
+  padding: 14px;
+  min-height: 40px;
+}
+.slot-footer {
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  align-items: center;
+  background: #f9fafb;
+  padding: 10px 14px;
+}
+.close-btn {
+  padding: 6px 14px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  background: #6b7280;
+  border: none;
+  border-radius: 6px;
+}

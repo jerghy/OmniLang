@@ -6,9 +6,14 @@ import type { PoiesisState } from "./index";
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
 
+let _tabIdCounter = 0;
+function generateTabId(): string {
+  return `tab_${Date.now()}_${_tabIdCounter++}`;
+}
+
 export function createTabSlice(set: SetFn, _get: GetFn) {
   return {
-    openTab: (filePath: string, componentName: string) => set((s) => {
+    openTab: (filePath: string, componentName: string, tabType: import("../core/types/design-page").TabType = "component") => set((s) => {
       const existing = s.designPage.openTabs.find(t => t.filePath === filePath);
       if (existing) {
         // Restore the existing tab's canvas data from tabData
@@ -22,12 +27,21 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
           selectedElementIds: td?.selectedElementIds ?? [],
         };
       }
-      const id = `tab_${Date.now()}`;
+      const id = generateTabId();
       const newTab: DesignTab = {
         id, filePath, componentName,
         isDirty: false,
         pidMap: { entries: {}, lineToPid: {} },
+        tabType,
       };
+      // Save current tab's data before switching to new tab
+      const oldTabId = s.designPage.activeTabId;
+      const saveEntry = oldTabId
+        ? { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds }
+        : undefined;
+      const updatedTabData = saveEntry
+        ? { ...s.tabData, [oldTabId!]: saveEntry }
+        : s.tabData;
       return {
         currentPage: "design",
         designPage: {
@@ -37,6 +51,11 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
           activeTabId: id,
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
+        tabData: updatedTabData,
+        elements: [],
+        wires: [],
+        rootOrder: [],
+        selectedElementIds: [],
       };
     }),
 

@@ -292,6 +292,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -330,6 +331,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         generate_component(&mut w, "App", &comp);
         let out = w.into_string();
@@ -376,6 +378,7 @@ mod tests {
             if_mode_default: None,
             hero_defs: vec![],
             timelines: vec![],
+            ..Default::default()
         };
         generate_component(&mut w, "Counter", &comp);
         let out = w.into_string();
@@ -421,6 +424,7 @@ mod tests {
             ]),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         generate_store(&mut w, "AppStore", &store);
         let out = w.into_string();
@@ -441,6 +445,7 @@ mod tests {
             signal_defaults: HashMap::new(),
             getters: HashMap::new(),
             actions: vec![],
+            ..Default::default()
         };
         generate_store(&mut w, "EmptyStore", &store);
         let out = w.into_string();
@@ -647,6 +652,7 @@ mod tests {
                             if_mode_default: None,
                             hero_defs: vec![],
                             timelines: vec![],
+                            ..Default::default()
                         },
                     )]),
                     stores: HashMap::new(),
@@ -697,6 +703,7 @@ mod tests {
                             )]),
                             getters: HashMap::new(),
                             actions: vec![],
+                            ..Default::default()
                         },
                     )]),
                     ..Default::default()

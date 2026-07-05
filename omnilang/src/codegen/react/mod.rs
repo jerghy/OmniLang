@@ -4,7 +4,7 @@
 //! and a `.module.css` CSS module file. Each store generates a `useXxx.ts`
 //! custom hook file.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::ir::*;
@@ -57,17 +57,22 @@ impl ReactCodegen {
         w.emit("");
 
         // Imports
-        w.emit("import React, { useState, useEffect, useMemo, useRef } from 'react';");
+        w.emit("import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';");
         w.emit(&format!("import styles from './{}.module.css';", name));
         w.emit("");
 
-        // Props interface
-        if !comp.props.is_empty() {
+        // Props interface — regular props + event callbacks
+        let has_props = !comp.props.is_empty() || !comp.event_names.is_empty();
+        if has_props {
             w.emit(&format!("interface {}Props {{", name));
             for (prop_name, prop_type) in &comp.props {
                 let ts_type =
                     super::javascript::js_type(&prop_type.kind, &prop_type.type_args, true);
-                w.emit(&format!("  {}: {};", prop_name, ts_type));
+                let optional = if comp.prop_defaults.contains_key(prop_name) { "?" } else { "" };
+                w.emit(&format!("  {}{}: {};", prop_name, optional, ts_type));
+            }
+            for event_name in &comp.event_names {
+                w.emit(&format!("  {}?: (value: any) => void;", event_name));
             }
             w.emit("}");
             w.emit("");
@@ -87,9 +92,6 @@ impl ReactCodegen {
         for import_line in &store_hook_imports {
             w.emit(import_line);
         }
-        if !store_hook_imports.is_empty() {
-            w.emit("");
-        }
 
         // Component map for composition references
         let component_map: HashMap<String, ComponentIR> = ir
@@ -98,11 +100,122 @@ impl ReactCodegen {
             .map(|(n, c)| (n.to_string(), c.clone()))
             .collect();
 
+        // Build set of all signal names (component state + store signals + computeds)
+        // so mutations use setter calls instead of direct assignment.
+        let mut signal_names: HashSet<String> = comp
+            .states
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        // Also include store-ref aliases + their signal names
+        // Build a map from bare store signal name → qualified StoreName.signalName
+        let mut store_signal_map: HashMap<String, String> = HashMap::new();
+        for store_ref in &comp.store_refs {
+            signal_names.insert(store_ref.clone());
+            if let Some(store) = ir.all_stores().get(store_ref.as_str()) {
+                for sig_name in store.signals.keys() {
+                    signal_names.insert(sig_name.clone());
+                    store_signal_map.insert(
+                        sig_name.clone(),
+                        format!("{}.{}", store_ref, sig_name),
+                    );
+                }
+            }
+        }
+
+        // Motion animation names — used to filter motion refs from event handlers
+        // Include both component-level and module-level motions
+        let mut motion_names: HashSet<String> = comp.motions.iter().map(|m| m.name.clone()).collect();
+        for module in ir.modules.values() {
+            for motion in &module.motions {
+                motion_names.insert(motion.name.clone());
+            }
+        }
+
+        // Child component imports
+        let child_comps: HashSet<String> = if let Some(ref view) = comp.view {
+            collect_view_child_components(view, &component_map)
+        } else {
+            HashSet::new()
+        };
+        let mut child_comp_names: Vec<&String> = child_comps.iter().collect();
+        child_comp_names.sort();
+        for child_name in &child_comp_names {
+            w.emit(&format!(
+                "import {{ {} }} from './{}';",
+                child_name, child_name
+            ));
+        }
+
+        if !store_hook_imports.is_empty() || !child_comps.is_empty() {
+            w.emit("");
+        }
+
+        // Library-level functions (pub fn from lib.omni, etc.)
+        // Emit as local const declarations so they can be referenced from the component.
+        let lib_fns: Vec<&FunctionIR> = ir.all_functions();
+        for fun in &lib_fns {
+            // Build param renames for JS reserved words
+            let param_names: Vec<(String, bool)> = fun
+                .params
+                .iter()
+                .map(|p| {
+                    let escaped = escape_js_ident(&p.name);
+                    let needs_rename = escaped != p.name;
+                    (escaped, needs_rename)
+                })
+                .collect();
+            let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
+            let params_str = param_escaped.join(", ");
+            let is_async = fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+            let async_prefix = if is_async { "async " } else { "" };
+            w.emit(&format!("const {} = {}({}) => {{", fun.name, async_prefix, params_str));
+            w.indent();
+            // Emit body into a temp writer for post-processing
+            let mut body_w = crate::codegen::CodeWriter::new();
+            body_w.indent();
+            for stmt in &fun.body.statements {
+                expr::generate_statement_tsx(&mut body_w, stmt, &HashSet::new());
+            }
+            let mut body_str = body_w.into_string();
+            // Rename reserved word identifiers in the body
+            for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
+                if *needs_rename {
+                    let old_name = &fun.params[i].name;
+                    body_str = body_str.replace(old_name, new_name);
+                }
+            }
+            // Emit the already-indented body lines
+            for line in body_str.lines() {
+                w.emit(line);
+            }
+            w.dedent();
+            w.emit("};");
+        }
+        if !lib_fns.is_empty() {
+            w.emit("");
+        }
+
         // Component function signature
-        if comp.props.is_empty() {
+        if !has_props {
             w.emit(&format!("export function {}() {{", name));
         } else {
-            let prop_list: Vec<&str> = comp.props.keys().map(|s| s.as_str()).collect();
+            let mut prop_list: Vec<String> = comp
+                .props
+                .keys()
+                .map(|prop_name| {
+                    if let Some(default_val) = comp.prop_defaults.get(prop_name) {
+                        let default_tsx = expr::format_expr_ir_tsx(default_val);
+                        format!("{} = {}", prop_name, default_tsx)
+                    } else {
+                        prop_name.clone()
+                    }
+                })
+                .collect();
+            // Include event callbacks as destructured props
+            for event_name in &comp.event_names {
+                prop_list.push(event_name.clone());
+            }
             w.emit(&format!(
                 "export function {}({{ {} }}: {}Props) {{",
                 name,
@@ -120,39 +233,89 @@ impl ReactCodegen {
             }
         }
 
-        // State hooks (useState)
+        // Build set of function names for conflict detection with state setters
+        let fn_names: std::collections::HashSet<String> =
+            comp.fns.iter().map(|f| f.name.clone()).collect();
+
+        // State hooks (useState) — rename setters that conflict with local function names
         for state in &comp.states {
             let init_val = expr::format_expr_ir_tsx(&state.initial_value);
-            let setter = format!("set{}", utils::capitalize_first(&state.name));
+            let setter_base = format!("set{}", utils::capitalize_first(&state.name));
+            let setter = if fn_names.contains(&setter_base) {
+                format!("__{}", setter_base)
+            } else {
+                setter_base
+            };
             w.emit(&format!(
                 "const [{}, {}] = useState({});",
                 state.name, setter, init_val
             ));
         }
 
-        // Effects (useEffect)
+        // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
-            let deps: Vec<&str> = effect.deps.iter().map(|d| d.as_str()).collect();
-            w.emit("useEffect(() => {");
-            w.indent();
-            for stmt in &effect.body.statements {
-                expr::generate_statement_tsx(&mut w, stmt);
+            // Resolve store signal deps to qualified names (e.g., "notifications" → "NotificationStore.notifications")
+            let deps: Vec<String> = effect
+                .deps
+                .iter()
+                .map(|d| {
+                    store_signal_map
+                        .get(d)
+                        .cloned()
+                        .unwrap_or_else(|| d.clone())
+                })
+                .collect();
+            let deps_str = deps.join(", ");
+            let body_has_await = effect.body.statements.iter().any(|s| stmt_contains_await(s));
+            if body_has_await {
+                w.emit("useEffect(() => {");
+                w.indent();
+                w.emit("(async () => {");
+                w.indent();
+                for stmt in &effect.body.statements {
+                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                }
+                w.dedent();
+                w.emit("})();");
+                w.dedent();
+                w.emit(&format!("}}, [{}]);", deps_str));
+            } else {
+                w.emit("useEffect(() => {");
+                w.indent();
+                for stmt in &effect.body.statements {
+                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                }
+                w.dedent();
+                w.emit(&format!("}}, [{}]);", deps_str));
             }
-            w.dedent();
-            w.emit(&format!("}}, [{}]);", deps.join(", ")));
         }
 
         // Lifecycles (mount/unmount)
         for lc in &comp.lifecycles {
             match lc.kind.as_str() {
                 "mount" => {
-                    w.emit("useEffect(() => {");
-                    w.indent();
-                    for stmt in &lc.body.statements {
-                        expr::generate_statement_tsx(&mut w, stmt);
+                    let body_has_await = lc.body.statements.iter().any(|s| stmt_contains_await(s));
+                    if body_has_await {
+                        w.emit("useEffect(() => {");
+                        w.indent();
+                        w.emit("(async () => {");
+                        w.indent();
+                        for stmt in &lc.body.statements {
+                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                        }
+                        w.dedent();
+                        w.emit("})();");
+                        w.dedent();
+                        w.emit("}, []);");
+                    } else {
+                        w.emit("useEffect(() => {");
+                        w.indent();
+                        for stmt in &lc.body.statements {
+                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                        }
+                        w.dedent();
+                        w.emit("}, []);");
                     }
-                    w.dedent();
-                    w.emit("}, []);");
                 }
                 "unmount" => {
                     w.emit("useEffect(() => {");
@@ -160,7 +323,7 @@ impl ReactCodegen {
                     w.emit("return () => {");
                     w.indent();
                     for stmt in &lc.body.statements {
-                        expr::generate_statement_tsx(&mut w, stmt);
+                        expr::generate_statement_tsx(&mut w, stmt, &signal_names);
                     }
                     w.dedent();
                     w.emit("};");
@@ -174,22 +337,136 @@ impl ReactCodegen {
         }
 
         // Computed values (useMemo)
+        // Build a list of "signal-like" identifiers (state vars, store refs, other computeds)
+        let mut known_signal_names: Vec<String> = comp
+            .states
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        known_signal_names.extend(comp.store_refs.iter().cloned());
+        known_signal_names.extend(comp.computeds.iter().map(|c| c.name.clone()));
+
         for computed in &comp.computeds {
-            let deps: Vec<&str> = computed.deps.iter().map(|d| d.as_str()).collect();
-            w.emit(&format!("const {} = useMemo(() => {{", computed.name));
+            let mut deps_list: Vec<&str> = Vec::new();
+            for sig_name in &known_signal_names {
+                if utils::getter_expr_contains_ident(&computed.body, sig_name) {
+                    deps_list.push(sig_name.as_str());
+                }
+            }
+
+            // Function-form computed: `computed name() -> Type { ... }` → useCallback
+            // (detected by BlockExpr with ReturnStmtIR in statements)
+            let is_fn_form = match &computed.body {
+                ExprIR::BlockExpr { statements, .. } => statements
+                    .iter()
+                    .any(|s| matches!(s, StatementIR::ReturnStmtIR { .. })),
+                _ => false,
+            };
+
+            if is_fn_form {
+                w.emit(&format!("const {} = useCallback(() => {{", computed.name));
+            } else {
+                w.emit(&format!("const {} = useMemo(() => {{", computed.name));
+            }
             w.indent();
-            w.emit(&format!(
-                "return {};",
-                expr::format_expr_ir_tsx(&computed.body)
-            ));
+            if let ExprIR::BlockExpr { statements, tail } = &computed.body {
+                // Render preceding statements (let declarations, if/return, etc.)
+                for stmt in statements {
+                    expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                }
+                // Render tail as return value if non-null
+                // (null tail means the block has explicit return statements)
+                if !matches!(
+                    tail.as_ref(),
+                    ExprIR::LiteralExpr { value } if value == &serde_json::Value::Null
+                ) {
+                    w.emit(&format!(
+                        "return {};",
+                        expr::format_expr_ir_tsx(tail)
+                    ));
+                }
+            } else {
+                w.emit(&format!(
+                    "return {};",
+                    expr::format_expr_ir_tsx(&computed.body)
+                ));
+            }
             w.dedent();
-            w.emit(&format!("}}, [{}]);", deps.join(", ")));
+            w.emit(&format!("}}, [{}]);", deps_list.join(", ")));
+        }
+
+        // Component-local functions (fn declarations in the component body)
+        for fun in &comp.fns {
+            let param_names: Vec<(String, bool)> = fun
+                .params
+                .iter()
+                .map(|p| {
+                    let escaped = escape_js_ident(&p.name);
+                    let needs_rename = escaped != p.name;
+                    (escaped, needs_rename)
+                })
+                .collect();
+            let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
+            let params_str = param_escaped.join(", ");
+            let is_async = fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+            let async_prefix = if is_async { "async " } else { "" };
+            w.emit(&format!("const {} = {}({}) => {{", fun.name, async_prefix, params_str));
+            w.indent();
+            // Emit body into temp writer for post-processing
+            let mut body_w = crate::codegen::CodeWriter::new();
+            body_w.indent();
+            for stmt in &fun.body.statements {
+                expr::generate_statement_tsx(&mut body_w, stmt, &signal_names);
+            }
+            // Build setter renames for states whose setters conflict with function names
+            let setter_renames: Vec<(String, String)> = comp
+                .states
+                .iter()
+                .filter_map(|s| {
+                    let setter_name = format!("set{}", utils::capitalize_first(&s.name));
+                    if fn_names.contains(&setter_name) {
+                        Some((setter_name.clone(), format!("__{}", setter_name)))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let mut body_str = body_w.into_string();
+            // Apply param renames (reserved words)
+            for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
+                if *needs_rename {
+                    let old_name = &fun.params[i].name;
+                    body_str = body_str.replace(old_name, new_name);
+                }
+            }
+            // Apply setter renames (conflict with function names)
+            for (old_setter, new_setter) in &setter_renames {
+                body_str = body_str.replace(old_setter, new_setter);
+            }
+            for line in body_str.lines() {
+                w.emit(line);
+            }
+            w.dedent();
+            w.emit("};");
+        }
+        if !comp.fns.is_empty() {
+            w.emit("");
         }
 
         // Motion animation effects — emit hooks for @enter/@hover/@press/@focus triggers
         if let Some(ref view) = comp.view {
-            let mut ref_counter = 0u32;
-            motion::emit_motion_effects_tsx(&mut w, view, &mut ref_counter, name);
+            // Build complete motion definition map (component-level + module-level)
+            let mut motion_map: HashMap<String, MotionBodyIR> = HashMap::new();
+            for m in &comp.motions {
+                motion_map.insert(m.name.clone(), m.body.clone());
+            }
+            for module in ir.modules.values() {
+                for m in &module.motions {
+                    motion_map.entry(m.name.clone()).or_insert_with(|| m.body.clone());
+                }
+            }
+            motion::emit_motion_effects_tsx(&mut w, view, &motion_map, &signal_names);
         }
 
         // @driven-by effects — emit reactive hooks for external progress control
@@ -218,7 +495,7 @@ impl ReactCodegen {
         w.emit("return (");
         w.indent();
         if let Some(view) = &comp.view {
-            view::gen_view_node_tsx(&mut w, view, &component_map);
+            view::gen_view_node_tsx(&mut w, view, &component_map, &signal_names, &motion_names);
         } else {
             w.emit("<div className={styles.container}>");
             w.indent();
@@ -268,11 +545,18 @@ impl ReactCodegen {
             "// Generated by OmniLang — Store hook: use{}",
             name
         ));
-        w.emit("import { useState, useCallback } from 'react';");
+        w.emit("import { useState, useCallback, useMemo } from 'react';");
         w.emit("");
 
         w.emit(&format!("export function use{}() {{", name));
         w.indent();
+
+        // Build a set of signal setter names to detect conflicts
+        let signal_setter_names: std::collections::HashSet<String> = store
+            .signals
+            .keys()
+            .map(|s| format!("set{}", utils::capitalize_first(s)))
+            .collect();
 
         // Signals as state variables
         for (sig_name, sig_type) in &store.signals {
@@ -289,7 +573,7 @@ impl ReactCodegen {
             ));
         }
 
-        // Getters as memoized values
+        // Getters as memoized values (useMemo returns the value directly, not a function)
         for (getter_name, getter_expr) in &store.getters {
             let deps: Vec<String> = store
                 .signals
@@ -299,29 +583,43 @@ impl ReactCodegen {
                 .collect();
             let deps_str = deps.join(", ");
             w.emit(&format!(
-                "const {} = useCallback(() => {{ return {}; }}, [{}]);",
+                "const {} = useMemo(() => {{ return {}; }}, [{}]);",
                 getter_name,
                 expr::format_expr_ir_tsx(getter_expr),
                 deps_str
             ));
         }
 
+        // Build set of store signal names so mutations use setter calls
+        let store_signal_names: HashSet<String> = store.signals.keys().cloned().collect();
+
         // Actions: each becomes a useCallback function calling signal setters
         let mut return_keys: Vec<String> = Vec::new();
         for action in &store.actions {
-            let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
+            let params: Vec<String> = action.params.iter().map(|p| escape_js_ident(&p.name)).collect();
             let params_str = params.join(", ");
+            // If the action name conflicts with a signal setter, rename the local variable
+            let local_action_name = if signal_setter_names.contains(&action.name) {
+                format!("__act{}", utils::capitalize_first(&action.name))
+            } else {
+                action.name.clone()
+            };
             w.emit(&format!(
                 "const {} = useCallback(({}) => {{",
-                action.name, params_str
+                local_action_name, params_str
             ));
             w.indent();
             for stmt in &action.body.statements {
-                expr::generate_statement_tsx(&mut w, stmt);
+                expr::generate_statement_tsx(&mut w, stmt, &store_signal_names);
             }
             w.dedent();
             w.emit("}, []);");
-            return_keys.push(action.name.clone());
+            // Return key is always the original action name; value may differ
+            if local_action_name != action.name {
+                return_keys.push(format!("{}: {}", action.name, local_action_name));
+            } else {
+                return_keys.push(action.name.clone());
+            }
         }
 
         // Return value
@@ -336,5 +634,189 @@ impl ReactCodegen {
         w.dedent();
         w.emit("}");
         w.into_string()
+    }
+}
+
+/// Recursively walk a ViewTree and collect child component tag names
+/// that match known components (used to generate import statements).
+fn collect_view_child_components(
+    node: &ViewTree,
+    component_map: &HashMap<String, ComponentIR>,
+) -> HashSet<String> {
+    let mut result = HashSet::new();
+    collect_view_child_components_inner(node, component_map, &mut result);
+    result
+}
+
+fn collect_view_child_components_inner(
+    node: &ViewTree,
+    component_map: &HashMap<String, ComponentIR>,
+    acc: &mut HashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if component_map.contains_key(&el.tag) && el.tag != "fragment" {
+                acc.insert(el.tag.clone());
+            }
+            for child in &el.children {
+                collect_view_child_components_inner(child, component_map, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_child_components_inner(body, component_map, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_child_components_inner(fb, component_map, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_child_components_inner(body, component_map, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_child_components_inner(empty_body, component_map, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => {}
+    }
+}
+
+/// Escape JavaScript reserved words that cannot be used as parameter/variable names.
+fn escape_js_ident(name: &str) -> String {
+    let reserved = [
+        "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
+        "char", "class", "const", "continue", "debugger", "default", "delete", "do",
+        "double", "else", "enum", "export", "extends", "false", "final", "finally",
+        "float", "for", "function", "goto", "if", "implements", "import", "in",
+        "instanceof", "int", "interface", "let", "long", "native", "new", "null",
+        "package", "private", "protected", "public", "return", "short", "static",
+        "super", "switch", "synchronized", "this", "throw", "throws", "transient",
+        "true", "try", "typeof", "var", "void", "volatile", "while", "with", "yield",
+    ];
+    if reserved.contains(&name) {
+        format!("{}_", name)
+    } else {
+        name.to_string()
+    }
+}
+
+/// Check if a StatementIR or any nested statement contains an `await` expression.
+fn stmt_contains_await(stmt: &StatementIR) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => expr_contains_await(expr),
+        StatementIR::LetStmtIR { value, .. } => value.as_ref().map_or(false, |v| expr_contains_await(v)),
+        StatementIR::ReturnStmtIR { value } => value.as_ref().map_or(false, |v| expr_contains_await(v)),
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            if expr_contains_await(condition) {
+                return true;
+            }
+            if then_body.statements.iter().any(|s| stmt_contains_await(s)) {
+                return true;
+            }
+            for (_, elif_body) in else_ifs {
+                if elif_body.statements.iter().any(|s| stmt_contains_await(s)) {
+                    return true;
+                }
+            }
+            if let Some(ref eb) = else_body {
+                if eb.statements.iter().any(|s| stmt_contains_await(s)) {
+                    return true;
+                }
+            }
+            false
+        }
+        StatementIR::WhileStmtIR { body, .. } => {
+            body.statements.iter().any(|s| stmt_contains_await(s))
+        }
+        StatementIR::ForInStmtIR {
+            var_name: _,
+            iterable,
+            body,
+        } => {
+            expr_contains_await(iterable) || body.statements.iter().any(|s| stmt_contains_await(s))
+        }
+        StatementIR::BlockStmtIR { body } => {
+            body.statements.iter().any(|s| stmt_contains_await(s))
+        }
+        StatementIR::ThrowStmtIR { expr } => expr_contains_await(expr),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_var: _,
+            catch_body,
+            finally_body,
+        } => {
+            if try_body.statements.iter().any(|s| stmt_contains_await(s)) {
+                return true;
+            }
+            if let Some(ref cb) = catch_body {
+                if cb.statements.iter().any(|s| stmt_contains_await(s)) {
+                    return true;
+                }
+            }
+            if let Some(ref fb) = finally_body {
+                if fb.statements.iter().any(|s| stmt_contains_await(s)) {
+                    return true;
+                }
+            }
+            false
+        }
+        StatementIR::MutationStmt { .. }
+        | StatementIR::BreakStmtIR
+        | StatementIR::ContinueStmtIR
+        | StatementIR::EventEmitStmtIR { .. } => false,
+    }
+}
+
+/// Check if an ExprIR contains an `await` expression anywhere in its tree.
+fn expr_contains_await(expr: &ExprIR) -> bool {
+    match expr {
+        ExprIR::AwaitExpr { .. } => true,
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_contains_await(left) || expr_contains_await(right)
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => expr_contains_await(operand),
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_contains_await(cond)
+                || expr_contains_await(then_expr)
+                || expr_contains_await(else_expr)
+        }
+        ExprIR::CallExpr { args, .. } => args.iter().any(|a| expr_contains_await(a)),
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            expr_contains_await(object) || args.iter().any(|a| expr_contains_await(a))
+        }
+        ExprIR::FieldAccessExpr { object, .. }
+        | ExprIR::OptionalChainExpr { object, .. } => expr_contains_await(object),
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            call_args.iter().any(|a| expr_contains_await(a))
+        }
+        ExprIR::ArrayExpr { elements } => elements.iter().any(|e| expr_contains_await(e)),
+        ExprIR::BlockExpr { statements, tail } => {
+            statements.iter().any(|s| stmt_contains_await(s)) || expr_contains_await(tail)
+        }
+        ExprIR::IndexExpr { object, index } => {
+            expr_contains_await(object) || expr_contains_await(index)
+        }
+        ExprIR::ClosureExpr { body, .. } => expr_contains_await(body),
+        ExprIR::MatchExpr { matched, arms } => {
+            if expr_contains_await(matched) {
+                return true;
+            }
+            arms.iter().any(|arm| arm.body.statements.iter().any(|s| stmt_contains_await(s)))
+        }
+        ExprIR::VariantLiteral { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
+        ExprIR::StructExpr { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
+        ExprIR::LiteralExpr { .. } | ExprIR::IdentifierExpr { .. } => false,
     }
 }

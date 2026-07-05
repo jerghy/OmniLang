@@ -1,0 +1,32 @@
+/* Styles for EventDataDemo */
+.event-data-demo {
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+  padding: 20px 16px;
+  margin: 16px 0;
+  background: white;
+}
+.mouse-tracker {
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  text-align: center;
+  background: #f0f9ff;
+  margin-bottom: 12px;
+  padding: 20px;
+}
+.scroll-tracker {
+  background: #e0e7ff;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 12px;
+  border: 1px solid #c7d2fe;
+  padding: 20px;
+}
+.key-input {
+  border: 1px solid #d4d4d8;
+  font-size: 13px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+}

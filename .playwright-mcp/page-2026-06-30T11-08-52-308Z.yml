@@ -1,0 +1,49 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "OmniView 教学项目" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "首页" [ref=e9] [cursor=pointer]
+      - button "待办" [ref=e10] [cursor=pointer]
+      - button "基础交互" [ref=e11] [cursor=pointer]
+      - button "编译器特性" [active] [ref=e12] [cursor=pointer]
+      - button "运动动画" [ref=e13] [cursor=pointer]
+      - button "CSS 特性" [ref=e14] [cursor=pointer]
+      - button "事件/表单" [ref=e15] [cursor=pointer]
+      - button "语言特性" [ref=e16] [cursor=pointer]
+      - button "设置" [ref=e17] [cursor=pointer]
+      - button "补充" [ref=e18] [cursor=pointer]
+    - generic [ref=e100]:
+      - generic [ref=e102]:
+        - heading "HTTP GET Demo" [level=3] [ref=e103]
+        - paragraph [ref=e104]: async action + await http_get + json_parse + match
+        - generic [ref=e105]:
+          - textbox [ref=e106]: https://jsonplaceholder.typicode.com/todos/1
+          - button "Load" [ref=e107] [cursor=pointer]
+          - button "API" [ref=e108] [cursor=pointer]
+          - button "Reset" [ref=e109] [cursor=pointer]
+        - paragraph [ref=e111]: Click Load for direct fetch, API to use api.omni
+      - generic [ref=e113]:
+        - heading "HTTP POST Demo" [level=3] [ref=e114]
+        - paragraph [ref=e115]: json_stringify + http_post + await + match status
+        - generic [ref=e116]:
+          - generic [ref=e117]: Title
+          - textbox "Enter title..." [ref=e118]
+          - generic [ref=e119]: Body
+          - textbox "Enter body..." [ref=e120]
+          - generic [ref=e121]:
+            - button "Submit" [ref=e122] [cursor=pointer]
+            - button "Reset" [ref=e123] [cursor=pointer]
+      - generic [ref=e125]:
+        - heading "Storage Demo" [level=3] [ref=e126]
+        - paragraph [ref=e127]: storage get/set + json parse/stringify + mount
+        - generic [ref=e128]:
+          - generic [ref=e129]: Username
+          - textbox "Your name..." [ref=e130]
+          - generic [ref=e131]:
+            - button "Save" [ref=e132] [cursor=pointer]
+            - button "Clear" [ref=e133] [cursor=pointer]
+        - paragraph [ref=e135]: No saved settings found
+    - contentinfo [ref=e98]:
+      - paragraph [ref=e99]: OmniView 教学项目 · 74+ 源文件 · omnic run

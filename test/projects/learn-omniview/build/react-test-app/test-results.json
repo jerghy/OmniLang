@@ -1,0 +1,2355 @@
+{
+  "config": {
+    "argv": [
+      "D:\\develop\\nodejs\\node.exe",
+      "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\node_modules\\@playwright\\test\\cli.js",
+      "test"
+    ],
+    "configFile": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\playwright.config.ts",
+    "rootDir": "D:/space/OmniLang/test/projects/learn-omniview/build/react-test-app/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/space/OmniLang/test/projects/learn-omniview/build/react-test-app/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "omniview-react",
+        "name": "omniview-react",
+        "testDir": "D:/space/OmniLang/test/projects/learn-omniview/build/react-test-app/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "omniview-react.spec.ts",
+      "file": "omniview-react.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "OmniView React — 全面验证",
+          "file": "omniview-react.spec.ts",
+          "line": 46,
+          "column": 6,
+          "specs": [],
+          "suites": [
+            {
+              "title": "Tab 0: 首页",
+              "file": "omniview-react.spec.ts",
+              "line": 51,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "01 - Header",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 997,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:11.676Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-ce77c2f2b623718efce8",
+                  "file": "omniview-react.spec.ts",
+                  "line": 52,
+                  "column": 5
+                },
+                {
+                  "title": "02 - Tab buttons",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 956,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:12.855Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-46c2cd49d3871665a2f1",
+                  "file": "omniview-react.spec.ts",
+                  "line": 60,
+                  "column": 5
+                },
+                {
+                  "title": "03 - Dashboard section",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 931,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:13.817Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-c108957915be4f29497d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 67,
+                  "column": 5
+                },
+                {
+                  "title": "04 - Refresh increments totalItems",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1064,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:14.753Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-3baacf8a5c78af8a4334",
+                  "file": "omniview-react.spec.ts",
+                  "line": 75,
+                  "column": 5
+                },
+                {
+                  "title": "05 - StatsDashboard: buttons and content",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 954,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:15.824Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-a9ebc6c082e941394c0c",
+                  "file": "omniview-react.spec.ts",
+                  "line": 83,
+                  "column": 5
+                },
+                {
+                  "title": "06 - StatsDashboard arithmetic: +5, x2, /2, mod3",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1009,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:16.786Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-ad9a708a249e3fdccdd1",
+                  "file": "omniview-react.spec.ts",
+                  "line": 94,
+                  "column": 5
+                },
+                {
+                  "title": "07 - Counter: buttons, step, doubled display",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1015,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:17.802Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-2612e514f7a29b9d7dda",
+                  "file": "omniview-react.spec.ts",
+                  "line": 107,
+                  "column": 5
+                },
+                {
+                  "title": "08 - FeatureList: toggle collapse",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1218,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:18.831Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-4e1fc97e45b659b4c55a",
+                  "file": "omniview-react.spec.ts",
+                  "line": 123,
+                  "column": 5
+                },
+                {
+                  "title": "09 - FeatureCard: focus/blur cycle",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1207,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:20.056Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-17511d798ed2ac984aec",
+                  "file": "omniview-react.spec.ts",
+                  "line": 137,
+                  "column": 5
+                },
+                {
+                  "title": "10 - Trigger unmount removes container",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1059,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:21.270Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-8131c1646a804476521c",
+                  "file": "omniview-react.spec.ts",
+                  "line": 153,
+                  "column": 5
+                },
+                {
+                  "title": "11 - Footer text and style",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 959,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:22.336Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-f591ed2f2ad9fb4c81f1",
+                  "file": "omniview-react.spec.ts",
+                  "line": 161,
+                  "column": 5
+                },
+                {
+                  "title": "12 - StatsPanel",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 958,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:23.300Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-00c7e21fe938fe754b76",
+                  "file": "omniview-react.spec.ts",
+                  "line": 168,
+                  "column": 5
+                },
+                {
+                  "title": "13 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1242,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:24.264Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-72d9f627360ad9b636a9",
+                  "file": "omniview-react.spec.ts",
+                  "line": 174,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 1: 待办",
+              "file": "omniview-react.spec.ts",
+              "line": 182,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "14 - Todo page structure",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 953,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:25.513Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-ba14d00bb6e2109a5e61",
+                  "file": "omniview-react.spec.ts",
+                  "line": 183,
+                  "column": 5
+                },
+                {
+                  "title": "15 - AddTodo: input, buttons, counter",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1194,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:26.472Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-22ddc2aa4dd88c5fe036",
+                  "file": "omniview-react.spec.ts",
+                  "line": 192,
+                  "column": 5
+                },
+                {
+                  "title": "16 - Add todo and verify",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1297,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:27.671Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-68ba80185bdc1b3cd7a0",
+                  "file": "omniview-react.spec.ts",
+                  "line": 205,
+                  "column": 5
+                },
+                {
+                  "title": "17 - TodoItem toggle and delete",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1525,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:28.974Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-10dead918446c702f1a1",
+                  "file": "omniview-react.spec.ts",
+                  "line": 214,
+                  "column": 5
+                },
+                {
+                  "title": "18 - Clear All removes items",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1426,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:30.506Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-0a3eff6daa37aeb9b7f8",
+                  "file": "omniview-react.spec.ts",
+                  "line": 230,
+                  "column": 5
+                },
+                {
+                  "title": "19 - TodoPage footer",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 946,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:31.938Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-9ca747dc44d6f18b651d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 243,
+                  "column": 5
+                },
+                {
+                  "title": "20 - FilterBar",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 930,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:32.889Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-f7687d938b248e74fa03",
+                  "file": "omniview-react.spec.ts",
+                  "line": 251,
+                  "column": 5
+                },
+                {
+                  "title": "21 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1233,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:33.827Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-9b7b581f909e60e4397f",
+                  "file": "omniview-react.spec.ts",
+                  "line": 258,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 2: 基础交互",
+              "file": "omniview-react.spec.ts",
+              "line": 266,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "22 - ValidationInput",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1092,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:35.065Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-23db69878513967bec73",
+                  "file": "omniview-react.spec.ts",
+                  "line": 267,
+                  "column": 5
+                },
+                {
+                  "title": "23 - Timer: display and interactions",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1215,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:36.163Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-1b017c30ee83b3318aec",
+                  "file": "omniview-react.spec.ts",
+                  "line": 280,
+                  "column": 5
+                },
+                {
+                  "title": "24 - Modal: open, content, close",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1486,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:37.387Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-193adee28fad75ea3e7f",
+                  "file": "omniview-react.spec.ts",
+                  "line": 296,
+                  "column": 5
+                },
+                {
+                  "title": "25 - TabPanel: 3 tab switching",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 992,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:38.880Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-70b1b9a7abd3d0977eb6",
+                  "file": "omniview-react.spec.ts",
+                  "line": 306,
+                  "column": 5
+                },
+                {
+                  "title": "26 - DataTable: headers, sort, grades",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1078,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:39.878Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-ac83ceba6c54d6a09fe3",
+                  "file": "omniview-react.spec.ts",
+                  "line": 318,
+                  "column": 5
+                },
+                {
+                  "title": "27 - FormPage: fields and validation",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1091,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:40.963Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-fe7de139ec3676fb7d9e",
+                  "file": "omniview-react.spec.ts",
+                  "line": 329,
+                  "column": 5
+                },
+                {
+                  "title": "28 - NotificationsPanel: Add",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1179,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:42.060Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-a6f21921d88c6898a1c4",
+                  "file": "omniview-react.spec.ts",
+                  "line": 345,
+                  "column": 5
+                },
+                {
+                  "title": "29 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1260,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:43.246Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-2fd282c233b21b4b3c52",
+                  "file": "omniview-react.spec.ts",
+                  "line": 354,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 3: 编译器特性",
+              "file": "omniview-react.spec.ts",
+              "line": 362,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "30 - HTTP GET Demo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 964,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:44.512Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-abd981d8b0176b0f7e4a",
+                  "file": "omniview-react.spec.ts",
+                  "line": 363,
+                  "column": 5
+                },
+                {
+                  "title": "31 - HTTP POST + Storage Demo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1169,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:45.482Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-31328afe865e016dafdc",
+                  "file": "omniview-react.spec.ts",
+                  "line": 372,
+                  "column": 5
+                },
+                {
+                  "title": "32 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1240,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:46.656Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-9dbef4cc6110194febc3",
+                  "file": "omniview-react.spec.ts",
+                  "line": 383,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 4: 运动动画",
+              "file": "omniview-react.spec.ts",
+              "line": 391,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "33 - MotionDemo: Toggle Modal",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1571,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:47.901Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-d2327a8069ea974aceea",
+                  "file": "omniview-react.spec.ts",
+                  "line": 392,
+                  "column": 5
+                },
+                {
+                  "title": "34 - MotionPlaybackDemo cards",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1016,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:49.479Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-2c363f8d9a25910d808d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 404,
+                  "column": 5
+                },
+                {
+                  "title": "35 - EasingFunctionsDemo groups",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1020,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:50.502Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-1d1f26d70aaf98f0686d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 412,
+                  "column": 5
+                },
+                {
+                  "title": "36 - AnimPropertiesDemo groups",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1011,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:51.531Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-b1e6e50b4cb56a652e07",
+                  "file": "omniview-react.spec.ts",
+                  "line": 422,
+                  "column": 5
+                },
+                {
+                  "title": "37 - MotionTriggers + MotionCallback sections",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1027,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:52.548Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-7dd44fd418dab92a79c9",
+                  "file": "omniview-react.spec.ts",
+                  "line": 431,
+                  "column": 5
+                },
+                {
+                  "title": "38 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1316,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:53.581Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-f39f0f202395f1cd51f0",
+                  "file": "omniview-react.spec.ts",
+                  "line": 440,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 5: CSS 特性",
+              "file": "omniview-react.spec.ts",
+              "line": 448,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "39 - CssUnitsDemo: unit boxes",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 972,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:54.904Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-417bea10dd5367e0d957",
+                  "file": "omniview-react.spec.ts",
+                  "line": 449,
+                  "column": 5
+                },
+                {
+                  "title": "40 - CssVarsDemo: var() and Cycle Accent",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 988,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:55.882Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-424ea2a9e6bde9174d6d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 458,
+                  "column": 5
+                },
+                {
+                  "title": "41 - ThemeCssVarsDemo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 960,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:56.876Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-609828ef675415b0be4e",
+                  "file": "omniview-react.spec.ts",
+                  "line": 467,
+                  "column": 5
+                },
+                {
+                  "title": "42 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1268,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:57.841Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-26557057e97f7b0992ae",
+                  "file": "omniview-react.spec.ts",
+                  "line": 474,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 6: 事件/表单",
+              "file": "omniview-react.spec.ts",
+              "line": 482,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "44 - EventShorthand + FormControlsDemo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1021,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:17:59.114Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-376ef72ff4bd76c9fba4",
+                  "file": "omniview-react.spec.ts",
+                  "line": 483,
+                  "column": 5
+                },
+                {
+                  "title": "45 - EventsDemo sections",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 999,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:00.141Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-07cc62b894349c0a033b",
+                  "file": "omniview-react.spec.ts",
+                  "line": 495,
+                  "column": 5
+                },
+                {
+                  "title": "46 - Emit + Event + Slot demos",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 990,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:01.146Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-8cdcffa8aeaef67e44b8",
+                  "file": "omniview-react.spec.ts",
+                  "line": 505,
+                  "column": 5
+                },
+                {
+                  "title": "47 - no ReferenceError/TypeError",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1300,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:02.142Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-cee4f8266a1686dea79d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 512,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 7: 语言特性",
+              "file": "omniview-react.spec.ts",
+              "line": 523,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "48 - InlineStore, Nullish, StringLiterals",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "fullName error crashes React on tab 7 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 525,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 146,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:03.447Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "fullName error crashes React on tab 7 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 525,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-c17c9f2ca388c7095e81",
+                  "file": "omniview-react.spec.ts",
+                  "line": 524,
+                  "column": 5
+                },
+                {
+                  "title": "49 - TypeSystem, ViewAttributes, ComputedFnForm",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "fullName error crashes React on tab 7 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 533,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 143,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:03.599Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "fullName error crashes React on tab 7 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 533,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-4dfd6f3f903c9055796f",
+                  "file": "omniview-react.spec.ts",
+                  "line": 532,
+                  "column": 5
+                },
+                {
+                  "title": "50 - OptionalChainDemo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "fullName error crashes React on tab 7 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 541,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 140,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:03.747Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "fullName error crashes React on tab 7 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 541,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-47b970b4b26991a68a52",
+                  "file": "omniview-react.spec.ts",
+                  "line": 540,
+                  "column": 5
+                },
+                {
+                  "title": "51 - CSS Pseudo-Classes Demo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "fullName error crashes React on tab 7 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 548,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 141,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:03.895Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "fullName error crashes React on tab 7 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 548,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-f87f755a7c580a7b6114",
+                  "file": "omniview-react.spec.ts",
+                  "line": 547,
+                  "column": 5
+                },
+                {
+                  "title": "52 - only known fullName error",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1239,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:04.042Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-b0f25f40af832602e0bd",
+                  "file": "omniview-react.spec.ts",
+                  "line": 553,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 8: 设置",
+              "file": "omniview-react.spec.ts",
+              "line": 562,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "53 - SettingsPage structure",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 947,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:05.287Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-f4f7e5b091f8f531c245",
+                  "file": "omniview-react.spec.ts",
+                  "line": 563,
+                  "column": 5
+                },
+                {
+                  "title": "54 - About expand/collapse",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1156,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:06.240Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-18a5fe8dae2cde77e168",
+                  "file": "omniview-react.spec.ts",
+                  "line": 576,
+                  "column": 5
+                },
+                {
+                  "title": "55 - Theme toggle",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1182,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:07.402Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-6568883235a3e6d1f97a",
+                  "file": "omniview-react.spec.ts",
+                  "line": 586,
+                  "column": 5
+                },
+                {
+                  "title": "56 - no ThemeStore errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1442,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:08.590Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-1b474eb9df1692a1377d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 596,
+                  "column": 5
+                },
+                {
+                  "title": "57 - no runtime errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1252,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:10.038Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-e3ba94faca14aa0690bb",
+                  "file": "omniview-react.spec.ts",
+                  "line": 604,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Tab 9: 补充",
+              "file": "omniview-react.spec.ts",
+              "line": 614,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "58 - TernaryExprDemo",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 616,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 143,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:11.296Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 616,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-2013dde1061fe265d7cb",
+                  "file": "omniview-react.spec.ts",
+                  "line": 615,
+                  "column": 5
+                },
+                {
+                  "title": "59 - BlockExpr + ForDirective",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 629,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 143,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:11.445Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 629,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-adfbf705a47d604f66b8",
+                  "file": "omniview-react.spec.ts",
+                  "line": 628,
+                  "column": 5
+                },
+                {
+                  "title": "60 - AdvancedSelector + StepsStart + PathTimeline",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [
+                        {
+                          "type": "fixme",
+                          "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                          "location": {
+                            "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                            "line": 636,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "expectedStatus": "skipped",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "skipped",
+                          "duration": 133,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:11.594Z",
+                          "annotations": [
+                            {
+                              "type": "fixme",
+                              "description": "a2/item ReferenceError crashes React on tab 9 — codegen bug",
+                              "location": {
+                                "file": "D:\\space\\OmniLang\\test\\projects\\learn-omniview\\build\\react-test-app\\tests\\omniview-react.spec.ts",
+                                "line": 636,
+                                "column": 12
+                              }
+                            }
+                          ],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-6f314fcc1914e567112d",
+                  "file": "omniview-react.spec.ts",
+                  "line": 635,
+                  "column": 5
+                },
+                {
+                  "title": "61 - only known a2/item errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "omniview-react",
+                      "projectName": "omniview-react",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1243,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-06-30T14:18:11.732Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "255ff4923d182bd5cf7c-4aaac8e14b8d98314c0c",
+                  "file": "omniview-react.spec.ts",
+                  "line": 643,
+                  "column": 5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-30T14:17:11.363Z",
+    "duration": 61890.774999999994,
+    "expected": 53,
+    "skipped": 7,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

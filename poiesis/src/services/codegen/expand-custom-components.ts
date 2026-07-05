@@ -2,7 +2,7 @@
 // Custom component expansion — inline referenced components' element trees
 // so the pipeline can process them as a flat element set.
 
-import { useComponentRegistry } from "../../core/state/componentRegistry";
+import { getComponentDefinitions } from "../../core/state/componentRegistry";
 import type { ComponentDefinition } from "../../core/state/componentRegistry";
 import type { ElementData } from "../../core/types";
 
@@ -39,9 +39,10 @@ function getDefElements(def: ComponentDefinition): DefElement[] | null {
  * can hit correctly and the preview iframe doesn't reload unnecessarily.
  */
 export function expandCustomComponents(elements: ElementData[]): ElementData[] {
-  const registry = useComponentRegistry.getState().definitions;
+  const registry = getComponentDefinitions();
 
-  const hasRefs = elements.some((el) => el.componentRef);
+  // Check for elements that reference custom components (by componentRef OR by tag in registry)
+  const hasRefs = elements.some((el) => el.componentRef || registry[el.tag]);
   if (!hasRefs) return elements;
 
   // Build element map (shallow clone so we can safely update children arrays)
@@ -57,10 +58,12 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
   while (foundNew) {
     foundNew = false;
     for (const [id, el] of [...elementMap]) {
-      if (!el.componentRef || expandedRefs.has(id)) continue;
+      // Match by componentRef first, then by tag if the tag is in the registry
+      const compRef: string | undefined = el.componentRef || (registry?.[el.tag] ? el.tag : undefined);
+      if (!compRef || expandedRefs.has(id)) continue;
       expandedRefs.add(id);
 
-      const def: ComponentDefinition | undefined = registry[el.componentRef];
+      const def: ComponentDefinition | undefined = registry?.[compRef];
       const defElements = def ? getDefElements(def) : null;
       if (!defElements || defElements.length === 0) continue;
 

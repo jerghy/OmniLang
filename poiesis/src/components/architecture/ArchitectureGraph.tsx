@@ -5,11 +5,13 @@ import type { NodeProps, EdgeProps, Edge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../store";
 import { buildBubbleGraph } from "../../services/architecture";
+import type { OmniFileInfo } from "../../services/architecture";
 import { useBubbleLayout } from "../../hooks/useBubbleLayout";
 import { BubbleNode } from "./nodes/BubbleNode";
 import { ChildBubbleNode } from "./nodes/ChildBubbleNode";
 import { BubbleEdge } from "./edges/BubbleEdge";
 import { BubbleContextMenu } from "./context-menu/BubbleContextMenu";
+import { api } from "../../commands";
 
 // @xyflow/react v12 uses broad Node/Edge types; cast to our specific component types
 const nodeTypes = {
@@ -39,16 +41,51 @@ export function ArchitectureGraph() {
     bubbleId: string;
   } | null>(null);
 
-  // Load bubble data on mount
+  // Load bubble data by scanning project .omni files
   useEffect(() => {
     let cancelled = false;
-    const projectDir = usePoiesisStore.getState().projectDir;
-    buildBubbleGraph(projectDir ?? "").then((data) => {
+    async function load() {
+      const projectDir = usePoiesisStore.getState().projectDir;
+      if (!projectDir) {
+        if (!cancelled) {
+          setBubblesAndEdges([], []);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Scan project for .omni files
+      const omniFiles: OmniFileInfo[] = [];
+      try {
+        const result = await api.project.listDir(".");
+        if (result.entries) {
+          // Also scan src/ subdirectory
+          const scans = [result];
+          const srcResult = await api.project.listDir("src");
+          if (srcResult.entries) scans.push(srcResult);
+
+          for (const scan of scans) {
+            for (const entry of scan.entries) {
+              if (entry.ext === "omni") {
+                const file = await api.project.readFile(entry.path);
+                if (file.content && !file.error) {
+                  omniFiles.push({ path: entry.path, source: file.content });
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore read errors — buildBubbleGraph handles empty files
+      }
+
+      const data = await buildBubbleGraph(projectDir, omniFiles);
       if (!cancelled) {
         setBubblesAndEdges(data.bubbles, data.edges);
         setLoading(false);
       }
-    });
+    }
+    load();
     return () => { cancelled = true; };
   }, [setBubblesAndEdges]);
 

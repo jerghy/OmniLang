@@ -196,12 +196,12 @@ export class CanvasDriver {
     return new ElementHandle(id);
   }
 
-  /** Convenience: add a Button component. */
+  /** Convenience: add a button component. */
   button(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("Button", { label, ...props }, parentId);
+    return this.component("button", { label, ...props }, parentId);
   }
 
-  /** Convenience: add a Text component.
+  /** Convenience: add a p (paragraph/text) component.
    *  Auto-detects when parentId is mistakenly passed as props (common agent mistake). */
   text(label: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
     if (typeof props === "string") {
@@ -210,39 +210,38 @@ export class CanvasDriver {
         `你可能把 parentId 传到了 props 位置。已自动修复。正确调用: O.text("${label}", {}, "${props}")`,
       );
       // Auto-recover: treat the string as parentId
-      return this.component("Text", { label }, props);
+      return this.component("p", { label }, props);
     }
-    return this.component("Text", { label, ...props }, parentId);
+    return this.component("p", { label, ...props }, parentId);
   }
 
-  /** Convenience: add a Heading component.
-   *  Level auto-converts number to string (e.g. 2 -> "2"). */
+  /** Convenience: add a heading (h1-h6) component. */
   heading(label: string, level: string | number = "1", parentId?: string | null): ElementHandle {
-    const levelStr = String(level);
-    return this.component("Heading", { label, level: levelStr }, parentId);
+    const tag = `h${level}`;
+    return this.component(tag, { label }, parentId);
   }
 
-  /** Convenience: add a Container component. */
+  /** Convenience: add a div container. */
   container(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("Container", props, parentId);
+    return this.component("div", props, parentId);
   }
 
-  /** Convenience: add an Input component. */
+  /** Convenience: add an input component. */
   input(placeholder?: string, props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("Input", { placeholder: placeholder || "", ...props }, parentId);
+    return this.component("input", { placeholder: placeholder || "", ...props }, parentId);
   }
 
-  /** Convenience: add a Card component. */
+  /** Convenience: add a div (card container). */
   card(props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("Card", props, parentId);
+    return this.component("div", props, parentId);
   }
 
-  /** Convenience: add a Flex component. */
+  /** Convenience: add a div flex container. */
   flex(direction = "row", gap = "8px", props?: Record<string, unknown>, parentId?: string | null): ElementHandle {
-    return this.component("Flex", { direction, gap, ...props }, parentId);
+    return this.component("div", { direction, gap, ...props }, parentId);
   }
 
-  /** Convenience: add an Image component.
+  /** Convenience: add an img component.
    *  Auto-detects when parentId is mistakenly passed as alt (common agent mistake). */
   image(src: string, alt = "", parentId?: string | null): ElementHandle {
     if (alt && alt.startsWith("el-") && !parentId) {
@@ -251,17 +250,17 @@ export class CanvasDriver {
         `你可能把 parentId 传到了 alt 位置。正确调用: O.image("${src}", "", "${alt}")`,
       );
     }
-    return this.component("Image", { src, alt }, parentId);
+    return this.component("img", { src, alt }, parentId);
   }
 
-  /** Convenience: add a List component. */
+  /** Convenience: add a ul (unordered list) component. */
   list(parentId?: string | null): ElementHandle {
-    return this.component("List", undefined, parentId);
+    return this.component("ul", undefined, parentId);
   }
 
-  /** Convenience: add an Alert component. */
+  /** Convenience: add a div (alert container) component. */
   alert(type = "info", label = "", parentId?: string | null): ElementHandle {
-    return this.component("Alert", { type, label }, parentId);
+    return this.component("div", { type, label }, parentId);
   }
 
   /** Remove an element by ID. Cascade-deletes all connected wires. */

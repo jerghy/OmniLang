@@ -1,19 +1,31 @@
 // components/design/DesignCanvas.tsx
 // Z-axis dual-layer container with animated transition between OmniView and CodeFlow layers.
+// Drag-and-drop from the palette is handled via @dnd-kit/core — the canvas wrapper is a
+// droppable target that accepts palette draggables and delegates creation to DesignPage's
+// DndContext onDragEnd handler.
 
+import { useDroppable } from "@dnd-kit/core";
 import { usePoiesisStore } from "../../store";
 import { OmniViewRenderer } from "./OmniViewRenderer";
 import { CodeFlowCanvas } from "./CodeFlowCanvas";
 
 export function DesignCanvas() {
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
+  const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
+
+  const { setNodeRef, isOver } = useDroppable({
+    id: "design-canvas",
+  });
 
   return (
     <div
+      ref={setNodeRef}
       style={{
         flex: 1,
         position: "relative",
         overflow: "hidden",
+        outline: isOver ? "2px dashed #4F46E5" : "none",
+        outlineOffset: "-4px",
       }}
     >
       {/* Upper layer: OmniViewRenderer (component preview) */}
@@ -40,6 +52,7 @@ export function DesignCanvas() {
       {/* Lower layer: CodeFlowCanvas (code node flow, Phase 5) */}
       {codeFlowVisible && (
         <div
+          onDoubleClick={() => toggleCodeFlow(null)}
           style={{
             position: "absolute",
             top: 0,

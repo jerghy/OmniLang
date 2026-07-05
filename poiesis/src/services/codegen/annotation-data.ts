@@ -95,8 +95,9 @@ export function buildPidAnnotations(
 
   walk(viewNodes);
 
+  // type=logic is the default — omit the directive for cleaner output
   return {
-    codeTabDirective: `// @omni-file type=${tabType}`,
+    codeTabDirective: tabType === "logic" ? "" : `// @omni-file type=${tabType}`,
     pidAnnotations,
   };
 }
