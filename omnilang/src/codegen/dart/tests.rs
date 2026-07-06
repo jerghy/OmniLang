@@ -192,9 +192,7 @@ fn test_generate_function_empty() {
         visibility: Visibility::Public,
         params: vec![],
         return_type: None,
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_function(&mut w, &func);
@@ -216,9 +214,7 @@ fn test_generate_function_with_return_type() {
             needs_clone: false,
             needs_partial_eq: false,
         }),
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_function(&mut w, &func);
@@ -240,9 +236,7 @@ fn test_generate_function_with_void_return() {
             needs_clone: false,
             needs_partial_eq: false,
         }),
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_function(&mut w, &func);
@@ -274,9 +268,7 @@ fn test_generate_function_with_params() {
             needs_clone: false,
             needs_partial_eq: false,
         }),
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_function(&mut w, &func);
@@ -335,9 +327,7 @@ fn test_generate_component_with_function() {
             visibility: Visibility::Public,
             params: vec![],
             return_type: None,
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         }],
         store_refs: vec![],
@@ -612,9 +602,7 @@ fn test_full_pipeline_through_trait() {
                             visibility: Visibility::Public,
                             params: vec![],
                             return_type: None,
-                            body: BlockIR {
-                                statements: vec![],
-                            },
+                            body: BlockIR { statements: vec![] },
                             is_async: false,
                         }],
                         store_refs: vec![],
@@ -814,9 +802,7 @@ fn test_dart_generate_standalone_function() {
         visibility: Visibility::Public,
         params: vec![],
         return_type: None,
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_standalone_function(&mut w, &func);
@@ -847,9 +833,7 @@ fn test_dart_generate_standalone_function_with_return_type() {
             needs_clone: false,
             needs_partial_eq: false,
         }),
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_standalone_function(&mut w, &func);
@@ -901,9 +885,7 @@ fn test_generate_async_function_dart() {
             needs_clone: false,
             needs_partial_eq: false,
         }),
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: true,
     };
     generate_function(&mut w, &func);
@@ -923,9 +905,7 @@ fn test_generate_async_function_dart_void() {
         visibility: Visibility::Private,
         params: vec![],
         return_type: None,
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: true,
     };
     generate_function(&mut w, &func);

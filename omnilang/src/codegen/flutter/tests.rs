@@ -502,9 +502,7 @@ fn test_generate_function_empty() {
         visibility: Visibility::Private,
         params: vec![],
         return_type: None,
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
         is_async: false,
     };
     generate_function_flutter(&mut w, &func);

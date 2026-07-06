@@ -237,8 +237,8 @@ impl<'a> Parser<'a> {
     /// Collects consecutive non-special tokens until a view boundary is hit,
     /// reconstructing text from token source spans.
     fn parse_raw_text_node(&mut self) -> Result<ViewNode, ParseError> {
-        let start_span = self.peek().span.clone();
-        let mut end_span = start_span.clone();
+        let start_span = self.peek().span;
+        let mut end_span = start_span;
 
         while self.pos < self.tokens.len() {
             let kind = self.peek_kind();

@@ -289,30 +289,6 @@ impl Lexer {
         }
     }
 
-    #[allow(dead_code)]
-    fn expect(
-        &mut self,
-        expected: char,
-        kind: TokenKind,
-        err_msg: &str,
-        start: usize,
-        line: u32,
-        col: u32,
-    ) -> Token {
-        if self.peek() == Some(expected) {
-            self.advance();
-            self.mk_token(kind, start, self.pos, line, col)
-        } else {
-            self.mk_token(
-                TokenKind::Error(err_msg.to_string()),
-                start,
-                self.pos,
-                line,
-                col,
-            )
-        }
-    }
-
     fn check_dot_continuation(&mut self, start: usize, line: u32, col: u32) -> Token {
         if self.peek() == Some('.') {
             self.advance();

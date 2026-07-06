@@ -478,6 +478,7 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
 /// directory is assumed to be under the user's control and not shared with
 /// untrusted writers. On production deployments, consider using handle-based
 /// operations (e.g. O_NOFOLLOW on Unix) for stronger guarantees.
+#[must_use = "sanitized path must be used or path traversal checks are bypassed"]
 fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::PathBuf, String> {
     // Reject empty paths
     if user_path.is_empty() {

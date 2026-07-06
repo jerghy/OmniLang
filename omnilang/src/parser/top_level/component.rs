@@ -155,17 +155,13 @@ impl<'a> Parser<'a> {
                         let t = self.advance();
                         match &t.kind {
                             TokenKind::StringLiteral(s) => {
-                                Expr::Literal(Literal::String(s.clone()), t.span.clone())
+                                Expr::Literal(Literal::String(s.clone()), t.span)
                             }
-                            TokenKind::IntLiteral(n) => {
-                                Expr::Literal(Literal::Int(*n), t.span.clone())
-                            }
-                            TokenKind::FloatLiteral(f) => {
-                                Expr::Literal(Literal::Float(*f), t.span.clone())
-                            }
-                            TokenKind::True => Expr::Literal(Literal::Bool(true), t.span.clone()),
-                            TokenKind::False => Expr::Literal(Literal::Bool(false), t.span.clone()),
-                            TokenKind::Null => Expr::Literal(Literal::Null, t.span.clone()),
+                            TokenKind::IntLiteral(n) => Expr::Literal(Literal::Int(*n), t.span),
+                            TokenKind::FloatLiteral(f) => Expr::Literal(Literal::Float(*f), t.span),
+                            TokenKind::True => Expr::Literal(Literal::Bool(true), t.span),
+                            TokenKind::False => Expr::Literal(Literal::Bool(false), t.span),
+                            TokenKind::Null => Expr::Literal(Literal::Null, t.span),
                             _ => {
                                 return Err(ParseError {
                                     message: format!(

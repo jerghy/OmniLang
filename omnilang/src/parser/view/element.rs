@@ -81,13 +81,13 @@ impl<'a> Parser<'a> {
                         if let TokenKind::StringLiteral(s) = &t.kind {
                             Ok(ElementProp::Static {
                                 name,
-                                value: Expr::Literal(Literal::String(s.clone()), t.span.clone()),
+                                value: Expr::Literal(Literal::String(s.clone()), t.span),
                             })
                         } else {
                             // Should not reach here — outer match confirmed StringLiteral
                             Err(ParseError {
                                 message: "expected string literal after '='".into(),
-                                span: t.span.clone(),
+                                span: t.span,
                             })
                         }
                     }
@@ -338,7 +338,7 @@ impl<'a> Parser<'a> {
                             // Combine static names with dynamic expression result
                             let span = self.peek_span();
                             let static_part =
-                                Expr::Literal(Literal::String(classes.join(" ")), span.clone());
+                                Expr::Literal(Literal::String(classes.join(" ")), span);
                             self.advance(); // consume '{'
                             let dyn_expr = self.parse_expr()?;
                             self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -346,7 +346,7 @@ impl<'a> Parser<'a> {
                                 left: Box::new(static_part),
                                 op: BinaryOpKind::Add,
                                 right: Box::new(dyn_expr),
-                                span: span.clone(),
+                                span,
                             };
                             // Emit as a Static className prop so codegen handles it naturally
                             return Ok(ElementProp::Static {
@@ -494,11 +494,11 @@ impl<'a> Parser<'a> {
                         _ => {
                             // Wrap any other expression (fn call, assignment, etc.)
                             // in an inline fn body: () => { expr; }
-                            let expr_span = crate::parser::expr::span_of(&expr).clone();
+                            let expr_span = *crate::parser::expr::span_of(&expr);
                             let body = Block {
                                 stmts: vec![Stmt::ExprStmt {
                                     expr,
-                                    span: expr_span.clone(),
+                                    span: expr_span,
                                 }],
                                 trailing_expr: None,
                                 span: expr_span,

@@ -30,7 +30,7 @@ pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
                 err.message,
                 parser.errors.len() - 1
             ),
-            span: err.span.clone(),
+            span: err.span,
         });
     }
     let mut modules = HashMap::new();
@@ -154,12 +154,6 @@ impl<'a> Parser<'a> {
     /// Record a parse error (non-fatal — parsing continues).
     fn emit_error(&mut self, err: ParseError) {
         self.errors.push(err);
-    }
-
-    /// True if any errors have been collected.
-    #[allow(dead_code)]
-    fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
     }
 
     /// Skip tokens until one of `expected` is found (or EOF).

@@ -188,7 +188,7 @@ impl<'a> Parser<'a> {
                 // Unknown lifecycle directive — report error instead of panicking
                 return Err(ParseError {
                     message: format!("unknown lifecycle directive: {:?}", self.peek_kind()),
-                    span: self.peek_span().clone(),
+                    span: self.peek_span(),
                 });
             }
         };

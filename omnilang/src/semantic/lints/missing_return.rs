@@ -144,9 +144,7 @@ mod tests {
                         needs_clone: false,
                         needs_partial_eq: false,
                     }),
-                    body: BlockIR {
-                        statements: vec![],
-                    },
+                    body: BlockIR { statements: vec![] },
                     is_async: false,
                 }],
                 store_refs: vec![],

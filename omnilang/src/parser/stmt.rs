@@ -71,12 +71,9 @@ impl<'a> Parser<'a> {
             TokenKind::Emit => self.parse_emit_stmt(),
             TokenKind::LBrace => {
                 let block = self.parse_block()?;
-                let span = block.span.clone();
+                let span = block.span;
                 Ok(Stmt::ExprStmt {
-                    expr: Expr::Block {
-                        body: block,
-                        span: span.clone(),
-                    },
+                    expr: Expr::Block { body: block, span },
                     span,
                 })
             }
@@ -90,7 +87,7 @@ impl<'a> Parser<'a> {
                     col: 0,
                 };
                 Ok(Stmt::ExprStmt {
-                    expr: Expr::Literal(crate::parser::ast::Literal::Null, span.clone()),
+                    expr: Expr::Literal(crate::parser::ast::Literal::Null, span),
                     span,
                 })
             }
@@ -98,7 +95,7 @@ impl<'a> Parser<'a> {
                 // Expression statement or assignment
                 match self.parse_expr() {
                     Ok(expr) => {
-                        let span = span_of(&expr).clone();
+                        let span = *span_of(&expr);
 
                         // Check for semicolon (optional)
                         if self.peek_kind() == TokenKind::Semicolon {
@@ -108,7 +105,7 @@ impl<'a> Parser<'a> {
                         Ok(Stmt::ExprStmt { expr, span })
                     }
                     Err(e) => {
-                        let span = e.span.clone();
+                        let span = e.span;
                         self.emit_error(e);
                         self.recover_from_error();
                         if self.peek_kind() == TokenKind::Semicolon {
@@ -325,7 +322,7 @@ impl<'a> Parser<'a> {
                     type_args,
                     span,
                 }),
-                span: self.peek_span().clone(),
+                span: self.peek_span(),
             })
         } else {
             Ok(TypeAnnotation::Named {
@@ -480,15 +477,12 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn peek_span(&self) -> Span {
-        self.tokens
-            .get(self.pos)
-            .map(|t| t.span.clone())
-            .unwrap_or(Span {
-                start: 0,
-                end: 0,
-                line: 0,
-                col: 0,
-            })
+        self.tokens.get(self.pos).map(|t| t.span).unwrap_or(Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            col: 0,
+        })
     }
 }
 

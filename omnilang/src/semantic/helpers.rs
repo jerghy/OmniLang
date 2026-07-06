@@ -82,10 +82,10 @@ pub(super) fn collect_timeline_refs(timeline: &TimelineDef) -> Vec<&str> {
 impl TypeAnnotation {
     pub fn span(&self) -> Span {
         match self {
-            TypeAnnotation::Named { span, .. } => span.clone(),
-            TypeAnnotation::Optional { span, .. } => span.clone(),
-            TypeAnnotation::Union { span, .. } => span.clone(),
-            TypeAnnotation::Fn { span, .. } => span.clone(),
+            TypeAnnotation::Named { span, .. } => *span,
+            TypeAnnotation::Optional { span, .. } => *span,
+            TypeAnnotation::Union { span, .. } => *span,
+            TypeAnnotation::Fn { span, .. } => *span,
         }
     }
 }

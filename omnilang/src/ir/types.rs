@@ -987,5 +987,4 @@ mod tests {
         let back: ConstructionKind = serde_json::from_str(&json).unwrap();
         assert_eq!(back, ConstructionKind::Static);
     }
-
 }

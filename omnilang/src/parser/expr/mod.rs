@@ -58,7 +58,7 @@ impl<'a> Parser<'a> {
     /// Parse struct literal fields after `TypeName {`.
     /// Called by `parse_expr` when VarRef + LBrace is detected.
     fn parse_struct_literal_suffix(&mut self, type_name: String) -> Result<Expr, ParseError> {
-        let span_start = self.peek().span.clone();
+        let span_start = self.peek().span;
         self.advance(); // consume '{'
 
         let mut fields: Vec<(String, Expr)> = Vec::new();
@@ -72,7 +72,7 @@ impl<'a> Parser<'a> {
                                 "Expected field name in struct literal, got {:?}",
                                 other
                             ),
-                            span: self.peek().span.clone(),
+                            span: self.peek().span,
                         });
                     }
                 };
@@ -105,7 +105,7 @@ impl<'a> Parser<'a> {
     /// Parse a match pattern: `_` | `Ident` | `Ident { binding, ... }` | literal
     fn parse_match_pattern(&mut self) -> Result<MatchPattern, ParseError> {
         let t = self.advance();
-        let span = t.span.clone();
+        let span = t.span;
         match &t.kind {
             TokenKind::Ident(name) if name == "_" => Ok(MatchPattern {
                 kind: MatchPatternKind::Wildcard,
@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
                             } else {
                                 return Err(ParseError {
                                     message: "expected binding name in pattern".into(),
-                                    span: self.peek().span.clone(),
+                                    span: self.peek().span,
                                 });
                             }
                             if self.peek_kind() == TokenKind::RBrace {
@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
             self.parse_block()
         } else {
             let expr = self.parse_expr()?;
-            let span = span_of(&expr).clone();
+            let span = *span_of(&expr);
             Ok(Block {
                 stmts: vec![],
                 trailing_expr: Some(Box::new(expr)),
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
 
     fn parse_prefix(&mut self) -> Result<Expr, ParseError> {
         let t = self.advance();
-        let span = t.span.clone();
+        let span = t.span;
 
         match &t.kind {
             TokenKind::IntLiteral(n) => Ok(Expr::Literal(Literal::Int(*n), span)),
@@ -279,7 +279,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                let end_span = self.peek().span.clone();
+                let end_span = self.peek().span;
                 self.expect_close(TokenKind::RBrace, "expected '}' after match arms")?;
                 Ok(Expr::MatchExpr {
                     matched: Box::new(matched),
@@ -498,7 +498,7 @@ impl<'a> Parser<'a> {
 
     fn parse_infix(&mut self, left: Expr, bp: (Bp, Bp)) -> Result<Expr, ParseError> {
         let t = self.advance();
-        let span = t.span.clone();
+        let span = t.span;
 
         match &t.kind {
             TokenKind::Plus => self.make_binary(left, BinaryOpKind::Add, bp),
@@ -580,7 +580,7 @@ impl<'a> Parser<'a> {
                     }
                     _ => Err(ParseError {
                         message: "Expected field name after '.'".into(),
-                        span: next.span.clone(),
+                        span: next.span,
                     }),
                 }
             }
@@ -603,7 +603,7 @@ impl<'a> Parser<'a> {
                     }),
                     _ => Err(ParseError {
                         message: "Expected field name after '?.'".into(),
-                        span: next.span.clone(),
+                        span: next.span,
                     }),
                 }
             }
@@ -704,7 +704,7 @@ impl<'a> Parser<'a> {
             self.advance(); // consume '('
             let args = self.parse_call_args()?;
             Ok(Expr::FuncCall {
-                func: Box::new(Expr::VarRef(name.clone(), span.clone())),
+                func: Box::new(Expr::VarRef(name.clone(), span)),
                 args,
                 span: Span {
                     start: span.start,

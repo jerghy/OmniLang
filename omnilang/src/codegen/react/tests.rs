@@ -12,8 +12,8 @@ use crate::codegen::{
     binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen,
     JSON_REACT,
 };
-use crate::ir::{ConstructionKind, ModuleIR};
 use crate::ir::*;
+use crate::ir::{ConstructionKind, ModuleIR};
 
 // ── Helper tests ─────────────────────────────────────────
 
@@ -717,9 +717,7 @@ fn test_tsx_component_with_lifecycle_mount() {
     let codegen = ReactCodegen;
     let lc = LifecycleIntent {
         kind: LifecycleKind::Mount,
-        body: BlockIR {
-            statements: vec![],
-        },
+        body: BlockIR { statements: vec![] },
     };
     let mut components = HashMap::new();
     components.insert(

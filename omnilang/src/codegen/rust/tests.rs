@@ -207,9 +207,7 @@ mod tests {
             visibility: Visibility::Private,
             params: vec![],
             return_type: None,
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_function(&mut w, &func);
@@ -231,9 +229,7 @@ mod tests {
                 needs_clone: false,
                 needs_partial_eq: false,
             }),
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_function(&mut w, &func);
@@ -264,9 +260,7 @@ mod tests {
                 needs_clone: false,
                 needs_partial_eq: false,
             }),
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_function(&mut w, &func);
@@ -322,9 +316,7 @@ mod tests {
                 visibility: Visibility::Private,
                 params: vec![],
                 return_type: None,
-                body: BlockIR {
-                    statements: vec![],
-                },
+                body: BlockIR { statements: vec![] },
                 is_async: false,
             }],
             store_refs: vec![],
@@ -637,9 +629,7 @@ mod tests {
                                 visibility: Visibility::Private,
                                 params: vec![],
                                 return_type: None,
-                                body: BlockIR {
-                                    statements: vec![],
-                                },
+                                body: BlockIR { statements: vec![] },
                                 is_async: false,
                             }],
                             store_refs: vec![],
@@ -878,9 +868,7 @@ mod tests {
             visibility: Visibility::Public,
             params: vec![],
             return_type: None,
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_standalone_function(&mut w, &func);
@@ -912,9 +900,7 @@ mod tests {
                 needs_clone: false,
                 needs_partial_eq: false,
             }),
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_standalone_function(&mut w, &func);
@@ -931,9 +917,7 @@ mod tests {
             visibility: Visibility::Private,
             params: vec![],
             return_type: None,
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
             is_async: false,
         };
         generate_standalone_function(&mut w, &func);

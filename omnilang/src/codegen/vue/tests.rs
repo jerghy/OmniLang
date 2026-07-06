@@ -489,9 +489,7 @@ mod tests {
         let codegen = VueCodegen;
         let lc = LifecycleIntent {
             kind: LifecycleKind::Mount,
-            body: BlockIR {
-                statements: vec![],
-            },
+            body: BlockIR { statements: vec![] },
         };
         let mut components = HashMap::new();
         components.insert(

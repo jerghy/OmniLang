@@ -164,7 +164,7 @@ pub enum TokenKind {
 }
 
 /// Source location span (byte offsets + line/col).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
