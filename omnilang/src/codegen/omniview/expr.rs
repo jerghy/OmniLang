@@ -137,7 +137,8 @@ impl OmniViewGenerator {
                 let e = self.expr_to_js(else_expr);
                 format!("{} ? {} : {}", c, t, e)
             }
-            ExprIR::MethodCallExpr { is_optional: _,
+            ExprIR::MethodCallExpr {
+                is_optional: _,
                 method,
                 args,
                 object,

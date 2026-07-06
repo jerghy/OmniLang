@@ -32,7 +32,9 @@ type IRProgram = {
     motions: unknown[];
     timelines: unknown[];
   }>;
-  source_map: Record<string, unknown>;
+  /// IR-level source map (keyed by node/module). Distinct from the flat
+  /// codegen SourceMap array — see SourceMap type below.
+  source_map: Record<string, SourceMapEntry>;
   stdlib_imports: string[];
 };
 

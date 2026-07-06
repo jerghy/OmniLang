@@ -231,7 +231,9 @@ pub fn compile_to_target_json(
 /// Works on both multi-line and minified/single-line HTML.
 fn extract_body_html(html: &str) -> String {
     // Find <body> tag (with optional attributes)
-    let body_start = html.find("<body").and_then(|i| html[i..].find('>').map(|j| i + j + 1));
+    let body_start = html
+        .find("<body")
+        .and_then(|i| html[i..].find('>').map(|j| i + j + 1));
     let body_end = html.find("</body>");
 
     match (body_start, body_end) {
@@ -391,8 +393,10 @@ pub fn compile_multi_to_target(
         .collect();
 
     // Convert codegen errors (plain strings) to Diagnostic objects
-    let codegen_diags: Vec<error::Diagnostic> = output.errors.into_iter().map(|msg| {
-        error::Diagnostic {
+    let codegen_diags: Vec<error::Diagnostic> = output
+        .errors
+        .into_iter()
+        .map(|msg| error::Diagnostic {
             severity: error::Severity::Error,
             code: "E_CODEGEN".to_string(),
             message: msg,
@@ -402,8 +406,8 @@ pub fn compile_multi_to_target(
             end_line: 0,
             end_col: 0,
             suggestion: None,
-        }
-    }).collect();
+        })
+        .collect();
     diags.extend(codegen_diags);
 
     // Post-process: wrap debug HTML for editor mode
@@ -412,9 +416,7 @@ pub fn compile_multi_to_target(
             if path.ends_with(".html") {
                 // Resolve JS/CSS by matching the HTML file's base name instead of
                 // hardcoding "index.*" — supports multi-page projects.
-                let base = path
-                    .strip_suffix(".html")
-                    .unwrap_or(&path);
+                let base = path.strip_suffix(".html").unwrap_or(&path);
                 let js_key = format!("{}.js", base);
                 let css_key = format!("{}.css", base);
                 let js = files_map
@@ -431,7 +433,10 @@ pub fn compile_multi_to_target(
                     // Use substring extraction instead of line-based parsing —
                     // works on both multi-line and minified/single-line HTML.
                     let body_html = extract_body_html(html_content);
-                    files_map.insert(path, codegen::omniview::wrap_debug_html(js, css, &body_html));
+                    files_map.insert(
+                        path,
+                        codegen::omniview::wrap_debug_html(js, css, &body_html),
+                    );
                 }
                 break;
             }

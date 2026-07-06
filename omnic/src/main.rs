@@ -24,7 +24,9 @@ const ALL_TARGETS: &[&str] = &[
 #[derive(Parser)]
 #[command(name = "omnic")]
 #[command(version = "0.2.0")]
-#[command(about = "OmniLang compiler — transpile .omni to Python, JS, TS, Rust, Dart, React, Vue, and more")]
+#[command(
+    about = "OmniLang compiler — transpile .omni to Python, JS, TS, Rust, Dart, React, Vue, and more"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -89,10 +91,18 @@ fn main() {
 
     let result = match cli.command {
         Command::Analyse { files, format } => cmd_analyse(files, &format),
-        Command::Build { files, target, output } => cmd_build(files, target, &output),
+        Command::Build {
+            files,
+            target,
+            output,
+        } => cmd_build(files, target, &output),
         Command::Run { file, target } => cmd_run(file, target),
         Command::Create { name, r#type } => cmd_create(&name, &r#type),
-        Command::Watch { file, target, output } => cmd_watch(&file, &target, &output),
+        Command::Watch {
+            file,
+            target,
+            output,
+        } => cmd_watch(&file, &target, &output),
     };
 
     if let Err(e) = result {
@@ -119,7 +129,9 @@ fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, Str
         // Basename (e.g. "Counter.omni")
         if let Some(basename) = Path::new(filepath).file_name() {
             let basename_str = basename.to_string_lossy().to_string();
-            mapping.entry(basename_str.clone()).or_insert_with(|| filepath.clone());
+            mapping
+                .entry(basename_str.clone())
+                .or_insert_with(|| filepath.clone());
 
             // Stem (e.g. "Counter")
             if let Some(stem) = Path::new(&basename_str).file_stem() {
@@ -139,10 +151,7 @@ fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, Str
             }
 
             // Compute relative path
-            if let Some(rel_simple) = pathdiff::diff_paths(
-                Path::new(target_path),
-                importer_dir,
-            ) {
+            if let Some(rel_simple) = pathdiff::diff_paths(Path::new(target_path), importer_dir) {
                 let rel_path = rel_simple.to_string_lossy().replace('\\', "/");
 
                 // Map "./Component.omni" → full path
@@ -238,10 +247,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
 
         // Summary — matches Python line 236-243
         if error_count > 0 {
-            println!(
-                "\n{} diagnostic(s) — {error_count} error(s)",
-                diags.len()
-            );
+            println!("\n{} diagnostic(s) — {error_count} error(s)", diags.len());
             std::process::exit(1);
         }
         if warn_count > 0 {
@@ -258,11 +264,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
 // Build — mirrors Python cmd_build (cli.py:144)
 // ═══════════════════════════════════════════════════════════
 
-fn cmd_build(
-    files: Vec<String>,
-    target: Option<String>,
-    output_dir: &str,
-) -> anyhow::Result<()> {
+fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> anyhow::Result<()> {
     let sources = api::collect_sources(&files)?;
     let target_str = api::detect_target(&sources, target.as_deref());
     let path_mapping = derive_path_mapping(&sources);
@@ -276,22 +278,7 @@ fn cmd_build(
 
     // Python checks result.success (cli.py:173)
     if !data["success"].as_bool().unwrap_or(false) {
-        let msg = data["errors"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .map(|v| {
-                        // Support both structured Diagnostic objects ({message, ...})
-                        // and legacy plain-string errors.
-                        v.get("message")
-                            .and_then(|m| m.as_str())
-                            .or_else(|| v.as_str())
-                            .unwrap_or("?")
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .unwrap_or_else(|| "Compilation failed.".to_string());
+        let msg = extract_error_messages(&data["errors"]);
         anyhow::bail!("{msg}");
     }
 
@@ -316,6 +303,25 @@ fn cmd_build(
     }
 
     Ok(())
+}
+
+/// Extract human-readable error messages from JSON errors array.
+/// Supports both structured Diagnostic objects ({message, ...}) and legacy plain-string errors.
+fn extract_error_messages(errors: &serde_json::Value) -> String {
+    errors
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|v| {
+                    v.get("message")
+                        .and_then(|m| m.as_str())
+                        .or_else(|| v.as_str())
+                        .unwrap_or("?")
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_else(|| "Compilation failed.".to_string())
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -368,22 +374,7 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     if !data["success"].as_bool().unwrap_or(false) {
-        let msg = data["errors"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .map(|v| {
-                        // Support both structured Diagnostic objects ({message, ...})
-                        // and legacy plain-string errors.
-                        v.get("message")
-                            .and_then(|m| m.as_str())
-                            .or_else(|| v.as_str())
-                            .unwrap_or("?")
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .unwrap_or_else(|| "Compilation failed.".to_string());
+        let msg = extract_error_messages(&data["errors"]);
         anyhow::bail!("{msg}");
     }
 
@@ -480,9 +471,7 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
             }
         }
         "js" => {
-            let status = std::process::Command::new("node")
-                .arg(&out_path)
-                .status()?;
+            let status = std::process::Command::new("node").arg(&out_path).status()?;
             if !status.success() {
                 std::process::exit(status.code().unwrap_or(1));
             }
@@ -638,7 +627,12 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default();
             let secs = now.as_secs() % 86400;
-            format!("{:02}:{:02}:{:02}", secs / 3600, (secs % 3600) / 60, secs % 60)
+            format!(
+                "{:02}:{:02}:{:02}",
+                secs / 3600,
+                (secs % 3600) / 60,
+                secs % 60
+            )
         };
 
         // Read source — Python cli.py:517
@@ -654,7 +648,8 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         sources.insert(file.to_string(), source);
         let path_mapping = derive_path_mapping(&sources);
 
-        let result_json = omnilang::compile_multi_to_target(sources, t.clone(), path_mapping, false);
+        let result_json =
+            omnilang::compile_multi_to_target(sources, t.clone(), path_mapping, false);
         let data: serde_json::Value = match serde_json::from_str(&result_json) {
             Ok(v) => v,
             Err(e) => {

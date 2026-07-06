@@ -109,7 +109,8 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
                 .collect();
             format!("{}.{}({})", union_type, variant, entries.join(", "))
         }
-        ExprIR::MethodCallExpr { is_optional: _,
+        ExprIR::MethodCallExpr {
+            is_optional: _,
             object,
             method,
             args,

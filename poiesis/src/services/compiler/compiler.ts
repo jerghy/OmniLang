@@ -4,10 +4,13 @@
 // source is valid, falling back to api.compile.compile() for the original content.
 
 import { rustCompiler } from "../../commands/rustCompiler";
-import { generateOmniSource } from "../codegen";
+import { generateOmniSource } from "../codegen/pipeline";
 import { api } from "../../commands";
 import type { CompileResponse, CompileError } from "../../commands/types";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
+import { Logger } from "../../lib/utils/logger";
+
+const log = new Logger({ prefix: "compileProject" });
 
 export interface CompileProjectParams {
   elements: ElementData[];
@@ -65,13 +68,7 @@ export async function compileProject(
     .filter(e => e.severity === 'warning')
     .map(e => e.message);
   if (pipelineWarnings.length > 0) {
-    console.warn('[compileProject] Codegen warnings:', pipelineWarnings);
-  }
-  const pipelineFatalErrors = genResult.errors
-    .filter(e => e.severity === 'fatal')
-    .map(e => ({ file: '', line: 0, col: 0, severity: 'error' as const, code: e.code, message: `[${e.module}] ${e.message}`, suggestion: null }));
-  if (pipelineFatalErrors.length > 0) {
-    console.error('[compileProject] Codegen fatal errors:', pipelineFatalErrors);
+    log.warn('Codegen warnings:', pipelineWarnings);
   }
 
   if (genResult.value) {
@@ -126,9 +123,25 @@ export async function compileProject(
       };
     }
   } else {
-    // No generated source — compile original, but surface pipeline errors
+    // No generated source — compile original, but surface pipeline errors.
+    // generateOmniSource forces value=null when any fatal error exists, so
+    // pipeline fatal errors only matter here in the else branch.
+    const pipelineFatalErrors = genResult.errors
+      .filter(e => e.severity === 'fatal')
+      .map(e => ({
+        file: '',
+        line: 0,
+        col: 0,
+        endLine: undefined,
+        endCol: undefined,
+        severity: 'error' as const,
+        code: e.code,
+        message: `[${e.module}] ${e.message}`,
+        suggestion: null as string | null,
+      }));
     if (pipelineFatalErrors.length > 0) {
-      validationErrors = pipelineFatalErrors as CompileError[];
+      log.error('Codegen fatal errors:', pipelineFatalErrors);
+      validationErrors = pipelineFatalErrors;
     }
     compileResponse = await api.compile.compile(content, params.target, undefined, params.isRunning);
   }

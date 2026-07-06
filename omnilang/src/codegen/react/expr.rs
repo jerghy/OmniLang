@@ -371,7 +371,10 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
                             } else {
                                 format!("const {{ {} }} = _v; ", bindings.join(", "))
                             };
-                            format!("if (_v._variant === \"{}\") {{ {}{}; }}", name, destructure, body)
+                            format!(
+                                "if (_v._variant === \"{}\") {{ {}{}; }}",
+                                name, destructure, body
+                            )
                         }
                         MatchPatternKindIR::Wildcard => {
                             format!("return {};", body)
@@ -474,7 +477,10 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
         "math_random_int" => {
             let min = args.first().map(|s| s.as_str()).unwrap_or("0");
             let max = args.get(1).map(|s| s.as_str()).unwrap_or("100");
-            format!("Math.floor(Math.random() * ({} - {} + 1)) + {}", max, min, min)
+            format!(
+                "Math.floor(Math.random() * ({} - {} + 1)) + {}",
+                max, min, min
+            )
         }
         "math_pow" => format!("Math.pow({})", args.join(", ")),
         "math_clamp" => {
@@ -549,7 +555,10 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
             let text = args.first().map(|s| s.as_str()).unwrap_or("");
             let pattern = args.get(1).map(|s| s.as_str()).unwrap_or("");
             let replacement = args.get(2).map(|s| s.as_str()).unwrap_or("");
-            format!("({}).replace(new RegExp({}, 'g'), {})", text, pattern, replacement)
+            format!(
+                "({}).replace(new RegExp({}, 'g'), {})",
+                text, pattern, replacement
+            )
         }
         "regex_search" => {
             let text = args.first().map(|s| s.as_str()).unwrap_or("");
@@ -600,11 +609,17 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
         "encode_base64_decode" => format!("atob({})", args.join(", ")),
         "encode_hex_encode" => {
             let s = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("Array.from({}, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')", s)
+            format!(
+                "Array.from({}, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')",
+                s
+            )
         }
         "encode_hex_decode" => {
             let s = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("({}).match(/.{{1,2}}/g).map(b => String.fromCharCode(parseInt(b, 16))).join('')", s)
+            format!(
+                "({}).match(/.{{1,2}}/g).map(b => String.fromCharCode(parseInt(b, 16))).join('')",
+                s
+            )
         }
         _ => format!("{}({})", name, args.join(", ")),
     }

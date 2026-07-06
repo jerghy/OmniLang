@@ -99,7 +99,8 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
             entries.insert(0, format!("\"_variant\": \"{}\"", variant));
             format!("{{{}}}", entries.join(", "))
         }
-        ExprIR::MethodCallExpr { is_optional: _,
+        ExprIR::MethodCallExpr {
+            is_optional: _,
             object,
             method,
             args,

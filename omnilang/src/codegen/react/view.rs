@@ -123,10 +123,8 @@ pub(super) fn gen_view_node_tsx(
                             if classes.is_empty() {
                                 // All classes are handled by bindings — skip static className
                             } else if classes.len() > 1 {
-                                let parts: Vec<String> = classes
-                                    .iter()
-                                    .map(|c| format!("styles['{}']", c))
-                                    .collect();
+                                let parts: Vec<String> =
+                                    classes.iter().map(|c| format!("styles['{}']", c)).collect();
                                 attrs.push(format!("className={{{}}}", parts.join(" + ' ' + ")));
                             } else {
                                 attrs.push(format!("className={{styles['{}']}}", classes[0]));
@@ -408,7 +406,8 @@ pub(super) fn gen_view_node_tsx(
                 }
                 if !dynamic_parts.is_empty() {
                     if !new_class.is_empty() {
-                        new_class = format!("({}) + ' ' + `{}`", new_class, dynamic_parts.join(" "));
+                        new_class =
+                            format!("({}) + ' ' + `{}`", new_class, dynamic_parts.join(" "));
                     } else {
                         new_class = format!("`{}`", dynamic_parts.join(" "));
                     }
@@ -604,7 +603,9 @@ pub(super) fn gen_view_node_tsx(
             // Skip empty text nodes and text containing only syntax artifacts from IR lowering
             let text_trimmed = text.trim();
             if text_trimmed.is_empty()
-                || text_trimmed.chars().all(|c| c.is_ascii_punctuation() || c.is_ascii_whitespace())
+                || text_trimmed
+                    .chars()
+                    .all(|c| c.is_ascii_punctuation() || c.is_ascii_whitespace())
             {
                 return;
             }
@@ -666,10 +667,7 @@ fn format_style_value_expr(val: &serde_json::Value) -> String {
             }
             // $call
             if let Some(call_obj) = obj.get("$call").and_then(|v| v.as_object()) {
-                let fn_name = call_obj
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let fn_name = call_obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args_str = if let Some(args) = call_obj.get("args").and_then(|v| v.as_array()) {
                     let translated: Vec<String> =
                         args.iter().map(format_style_value_expr).collect();

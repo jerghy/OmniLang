@@ -11,7 +11,9 @@ use std::collections::HashMap;
 /// Structured diagnostic from the omnilang compiler (matches omnilang::error::Diagnostic JSON).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileDiagnostic {
+    #[serde(default)]
     pub severity: String,
+    #[serde(default)]
     pub code: String,
     pub message: String,
     #[serde(default)]
@@ -32,8 +34,6 @@ pub struct CompileDiagnostic {
 pub struct CompileResult {
     pub success: bool,
     pub files: HashMap<String, String>,
-    /// Structured diagnostics (post-H1 fix). Also accept legacy `Vec<String>`
-    /// for backward compatibility with older compiler versions.
     #[serde(default)]
     pub errors: Vec<CompileDiagnostic>,
     #[serde(default)]
@@ -41,14 +41,14 @@ pub struct CompileResult {
 }
 
 impl CompileResult {
-    /// Create a simple error result from a message string.
-    fn from_error(msg: &str) -> Self {
+    /// Create an error result from a single message string and error code.
+    fn from_error(msg: &str, code: &str) -> Self {
         CompileResult {
             success: false,
             files: HashMap::new(),
             errors: vec![CompileDiagnostic {
                 severity: "error".to_string(),
-                code: "E_IO".to_string(),
+                code: code.to_string(),
                 message: msg.to_string(),
                 file: None,
                 line: 0,
@@ -57,6 +57,29 @@ impl CompileResult {
                 end_col: 0,
                 suggestion: None,
             }],
+            warnings: vec![],
+        }
+    }
+
+    /// Create an error result from multiple message strings.
+    fn from_errors(errors: Vec<String>, code: &str) -> Self {
+        CompileResult {
+            success: false,
+            files: HashMap::new(),
+            errors: errors
+                .into_iter()
+                .map(|msg| CompileDiagnostic {
+                    severity: "error".to_string(),
+                    code: code.to_string(),
+                    message: msg,
+                    file: None,
+                    line: 0,
+                    col: 0,
+                    end_line: 0,
+                    end_col: 0,
+                    suggestion: None,
+                })
+                .collect(),
             warnings: vec![],
         }
     }
@@ -138,14 +161,25 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
         }
     } else if project_dir.is_file() && project_dir.extension().map_or(false, |e| e == "omni") {
         // Also discover sibling .omni files for import resolution
-        let _file_stem = project_dir.file_stem().unwrap().to_string_lossy().to_string();
-        let name = project_dir.file_name().unwrap().to_string_lossy().to_string();
+        let _file_stem = project_dir
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let name = project_dir
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         match std::fs::read_to_string(project_dir) {
             Ok(content) => {
                 sources.insert(name, content);
             }
             Err(e) => {
-                return CompileResult::from_error(&format!("Cannot read {:?}: {}", project_dir, e));
+                return CompileResult::from_error(
+                    &format!("Cannot read {:?}: {}", project_dir, e),
+                    "E_IO",
+                );
             }
         }
         // Walk sibling directories to resolve imports
@@ -159,8 +193,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                 .into_iter()
                 .filter_map(|e| e.ok())
                 .filter(|e| {
-                    e.file_name().to_string_lossy().ends_with(".omni")
-                        && e.path() != project_dir
+                    e.file_name().to_string_lossy().ends_with(".omni") && e.path() != project_dir
                 })
             {
                 let path = entry.path().to_owned();
@@ -175,40 +208,31 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
             }
         }
     } else {
-        return CompileResult::from_error(&format!("Project path not found: {}", project_path));
+        return CompileResult::from_error(
+            &format!("Project path not found: {}", project_path),
+            "E_NOT_FOUND",
+        );
     }
 
     if sources.is_empty() {
         let mut all_errors = discover_errors;
         all_errors.push("No .omni source files found.".to_string());
-        return CompileResult {
-            success: false,
-            files: HashMap::new(),
-            errors: all_errors.into_iter().map(|msg| CompileDiagnostic {
-                severity: "error".to_string(),
-                code: "E_IO".to_string(),
-                message: msg,
-                file: None,
-                line: 0,
-                col: 0,
-                end_line: 0,
-                end_col: 0,
-                suggestion: None,
-            }).collect(),
-            warnings: vec![],
-        };
+        return CompileResult::from_errors(all_errors, "E_IO");
     }
 
     // Build path mapping for cross-file imports
     let path_mapping = build_path_mapping(&sources);
 
     // Compile via omnilang crate
-    let result_json = omnilang::compile_multi_to_target(sources, codegen_target, path_mapping, false);
+    let result_json =
+        omnilang::compile_multi_to_target(sources, codegen_target, path_mapping, false);
 
     // Parse result JSON
     match serde_json::from_str::<CompileResult>(&result_json) {
         Ok(result) => result,
-        Err(e) => CompileResult::from_error(&format!("Failed to parse compile result: {}", e)),
+        Err(e) => {
+            CompileResult::from_error(&format!("Failed to parse compile result: {}", e), "E_PARSE")
+        }
     }
 }
 
@@ -428,7 +452,10 @@ fn get_project_dir(state: tauri::State<ProjectState>) -> Result<String, String> 
 }
 
 #[tauri::command]
-fn open_project(path: String, state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
+fn open_project(
+    path: String,
+    state: tauri::State<ProjectState>,
+) -> Result<serde_json::Value, String> {
     let p = std::path::Path::new(&path);
     if !p.exists() {
         return Err(format!("Project path not found: {}", path));
@@ -450,7 +477,11 @@ fn save_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, 
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    let snapshot = state.store_snapshot.lock().map_err(|e| e.to_string())?.clone();
+    let snapshot = state
+        .store_snapshot
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
     let project_json_path = std::path::Path::new(&dir).join("project.json");
     std::fs::write(&project_json_path, &snapshot)
         .map_err(|e| format!("Failed to write project.json: {}", e))?;
@@ -511,8 +542,7 @@ fn write_file(
     let clean = sanitize_path(&path)?;
     let full = std::path::Path::new(&dir).join(&clean);
     if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create dir: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {}", e))?;
     }
     std::fs::write(&full, &content)
         .map_err(|e| format!("Failed to write {}: {}", full.display(), e))?;
@@ -534,7 +564,11 @@ fn sync_store_state(
 
 #[tauri::command]
 fn get_store_snapshot(state: tauri::State<ProjectState>) -> Result<String, String> {
-    let snap = state.store_snapshot.lock().map_err(|e| e.to_string())?.clone();
+    let snap = state
+        .store_snapshot
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
     if snap.is_empty() {
         // If no state synced yet, return empty JSON object
         Ok("{}".to_string())
@@ -568,7 +602,9 @@ fn verify_pid_roundtrip(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    let full = std::path::Path::new(&dir).join(&file);
+    // Prevent path traversal.
+    let clean = sanitize_path(&file)?;
+    let full = std::path::Path::new(&dir).join(&clean);
     let source = std::fs::read_to_string(&full)
         .map_err(|e| format!("Failed to read {}: {}", full.display(), e))?;
 

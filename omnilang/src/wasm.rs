@@ -141,14 +141,19 @@ pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> Stri
             .to_string();
         }
     };
-    crate::compile_multi_to_target(sources, crate::codegen::Target::OmniView, HashMap::new(), opts.editor_mode)
+    crate::compile_multi_to_target(
+        sources,
+        crate::codegen::Target::OmniView,
+        HashMap::new(),
+        opts.editor_mode,
+    )
 }
 
 /// Stateful compiler instance that caches sources and compilation results across calls.
 #[wasm_bindgen]
 pub struct OmniCompiler {
     sources: HashMap<String, String>,
-    cached_compile_result: Option<(String, String)>,  // (options_json, result)
+    cached_compile_result: Option<(String, String)>, // (options_json, result)
     cached_diags_result: Option<String>,
 }
 
@@ -196,8 +201,9 @@ impl OmniCompiler {
                 return cached.clone();
             }
         }
-        let result = if let Some(source) = self.sources.values().next() {
+        let result = if self.sources.len() == 1 {
             // Single file: use compile_omniview_full for full result with IR
+            let source = self.sources.values().next().expect("len checked above");
             let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
             let full = crate::compile_omniview_full(source, opts.editor_mode);
             serde_json::to_string(&full).unwrap_or_else(|e| {
@@ -261,10 +267,8 @@ mod tests {
 
     #[test]
     fn test_compile_to_omniview_full_success() {
-        let result = compile_to_omniview_full(
-            "component App { view { Text { \"hello\" } } }",
-            "{}"
-        );
+        let result =
+            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", "{}");
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
@@ -285,13 +289,10 @@ mod tests {
 
     #[test]
     fn test_compile_to_omniview_full_editor_mode() {
-        let result1 = compile_to_omniview_full(
-            "component App { view { Text { \"hi\" } } }",
-            "{}"
-        );
+        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", "{}");
         let result2 = compile_to_omniview_full(
             "component App { view { Text { \"hi\" } } }",
-            "{\"editor_mode\": true}"
+            "{\"editor_mode\": true}",
         );
         let p1: serde_json::Value = serde_json::from_str(&result1).unwrap();
         let p2: serde_json::Value = serde_json::from_str(&result2).unwrap();
@@ -299,20 +300,33 @@ mod tests {
         assert!(p1["success"].as_bool().unwrap());
         assert!(p2["success"].as_bool().unwrap());
         // Editor mode should produce different JS (adds debug wrappers)
-        assert_ne!(p1["files"]["js"].as_str().unwrap(), p2["files"]["js"].as_str().unwrap());
+        assert_ne!(
+            p1["files"]["js"].as_str().unwrap(),
+            p2["files"]["js"].as_str().unwrap()
+        );
     }
 
     #[test]
     fn test_compile_multi_to_omniview_single_file() {
         let sources = serde_json::json!({
             "main.omni": "component App { view { Text { \"multi\" } } }"
-        }).to_string();
+        })
+        .to_string();
         let result = compile_multi_to_omniview(&sources, "{}");
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         // Multi-file compile succeeds or has diagnostic errors (both valid outcomes)
-        let has_output = parsed["files"].as_object().map(|o| !o.is_empty()).unwrap_or(false);
-        let has_errors = parsed["errors"].as_array().map(|a| !a.is_empty()).unwrap_or(false);
-        assert!(has_output || has_errors, "Expected either files or errors in multi compile result");
+        let has_output = parsed["files"]
+            .as_object()
+            .map(|o| !o.is_empty())
+            .unwrap_or(false);
+        let has_errors = parsed["errors"]
+            .as_array()
+            .map(|a| !a.is_empty())
+            .unwrap_or(false);
+        assert!(
+            has_output || has_errors,
+            "Expected either files or errors in multi compile result"
+        );
     }
 
     #[test]
@@ -334,14 +348,20 @@ mod tests {
         let result = c.compile_to_omniview("{}");
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
-        assert!(parsed["errors"].as_array().unwrap().iter()
+        assert!(parsed["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
             .any(|e| e["message"].as_str().unwrap().contains("no source")));
     }
 
     #[test]
     fn test_omni_compiler_single_file_compile() {
         let mut c = OmniCompiler::new();
-        c.upsert_source("app.omni".into(), "component App { view { Text { \"hello\" } } }".into());
+        c.upsert_source(
+            "app.omni".into(),
+            "component App { view { Text { \"hello\" } } }".into(),
+        );
         let result = c.compile_to_omniview("{}");
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
@@ -351,13 +371,19 @@ mod tests {
     #[test]
     fn test_omni_compiler_cache_invalidation() {
         let mut c = OmniCompiler::new();
-        c.upsert_source("app.omni".into(), "component App { view { Text { \"v1\" } } }".into());
+        c.upsert_source(
+            "app.omni".into(),
+            "component App { view { Text { \"v1\" } } }".into(),
+        );
         let r1 = c.compile_to_omniview("{}");
         // Same source, same options — should hit cache
         let r2 = c.compile_to_omniview("{}");
         assert_eq!(r1, r2);
         // Change source — should invalidate
-        c.upsert_source("app.omni".into(), "component App { view { Text { \"v2\" } } }".into());
+        c.upsert_source(
+            "app.omni".into(),
+            "component App { view { Text { \"v2\" } } }".into(),
+        );
         let r3 = c.compile_to_omniview("{}");
         assert_ne!(r1, r3);
     }
@@ -365,7 +391,10 @@ mod tests {
     #[test]
     fn test_omni_compiler_diagnostics() {
         let mut c = OmniCompiler::new();
-        c.upsert_source("app.omni".into(), "component App { view { Text { \"ok\" } } }".into());
+        c.upsert_source(
+            "app.omni".into(),
+            "component App { view { Text { \"ok\" } } }".into(),
+        );
         let d = c.diagnostics();
         let parsed: serde_json::Value = serde_json::from_str(&d).unwrap();
         assert!(parsed["success"].as_bool().unwrap());

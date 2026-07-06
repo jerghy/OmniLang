@@ -69,7 +69,11 @@ impl ReactCodegen {
             for (prop_name, prop_type) in &comp.props {
                 let ts_type =
                     super::javascript::js_type(&prop_type.kind, &prop_type.type_args, true);
-                let optional = if comp.prop_defaults.contains_key(prop_name) { "?" } else { "" };
+                let optional = if comp.prop_defaults.contains_key(prop_name) {
+                    "?"
+                } else {
+                    ""
+                };
                 w.emit(&format!("  {}{}: {};", prop_name, optional, ts_type));
             }
             for event_name in &comp.event_names {
@@ -103,11 +107,8 @@ impl ReactCodegen {
 
         // Build set of all signal names (component state + store signals + computeds)
         // so mutations use setter calls instead of direct assignment.
-        let mut signal_names: HashSet<String> = comp
-            .states
-            .iter()
-            .map(|s| s.name.clone())
-            .collect();
+        let mut signal_names: HashSet<String> =
+            comp.states.iter().map(|s| s.name.clone()).collect();
         // Also include store-ref aliases + their signal names
         // Build a map from bare store signal name → qualified StoreName.signalName
         let mut store_signal_map: HashMap<String, String> = HashMap::new();
@@ -116,17 +117,16 @@ impl ReactCodegen {
             if let Some(store) = ir.all_stores().get(store_ref.as_str()) {
                 for sig_name in store.signals.keys() {
                     signal_names.insert(sig_name.clone());
-                    store_signal_map.insert(
-                        sig_name.clone(),
-                        format!("{}.{}", store_ref, sig_name),
-                    );
+                    store_signal_map
+                        .insert(sig_name.clone(), format!("{}.{}", store_ref, sig_name));
                 }
             }
         }
 
         // Motion animation names — used to filter motion refs from event handlers
         // Include both component-level and module-level motions
-        let mut motion_names: HashSet<String> = comp.motions.iter().map(|m| m.name.clone()).collect();
+        let mut motion_names: HashSet<String> =
+            comp.motions.iter().map(|m| m.name.clone()).collect();
         for module in ir.modules.values() {
             for motion in &module.motions {
                 motion_names.insert(motion.name.clone());
@@ -168,9 +168,13 @@ impl ReactCodegen {
                 .collect();
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
-            let is_async = fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+            let is_async =
+                fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
             let async_prefix = if is_async { "async " } else { "" };
-            w.emit(&format!("const {} = {}({}) => {{", fun.name, async_prefix, params_str));
+            w.emit(&format!(
+                "const {} = {}({}) => {{",
+                fun.name, async_prefix, params_str
+            ));
             w.indent();
             // Emit body into a temp writer for post-processing
             let mut body_w = crate::codegen::CodeWriter::new();
@@ -267,7 +271,11 @@ impl ReactCodegen {
                 })
                 .collect();
             let deps_str = deps.join(", ");
-            let body_has_await = effect.body.statements.iter().any(|s| stmt_contains_await(s));
+            let body_has_await = effect
+                .body
+                .statements
+                .iter()
+                .any(|s| stmt_contains_await(s));
             if body_has_await {
                 w.emit("useEffect(() => {");
                 w.indent();
@@ -339,11 +347,8 @@ impl ReactCodegen {
 
         // Computed values (useMemo)
         // Build a list of "signal-like" identifiers (state vars, store refs, other computeds)
-        let mut known_signal_names: Vec<String> = comp
-            .states
-            .iter()
-            .map(|s| s.name.clone())
-            .collect();
+        let mut known_signal_names: Vec<String> =
+            comp.states.iter().map(|s| s.name.clone()).collect();
         known_signal_names.extend(comp.store_refs.iter().cloned());
         known_signal_names.extend(comp.computeds.iter().map(|c| c.name.clone()));
 
@@ -381,10 +386,7 @@ impl ReactCodegen {
                     tail.as_ref(),
                     ExprIR::LiteralExpr { value } if value == &serde_json::Value::Null
                 ) {
-                    w.emit(&format!(
-                        "return {};",
-                        expr::format_expr_ir_tsx(tail)
-                    ));
+                    w.emit(&format!("return {};", expr::format_expr_ir_tsx(tail)));
                 }
             } else {
                 w.emit(&format!(
@@ -409,9 +411,13 @@ impl ReactCodegen {
                 .collect();
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
-            let is_async = fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+            let is_async =
+                fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
             let async_prefix = if is_async { "async " } else { "" };
-            w.emit(&format!("const {} = {}({}) => {{", fun.name, async_prefix, params_str));
+            w.emit(&format!(
+                "const {} = {}({}) => {{",
+                fun.name, async_prefix, params_str
+            ));
             w.indent();
             // Emit body into temp writer for post-processing
             let mut body_w = crate::codegen::CodeWriter::new();
@@ -464,7 +470,9 @@ impl ReactCodegen {
             }
             for module in ir.modules.values() {
                 for m in &module.motions {
-                    motion_map.entry(m.name.clone()).or_insert_with(|| m.body.clone());
+                    motion_map
+                        .entry(m.name.clone())
+                        .or_insert_with(|| m.body.clone());
                 }
             }
             motion::emit_motion_effects_tsx(&mut w, view, &motion_map, &signal_names);
@@ -597,7 +605,11 @@ impl ReactCodegen {
         // Actions: each becomes a useCallback function calling signal setters
         let mut return_keys: Vec<String> = Vec::new();
         for action in &store.actions {
-            let params: Vec<String> = action.params.iter().map(|p| escape_js_ident(&p.name)).collect();
+            let params: Vec<String> = action
+                .params
+                .iter()
+                .map(|p| escape_js_ident(&p.name))
+                .collect();
             let params_str = params.join(", ");
             // If the action name conflicts with a signal setter, rename the local variable
             let local_action_name = if signal_setter_names.contains(&action.name) {
@@ -688,14 +700,69 @@ fn collect_view_child_components_inner(
 /// Escape JavaScript reserved words that cannot be used as parameter/variable names.
 fn escape_js_ident(name: &str) -> String {
     let reserved = [
-        "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
-        "char", "class", "const", "continue", "debugger", "default", "delete", "do",
-        "double", "else", "enum", "export", "extends", "false", "final", "finally",
-        "float", "for", "function", "goto", "if", "implements", "import", "in",
-        "instanceof", "int", "interface", "let", "long", "native", "new", "null",
-        "package", "private", "protected", "public", "return", "short", "static",
-        "super", "switch", "synchronized", "this", "throw", "throws", "transient",
-        "true", "try", "typeof", "var", "void", "volatile", "while", "with", "yield",
+        "abstract",
+        "arguments",
+        "await",
+        "boolean",
+        "break",
+        "byte",
+        "case",
+        "catch",
+        "char",
+        "class",
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "double",
+        "else",
+        "enum",
+        "export",
+        "extends",
+        "false",
+        "final",
+        "finally",
+        "float",
+        "for",
+        "function",
+        "goto",
+        "if",
+        "implements",
+        "import",
+        "in",
+        "instanceof",
+        "int",
+        "interface",
+        "let",
+        "long",
+        "native",
+        "new",
+        "null",
+        "package",
+        "private",
+        "protected",
+        "public",
+        "return",
+        "short",
+        "static",
+        "super",
+        "switch",
+        "synchronized",
+        "this",
+        "throw",
+        "throws",
+        "transient",
+        "true",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "volatile",
+        "while",
+        "with",
+        "yield",
     ];
     if reserved.contains(&name) {
         format!("{}_", name)
@@ -708,8 +775,12 @@ fn escape_js_ident(name: &str) -> String {
 fn stmt_contains_await(stmt: &StatementIR) -> bool {
     match stmt {
         StatementIR::ExprStmtIR { expr } => expr_contains_await(expr),
-        StatementIR::LetStmtIR { value, .. } => value.as_ref().map_or(false, |v| expr_contains_await(v)),
-        StatementIR::ReturnStmtIR { value } => value.as_ref().map_or(false, |v| expr_contains_await(v)),
+        StatementIR::LetStmtIR { value, .. } => {
+            value.as_ref().map_or(false, |v| expr_contains_await(v))
+        }
+        StatementIR::ReturnStmtIR { value } => {
+            value.as_ref().map_or(false, |v| expr_contains_await(v))
+        }
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -744,9 +815,7 @@ fn stmt_contains_await(stmt: &StatementIR) -> bool {
         } => {
             expr_contains_await(iterable) || body.statements.iter().any(|s| stmt_contains_await(s))
         }
-        StatementIR::BlockStmtIR { body } => {
-            body.statements.iter().any(|s| stmt_contains_await(s))
-        }
+        StatementIR::BlockStmtIR { body } => body.statements.iter().any(|s| stmt_contains_await(s)),
         StatementIR::ThrowStmtIR { expr } => expr_contains_await(expr),
         StatementIR::TryCatchStmtIR {
             try_body,
@@ -797,8 +866,9 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
         ExprIR::MethodCallExpr { object, args, .. } => {
             expr_contains_await(object) || args.iter().any(|a| expr_contains_await(a))
         }
-        ExprIR::FieldAccessExpr { object, .. }
-        | ExprIR::OptionalChainExpr { object, .. } => expr_contains_await(object),
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            expr_contains_await(object)
+        }
         ExprIR::StoreFieldAccessExpr { call_args, .. } => {
             call_args.iter().any(|a| expr_contains_await(a))
         }
@@ -814,7 +884,8 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
             if expr_contains_await(matched) {
                 return true;
             }
-            arms.iter().any(|arm| arm.body.statements.iter().any(|s| stmt_contains_await(s)))
+            arms.iter()
+                .any(|arm| arm.body.statements.iter().any(|s| stmt_contains_await(s)))
         }
         ExprIR::VariantLiteral { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::StructExpr { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),

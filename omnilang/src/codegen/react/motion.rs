@@ -4,9 +4,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::codegen::react::expr;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
-use crate::codegen::react::expr;
 
 /// Emit React hooks for @enter motion triggers found in the view tree.
 ///
@@ -30,7 +30,8 @@ pub(super) fn emit_motion_effects_tsx(
     }
 
     // Filter to only those we have definitions for
-    let defined_refs: HashSet<&String> = motion_refs.iter()
+    let defined_refs: HashSet<&String> = motion_refs
+        .iter()
         .filter(|name| motion_bodies.contains_key(name.as_str()))
         .collect();
     if defined_refs.is_empty() {
@@ -176,7 +177,11 @@ fn format_keyframes(kf: &KeyframeIR) -> String {
 
     // Sort stops by position
     let mut sorted_stops = kf.stops.clone();
-    sorted_stops.sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap_or(std::cmp::Ordering::Equal));
+    sorted_stops.sort_by(|a, b| {
+        a.position
+            .partial_cmp(&b.position)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     for stop in &sorted_stops {
         items.push(format_stop(stop, kf.stops.len() <= 2));
@@ -187,9 +192,9 @@ fn format_keyframes(kf: &KeyframeIR) -> String {
 
 /// Format a single keyframe stop into a JS keyframe object like `{opacity:0,transform:"...",offset:0}`.
 fn format_stop(stop: &KeyframeStopIR, is_binary: bool) -> String {
-    let mut css_props: Vec<String> = Vec::new();      // name:value
+    let mut css_props: Vec<String> = Vec::new(); // name:value
     let mut transform_parts: Vec<String> = Vec::new(); // translateX(...) etc
-    let mut filter_parts: Vec<String> = Vec::new();   // blur(...) etc
+    let mut filter_parts: Vec<String> = Vec::new(); // blur(...) etc
 
     for (prop, value) in &stop.properties {
         let val_str = expr::format_expr_ir_tsx(value);
@@ -251,23 +256,49 @@ fn format_stop(stop: &KeyframeStopIR, is_binary: bool) -> String {
 
 /// Properties that need `px` suffix in WAAPI keyframes when value is numeric.
 fn is_length_prop(prop: &str) -> bool {
-    matches!(prop,
-        "width" | "height" | "margin" | "padding" | "borderRadius" |
-        "borderWidth" | "marginTop" | "marginRight" | "marginBottom" | "marginLeft" |
-        "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft" |
-        "borderTopLeftRadius" | "borderTopRightRadius" |
-        "borderBottomLeftRadius" | "borderBottomRightRadius" |
-        "gap" | "rowGap" | "columnGap" |
-        "maxWidth" | "minWidth" | "maxHeight" | "minHeight" |
-        "top" | "left" | "right" | "bottom" |
-        "fontSize" | "letterSpacing" | "wordSpacing"
+    matches!(
+        prop,
+        "width"
+            | "height"
+            | "margin"
+            | "padding"
+            | "borderRadius"
+            | "borderWidth"
+            | "marginTop"
+            | "marginRight"
+            | "marginBottom"
+            | "marginLeft"
+            | "paddingTop"
+            | "paddingRight"
+            | "paddingBottom"
+            | "paddingLeft"
+            | "borderTopLeftRadius"
+            | "borderTopRightRadius"
+            | "borderBottomLeftRadius"
+            | "borderBottomRightRadius"
+            | "gap"
+            | "rowGap"
+            | "columnGap"
+            | "maxWidth"
+            | "minWidth"
+            | "maxHeight"
+            | "minHeight"
+            | "top"
+            | "left"
+            | "right"
+            | "bottom"
+            | "fontSize"
+            | "letterSpacing"
+            | "wordSpacing"
     )
 }
 
 /// Check if a formatted JS value string is a bare number (not quoted).
 fn is_numeric_str(s: &str) -> bool {
-    !s.starts_with('"') && !s.starts_with('\'') &&
-    s.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+')
+    !s.starts_with('"')
+        && !s.starts_with('\'')
+        && s.chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+')
 }
 
 /// Format playback options into a WAAPI-compatible options object.
@@ -334,28 +365,56 @@ fn translate_easing(ease: &EasingIR) -> String {
         EasingIR::CubicBezier { x1, y1, x2, y2 } => {
             format!("cubic-bezier({},{},{},{})", x1, y1, x2, y2)
         }
-        EasingIR::Spring { tension, friction, velocity } => {
+        EasingIR::Spring {
+            tension,
+            friction,
+            velocity,
+        } => {
             // Spring → approximate cubic-bezier based on parameters
             let _ = velocity;
-            let ratio = if *tension > 0.0 { *friction / *tension } else { 1.0 };
+            let ratio = if *tension > 0.0 {
+                *friction / *tension
+            } else {
+                1.0
+            };
             if ratio < 0.3 {
                 // Underdamped (bouncy)
                 let overshoot = (1.0 - ratio * 2.0).min(0.3);
-                format!("cubic-bezier(0.250,{},0.450,{})", 0.460 + overshoot, 0.940 + overshoot)
+                format!(
+                    "cubic-bezier(0.250,{},0.450,{})",
+                    0.460 + overshoot,
+                    0.940 + overshoot
+                )
             } else {
                 "cubic-bezier(0.250,0.460,0.450,0.940)".to_string()
             }
         }
-        EasingIR::Back { intensity, direction } => {
+        EasingIR::Back {
+            intensity,
+            direction,
+        } => {
             let dir = direction.as_deref().unwrap_or("Out");
             let i = intensity.min(2.0).max(0.5);
             match dir {
                 "In" => format!("cubic-bezier({},-{},0.735,0.045)", 0.600, 0.28 * i),
-                "InOut" => format!("cubic-bezier({},-{},0.265,{})", 0.680, 0.55 * i, (1.55 * i).min(1.8)),
-                _ => format!("cubic-bezier(0.175,{},0.320,{})", 0.885 * i.min(1.5), (1.275 * i.min(1.5)).min(2.0)),
+                "InOut" => format!(
+                    "cubic-bezier({},-{},0.265,{})",
+                    0.680,
+                    0.55 * i,
+                    (1.55 * i).min(1.8)
+                ),
+                _ => format!(
+                    "cubic-bezier(0.175,{},0.320,{})",
+                    0.885 * i.min(1.5),
+                    (1.275 * i.min(1.5)).min(2.0)
+                ),
             }
         }
-        EasingIR::Elastic { amplitude, period, direction } => {
+        EasingIR::Elastic {
+            amplitude,
+            period,
+            direction,
+        } => {
             // Elastic → approximate cubic-bezier
             let _ = amplitude;
             let _ = period;
@@ -415,7 +474,6 @@ fn translate_named_easing(name: &str) -> String {
     }
     .to_string()
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════
 // Below: unchanged helpers for @driven-by, @in-view, @scroll, @drag

@@ -50,15 +50,13 @@ pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, Strin
     }
 
     if source_files.is_empty() {
-        anyhow::bail!(
-            "No .omni files found. Specify file(s) or run from a project directory."
-        );
+        anyhow::bail!("No .omni files found. Specify file(s) or run from a project directory.");
     }
 
     let mut sources = HashMap::new();
     for f in &source_files {
-        let content =
-            std::fs::read_to_string(f).map_err(|e| anyhow::anyhow!("cannot read {}: {e}", f.display()))?;
+        let content = std::fs::read_to_string(f)
+            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", f.display()))?;
         let normalized = f.to_string_lossy().replace('\\', "/");
         sources.insert(normalized, content);
     }
@@ -94,7 +92,10 @@ pub fn detect_target(sources: &HashMap<String, String>, preferred: Option<&str>)
 ///   { "sources": { path: source, ... }, "path_mapping": { ... } }
 pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
     let sources: HashMap<String, String> = match request["sources"].as_object() {
-        Some(s) => s.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect(),
+        Some(s) => s
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+            .collect(),
         None => return serde_json::json!({ "success": false, "diagnostics": [] }),
     };
 

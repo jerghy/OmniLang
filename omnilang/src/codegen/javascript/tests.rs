@@ -1,6 +1,5 @@
 //! Unit tests for javascript codegen.
 
-
 #[allow(unused_imports)]
 use super::*;
 use crate::codegen::CodeWriter;

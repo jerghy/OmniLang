@@ -227,10 +227,12 @@ fn validate_cross_file(
                                 &pub_symbols,
                             ));
                         } else {
-                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
-                                "could not resolve import path '{}'",
-                                named.path
-                            )));
+                            errors.push(make_diag(
+                                Severity::Error,
+                                "E_IMPORT",
+                                file_path,
+                                format!("could not resolve import path '{}'", named.path),
+                            ));
                         }
                     }
                     ImportStmt::Namespace(ns) => {
@@ -245,10 +247,12 @@ fn validate_cross_file(
                                 )));
                             }
                         } else {
-                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
-                                "could not resolve import path '{}'",
-                                ns.path
-                            )));
+                            errors.push(make_diag(
+                                Severity::Error,
+                                "E_IMPORT",
+                                file_path,
+                                format!("could not resolve import path '{}'", ns.path),
+                            ));
                         }
                     }
                     ImportStmt::TypeOnly(ti) => {
@@ -263,10 +267,12 @@ fn validate_cross_file(
                                 &pub_symbols,
                             ));
                         } else {
-                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
-                                "could not resolve import path '{}'",
-                                ti.path
-                            )));
+                            errors.push(make_diag(
+                                Severity::Error,
+                                "E_IMPORT",
+                                file_path,
+                                format!("could not resolve import path '{}'", ti.path),
+                            ));
                         }
                     }
                     ImportStmt::Lib(_) => {
@@ -302,10 +308,12 @@ fn validate_cross_file(
                             )
                         });
                         if target_is_view {
-                            errors.push(make_diag(Severity::Error, "E_BOUNDARY", file_path, format!(
-                                "logic file cannot import view file '{}'",
-                                target
-                            )));
+                            errors.push(make_diag(
+                                Severity::Error,
+                                "E_BOUNDARY",
+                                file_path,
+                                format!("logic file cannot import view file '{}'", target),
+                            ));
                         }
                     }
                 }
@@ -331,20 +339,24 @@ fn validate_named_import(
     let target_symbols = match pub_symbols.get(target_path) {
         Some(s) => s,
         None => {
-            errors.push(make_diag(Severity::Error, "E_IMPORT", importing_file, format!(
-                "imported file '{}' not found in compilation",
-                target_path
-            )));
+            errors.push(make_diag(
+                Severity::Error,
+                "E_IMPORT",
+                importing_file,
+                format!("imported file '{}' not found in compilation", target_path),
+            ));
             return errors;
         }
     };
 
     for name in names {
         if !target_symbols.contains_key(name) {
-            errors.push(make_diag(Severity::Error, "E_VISIBILITY", importing_file, format!(
-                "'{}' is not pub-visible in '{}'",
-                name, target_path
-            )));
+            errors.push(make_diag(
+                Severity::Error,
+                "E_VISIBILITY",
+                importing_file,
+                format!("'{}' is not pub-visible in '{}'", name, target_path),
+            ));
         }
     }
 

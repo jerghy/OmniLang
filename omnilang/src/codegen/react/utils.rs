@@ -8,11 +8,9 @@ use crate::ir::*;
 /// Check if a StatementIR references a given identifier anywhere in its tree.
 fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
     match stmt {
-        StatementIR::LetStmtIR { value, .. } => {
-            value
-                .as_ref()
-                .map_or(false, |v| getter_expr_contains_ident(v, ident))
-        }
+        StatementIR::LetStmtIR { value, .. } => value
+            .as_ref()
+            .map_or(false, |v| getter_expr_contains_ident(v, ident)),
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -232,9 +230,7 @@ pub(super) fn to_react_tag(tag: &str) -> String {
         "TextArea" | "Textarea" => "textarea".into(),
         // For other PascalCase tags not in the map, lowercase the first letter
         // to avoid React treating them as component references.
-        t if t.chars().next().is_some_and(|c| c.is_uppercase()) => {
-            t.to_lowercase()
-        }
+        t if t.chars().next().is_some_and(|c| c.is_uppercase()) => t.to_lowercase(),
         t => t.to_string(),
     }
 }

@@ -37,6 +37,9 @@ class OmniCompilerCache {
   private cache = new Map<string, CacheEntry>();
   private lastOutput: CompileProjectOutput | null = null;
   private lastOutputTimestamp: number = 0;
+  /// Tracks consecutive failures across BOTH source-generation and WASM compilation stages.
+  /// Combined tracking is intentional — an upstream failure (bad source gen) often cascades
+  /// into downstream failures, so tracking them separately would mask real problems.
   private consecutiveFailures: number = 0;
   private static readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
   private static readonly MAX_STALE_FAILURES = 3; // show error after N consecutive failures
@@ -68,18 +71,9 @@ class OmniCompilerCache {
         genResult.errors.length > 0
           ? genResult.errors.map((e) => e.message)
           : ["No OmniLang source generated"];
-      this.consecutiveFailures++;
-      const staleAge = Date.now() - this.lastOutputTimestamp;
-      if (
-        this.lastOutput &&
-        this.consecutiveFailures < OmniCompilerCache.MAX_STALE_FAILURES &&
-        staleAge < OmniCompilerCache.MAX_STALE_AGE
-      ) {
-        log.warn(
-          `Source generation failed (${this.consecutiveFailures}/${OmniCompilerCache.MAX_STALE_FAILURES}), ` +
-          `returning stale output (${Math.round(staleAge / 1000)}s old)`,
-        );
-        return this.lastOutput;
+      const staleOutput = this.lastOutput;
+      if (staleOutput && this.recordFailureAndShouldReturnStale("Source generation")) {
+        return staleOutput;
       }
       return this.errorResult(msgs);
     }
@@ -96,25 +90,10 @@ class OmniCompilerCache {
     if (!result.success || !result.files) {
       const msgs =
         result.errors?.map((e) => e.message) ?? ["WASM compilation failed"];
-      this.consecutiveFailures++;
-      // Show stale output for transient failures, but escalate to error
-      // after N consecutive failures or if the last success is too old.
-      const staleAge = Date.now() - this.lastOutputTimestamp;
-      if (
-        this.lastOutput &&
-        this.consecutiveFailures < OmniCompilerCache.MAX_STALE_FAILURES &&
-        staleAge < OmniCompilerCache.MAX_STALE_AGE
-      ) {
-        log.warn(
-          `WASM compilation failed (${this.consecutiveFailures}/${OmniCompilerCache.MAX_STALE_FAILURES}), ` +
-          `returning stale output (${Math.round(staleAge / 1000)}s old)`,
-        );
-        return this.lastOutput;
+      const staleOutput = this.lastOutput;
+      if (staleOutput && this.recordFailureAndShouldReturnStale("WASM compilation")) {
+        return staleOutput;
       }
-      if (this.consecutiveFailures >= OmniCompilerCache.MAX_STALE_FAILURES) {
-        log.error(`WASM compilation failed ${this.consecutiveFailures} times — showing error`);
-      }
-      // Do NOT cache error results — transient failures should be retried
       return this.errorResult(msgs);
     }
 
@@ -151,6 +130,30 @@ class OmniCompilerCache {
         this.cache.delete(key);
       }
     }
+  }
+
+  /**
+   * Record a failure and determine whether to return stale output.
+   * Returns true when stale output is available and within age/retry limits.
+   * Returns false when the error should be surfaced to the user.
+   */
+  private recordFailureAndShouldReturnStale(stage: string): boolean {
+    this.consecutiveFailures++;
+    const staleAge = Date.now() - this.lastOutputTimestamp;
+    const withinRetryLimit = this.consecutiveFailures < OmniCompilerCache.MAX_STALE_FAILURES;
+    const withinAgeLimit = staleAge < OmniCompilerCache.MAX_STALE_AGE;
+
+    if (this.lastOutput && withinRetryLimit && withinAgeLimit) {
+      log.warn(
+        `${stage} failed (${this.consecutiveFailures}/${OmniCompilerCache.MAX_STALE_FAILURES}), ` +
+        `returning stale output (${Math.round(staleAge / 1000)}s old)`,
+      );
+      return true;
+    }
+    if (!withinRetryLimit) {
+      log.error(`${stage} failed ${this.consecutiveFailures} times — showing error`);
+    }
+    return false;
   }
 
   private buildSrcdoc(js: string, css: string, bodyHtml: string): string {

@@ -2,9 +2,7 @@
 
 use crate::lexer::Span;
 
-use super::motion::{
-    GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef,
-};
+use super::motion::{GetterDecl, HeroDef, MotionDef, MotionTrigger, StateDef, TimelineDef};
 use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 
 // ── OmniView-Specific AST ─────────────────────────────
