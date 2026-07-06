@@ -1041,13 +1041,9 @@ fn test_full_pipeline_component() {
     assert_eq!(output.files.len(), 1);
     let file = &output.files[0];
     assert_eq!(file.path, "App.dart");
-    assert!(file.content.contains("class App extends StatefulWidget {"));
-    assert!(file
-        .content
-        .contains("class _AppState extends State<App> {"));
-    assert!(file
-        .content
-        .contains("Widget build(BuildContext context) {"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_component", &file.content);
+    });
 }
 
 #[test]
@@ -1090,10 +1086,9 @@ fn test_full_pipeline_with_store() {
     assert_eq!(output.files.len(), 1);
     let file = &output.files[0];
     assert_eq!(file.path, "AppStore_store.dart");
-    assert!(file
-        .content
-        .contains("class AppStore extends ChangeNotifier {"));
-    assert!(file.content.contains("int count = 0;"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_with_store", &file.content);
+    });
 }
 
 #[test]
@@ -1154,18 +1149,14 @@ fn test_full_pipeline_component_with_store_ref() {
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
-    // Component file
-    let comp_file = output.files.iter().find(|f| f.path == "App.dart").unwrap();
-    assert!(comp_file
-        .content
-        .contains("import './AppStore_store.dart';"));
-    // Store file
-    let store_file = output
-        .files
-        .iter()
-        .find(|f| f.path == "AppStore_store.dart")
-        .unwrap();
-    assert!(store_file
-        .content
-        .contains("class AppStore extends ChangeNotifier {"));
+    assert_eq!(output.files.len(), 2); // App.dart + AppStore_store.dart
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        let mut snapshot_content = String::new();
+        for f in &output.files {
+            snapshot_content.push_str(&format!("=== {} ===\n", f.path));
+            snapshot_content.push_str(&f.content);
+            snapshot_content.push('\n');
+        }
+        insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &snapshot_content);
+    });
 }

@@ -640,9 +640,9 @@ fn test_full_pipeline_through_trait() {
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
     assert_eq!(output.files[0].path, "main.dart");
-    let content = &output.files[0].content;
-    assert!(content.contains("class App {"));
-    assert!(content.contains("run() {"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_through_trait", &output.files[0].content);
+    });
 }
 
 #[test]
@@ -684,9 +684,10 @@ fn test_full_pipeline_with_store() {
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
-    let content = &output.files[0].content;
-    assert!(content.contains("class AppStore {"));
-    assert!(content.contains("int count = 0;"));
+    assert_eq!(output.files.len(), 1);
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_with_store", &output.files[0].content);
+    });
 }
 
 // ── Logic construct tests (structs, enums, type aliases, standalone functions) ──

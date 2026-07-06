@@ -667,10 +667,9 @@ mod tests {
         assert!(output.errors.is_empty());
         assert_eq!(output.files.len(), 1);
         assert_eq!(output.files[0].path, "main.rs");
-        let content = &output.files[0].content;
-        assert!(content.contains("struct App;"));
-        assert!(content.contains("impl App {"));
-        assert!(content.contains("fn run(&self) {"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_through_trait", &output.files[0].content);
+        });
     }
 
     #[test]
@@ -715,11 +714,10 @@ mod tests {
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
-        let content = &output.files[0].content;
-        assert!(content.contains("struct AppStore {"));
-        assert!(content.contains("count: i32,"));
-        assert!(content.contains("fn new() -> Self"));
-        assert!(content.contains("count: 0,"));
+        assert_eq!(output.files.len(), 1);
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_with_store", &output.files[0].content);
+        });
     }
 
     // ── Logic construct tests (structs, enums, type aliases, standalone functions) ──

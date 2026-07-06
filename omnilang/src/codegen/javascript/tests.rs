@@ -750,9 +750,9 @@ fn test_js_full_pipeline_through_trait() {
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
     assert_eq!(output.files[0].path, "main.js");
-    let content = &output.files[0].content;
-    assert!(content.contains("class App {"));
-    assert!(content.contains("run() {"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_js_full_pipeline_through_trait", &output.files[0].content);
+    });
 }
 
 #[test]
@@ -816,9 +816,9 @@ fn test_ts_full_pipeline_through_trait() {
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 1);
     assert_eq!(output.files[0].path, "main.ts");
-    let content = &output.files[0].content;
-    assert!(content.contains("class App {"));
-    assert!(content.contains("run(): void {"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_ts_full_pipeline_through_trait", &output.files[0].content);
+    });
 }
 
 // ── Logic construct tests (standalone functions, structs, enums, type aliases) ──

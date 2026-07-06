@@ -1,0 +1,13 @@
+---
+source: omnilang/src/codegen/dart/tests.rs
+expression: "&output.files[0].content"
+---
+// Generated from main.omni
+
+class AppStore {
+    int count = 0;
+
+    AppStore() {
+        this.count = 0;
+    }
+}
