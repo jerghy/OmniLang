@@ -274,8 +274,8 @@ impl OmniViewGenerator {
                 // Truncate self.js — these statements will be placed in the
                 // appropriate lifecycle section.
                 self.js.truncate(old_js_len);
-                match kind.as_str() {
-                    "mount" => {
+                match kind {
+                    LifecycleKind::Mount => {
                         if self.editor_mode {
                             self.comp_mount_js
                                 .push_str(&format!("// @mount {}\n", name));
@@ -285,13 +285,13 @@ impl OmniViewGenerator {
                             self.mount_js.push_str(&body_js);
                         }
                     }
-                    "unmount" => {
+                    LifecycleKind::Unmount => {
                         self.js.push_str(&format!(
                             "// @unmount {}\nwindow.__omni_unmount_{} = () => {{\n{}}};\n",
                             name, name, body_js
                         ));
                     }
-                    _ => {}
+                    LifecycleKind::Effect => {}
                 }
             }
             self.signal_names = saved_signal_names;

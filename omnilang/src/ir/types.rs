@@ -491,9 +491,27 @@ pub struct EffectIntent {
     pub body: BlockIR,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LifecycleKind {
+    Mount,
+    Unmount,
+    Effect,
+}
+
+impl std::fmt::Display for LifecycleKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LifecycleKind::Mount => write!(f, "mount"),
+            LifecycleKind::Unmount => write!(f, "unmount"),
+            LifecycleKind::Effect => write!(f, "effect"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifecycleIntent {
-    pub kind: String,
+    pub kind: LifecycleKind,
     pub body: BlockIR,
 }
 
@@ -745,5 +763,37 @@ impl IRProgram {
             .flat_map(|m| m.stores.iter())
             .map(|(k, v)| (k.as_str(), v))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serde_roundtrip_lifecycle_kind_mount() {
+        let v = LifecycleKind::Mount;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"mount\"");
+        let back: LifecycleKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, LifecycleKind::Mount);
+    }
+
+    #[test]
+    fn serde_roundtrip_lifecycle_kind_unmount() {
+        let v = LifecycleKind::Unmount;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"unmount\"");
+        let back: LifecycleKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, LifecycleKind::Unmount);
+    }
+
+    #[test]
+    fn serde_roundtrip_lifecycle_kind_effect() {
+        let v = LifecycleKind::Effect;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"effect\"");
+        let back: LifecycleKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, LifecycleKind::Effect);
     }
 }

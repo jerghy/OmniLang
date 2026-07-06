@@ -259,8 +259,8 @@ impl ReactCodegen {
 
         // Lifecycles (mount/unmount)
         for lc in &comp.lifecycles {
-            match lc.kind.as_str() {
-                "mount" => {
+            match lc.kind {
+                LifecycleKind::Mount => {
                     let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
                     if body_has_await {
                         w.emit("useEffect(() => {");
@@ -284,7 +284,7 @@ impl ReactCodegen {
                         w.emit("}, []);");
                     }
                 }
-                "unmount" => {
+                LifecycleKind::Unmount => {
                     w.emit("useEffect(() => {");
                     w.indent();
                     w.emit("return () => {");
@@ -297,7 +297,7 @@ impl ReactCodegen {
                     w.dedent();
                     w.emit("}, []);");
                 }
-                _ => {
+                LifecycleKind::Effect => {
                     w.emit(&format!("// TODO: lifecycle '{}'", lc.kind));
                 }
             }

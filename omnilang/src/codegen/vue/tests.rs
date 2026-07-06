@@ -493,7 +493,7 @@ mod tests {
     fn test_vue_component_with_lifecycle_mount() {
         let codegen = VueCodegen;
         let lc = LifecycleIntent {
-            kind: "mount".into(),
+            kind: LifecycleKind::Mount,
             body: BlockIR {
                 statements: vec![],
                 execution_mode: "client-only".into(),

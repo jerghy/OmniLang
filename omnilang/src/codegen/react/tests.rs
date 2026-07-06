@@ -721,7 +721,7 @@ fn test_tsx_component_with_effect() {
 fn test_tsx_component_with_lifecycle_mount() {
     let codegen = ReactCodegen;
     let lc = LifecycleIntent {
-        kind: "mount".into(),
+        kind: LifecycleKind::Mount,
         body: BlockIR {
             statements: vec![],
             execution_mode: "client-only".into(),

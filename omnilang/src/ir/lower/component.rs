@@ -14,8 +14,10 @@ use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
 use super::stmt::lower_block;
 use super::view::lower_view_block;
 
-// Disambiguate Visibility between parser AST and IR
+// Disambiguate conflicting names between parser AST and IR
 use crate::ir::logic::Visibility as IRVisibility;
+use crate::ir::types::LifecycleKind as IRLifecycleKind;
+use crate::parser::ast::view::LifecycleKind as ParserLifecycleKind;
 
 // ═══════════════════════════════════════════════════════
 // Component lowering
@@ -63,7 +65,7 @@ pub(super) fn lower_component(
     let effects: Vec<EffectIntent> = comp
         .lifecycles
         .iter()
-        .filter(|lc| matches!(lc.kind, LifecycleKind::Effect))
+        .filter(|lc| matches!(lc.kind, ParserLifecycleKind::Effect))
         .map(|lc| EffectIntent {
             deps: lc.deps.clone(),
             body: lower_block(&lc.body, variant_map),
@@ -73,12 +75,12 @@ pub(super) fn lower_component(
     let lifecycles: Vec<LifecycleIntent> = comp
         .lifecycles
         .iter()
-        .filter(|lc| !matches!(lc.kind, LifecycleKind::Effect))
+        .filter(|lc| !matches!(lc.kind, ParserLifecycleKind::Effect))
         .map(|lc| LifecycleIntent {
             kind: match lc.kind {
-                LifecycleKind::Mount => "mount".into(),
-                LifecycleKind::Unmount => "unmount".into(),
-                LifecycleKind::Effect => "effect".into(),
+                ParserLifecycleKind::Mount => IRLifecycleKind::Mount,
+                ParserLifecycleKind::Unmount => IRLifecycleKind::Unmount,
+                ParserLifecycleKind::Effect => IRLifecycleKind::Effect,
             },
             body: lower_block(&lc.body, variant_map),
         })

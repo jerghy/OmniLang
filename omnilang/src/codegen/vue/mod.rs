@@ -88,8 +88,8 @@ impl VueCodegen {
         if !comp.effects.is_empty() {
             vue_imports.push("watchEffect".into());
         }
-        let has_mount = comp.lifecycles.iter().any(|lc| lc.kind == "mount");
-        let has_unmount = comp.lifecycles.iter().any(|lc| lc.kind == "unmount");
+        let has_mount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Mount);
+        let has_unmount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Unmount);
         if has_mount {
             vue_imports.push("onMounted".into());
         }
@@ -171,8 +171,8 @@ impl VueCodegen {
 
         // Lifecycles (onMounted / onUnmounted)
         for lc in &comp.lifecycles {
-            match lc.kind.as_str() {
-                "mount" => {
+            match lc.kind {
+                LifecycleKind::Mount => {
                     w.emit("onMounted(() => {");
                     w.indent();
                     for stmt in &lc.body.statements {
@@ -181,7 +181,7 @@ impl VueCodegen {
                     w.dedent();
                     w.emit("});");
                 }
-                "unmount" => {
+                LifecycleKind::Unmount => {
                     w.emit("onUnmounted(() => {");
                     w.indent();
                     for stmt in &lc.body.statements {
@@ -190,7 +190,7 @@ impl VueCodegen {
                     w.dedent();
                     w.emit("});");
                 }
-                _ => {
+                LifecycleKind::Effect => {
                     w.emit(&format!("// TODO: lifecycle '{}'", lc.kind));
                 }
             }

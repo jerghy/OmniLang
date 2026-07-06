@@ -769,7 +769,7 @@ fn test_component_with_props() {
 fn test_component_with_mount_lifecycle() {
     let codegen = FlutterCodegen;
     let lc = LifecycleIntent {
-        kind: "mount".into(),
+        kind: LifecycleKind::Mount,
         body: BlockIR {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::IdentifierExpr {
@@ -823,7 +823,7 @@ fn test_component_with_mount_lifecycle() {
 fn test_component_with_unmount_lifecycle() {
     let codegen = FlutterCodegen;
     let lc = LifecycleIntent {
-        kind: "unmount".into(),
+        kind: LifecycleKind::Unmount,
         body: BlockIR {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::IdentifierExpr {

@@ -125,8 +125,8 @@ impl DioxusCodegen {
 
         // Lifecycles (mount/unmount)
         for lc in &comp.lifecycles {
-            match lc.kind.as_str() {
-                "mount" => {
+            match lc.kind {
+                LifecycleKind::Mount => {
                     w.emit("use_effect(move || async move {");
                     w.indent();
                     for stmt in &lc.body.statements {
@@ -135,13 +135,13 @@ impl DioxusCodegen {
                     w.dedent();
                     w.emit("});");
                 }
-                "unmount" => {
+                LifecycleKind::Unmount => {
                     w.emit("// TODO: unmount lifecycle");
                     for stmt in &lc.body.statements {
                         generate_statement_dioxus(&mut w, stmt);
                     }
                 }
-                _ => {
+                LifecycleKind::Effect => {
                     w.emit(&format!("// TODO: lifecycle '{}'", lc.kind));
                 }
             }
