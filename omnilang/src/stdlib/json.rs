@@ -33,7 +33,7 @@ pub(super) fn codegen_json_parse(args: &[String], target: Target) -> String {
         Target::Python => format!("json.loads({text})", text = text),
         Target::Rust | Target::Dioxus => {
             format!(
-                "serde_json::from_str(&{text}).expect(\"JSON parse error\")",
+                "serde_json::from_str(&{text}).unwrap_or_else(|e| {{ eprintln!(\"warning: JSON parse error: {{e}}\"); serde_json::Value::Null }})",
                 text = text
             )
         }
@@ -56,7 +56,7 @@ pub(super) fn codegen_json_stringify(args: &[String], target: Target) -> String 
         Target::Python => format!("json.dumps({val})", val = val),
         Target::Rust | Target::Dioxus => {
             format!(
-                "serde_json::to_string(&{val}).expect(\"JSON serialize error\")",
+                "serde_json::to_string(&{val}).unwrap_or_else(|e| {{ eprintln!(\"warning: JSON serialize error: {{e}}\"); String::new() }})",
                 val = val
             )
         }
