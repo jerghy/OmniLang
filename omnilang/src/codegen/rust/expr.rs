@@ -22,7 +22,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_ir(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let rs_op = binary_op_to_rust(op);
+            let rs_op = super::super::binary_op_to_str(op, false, false);
             let lhs = format_expr_ir(left);
             let rhs = format_expr_ir(right);
             format!("{} {} {}", lhs, rs_op, rhs)
@@ -141,10 +141,6 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
     }
 }
 
-/// Map OMNI binary operator name to Rust operator.
-pub(super) fn binary_op_to_rust(op: &str) -> &str {
-    super::super::binary_op_to_str(op, false, false)
-}
 
 /// Map OMNI type to Rust type annotation string.
 pub fn rs_type(kind: &str, type_args: &[TypeIR]) -> String {

@@ -83,10 +83,10 @@ fn test_format_json_value() {
 
 #[test]
 fn test_binary_op_to_dart() {
-    assert_eq!(binary_op_to_dart("add"), "+");
-    assert_eq!(binary_op_to_dart("eq"), "==");
-    assert_eq!(binary_op_to_dart("and"), "&&");
-    assert_eq!(binary_op_to_dart("or"), "||");
+    assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
+    assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
+    assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
+    assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
 }
 
 // ── format_expr_ir tests ─────────────────────────────

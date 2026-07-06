@@ -18,7 +18,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
             format!("{}?.{}", format_expr_ir(object, _ts_mode), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let js_op = binary_op_to_js(op);
+            let js_op = crate::codegen::binary_op_to_str(op, true, false);
             let lhs = format_expr_ir(left, _ts_mode);
             let rhs = format_expr_ir(right, _ts_mode);
             format!("{} {} {}", lhs, js_op, rhs)
@@ -190,6 +190,3 @@ pub(super) fn format_stmt_ir(stmt: &StatementIR, ts_mode: bool) -> String {
     }
 }
 
-pub(super) fn binary_op_to_js(op: &str) -> &str {
-    crate::codegen::binary_op_to_str(op, true, false)
-}

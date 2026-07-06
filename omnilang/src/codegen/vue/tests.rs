@@ -60,11 +60,11 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_vue() {
-        assert_eq!(binary_op_to_vue("add"), "+");
-        assert_eq!(binary_op_to_vue("eq"), "===");
-        assert_eq!(binary_op_to_vue("and"), "&&");
-        assert_eq!(binary_op_to_vue("or"), "||");
-        assert_eq!(binary_op_to_vue("neq"), "!==");
+        assert_eq!(crate::codegen::binary_op_to_str("add", true, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str("eq", true, false), "===");
+        assert_eq!(crate::codegen::binary_op_to_str("and", true, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str("or", true, false), "||");
+        assert_eq!(crate::codegen::binary_op_to_str("neq", true, false), "!==");
     }
 
     // ── format_expr_vue tests ───────────────────────────────

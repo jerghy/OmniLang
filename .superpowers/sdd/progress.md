@@ -36,3 +36,7 @@
 - [x] Task 5: 3dce5243 refactor: unify format_json_value (review: PASS/Approved with fix a28ffe78)
 
 - [x] Task 6: Parser infrastructure + Error AST nodes
+
+- [x] Task 6: 998441f2 refactor: parser error recovery infrastructure (review: PASS/Approved)
+
+- [x] Task 7: ef6c1086 fix: PoiesisState method declarations (review: PASS/Approved)

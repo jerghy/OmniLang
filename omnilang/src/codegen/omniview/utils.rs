@@ -307,18 +307,7 @@ pub(super) fn map_binary_op(op: &str) -> &str {
 
 /// Convert CamelCase to kebab-case for custom element tags.
 pub(super) fn to_kebab(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('-');
-            }
-            result.push(c.to_lowercase().next().unwrap_or(c));
-        } else {
-            result.push(c);
-        }
-    }
-    result
+    crate::codegen::camel_to_separated(s, '-')
 }
 
 /// Escape HTML special characters.

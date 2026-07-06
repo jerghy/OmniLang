@@ -179,7 +179,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_vue(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let js_op = binary_op_to_vue(op);
+            let js_op = super::super::binary_op_to_str(op, true, false);
             let lhs = format_expr_vue(left);
             let rhs = format_expr_vue(right);
             format!("{} {} {}", lhs, js_op, rhs)
@@ -300,9 +300,6 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn binary_op_to_vue(op: &str) -> &str {
-    super::super::binary_op_to_str(op, true, false)
-}
 
 /// Map OmniView attribute names to Vue HTML attribute names.
 /// Vue uses standard HTML attribute names (lowercase, kebab-case).

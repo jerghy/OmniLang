@@ -52,11 +52,11 @@ fn test_prop_to_flutter_param_name() {
 
 #[test]
 fn test_binary_op_to_flutter() {
-    assert_eq!(binary_op_to_flutter("add"), "+");
-    assert_eq!(binary_op_to_flutter("eq"), "==");
-    assert_eq!(binary_op_to_flutter("and"), "&&");
-    assert_eq!(binary_op_to_flutter("or"), "||");
-    assert_eq!(binary_op_to_flutter("neq"), "!=");
+    assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
+    assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
+    assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
+    assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
+    assert_eq!(crate::codegen::binary_op_to_str("neq", false, false), "!=");
 }
 
 #[test]

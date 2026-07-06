@@ -80,10 +80,10 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_rust() {
-        assert_eq!(binary_op_to_rust("add"), "+");
-        assert_eq!(binary_op_to_rust("eq"), "==");
-        assert_eq!(binary_op_to_rust("and"), "&&");
-        assert_eq!(binary_op_to_rust("or"), "||");
+        assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
+        assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
     }
 
     // ── format_expr_ir tests ─────────────────────────────

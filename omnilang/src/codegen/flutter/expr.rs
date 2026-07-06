@@ -22,7 +22,7 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_ir_flutter(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let dart_op = binary_op_to_flutter(op);
+            let dart_op = super::super::binary_op_to_str(op, false, false);
             let lhs = format_expr_ir_flutter(left);
             let rhs = format_expr_ir_flutter(right);
             format!("{} {} {}", lhs, dart_op, rhs)
@@ -144,7 +144,3 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
     }
 }
 
-/// Map OMNI binary operator name to Dart/Flutter operator.
-pub(crate) fn binary_op_to_flutter(op: &str) -> &str {
-    super::super::binary_op_to_str(op, false, false)
-}

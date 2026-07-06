@@ -461,6 +461,25 @@ pub fn capitalize_first(s: &str) -> String {
     }
 }
 
+/// Convert CamelCase or camelCase to separator-delimited lowercase.
+/// "borderRadius" becomes "border-radius" (sep='-') or "border_radius" (sep='_').
+/// Handles initial uppercase (PascalCase) without a leading separator.
+#[must_use]
+pub fn camel_to_separated(s: &str, sep: char) -> String {
+    let mut result = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() {
+            if i > 0 {
+                result.push(sep);
+            }
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// Convert a camelCase CSS property name to kebab-case.
 /// "backgroundColor" → "background-color", "--customProp" → "--custom-prop"
 #[must_use]

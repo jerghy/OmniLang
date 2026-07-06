@@ -26,7 +26,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_ir(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let dart_op = binary_op_to_dart(op);
+            let dart_op = super::super::binary_op_to_str(op, false, false);
             let lhs = format_expr_ir(left);
             let rhs = format_expr_ir(right);
             format!("{} {} {}", lhs, dart_op, rhs)
@@ -148,10 +148,6 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
     }
 }
 
-/// Map OMNI binary operator name to Dart operator.
-pub(super) fn binary_op_to_dart(op: &str) -> &str {
-    super::super::binary_op_to_str(op, false, false)
-}
 
 /// Map OMNI type to Dart type annotation string.
 pub fn dart_type(kind: &str, type_args: &[TypeIR]) -> String {

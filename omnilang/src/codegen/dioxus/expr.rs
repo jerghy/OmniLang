@@ -26,7 +26,7 @@ pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_ir_dioxus(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let rs_op = binary_op_to_dioxus(op);
+            let rs_op = super::super::binary_op_to_str(op, false, false);
             let lhs = format_expr_ir_dioxus(left);
             let rhs = format_expr_ir_dioxus(right);
             format!("{} {} {}", lhs, rs_op, rhs)
@@ -141,26 +141,13 @@ pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
     }
 }
 
-/// Map OMNI binary operator name to Dioxus/Rust operator.
-pub(super) fn binary_op_to_dioxus(op: &str) -> &str {
-    super::super::binary_op_to_str(op, false, false)
-}
 
 // ═══════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn to_snake_case(name: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in name.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            result.push('_');
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c.to_ascii_lowercase());
-        }
-    }
-    result
+    crate::codegen::camel_to_separated(name, '_')
 }
 
 /// Map OmniView attribute names to Dioxus attribute names.

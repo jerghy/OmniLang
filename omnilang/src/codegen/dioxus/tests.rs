@@ -33,11 +33,11 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_dioxus() {
-        assert_eq!(binary_op_to_dioxus("add"), "+");
-        assert_eq!(binary_op_to_dioxus("eq"), "==");
-        assert_eq!(binary_op_to_dioxus("and"), "&&");
-        assert_eq!(binary_op_to_dioxus("or"), "||");
-        assert_eq!(binary_op_to_dioxus("neq"), "!=");
+        assert_eq!(crate::codegen::binary_op_to_str("add", false, false), "+");
+        assert_eq!(crate::codegen::binary_op_to_str("eq", false, false), "==");
+        assert_eq!(crate::codegen::binary_op_to_str("and", false, false), "&&");
+        assert_eq!(crate::codegen::binary_op_to_str("or", false, false), "||");
+        assert_eq!(crate::codegen::binary_op_to_str("neq", false, false), "!=");
     }
 
     #[test]
