@@ -16,6 +16,7 @@ pub mod rust;
 pub mod vue;
 
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::ir::IRProgram;
 
@@ -46,6 +47,21 @@ impl CodeWriter {
             let pad = self.indent_str.repeat(self.indent_level);
             self.lines.push(format!("{}{}", pad, line));
         }
+    }
+
+    /// Emit a line with current indentation, using fmt::Arguments.
+    /// More efficient than `emit(&format!(...))` — avoids intermediate String allocation.
+    ///
+    /// # Example
+    /// ```ignore
+    /// w.emit_fmt(format_args!("let {name}{ty} = {rhs};"));
+    /// ```
+    pub fn emit_fmt(&mut self, args: fmt::Arguments<'_>) {
+        let indent = self.indent_str.repeat(self.indent_level);
+        let mut line = indent;
+        // write! to String never fails
+        let _ = fmt::write(&mut line, args);
+        self.lines.push(line);
     }
 
     /// Increase indentation by one level.
@@ -724,6 +740,24 @@ mod tests {
         w.emit("}");
         let out = w.into_string();
         assert_eq!(out, "fn main() {\n    println!(\"hello\");\n}\n");
+    }
+
+    #[test]
+    fn test_emit_fmt_basic() {
+        let mut w = CodeWriter::new();
+        w.emit_fmt(format_args!("let x = {};", 42));
+        assert_eq!(w.into_string(), "let x = 42;\n");
+    }
+
+    #[test]
+    fn test_emit_fmt_with_indent() {
+        let mut w = CodeWriter::new();
+        w.emit("fn main() {");
+        w.indent();
+        w.emit_fmt(format_args!("let x = {};", 1));
+        w.dedent();
+        w.emit("}");
+        assert_eq!(w.into_string(), "fn main() {\n    let x = 1;\n}\n");
     }
 
     // ── Stdlib integration tests ───────────────────────
