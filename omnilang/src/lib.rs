@@ -26,6 +26,7 @@ pub mod wasm;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::ComponentOutput;
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
@@ -90,6 +91,7 @@ fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> 
 // ═══════════════════════════════════════════════════════
 
 /// OmniView compile result — JS + HTML + CSS + SourceMap.
+#[cfg(feature = "codegen-omniview")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OmniViewResult {
     pub success: bool,
@@ -105,6 +107,7 @@ pub struct OmniViewResult {
     pub errors: Vec<error::Diagnostic>,
 }
 
+#[cfg(feature = "codegen-omniview")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OmniViewFiles {
     pub js: String,
@@ -113,6 +116,7 @@ pub struct OmniViewFiles {
 }
 
 /// Compile .omni → OmniView (JS + HTML + CSS + SourceMap). Core function.
+#[cfg(feature = "codegen-omniview")]
 #[must_use]
 pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
     match run_pipeline(source) {
@@ -150,6 +154,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
 
 /// Combined compile result — IR + OmniView (JS + HTML + CSS + SourceMap + Components).
 /// Runs the full pipeline in one pass, returning both the IR and codegen output.
+#[cfg(feature = "codegen-omniview")]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OmniViewFullResult {
     pub success: bool,
@@ -169,6 +174,7 @@ pub struct OmniViewFullResult {
 
 /// Compile .omni -> OmniView + IR in one pass.
 /// Eliminates the double lex->parse->semantic->IR when both IR and codegen are needed.
+#[cfg(feature = "codegen-omniview")]
 #[must_use]
 pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullResult {
     match run_pipeline(source) {
@@ -234,6 +240,7 @@ pub fn compile_to_target_json(
 
 /// Extract the inner HTML between `<body>` and `</body>` tags.
 /// Works on both multi-line and minified/single-line HTML.
+#[allow(dead_code)]
 fn extract_body_html(html: &str) -> String {
     // Find <body> tag (with optional attributes)
     let body_start = html
@@ -263,6 +270,7 @@ fn extract_body_html(html: &str) -> String {
 /// Returns JSON with structured Diagnostic errors (severity, code, file, line, col, …)
 /// plus a flat `warnings` array from lint rules.
 #[must_use]
+#[allow(unused_variables)]
 pub fn compile_multi_to_target(
     sources: HashMap<String, String>,
     target: codegen::Target,
@@ -295,6 +303,7 @@ pub fn compile_multi_to_target(
 
     // Phase 5: Dispatch to target codegen
     let output = codegen::compile(&merged_ir, target, &sources);
+    #[allow(unused_mut)]
     let mut files_map: HashMap<String, String> = output
         .files
         .into_iter()
@@ -319,7 +328,9 @@ pub fn compile_multi_to_target(
         .collect();
     diags.extend(codegen_diags);
 
-    // Post-process: wrap debug HTML for editor mode
+    // Post-process: wrap debug HTML for editor mode.
+    // Only available when the omniview codegen backend is enabled.
+    #[cfg(feature = "codegen-omniview")]
     if editor_mode && matches!(target, codegen::Target::OmniView) {
         for path in files_map.keys().cloned().collect::<Vec<_>>() {
             if path.ends_with(".html") {

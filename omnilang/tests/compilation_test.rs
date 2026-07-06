@@ -70,6 +70,7 @@ fn e2e_struct_and_function() {
     );
 }
 
+#[cfg(feature = "codegen-python")]
 #[test]
 fn e2e_compile_to_python_json() {
     let mut sources = HashMap::new();

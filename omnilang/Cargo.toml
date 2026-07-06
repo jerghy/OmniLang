@@ -22,3 +22,27 @@ proptest = "1"
 [features]
 default = []
 wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
+
+# Per-backend codegen feature flags — gate compilation of individual targets.
+codegen-react = []
+codegen-vue = ["codegen-javascript"]
+codegen-dioxus = []
+codegen-flutter = []
+codegen-dart = []
+codegen-rust = []
+codegen-python = []
+codegen-javascript = []
+codegen-omniview = []
+
+# Convenience meta-feature enabling all backends.
+all-backends = [
+    "codegen-react",
+    "codegen-vue",
+    "codegen-dioxus",
+    "codegen-flutter",
+    "codegen-dart",
+    "codegen-rust",
+    "codegen-python",
+    "codegen-javascript",
+    "codegen-omniview",
+]

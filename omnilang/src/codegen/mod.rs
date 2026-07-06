@@ -5,14 +5,23 @@
 //! - Python, JavaScript, Rust, Dart: pure-logic codegen
 //! - React, Vue, Dioxus, Flutter: framework-based codegen
 
+#[cfg(feature = "codegen-dart")]
 pub mod dart;
+#[cfg(feature = "codegen-dioxus")]
 pub mod dioxus;
+#[cfg(feature = "codegen-flutter")]
 pub mod flutter;
+#[cfg(feature = "codegen-javascript")]
 pub mod javascript;
+#[cfg(feature = "codegen-omniview")]
 pub mod omniview;
+#[cfg(feature = "codegen-python")]
 pub mod python;
+#[cfg(feature = "codegen-react")]
 pub mod react;
+#[cfg(feature = "codegen-rust")]
 pub mod rust;
+#[cfg(feature = "codegen-vue")]
 pub mod vue;
 
 use std::collections::HashMap;
@@ -301,7 +310,7 @@ pub fn sanitize_js_ident(name: &str) -> String {
 pub fn compile(
     ir: &IRProgram,
     target: Target,
-    source_files: &HashMap<String, String>,
+    #[allow(unused_variables)] source_files: &HashMap<String, String>,
 ) -> CompileOutput {
     // Validate stdlib imports for the target
     if let Err(errors) = validate_stdlib_imports(ir, target) {
@@ -310,17 +319,36 @@ pub fn compile(
             errors,
         };
     }
+    #[allow(unreachable_patterns)]
     match target {
+        #[cfg(feature = "codegen-omniview")]
         Target::OmniView => omniview::compile_files(ir, source_files),
+        #[cfg(feature = "codegen-python")]
         Target::Python => python::PythonCodegen.generate(ir, source_files),
-        Target::JavaScript => javascript::JavaScriptCodegen::new(false).generate(ir, source_files),
-        Target::TypeScript => javascript::JavaScriptCodegen::new(true).generate(ir, source_files),
+        #[cfg(feature = "codegen-javascript")]
+        Target::JavaScript => {
+            javascript::JavaScriptCodegen::new(false).generate(ir, source_files)
+        }
+        #[cfg(feature = "codegen-javascript")]
+        Target::TypeScript => {
+            javascript::JavaScriptCodegen::new(true).generate(ir, source_files)
+        }
+        #[cfg(feature = "codegen-rust")]
         Target::Rust => rust::RustCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-dart")]
         Target::Dart => dart::DartCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-react")]
         Target::React => react::ReactCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-vue")]
         Target::Vue => vue::VueCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-dioxus")]
         Target::Dioxus => dioxus::DioxusCodegen.generate(ir, source_files),
+        #[cfg(feature = "codegen-flutter")]
         Target::Flutter => flutter::FlutterCodegen.generate(ir, source_files),
+        _ => CompileOutput::error(format!(
+            "Backend for '{:?}' is not enabled (compile with the corresponding codegen-* feature flag)",
+            target
+        )),
     }
 }
 
@@ -529,6 +557,7 @@ pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
 
 /// Generate a CSS style block for component styles.
 /// Handles both empty (generates default `.container {}`) and populated style lists.
+#[allow(dead_code)]
 pub(crate) fn generate_css_style_block(w: &mut CodeWriter, styles: &[crate::ir::StyleRuleIR]) {
     if styles.is_empty() {
         w.emit(".container {");
@@ -554,6 +583,7 @@ pub(crate) fn generate_css_style_block(w: &mut CodeWriter, styles: &[crate::ir::
 /// Returns (extraction_expression, fallback_value_literal).
 /// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
 #[must_use]
+#[allow(dead_code)]
 pub(crate) fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
         // PointerEvent
@@ -695,6 +725,7 @@ pub(crate) fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> 
 /// Emit a JS object literal for event data extraction from a raw event variable.
 /// Only emits fields in `used_fields` (or all fields from schema if None).
 /// `pub(crate)` so other codegen targets (Vue, JS) can reuse the DOM-based mapping.
+#[allow(dead_code)]
 #[must_use]
 pub(crate) fn emit_event_object(
     event_data: &Option<EventDataKind>,
@@ -902,7 +933,7 @@ pub const JSON_PYTHON: JsonFormatConfig = JsonFormatConfig {
 #[cfg(test)]
 mod tests_property;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "all-backends"))]
 mod tests_regression;
 
 #[cfg(test)]
