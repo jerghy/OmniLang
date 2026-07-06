@@ -1,7 +1,6 @@
 //! Lowering for view blocks and view nodes.
 //!
-//! Includes: `lower_view_block`, `lower_view_node`,
-//! and `EventFieldCollector` for inline event handlers.
+//! Includes: `lower_view_block`, `lower_view_node`.
 
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
@@ -30,182 +29,139 @@ pub(super) fn lower_view_block(
     }
 }
 
-/// Collects `e.field` references and `e.preventDefault()`/`e.stopPropagation()`
-/// calls from an inline event handler AST body.  Used during IR lowering
-/// to populate `EventHandlerIR.used_fields`.
-struct EventFieldCollector {
-    fields: Vec<String>,
-    needs_prevent_default: bool,
-    needs_stop_propagation: bool,
+/// Scan an event handler AST block for `e.preventDefault()` and
+/// `e.stopPropagation()` method calls.  Returns (needs_prevent_default,
+/// needs_stop_propagation).
+///
+/// This replaces the field-collection half of the old `EventFieldCollector`;
+/// event field names are now collected during `lower_expr` traversal.
+fn scan_event_methods(block: &Block) -> (bool, bool) {
+    let mut needs_pd = false;
+    let mut needs_sp = false;
+    for stmt in &block.stmts {
+        scan_stmt_for_event_methods(stmt, &mut needs_pd, &mut needs_sp);
+    }
+    if let Some(ref expr) = block.trailing_expr {
+        scan_expr_for_event_methods(expr, &mut needs_pd, &mut needs_sp);
+    }
+    (needs_pd, needs_sp)
 }
 
-impl EventFieldCollector {
-    fn collect(block: &crate::parser::ast::Block) -> Self {
-        let mut c = Self {
-            fields: vec![],
-            needs_prevent_default: false,
-            needs_stop_propagation: false,
-        };
-        for stmt in &block.stmts {
-            c.visit_stmt(stmt);
+fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
+    match stmt {
+        Stmt::ExprStmt { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::VarDecl { init: Some(init), .. } => scan_expr_for_event_methods(init, pd, sp),
+        Stmt::Assign { value, .. } => scan_expr_for_event_methods(value, pd, sp),
+        Stmt::If {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            for s in &then_body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+            for (_, elsif_block) in else_ifs {
+                for s in &elsif_block.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+            if let Some(else_b) = else_body {
+                for s in &else_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
         }
-        c
-    }
-
-    fn visit_stmt(&mut self, stmt: &crate::parser::ast::Stmt) {
-        match stmt {
-            crate::parser::ast::Stmt::ExprStmt { expr, .. } => {
-                self.visit_expr(expr);
+        Stmt::While {
+            condition, body, ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
             }
-            crate::parser::ast::Stmt::VarDecl {
-                init: Some(init), ..
-            } => {
-                self.visit_expr(init);
-            }
-            crate::parser::ast::Stmt::Assign { value, .. } => {
-                self.visit_expr(value);
-            }
-            crate::parser::ast::Stmt::If {
-                condition,
-                then_body,
-                else_ifs,
-                else_body,
-                ..
-            } => {
-                self.visit_expr(condition);
-                self.visit_block(then_body);
-                for (_, elsif_block) in else_ifs {
-                    self.visit_block(elsif_block);
-                }
-                if let Some(else_b) = else_body {
-                    self.visit_block(else_b);
-                }
-            }
-            crate::parser::ast::Stmt::While {
-                condition, body, ..
-            } => {
-                self.visit_expr(condition);
-                self.visit_block(body);
-            }
-            crate::parser::ast::Stmt::ForIn { iterable, body, .. } => {
-                self.visit_expr(iterable);
-                self.visit_block(body);
-            }
-            crate::parser::ast::Stmt::Return {
-                value: Some(value), ..
-            } => {
-                self.visit_expr(value);
-            }
-            crate::parser::ast::Stmt::Print { arg, .. } => {
-                self.visit_expr(arg);
-            }
-            crate::parser::ast::Stmt::EventEmit { args, .. } => {
-                for arg in args {
-                    self.visit_expr(arg);
-                }
-            }
-            crate::parser::ast::Stmt::Throw { expr, .. } => {
-                self.visit_expr(expr);
-            }
-            crate::parser::ast::Stmt::TryCatch {
-                try_body,
-                catch_body,
-                finally_body,
-                ..
-            } => {
-                self.visit_block(try_body);
-                if let Some(catch_b) = catch_body {
-                    self.visit_block(catch_b);
-                }
-                if let Some(finally_b) = finally_body {
-                    self.visit_block(finally_b);
-                }
-            }
-            _ => {}
         }
-    }
-
-    fn visit_block(&mut self, block: &crate::parser::ast::Block) {
-        for stmt in &block.stmts {
-            self.visit_stmt(stmt);
+        Stmt::ForIn { iterable, body, .. } => {
+            scan_expr_for_event_methods(iterable, pd, sp);
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
         }
+        Stmt::Return { value: Some(v), .. } => scan_expr_for_event_methods(v, pd, sp),
+        Stmt::Print { arg, .. } => scan_expr_for_event_methods(arg, pd, sp),
+        Stmt::Throw { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
+        Stmt::TryCatch {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+            if let Some(catch_b) = catch_body {
+                for s in &catch_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+            if let Some(finally_b) = finally_body {
+                for s in &finally_b.stmts {
+                    scan_stmt_for_event_methods(s, pd, sp);
+                }
+            }
+        }
+        _ => {}
     }
+}
 
-    fn visit_expr(&mut self, expr: &crate::parser::ast::Expr) {
-        use crate::parser::ast::Expr;
-        match expr {
-            // e.field
-            Expr::FieldAccess { object, field, .. } => {
-                if let Expr::VarRef(name, _) = object.as_ref() {
-                    if name == "e" && !self.fields.contains(field) {
-                        self.fields.push(field.clone());
+fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool) {
+    match expr {
+        Expr::MethodCall { object, method, .. } => {
+            if let Expr::VarRef(name, _) = object.as_ref() {
+                if name == "e" {
+                    match method.as_str() {
+                        "preventDefault" => *pd = true,
+                        "stopPropagation" => *sp = true,
+                        _ => {}
                     }
-                } else {
-                    self.visit_expr(object);
                 }
             }
-            // e.method(args)
-            Expr::MethodCall {
-                object,
-                method,
-                args,
-                ..
-            } => {
-                if let Expr::VarRef(name, _) = object.as_ref() {
-                    if name == "e" {
-                        match method.as_str() {
-                            "preventDefault" => self.needs_prevent_default = true,
-                            "stopPropagation" => self.needs_stop_propagation = true,
-                            _ => {}
-                        }
-                    }
-                } else {
-                    self.visit_expr(object);
-                }
-                for arg in args {
-                    self.visit_expr(arg);
-                }
-            }
-            Expr::BinaryOp { left, right, .. } => {
-                self.visit_expr(left);
-                self.visit_expr(right);
-            }
-            Expr::UnaryOp { operand, .. } => self.visit_expr(operand),
-            Expr::FuncCall { func, args, .. } => {
-                self.visit_expr(func);
-                for arg in args {
-                    self.visit_expr(arg);
-                }
-            }
-            Expr::IfExpr {
-                condition,
-                then_expr,
-                else_expr,
-                ..
-            }
-            | Expr::TernaryExpr {
-                condition,
-                then_expr,
-                else_expr,
-                ..
-            } => {
-                self.visit_expr(condition);
-                self.visit_expr(then_expr);
-                self.visit_expr(else_expr);
-            }
-            Expr::ArrayLiteral { elements, .. } => {
-                for e in elements {
-                    self.visit_expr(e);
-                }
-            }
-            Expr::MapLiteral { entries, .. } => {
-                for (k, v) in entries {
-                    self.visit_expr(k);
-                    self.visit_expr(v);
-                }
-            }
-            _ => {}
         }
+        // Recurse into expressions that may contain nested method calls
+        Expr::BinaryOp { left, right, .. } => {
+            scan_expr_for_event_methods(left, pd, sp);
+            scan_expr_for_event_methods(right, pd, sp);
+        }
+        Expr::UnaryOp { operand, .. } => scan_expr_for_event_methods(operand, pd, sp),
+        Expr::FuncCall { func, args, .. } => {
+            scan_expr_for_event_methods(func, pd, sp);
+            for arg in args {
+                scan_expr_for_event_methods(arg, pd, sp);
+            }
+        }
+        Expr::Block { body, .. } => {
+            for s in &body.stmts {
+                scan_stmt_for_event_methods(s, pd, sp);
+            }
+        }
+        Expr::IfExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        }
+        | Expr::TernaryExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            scan_expr_for_event_methods(condition, pd, sp);
+            scan_expr_for_event_methods(then_expr, pd, sp);
+            scan_expr_for_event_methods(else_expr, pd, sp);
+        }
+        _ => {}
     }
 }
 
@@ -220,7 +176,7 @@ pub(super) fn lower_view_node(
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
-            ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map)))
+            ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None)))
         }
         ViewNode::IfDirective(if_dir) => lower_if_directive(if_dir, string_signals, variant_map),
         ViewNode::ForDirective(for_dir) => {
@@ -274,7 +230,7 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props.insert(name.clone(), lower_expr(value, variant_map));
+                props.insert(name.clone(), lower_expr(value, variant_map, None));
             }
             ElementProp::Bind { name, signal_path } => {
                 if name == "value" {
@@ -293,25 +249,41 @@ fn lower_element(
                 let event_data = map_event_data_kind(name);
                 let mut needs_pd = name == "onSubmit"; // backward compat
                 let mut needs_sp = false;
-                let mut used_fields: Option<Vec<String>> = None;
-
                 let ir_handler = match handler {
                     EventHandler::InlineFn { params, body, .. } => {
                         if event_data.is_some() {
-                            let collector = EventFieldCollector::collect(body);
-                            used_fields = Some(collector.fields);
-                            needs_pd = needs_pd || collector.needs_prevent_default;
-                            needs_sp = collector.needs_stop_propagation;
-                        }
-                        EventHandlerIR {
-                            kind: EventHandlerKind::InlineFn,
-                            body: Some(lower_block(body, variant_map)),
-                            r#ref: None,
-                            params: params.iter().map(|p| p.name.clone()).collect(),
-                            event_data: event_data.clone(),
-                            used_fields: used_fields.clone(),
-                            needs_prevent_default: needs_pd,
-                            needs_stop_propagation: needs_sp,
+                            let (needs_pd_from_scan, needs_sp_from_scan) =
+                                scan_event_methods(body);
+                            needs_pd = needs_pd || needs_pd_from_scan;
+                            needs_sp = needs_sp_from_scan;
+
+                            // Collect event field names during lowering instead
+                            // of a separate pre-walk.
+                            let mut event_fields = Vec::new();
+                            let block_ir =
+                                lower_block(body, variant_map, Some(&mut event_fields));
+
+                            EventHandlerIR {
+                                kind: EventHandlerKind::InlineFn,
+                                body: Some(block_ir),
+                                r#ref: None,
+                                params: params.iter().map(|p| p.name.clone()).collect(),
+                                event_data: event_data.clone(),
+                                used_fields: Some(event_fields),
+                                needs_prevent_default: needs_pd,
+                                needs_stop_propagation: needs_sp,
+                            }
+                        } else {
+                            EventHandlerIR {
+                                kind: EventHandlerKind::InlineFn,
+                                body: Some(lower_block(body, variant_map, None)),
+                                r#ref: None,
+                                params: params.iter().map(|p| p.name.clone()).collect(),
+                                event_data: None,
+                                used_fields: None,
+                                needs_prevent_default: needs_pd,
+                                needs_stop_propagation: needs_sp,
+                            }
                         }
                     }
                     EventHandler::FnRef(fn_name) => {
@@ -369,7 +341,7 @@ fn lower_element(
                             // Collect dynamic bindings (non-literal values) for reactive JS toggling
                             if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
                                 class_map_bindings
-                                    .insert(key.clone(), lower_expr(val_expr, variant_map));
+                                    .insert(key.clone(), lower_expr(val_expr, variant_map, None));
                             }
                         }
                         static_classes.join(" ")
@@ -390,7 +362,7 @@ fn lower_element(
                 let style_map: serde_json::Map<String, serde_json::Value> = entries
                     .iter()
                     .map(|(key, expr)| {
-                        let ir_expr = lower_expr(expr, variant_map);
+                        let ir_expr = lower_expr(expr, variant_map, None);
                         let json_val = super::expr::lower_expr_to_json_from_ir(&ir_expr);
                         (key.clone(), json_val)
                     })
@@ -449,9 +421,9 @@ fn lower_element(
                     let properties: HashMap<String, ExprIR> = state_def
                         .properties
                         .iter()
-                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                         .collect();
-                    let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map));
+                    let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map, None));
                     let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
                     states_hm.insert(
                         name.clone(),
@@ -466,11 +438,11 @@ fn lower_element(
             }
             // Animate signal: @state={signal}
             ElementProp::AnimateSignal(expr) => {
-                animate_signal = Some(lower_expr(expr, variant_map));
+                animate_signal = Some(lower_expr(expr, variant_map, None));
             }
             // Paused override: @paused={expr}
             ElementProp::PausedOverride(expr) => {
-                paused_override = Some(lower_expr(expr, variant_map));
+                paused_override = Some(lower_expr(expr, variant_map, None));
             }
             // Hover reverse animation name
             ElementProp::HoverReverse(s) => {
@@ -478,19 +450,19 @@ fn lower_element(
             }
             // Driven-by expression for external progress control
             ElementProp::DrivenBy(expr) => {
-                driven_by = Some(lower_expr(expr, variant_map));
+                driven_by = Some(lower_expr(expr, variant_map, None));
             }
             // InView trigger: once
             ElementProp::InViewOnce(expr) => {
-                in_view_once = Some(lower_expr(expr, variant_map));
+                in_view_once = Some(lower_expr(expr, variant_map, None));
             }
             // InView trigger: repeat
             ElementProp::InViewRepeat(expr) => {
-                in_view_repeat = Some(lower_expr(expr, variant_map));
+                in_view_repeat = Some(lower_expr(expr, variant_map, None));
             }
             // InView trigger: threshold
             ElementProp::InViewThreshold(expr) => {
-                in_view_threshold = Some(lower_expr(expr, variant_map));
+                in_view_threshold = Some(lower_expr(expr, variant_map, None));
             }
             // Parent-child orchestration
             ElementProp::When(_)
@@ -506,33 +478,33 @@ fn lower_element(
                 scroll_end = Some(s.clone());
             }
             ElementProp::ScrollScrub(expr) => {
-                scroll_scrub = Some(lower_expr(expr, variant_map));
+                scroll_scrub = Some(lower_expr(expr, variant_map, None));
             }
             // Drag sub-attributes
             ElementProp::DragConstraints(s) => {
                 drag_constraints = Some(s.clone());
             }
             ElementProp::DragElastic(expr) => {
-                drag_elastic = Some(lower_expr(expr, variant_map));
+                drag_elastic = Some(lower_expr(expr, variant_map, None));
             }
             ElementProp::DragScrub(expr) => {
-                drag_scrub = Some(lower_expr(expr, variant_map));
+                drag_scrub = Some(lower_expr(expr, variant_map, None));
             }
             ElementProp::DragMomentum(expr) => {
-                drag_momentum = Some(lower_expr(expr, variant_map));
+                drag_momentum = Some(lower_expr(expr, variant_map, None));
             }
             ElementProp::DragThreshold(expr) => {
-                drag_threshold = Some(lower_expr(expr, variant_map));
+                drag_threshold = Some(lower_expr(expr, variant_map, None));
             }
             ElementProp::DragVelocityMax(expr) => {
-                drag_velocity_max = Some(lower_expr(expr, variant_map));
+                drag_velocity_max = Some(lower_expr(expr, variant_map, None));
             }
             // Hero attributes
             ElementProp::HeroTag(s) => {
                 hero_tag = Some(s.clone());
             }
             ElementProp::HeroTransition(expr) => {
-                hero_transition = Some(lower_expr(expr, variant_map));
+                hero_transition = Some(lower_expr(expr, variant_map, None));
             }
         }
     }
@@ -609,7 +581,7 @@ fn lower_if_directive(
     variant_map: &HashMap<String, String>,
 ) -> ViewTree {
     let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
-        condition: lower_expr(&if_dir.condition, variant_map),
+        condition: lower_expr(&if_dir.condition, variant_map, None),
         body: Some(make_fragment_element(
             if_dir
                 .body
@@ -621,7 +593,7 @@ fn lower_if_directive(
     })
     .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
         ConditionalBranch {
-            condition: lower_expr(cond, variant_map),
+            condition: lower_expr(cond, variant_map, None),
             body: Some(make_fragment_element(
                 body.iter()
                     .map(|n| lower_view_node(n, string_signals, None, variant_map))
@@ -672,7 +644,7 @@ fn lower_for_directive(
     };
 
     ViewTree::ListRendering(Box::new(ListRenderingIntent {
-        iterable: lower_expr(&for_dir.iterable, variant_map),
+        iterable: lower_expr(&for_dir.iterable, variant_map, None),
         item_binding: BindingIR {
             name: for_dir.item_name.clone(),
             r#type: None,
@@ -681,7 +653,7 @@ fn lower_for_directive(
         key_expr: for_dir
             .key_expr
             .as_ref()
-            .map(|e| lower_expr(e, variant_map)),
+            .map(|e| lower_expr(e, variant_map, None)),
         empty_body: for_dir
             .empty_body
             .as_ref()

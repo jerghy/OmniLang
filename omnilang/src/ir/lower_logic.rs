@@ -24,7 +24,7 @@ pub fn lower_function(func: &FunctionDef, variant_map: &HashMap<String, String>)
             })
             .collect(),
         return_type: func.return_type.as_ref().map(lower_type),
-        body: lower_block(&func.body, variant_map),
+        body: lower_block(&func.body, variant_map, None),
         is_async: func.is_async,
     }
 }

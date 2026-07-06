@@ -69,7 +69,7 @@ pub(super) fn lower_keyframe_body(
             let properties: HashMap<String, ExprIR> = s
                 .properties
                 .iter()
-                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                 .collect();
             let ease = s.ease.as_ref().map(lower_easing);
             KeyframeStopIR {
@@ -79,7 +79,7 @@ pub(super) fn lower_keyframe_body(
             }
         })
         .collect();
-    let over = lower_expr(&kf.over, variant_map);
+    let over = lower_expr(&kf.over, variant_map, None);
     let ease = kf.ease.as_ref().map(lower_easing);
     let playback = lower_playback_props(&kf.playback, variant_map);
     let callbacks: Vec<(CallbackKindIR, ExprIR)> = kf
@@ -87,19 +87,19 @@ pub(super) fn lower_keyframe_body(
         .iter()
         .map(|cs| match cs {
             crate::parser::ast::CallbackSpec::OnStart(e) => {
-                (CallbackKindIR::OnStart, lower_expr(e, variant_map))
+                (CallbackKindIR::OnStart, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnUpdate(e) => {
-                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map))
+                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnComplete(e) => {
-                (CallbackKindIR::OnComplete, lower_expr(e, variant_map))
+                (CallbackKindIR::OnComplete, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnRepeat(e) => {
-                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map))
+                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
-                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map))
+                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map, None))
             }
         })
         .collect();
@@ -180,11 +180,11 @@ pub(super) fn lower_timeline_items(
                         properties: di
                             .properties
                             .iter()
-                            .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                            .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                             .collect(),
-                        over: lower_expr(&di.over, variant_map),
+                        over: lower_expr(&di.over, variant_map, None),
                         ease: di.ease.as_ref().map(lower_easing),
-                        delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
+                        delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map, None)),
                         color_space: di.color_space.clone(),
                         start: di.start.as_ref().map(format_position_value),
                         path: di.path.clone(),
@@ -220,11 +220,11 @@ pub(super) fn lower_timeline_item_kind_simple(
             properties: di
                 .properties
                 .iter()
-                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                 .collect(),
-            over: lower_expr(&di.over, variant_map),
+            over: lower_expr(&di.over, variant_map, None),
             ease: di.ease.as_ref().map(lower_easing),
-            delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
+            delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map, None)),
             color_space: di.color_space.clone(),
             start: di.start.as_ref().map(format_position_value),
             path: di.path.clone(),
@@ -233,7 +233,7 @@ pub(super) fn lower_timeline_item_kind_simple(
         crate::parser::ast::TimelineItemKind::SetBlock(props) => TimelineItemKindIR::Set(
             props
                 .iter()
-                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
+                .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                 .collect(),
         ),
         crate::parser::ast::TimelineItemKind::MotionRef(name) => {
@@ -243,8 +243,8 @@ pub(super) fn lower_timeline_item_kind_simple(
             Box::new(lower_motion_expr(&sc.motion, variant_map)),
             StaggerTimingIR {
                 each: match &sc.timing {
-                    crate::parser::ast::StaggerTiming::Each(e) => lower_expr(e, variant_map),
-                    crate::parser::ast::StaggerTiming::Amount(a) => lower_expr(a, variant_map),
+                    crate::parser::ast::StaggerTiming::Each(e) => lower_expr(e, variant_map, None),
+                    crate::parser::ast::StaggerTiming::Amount(a) => lower_expr(a, variant_map, None),
                 },
                 from: Some(lower_stagger_direction(&sc.from)),
             },
@@ -252,7 +252,7 @@ pub(super) fn lower_timeline_item_kind_simple(
         ),
         crate::parser::ast::TimelineItemKind::Label(name, cb) => TimelineItemKindIR::Label(
             name.clone(),
-            cb.as_ref().map(|e| lower_expr(e, variant_map)),
+            cb.as_ref().map(|e| lower_expr(e, variant_map, None)),
         ),
         crate::parser::ast::TimelineItemKind::StartPos(_pos) => {
             TimelineItemKindIR::Label("__start_pos__".into(), None)
@@ -270,23 +270,23 @@ pub(super) fn lower_callback_body(
         .iter()
         .map(|cs| match cs {
             crate::parser::ast::CallbackSpec::OnStart(e) => {
-                (CallbackKindIR::OnStart, lower_expr(e, variant_map))
+                (CallbackKindIR::OnStart, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnUpdate(e) => {
-                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map))
+                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnComplete(e) => {
-                (CallbackKindIR::OnComplete, lower_expr(e, variant_map))
+                (CallbackKindIR::OnComplete, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnRepeat(e) => {
-                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map))
+                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None))
             }
             crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
-                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map))
+                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map, None))
             }
         })
         .collect();
-    let over = lower_expr(&cb.over, variant_map);
+    let over = lower_expr(&cb.over, variant_map, None);
     let playback = lower_playback_props(&cb.playback, variant_map);
     CallbackBodyIR {
         callbacks,
@@ -370,19 +370,19 @@ pub(super) fn lower_playback_props(
                 });
             }
             crate::parser::ast::PlaybackProp::Delay(e) => {
-                pb.delay = Some(lower_expr(e, variant_map));
+                pb.delay = Some(lower_expr(e, variant_map, None));
             }
             crate::parser::ast::PlaybackProp::Paused(b) => {
                 pb.paused = *b;
             }
             crate::parser::ast::PlaybackProp::RepeatDelay(e) => {
-                pb.repeat_delay = Some(lower_expr(e, variant_map));
+                pb.repeat_delay = Some(lower_expr(e, variant_map, None));
             }
             crate::parser::ast::PlaybackProp::RepeatRefresh(b) => {
                 pb.repeat_refresh = *b;
             }
             crate::parser::ast::PlaybackProp::TimeScale(e) => {
-                pb.time_scale = Some(lower_expr(e, variant_map));
+                pb.time_scale = Some(lower_expr(e, variant_map, None));
             }
             crate::parser::ast::PlaybackProp::Interrupt(iv) => {
                 pb.interrupt = Some(match iv {
@@ -403,10 +403,10 @@ pub(super) fn lower_playback_props(
                 });
             }
             crate::parser::ast::PlaybackProp::DelayChildren(e) => {
-                pb.delay_children = Some(lower_expr(e, variant_map));
+                pb.delay_children = Some(lower_expr(e, variant_map, None));
             }
             crate::parser::ast::PlaybackProp::StaggerChildren(e) => {
-                pb.stagger_children = Some(lower_expr(e, variant_map));
+                pb.stagger_children = Some(lower_expr(e, variant_map, None));
             }
             crate::parser::ast::PlaybackProp::StaggerFrom(sd) => {
                 pb.stagger_from = Some(lower_stagger_direction(sd));

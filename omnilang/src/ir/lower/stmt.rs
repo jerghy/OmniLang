@@ -12,30 +12,38 @@ use super::expr::lower_expr;
 // Statement lowering
 // ═══════════════════════════════════════════════════════
 
-pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> StatementIR {
+pub(super) fn lower_stmt(
+    stmt: &Stmt,
+    variant_map: &HashMap<String, String>,
+    mut event_fields: Option<&mut Vec<String>>,
+) -> StatementIR {
     match stmt {
         Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
             name: name.clone(),
-            value: init.as_ref().map(|e| lower_expr(e, variant_map)),
+            value: init
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut())),
             r#type: None,
         },
         Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
-            value: value.as_ref().map(|e| lower_expr(e, variant_map)),
+            value: value
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut())),
         },
         Stmt::ExprStmt { expr, .. } => {
             // Bare block in statement position: emit a scoped block
             if let Expr::Block { body, .. } = expr {
                 return StatementIR::BlockStmtIR {
-                    body: lower_block(body, variant_map),
+                    body: lower_block(body, variant_map, event_fields.as_deref_mut()),
                 };
             }
-            if let Some(mutation) = try_lower_mutation(expr, variant_map) {
+            if let Some(mutation) = try_lower_mutation(expr, variant_map, event_fields.as_deref_mut()) {
                 StatementIR::MutationStmt {
                     intent: Some(mutation),
                 }
             } else {
                 StatementIR::ExprStmtIR {
-                    expr: lower_expr(expr, variant_map),
+                    expr: lower_expr(expr, variant_map, event_fields.as_deref_mut()),
                 }
             }
         }
@@ -45,31 +53,34 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
             else_ifs,
             else_body,
             ..
-        } => StatementIR::IfStmtIR {
-            condition: lower_expr(condition, variant_map),
-            then_body: lower_block(then_body, variant_map),
-            else_ifs: else_ifs
-                .iter()
-                .map(|(cond, body)| {
-                    (
-                        lower_expr(cond, variant_map),
-                        lower_block(body, variant_map),
-                    )
-                })
-                .collect(),
-            else_body: else_body.as_ref().map(|b| lower_block(b, variant_map)),
-        },
+        } => {
+            let mut ir_else_ifs = Vec::with_capacity(else_ifs.len());
+            for (cond, body) in else_ifs {
+                ir_else_ifs.push((
+                    lower_expr(cond, variant_map, event_fields.as_deref_mut()),
+                    lower_block(body, variant_map, event_fields.as_deref_mut()),
+                ));
+            }
+            StatementIR::IfStmtIR {
+                condition: lower_expr(condition, variant_map, event_fields.as_deref_mut()),
+                then_body: lower_block(then_body, variant_map, event_fields.as_deref_mut()),
+                else_ifs: ir_else_ifs,
+                else_body: else_body
+                    .as_ref()
+                    .map(|b| lower_block(b, variant_map, event_fields.as_deref_mut())),
+            }
+        }
         Stmt::Print { newline, arg, .. } => StatementIR::ExprStmtIR {
             expr: ExprIR::CallExpr {
                 name: if *newline { "println" } else { "print" }.into(),
-                args: vec![lower_expr(arg, variant_map)],
+                args: vec![lower_expr(arg, variant_map, event_fields.as_deref_mut())],
             },
         },
         Stmt::While {
             condition, body, ..
         } => StatementIR::WhileStmtIR {
-            condition: lower_expr(condition, variant_map),
-            body: lower_block(body, variant_map),
+            condition: lower_expr(condition, variant_map, event_fields.as_deref_mut()),
+            body: lower_block(body, variant_map, event_fields.as_deref_mut()),
         },
         Stmt::ForIn {
             var_name,
@@ -78,8 +89,8 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
             ..
         } => StatementIR::ForInStmtIR {
             var_name: var_name.clone(),
-            iterable: lower_expr(iterable, variant_map),
-            body: lower_block(body, variant_map),
+            iterable: lower_expr(iterable, variant_map, event_fields.as_deref_mut()),
+            body: lower_block(body, variant_map, event_fields.as_deref_mut()),
         },
         Stmt::Assign { target, value, .. } => {
             let (name, owner) = match target {
@@ -91,7 +102,7 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
                 intent: Some(MutationIntent {
                     target: SignalRefIR { owner, name },
                     operation: MutationOp::DirectAssign,
-                    amount: Some(lower_expr(value, variant_map)),
+                    amount: Some(lower_expr(value, variant_map, event_fields.as_deref_mut())),
                     item: None,
                 }),
             }
@@ -99,7 +110,7 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
         Stmt::Break(_) => StatementIR::BreakStmtIR,
         Stmt::Continue(_) => StatementIR::ContinueStmtIR,
         Stmt::Throw { expr, .. } => StatementIR::ThrowStmtIR {
-            expr: lower_expr(expr, variant_map),
+            expr: lower_expr(expr, variant_map, event_fields.as_deref_mut()),
         },
         Stmt::TryCatch {
             try_body,
@@ -108,10 +119,14 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
             finally_body,
             ..
         } => StatementIR::TryCatchStmtIR {
-            try_body: lower_block(try_body, variant_map),
+            try_body: lower_block(try_body, variant_map, event_fields.as_deref_mut()),
             catch_var: catch_var.clone(),
-            catch_body: catch_body.as_ref().map(|b| lower_block(b, variant_map)),
-            finally_body: finally_body.as_ref().map(|b| lower_block(b, variant_map)),
+            catch_body: catch_body
+                .as_ref()
+                .map(|b| lower_block(b, variant_map, event_fields.as_deref_mut())),
+            finally_body: finally_body
+                .as_ref()
+                .map(|b| lower_block(b, variant_map, event_fields.as_deref_mut())),
         },
         _ => StatementIR::ExprStmtIR {
             expr: ExprIR::LiteralExpr {
@@ -126,6 +141,7 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
 pub(super) fn try_lower_mutation(
     expr: &Expr,
     variant_map: &HashMap<String, String>,
+    mut event_fields: Option<&mut Vec<String>>,
 ) -> Option<MutationIntent> {
     // Pattern 1: Expr::MethodCall { object: VarRef("count"), method: "set", args: [value] }
     if let Expr::MethodCall {
@@ -136,14 +152,26 @@ pub(super) fn try_lower_mutation(
     } = expr
     {
         if let Expr::VarRef(target_name, _) = object.as_ref() {
-            return mutation_for_method(target_name, method, args.first(), variant_map);
+            return mutation_for_method(
+                target_name,
+                method,
+                args.first(),
+                variant_map,
+                event_fields,
+            );
         }
     }
     // Pattern 2: Expr::FuncCall { func: FieldAccess { VarRef("count"), "set" }, args: [value] }
     if let Expr::FuncCall { func, args, .. } = expr {
         if let Expr::FieldAccess { object, field, .. } = func.as_ref() {
             if let Expr::VarRef(target_name, _) = object.as_ref() {
-                return mutation_for_method(target_name, field, args.first(), variant_map);
+                return mutation_for_method(
+                    target_name,
+                    field,
+                    args.first(),
+                    variant_map,
+                    event_fields,
+                );
             }
         }
     }
@@ -161,7 +189,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::DirectAssign,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -172,7 +204,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Increment,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -183,7 +219,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Decrement,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -194,7 +234,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Multiply,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -205,7 +249,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Divide,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -216,7 +264,11 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Modulo,
-                        amount: Some(lower_expr(right, variant_map)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                        )),
                         item: None,
                     });
                 }
@@ -234,7 +286,11 @@ pub(super) fn try_lower_mutation(
                                 name: field.clone(),
                             },
                             operation: MutationOp::DirectAssign,
-                            amount: Some(lower_expr(right, variant_map)),
+                            amount: Some(lower_expr(
+                                right,
+                                variant_map,
+                                event_fields.as_deref_mut(),
+                            )),
                             item: None,
                         });
                     }
@@ -245,7 +301,11 @@ pub(super) fn try_lower_mutation(
                                 name: field.clone(),
                             },
                             operation: MutationOp::Increment,
-                            amount: Some(lower_expr(right, variant_map)),
+                            amount: Some(lower_expr(
+                                right,
+                                variant_map,
+                                event_fields.as_deref_mut(),
+                            )),
                             item: None,
                         });
                     }
@@ -256,7 +316,11 @@ pub(super) fn try_lower_mutation(
                                 name: field.clone(),
                             },
                             operation: MutationOp::Decrement,
-                            amount: Some(lower_expr(right, variant_map)),
+                            amount: Some(lower_expr(
+                                right,
+                                variant_map,
+                                event_fields.as_deref_mut(),
+                            )),
                             item: None,
                         });
                     }
@@ -273,12 +337,13 @@ pub(super) fn mutation_for_method(
     method: &str,
     amount: Option<&Expr>,
     variant_map: &HashMap<String, String>,
+    mut event_fields: Option<&mut Vec<String>>,
 ) -> Option<MutationIntent> {
     let target = SignalRefIR {
         owner: None,
         name: target_name.into(),
     };
-    let amount = amount.map(|e| lower_expr(e, variant_map));
+    let amount = amount.map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()));
     match method {
         "set" | "setValue" => Some(MutationIntent {
             target,
@@ -318,22 +383,26 @@ pub(super) fn mutation_for_method(
 // Block lowering
 // ═══════════════════════════════════════════════════════
 
-pub(crate) fn lower_block(block: &Block, variant_map: &HashMap<String, String>) -> BlockIR {
+pub(crate) fn lower_block(
+    block: &Block,
+    variant_map: &HashMap<String, String>,
+    mut event_fields: Option<&mut Vec<String>>,
+) -> BlockIR {
     let mut statements: Vec<StatementIR> = block
         .stmts
         .iter()
-        .map(|s| lower_stmt(s, variant_map))
+        .map(|s| lower_stmt(s, variant_map, event_fields.as_deref_mut()))
         .collect();
 
     // Include trailing expression as an expression statement
     if let Some(ref expr) = block.trailing_expr {
-        if let Some(mutation) = try_lower_mutation(expr, variant_map) {
+        if let Some(mutation) = try_lower_mutation(expr, variant_map, event_fields.as_deref_mut()) {
             statements.push(StatementIR::MutationStmt {
                 intent: Some(mutation),
             });
         } else {
             statements.push(StatementIR::ExprStmtIR {
-                expr: lower_expr(expr, variant_map),
+                expr: lower_expr(expr, variant_map, event_fields.as_deref_mut()),
             });
         }
     }

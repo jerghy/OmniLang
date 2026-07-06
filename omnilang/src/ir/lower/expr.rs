@@ -12,7 +12,11 @@ use super::stmt::lower_block;
 // Expression lowering
 // ═══════════════════════════════════════════════════════
 
-pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> ExprIR {
+pub(crate) fn lower_expr(
+    expr: &Expr,
+    variant_map: &HashMap<String, String>,
+    mut event_fields: Option<&mut Vec<String>>,
+) -> ExprIR {
     match expr {
         Expr::Literal(lit, _) => {
             let value = match lit {
@@ -43,8 +47,8 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 BinaryOpKind::NullishCoalesce => "??".into(),
                 _ => format!("{:?}", op).to_lowercase(),
             },
-            left: Box::new(lower_expr(left, variant_map)),
-            right: Box::new(lower_expr(right, variant_map)),
+            left: Box::new(lower_expr(left, variant_map, event_fields.as_deref_mut())),
+            right: Box::new(lower_expr(right, variant_map, event_fields.as_deref_mut())),
         },
         Expr::UnaryOp { op, operand, .. } => ExprIR::UnaryOpExpr {
             op: match op {
@@ -52,7 +56,7 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 UnaryOpKind::Neg => "-".into(),
                 UnaryOpKind::Await => "await ".into(),
             },
-            operand: Box::new(lower_expr(operand, variant_map)),
+            operand: Box::new(lower_expr(operand, variant_map, event_fields.as_deref_mut())),
         },
         Expr::FuncCall { func, args, .. } => {
             // Pattern: signal.get() → signal.value
@@ -77,7 +81,10 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                     return ExprIR::StoreFieldAccessExpr {
                         store_alias: obj_name.clone(),
                         field_name: field.clone(),
-                        call_args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                        call_args: args
+                            .iter()
+                            .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                            .collect(),
                     };
                 }
             }
@@ -85,14 +92,24 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             if let Expr::VarRef(name, _) = func.as_ref() {
                 ExprIR::CallExpr {
                     name: name.clone(),
-                    args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                    args: args
+                        .iter()
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .collect(),
                 }
             } else if let Expr::OptionalChain { object, field, .. } = func.as_ref() {
                 // user?.len() — treat as optional method call
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(object, variant_map)),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                    )),
                     method: field.clone(),
-                    args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                    args: args
+                        .iter()
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .collect(),
                     is_optional: true,
                 }
             } else {
@@ -101,12 +118,22 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 }
             }
         }
-        Expr::FieldAccess { object, field, .. } => ExprIR::FieldAccessExpr {
-            object: Box::new(lower_expr(object, variant_map)),
-            field: field.clone(),
-        },
+        Expr::FieldAccess { object, field, .. } => {
+            // Collect event field names during lowering (e.field → push field).
+            if let Some(ref mut fields) = event_fields {
+                if let Expr::VarRef(name, _) = object.as_ref() {
+                    if name == "e" && !fields.contains(field) {
+                        fields.push(field.clone());
+                    }
+                }
+            }
+            ExprIR::FieldAccessExpr {
+                object: Box::new(lower_expr(object, variant_map, event_fields)),
+                field: field.clone(),
+            }
+        }
         Expr::OptionalChain { object, field, .. } => ExprIR::OptionalChainExpr {
-            object: Box::new(lower_expr(object, variant_map)),
+            object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
             field: field.clone(),
         },
         Expr::MethodCall {
@@ -119,7 +146,11 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             // get(i) with args → array/map index access
             if method == "get" && args.is_empty() {
                 ExprIR::FieldAccessExpr {
-                    object: Box::new(lower_expr(object, variant_map)),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                    )),
                     field: "value".into(),
                 }
             } else if method == "set" {
@@ -130,9 +161,16 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             } else {
                 // General method call: to_string, len, get(i), push, pop, contains, insert, etc.
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(object, variant_map)),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                    )),
                     method: method.clone(),
-                    args: args.iter().map(|e| lower_expr(e, variant_map)).collect(),
+                    args: args
+                        .iter()
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .collect(),
                     is_optional: false,
                 }
             }
@@ -149,14 +187,14 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
         Expr::ArrayLiteral { elements, .. } => ExprIR::ArrayExpr {
             elements: elements
                 .iter()
-                .map(|e| lower_expr(e, variant_map))
+                .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
                 .collect(),
         },
         Expr::MapLiteral { entries, .. } => {
             let map: serde_json::Map<String, serde_json::Value> = entries
                 .iter()
                 .map(|(k, v)| {
-                    let key = match lower_expr(k, variant_map) {
+                    let key = match lower_expr(k, variant_map, event_fields.as_deref_mut()) {
                         ExprIR::LiteralExpr { value } => match value {
                             serde_json::Value::String(s) => s,
                             other => format!("{}", other),
@@ -181,7 +219,12 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
         } => {
             let ir_fields: Vec<(String, ExprIR)> = fields
                 .iter()
-                .map(|(name, val)| (name.clone(), lower_expr(val, variant_map)))
+                .map(|(name, val)| {
+                    (
+                        name.clone(),
+                        lower_expr(val, variant_map, event_fields.as_deref_mut()),
+                    )
+                })
                 .collect();
             // Check if this is a tagged union variant construction
             if let Some(union_name) = variant_map.get(type_name) {
@@ -203,9 +246,21 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             else_expr,
             ..
         } => ExprIR::TernaryIR {
-            cond: Box::new(lower_expr(condition, variant_map)),
-            then_expr: Box::new(lower_expr(then_expr, variant_map)),
-            else_expr: Box::new(lower_expr(else_expr, variant_map)),
+            cond: Box::new(lower_expr(
+                condition,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
+            then_expr: Box::new(lower_expr(
+                then_expr,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
+            else_expr: Box::new(lower_expr(
+                else_expr,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
         },
         Expr::TernaryExpr {
             condition,
@@ -213,15 +268,27 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             else_expr,
             ..
         } => ExprIR::TernaryIR {
-            cond: Box::new(lower_expr(condition, variant_map)),
-            then_expr: Box::new(lower_expr(then_expr, variant_map)),
-            else_expr: Box::new(lower_expr(else_expr, variant_map)),
+            cond: Box::new(lower_expr(
+                condition,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
+            then_expr: Box::new(lower_expr(
+                then_expr,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
+            else_expr: Box::new(lower_expr(
+                else_expr,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
         },
         Expr::Block { body, .. } => {
             // Block in expression position: preserve ALL statements.
             // The last expression statement provides the value; preceding
             // statements (e.g. print, let, mutations) are kept as-is.
-            let block_ir = lower_block(body, variant_map);
+            let block_ir = lower_block(body, variant_map, event_fields.as_deref_mut());
             if let Some(last) = block_ir.statements.last() {
                 match last {
                     StatementIR::ExprStmtIR { expr } => {
@@ -255,50 +322,57 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             }
         }
         Expr::IndexGet { object, index, .. } => ExprIR::IndexExpr {
-            object: Box::new(lower_expr(object, variant_map)),
-            index: Box::new(lower_expr(index, variant_map)),
+            object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
+            index: Box::new(lower_expr(index, variant_map, event_fields.as_deref_mut())),
         },
         Expr::ClosureExpr { params, body, .. } => ExprIR::ClosureExpr {
             params: params.clone(),
-            body: Box::new(lower_expr(body, variant_map)),
+            body: Box::new(lower_expr(body, variant_map, event_fields.as_deref_mut())),
         },
         Expr::AwaitExpr { operand, .. } => ExprIR::AwaitExpr {
-            operand: Box::new(lower_expr(operand, variant_map)),
+            operand: Box::new(lower_expr(
+                operand,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
         },
         Expr::MatchExpr { matched, arms, .. } => {
-            let ir_arms: Vec<MatchArmIR> = arms
-                .iter()
-                .map(|arm| {
-                    let pattern = match &arm.pattern.kind {
-                        MatchPatternKind::Variant { name, bindings } => MatchPatternIR {
-                            kind: MatchPatternKindIR::Variant {
-                                name: name.clone(),
-                                bindings: bindings.clone(),
-                            },
+            let matched_ir = Box::new(lower_expr(
+                matched,
+                variant_map,
+                event_fields.as_deref_mut(),
+            ));
+            let mut ir_arms = Vec::with_capacity(arms.len());
+            for arm in arms {
+                let pattern = match &arm.pattern.kind {
+                    MatchPatternKind::Variant { name, bindings } => MatchPatternIR {
+                        kind: MatchPatternKindIR::Variant {
+                            name: name.clone(),
+                            bindings: bindings.clone(),
                         },
-                        MatchPatternKind::Wildcard => MatchPatternIR {
-                            kind: MatchPatternKindIR::Wildcard,
-                        },
-                        MatchPatternKind::Literal(lit) => {
-                            let value = match lit {
-                                Literal::Int(n) => serde_json::Value::Number((*n).into()),
-                                Literal::String(s) => serde_json::Value::String(s.clone()),
-                                Literal::Bool(b) => serde_json::Value::Bool(*b),
-                                _ => serde_json::Value::Null,
-                            };
-                            MatchPatternIR {
-                                kind: MatchPatternKindIR::Literal { value },
-                            }
+                    },
+                    MatchPatternKind::Wildcard => MatchPatternIR {
+                        kind: MatchPatternKindIR::Wildcard,
+                    },
+                    MatchPatternKind::Literal(lit) => {
+                        let value = match lit {
+                            Literal::Int(n) => serde_json::Value::Number((*n).into()),
+                            Literal::String(s) => serde_json::Value::String(s.clone()),
+                            Literal::Bool(b) => serde_json::Value::Bool(*b),
+                            _ => serde_json::Value::Null,
+                        };
+                        MatchPatternIR {
+                            kind: MatchPatternKindIR::Literal { value },
                         }
-                    };
-                    MatchArmIR {
-                        pattern,
-                        body: lower_block(&arm.body, variant_map),
                     }
-                })
-                .collect();
+                };
+                ir_arms.push(MatchArmIR {
+                    pattern,
+                    body: lower_block(&arm.body, variant_map, event_fields.as_deref_mut()),
+                });
+            }
             ExprIR::MatchExpr {
-                matched: Box::new(lower_expr(matched, variant_map)),
+                matched: matched_ir,
                 arms: ir_arms,
             }
         }
@@ -309,13 +383,15 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 .iter()
                 .map(|p| match p {
                     TemplatePart::Literal(s) => s.clone(),
-                    TemplatePart::Expr(e) => match lower_expr(e, variant_map) {
-                        ExprIR::LiteralExpr { value } => match &value {
-                            serde_json::Value::String(s) => s.clone(),
-                            other => other.to_string(),
-                        },
-                        other => format!("{:?}", other),
-                    },
+                    TemplatePart::Expr(e) => {
+                        match lower_expr(e, variant_map, event_fields.as_deref_mut()) {
+                            ExprIR::LiteralExpr { value } => match &value {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            },
+                            other => format!("{:?}", other),
+                        }
+                    }
                 })
                 .collect();
             ExprIR::LiteralExpr {
@@ -343,7 +419,7 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
 
 /// Lower an expression to a serde_json::Value (for literal extraction).
 pub(super) fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
-    match lower_expr(expr, &HashMap::new()) {
+    match lower_expr(expr, &HashMap::new(), None) {
         ExprIR::LiteralExpr { value } => value,
         ExprIR::IdentifierExpr { name } => serde_json::Value::String(name),
         other => serde_json::Value::String(format!("{:?}", other)),

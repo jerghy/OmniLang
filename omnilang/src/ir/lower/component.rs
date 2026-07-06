@@ -33,7 +33,7 @@ pub(super) fn lower_component(
         .map(|s| StateIntent {
             name: s.name.clone(),
             r#type: lower_type(&s.type_ann),
-            initial_value: lower_expr(&s.init, variant_map),
+            initial_value: lower_expr(&s.init, variant_map, None),
             is_copy: false,
         })
         .collect();
@@ -44,7 +44,7 @@ pub(super) fn lower_component(
         .map(|c| ComputedIntent {
             name: c.name.clone(),
             r#type: lower_type(&c.type_ann),
-            body: lower_expr(&c.body, variant_map),
+            body: lower_expr(&c.body, variant_map, None),
             deps: vec![],
         })
         .collect();
@@ -54,7 +54,7 @@ pub(super) fn lower_component(
         computeds.push(ComputedIntent {
             name: g.name.clone(),
             r#type: lower_type(&g.type_ann),
-            body: lower_expr(&g.body, variant_map),
+            body: lower_expr(&g.body, variant_map, None),
             deps: vec![],
         });
     }
@@ -65,7 +65,7 @@ pub(super) fn lower_component(
         .filter(|lc| matches!(lc.kind, ParserLifecycleKind::Effect))
         .map(|lc| EffectIntent {
             deps: lc.deps.clone(),
-            body: lower_block(&lc.body, variant_map),
+            body: lower_block(&lc.body, variant_map, None),
         })
         .collect();
 
@@ -79,7 +79,7 @@ pub(super) fn lower_component(
                 ParserLifecycleKind::Unmount => IRLifecycleKind::Unmount,
                 ParserLifecycleKind::Effect => IRLifecycleKind::Effect,
             },
-            body: lower_block(&lc.body, variant_map),
+            body: lower_block(&lc.body, variant_map, None),
         })
         .collect();
 
@@ -98,7 +98,7 @@ pub(super) fn lower_component(
                 })
                 .collect(),
             return_type: f.return_type.as_ref().map(lower_type),
-            body: lower_block(&f.body, variant_map),
+            body: lower_block(&f.body, variant_map, None),
             is_async: f.is_async,
         })
         .collect();
@@ -116,7 +116,7 @@ pub(super) fn lower_component(
                 })
                 .collect(),
             return_type: a.return_type.as_ref().map(lower_type),
-            body: lower_block(&a.body, variant_map),
+            body: lower_block(&a.body, variant_map, None),
             is_async: a.is_async,
         });
     }
@@ -133,7 +133,7 @@ pub(super) fn lower_component(
         .filter_map(|p| {
             p.default
                 .as_ref()
-                .map(|d| (p.name.clone(), lower_expr(d, variant_map)))
+                .map(|d| (p.name.clone(), lower_expr(d, variant_map, None)))
         })
         .collect();
 
@@ -244,7 +244,7 @@ pub(super) fn lower_component(
         .iter()
         .map(|h| HeroIntent {
             name: h.name.clone(),
-            over: lower_expr(&h.over, variant_map),
+            over: lower_expr(&h.over, variant_map, None),
             ease: h.ease.as_ref().map(lower_easing),
         })
         .collect();
@@ -560,7 +560,7 @@ pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String
     let getters: HashMap<String, ExprIR> = store
         .getters
         .iter()
-        .map(|g| (g.name.clone(), lower_expr(&g.body, variant_map)))
+        .map(|g| (g.name.clone(), lower_expr(&g.body, variant_map, None)))
         .collect();
 
     let actions: Vec<FunctionIR> = store
@@ -578,7 +578,7 @@ pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String
                 })
                 .collect(),
             return_type: action.return_type.as_ref().map(lower_type),
-            body: lower_block(&action.body, variant_map),
+            body: lower_block(&action.body, variant_map, None),
             is_async: action.is_async,
         })
         .collect();
