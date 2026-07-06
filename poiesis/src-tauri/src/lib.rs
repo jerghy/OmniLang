@@ -163,14 +163,15 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
         // Also discover sibling .omni files for import resolution
         let _file_stem = project_dir
             .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         let name = project_dir
             .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if name.is_empty() {
+            return CompileResult::from_error("Invalid file path: no filename", "E_IO");
+        }
         match std::fs::read_to_string(project_dir) {
             Ok(content) => {
                 sources.insert(name, content);
@@ -506,24 +507,43 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    // Prevent path traversal: reject absolute paths and paths with `..` segments.
-    let clean = sanitize_path(&path)?;
-    let full = std::path::Path::new(&dir).join(&clean);
+    // Prevent path traversal via canonicalize + prefix verification.
+    let full = sanitize_path(&std::path::Path::new(&dir), &path)?;
     std::fs::read_to_string(&full).map_err(|e| format!("Failed to read {}: {}", full.display(), e))
 }
 
-/// Reject paths that could escape the project directory.
-fn sanitize_path(path: &str) -> Result<String, String> {
-    let p = std::path::Path::new(path);
+/// Validate and canonicalize a user-supplied relative path against a base directory.
+/// Returns the canonicalized path if it is within the base directory.
+/// Resolves symlinks, `..`, and other path traversal attempts.
+fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::PathBuf, String> {
+    // Reject empty paths
+    if user_path.is_empty() {
+        return Err("Empty path is not allowed".to_string());
+    }
+
+    // Reject paths that are already absolute
+    let p = std::path::Path::new(user_path);
     if p.is_absolute() {
         return Err("Absolute paths are not allowed".to_string());
     }
-    for component in p.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err("Path traversal (..) is not allowed".to_string());
-        }
+
+    // Join with base and canonicalize (resolves symlinks, .., etc.)
+    let full = base.join(p);
+    let canonical = full.canonicalize().map_err(|e| {
+        format!("Invalid path: {}", e)
+    })?;
+
+    // Canonicalize the base for comparison
+    let base_canonical = base.canonicalize().map_err(|e| {
+        format!("Base directory error: {}", e)
+    })?;
+
+    // Verify the resolved path is within the base directory
+    if !canonical.starts_with(&base_canonical) {
+        return Err("Path traversal detected".to_string());
     }
-    Ok(path.to_string())
+
+    Ok(canonical)
 }
 
 #[tauri::command]
@@ -538,9 +558,8 @@ fn write_file(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    // Prevent path traversal.
-    let clean = sanitize_path(&path)?;
-    let full = std::path::Path::new(&dir).join(&clean);
+    // Prevent path traversal via canonicalize + prefix verification.
+    let full = sanitize_path(&std::path::Path::new(&dir), &path)?;
     if let Some(parent) = full.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {}", e))?;
     }
@@ -602,9 +621,8 @@ fn verify_pid_roundtrip(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    // Prevent path traversal.
-    let clean = sanitize_path(&file)?;
-    let full = std::path::Path::new(&dir).join(&clean);
+    // Prevent path traversal via canonicalize + prefix verification.
+    let full = sanitize_path(&std::path::Path::new(&dir), &file)?;
     let source = std::fs::read_to_string(&full)
         .map_err(|e| format!("Failed to read {}: {}", full.display(), e))?;
 
