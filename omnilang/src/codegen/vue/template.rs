@@ -1,15 +1,16 @@
 //! Vue template node generation.
 
-use super::{format_expr_vue, generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
+use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
 use crate::codegen::emit_event_object as emit_event_object_js;
 use crate::codegen::javascript::js_type;
+use crate::codegen::shared::expr::FormatExpr;
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
 // Vue template node generation
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
+pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl FormatExpr) {
     match node {
         ViewTree::Element(el) => {
             let mut attrs: Vec<String> = Vec::new();
@@ -27,7 +28,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                         attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
                     }
                     _ => {
-                        let vue_val = format_expr_vue(prop_value);
+                        let vue_val = fmt.format_expr(prop_value);
                         attrs.push(format!(":{}={}", vue_attr, vue_val));
                     }
                 }
@@ -131,7 +132,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
             // Children
             w.indent();
             for child in &el.children {
-                gen_template_node(w, child);
+                gen_template_node(w, child, fmt);
             }
             w.dedent();
 
@@ -145,7 +146,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
 
             if branches.is_empty() {
                 if let Some(ref fb) = fallback {
-                    gen_template_node(w, fb);
+                    gen_template_node(w, fb, fmt);
                 }
                 return;
             }
@@ -155,12 +156,12 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
             //     ...body...
             //   </template>
             if branches.len() == 1 && fallback.is_none() {
-                let cond_str = format_expr_vue(&branches[0].condition);
+                let cond_str = fmt.format_expr(&branches[0].condition);
                 let cond_safe = cond_str.replace('"', "&quot;");
                 w.emit(&format!("<template v-if=\"{}\">", cond_safe));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
-                    gen_template_node(w, body);
+                    gen_template_node(w, body, fmt);
                 }
                 w.dedent();
                 w.emit("</template>");
@@ -169,7 +170,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
 
             // Multiple branches or with fallback
             for (i, branch) in branches.iter().enumerate() {
-                let cond_str = format_expr_vue(&branch.condition);
+                let cond_str = fmt.format_expr(&branch.condition);
                 let cond_safe = cond_str.replace('"', "&quot;");
                 if i == 0 {
                     w.emit(&format!("<template v-if=\"{}\">", cond_safe));
@@ -178,7 +179,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                 }
                 w.indent();
                 if let Some(ref body) = branch.body {
-                    gen_template_node(w, body);
+                    gen_template_node(w, body, fmt);
                 }
                 w.dedent();
                 w.emit("</template>");
@@ -187,14 +188,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
             if let Some(ref fb) = fallback {
                 w.emit("<template v-else>");
                 w.indent();
-                gen_template_node(w, fb);
+                gen_template_node(w, fb, fmt);
                 w.dedent();
                 w.emit("</template>");
             }
         }
 
         ViewTree::ListRendering(list) => {
-            let iterable_str = format_expr_vue(&list.iterable);
+            let iterable_str = fmt.format_expr(&list.iterable);
             let item_name = &list.item_binding.name;
             w.emit(&format!(
                 "<template v-for=\"({}, index) in {}\" :key=\"index\">",
@@ -202,7 +203,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
             ));
             w.indent();
             if let Some(ref body) = list.body {
-                gen_template_node(w, body);
+                gen_template_node(w, body, fmt);
             }
             w.dedent();
             w.emit("</template>");

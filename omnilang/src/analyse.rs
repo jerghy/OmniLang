@@ -103,15 +103,23 @@ pub fn analyse_multi(
             // Use entry().or_default() + std::mem::take to avoid cloning
             // all collections on the merge path.
             let existing = merged_ir.modules.entry(mod_name).or_default();
-            existing.components.extend(std::mem::take(&mut mod_ir.components));
+            existing
+                .components
+                .extend(std::mem::take(&mut mod_ir.components));
             existing.stores.extend(std::mem::take(&mut mod_ir.stores));
-            existing.functions.extend(std::mem::take(&mut mod_ir.functions));
+            existing
+                .functions
+                .extend(std::mem::take(&mut mod_ir.functions));
             existing.structs.extend(std::mem::take(&mut mod_ir.structs));
-            existing.type_aliases.extend(std::mem::take(&mut mod_ir.type_aliases));
+            existing
+                .type_aliases
+                .extend(std::mem::take(&mut mod_ir.type_aliases));
             existing.imports.extend(std::mem::take(&mut mod_ir.imports));
             existing.exports.extend(std::mem::take(&mut mod_ir.exports));
             existing.motions.extend(std::mem::take(&mut mod_ir.motions));
-            existing.timelines.extend(std::mem::take(&mut mod_ir.timelines));
+            existing
+                .timelines
+                .extend(std::mem::take(&mut mod_ir.timelines));
         }
 
         for (key, entry) in ir_program.source_map {

@@ -4,17 +4,83 @@
 
 use std::collections::HashSet;
 
+use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::CodeWriter;
+use crate::codegen::{capitalize_first, JsonFormatConfig, JSON_REACT};
 use crate::ir::*;
 
-use super::super::{binary_op_to_str, capitalize_first, format_block_as_expr};
-use crate::codegen::{format_json_value, JSON_REACT};
+/// React TSX expression formatter.
+///
+/// Uses JS-family syntax with `translate_builtin_call` for stdlib calls
+/// and `translate_method_call` for method dispatch.
+struct ReactFormatExpr;
+
+impl FormatExpr for ReactFormatExpr {
+    fn json_config(&self) -> &JsonFormatConfig {
+        &JSON_REACT
+    }
+
+    fn strict_eq(&self) -> bool {
+        true
+    }
+
+    fn null_fallback(&self) -> &str {
+        "undefined"
+    }
+
+    fn format_closure(&self, params: &str, body: &str) -> String {
+        if params.is_empty() {
+            format!("(() => ({body}))")
+        } else {
+            format!("(({params}) => ({body}))")
+        }
+    }
+
+    fn format_call(&self, name: &str, args: &[String]) -> String {
+        translate_builtin_call(name, args)
+    }
+
+    fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        translate_method_call(obj, method, args)
+    }
+
+    fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
+        let cases: Vec<String> = arms
+            .iter()
+            .map(|arm| {
+                let body = self.format_block_as_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, bindings } => {
+                        let destructure = if bindings.is_empty() {
+                            String::new()
+                        } else {
+                            format!("const {{ {} }} = _v; ", bindings.join(", "))
+                        };
+                        format!(
+                            "if (_v._variant === \"{}\") {{ {}{}; }}",
+                            name, destructure, body
+                        )
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        format!("return {};", body)
+                    }
+                    MatchPatternKindIR::Literal { value } => {
+                        let v = crate::codegen::format_json_value(value, &JSON_REACT);
+                        format!("if (_v._variant === {}) {{ return {}; }}", v, body)
+                    }
+                }
+            })
+            .collect();
+        format!("(() => {{ const _v = {matched}; {} }})()", cases.join(" "))
+    }
+}
 
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     signal_names: &HashSet<String>,
 ) {
+    let fmt = ReactFormatExpr;
     match stmt {
         StatementIR::LetStmtIR {
             name,
@@ -23,7 +89,7 @@ pub(super) fn generate_statement_tsx(
         } => {
             let rhs = value
                 .as_ref()
-                .map(format_expr_ir_tsx)
+                .map(|v| fmt.format_expr(v))
                 .unwrap_or_else(|| "null".into());
             let type_hint = r#type
                 .as_ref()
@@ -44,7 +110,7 @@ pub(super) fn generate_statement_tsx(
             else_ifs,
             else_body,
         } => {
-            let cond = format_expr_ir_tsx(condition);
+            let cond = fmt.format_expr(condition);
             w.emit(&format!("if ({}) {{", cond));
             w.indent();
             for s in &then_body.statements {
@@ -52,7 +118,7 @@ pub(super) fn generate_statement_tsx(
             }
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
-                let elif_js = format_expr_ir_tsx(elif_cond);
+                let elif_js = fmt.format_expr(elif_cond);
                 w.emit(&format!("}} else if ({}) {{", elif_js));
                 w.indent();
                 for s in &elif_body.statements {
@@ -75,7 +141,7 @@ pub(super) fn generate_statement_tsx(
         StatementIR::ReturnStmtIR { value } => {
             let rhs = value
                 .as_ref()
-                .map(format_expr_ir_tsx)
+                .map(|v| fmt.format_expr(v))
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("return {};", rhs));
         }
@@ -87,7 +153,7 @@ pub(super) fn generate_statement_tsx(
             let amount = mut_intent
                 .amount
                 .as_ref()
-                .map(format_expr_ir_tsx)
+                .map(|v| fmt.format_expr(v))
                 .unwrap_or_else(|| "0".into());
             let is_store_signal = mut_intent.target.owner.is_some();
             let is_component_state = !is_store_signal && signal_names.contains(target.as_str());
@@ -153,7 +219,7 @@ pub(super) fn generate_statement_tsx(
             }
         }
         StatementIR::ExprStmtIR { expr } => {
-            let line = format_expr_ir_tsx(expr);
+            let line = fmt.format_expr(expr);
             if line != "null" {
                 w.emit(&format!("{};", line));
             }
@@ -162,13 +228,13 @@ pub(super) fn generate_statement_tsx(
             let arg_str = if args.is_empty() {
                 String::new()
             } else {
-                let formatted: Vec<String> = args.iter().map(format_expr_ir_tsx).collect();
+                let formatted: Vec<String> = args.iter().map(|a| fmt.format_expr(a)).collect();
                 format!("({})", formatted.join(", "))
             };
             w.emit(&format!("{}{};", event_name, arg_str));
         }
         StatementIR::WhileStmtIR { condition, body } => {
-            let cond = format_expr_ir_tsx(condition);
+            let cond = fmt.format_expr(condition);
             w.emit(&format!("while ({}) {{", cond));
             w.indent();
             for s in &body.statements {
@@ -182,7 +248,7 @@ pub(super) fn generate_statement_tsx(
             iterable,
             body,
         } => {
-            let iter = format_expr_ir_tsx(iterable);
+            let iter = fmt.format_expr(iterable);
             w.emit(&format!("for (const {} of {}) {{", var_name, iter));
             w.indent();
             for s in &body.statements {
@@ -198,7 +264,7 @@ pub(super) fn generate_statement_tsx(
             w.emit("continue;");
         }
         StatementIR::ThrowStmtIR { expr } => {
-            let e = format_expr_ir_tsx(expr);
+            let e = fmt.format_expr(expr);
             w.emit(&format!("throw {};", e));
         }
         StatementIR::TryCatchStmtIR {
@@ -243,147 +309,12 @@ pub(super) fn generate_statement_tsx(
     }
 }
 
-fn format_block_as_tsx_expr(block: &BlockIR) -> String {
-    format_block_as_expr(block, &format_expr_ir_tsx, "undefined")
-}
-
 // ═══════════════════════════════════════════════════════════
 // Expression formatting (TSX)
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
-    match expr {
-        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_REACT),
-        ExprIR::IdentifierExpr { name } => name.clone(),
-        ExprIR::FieldAccessExpr { object, field } => {
-            format!("{}.{}", format_expr_ir_tsx(object), field)
-        }
-        ExprIR::OptionalChainExpr { object, field, .. } => {
-            format!("{}.{}", format_expr_ir_tsx(object), field)
-        }
-        ExprIR::BinaryOpExpr { op, left, right } => {
-            let js_op = binary_op_to_str(op, true, false);
-            let lhs = format_expr_ir_tsx(left);
-            let rhs = format_expr_ir_tsx(right);
-            format!("{} {} {}", lhs, js_op, rhs)
-        }
-        ExprIR::UnaryOpExpr { op, operand } => {
-            let js_op = match op.as_str() {
-                "not" => "!",
-                "neg" => "-",
-                _ => op,
-            };
-            format!("{}{}", js_op, format_expr_ir_tsx(operand))
-        }
-        ExprIR::TernaryIR {
-            cond,
-            then_expr,
-            else_expr,
-        } => {
-            let c = format_expr_ir_tsx(cond);
-            let t = format_expr_ir_tsx(then_expr);
-            let e = format_expr_ir_tsx(else_expr);
-            format!("{} ? {} : {}", c, t, e)
-        }
-        ExprIR::CallExpr { name, args } => {
-            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_tsx).collect();
-            translate_builtin_call(name, &arg_strs)
-        }
-        ExprIR::StoreFieldAccessExpr {
-            store_alias,
-            field_name,
-            call_args,
-        } => {
-            let args: Vec<String> = call_args.iter().map(format_expr_ir_tsx).collect();
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                format!("({})", args.join(", "))
-            };
-            format!("{}.{}{}", store_alias, field_name, arg_str)
-        }
-        ExprIR::ArrayExpr { elements } => {
-            let items: Vec<String> = elements.iter().map(format_expr_ir_tsx).collect();
-            format!("[{}]", items.join(", "))
-        }
-        ExprIR::StructExpr { fields, .. } => {
-            let entries: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir_tsx(v)))
-                .collect();
-            format!("{{{}}}", entries.join(", "))
-        }
-        ExprIR::VariantLiteral {
-            variant, fields, ..
-        } => {
-            let mut entries: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("\"{}\": {}", k, format_expr_ir_tsx(v)))
-                .collect();
-            entries.insert(0, format!("\"_variant\": \"{}\"", variant));
-            format!("{{{}}}", entries.join(", "))
-        }
-        ExprIR::MethodCallExpr {
-            object,
-            method,
-            args,
-            ..
-        } => {
-            let obj = format_expr_ir_tsx(object);
-            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_tsx).collect();
-            translate_method_call(&obj, method, &arg_strs)
-        }
-        ExprIR::BlockExpr {
-            statements: _,
-            tail,
-        } => {
-            // Only tail expression emitted; preceding statements preserved in IR for future codegen
-            format_expr_ir_tsx(tail)
-        }
-        ExprIR::IndexExpr { object, index } => {
-            let obj = format_expr_ir_tsx(object);
-            let idx = format_expr_ir_tsx(index);
-            format!("({obj})[{idx}]")
-        }
-        ExprIR::AwaitExpr { operand } => {
-            format!("await {}", format_expr_ir_tsx(operand))
-        }
-        ExprIR::MatchExpr { matched, arms } => {
-            let m = format_expr_ir_tsx(matched);
-            let cases: Vec<String> = arms
-                .iter()
-                .map(|arm| {
-                    let body = format_block_as_tsx_expr(&arm.body);
-                    match &arm.pattern.kind {
-                        MatchPatternKindIR::Variant { name, bindings } => {
-                            let destructure = if bindings.is_empty() {
-                                String::new()
-                            } else {
-                                format!("const {{ {} }} = _v; ", bindings.join(", "))
-                            };
-                            format!(
-                                "if (_v._variant === \"{}\") {{ {}{}; }}",
-                                name, destructure, body
-                            )
-                        }
-                        MatchPatternKindIR::Wildcard => {
-                            format!("return {};", body)
-                        }
-                        MatchPatternKindIR::Literal { value } => {
-                            let v = format_json_value(value, &JSON_REACT);
-                            format!("if (_v._variant === {}) {{ return {}; }}", v, body)
-                        }
-                    }
-                })
-                .collect();
-            format!("(() => {{ const _v = {}; {} }})()", m, cases.join(" "))
-        }
-        ExprIR::ClosureExpr { params, body } => {
-            let p = params.join(", ");
-            let b = format_expr_ir_tsx(body);
-            format!("(({p}) => ({b}))")
-        }
-    }
+    ReactFormatExpr.format_expr(expr)
 }
 
 // ═══════════════════════════════════════════════════════════

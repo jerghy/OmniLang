@@ -50,7 +50,9 @@ fn scan_event_methods(block: &Block) -> (bool, bool) {
 fn scan_stmt_for_event_methods(stmt: &Stmt, pd: &mut bool, sp: &mut bool) {
     match stmt {
         Stmt::ExprStmt { expr, .. } => scan_expr_for_event_methods(expr, pd, sp),
-        Stmt::VarDecl { init: Some(init), .. } => scan_expr_for_event_methods(init, pd, sp),
+        Stmt::VarDecl {
+            init: Some(init), ..
+        } => scan_expr_for_event_methods(init, pd, sp),
         Stmt::Assign { value, .. } => scan_expr_for_event_methods(value, pd, sp),
         Stmt::If {
             condition,
@@ -230,7 +232,9 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props.get_or_insert_with(HashMap::new).insert(name.clone(), lower_expr(value, variant_map, None));
+                props
+                    .get_or_insert_with(HashMap::new)
+                    .insert(name.clone(), lower_expr(value, variant_map, None));
             }
             ElementProp::Bind { name, signal_path } => {
                 if name == "value" {
@@ -252,16 +256,14 @@ fn lower_element(
                 let ir_handler = match handler {
                     EventHandler::InlineFn { params, body, .. } => {
                         if event_data.is_some() {
-                            let (needs_pd_from_scan, needs_sp_from_scan) =
-                                scan_event_methods(body);
+                            let (needs_pd_from_scan, needs_sp_from_scan) = scan_event_methods(body);
                             needs_pd = needs_pd || needs_pd_from_scan;
                             needs_sp = needs_sp_from_scan;
 
                             // Collect event field names during lowering instead
                             // of a separate pre-walk.
                             let mut event_fields = Vec::new();
-                            let block_ir =
-                                lower_block(body, variant_map, Some(&mut event_fields));
+                            let block_ir = lower_block(body, variant_map, Some(&mut event_fields));
 
                             EventHandlerIR {
                                 kind: EventHandlerKind::InlineFn,
@@ -313,7 +315,9 @@ fn lower_element(
                         }
                     }
                 };
-                events.get_or_insert_with(HashMap::new).insert(name.clone(), ir_handler);
+                events
+                    .get_or_insert_with(HashMap::new)
+                    .insert(name.clone(), ir_handler);
             }
             ElementProp::Class { value } => {
                 // class: styleRef or class: "literal-class"
@@ -423,7 +427,10 @@ fn lower_element(
                         .iter()
                         .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
                         .collect();
-                    let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map, None));
+                    let over = state_def
+                        .over
+                        .as_ref()
+                        .map(|e| lower_expr(e, variant_map, None));
                     let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
                     states_hm.insert(
                         name.clone(),

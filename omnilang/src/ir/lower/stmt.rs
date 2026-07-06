@@ -37,7 +37,9 @@ pub(super) fn lower_stmt(
                     body: lower_block(body, variant_map, event_fields.as_deref_mut()),
                 };
             }
-            if let Some(mutation) = try_lower_mutation(expr, variant_map, event_fields.as_deref_mut()) {
+            if let Some(mutation) =
+                try_lower_mutation(expr, variant_map, event_fields.as_deref_mut())
+            {
                 StatementIR::MutationStmt {
                     intent: Some(mutation),
                 }
@@ -189,11 +191,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::DirectAssign,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }
@@ -204,11 +202,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Increment,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }
@@ -219,11 +213,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Decrement,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }
@@ -234,11 +224,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Multiply,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }
@@ -249,11 +235,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Divide,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }
@@ -264,11 +246,7 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Modulo,
-                        amount: Some(lower_expr(
-                            right,
-                            variant_map,
-                            event_fields.as_deref_mut(),
-                        )),
+                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut())),
                         item: None,
                     });
                 }

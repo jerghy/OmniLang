@@ -122,7 +122,10 @@ fn main() {
 /// Note: `sanitize_module_name` in `codegen/mod.rs` is a sanitizer (replaces bad chars);
 /// this function is a validator (rejects outright). They serve different purposes.
 fn validate_output_filename(name: &str) -> anyhow::Result<()> {
-    if name.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '/' || c == '-') {
+    if name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '/' || c == '-')
+    {
         Ok(())
     } else {
         anyhow::bail!("Invalid character in output filename: {name}")

@@ -21,6 +21,7 @@ pub mod python;
 pub mod react;
 #[cfg(feature = "codegen-rust")]
 pub mod rust;
+pub(crate) mod shared;
 #[cfg(feature = "codegen-vue")]
 pub mod vue;
 

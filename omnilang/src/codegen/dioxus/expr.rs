@@ -1,144 +1,106 @@
 //! Expression formatting, helpers, and event data extraction for Dioxus codegen.
 
-use crate::codegen::{format_json_value, JSON_DIOXUS};
+use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::{JsonFormatConfig, JSON_DIOXUS};
 use crate::ir::*;
+
+/// Dioxus-family expression formatter.
+///
+/// Identical to `RustFormatExpr` except closures use `move` (required by Dioxus).
+struct DioxusFormatExpr;
+
+impl FormatExpr for DioxusFormatExpr {
+    fn json_config(&self) -> &JsonFormatConfig {
+        &JSON_DIOXUS
+    }
+
+    fn null_fallback(&self) -> &str {
+        "None"
+    }
+
+    fn format_ternary(&self, cond: &str, t: &str, e: &str) -> String {
+        format!("if {cond} {{ {t} }} else {{ {e} }}")
+    }
+
+    fn format_array(&self, items: &str) -> String {
+        format!("vec![{items}]")
+    }
+
+    fn format_await(&self, expr: &str) -> String {
+        format!("{expr}.await")
+    }
+
+    fn format_index(&self, obj: &str, idx: &str) -> String {
+        format!("({obj})[{idx} as usize]")
+    }
+
+    fn format_closure(&self, params: &str, body: &str) -> String {
+        if params.is_empty() {
+            format!("(move || {body})")
+        } else {
+            format!("(move |{params}| {body})")
+        }
+    }
+
+    fn format_struct(&self, fields: &str) -> String {
+        if fields.is_empty() {
+            "{}".to_string()
+        } else {
+            format!("{{ {fields} }}")
+        }
+    }
+
+    fn format_struct_field(&self, key: &str, value: &str) -> String {
+        format!("{key}: {value}")
+    }
+
+    fn format_variant_literal(
+        &self,
+        union_type: &str,
+        variant: &str,
+        fields: &[(String, ExprIR)],
+    ) -> String {
+        if fields.is_empty() {
+            format!("{union_type}::{variant}")
+        } else {
+            let entries: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("{k}: {}", self.format_expr(v)))
+                .collect();
+            format!("{union_type}::{variant} {{ {} }}", entries.join(", "))
+        }
+    }
+
+    fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
+        let cases: Vec<String> = arms
+            .iter()
+            .map(|arm| {
+                let body = self.format_block_as_expr(&arm.body);
+                match &arm.pattern.kind {
+                    MatchPatternKindIR::Variant { name, .. } => {
+                        format!("    UnionType::{name} {{ .. }} => {body},")
+                    }
+                    MatchPatternKindIR::Wildcard => {
+                        format!("    _ => {body},")
+                    }
+                    _ => String::new(),
+                }
+            })
+            .collect();
+        format!("match &{matched} {{\n{}\n}}", cases.join("\n"))
+    }
+}
 
 // ═══════════════════════════════════════════════════════════
 // Block expression formatting
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn format_block_as_dioxus_expr(block: &BlockIR) -> String {
-    super::super::format_block_as_expr(block, &format_expr_ir_dioxus, "None")
-}
-
 // ═══════════════════════════════════════════════════════════
-// Expression formatting (Rust)
+// Expression formatting
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
-    match expr {
-        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_DIOXUS),
-        ExprIR::IdentifierExpr { name } => name.clone(),
-        ExprIR::FieldAccessExpr { object, field } => {
-            format!("{}.{}", format_expr_ir_dioxus(object), field)
-        }
-        ExprIR::OptionalChainExpr { object, field, .. } => {
-            format!("{}.{}", format_expr_ir_dioxus(object), field)
-        }
-        ExprIR::BinaryOpExpr { op, left, right } => {
-            let rs_op = super::super::binary_op_to_str(op, false, false);
-            let lhs = format_expr_ir_dioxus(left);
-            let rhs = format_expr_ir_dioxus(right);
-            format!("{} {} {}", lhs, rs_op, rhs)
-        }
-        ExprIR::UnaryOpExpr { op, operand } => {
-            let rs_op = match op.as_str() {
-                "not" => "!",
-                "neg" => "-",
-                _ => op,
-            };
-            format!("{}{}", rs_op, format_expr_ir_dioxus(operand))
-        }
-        ExprIR::TernaryIR {
-            cond,
-            then_expr,
-            else_expr,
-        } => {
-            let c = format_expr_ir_dioxus(cond);
-            let t = format_expr_ir_dioxus(then_expr);
-            let e = format_expr_ir_dioxus(else_expr);
-            format!("if {} {{ {} }} else {{ {} }}", c, t, e)
-        }
-        ExprIR::CallExpr { name, args } => {
-            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_dioxus).collect();
-            format!("{}({})", name, arg_strs.join(", "))
-        }
-        ExprIR::StoreFieldAccessExpr {
-            store_alias,
-            field_name,
-            call_args,
-        } => {
-            let args: Vec<String> = call_args.iter().map(format_expr_ir_dioxus).collect();
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                format!("({})", args.join(", "))
-            };
-            format!("{}.{}{}", store_alias, field_name, arg_str)
-        }
-        ExprIR::ArrayExpr { elements } => {
-            let items: Vec<String> = elements.iter().map(format_expr_ir_dioxus).collect();
-            format!("vec![{}]", items.join(", "))
-        }
-        ExprIR::StructExpr { fields, .. } => {
-            let entries: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_expr_ir_dioxus(v)))
-                .collect();
-            format!("{{ {} }}", entries.join(", "))
-        }
-        ExprIR::VariantLiteral {
-            union_type,
-            variant,
-            fields,
-        } => {
-            let entries: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_expr_ir_dioxus(v)))
-                .collect();
-            format!("{}::{} {{ {} }}", union_type, variant, entries.join(", "))
-        }
-        ExprIR::MethodCallExpr {
-            is_optional: _,
-            object,
-            method,
-            args,
-            ..
-        } => {
-            let obj = format_expr_ir_dioxus(object);
-            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_dioxus).collect();
-            format!("{}.{}({})", obj, method, arg_strs.join(", "))
-        }
-        ExprIR::BlockExpr {
-            statements: _,
-            tail,
-        } => {
-            // Only tail expression emitted; preceding statements preserved in IR for future codegen
-            format_expr_ir_dioxus(tail)
-        }
-        ExprIR::IndexExpr { object, index } => {
-            let obj = format_expr_ir_dioxus(object);
-            let idx = format_expr_ir_dioxus(index);
-            format!("({obj})[{idx} as usize]")
-        }
-        ExprIR::AwaitExpr { operand } => {
-            format!("{}.await", format_expr_ir_dioxus(operand))
-        }
-        ExprIR::MatchExpr { matched, arms } => {
-            let m = format_expr_ir_dioxus(matched);
-            let cases: Vec<String> = arms
-                .iter()
-                .map(|arm| {
-                    let body = format_block_as_dioxus_expr(&arm.body);
-                    match &arm.pattern.kind {
-                        MatchPatternKindIR::Variant { name, .. } => {
-                            format!("    UnionType::{} {{ .. }} => {},", name, body)
-                        }
-                        MatchPatternKindIR::Wildcard => {
-                            format!("    _ => {},", body)
-                        }
-                        _ => String::new(),
-                    }
-                })
-                .collect();
-            format!("match &{} {{\n{}\n}}", m, cases.join("\n"))
-        }
-        ExprIR::ClosureExpr { params, body } => {
-            let b = format_expr_ir_dioxus(body);
-            let p = params.join(", ");
-            format!("(move |{p}| {b})")
-        }
-    }
+    DioxusFormatExpr.format_expr(expr)
 }
 
 // ═══════════════════════════════════════════════════════════

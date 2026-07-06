@@ -56,7 +56,11 @@ pub(crate) fn lower_expr(
                 UnaryOpKind::Neg => "-".into(),
                 UnaryOpKind::Await => "await ".into(),
             },
-            operand: Box::new(lower_expr(operand, variant_map, event_fields.as_deref_mut())),
+            operand: Box::new(lower_expr(
+                operand,
+                variant_map,
+                event_fields.as_deref_mut(),
+            )),
         },
         Expr::FuncCall { func, args, .. } => {
             // Pattern: signal.get() → signal.value
@@ -100,11 +104,7 @@ pub(crate) fn lower_expr(
             } else if let Expr::OptionalChain { object, field, .. } = func.as_ref() {
                 // user?.len() — treat as optional method call
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(
-                        object,
-                        variant_map,
-                        event_fields.as_deref_mut(),
-                    )),
+                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
                     method: field.clone(),
                     args: args
                         .iter()
@@ -146,11 +146,7 @@ pub(crate) fn lower_expr(
             // get(i) with args → array/map index access
             if method == "get" && args.is_empty() {
                 ExprIR::FieldAccessExpr {
-                    object: Box::new(lower_expr(
-                        object,
-                        variant_map,
-                        event_fields.as_deref_mut(),
-                    )),
+                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
                     field: "value".into(),
                 }
             } else if method == "set" {
@@ -161,11 +157,7 @@ pub(crate) fn lower_expr(
             } else {
                 // General method call: to_string, len, get(i), push, pop, contains, insert, etc.
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(
-                        object,
-                        variant_map,
-                        event_fields.as_deref_mut(),
-                    )),
+                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
                     method: method.clone(),
                     args: args
                         .iter()

@@ -98,9 +98,10 @@ pub(super) fn lower_keyframe_body(
             crate::parser::ast::CallbackSpec::OnRepeat(e) => {
                 (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None))
             }
-            crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
-                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map, None))
-            }
+            crate::parser::ast::CallbackSpec::OnInterrupt(e) => (
+                CallbackKindIR::OnInterrupt,
+                lower_expr(e, variant_map, None),
+            ),
         })
         .collect();
     KeyframeIR {
@@ -244,7 +245,9 @@ pub(super) fn lower_timeline_item_kind_simple(
             StaggerTimingIR {
                 each: match &sc.timing {
                     crate::parser::ast::StaggerTiming::Each(e) => lower_expr(e, variant_map, None),
-                    crate::parser::ast::StaggerTiming::Amount(a) => lower_expr(a, variant_map, None),
+                    crate::parser::ast::StaggerTiming::Amount(a) => {
+                        lower_expr(a, variant_map, None)
+                    }
                 },
                 from: Some(lower_stagger_direction(&sc.from)),
             },
@@ -281,9 +284,10 @@ pub(super) fn lower_callback_body(
             crate::parser::ast::CallbackSpec::OnRepeat(e) => {
                 (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None))
             }
-            crate::parser::ast::CallbackSpec::OnInterrupt(e) => {
-                (CallbackKindIR::OnInterrupt, lower_expr(e, variant_map, None))
-            }
+            crate::parser::ast::CallbackSpec::OnInterrupt(e) => (
+                CallbackKindIR::OnInterrupt,
+                lower_expr(e, variant_map, None),
+            ),
         })
         .collect();
     let over = lower_expr(&cb.over, variant_map, None);

@@ -123,8 +123,26 @@ fn test_store_signals_with_defaults() {
         StoreIR {
             name: "AppStore".to_string(),
             signals: HashMap::from([
-                ("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
-                ("name".into(), TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false }),
+                (
+                    "count".into(),
+                    TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
+                    },
+                ),
+                (
+                    "name".into(),
+                    TypeIR {
+                        kind: "string".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                        needs_clone: false,
+                        needs_partial_eq: false,
+                    },
+                ),
             ]),
             signal_defaults: HashMap::from([
                 ("count".into(), serde_json::json!(0)),
@@ -150,14 +168,25 @@ fn test_store_getters() {
         "CalcStore".to_string(),
         StoreIR {
             name: "CalcStore".to_string(),
-            signals: HashMap::from([("x".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false })]),
+            signals: HashMap::from([(
+                "x".into(),
+                TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
             signal_defaults: HashMap::from([("x".into(), serde_json::json!(10))]),
             getters: HashMap::from([(
                 "doubled".into(),
                 ExprIR::BinaryOpExpr {
                     op: "mul".into(),
                     left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
-                    right: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(2) }),
+                    right: Box::new(ExprIR::LiteralExpr {
+                        value: serde_json::json!(2),
+                    }),
                 },
             )]),
             actions: vec![],
@@ -178,15 +207,33 @@ fn test_store_actions() {
         "TodoStore".to_string(),
         StoreIR {
             name: "TodoStore".to_string(),
-            signals: HashMap::from([("items".into(), TypeIR { kind: "Vec".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false })]),
+            signals: HashMap::from([(
+                "items".into(),
+                TypeIR {
+                    kind: "Vec".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
             signal_defaults: HashMap::from([("items".into(), serde_json::json!([]))]),
             getters: HashMap::new(),
             actions: vec![FunctionIR {
                 name: "addItem".into(),
                 visibility: Visibility::Public,
-                params: vec![ParamIR { name: "item".into(), r#type: None }],
+                params: vec![ParamIR {
+                    name: "item".into(),
+                    r#type: None,
+                }],
                 return_type: None,
-                body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::LiteralExpr { value: serde_json::json!("ok") } }] },
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ExprIR::LiteralExpr {
+                            value: serde_json::json!("ok"),
+                        },
+                    }],
+                },
                 is_async: false,
             }],
             ..Default::default()
@@ -203,94 +250,187 @@ fn test_store_actions() {
 #[test]
 fn test_expr_literal() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::LiteralExpr { value: serde_json::json!(42) }), "42");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::LiteralExpr {
+            value: serde_json::json!(42)
+        }),
+        "42"
+    );
 }
 
 #[test]
 fn test_expr_literal_string() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::LiteralExpr { value: serde_json::json!("hello") }), "\"hello\"");
-    assert_eq!(gen.expr_to_js(&ExprIR::LiteralExpr { value: serde_json::Value::Null }), "null");
-    assert_eq!(gen.expr_to_js(&ExprIR::LiteralExpr { value: serde_json::json!(true) }), "true");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::LiteralExpr {
+            value: serde_json::json!("hello")
+        }),
+        "\"hello\""
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::LiteralExpr {
+            value: serde_json::Value::Null
+        }),
+        "null"
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::LiteralExpr {
+            value: serde_json::json!(true)
+        }),
+        "true"
+    );
 }
 
 #[test]
 fn test_expr_identifier() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::IdentifierExpr { name: "count".into() }), "count");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::IdentifierExpr {
+            name: "count".into()
+        }),
+        "count"
+    );
 }
 
 #[test]
 fn test_expr_binary() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::BinaryOpExpr {
-        op: "add".into(), left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }), right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
-    }), "a + b");
-    assert_eq!(gen.expr_to_js(&ExprIR::BinaryOpExpr {
-        op: "eq".into(), left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }), right: Box::new(ExprIR::IdentifierExpr { name: "y".into() })
-    }), "x === y");
-    assert_eq!(gen.expr_to_js(&ExprIR::BinaryOpExpr {
-        op: "and".into(), left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }), right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
-    }), "a && b");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::BinaryOpExpr {
+            op: "add".into(),
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
+        }),
+        "a + b"
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::BinaryOpExpr {
+            op: "eq".into(),
+            left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "y".into() })
+        }),
+        "x === y"
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::BinaryOpExpr {
+            op: "and".into(),
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
+        }),
+        "a && b"
+    );
 }
 
 #[test]
 fn test_expr_unary() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::UnaryOpExpr { op: "!".into(), operand: Box::new(ExprIR::IdentifierExpr { name: "flag".into() }) }), "!flag");
-    assert_eq!(gen.expr_to_js(&ExprIR::UnaryOpExpr { op: "-".into(), operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() }) }), "-x");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::UnaryOpExpr {
+            op: "!".into(),
+            operand: Box::new(ExprIR::IdentifierExpr {
+                name: "flag".into()
+            })
+        }),
+        "!flag"
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::UnaryOpExpr {
+            op: "-".into(),
+            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() })
+        }),
+        "-x"
+    );
 }
 
 #[test]
 fn test_expr_ternary() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::TernaryIR {
-        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
-        then_expr: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(1) }),
-        else_expr: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(0) }),
-    }), "x ? 1 : 0");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::TernaryIR {
+            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+            then_expr: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1)
+            }),
+            else_expr: Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(0)
+            }),
+        }),
+        "x ? 1 : 0"
+    );
 }
 
 #[test]
 fn test_expr_field_access() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::FieldAccessExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }), field: "prop".into()
-    }), "obj.prop");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::FieldAccessExpr {
+            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
+            field: "prop".into()
+        }),
+        "obj.prop"
+    );
 }
 
 #[test]
 fn test_expr_method_call() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::MethodCallExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "arr".into() }), method: "len".into(), args: vec![], is_optional: false
-    }), "(arr || []).length");
-    assert_eq!(gen.expr_to_js(&ExprIR::MethodCallExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "val".into() }), method: "to_string".into(), args: vec![], is_optional: false
-    }), "String(val)");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::MethodCallExpr {
+            object: Box::new(ExprIR::IdentifierExpr { name: "arr".into() }),
+            method: "len".into(),
+            args: vec![],
+            is_optional: false
+        }),
+        "(arr || []).length"
+    );
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::MethodCallExpr {
+            object: Box::new(ExprIR::IdentifierExpr { name: "val".into() }),
+            method: "to_string".into(),
+            args: vec![],
+            is_optional: false
+        }),
+        "String(val)"
+    );
 }
 
 #[test]
 fn test_expr_closure() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::ClosureExpr {
-        params: vec!["x".into()],
-        body: Box::new(ExprIR::BinaryOpExpr {
-            op: "mul".into(), left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }), right: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(2) }),
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::ClosureExpr {
+            params: vec!["x".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: "mul".into(),
+                left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(2)
+                }),
+            }),
         }),
-    }), "((x) => x * 2)");
+        "((x) => x * 2)"
+    );
 }
 
 #[test]
 fn test_expr_array() {
     let gen = OmniViewGenerator::test_new();
-    assert_eq!(gen.expr_to_js(&ExprIR::ArrayExpr {
-        elements: vec![
-            ExprIR::LiteralExpr { value: serde_json::json!(1) },
-            ExprIR::LiteralExpr { value: serde_json::json!(2) },
-            ExprIR::LiteralExpr { value: serde_json::json!(3) },
-        ],
-    }), "[1, 2, 3]");
+    assert_eq!(
+        gen.expr_to_js(&ExprIR::ArrayExpr {
+            elements: vec![
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(1)
+                },
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(2)
+                },
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(3)
+                },
+            ],
+        }),
+        "[1, 2, 3]"
+    );
 }
 
 #[test]
@@ -298,7 +438,9 @@ fn test_expr_store_field_access() {
     let mut gen = OmniViewGenerator::test_new();
     gen.store_names.insert("AppStore".into());
     let js = gen.expr_to_js(&ExprIR::StoreFieldAccessExpr {
-        store_alias: "AppStore".into(), field_name: "count".into(), call_args: vec![],
+        store_alias: "AppStore".into(),
+        field_name: "count".into(),
+        call_args: vec![],
     });
     assert!(js.contains("AppStore_count"));
 }
@@ -307,7 +449,13 @@ fn test_expr_store_field_access() {
 fn test_expr_block() {
     let gen = OmniViewGenerator::test_new();
     let js = gen.expr_to_js(&ExprIR::BlockExpr {
-        statements: vec![StatementIR::LetStmtIR { name: "x".into(), value: Some(ExprIR::LiteralExpr { value: serde_json::json!(42) }), r#type: None }],
+        statements: vec![StatementIR::LetStmtIR {
+            name: "x".into(),
+            value: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(42),
+            }),
+            r#type: None,
+        }],
         tail: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
     });
     assert!(js.contains("function"));
@@ -319,8 +467,14 @@ fn test_expr_block() {
 fn test_expr_variant_literal() {
     let gen = OmniViewGenerator::test_new();
     let js = gen.expr_to_js(&ExprIR::VariantLiteral {
-        union_type: "Result".into(), variant: "ok".into(),
-        fields: vec![("value".into(), ExprIR::LiteralExpr { value: serde_json::json!(42) })],
+        union_type: "Result".into(),
+        variant: "ok".into(),
+        fields: vec![(
+            "value".into(),
+            ExprIR::LiteralExpr {
+                value: serde_json::json!(42),
+            },
+        )],
     });
     assert!(js.contains("\"_variant\": \"ok\""));
     assert!(js.contains("\"value\": 42"));
@@ -331,14 +485,24 @@ fn test_expr_variant_literal() {
 #[test]
 fn test_stmt_let() {
     let mut gen = OmniViewGenerator::test_new();
-    gen.emit_statement(&StatementIR::LetStmtIR { name: "x".into(), value: Some(ExprIR::LiteralExpr { value: serde_json::json!(42) }), r#type: None });
+    gen.emit_statement(&StatementIR::LetStmtIR {
+        name: "x".into(),
+        value: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!(42),
+        }),
+        r#type: None,
+    });
     assert!(gen.js.contains("let x = 42"));
 }
 
 #[test]
 fn test_stmt_return() {
     let mut gen = OmniViewGenerator::test_new();
-    gen.emit_statement(&StatementIR::ReturnStmtIR { value: Some(ExprIR::IdentifierExpr { name: "result".into() }) });
+    gen.emit_statement(&StatementIR::ReturnStmtIR {
+        value: Some(ExprIR::IdentifierExpr {
+            name: "result".into(),
+        }),
+    });
     assert!(gen.js.contains("return result"));
 }
 
@@ -346,10 +510,28 @@ fn test_stmt_return() {
 fn test_stmt_if_else() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::IfStmtIR {
-        condition: ExprIR::IdentifierExpr { name: "cond".into() },
-        then_body: BlockIR { statements: vec![StatementIR::LetStmtIR { name: "x".into(), value: Some(ExprIR::LiteralExpr { value: serde_json::json!(1) }), r#type: None }] },
+        condition: ExprIR::IdentifierExpr {
+            name: "cond".into(),
+        },
+        then_body: BlockIR {
+            statements: vec![StatementIR::LetStmtIR {
+                name: "x".into(),
+                value: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }),
+                r#type: None,
+            }],
+        },
         else_ifs: vec![],
-        else_body: Some(BlockIR { statements: vec![StatementIR::LetStmtIR { name: "y".into(), value: Some(ExprIR::LiteralExpr { value: serde_json::json!(2) }), r#type: None }] }),
+        else_body: Some(BlockIR {
+            statements: vec![StatementIR::LetStmtIR {
+                name: "y".into(),
+                value: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!(2),
+                }),
+                r#type: None,
+            }],
+        }),
     });
     assert!(gen.js.contains("if (cond)"));
     assert!(gen.js.contains("let x = 1"));
@@ -361,8 +543,12 @@ fn test_stmt_if_else() {
 fn test_stmt_while() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::WhileStmtIR {
-        condition: ExprIR::IdentifierExpr { name: "running".into() },
-        body: BlockIR { statements: vec![StatementIR::BreakStmtIR] },
+        condition: ExprIR::IdentifierExpr {
+            name: "running".into(),
+        },
+        body: BlockIR {
+            statements: vec![StatementIR::BreakStmtIR],
+        },
     });
     assert!(gen.js.contains("while (running)"));
     assert!(gen.js.contains("break"));
@@ -372,8 +558,20 @@ fn test_stmt_while() {
 fn test_stmt_for_in() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::ForInStmtIR {
-        var_name: "item".into(), iterable: ExprIR::IdentifierExpr { name: "items".into() },
-        body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr { name: "println".into(), args: vec![ExprIR::IdentifierExpr { name: "item".into() }] } }] },
+        var_name: "item".into(),
+        iterable: ExprIR::IdentifierExpr {
+            name: "items".into(),
+        },
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::CallExpr {
+                    name: "println".into(),
+                    args: vec![ExprIR::IdentifierExpr {
+                        name: "item".into(),
+                    }],
+                },
+            }],
+        },
     });
     assert!(gen.js.contains("for (const item of items)"));
     assert!(gen.js.contains("console.log(item)"));
@@ -384,9 +582,14 @@ fn test_stmt_mutation_assign() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent {
-            target: SignalRefIR { owner: None, name: "count".into() },
+            target: SignalRefIR {
+                owner: None,
+                name: "count".into(),
+            },
             operation: MutationOp::DirectAssign,
-            amount: Some(ExprIR::LiteralExpr { value: serde_json::json!(42) }),
+            amount: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(42),
+            }),
             item: None,
         }),
     });
@@ -398,9 +601,14 @@ fn test_stmt_mutation_increment() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent {
-            target: SignalRefIR { owner: None, name: "count".into() },
+            target: SignalRefIR {
+                owner: None,
+                name: "count".into(),
+            },
             operation: MutationOp::Increment,
-            amount: Some(ExprIR::LiteralExpr { value: serde_json::json!(1) }),
+            amount: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }),
             item: None,
         }),
     });
@@ -414,9 +622,14 @@ fn test_stmt_mutation_signal_set() {
     gen.name_renames.insert("count".into(), "App_count".into());
     gen.emit_statement(&StatementIR::MutationStmt {
         intent: Some(MutationIntent {
-            target: SignalRefIR { owner: None, name: "count".into() },
+            target: SignalRefIR {
+                owner: None,
+                name: "count".into(),
+            },
             operation: MutationOp::DirectAssign,
-            amount: Some(ExprIR::LiteralExpr { value: serde_json::json!(99) }),
+            amount: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(99),
+            }),
             item: None,
         }),
     });
@@ -427,9 +640,23 @@ fn test_stmt_mutation_signal_set() {
 fn test_stmt_try_catch() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::TryCatchStmtIR {
-        try_body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr { name: "riskyOp".into(), args: vec![] } }] },
+        try_body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::CallExpr {
+                    name: "riskyOp".into(),
+                    args: vec![],
+                },
+            }],
+        },
         catch_var: Some("err".into()),
-        catch_body: Some(BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr { name: "println".into(), args: vec![ExprIR::IdentifierExpr { name: "err".into() }] } }] }),
+        catch_body: Some(BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::CallExpr {
+                    name: "println".into(),
+                    args: vec![ExprIR::IdentifierExpr { name: "err".into() }],
+                },
+            }],
+        }),
         finally_body: None,
     });
     assert!(gen.js.contains("try {"));
@@ -441,7 +668,11 @@ fn test_stmt_try_catch() {
 #[test]
 fn test_stmt_throw() {
     let mut gen = OmniViewGenerator::test_new();
-    gen.emit_statement(&StatementIR::ThrowStmtIR { expr: ExprIR::LiteralExpr { value: serde_json::json!("error!") } });
+    gen.emit_statement(&StatementIR::ThrowStmtIR {
+        expr: ExprIR::LiteralExpr {
+            value: serde_json::json!("error!"),
+        },
+    });
     assert!(gen.js.contains("throw"));
     assert!(gen.js.contains("error!"));
 }
@@ -458,15 +689,26 @@ fn test_stmt_continue() {
 #[test]
 fn test_component_with_states() {
     let mut module = make_module("main");
-    module.components.insert("Counter".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "count".into(),
-            r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!(0) },
-            is_copy: false,
-        }],
-        ..make_component("Counter")
-    });
+    module.components.insert(
+        "Counter".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+                is_copy: false,
+            }],
+            ..make_component("Counter")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("Counter_count"));
@@ -476,21 +718,44 @@ fn test_component_with_states() {
 #[test]
 fn test_component_with_computed() {
     let mut module = make_module("main");
-    module.components.insert("Calc".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "x".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!(10) },
-            is_copy: false,
-        }],
-        computeds: vec![ComputedIntent {
-            name: "doubled".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            body: ExprIR::BinaryOpExpr {
-                op: "mul".into(), left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }), right: Box::new(ExprIR::LiteralExpr { value: serde_json::json!(2) }),
-            },
-            deps: vec!["x".into()],
-        }],
-        ..make_component("Calc")
-    });
+    module.components.insert(
+        "Calc".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "x".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(10),
+                },
+                is_copy: false,
+            }],
+            computeds: vec![ComputedIntent {
+                name: "doubled".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                body: ExprIR::BinaryOpExpr {
+                    op: "mul".into(),
+                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+                    right: Box::new(ExprIR::LiteralExpr {
+                        value: serde_json::json!(2),
+                    }),
+                },
+                deps: vec!["x".into()],
+            }],
+            ..make_component("Calc")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("Calc_doubled"));
@@ -500,19 +765,38 @@ fn test_component_with_computed() {
 #[test]
 fn test_component_with_functions() {
     let mut module = make_module("main");
-    module.components.insert("App".to_string(), ComponentIR {
-        fns: vec![FunctionIR {
-            name: "greet".into(), visibility: Visibility::Public, params: vec![ParamIR { name: "name".into(), r#type: None }], return_type: None,
-            body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr {
-                name: "println".into(),
-                args: vec![ExprIR::BinaryOpExpr {
-                    op: "add".into(), left: Box::new(ExprIR::LiteralExpr { value: serde_json::json!("Hello ") }), right: Box::new(ExprIR::IdentifierExpr { name: "name".into() }),
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            fns: vec![FunctionIR {
+                name: "greet".into(),
+                visibility: Visibility::Public,
+                params: vec![ParamIR {
+                    name: "name".into(),
+                    r#type: None,
                 }],
-            } }] },
-            is_async: false,
-        }],
-        ..make_component("App")
-    });
+                return_type: None,
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ExprIR::CallExpr {
+                            name: "println".into(),
+                            args: vec![ExprIR::BinaryOpExpr {
+                                op: "add".into(),
+                                left: Box::new(ExprIR::LiteralExpr {
+                                    value: serde_json::json!("Hello "),
+                                }),
+                                right: Box::new(ExprIR::IdentifierExpr {
+                                    name: "name".into(),
+                                }),
+                            }],
+                        },
+                    }],
+                },
+                is_async: false,
+            }],
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("function App_greet"));
@@ -523,18 +807,40 @@ fn test_component_with_functions() {
 #[test]
 fn test_component_with_lifecycle_mount() {
     let mut module = make_module("main");
-    module.components.insert("App".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "count".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!(0) }, is_copy: false,
-        }],
-        lifecycles: vec![LifecycleIntent {
-            kind: LifecycleKind::Mount,
-            body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr { name: "println".into(), args: vec![ExprIR::LiteralExpr { value: serde_json::json!("mounted") }] } }] },
-        }],
-        view: Some(ViewTree::Element(make_element("div"))),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+                is_copy: false,
+            }],
+            lifecycles: vec![LifecycleIntent {
+                kind: LifecycleKind::Mount,
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ExprIR::CallExpr {
+                            name: "println".into(),
+                            args: vec![ExprIR::LiteralExpr {
+                                value: serde_json::json!("mounted"),
+                            }],
+                        },
+                    }],
+                },
+            }],
+            view: Some(ViewTree::Element(make_element("div"))),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("@mount App"));
@@ -544,18 +850,33 @@ fn test_component_with_lifecycle_mount() {
 #[test]
 fn test_component_with_store_ref() {
     let mut module = make_module("main");
-    module.stores.insert("AppStore".to_string(), StoreIR {
-        name: "AppStore".to_string(),
-        signals: HashMap::from([("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false })]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
-        actions: vec![],
-        ..Default::default()
-    });
-    module.components.insert("App".to_string(), ComponentIR {
-        store_refs: vec!["AppStore".into()],
-        ..make_component("App")
-    });
+    module.stores.insert(
+        "AppStore".to_string(),
+        StoreIR {
+            name: "AppStore".to_string(),
+            signals: HashMap::from([(
+                "count".into(),
+                TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
+            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
+            getters: HashMap::new(),
+            actions: vec![],
+            ..Default::default()
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            store_refs: vec!["AppStore".into()],
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("AppStore_count"));
@@ -564,17 +885,39 @@ fn test_component_with_store_ref() {
 #[test]
 fn test_component_with_effect() {
     let mut module = make_module("main");
-    module.components.insert("App".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "count".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!(0) }, is_copy: false,
-        }],
-        effects: vec![EffectIntent {
-            deps: vec!["count".into()],
-            body: BlockIR { statements: vec![StatementIR::ExprStmtIR { expr: ExprIR::CallExpr { name: "println".into(), args: vec![ExprIR::IdentifierExpr { name: "count".into() }] } }] },
-        }],
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+                is_copy: false,
+            }],
+            effects: vec![EffectIntent {
+                deps: vec!["count".into()],
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ExprIR::CallExpr {
+                            name: "println".into(),
+                            args: vec![ExprIR::IdentifierExpr {
+                                name: "count".into(),
+                            }],
+                        },
+                    }],
+                },
+            }],
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("__omni_effect"));
@@ -586,14 +929,27 @@ fn test_component_with_effect() {
 fn test_html_element_with_attributes() {
     let mut module = make_module("main");
     let mut el = make_element("div");
-    el.props.insert("class".into(), ExprIR::LiteralExpr { value: serde_json::json!("container") });
+    el.props.insert(
+        "class".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("container"),
+        },
+    );
     let mut child = make_element("span");
-    child.props.insert("id".into(), ExprIR::LiteralExpr { value: serde_json::json!("label") });
+    child.props.insert(
+        "id".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("label"),
+        },
+    );
     el.children = vec![ViewTree::Element(child)];
-    module.components.insert("App".to_string(), ComponentIR {
-        view: Some(ViewTree::Element(el)),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.html.contains("class=\"container\""));
@@ -604,10 +960,13 @@ fn test_html_element_with_attributes() {
 #[test]
 fn test_html_data_nid_present() {
     let mut module = make_module("main");
-    module.components.insert("App".to_string(), ComponentIR {
-        view: Some(ViewTree::Element(make_element("button"))),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(make_element("button"))),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.html.contains("data-nid=\"el-button-"));
@@ -617,15 +976,30 @@ fn test_html_data_nid_present() {
 fn test_html_interpolation() {
     let mut module = make_module("main");
     let mut el = make_element("div");
-    el.children = vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr { name: "name".into() }))];
-    module.components.insert("App".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "name".into(), r#type: TypeIR { kind: "string".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!("World") }, is_copy: false,
-        }],
-        view: Some(ViewTree::Element(el)),
-        ..make_component("App")
-    });
+    el.children = vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
+        name: "name".into(),
+    }))];
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "name".into(),
+                r#type: TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!("World"),
+                },
+                is_copy: false,
+            }],
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.html.contains("<span"));
@@ -640,17 +1014,22 @@ fn test_html_conditional() {
     visible_el.children = vec![ViewTree::Text("Visible".into())];
     let mut hidden_el = make_element("div");
     hidden_el.children = vec![ViewTree::Text("Hidden".into())];
-    module.components.insert("App".to_string(), ComponentIR {
-        view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
-            branches: vec![ConditionalBranch {
-                condition: ExprIR::IdentifierExpr { name: "show".into() },
-                body: Some(ViewTree::Element(visible_el)),
-            }],
-            fallback: Some(ViewTree::Element(hidden_el)),
-            transition_mode: None,
-        }))),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
+                branches: vec![ConditionalBranch {
+                    condition: ExprIR::IdentifierExpr {
+                        name: "show".into(),
+                    },
+                    body: Some(ViewTree::Element(visible_el)),
+                }],
+                fallback: Some(ViewTree::Element(hidden_el)),
+                transition_mode: None,
+            }))),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.html.contains("Visible"));
@@ -671,14 +1050,27 @@ fn test_full_pipeline_component_only() {
     let mut module = make_module("main");
     let mut el = make_element("div");
     el.children = vec![ViewTree::Text("Hello".into())];
-    module.components.insert("App".to_string(), ComponentIR {
-        states: vec![StateIntent {
-            name: "count".into(), r#type: TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false },
-            initial_value: ExprIR::LiteralExpr { value: serde_json::json!(0) }, is_copy: false,
-        }],
-        view: Some(ViewTree::Element(el)),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            states: vec![StateIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+                is_copy: false,
+            }],
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.js.contains("App_count"));
@@ -689,14 +1081,26 @@ fn test_full_pipeline_component_only() {
 #[test]
 fn test_full_pipeline_store_only() {
     let mut module = make_module("main");
-    module.stores.insert("DataStore".to_string(), StoreIR {
-        name: "DataStore".to_string(),
-        signals: HashMap::from([("value".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false })]),
-        signal_defaults: HashMap::from([("value".into(), serde_json::json!(5))]),
-        getters: HashMap::new(),
-        actions: vec![],
-        ..Default::default()
-    });
+    module.stores.insert(
+        "DataStore".to_string(),
+        StoreIR {
+            name: "DataStore".to_string(),
+            signals: HashMap::from([(
+                "value".into(),
+                TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
+            signal_defaults: HashMap::from([("value".into(), serde_json::json!(5))]),
+            getters: HashMap::new(),
+            actions: vec![],
+            ..Default::default()
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, false);
     assert!(output.js.contains("DataStore_value"));
@@ -706,19 +1110,34 @@ fn test_full_pipeline_store_only() {
 #[test]
 fn test_full_pipeline_component_with_store() {
     let mut module = make_module("main");
-    module.stores.insert("AppStore".to_string(), StoreIR {
-        name: "AppStore".to_string(),
-        signals: HashMap::from([("count".into(), TypeIR { kind: "i32".into(), type_args: vec![], is_nullable: false, needs_clone: false, needs_partial_eq: false })]),
-        signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
-        getters: HashMap::new(),
-        actions: vec![],
-        ..Default::default()
-    });
-    module.components.insert("App".to_string(), ComponentIR {
-        store_refs: vec!["AppStore".into()],
-        view: Some(ViewTree::Element(make_element("div"))),
-        ..make_component("App")
-    });
+    module.stores.insert(
+        "AppStore".to_string(),
+        StoreIR {
+            name: "AppStore".to_string(),
+            signals: HashMap::from([(
+                "count".into(),
+                TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                    needs_clone: false,
+                    needs_partial_eq: false,
+                },
+            )]),
+            signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
+            getters: HashMap::new(),
+            actions: vec![],
+            ..Default::default()
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            store_refs: vec!["AppStore".into()],
+            view: Some(ViewTree::Element(make_element("div"))),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.js.contains("AppStore_count"));
@@ -730,18 +1149,34 @@ fn test_full_pipeline_component_with_store() {
 fn test_event_binding_click() {
     let mut module = make_module("main");
     let mut el = make_element("button");
-    el.events.insert("onClick".into(), EventHandlerIR {
-        kind: EventHandlerKind::FnRef, body: None, r#ref: Some("handleClick".into()), params: vec![],
-        event_data: None, used_fields: None, needs_prevent_default: false, needs_stop_propagation: false,
-    });
-    module.components.insert("App".to_string(), ComponentIR {
-        fns: vec![FunctionIR {
-            name: "handleClick".into(), visibility: Visibility::Public, params: vec![], return_type: None,
-            body: BlockIR { statements: vec![] }, is_async: false,
-        }],
-        view: Some(ViewTree::Element(el)),
-        ..make_component("App")
-    });
+    el.events.insert(
+        "onClick".into(),
+        EventHandlerIR {
+            kind: EventHandlerKind::FnRef,
+            body: None,
+            r#ref: Some("handleClick".into()),
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            fns: vec![FunctionIR {
+                name: "handleClick".into(),
+                visibility: Visibility::Public,
+                params: vec![],
+                return_type: None,
+                body: BlockIR { statements: vec![] },
+                is_async: false,
+            }],
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.js.contains("click"));
@@ -754,15 +1189,24 @@ fn test_event_binding_click() {
 #[test]
 fn test_style_emission() {
     let mut module = make_module("main");
-    module.components.insert("App".to_string(), ComponentIR {
-        view: Some(ViewTree::Element(make_element("div"))),
-        styles: vec![StyleRuleIR {
-            class_name: "myClass".into(),
-            properties: HashMap::from([("color".into(), ExprIR::LiteralExpr { value: serde_json::json!("red") })]),
-            output_mode: "css".into(), is_tag_selector: false,
-        }],
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(make_element("div"))),
+            styles: vec![StyleRuleIR {
+                class_name: "myClass".into(),
+                properties: HashMap::from([(
+                    "color".into(),
+                    ExprIR::LiteralExpr {
+                        value: serde_json::json!("red"),
+                    },
+                )]),
+                output_mode: "css".into(),
+                is_tag_selector: false,
+            }],
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
     assert!(output.css.contains("myClass"));
@@ -778,13 +1222,19 @@ fn test_source_map_entries() {
     let mut el = make_element("div");
     el.source_line = 5;
     el.source_col = 3;
-    module.components.insert("App".to_string(), ComponentIR {
-        view: Some(ViewTree::Element(el)),
-        ..make_component("App")
-    });
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(el)),
+            ..make_component("App")
+        },
+    );
     let ir = make_program(HashMap::from([("main".into(), module)]));
     let output = generate(&ir, true);
-    assert!(!output.source_map.is_empty(), "should have source map entries");
+    assert!(
+        !output.source_map.is_empty(),
+        "should have source map entries"
+    );
     assert!(output.source_map[0].node_id.starts_with("el-div-"));
     assert_eq!(output.source_map[0].omni_span.line, 5);
     assert_eq!(output.source_map[0].omni_span.col, 3);
