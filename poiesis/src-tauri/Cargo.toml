@@ -26,3 +26,4 @@ victauri-plugin = "0.8.5"
 
 [dev-dependencies]
 victauri-test = "0.8.5"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
