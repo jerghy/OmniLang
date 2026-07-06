@@ -12,7 +12,7 @@
 mod api;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -279,9 +279,58 @@ fn extract_error_messages(errors: &serde_json::Value) -> String {
 // ═══════════════════════════════════════════════════════════
 
 fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
+    // Auto-detect target — mirrors Python cli.py:312-316
+    let run_target = match target {
+        Some(t) => t,
+        None => {
+            let sources = api::collect_sources(&[])?;
+            let detected = api::detect_target(&sources, None);
+            match detected.as_str() {
+                "react" | "vue" | "dioxus" | "flutter" => "omniview".to_string(),
+                t => t.to_string(),
+            }
+        }
+    };
+
+    let (output_dir, first_name) = compile_to_temp(&file, &run_target)?;
+
+    // OmniView: assemble standalone HTML — mirrors Python cli.py:339-350
+    if run_target == "omniview" {
+        return assemble_omniview_html(&output_dir);
+    }
+
+    // Execute based on target — mirrors Python cli.py:361-381
+    let out_path = output_dir.join(&first_name);
+    match run_target.as_str() {
+        "python" => run_python(&out_path),
+        "js" => run_node(&out_path),
+        "ts" => {
+            let status = std::process::Command::new("npx")
+                .args(["ts-node", &out_path.to_string_lossy()])
+                .status()?;
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+            Ok(())
+        }
+        "rust" => run_rust(&out_path),
+        "dart" => run_dart(&out_path),
+        other => {
+            eprintln!("Don't know how to run target: {other}");
+            std::process::exit(1);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Helpers — sub-functions extracted from cmd_run
+// ═══════════════════════════════════════════════════════════
+
+/// Compile OmniLang source to a temporary build directory and return (output_dir, first_output_filename).
+fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(PathBuf, String)> {
     // Auto-discover src/main.omni when no file — mirrors Python cli.py:293-302
     let filepath = match file {
-        Some(f) => f,
+        Some(f) => f.clone(),
         None => {
             let default = Path::new("src/main.omni");
             if default.exists() {
@@ -302,18 +351,6 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
 
     // Collect ALL project sources — mirrors Python cli.py:309
     let sources = api::collect_sources(&[])?;
-
-    // Auto-detect target — mirrors Python cli.py:312-316
-    let run_target = match target {
-        Some(t) => t,
-        None => {
-            let detected = api::detect_target(&sources, None);
-            match detected.as_str() {
-                "react" | "vue" | "dioxus" | "flutter" => "omniview".to_string(),
-                t => t.to_string(),
-            }
-        }
-    };
 
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let t: omnilang::codegen::Target = run_target
@@ -352,39 +389,49 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
         }
     }
 
-    // OmniView: assemble standalone HTML — mirrors Python cli.py:339-350
-    if run_target == "omniview" {
-        let files = data["files"].as_object().cloned().unwrap_or_default();
-        let read_file = |name: &str| -> String {
-            files
-                .get(name)
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string()
-        };
+    // Locate first output file — mirrors Python cli.py:352-357
+    let first_name = data["files"]
+        .as_object()
+        .and_then(|m| m.keys().next())
+        .cloned()
+        .unwrap_or_default();
+    if first_name.is_empty() {
+        eprintln!("No output generated.");
+        std::process::exit(1);
+    }
 
-        // Check both body.html and index.html — Python cli.py:342
-        let body = {
-            let b = read_file("body.html");
-            if b.is_empty() {
-                read_file("index.html")
-            } else {
-                b
-            }
-        };
-        let mut js = read_file("index.js");
-        let css = read_file("index.css");
+    Ok((output_dir.to_path_buf(), first_name))
+}
 
-        // JS workaround for animation init — Python cli.py:255-260
-        js.push_str(
-            "\nrequestAnimationFrame(function(){ requestAnimationFrame(function(){
+/// Assemble an OmniView standalone HTML file from compiled output files.
+fn assemble_omniview_html(output_dir: &Path) -> anyhow::Result<()> {
+    let read_file = |name: &str| -> String {
+        let path = output_dir.join(name);
+        std::fs::read_to_string(path).unwrap_or_default()
+    };
+
+    // Check both body.html and index.html — Python cli.py:342
+    let body = {
+        let b = read_file("body.html");
+        if b.is_empty() {
+            read_file("index.html")
+        } else {
+            b
+        }
+    };
+    let mut js = read_file("index.js");
+    let css = read_file("index.css");
+
+    // JS workaround for animation init — Python cli.py:255-260
+    js.push_str(
+        "\nrequestAnimationFrame(function(){ requestAnimationFrame(function(){
   var el = document.querySelector('.app');
   if (el && el.style.opacity === '0') { el.style.removeProperty('opacity'); el.style.removeProperty('transform'); }
 }); });\n",
-        );
+    );
 
-        let html = format!(
-            r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -397,94 +444,68 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
     <script>{js}</script>
 </body>
 </html>"#
-        );
+    );
 
-        let index_path = output_dir.join("index.html");
-        std::fs::write(&index_path, &html)?;
+    let index_path = output_dir.join("index.html");
+    std::fs::write(&index_path, &html)?;
 
-        let abs_path = std::fs::canonicalize(&index_path)?;
-        println!("Open {} in your browser", abs_path.display());
-        return Ok(());
+    let abs_path = std::fs::canonicalize(&index_path)?;
+    println!("Open {} in your browser", abs_path.display());
+    Ok(())
+}
+
+/// Execute a Python file with `python <path>`.
+fn run_python(path: &Path) -> anyhow::Result<()> {
+    let status = std::process::Command::new("python").arg(path).status()?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
     }
+    Ok(())
+}
 
-    // Locate first output file — mirrors Python cli.py:352-357
-    let first_name = data["files"]
-        .as_object()
-        .and_then(|m| m.keys().next())
-        .cloned()
-        .unwrap_or_default();
-    if first_name.is_empty() {
-        eprintln!("No output generated.");
-        std::process::exit(1);
+/// Execute a JavaScript file with `node <path>`.
+fn run_node(path: &Path) -> anyhow::Result<()> {
+    let status = std::process::Command::new("node").arg(path).status()?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
     }
-    let out_path = output_dir.join(&first_name);
+    Ok(())
+}
 
-    // Execute based on target — mirrors Python cli.py:361-381
-    match run_target.as_str() {
-        "python" => {
-            let status = std::process::Command::new("python")
-                .arg(&out_path)
-                .status()?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        "js" => {
-            let status = std::process::Command::new("node").arg(&out_path).status()?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        "ts" => {
-            let status = std::process::Command::new("npx")
-                .args(["ts-node", &out_path.to_string_lossy()])
-                .status()?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        "rust" => {
-            let rust_dir = output_dir.join("rust_proj");
-            let src_dir = rust_dir.join("src");
-            std::fs::create_dir_all(&src_dir)?;
-            std::fs::copy(&out_path, src_dir.join("main.rs"))?;
-            std::fs::write(
-                rust_dir.join("Cargo.toml"),
-                r#"[package]
+/// Execute a Rust program by copying to a Cargo project and running `cargo run`.
+fn run_rust(path: &Path) -> anyhow::Result<()> {
+    let rust_dir = path.parent().unwrap().join("rust_proj");
+    let src_dir = rust_dir.join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::copy(path, src_dir.join("main.rs"))?;
+    std::fs::write(
+        rust_dir.join("Cargo.toml"),
+        r#"[package]
 name = "omni_run"
 version = "0.1.0"
 edition = "2021"
 "#,
-            )?;
-            let status = std::process::Command::new("cargo")
-                .args(["run", "--quiet"])
-                .current_dir(&rust_dir)
-                .status()?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        "dart" => {
-            let status = std::process::Command::new("dart")
-                .args(["run", &out_path.to_string_lossy()])
-                .status()?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        other => {
-            eprintln!("Don't know how to run target: {other}");
-            std::process::exit(1);
-        }
+    )?;
+    let status = std::process::Command::new("cargo")
+        .args(["run", "--quiet"])
+        .current_dir(&rust_dir)
+        .status()?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
     }
-
     Ok(())
 }
 
-// ═══════════════════════════════════════════════════════════
-// Create — mirrors Python cmd_create (cli.py:388)
-// ═══════════════════════════════════════════════════════════
-
+/// Execute a Dart file with `dart run <path>`.
+fn run_dart(path: &Path) -> anyhow::Result<()> {
+    let status = std::process::Command::new("dart")
+        .args(["run", &path.to_string_lossy()])
+        .status()?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
+    }
+    Ok(())
+}
 fn cmd_create(name: &str, project_type: &str) -> anyhow::Result<()> {
     let project_dir = Path::new(name);
     if project_dir.exists() {

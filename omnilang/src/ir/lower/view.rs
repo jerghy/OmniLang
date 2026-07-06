@@ -223,7 +223,9 @@ pub(super) fn lower_view_node(
             ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map)))
         }
         ViewNode::IfDirective(if_dir) => lower_if_directive(if_dir, string_signals, variant_map),
-        ViewNode::ForDirective(for_dir) => lower_for_directive(for_dir, string_signals, variant_map),
+        ViewNode::ForDirective(for_dir) => {
+            lower_for_directive(for_dir, string_signals, variant_map)
+        }
         ViewNode::SlotDirective {
             name,
             default_content: _,
@@ -433,9 +435,7 @@ fn lower_element(
                         crate::parser::ast::TriggerKind::DragHorizontal => {
                             TriggerKind::DragHorizontal
                         }
-                        crate::parser::ast::TriggerKind::DragVertical => {
-                            TriggerKind::DragVertical
-                        }
+                        crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
                         crate::parser::ast::TriggerKind::Timeline => TriggerKind::Timeline,
                     },
                     motion_ref,
@@ -662,7 +662,8 @@ fn lower_for_directive(
             None
         } else {
             Some(make_fragment_element(
-                nodes.iter()
+                nodes
+                    .iter()
                     .map(|n| lower_view_node(n, string_signals, None, variant_map))
                     .collect(),
                 ConstructionKind::List,
