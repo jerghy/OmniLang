@@ -10,3 +10,11 @@ members = [
 lto = true
 opt-level = "s"
 strip = true
+
+[profile.wasm-release]
+inherits = "release"
+codegen-units = 1
+lto = "fat"
+opt-level = "z"
+strip = true
+panic = "abort"
