@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════════════════
 
 use super::super::capitalize_first;
-use crate::codegen::sanitize_css_value;
 use crate::ir::*;
 
 /// Check if a StatementIR references a given identifier anywhere in its tree.
@@ -129,30 +128,6 @@ pub(super) fn format_json_value_tsx(value: &serde_json::Value) -> String {
     }
 }
 
-
-pub(super) fn format_css_value(value: &ExprIR) -> String {
-    match value {
-        ExprIR::LiteralExpr { value } => match value {
-            serde_json::Value::String(s) => sanitize_css_value(s),
-            serde_json::Value::Number(n) => format!("{}px", n),
-            _ => format!("{}", value),
-        },
-        _ => String::new(),
-    }
-}
-
-pub(super) fn to_css_prop(omni_prop: &str) -> String {
-    let mut result = String::new();
-    for c in omni_prop.chars() {
-        if c.is_uppercase() {
-            result.push('-');
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
 
 /// Map OmniView attribute names to JSX attribute names.
 pub(super) fn to_jsx_attr(prop_name: &str) -> String {

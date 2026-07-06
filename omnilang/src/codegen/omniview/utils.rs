@@ -346,20 +346,6 @@ pub(super) fn to_kebab(s: &str) -> String {
     result
 }
 
-/// Convert camelCase CSS property to kebab-case.
-pub(super) fn to_css_property(prop: &str) -> String {
-    let mut result = String::new();
-    for c in prop.chars() {
-        if c.is_uppercase() {
-            result.push('-');
-            result.push(c.to_lowercase().next().unwrap_or(c));
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
 /// Escape HTML special characters.
 pub(super) fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")

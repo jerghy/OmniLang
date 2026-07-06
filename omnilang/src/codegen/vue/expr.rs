@@ -2,7 +2,6 @@
 
 use super::CodeWriter;
 use crate::codegen::javascript::js_type;
-use crate::codegen::sanitize_css_value;
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -300,11 +299,6 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
-#[allow(dead_code)]
-pub(super) fn capitalize_first(s: &str) -> String {
-    super::super::capitalize_first(s)
-}
-
 pub(super) fn format_json_value_vue(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => "null".into(),
@@ -335,30 +329,6 @@ pub(super) fn format_json_value_vue(value: &serde_json::Value) -> String {
 
 pub(super) fn binary_op_to_vue(op: &str) -> &str {
     super::super::binary_op_to_str(op, true, false)
-}
-
-pub(super) fn format_css_value(value: &ExprIR) -> String {
-    match value {
-        ExprIR::LiteralExpr { value } => match value {
-            serde_json::Value::String(s) => sanitize_css_value(s),
-            serde_json::Value::Number(n) => format!("{}px", n),
-            _ => format!("{}", value),
-        },
-        _ => String::new(),
-    }
-}
-
-pub(super) fn to_css_prop(omni_prop: &str) -> String {
-    let mut result = String::new();
-    for c in omni_prop.chars() {
-        if c.is_uppercase() {
-            result.push('-');
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
 }
 
 /// Map OmniView attribute names to Vue HTML attribute names.

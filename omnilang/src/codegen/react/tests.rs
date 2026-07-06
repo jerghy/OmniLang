@@ -8,7 +8,7 @@ use super::expr::*;
 #[allow(unused_imports)]
 use super::utils::*;
 use super::ReactCodegen;
-use crate::codegen::{binary_op_to_str, capitalize_first, CodeWriter, Codegen};
+use crate::codegen::{binary_op_to_str, camel_to_kebab, capitalize_first, CodeWriter, Codegen};
 use crate::ir::ModuleIR;
 use crate::ir::*;
 
@@ -40,11 +40,11 @@ fn test_format_json_value_tsx() {
 }
 
 #[test]
-fn test_to_css_prop() {
-    assert_eq!(to_css_prop("backgroundColor"), "background-color");
-    assert_eq!(to_css_prop("fontSize"), "font-size");
-    assert_eq!(to_css_prop("display"), "display");
-    assert_eq!(to_css_prop("borderRadius"), "border-radius");
+fn test_camel_to_kebab() {
+    assert_eq!(camel_to_kebab("backgroundColor"), "background-color");
+    assert_eq!(camel_to_kebab("fontSize"), "font-size");
+    assert_eq!(camel_to_kebab("display"), "display");
+    assert_eq!(camel_to_kebab("borderRadius"), "border-radius");
 }
 
 #[test]

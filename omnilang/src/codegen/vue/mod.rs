@@ -15,6 +15,7 @@ use template::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{camel_to_kebab, format_css_value};
 use crate::ir::*;
 
 pub struct VueCodegen;
@@ -232,7 +233,7 @@ impl VueCodegen {
                 w.emit(&format!("{}{} {{", prefix, style.class_name));
                 for (prop, value) in &style.properties {
                     let css_val = format_css_value(value);
-                    w.emit(&format!("  {}: {};", to_css_prop(prop), css_val));
+                    w.emit(&format!("  {}: {};", camel_to_kebab(prop), css_val));
                 }
                 w.emit("}");
             }

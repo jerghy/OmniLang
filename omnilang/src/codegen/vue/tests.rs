@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    use crate::codegen::capitalize_first;
     use std::collections::HashMap;
 
     // ── Helper tests ─────────────────────────────────────────
@@ -31,11 +32,11 @@ mod tests {
     }
 
     #[test]
-    fn test_to_css_prop() {
-        assert_eq!(to_css_prop("backgroundColor"), "background-color");
-        assert_eq!(to_css_prop("fontSize"), "font-size");
-        assert_eq!(to_css_prop("display"), "display");
-        assert_eq!(to_css_prop("borderRadius"), "border-radius");
+    fn test_camel_to_kebab() {
+        assert_eq!(camel_to_kebab("backgroundColor"), "background-color");
+        assert_eq!(camel_to_kebab("fontSize"), "font-size");
+        assert_eq!(camel_to_kebab("display"), "display");
+        assert_eq!(camel_to_kebab("borderRadius"), "border-radius");
     }
 
     #[test]

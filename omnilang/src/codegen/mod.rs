@@ -449,6 +449,34 @@ pub fn capitalize_first(s: &str) -> String {
     }
 }
 
+/// Convert a camelCase CSS property name to kebab-case.
+/// "backgroundColor" → "background-color", "--customProp" → "--custom-prop"
+pub fn camel_to_kebab(s: &str) -> String {
+    let mut result = String::new();
+    for c in s.chars() {
+        if c.is_uppercase() {
+            result.push('-');
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+/// Extract a CSS value string from an IR expression node.
+/// Numbers get "px" suffix; strings are sanitized via sanitize_css_value.
+pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
+    match value {
+        crate::ir::ExprIR::LiteralExpr { value } => match value {
+            serde_json::Value::String(s) => sanitize_css_value(s),
+            serde_json::Value::Number(n) => format!("{}px", n),
+            _ => format!("{}", value),
+        },
+        _ => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests_property;
 

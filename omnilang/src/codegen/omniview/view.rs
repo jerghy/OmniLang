@@ -1,6 +1,6 @@
 //! View emission: DOM insertion, event/reactive bindings, CSS styles.
-use super::utils::to_css_property;
 use super::OmniViewGenerator;
+use crate::codegen::camel_to_kebab;
 use crate::ir::*;
 
 impl OmniViewGenerator {
@@ -79,7 +79,7 @@ impl OmniViewGenerator {
         ));
         for (prop, value) in &style.properties {
             let css_val = self.expr_to_css(value);
-            let css_prop = to_css_property(prop);
+            let css_prop = camel_to_kebab(prop);
             self.css
                 .push_str(&format!("  {}: {};\n", css_prop, css_val));
         }

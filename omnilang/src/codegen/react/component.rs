@@ -501,8 +501,8 @@ impl ReactCodegen {
                 let prefix = if style.is_tag_selector { "" } else { "." };
                 w.emit(&format!("{}{} {{", prefix, style.class_name));
                 for (prop, value) in &style.properties {
-                    let css_val = utils::format_css_value(value);
-                    w.emit(&format!("  {}: {};", utils::to_css_prop(prop), css_val));
+                    let css_val = crate::codegen::format_css_value(value);
+                    w.emit(&format!("  {}: {};", crate::codegen::camel_to_kebab(prop), css_val));
                 }
                 w.emit("}");
             }

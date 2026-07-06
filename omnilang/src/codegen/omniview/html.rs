@@ -1,6 +1,6 @@
-use super::utils::{emit_event_object, escape_html, map_event, map_tag, to_css_property};
+use super::utils::{emit_event_object, escape_html, map_event, map_tag};
 use super::OmniViewGenerator;
-use crate::codegen::sanitize_css_value;
+use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 
@@ -273,7 +273,7 @@ impl OmniViewGenerator {
                         serde_json::Value::String(s) => {
                             static_style_parts.push(format!(
                                 "{}: {}",
-                                to_css_property(prop),
+                                camel_to_kebab(prop),
                                 sanitize_css_value(s)
                             ));
                         }
