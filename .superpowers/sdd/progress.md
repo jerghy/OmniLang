@@ -42,3 +42,5 @@
 - [x] Task 7: ef6c1086 fix: PoiesisState method declarations (review: PASS/Approved)
 
 - [x] Task 8: 7c173c11 refactor: inline binary_op wrappers, merge camel_to_separated
+
+- [x] Task 9: 7ee5ec83 feat: statement-level parser error recovery — 417 tests, 2 new recovery tests

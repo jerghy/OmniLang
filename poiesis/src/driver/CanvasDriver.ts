@@ -308,7 +308,7 @@ export class CanvasDriver {
 
   /** Switch between design and code mode. */
   switchMode(mode: "design" | "code"): void {
-    window.__OMNI_MODE__ = mode;
+    usePoiesisStore.getState().switchMode(mode);
     // Dispatch a custom event for App.tsx to pick up
     window.dispatchEvent(
       new CustomEvent("omni-mode-change", { detail: { mode } }),

@@ -20,7 +20,7 @@ export function getDesignStore() {
 
 /** Check if we are in code mode. */
 export function isCodeMode(): boolean {
-  return (window.__OMNI_MODE__ || "design") === "code";
+  return usePoiesisStore.getState().mode === "code";
 }
 
 /** Access the code graph store for tab/graph operations. */

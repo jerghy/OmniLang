@@ -56,6 +56,11 @@ export interface PoiesisState {
   activeFilePath: string | null;
   activeFileContent: string | null;
 
+  // ── Mode ──
+  mode: "design" | "code";
+  compileTarget: string;
+  switchMode(mode: "design" | "code"): void;
+
   // ── Compilation ──
   compileErrors: Array<{ code: string; message: string; line: number }>;
   previewUrl: string | null;
@@ -236,6 +241,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   activeFilePath: null,
   activeFileContent: null,
   openTabs: [],
+  mode: "design",
+  compileTarget: "react",
   compileErrors: [],
   previewUrl: null,
   nodeMeta: {},
@@ -608,6 +615,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   setCompileErrors: (errors) => set({ compileErrors: errors }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
 
+  // ── Mode ──
+  switchMode: (mode) => set({ mode }),
+
   // ── PID index ──
   setPidIndex: (index) => set({ pidIndex: index }),
   updatePidEntry: (pid, entry) => set((s) => ({
@@ -654,6 +664,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     isDirty: false,
     activeFilePath: null,
     activeFileContent: null,
+    mode: "design",
+    compileTarget: "react",
     compileErrors: [],
     previewUrl: null,
     nodeMeta: {},
@@ -680,6 +692,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     isDirty: false,
     activeFilePath: null,
     activeFileContent: null,
+    mode: "design",
+    compileTarget: "react",
     compileErrors: [],
     previewUrl: null,
     nodeMeta: {},

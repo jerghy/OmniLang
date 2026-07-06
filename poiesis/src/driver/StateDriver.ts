@@ -21,7 +21,7 @@ export class StateDriver {
   getState(): EditorSnapshot {
     const s = getDesignStore();
     return {
-      mode: window.__OMNI_MODE__ || "design",
+      mode: usePoiesisStore.getState().mode,
       elements: s.elements,
       wires: s.wires,
       selectedElementIds: s.selectedElementIds,
@@ -50,7 +50,7 @@ export class StateDriver {
 
   /** Get the current editor mode. */
   getMode(): "design" | "code" {
-    return window.__OMNI_MODE__ || "design";
+    return usePoiesisStore.getState().mode;
   }
 
   /** Get the preview URL (after deploy). */
