@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for Poiesis editor — full filesystem access",
+  "description": "Default capabilities for Poiesis editor — restricted filesystem access",
   "context": "local",
   "windows": ["*"],
   "permissions": [
@@ -8,7 +8,10 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "**" }
+        { "path": "$HOME/.omnilang/**" },
+        { "path": "$APPDATA/omnilang/**" },
+        { "path": "$HOME/Documents/**" },
+        { "path": "$TEMP/omnilang/**" }
       ]
     },
     "fs:allow-read-text-file",
