@@ -529,21 +529,30 @@ fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::P
 
     // Join with base and canonicalize (resolves symlinks, .., etc.)
     let full = base.join(p);
-    let canonical = full.canonicalize().map_err(|e| {
-        format!("Invalid path: {}", e)
-    })?;
 
-    // Canonicalize the base for comparison
+    // Canonicalize the base for comparison (must exist)
     let base_canonical = base.canonicalize().map_err(|e| {
         format!("Base directory error: {}", e)
     })?;
 
+    // Try canonicalizing the full path first (works for existing files)
+    // If the file doesn't exist yet, canonicalize the parent directory
+    // and append the filename (handles write_file creating new files)
+    let resolved = full.canonicalize().or_else(|_| {
+        full.parent()
+            .and_then(|parent| parent.canonicalize().ok())
+            .map(|parent_canon| {
+                parent_canon.join(full.file_name().unwrap_or(std::ffi::OsStr::new("unknown")))
+            })
+            .ok_or_else(|| format!("Invalid path (cannot resolve): {}", full.display()))
+    })?;
+
     // Verify the resolved path is within the base directory
-    if !canonical.starts_with(&base_canonical) {
+    if !resolved.starts_with(&base_canonical) {
         return Err("Path traversal detected".to_string());
     }
 
-    Ok(canonical)
+    Ok(resolved)
 }
 
 #[tauri::command]
