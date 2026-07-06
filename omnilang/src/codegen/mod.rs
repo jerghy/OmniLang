@@ -279,6 +279,7 @@ pub fn sanitize_js_ident(name: &str) -> String {
 ///
 /// Routes to each target's codegen module. Framework targets and
 /// stub modules return error until implemented.
+#[must_use]
 pub fn compile(
     ir: &IRProgram,
     target: Target,
@@ -308,6 +309,7 @@ pub fn compile(
 /// Try to format a stdlib function call. Returns `Some(code)` if the call
 /// matches a registered stdlib function, `None` otherwise (so backends fall
 /// through to their normal CallExpr handling).
+#[must_use]
 pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Option<String> {
     // Check if name looks like "module_fn" stdlib pattern
     if let Some((module, fn_name)) = name.split_once('_') {
@@ -460,6 +462,7 @@ pub fn capitalize_first(s: &str) -> String {
 
 /// Convert a camelCase CSS property name to kebab-case.
 /// "backgroundColor" → "background-color", "--customProp" → "--custom-prop"
+#[must_use]
 pub fn camel_to_kebab(s: &str) -> String {
     let mut result = String::new();
     for c in s.chars() {
@@ -475,6 +478,7 @@ pub fn camel_to_kebab(s: &str) -> String {
 
 /// Extract a CSS value string from an IR expression node.
 /// Numbers get "px" suffix; strings are sanitized via sanitize_css_value.
+#[must_use]
 pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
     match value {
         crate::ir::ExprIR::LiteralExpr { value } => match value {
