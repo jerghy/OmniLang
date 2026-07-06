@@ -17,6 +17,7 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════
 
 /// Trait for mapping OmniLang types to a target language type representation.
+#[allow(dead_code)]
 pub(crate) trait FormatType {
     /// Map an OmniLang `kind` + `type_args` to the target language type string.
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String;
@@ -27,6 +28,7 @@ pub(crate) trait FormatType {
 // ═══════════════════════════════════════════════════════════
 
 /// JS-family type formatter.
+#[allow(dead_code)]
 pub(crate) struct JsTypeFormatter;
 
 impl FormatType for JsTypeFormatter {
@@ -78,6 +80,7 @@ impl FormatType for JsTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Dart-family type formatter.
+#[allow(dead_code)]
 pub(crate) struct DartTypeFormatter;
 
 impl FormatType for DartTypeFormatter {
@@ -130,6 +133,7 @@ impl FormatType for DartTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Rust-family type formatter.
+#[allow(dead_code)]
 pub(crate) struct RustTypeFormatter;
 
 impl FormatType for RustTypeFormatter {
@@ -189,6 +193,7 @@ impl FormatType for RustTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Python type formatter.
+#[allow(dead_code)]
 pub(crate) struct PythonTypeFormatter;
 
 impl FormatType for PythonTypeFormatter {

@@ -36,7 +36,9 @@ pub mod writer;
 use crate::ir::IRProgram;
 use std::collections::HashMap;
 
+#[cfg(any(feature = "codegen-omniview", feature = "codegen-vue"))]
 pub(crate) use event::emit_event_object;
+#[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
 pub(crate) use helpers::generate_css_style_block;
 pub use helpers::{
     binary_op_to_str, camel_to_kebab, camel_to_separated, capitalize_first, format_block_as_expr,

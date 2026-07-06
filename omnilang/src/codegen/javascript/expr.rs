@@ -115,11 +115,13 @@ impl FormatExpr for JavaScriptFormatExpr {
 }
 
 /// Legacy wrapper for backward compatibility (preserves `ts_mode` parameter).
+#[allow(dead_code)]
 pub(super) fn format_expr_ir(expr: &ExprIR, ts_mode: bool) -> String {
     JavaScriptFormatExpr { ts_mode }.format_expr(expr)
 }
 
 /// Format a block's trailing expression as a JS value (for match arm bodies).
+#[allow(dead_code)]
 pub(super) fn format_block_as_js_expr(block: &BlockIR, ts_mode: bool) -> String {
     JavaScriptFormatExpr { ts_mode }.format_block_as_expr(block)
 }

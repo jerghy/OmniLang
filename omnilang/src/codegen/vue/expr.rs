@@ -35,6 +35,7 @@ impl FormatExpr for VueFormatExpr {
 }
 
 /// Standalone expression formatter for Vue (tests and template compat).
+#[allow(dead_code)]
 pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
     VueFormatExpr.format_expr(expr)
 }
