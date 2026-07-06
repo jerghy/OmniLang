@@ -416,7 +416,7 @@ fn make_ir(components: HashMap<String, ComponentIR>) -> IRProgram {
 
 #[test]
 fn test_tsx_interpolation_renders_expr() {
-    let codegen = ReactCodegen;
+    let _codegen = ReactCodegen;
     let comp = make_test_component(
         "Test",
         ViewTree::Element(ElementIR {
