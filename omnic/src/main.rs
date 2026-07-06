@@ -114,71 +114,12 @@ fn main() {
 // ═══════════════════════════════════════════════════════════
 // Helpers — mirrors cli.py helpers
 // ═══════════════════════════════════════════════════════════
-
-/// Derive import path mapping from source file paths.
-///
-/// Mirrors Python `_derive_path_mapping()` in `omnilang/api.py`.
-/// Maps relative import paths to actual file paths for cross-file import resolution.
-fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, String> {
-    let mut mapping = HashMap::new();
-
-    for filepath in sources.keys() {
-        // Direct path → self
-        mapping.insert(filepath.clone(), filepath.clone());
-
-        // Basename (e.g. "Counter.omni")
-        if let Some(basename) = Path::new(filepath).file_name() {
-            let basename_str = basename.to_string_lossy().to_string();
-            mapping
-                .entry(basename_str.clone())
-                .or_insert_with(|| filepath.clone());
-
-            // Stem (e.g. "Counter")
-            if let Some(stem) = Path::new(&basename_str).file_stem() {
-                let stem_str = stem.to_string_lossy().to_string();
-                mapping.entry(stem_str).or_insert_with(|| filepath.clone());
-            }
-        }
-    }
-
-    // For every pair of files, compute relative-path keys
-    let paths: Vec<&String> = sources.keys().collect();
-    for import_path in &paths {
-        let importer_dir = Path::new(import_path).parent().unwrap_or(Path::new("."));
-        for target_path in &paths {
-            if *import_path == *target_path {
-                continue;
-            }
-
-            // Compute relative path
-            if let Some(rel_simple) = pathdiff::diff_paths(Path::new(target_path), importer_dir) {
-                let rel_path = rel_simple.to_string_lossy().replace('\\', "/");
-
-                // Map "./Component.omni" → full path
-                mapping.insert(format!("./{rel_path}"), (*target_path).clone());
-                // Map "Component.omni" (without ./ prefix)
-                mapping.insert(rel_path.clone(), (*target_path).clone());
-
-                // Map "./Component" (without .omni extension) → full path
-                if rel_path.ends_with(".omni") {
-                    let no_ext = &rel_path[..rel_path.len() - 5];
-                    mapping.insert(format!("./{no_ext}"), (*target_path).clone());
-                    mapping.insert(no_ext.to_string(), (*target_path).clone());
-                }
-            }
-        }
-    }
-
-    mapping
-}
-
-// ═══════════════════════════════════════════════════════════
 // Analyse — mirrors Python cmd_analyse (cli.py:194)
 // ═══════════════════════════════════════════════════════════
 
 fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
     let sources = api::collect_sources(&files)?;
-    let path_mapping = derive_path_mapping(&sources);
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
     // Build the same request JSON that Python sends to RustBridge.analyse()
     // This calls the FFI omni_analyse which does 3-phase analysis:
@@ -267,7 +208,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
 fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> anyhow::Result<()> {
     let sources = api::collect_sources(&files)?;
     let target_str = api::detect_target(&sources, target.as_deref());
-    let path_mapping = derive_path_mapping(&sources);
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
     let t: omnilang::codegen::Target = target_str
         .parse()
@@ -371,7 +312,7 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
         }
     };
 
-    let path_mapping = derive_path_mapping(&sources);
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let t: omnilang::codegen::Target = run_target
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {run_target}"))?;
@@ -658,7 +599,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
 
         let mut sources = HashMap::new();
         sources.insert(file.to_string(), source);
-        let path_mapping = derive_path_mapping(&sources);
+        let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
         let result_json =
             omnilang::compile_multi_to_target(sources, t.clone(), path_mapping, false);

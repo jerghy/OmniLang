@@ -12,6 +12,7 @@ pub mod error;
 pub mod ffi;
 pub mod ir;
 pub mod lexer;
+pub mod path_mapping;
 pub mod parser;
 pub mod semantic;
 pub mod sourcemap;

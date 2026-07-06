@@ -237,7 +237,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     }
 
     // Build path mapping for cross-file imports
-    let path_mapping = build_path_mapping(&sources);
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
     // Compile via omnilang crate
     let result_json =
@@ -375,64 +375,6 @@ fn project_export(project_path: String, output_dir: String, target: String) -> E
         file_count: written,
         errors: write_errors,
     }
-}
-
-// ── File system helpers ──
-
-/// Build path mapping for cross-file import resolution.
-fn build_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, String> {
-    let mut mapping: HashMap<String, String> = HashMap::new();
-
-    for filepath in sources.keys() {
-        // Direct path
-        mapping.insert(filepath.clone(), filepath.clone());
-
-        // Basename
-        let basename = std::path::Path::new(filepath)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if !basename.is_empty() && !mapping.contains_key(&basename) {
-            mapping.insert(basename.clone(), filepath.clone());
-        }
-
-        // Stem (without extension)
-        let stem = std::path::Path::new(&basename)
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if !stem.is_empty() && !mapping.contains_key(&stem) {
-            mapping.insert(stem, filepath.clone());
-        }
-    }
-
-    // Compute relative path mappings for each pair
-    for import_path in sources.keys() {
-        let importer_path = std::path::Path::new(import_path);
-        let importer_dir = importer_path.parent().unwrap_or(std::path::Path::new("."));
-
-        for target_path in sources.keys() {
-            if import_path == target_path {
-                continue;
-            }
-
-            let target = std::path::Path::new(target_path);
-            if let Ok(rel) = target.strip_prefix(importer_dir) {
-                let rel_str = rel.to_string_lossy().to_string();
-                // ./Component.omni
-                mapping.insert(format!("./{}", rel_str), target_path.clone());
-                // ../lib (without ./ prefix)
-                mapping.insert(rel_str.clone(), target_path.clone());
-                // ./Component (without .omni extension)
-                if let Some(rel_stem) = rel.file_stem().and_then(|s| s.to_str()) {
-                    mapping.insert(format!("./{}", rel_stem), target_path.clone());
-                    mapping.insert(rel_stem.to_string(), target_path.clone());
-                }
-            }
-        }
-    }
-
-    mapping
 }
 
 // ── Project state management ──
