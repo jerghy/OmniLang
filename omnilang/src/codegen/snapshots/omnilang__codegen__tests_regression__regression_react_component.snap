@@ -10,12 +10,16 @@ import styles from './Counter.module.css';
 
 interface CounterProps {
   name: string;
+  onUpdate?: (value: any) => void;
 }
 
-export function Counter({ name }: CounterProps) {
+export function Counter({ name, onUpdate }: CounterProps) {
     const [count, setCount] = useState(0);
     useEffect(() => {
         console.log(count);
+    }, [count]);
+    const doubled = useMemo(() => {
+        return count * 2;
     }, [count]);
 
     return (

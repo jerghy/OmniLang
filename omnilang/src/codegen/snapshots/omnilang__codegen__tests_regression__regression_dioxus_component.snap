@@ -19,6 +19,9 @@ pub fn Counter(props: CounterProps) -> Element {
     use_effect(move || async move {
         console.log(count);
     });
+    let doubled = use_memo(move || {
+        count * 2
+    });
 
     rsx! {
         div {

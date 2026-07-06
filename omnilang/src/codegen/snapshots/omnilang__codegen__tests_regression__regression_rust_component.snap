@@ -17,4 +17,8 @@ impl Counter {
         }
     }
 
+    fn doubled(&self) -> i32 {
+        count * 2
+    }
+
 }

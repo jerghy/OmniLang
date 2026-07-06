@@ -1,0 +1,37 @@
+---
+source: omnilang/src/codegen/tests_regression.rs
+expression: "&format_output(&output)"
+---
+=== main.dart ===
+// Generated from main.omni
+
+testExpressions() {
+    var a = 10;
+    var b = 3;
+    var flag = true;
+    var name = 'hello';
+    var nothing = null;
+    var add = a + b;
+    var sub = a - b;
+    var mul = a * b;
+    var div = a / b;
+    var eq = a == b;
+    var neq = a != b;
+    var and = flag && true;
+    var or = flag || false;
+    var neg = -a;
+    var not = !flag;
+    var ternary = flag ? 'yes' : 'no';
+    var arr = [1, 2, 3];
+    var first = (arr)[0];
+    var len = name.length;
+    name.toUpperCase();
+    var closure = ((x, y) => x + y);
+    console.log(a);
+    var matchResult = (() {
+switch (a._variant) {
+  case "Some": return val;
+  default: return 0;
+}
+})();
+}

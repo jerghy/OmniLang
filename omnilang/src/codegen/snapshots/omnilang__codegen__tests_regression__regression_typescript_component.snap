@@ -12,4 +12,7 @@ class Counter {
         this.name = null;  // prop
         this.count = 0;
     }
+    get doubled(): number{
+        return count * 2;
+    }
 }

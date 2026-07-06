@@ -1,0 +1,12 @@
+---
+source: omnilang/src/codegen/tests_regression.rs
+expression: "&format_output(&output)"
+---
+=== main.py ===
+# Generated from main.omni
+
+class AppStore:
+    def __init__(self):
+        self.count = 0
+
+class CounterWithStore:

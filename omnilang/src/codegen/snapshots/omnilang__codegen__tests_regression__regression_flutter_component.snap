@@ -22,6 +22,10 @@ class Counter extends StatefulWidget {
 class _CounterState extends State<Counter> {
     int count = 0;
 
+    int get doubled {
+        return count * 2;
+    }
+
     @override
     void initState() {
         super.initState();
