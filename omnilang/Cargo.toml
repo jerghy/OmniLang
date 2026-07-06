@@ -17,15 +17,8 @@ pathdiff = "0.2"
 
 [dev-dependencies]
 insta = { version = "1", features = ["glob"] }
+proptest = "1"
 
 [features]
 default = []
 wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
-
-[dev-dependencies]
-proptest = "1"
-
-[profile.release]
-lto = true
-opt-level = "s"
-strip = true
