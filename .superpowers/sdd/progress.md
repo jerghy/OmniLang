@@ -22,3 +22,5 @@ Task 2: complete (commits 836a6840..1b9215c4, 376 passed, 1 pre-existing fail, r
 Task 3: complete (commits 1b9215c4..de01569a, 376 passed, 1 pre-existing fail, review clean)
 Task 4-5: complete (commits de01569a..HEAD, tsc 0 errors, vite build passes)
 Fix-review: complete (commit ea3f0a10, 1 critical + 3 important fixed, 376 passed, tsc 0 errors)
+Phase1-Task1.1: complete (commits f007ce6..6fb2a9e4, review clean)
+Phase1-Task1.2: complete (commits 6fb2a9e4..b1849efc, review clean)

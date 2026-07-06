@@ -240,7 +240,6 @@ pub(super) fn gen_view_node_tsx(
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {
                 let react_event = to_react_event(event_name);
-                let has_binding_conflict = binding_events_map.contains_key(&react_event);
                 match handler.kind.as_str() {
                     "fn_ref" => {
                         if let Some(ref fn_name) = handler.r#ref {
@@ -248,8 +247,7 @@ pub(super) fn gen_view_node_tsx(
                             if motion_names.contains(fn_name.as_str()) {
                                 continue;
                             }
-                            if has_binding_conflict {
-                                let setter_call = binding_events_map.remove(&react_event).unwrap();
+                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 if handler.event_data.is_some() {
                                     let event_obj = emit_event_object_react(
                                         &handler.event_data,
@@ -283,8 +281,7 @@ pub(super) fn gen_view_node_tsx(
                     }
                     "inline_fn" => {
                         if let Some(ref body) = handler.body {
-                            if has_binding_conflict {
-                                let setter_call = binding_events_map.remove(&react_event).unwrap();
+                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 // Generate body with binding setter prepended
                                 let mut merged_hw = CodeWriter::new();
                                 merged_hw.emit(&format!("{};", setter_call));
@@ -313,8 +310,7 @@ pub(super) fn gen_view_node_tsx(
                     "store_action" => {
                         if let Some(ref action) = handler.r#ref {
                             let action_fn = action.split('.').last().unwrap_or(action);
-                            if has_binding_conflict {
-                                let setter_call = binding_events_map.remove(&react_event).unwrap();
+                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}; {}(); }}}}",
                                     react_event, setter_call, action_fn
@@ -329,8 +325,7 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                     _ => {
-                        if has_binding_conflict {
-                            let setter_call = binding_events_map.remove(&react_event).unwrap();
+                        if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             attrs.push(format!(
                                 "{}={{(e) => {{ {}; }} }}",
                                 react_event, setter_call
