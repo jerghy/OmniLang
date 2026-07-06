@@ -1,7 +1,10 @@
 // services/compiler/compiler.ts
-// Compilation orchestration — wraps the generateOmniSource → api.compile flow.
+// Compilation orchestration — wraps the generateOmniSource -> compile flow.
+// Uses compileToOmniViewFull for single-pass validate+compile when generated
+// source is valid, falling back to api.compile.compile() for the original content.
 
-import { generateOmniSource, validate } from "../codegen";
+import { rustCompiler } from "../../commands/rustCompiler";
+import { generateOmniSource } from "../codegen";
 import { api } from "../../commands";
 import type { CompileResponse, CompileError } from "../../commands/types";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
@@ -31,12 +34,11 @@ export interface CompileProjectResult {
 }
 
 /**
- * Generate OmniLang source from editor state, validate it, and compile via
- * the server-side compile API. Returns the compilation result along with
- * metadata about whether generation/validation was used.
+ * Generate OmniLang source from editor state, validate and compile it in a
+ * single WASM pass (compileToOmniViewFull), then return the compilation result.
  *
- * When generation fails validation the original activeFileContent is used
- * as a fallback (same behavior as the original inline handleCompile).
+ * When the generated source has errors, falls back to compiling the original
+ * activeFileContent via the standard compile API.
  */
 export async function compileProject(
   params: CompileProjectParams,
@@ -53,28 +55,49 @@ export async function compileProject(
   let generatedSource: string | null = null;
   let validationPassed = false;
   let validationErrors: CompileError[] = [];
+  let compileResponse: CompileResponse;
 
   if (genResult.value) {
     generatedSource = genResult.value;
-    const validationResult = validate(genResult.value);
-    if (!validationResult.valid) {
-      // Fallback to original content when generated source fails validation
-      validationErrors = validationResult.errors as unknown as CompileError[];
+    // ONE WASM call: validate + compile in single pass
+    const fullResult = rustCompiler.compileToOmniViewFull(genResult.value, false);
+
+    const hasErrors = (fullResult.errors || []).some(e => e.severity === 'error');
+    if (hasErrors || !fullResult.files) {
+      // Generated source failed — fallback to original content
+      validationErrors = (fullResult.errors || []) as unknown as CompileError[];
       content = params.activeFileContent;
+      // Fallback: compile original content
+      compileResponse = await api.compile.compile(content, params.target, undefined, params.isRunning);
     } else {
+      // Generated source passed! Use the result directly
       validationPassed = true;
       content = genResult.value;
+      compileResponse = {
+        success: true,
+        files: {
+          'index.html': fullResult.files.html,
+          'index.js': fullResult.files.js,
+          'index.css': fullResult.files.css,
+        },
+        diff: {},
+        errors: (fullResult.errors || []).map(e => ({
+          file: '',
+          line: e.line,
+          col: e.col,
+          severity: (e.severity === 'warning' ? 'warning' : 'error') as 'error' | 'warning',
+          code: e.code,
+          message: e.message,
+          suggestion: e.suggestion || null,
+        })),
+      };
     }
+  } else {
+    // No generated source — compile original
+    compileResponse = await api.compile.compile(content, params.target, undefined, params.isRunning);
   }
 
   if (!content) return null;
-
-  const compileResponse = await api.compile.compile(
-    content,
-    params.target,
-    undefined,
-    params.isRunning,
-  );
 
   return {
     content,

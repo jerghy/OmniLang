@@ -52,12 +52,29 @@ type ComponentCompileResult = {
   errors?: Diagnostic[];
 };
 
+type OmniViewFullResult = {
+  success: boolean;
+  ir?: IRProgram | null;
+  files?: { js: string; html: string; css: string } | null;
+  components?: Record<string, { js: string; html: string; css: string }> | null;
+  sourceMap?: SourceMap | null;
+  errors?: Diagnostic[];
+};
+
+type MultiCompileResult = {
+  success: boolean;
+  files: Record<string, string>;
+  errors?: string[];
+};
+
 class RustCompiler {
   private wasm: {
     compile_to_ir: (source: string) => string;
     compile_to_omniview: (source: string, options_json: string) => string;
     compile_omniview_component?: (source: string, component_name: string, options_json: string) => string;
     version: () => string;
+    compile_to_omniview_full?: (source: string, options_json: string) => string;
+    compile_multi_to_omniview?: (source: string) => string;
   } | null = null;
   private ready = false;
 
@@ -100,6 +117,8 @@ class RustCompiler {
         compile_to_omniview: wasmModule.compile_to_omniview,
         compile_omniview_component: wasmModule.compile_omniview_component,
         version: wasmModule.version,
+        compile_to_omniview_full: wasmModule.compile_to_omniview_full,
+        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview,
       };
       this.ready = true;
 
@@ -189,8 +208,53 @@ class RustCompiler {
       return 'unknown';
     }
   }
+
+  compileToOmniViewFull(source: string, editorMode: boolean = false): OmniViewFullResult {
+    if (!this.wasm || !this.wasm.compile_to_omniview_full) {
+      // Fallback: use existing compileToOmniView
+      const omniResult = this.compileToOmniView(source, editorMode);
+      return {
+        success: omniResult.success,
+        ir: null,
+        files: omniResult.files ?? null,
+        components: null,
+        sourceMap: omniResult.sourceMap ?? null,
+        errors: omniResult.errors,
+      };
+    }
+    try {
+      const options = JSON.stringify({ editor_mode: editorMode });
+      const json = this.wasm.compile_to_omniview_full(source, options);
+      return JSON.parse(json) as OmniViewFullResult;
+    } catch (e) {
+      return {
+        success: false,
+        errors: [{ severity: 'error', code: 'WASM', message: `Compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
+      };
+    }
+  }
+
+  compileMultiToOmniView(sources: Record<string, string>): MultiCompileResult {
+    if (!this.wasm || !this.wasm.compile_multi_to_omniview) {
+      return {
+        success: false,
+        files: {},
+        errors: ['compile_multi_to_omniview not available in WASM'],
+      };
+    }
+    try {
+      const json = this.wasm.compile_multi_to_omniview(JSON.stringify(sources));
+      return JSON.parse(json) as MultiCompileResult;
+    } catch (e) {
+      return {
+        success: false,
+        files: {},
+        errors: [`Multi compile error: ${e}`],
+      };
+    }
+  }
 }
 
 // Singleton
 export const rustCompiler = new RustCompiler();
-export type { CompileResult, OmniViewResult, ComponentCompileResult, Diagnostic, SourceMap };
+export type { CompileResult, OmniViewResult, OmniViewFullResult, MultiCompileResult, ComponentCompileResult, Diagnostic, SourceMap };
