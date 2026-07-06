@@ -17,15 +17,25 @@ impl<'a> Parser<'a> {
         let mut trailing_expr: Option<Expr> = None;
 
         while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
-            let stmt = self.parse_stmt()?;
-            // Check if this statement is actually a trailing expression
-            if self.peek_kind() == TokenKind::RBrace {
-                if let Stmt::ExprStmt { expr, .. } = &stmt {
-                    trailing_expr = Some(expr.clone());
-                    break;
+            match self.parse_stmt() {
+                Ok(stmt) => {
+                    // Check if this statement is actually a trailing expression
+                    if self.peek_kind() == TokenKind::RBrace {
+                        if let Stmt::ExprStmt { expr, .. } = &stmt {
+                            trailing_expr = Some(expr.clone());
+                            break;
+                        }
+                    }
+                    stmts.push(stmt);
+                }
+                Err(e) => {
+                    self.emit_error(e);
+                    self.recover_from_error();
+                    if self.peek_kind() == TokenKind::RBrace {
+                        break;
+                    }
                 }
             }
-            stmts.push(stmt);
         }
 
         let end_span = self.peek_span();
@@ -86,15 +96,30 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 // Expression statement or assignment
-                let expr = self.parse_expr()?;
-                let span = span_of(&expr).clone();
+                match self.parse_expr() {
+                    Ok(expr) => {
+                        let span = span_of(&expr).clone();
 
-                // Check for semicolon (optional)
-                if self.peek_kind() == TokenKind::Semicolon {
-                    self.advance();
+                        // Check for semicolon (optional)
+                        if self.peek_kind() == TokenKind::Semicolon {
+                            self.advance();
+                        }
+
+                        Ok(Stmt::ExprStmt { expr, span })
+                    }
+                    Err(e) => {
+                        let span = e.span.clone();
+                        self.emit_error(e);
+                        self.recover_from_error();
+                        if self.peek_kind() == TokenKind::Semicolon {
+                            self.advance();
+                        }
+                        Ok(Stmt::Error {
+                            message: "expression parse error".to_string(),
+                            span,
+                        })
+                    }
                 }
-
-                Ok(Stmt::ExprStmt { expr, span })
             }
         }
     }

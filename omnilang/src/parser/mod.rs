@@ -16,9 +16,19 @@ use ast::Program;
 use ast::Visibility;
 
 /// Parse a token stream into an AST Program.
+/// Returns `Ok(program)` on success, or `Err(ParseError)` if any parse errors were
+/// collected during recovery. The first collected error is returned.
 pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
     let mut parser = Parser::new(tokens, source);
     let module = parser.parse_module()?;
+    // Return the first collected parse error (if any) so callers know the AST
+    // may be incomplete. The remaining errors are discarded at this level.
+    if let Some(err) = parser.errors.first() {
+        return Err(ParseError {
+            message: format!("{} (and {} more error(s))", err.message, parser.errors.len() - 1),
+            span: err.span.clone(),
+        });
+    }
     let mut modules = HashMap::new();
     modules.insert("input.omni".to_string(), module);
     Ok(Program { modules })
@@ -34,7 +44,6 @@ pub struct Parser<'a> {
     depth: usize,
     source: &'a str,
     /// Collected parse errors — parser continues past recoverable errors.
-    #[allow(dead_code)]
     errors: Vec<ParseError>,
 }
 
@@ -139,7 +148,6 @@ impl<'a> Parser<'a> {
     // These are intentionally unused until error recovery logic is activated.
 
     /// Record a parse error (non-fatal — parsing continues).
-    #[allow(dead_code)]
     fn emit_error(&mut self, err: ParseError) {
         self.errors.push(err);
     }
@@ -152,7 +160,6 @@ impl<'a> Parser<'a> {
 
     /// Skip tokens until one of `expected` is found (or EOF).
     /// Returns number of tokens skipped. Does NOT consume the found token.
-    #[allow(dead_code)]
     fn skip_to(&mut self, expected: &[TokenKind]) -> usize {
         let start = self.pos;
         loop {
@@ -166,7 +173,6 @@ impl<'a> Parser<'a> {
     }
 
     /// Skip to a statement boundary: ';' (consumed), '}', or EOF.
-    #[allow(dead_code)]
     fn skip_to_stmt_boundary(&mut self) {
         loop {
             match self.peek_kind() {
@@ -177,8 +183,60 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Recover from a parse error during statement parsing.
+    /// Fixes the recursion depth (leave_recursion was skipped) and skips
+    /// to the next statement boundary so parsing can continue.
+    fn recover_from_error(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
+        // Only skip if we're not already at a safe restart position
+        // (statement boundary, statement-start keyword, or EOF).
+        // This prevents overshooting when the failed parser already consumed
+        // the boundary token (e.g. parse_prefix() advances before erroring).
+        if !self.at_stmt_restart() {
+            self.skip_to_stmt_boundary();
+        }
+    }
+
+    /// Returns true if the current token is a safe position to resume
+    /// statement parsing: either a boundary token, a keyword that starts
+    /// a new statement, or a token that can start an expression statement.
+    fn at_stmt_restart(&self) -> bool {
+        matches!(
+            self.peek_kind(),
+            TokenKind::Semicolon
+                | TokenKind::RBrace
+                | TokenKind::Eof
+                | TokenKind::Let
+                | TokenKind::If
+                | TokenKind::While
+                | TokenKind::For
+                | TokenKind::Return
+                | TokenKind::Break
+                | TokenKind::Continue
+                | TokenKind::Print
+                | TokenKind::Println
+                | TokenKind::Throw
+                | TokenKind::Try
+                | TokenKind::Emit
+                | TokenKind::LBrace
+                | TokenKind::Ident(_)
+                | TokenKind::IntLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::StringLiteral(_)
+                | TokenKind::TemplateString(_)
+                | TokenKind::True
+                | TokenKind::False
+                | TokenKind::Null
+                | TokenKind::LParen
+                | TokenKind::Minus
+                | TokenKind::Not
+                | TokenKind::Await
+                | TokenKind::Match
+                | TokenKind::Mut
+        )
+    }
+
     /// Skip to next top-level declaration keyword.
-    #[allow(dead_code)]
     fn skip_to_top_level(&mut self) {
         const TOP_LEVEL: &[TokenKind] = &[
             TokenKind::Fn, TokenKind::Pub, TokenKind::Component,
@@ -269,5 +327,51 @@ mod roundtrip_tests {
             result.is_err(),
             "Invalid float '1.2.3' should produce parse error"
         );
+    }
+
+    // ── Error recovery tests ────────────────────────────
+
+    #[test]
+    fn error_recovery_mid_function() {
+        // Syntax error mid-function should not prevent the rest from parsing.
+        // `let x = ;` fails at expression parsing; recovery skips to `;`
+        // boundary so `let y = 42;` and `return y;` are still parsed.
+        let source = "pub fn main() { let x = ; let y = 42; return y; }";
+        let tokens = tokenize(source);
+        let mut parser = Parser::new(&tokens, source);
+        let module = parser.parse_module().unwrap();
+        assert_eq!(
+            parser.errors.len(),
+            1,
+            "exactly one parse error should be collected"
+        );
+        assert_eq!(module.functions.len(), 1, "function should still parse");
+        assert_eq!(
+            module.functions[0].body.stmts.len(),
+            2,
+            "function body should contain 2 valid statements after recovery"
+        );
+    }
+
+    #[test]
+    fn error_recovery_garbage_between_functions() {
+        // Garbage between top-level declarations should be skipped,
+        // allowing both adjacent functions to parse.
+        let source = "pub fn foo() { return 1; } quux pub fn bar() { return 2; }";
+        let tokens = tokenize(source);
+        let mut parser = Parser::new(&tokens, source);
+        let module = parser.parse_module().unwrap();
+        assert_eq!(
+            parser.errors.len(),
+            1,
+            "exactly one parse error should be collected for the garbage ident"
+        );
+        assert_eq!(
+            module.functions.len(),
+            2,
+            "both functions should parse despite intervening garbage"
+        );
+        assert_eq!(module.functions[0].name, "foo");
+        assert_eq!(module.functions[1].name, "bar");
     }
 }

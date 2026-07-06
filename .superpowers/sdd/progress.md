@@ -40,3 +40,5 @@
 - [x] Task 6: 998441f2 refactor: parser error recovery infrastructure (review: PASS/Approved)
 
 - [x] Task 7: ef6c1086 fix: PoiesisState method declarations (review: PASS/Approved)
+
+- [x] Task 8: 7c173c11 refactor: inline binary_op wrappers, merge camel_to_separated
