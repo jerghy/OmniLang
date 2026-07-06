@@ -450,6 +450,9 @@ pub fn capitalize_first(s: &str) -> String {
 }
 
 #[cfg(test)]
+mod tests_property;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::str::FromStr;

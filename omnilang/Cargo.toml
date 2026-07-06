@@ -19,6 +19,9 @@ pathdiff = "0.2"
 default = []
 wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
 
+[dev-dependencies]
+proptest = "1"
+
 [profile.release]
 lto = true
 opt-level = "s"
