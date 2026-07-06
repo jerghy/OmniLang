@@ -14,9 +14,6 @@ pub fn tokenize(source: &str) -> Vec<Token> {
 /// Hand-written lexer: character-by-character, no regex.
 pub struct Lexer {
     source: Vec<char>,
-    /// Byte position of each character index (char_index → byte_offset in original str).
-    /// Always one entry longer than `source` so that `byte_pos[source.len()]` is valid.
-    byte_pos: Vec<usize>,
     pos: usize,
     line: u32,
     col: u32,
@@ -25,29 +22,26 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(source: &str) -> Self {
         let chars: Vec<char> = source.chars().collect();
-        // Precompute byte position for each character index.
-        let mut byte_pos = Vec::with_capacity(chars.len() + 1);
-        let mut bp = 0usize;
-        for c in &chars {
-            byte_pos.push(bp);
-            bp += c.len_utf8();
-        }
-        byte_pos.push(bp); // sentinel for one-past-the-end
         Lexer {
             source: chars,
-            byte_pos,
             pos: 0,
             line: 1,
             col: 1,
         }
     }
 
+    /// Compute the byte offset in the original source string for a given character index.
+    /// Walks the character array on demand — only called during token construction.
+    fn byte_offset(&self, char_index: usize) -> usize {
+        self.source[..char_index.min(self.source.len())]
+            .iter()
+            .map(|c| c.len_utf8())
+            .sum()
+    }
+
     /// Convert a character index (self.pos space) to a byte index in the original &str.
     fn byte_of(&self, char_idx: usize) -> usize {
-        self.byte_pos
-            .get(char_idx)
-            .copied()
-            .unwrap_or(self.byte_pos.last().copied().unwrap_or(0))
+        self.byte_offset(char_idx)
     }
 
     /// Create a token whose span is in byte positions (converted from character indices).
