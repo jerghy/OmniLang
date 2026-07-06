@@ -39,42 +39,48 @@ pub struct CompileResult {
 
 /// Compile .omni source -> IR. Core function shared by WASM and native.
 pub fn compile(source: &str) -> CompileResult {
-    let mut errors: Vec<error::Diagnostic> = Vec::new();
+    match run_pipeline(source) {
+        Err(errors) => CompileResult {
+            success: false,
+            ir: None,
+            errors,
+        },
+        Ok(output) => CompileResult {
+            success: !output.has_errors,
+            ir: Some(output.ir),
+            errors: output.diagnostics,
+        },
+    }
+}
 
-    // 1. Lex
+// ═══════════════════════════════════════════════════════
+// Shared Pipeline
+// ═══════════════════════════════════════════════════════
+
+/// Internal pipeline result after lex->parse->semantic->IR lowering.
+struct PipelineOutput {
+    ir: ir::IRProgram,
+    diagnostics: Vec<error::Diagnostic>,
+    has_errors: bool,
+}
+
+/// Run the shared compilation pipeline: lex -> parse -> semantic -> IR lowering.
+/// Returns `Err` on parse failure (with parse errors), or `Ok` with the pipeline
+/// output including all semantic diagnostics.
+fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
     let tokens = lexer::tokenize(source);
-
-    // 2. Parse
-    let program = match parser::parse(&tokens, source) {
-        Ok(p) => p,
-        Err(e) => {
-            errors.push(e.into());
-            return CompileResult {
-                success: false,
-                ir: None,
-                errors,
-            };
-        }
-    };
-
-    // 3. Semantic analysis — accumulate ALL diagnostics, always return partial result
+    let program = parser::parse(&tokens, source).map_err(|e| vec![e.into()])?;
     let semantics = semantic::analyze(&program);
-    let has_semantic_errors = semantics
+    let has_errors = semantics
         .diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    // Collect ALL diagnostics (errors, warnings, info) into the output
-    errors.extend(semantics.diagnostics.clone());
-
-    // 4. Lower to IR
-    let ir_program = ir::lower(&program, &semantics);
-
-    CompileResult {
-        // success=true only if no Error-severity diagnostics
-        success: !has_semantic_errors,
-        ir: Some(ir_program), // always return IR (even with warnings)
-        errors,
-    }
+    let ir = ir::lower(&program, &semantics);
+    Ok(PipelineOutput {
+        ir,
+        diagnostics: semantics.diagnostics,
+        has_errors,
+    })
 }
 
 // ═══════════════════════════════════════════════════════
@@ -105,57 +111,88 @@ pub struct OmniViewFiles {
 
 /// Compile .omni → OmniView (JS + HTML + CSS + SourceMap). Core function.
 pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
-    let mut errors: Vec<error::Diagnostic> = Vec::new();
-
-    // 1. Lex
-    let tokens = lexer::tokenize(source);
-
-    // 2. Parse
-    let program = match parser::parse(&tokens, source) {
-        Ok(p) => p,
-        Err(e) => {
-            errors.push(e.into());
-            return OmniViewResult {
-                success: false,
-                files: None,
-                components: None,
-                source_map: None,
-                errors,
-            };
-        }
-    };
-
-    // 3. Semantic analysis — accumulate ALL diagnostics, always proceed to lowering
-    let semantics = semantic::analyze(&program);
-    let has_errors = semantics
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    // Collect ALL diagnostics (errors, warnings, info) into the output
-    for d in &semantics.diagnostics {
-        errors.push(d.clone());
-    }
-
-    // 4. Lower to IR
-    let ir_program = ir::lower(&program, &semantics);
-
-    // 5. Generate OmniView output
-    let output = codegen::omniview::generate(&ir_program, editor_mode);
-
-    OmniViewResult {
-        success: !has_errors,
-        files: Some(OmniViewFiles {
-            js: output.js,
-            html: output.html,
-            css: output.css,
-        }),
-        components: if output.components.is_empty() {
-            None
-        } else {
-            Some(output.components)
+    match run_pipeline(source) {
+        Err(errors) => OmniViewResult {
+            success: false,
+            files: None,
+            components: None,
+            source_map: None,
+            errors,
         },
-        source_map: Some(output.source_map),
-        errors,
+        Ok(pipeline) => {
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode);
+            OmniViewResult {
+                success: !pipeline.has_errors,
+                files: Some(OmniViewFiles {
+                    js: gen_output.js,
+                    html: gen_output.html,
+                    css: gen_output.css,
+                }),
+                components: if gen_output.components.is_empty() {
+                    None
+                } else {
+                    Some(gen_output.components)
+                },
+                source_map: Some(gen_output.source_map),
+                errors: pipeline.diagnostics,
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Combined IR + OmniView Codegen
+// ═══════════════════════════════════════════════════════
+
+/// Combined compile result — IR + OmniView (JS + HTML + CSS + SourceMap + Components).
+/// Runs the full pipeline in one pass, returning both the IR and codegen output.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OmniViewFullResult {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ir: Option<ir::IRProgram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files: Option<OmniViewFiles>,
+    /// Per-component output for hot-replace (keyed by component name)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub components: Option<HashMap<String, ComponentOutput>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<error::Diagnostic>,
+}
+
+/// Compile .omni -> OmniView + IR in one pass.
+/// Eliminates the double lex->parse->semantic->IR when both IR and codegen are needed.
+pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullResult {
+    match run_pipeline(source) {
+        Err(errors) => OmniViewFullResult {
+            success: false,
+            ir: None,
+            files: None,
+            components: None,
+            source_map: None,
+            errors,
+        },
+        Ok(pipeline) => {
+            let gen_output = codegen::omniview::generate(&pipeline.ir, editor_mode);
+            OmniViewFullResult {
+                success: !pipeline.has_errors,
+                ir: Some(pipeline.ir),
+                files: Some(OmniViewFiles {
+                    js: gen_output.js,
+                    html: gen_output.html,
+                    css: gen_output.css,
+                }),
+                components: if gen_output.components.is_empty() {
+                    None
+                } else {
+                    Some(gen_output.components)
+                },
+                source_map: Some(gen_output.source_map),
+                errors: pipeline.diagnostics,
+            }
+        }
     }
 }
 
