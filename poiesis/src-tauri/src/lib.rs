@@ -141,7 +141,13 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     if project_dir.is_dir() {
         for entry in walkdir::WalkDir::new(project_dir)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(|e| match e {
+                Ok(entry) => Some(entry),
+                Err(err) => {
+                    eprintln!("[omni] warning: skipping inaccessible entry: {}", err);
+                    None
+                }
+            })
             .filter(|e| e.file_name().to_string_lossy().ends_with(".omni"))
         {
             let path = entry.path().to_owned();
@@ -192,7 +198,16 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
             };
             for entry in walkdir::WalkDir::new(parent)
                 .into_iter()
-                .filter_map(|e| e.ok())
+                .filter_map(|e| match e {
+                    Ok(entry) => Some(entry),
+                    Err(err) => {
+                        eprintln!(
+                            "[omni] warning: skipping inaccessible entry: {}",
+                            err
+                        );
+                        None
+                    }
+                })
                 .filter(|e| {
                     e.file_name().to_string_lossy().ends_with(".omni") && e.path() != project_dir
                 })

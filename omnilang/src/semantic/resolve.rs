@@ -137,7 +137,7 @@ impl SemanticAnalyzer {
                 ..
             } => {
                 // Declare the variable so it's available in enclosing scope
-                let _ = self.symbols.declare(Symbol {
+                self.declare_or_warn(Symbol {
                     name: name.clone(),
                     kind: SymbolKind::Variable,
                     type_ann: type_ann.as_ref().map(type_to_string),
@@ -395,7 +395,7 @@ impl SemanticAnalyzer {
                 // Push a temporary scope for inline fn params
                 self.symbols.push_scope("inline_handler");
                 for p in params {
-                    let _ = self.symbols.declare(Symbol {
+                    self.declare_or_warn(Symbol {
                         name: p.name.clone(),
                         kind: SymbolKind::Variable,
                         type_ann: p.type_ann.as_ref().map(type_to_string),
@@ -432,7 +432,7 @@ impl SemanticAnalyzer {
         self.resolve_expr_refs(&dir.iterable);
         // Push a temporary scope for the loop variable
         self.symbols.push_scope("for_loop");
-        let _ = self.symbols.declare(Symbol {
+        self.declare_or_warn(Symbol {
             name: dir.item_name.clone(),
             kind: SymbolKind::Variable,
             type_ann: None,
