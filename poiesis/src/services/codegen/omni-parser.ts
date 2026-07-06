@@ -55,6 +55,9 @@ export function parsePidAnnotations(source: string): PidMap {
   for (const entry of entries) {
     pidMap.entries[entry.pid] = entry;
     for (let line = entry.startLine; line <= entry.endLine; line++) {
+      if (pidMap.lineToPid[line] && pidMap.lineToPid[line] !== entry.pid) {
+        console.warn(`[parser] Line ${line} has conflicting PID annotations: ${pidMap.lineToPid[line]} vs ${entry.pid}`);
+      }
       pidMap.lineToPid[line] = entry.pid;
     }
   }

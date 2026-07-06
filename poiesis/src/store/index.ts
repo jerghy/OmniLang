@@ -502,14 +502,47 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     s.openTab(filePath, name, detectTabType(filePath));
   },
 
-  removeComponent: (name) => {
-    const s = get();
-    s.removeComponentDef(name);
-    // Close any tabs for this component
-    const tabs = s.designPage.openTabs;
-    const tab = tabs.find((t) => t.componentName === name);
-    if (tab) s.closeTab(tab.id);
-  },
+  removeComponent: (name) => set((s) => {
+    const { [name]: _, ...restDefs } = s.componentDefs;
+    // Close any tabs for this component (inline closeTab logic for consistency)
+    const tab = s.designPage.openTabs.find((t) => t.componentName === name);
+    if (!tab) return { componentDefs: restDefs };
+    const tabId = tab.id;
+    const idx = s.designPage.openTabs.findIndex((t) => t.id === tabId);
+    const newTabs = s.designPage.openTabs.filter((t) => t.id !== tabId);
+    const newOrder = s.designPage.tabOrder.filter((id) => id !== tabId);
+    let activeTabId = s.designPage.activeTabId;
+    if (activeTabId === tabId) {
+      const neighborIdx = Math.min(idx, newTabs.length - 1);
+      activeTabId = newTabs[neighborIdx]?.id ?? null;
+    }
+    const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
+    const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
+    const { [tabId]: _tab, ...restTabData } = tabDataWithSave;
+    // LRU eviction: keep at most 20 entries to prevent unbounded growth.
+    const TAB_DATA_MAX = 20;
+    let prunedTabData = restTabData;
+    const keys = Object.keys(prunedTabData);
+    if (keys.length > TAB_DATA_MAX) {
+      const toRemove = keys.length - TAB_DATA_MAX;
+      const openIds = new Set(newTabs.map((t) => t.id));
+      const removable = keys.filter((k) => !openIds.has(k)).sort();
+      for (let i = 0; i < Math.min(toRemove, removable.length); i++) {
+        const { [removable[i]]: _, ...remaining } = prunedTabData;
+        prunedTabData = remaining;
+      }
+    }
+    const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
+    return {
+      componentDefs: restDefs,
+      designPage: { ...s.designPage, openTabs: newTabs, tabOrder: newOrder, activeTabId },
+      tabData: prunedTabData,
+      elements: restoreEntry?.elements ?? (activeTabId ? [] : s.elements),
+      wires: restoreEntry?.wires ?? (activeTabId ? [] : s.wires),
+      rootOrder: restoreEntry?.rootOrder ?? (activeTabId ? [] : s.rootOrder),
+      selectedElementIds: restoreEntry?.selectedElementIds ?? [],
+    };
+  }),
 
   enterComponentCanvas: (name) => {
     const s = get();

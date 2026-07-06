@@ -146,7 +146,7 @@ export function createAnnotationApi() {
         return parsePidComments(source);
       } catch (e) {
         console.warn("[annotation] Failed to read PID map:", e);
-        return { entries: {}, lineToPid: {} };
+        return { entries: {}, lineToPid: {}, error: String(e) };
       }
     },
 
