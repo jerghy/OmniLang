@@ -166,7 +166,7 @@ pub(super) fn format_block_as_vue_expr(block: &BlockIR) -> String {
             StatementIR::ExprStmtIR { expr } => format_expr_vue(expr),
             StatementIR::ReturnStmtIR { value } => value
                 .as_ref()
-                .map(|e| format_expr_vue(e))
+                .map(format_expr_vue)
                 .unwrap_or_else(|| "undefined".into()),
             _ => "undefined".into(),
         }
@@ -259,7 +259,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
             ..
         } => {
             let obj = format_expr_vue(object);
-            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_vue(a)).collect();
+            let arg_strs: Vec<String> = args.iter().map(format_expr_vue).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr {

@@ -41,7 +41,7 @@ fn check_view_invalid_fields(
 ) {
     match tree {
         ViewTree::Element(el) => {
-            for (_ev_name, handler) in &el.events {
+            for handler in el.events.values() {
                 if let (Some(ref kind), Some(ref used)) =
                     (&handler.event_data, &handler.used_fields)
                 {

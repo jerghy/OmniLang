@@ -232,7 +232,10 @@ fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> an
             let content = match content.as_str() {
                 Some(s) => s,
                 None => {
-                    eprintln!("Warning: null or non-string content for file '{}', skipping", filename);
+                    eprintln!(
+                        "Warning: null or non-string content for file '{}', skipping",
+                        filename
+                    );
                     continue;
                 }
             };
@@ -334,7 +337,10 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
             let content = match content.as_str() {
                 Some(s) => s,
                 None => {
-                    eprintln!("Warning: null or non-string content for file '{}', skipping", filename);
+                    eprintln!(
+                        "Warning: null or non-string content for file '{}', skipping",
+                        filename
+                    );
                     continue;
                 }
             };
@@ -602,7 +608,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
         let result_json =
-            omnilang::compile_multi_to_target(sources, t.clone(), path_mapping, false);
+            omnilang::compile_multi_to_target(sources, t, path_mapping, false);
         let data: serde_json::Value = match serde_json::from_str(&result_json) {
             Ok(v) => v,
             Err(e) => {

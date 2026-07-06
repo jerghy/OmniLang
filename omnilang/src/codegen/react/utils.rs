@@ -10,7 +10,7 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
     match stmt {
         StatementIR::LetStmtIR { value, .. } => value
             .as_ref()
-            .map_or(false, |v| getter_expr_contains_ident(v, ident)),
+            .is_some_and(|v| getter_expr_contains_ident(v, ident)),
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -29,7 +29,7 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
                             .iter()
                             .any(|s| statement_contains_ident(s, ident))
                 })
-                || else_body.as_ref().map_or(false, |b| {
+                || else_body.as_ref().is_some_and(|b| {
                     b.statements
                         .iter()
                         .any(|s| statement_contains_ident(s, ident))
@@ -37,23 +37,21 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
         }
         StatementIR::ReturnStmtIR { value } => value
             .as_ref()
-            .map_or(false, |v| getter_expr_contains_ident(v, ident)),
+            .is_some_and(|v| getter_expr_contains_ident(v, ident)),
         StatementIR::ExprStmtIR { expr } => getter_expr_contains_ident(expr, ident),
-        StatementIR::MutationStmt { intent, .. } => {
-            if let Some(intent) = intent {
+        StatementIR::MutationStmt {
+                intent: Some(intent), ..
+            } => {
                 intent.target.name == *ident
                     || intent
                         .amount
                         .as_ref()
-                        .map_or(false, |a| getter_expr_contains_ident(a, ident))
+                        .is_some_and(|a| getter_expr_contains_ident(a, ident))
                     || intent
                         .item
                         .as_ref()
-                        .map_or(false, |i| getter_expr_contains_ident(i, ident))
-            } else {
-                false
+                        .is_some_and(|i| getter_expr_contains_ident(i, ident))
             }
-        }
         _ => false,
     }
 }

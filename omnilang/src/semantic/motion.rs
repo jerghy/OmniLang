@@ -141,10 +141,10 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
         }
         Expr::UnaryOp { operand, .. } => contains_velocity_ref(operand),
         Expr::FuncCall { func, args, .. } => {
-            contains_velocity_ref(func) || args.iter().any(|a| contains_velocity_ref(a))
+            contains_velocity_ref(func) || args.iter().any(contains_velocity_ref)
         }
         Expr::MethodCall { object, args, .. } => {
-            contains_velocity_ref(object) || args.iter().any(|a| contains_velocity_ref(a))
+            contains_velocity_ref(object) || args.iter().any(contains_velocity_ref)
         }
         Expr::FieldAccess { object, .. } | Expr::OptionalChain { object, .. } => {
             contains_velocity_ref(object)
@@ -152,7 +152,7 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
         Expr::IndexGet { object, index, .. } => {
             contains_velocity_ref(object) || contains_velocity_ref(index)
         }
-        Expr::ArrayLiteral { elements, .. } => elements.iter().any(|e| contains_velocity_ref(e)),
+        Expr::ArrayLiteral { elements, .. } => elements.iter().any(contains_velocity_ref),
         Expr::MapLiteral { entries, .. } => entries
             .iter()
             .any(|(k, v)| contains_velocity_ref(k) || contains_velocity_ref(v)),
@@ -185,7 +185,7 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
             contains_velocity_ref(matched)
                 || arms
                     .iter()
-                    .any(|arm| arm.body.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                    .any(|arm| arm.body.stmts.iter().any(contains_velocity_stmt))
         }
         Expr::Block { .. }
         | Expr::Literal(..)
@@ -198,8 +198,8 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
 pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::ExprStmt { expr, .. } => contains_velocity_ref(expr),
-        Stmt::Return { value, .. } => value.as_ref().map_or(false, |e| contains_velocity_ref(e)),
-        Stmt::VarDecl { init, .. } => init.as_ref().map_or(false, |e| contains_velocity_ref(e)),
+        Stmt::Return { value, .. } => value.as_ref().is_some_and(contains_velocity_ref),
+        Stmt::VarDecl { init, .. } => init.as_ref().is_some_and(contains_velocity_ref),
         Stmt::Assign { value, .. } => contains_velocity_ref(value),
         Stmt::If {
             condition,
@@ -209,24 +209,24 @@ pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
             ..
         } => {
             contains_velocity_ref(condition)
-                || then_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+                || then_body.stmts.iter().any(contains_velocity_stmt)
                 || else_ifs.iter().any(|(c, b)| {
-                    contains_velocity_ref(c) || b.stmts.iter().any(|s| contains_velocity_stmt(s))
+                    contains_velocity_ref(c) || b.stmts.iter().any(contains_velocity_stmt)
                 })
                 || else_body
                     .as_ref()
-                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                    .is_some_and(|b| b.stmts.iter().any(contains_velocity_stmt))
         }
         Stmt::While {
             condition, body, ..
         } => {
-            contains_velocity_ref(condition) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+            contains_velocity_ref(condition) || body.stmts.iter().any(contains_velocity_stmt)
         }
         Stmt::ForIn { iterable, body, .. } => {
-            contains_velocity_ref(iterable) || body.stmts.iter().any(|s| contains_velocity_stmt(s))
+            contains_velocity_ref(iterable) || body.stmts.iter().any(contains_velocity_stmt)
         }
         Stmt::Print { arg, .. } => contains_velocity_ref(arg),
-        Stmt::EventEmit { args, .. } => args.iter().any(|a| contains_velocity_ref(a)),
+        Stmt::EventEmit { args, .. } => args.iter().any(contains_velocity_ref),
         Stmt::Throw { expr, .. } => contains_velocity_ref(expr),
         Stmt::TryCatch {
             try_body,
@@ -234,13 +234,13 @@ pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
             finally_body,
             ..
         } => {
-            try_body.stmts.iter().any(|s| contains_velocity_stmt(s))
+            try_body.stmts.iter().any(contains_velocity_stmt)
                 || catch_body
                     .as_ref()
-                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                    .is_some_and(|b| b.stmts.iter().any(contains_velocity_stmt))
                 || finally_body
                     .as_ref()
-                    .map_or(false, |b| b.stmts.iter().any(|s| contains_velocity_stmt(s)))
+                    .is_some_and(|b| b.stmts.iter().any(contains_velocity_stmt))
         }
         Stmt::Break(_) | Stmt::Continue(_) => false,
     }

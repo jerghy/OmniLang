@@ -2,9 +2,7 @@
 //!
 //! Includes: `lower_stmt`, `lower_block`, `try_lower_mutation`, `mutation_for_method`.
 
-use crate::ir::logic::*;
 use crate::ir::types::*;
-use crate::ir::types_motion::*;
 use crate::parser::ast::*;
 use std::collections::HashMap;
 

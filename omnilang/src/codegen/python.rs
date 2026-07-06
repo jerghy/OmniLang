@@ -33,7 +33,7 @@ impl Codegen for PythonCodegen {
             generate_module_imports(&mut w, module);
 
             // Generate type aliases (e.g., UserId = int)
-            for (_name, alias) in &module.type_aliases {
+            for alias in module.type_aliases.values() {
                 generate_type_alias(&mut w, alias);
             }
 
@@ -43,13 +43,13 @@ impl Codegen for PythonCodegen {
             }
 
             // Generate structs as @dataclass classes
-            for (_name, struct_ir) in &module.structs {
+            for struct_ir in module.structs.values() {
                 generate_struct(&mut w, struct_ir);
                 w.emit("");
             }
 
             // Generate enums as Enum classes
-            for (_name, enum_ir) in &module.enums {
+            for enum_ir in module.enums.values() {
                 generate_enum(&mut w, enum_ir);
                 w.emit("");
             }
@@ -207,7 +207,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     // Constructor with signal defaults
     w.emit("def __init__(self):");
     w.indent();
-    for (signal_name, _signal_type) in &store.signals {
+    for signal_name in store.signals.keys() {
         let default = store
             .signal_defaults
             .get(signal_name)
@@ -333,8 +333,9 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                 .unwrap_or_else(|| "None".into());
             w.emit(&format!("return {}", rhs));
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(mut_intent) = intent {
+        StatementIR::MutationStmt {
+                intent: Some(mut_intent),
+            } => {
                 let target = &mut_intent.target.name;
                 let amount = mut_intent
                     .amount
@@ -359,7 +360,6 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                     }
                 }
             }
-        }
         StatementIR::ExprStmtIR { expr } => {
             let line = format_expr_ir(expr);
             // Skip null expressions
@@ -419,7 +419,7 @@ fn format_block_as_python_expr(block: &BlockIR) -> String {
             StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
             StatementIR::ReturnStmtIR { value } => value
                 .as_ref()
-                .map(|e| format_expr_ir(e))
+                .map(format_expr_ir)
                 .unwrap_or_else(|| "None".into()),
             _ => "None".into(),
         }
@@ -654,7 +654,7 @@ fn format_type_ir(ty: &TypeIR) -> String {
         }
         other => {
             // If it looks like a user-defined type, use as-is
-            if other.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if other.chars().next().is_some_and(|c| c.is_uppercase()) {
                 format!("'{}'", other) // forward reference
             } else {
                 "Any".into()
@@ -701,7 +701,7 @@ pub fn py_type(kind: &str, type_args: &[TypeIR]) -> String {
         }
         other => {
             // If it looks like a user-defined type, use as-is
-            if other.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if other.chars().next().is_some_and(|c| c.is_uppercase()) {
                 format!("'{}'", other) // forward reference
             } else {
                 "Any".into()

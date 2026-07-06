@@ -14,7 +14,7 @@ impl<'a> Parser<'a> {
         self.advance(); // '@if'
         let condition = self.parse_expr()?;
         // Parse optional mode= "wait|sync" after condition, before {
-        let transition_mode = if self.peek_ident_value().map_or(false, |s| s == "mode") {
+        let transition_mode = if self.peek_ident_value().is_some_and(|s| s == "mode") {
             self.advance(); // consume 'mode'
             self.expect_token(TokenKind::Eq, "expected '='")?;
             Some(self.expect_string("expected string literal")?)

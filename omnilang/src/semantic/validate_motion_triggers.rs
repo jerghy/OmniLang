@@ -125,6 +125,7 @@ impl SemanticAnalyzer {
 
     /// Validate motion triggers in view tree (expanded with @for key checking,
     /// element ID collection).
+    #[allow(clippy::only_used_in_recursion)]
     pub(super) fn validate_view_motion_triggers(
         &mut self,
         nodes: &[ViewNode],

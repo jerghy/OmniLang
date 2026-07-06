@@ -248,7 +248,7 @@ fn format_block_as_tsx_expr(block: &BlockIR) -> String {
             StatementIR::ExprStmtIR { expr } => format_expr_ir_tsx(expr),
             StatementIR::ReturnStmtIR { value } => value
                 .as_ref()
-                .map(|e| format_expr_ir_tsx(e))
+                .map(format_expr_ir_tsx)
                 .unwrap_or_else(|| "undefined".into()),
             _ => "undefined".into(),
         }
@@ -340,7 +340,7 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             ..
         } => {
             let obj = format_expr_ir_tsx(object);
-            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_tsx(a)).collect();
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_tsx).collect();
             translate_method_call(&obj, method, &arg_strs)
         }
         ExprIR::BlockExpr {

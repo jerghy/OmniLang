@@ -223,8 +223,7 @@ impl OmniViewGenerator {
                 self.motion_names.insert(motion.name.clone());
                 self.emit_motion_js(motion);
             }
-        } else {
-        }
+        } 
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
         if !comp.timelines.is_empty() {
@@ -393,7 +392,7 @@ impl OmniViewGenerator {
                 let prefixed = format!("{}_{}", name, c.name);
                 signal_entries.push(format!("{}: {}", prefixed, prefixed));
             }
-            for (prop_name, _) in &comp.prop_defaults {
+            for prop_name in comp.prop_defaults.keys() {
                 let prefixed = format!("{}_{}", name, prop_name);
                 signal_entries.push(format!("{}: {}", prefixed, prefixed));
             }

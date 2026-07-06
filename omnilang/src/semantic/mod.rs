@@ -79,22 +79,22 @@ impl SemanticAnalyzer {
 
     pub fn analyze(&mut self, program: &Program) -> SemanticResult {
         // Pass 1: Collect symbols from all modules
-        for (_filepath, module) in &program.modules {
+        for module in program.modules.values() {
             self.collect_module_symbols(module);
         }
 
         // Pass 2: Resolve types per module
-        for (_filepath, module) in &program.modules {
+        for module in program.modules.values() {
             self.resolve_module_types(module);
         }
 
         // Pass 3: Collect dependencies per module
-        for (_filepath, module) in &program.modules {
+        for module in program.modules.values() {
             self.collect_module_dependencies(module);
         }
 
         // Pass 4: Validate per module
-        for (_filepath, module) in &program.modules {
+        for module in program.modules.values() {
             self.validate_module(module);
         }
 

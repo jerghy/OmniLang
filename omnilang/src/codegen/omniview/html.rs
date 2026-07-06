@@ -604,7 +604,7 @@ impl OmniViewGenerator {
                 ));
             }
 
-            self.emit_motion_triggers_for_element(&nid, &el);
+            self.emit_motion_triggers_for_element(&nid, el);
         }
 
         // @driven-by — external progress control for animations on this element

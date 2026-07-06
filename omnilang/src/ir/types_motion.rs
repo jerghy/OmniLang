@@ -61,6 +61,7 @@ pub struct TimelineItemIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum TimelineItemKindIR {
     Direction {
         dir: DirectionIR,
@@ -202,6 +203,7 @@ pub struct StateTweenIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum MotionExprIR {
     Ref(String),
     Inline(MotionBodyIR),

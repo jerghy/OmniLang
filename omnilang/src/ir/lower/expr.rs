@@ -2,9 +2,7 @@
 //!
 //! Includes: `lower_expr`, `lower_expr_to_json`, `lower_expr_to_json_from_ir`.
 
-use crate::ir::logic::*;
 use crate::ir::types::*;
-use crate::ir::types_motion::*;
 use crate::parser::ast::*;
 use std::collections::HashMap;
 

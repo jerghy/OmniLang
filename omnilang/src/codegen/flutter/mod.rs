@@ -185,7 +185,7 @@ impl FlutterCodegen {
             let enter_motions: Vec<String> = comp
                 .view
                 .as_ref()
-                .map(|v| find_enter_motions(v))
+                .map(find_enter_motions)
                 .unwrap_or_default();
 
             // Create AnimationController and Animation for each motion

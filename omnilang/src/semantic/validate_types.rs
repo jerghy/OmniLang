@@ -370,8 +370,11 @@ impl SemanticAnalyzer {
                 match node {
                     ViewNode::Element(el) => {
                         for prop in &el.props {
-                            if let ElementProp::Event { handler, .. } = prop {
-                                if let EventHandler::StoreAction { store, action } = handler {
+                            if let ElementProp::Event {
+                                    handler: EventHandler::StoreAction { store, action },
+                                    ..
+                                } = prop
+                            {
                                     // Check @store declaration
                                     if !store_refs.contains(store.as_str()) {
                                         diagnostics.push(Diagnostic::error(
@@ -404,7 +407,6 @@ impl SemanticAnalyzer {
                                             &el.span,
                                         ));
                                     }
-                                }
                             }
                         }
                         walk_nodes(&el.children, store_actions, store_refs, diagnostics);
@@ -533,10 +535,12 @@ impl SemanticAnalyzer {
                     match node {
                         ViewNode::Element(el) => {
                             for prop in &el.props {
-                                if let ElementProp::Event { handler, .. } = prop {
-                                    if let EventHandler::InlineFn { body, .. } = handler {
-                                        check_block(body, prop_names, diagnostics);
-                                    }
+                                if let ElementProp::Event {
+                                        handler: EventHandler::InlineFn { body, .. },
+                                        ..
+                                    } = prop
+                                {
+                                    check_block(body, prop_names, diagnostics);
                                 }
                             }
                             check_view_nodes(&el.children, prop_names, diagnostics);

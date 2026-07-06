@@ -169,7 +169,7 @@ impl ReactCodegen {
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
             let is_async =
-                fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+                fun.is_async || fun.body.statements.iter().any(stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
             w.emit(&format!(
                 "const {} = {}({}) => {{",
@@ -275,7 +275,7 @@ impl ReactCodegen {
                 .body
                 .statements
                 .iter()
-                .any(|s| stmt_contains_await(s));
+                .any(stmt_contains_await);
             if body_has_await {
                 w.emit("useEffect(() => {");
                 w.indent();
@@ -303,7 +303,7 @@ impl ReactCodegen {
         for lc in &comp.lifecycles {
             match lc.kind.as_str() {
                 "mount" => {
-                    let body_has_await = lc.body.statements.iter().any(|s| stmt_contains_await(s));
+                    let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
                     if body_has_await {
                         w.emit("useEffect(() => {");
                         w.indent();
@@ -412,7 +412,7 @@ impl ReactCodegen {
             let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
             let params_str = param_escaped.join(", ");
             let is_async =
-                fun.is_async || fun.body.statements.iter().any(|s| stmt_contains_await(s));
+                fun.is_async || fun.body.statements.iter().any(stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
             w.emit(&format!(
                 "const {} = {}({}) => {{",
@@ -776,10 +776,10 @@ fn stmt_contains_await(stmt: &StatementIR) -> bool {
     match stmt {
         StatementIR::ExprStmtIR { expr } => expr_contains_await(expr),
         StatementIR::LetStmtIR { value, .. } => {
-            value.as_ref().map_or(false, |v| expr_contains_await(v))
+            value.as_ref().is_some_and(expr_contains_await)
         }
         StatementIR::ReturnStmtIR { value } => {
-            value.as_ref().map_or(false, |v| expr_contains_await(v))
+            value.as_ref().is_some_and(expr_contains_await)
         }
         StatementIR::IfStmtIR {
             condition,
@@ -790,32 +790,32 @@ fn stmt_contains_await(stmt: &StatementIR) -> bool {
             if expr_contains_await(condition) {
                 return true;
             }
-            if then_body.statements.iter().any(|s| stmt_contains_await(s)) {
+            if then_body.statements.iter().any(stmt_contains_await) {
                 return true;
             }
             for (_, elif_body) in else_ifs {
-                if elif_body.statements.iter().any(|s| stmt_contains_await(s)) {
+                if elif_body.statements.iter().any(stmt_contains_await) {
                     return true;
                 }
             }
             if let Some(ref eb) = else_body {
-                if eb.statements.iter().any(|s| stmt_contains_await(s)) {
+                if eb.statements.iter().any(stmt_contains_await) {
                     return true;
                 }
             }
             false
         }
         StatementIR::WhileStmtIR { body, .. } => {
-            body.statements.iter().any(|s| stmt_contains_await(s))
+            body.statements.iter().any(stmt_contains_await)
         }
         StatementIR::ForInStmtIR {
             var_name: _,
             iterable,
             body,
         } => {
-            expr_contains_await(iterable) || body.statements.iter().any(|s| stmt_contains_await(s))
+            expr_contains_await(iterable) || body.statements.iter().any(stmt_contains_await)
         }
-        StatementIR::BlockStmtIR { body } => body.statements.iter().any(|s| stmt_contains_await(s)),
+        StatementIR::BlockStmtIR { body } => body.statements.iter().any(stmt_contains_await),
         StatementIR::ThrowStmtIR { expr } => expr_contains_await(expr),
         StatementIR::TryCatchStmtIR {
             try_body,
@@ -823,16 +823,16 @@ fn stmt_contains_await(stmt: &StatementIR) -> bool {
             catch_body,
             finally_body,
         } => {
-            if try_body.statements.iter().any(|s| stmt_contains_await(s)) {
+            if try_body.statements.iter().any(stmt_contains_await) {
                 return true;
             }
             if let Some(ref cb) = catch_body {
-                if cb.statements.iter().any(|s| stmt_contains_await(s)) {
+                if cb.statements.iter().any(stmt_contains_await) {
                     return true;
                 }
             }
             if let Some(ref fb) = finally_body {
-                if fb.statements.iter().any(|s| stmt_contains_await(s)) {
+                if fb.statements.iter().any(stmt_contains_await) {
                     return true;
                 }
             }
@@ -862,19 +862,19 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
                 || expr_contains_await(then_expr)
                 || expr_contains_await(else_expr)
         }
-        ExprIR::CallExpr { args, .. } => args.iter().any(|a| expr_contains_await(a)),
+        ExprIR::CallExpr { args, .. } => args.iter().any(expr_contains_await),
         ExprIR::MethodCallExpr { object, args, .. } => {
-            expr_contains_await(object) || args.iter().any(|a| expr_contains_await(a))
+            expr_contains_await(object) || args.iter().any(expr_contains_await)
         }
         ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
             expr_contains_await(object)
         }
         ExprIR::StoreFieldAccessExpr { call_args, .. } => {
-            call_args.iter().any(|a| expr_contains_await(a))
+            call_args.iter().any(expr_contains_await)
         }
-        ExprIR::ArrayExpr { elements } => elements.iter().any(|e| expr_contains_await(e)),
+        ExprIR::ArrayExpr { elements } => elements.iter().any(expr_contains_await),
         ExprIR::BlockExpr { statements, tail } => {
-            statements.iter().any(|s| stmt_contains_await(s)) || expr_contains_await(tail)
+            statements.iter().any(stmt_contains_await) || expr_contains_await(tail)
         }
         ExprIR::IndexExpr { object, index } => {
             expr_contains_await(object) || expr_contains_await(index)
@@ -885,7 +885,7 @@ fn expr_contains_await(expr: &ExprIR) -> bool {
                 return true;
             }
             arms.iter()
-                .any(|arm| arm.body.statements.iter().any(|s| stmt_contains_await(s)))
+                .any(|arm| arm.body.statements.iter().any(stmt_contains_await))
         }
         ExprIR::VariantLiteral { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),
         ExprIR::StructExpr { fields, .. } => fields.iter().any(|(_, v)| expr_contains_await(v)),

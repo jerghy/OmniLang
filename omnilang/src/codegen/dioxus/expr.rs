@@ -12,7 +12,7 @@ pub(super) fn format_block_as_dioxus_expr(block: &BlockIR) -> String {
             StatementIR::ExprStmtIR { expr } => format_expr_ir_dioxus(expr),
             StatementIR::ReturnStmtIR { value } => value
                 .as_ref()
-                .map(|e| format_expr_ir_dioxus(e))
+                .map(format_expr_ir_dioxus)
                 .unwrap_or_else(|| "None".into()),
             _ => "None".into(),
         }
@@ -106,7 +106,7 @@ pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
             ..
         } => {
             let obj = format_expr_ir_dioxus(object);
-            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_dioxus(a)).collect();
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_dioxus).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr {
@@ -315,7 +315,7 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         }
 
         // TouchEvent
-        (EventDataKind::TouchEvent, "touches") => format!("Vec::<(f64,f64,f64)>::new()"),
+        (EventDataKind::TouchEvent, "touches") => "Vec::<(f64,f64,f64)>::new()".to_string(),
         (EventDataKind::TouchEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let key = match m {
                 "alt" => "alt_key()",
@@ -357,24 +357,24 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         }
 
         // ScrollEvent
-        (EventDataKind::ScrollEvent, "x") => format!("0.0"),
-        (EventDataKind::ScrollEvent, "y") => format!("0.0"),
+        (EventDataKind::ScrollEvent, "x") => "0.0".to_string(),
+        (EventDataKind::ScrollEvent, "y") => "0.0".to_string(),
 
         // InputEvent
         (EventDataKind::InputEvent, "value") => format!("{}.data().value()", raw),
-        (EventDataKind::InputEvent, "checked") => format!("false"),
+        (EventDataKind::InputEvent, "checked") => "false".to_string(),
 
         // ToggleEvent
-        (EventDataKind::ToggleEvent, "checked") => format!("false"),
+        (EventDataKind::ToggleEvent, "checked") => "false".to_string(),
 
         // SubmitEvent
-        (EventDataKind::SubmitEvent, "values") => format!("HashMap::new()"),
+        (EventDataKind::SubmitEvent, "values") => "HashMap::new()".to_string(),
 
         // FocusEvent
         (EventDataKind::FocusEvent, "value") => format!("{}.data().value()", raw),
 
         // ClipboardEvent
-        (EventDataKind::ClipboardEvent, "text") => format!("String::new()"),
+        (EventDataKind::ClipboardEvent, "text") => "String::new()".to_string(),
 
         // DragEvent
         (EventDataKind::DragEvent, "x") => format!("{}.client_x()", raw),
@@ -392,8 +392,8 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         // DropEvent
         (EventDataKind::DropEvent, "x") => format!("{}.client_x()", raw),
         (EventDataKind::DropEvent, "y") => format!("{}.client_y()", raw),
-        (EventDataKind::DropEvent, "files") => format!("Vec::<String>::new()"),
-        (EventDataKind::DropEvent, "text") => format!("String::new()"),
+        (EventDataKind::DropEvent, "files") => "Vec::<String>::new()".to_string(),
+        (EventDataKind::DropEvent, "text") => "String::new()".to_string(),
         (EventDataKind::DropEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let key = match m {
                 "alt" => "alt_key()",
@@ -418,32 +418,32 @@ pub(super) fn field_extract_dioxus(kind: &EventDataKind, field: &str, raw: &str)
         }
 
         // SelectEvent
-        (EventDataKind::SelectEvent, "start") => format!("0"),
-        (EventDataKind::SelectEvent, "end") => format!("0"),
-        (EventDataKind::SelectEvent, "text") => format!("String::new()"),
+        (EventDataKind::SelectEvent, "start") => "0".to_string(),
+        (EventDataKind::SelectEvent, "end") => "0".to_string(),
+        (EventDataKind::SelectEvent, "text") => "String::new()".to_string(),
 
         // ResizeEvent
-        (EventDataKind::ResizeEvent, "width") => format!("window.inner_width()"),
-        (EventDataKind::ResizeEvent, "height") => format!("window.inner_height()"),
+        (EventDataKind::ResizeEvent, "width") => "window.inner_width()".to_string(),
+        (EventDataKind::ResizeEvent, "height") => "window.inner_height()".to_string(),
 
         // MediaEvent
-        (EventDataKind::MediaEvent, "currentTime") => format!("0.0"),
-        (EventDataKind::MediaEvent, "duration") => format!("0.0"),
+        (EventDataKind::MediaEvent, "currentTime") => "0.0".to_string(),
+        (EventDataKind::MediaEvent, "duration") => "0.0".to_string(),
 
         // MediaLoadEvent
-        (EventDataKind::MediaLoadEvent, "naturalWidth") => format!("0.0"),
-        (EventDataKind::MediaLoadEvent, "naturalHeight") => format!("0.0"),
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => "0.0".to_string(),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => "0.0".to_string(),
 
         // MediaErrorEvent
-        (EventDataKind::MediaErrorEvent, "message") => format!("String::new()"),
+        (EventDataKind::MediaErrorEvent, "message") => "String::new()".to_string(),
 
         // AnimationEvent
-        (EventDataKind::AnimationEvent, "animationName") => format!("String::new()"),
-        (EventDataKind::AnimationEvent, "elapsedTime") => format!("0.0"),
+        (EventDataKind::AnimationEvent, "animationName") => "String::new()".to_string(),
+        (EventDataKind::AnimationEvent, "elapsedTime") => "0.0".to_string(),
 
         // TransitionEvent
-        (EventDataKind::TransitionEvent, "propertyName") => format!("String::new()"),
-        (EventDataKind::TransitionEvent, "elapsedTime") => format!("0.0"),
+        (EventDataKind::TransitionEvent, "propertyName") => "String::new()".to_string(),
+        (EventDataKind::TransitionEvent, "elapsedTime") => "0.0".to_string(),
 
         _ => format!("todo!(\"field {}\")", field),
     }

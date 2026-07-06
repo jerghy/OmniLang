@@ -21,7 +21,7 @@ pub(crate) fn comp_has_spring_motion(comp: &ComponentIR) -> bool {
 
 /// Check if any motion in the component uses path animation (needs dart:ui import).
 pub(crate) fn comp_has_path_motion(comp: &ComponentIR) -> bool {
-    comp.motions.iter().any(|m| motion_has_path(m))
+    comp.motions.iter().any(motion_has_path)
 }
 
 /// Check if a single motion uses path animation.
@@ -50,10 +50,11 @@ pub(crate) fn extract_tween_begin(kf: &KeyframeIR) -> String {
     for stop in &kf.stops {
         if stop.position == 0.0 {
             for value in stop.properties.values() {
-                if let ExprIR::LiteralExpr { value: v } = value {
-                    if let serde_json::Value::Number(n) = v {
-                        return n.to_string();
-                    }
+                if let ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(n),
+                } = value
+                {
+                    return n.to_string();
                 }
             }
         }
@@ -67,10 +68,11 @@ pub(crate) fn extract_tween_end(kf: &KeyframeIR) -> String {
     for stop in &kf.stops {
         if stop.position == 1.0 {
             for value in stop.properties.values() {
-                if let ExprIR::LiteralExpr { value: v } = value {
-                    if let serde_json::Value::Number(n) = v {
-                        return n.to_string();
-                    }
+                if let ExprIR::LiteralExpr {
+                    value: serde_json::Value::Number(n),
+                } = value
+                {
+                    return n.to_string();
                 }
             }
         }
@@ -301,13 +303,13 @@ pub(crate) fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &Ele
 
         if has_pressed {
             // Get the hover/pressed animation controllers
-            if let Some(ref idle_def) = states_ir.states.get("idle") {
+            if let Some(idle_def) = states_ir.states.get("idle") {
                 let over_ms = idle_def
                     .over
                     .as_ref()
                     .and_then(|e| {
                         if let ExprIR::LiteralExpr { value } = e {
-                            value.as_str().and_then(|s| parse_dart_duration_ms(s))
+                            value.as_str().and_then(parse_dart_duration_ms)
                         } else {
                             None
                         }
@@ -320,13 +322,13 @@ pub(crate) fn wrap_flutter_states(inner: String, states_ir: &StatesIR, _el: &Ele
             }
         }
         if has_hover {
-            if let Some(ref hover_def) = states_ir.states.get("hover") {
+            if let Some(hover_def) = states_ir.states.get("hover") {
                 let over_ms = hover_def
                     .over
                     .as_ref()
                     .and_then(|e| {
                         if let ExprIR::LiteralExpr { value } = e {
-                            value.as_str().and_then(|s| parse_dart_duration_ms(s))
+                            value.as_str().and_then(parse_dart_duration_ms)
                         } else {
                             None
                         }

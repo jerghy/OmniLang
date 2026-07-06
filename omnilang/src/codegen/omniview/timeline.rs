@@ -76,8 +76,10 @@ impl OmniViewGenerator {
                         match trimmed.parse::<f64>() {
                             Ok(v) => v,
                             Err(_) => {
-                                self.warnings
-                                    .push(format!("Invalid timeline timing value '{}', using 0.0", s));
+                                self.warnings.push(format!(
+                                    "Invalid timeline timing value '{}', using 0.0",
+                                    s
+                                ));
                                 0.0
                             }
                         }

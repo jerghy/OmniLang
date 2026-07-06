@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
             && self
                 .tokens
                 .get(self.pos + 1)
-                .map_or(false, |t| t.kind == TokenKind::Minus)
+                .is_some_and(|t| t.kind == TokenKind::Minus)
         {
             self.advance(); // eat first '-'
             self.advance(); // eat second '-'

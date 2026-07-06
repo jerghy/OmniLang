@@ -165,7 +165,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                 }
             }
         }
-    } else if project_dir.is_file() && project_dir.extension().map_or(false, |e| e == "omni") {
+    } else if project_dir.is_file() && project_dir.extension().is_some_and(|e| e == "omni") {
         // Also discover sibling .omni files for import resolution
         let _file_stem = project_dir
             .file_stem()
@@ -201,10 +201,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                 .filter_map(|e| match e {
                     Ok(entry) => Some(entry),
                     Err(err) => {
-                        eprintln!(
-                            "[omni] warning: skipping inaccessible entry: {}",
-                            err
-                        );
+                        eprintln!("[omni] warning: skipping inaccessible entry: {}", err);
                         None
                     }
                 })
@@ -465,7 +462,7 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
     // Prevent path traversal via canonicalize + prefix verification.
-    let full = sanitize_path(&std::path::Path::new(&dir), &path)?;
+    let full = sanitize_path(std::path::Path::new(&dir), &path)?;
     std::fs::read_to_string(&full).map_err(|e| format!("Failed to read {}: {}", full.display(), e))
 }
 
@@ -488,9 +485,9 @@ fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::P
     let full = base.join(p);
 
     // Canonicalize the base for comparison (must exist)
-    let base_canonical = base.canonicalize().map_err(|e| {
-        format!("Base directory error: {}", e)
-    })?;
+    let base_canonical = base
+        .canonicalize()
+        .map_err(|e| format!("Base directory error: {}", e))?;
 
     // Try canonicalizing the full path first (works for existing files)
     // If the file doesn't exist yet, canonicalize the parent directory
@@ -525,7 +522,7 @@ fn write_file(
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
     // Prevent path traversal via canonicalize + prefix verification.
-    let full = sanitize_path(&std::path::Path::new(&dir), &path)?;
+    let full = sanitize_path(std::path::Path::new(&dir), &path)?;
     if let Some(parent) = full.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {}", e))?;
     }
@@ -588,7 +585,7 @@ fn verify_pid_roundtrip(
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
     // Prevent path traversal via canonicalize + prefix verification.
-    let full = sanitize_path(&std::path::Path::new(&dir), &file)?;
+    let full = sanitize_path(std::path::Path::new(&dir), &file)?;
     let source = std::fs::read_to_string(&full)
         .map_err(|e| format!("Failed to read {}: {}", full.display(), e))?;
 

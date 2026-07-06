@@ -127,14 +127,14 @@ impl<'a> Parser<'a> {
                         let state_name = self.expect_ident("expected state name")?;
                         self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
                         let props = self.parse_property_block()?;
-                        let over = if self.peek_ident_value().map_or(false, |s| s == "over") {
+                        let over = if self.peek_ident_value().is_some_and(|s| s == "over") {
                             self.advance();
                             self.expect_token(TokenKind::Colon, "expected ':'")?;
                             Some(self.parse_expr()?)
                         } else {
                             None
                         };
-                        let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
+                        let ease = if self.peek_ident_value().is_some_and(|s| s == "ease") {
                             self.advance();
                             self.expect_token(TokenKind::Colon, "expected ':'")?;
                             Some(self.parse_easing()?)

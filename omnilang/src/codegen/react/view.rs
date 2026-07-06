@@ -56,7 +56,7 @@ pub(super) fn gen_view_node_tsx(
                         }
                         "store_action" => {
                             if let Some(ref action) = handler.r#ref {
-                                let action_fn = action.split('.').last().unwrap_or(action);
+                                let action_fn = action.split('.').next_back().unwrap_or(action);
                                 comp_attrs.push(format!(
                                     "{}={{() => {{ {}(); }}}}",
                                     jsx_event, action_fn
@@ -88,16 +88,12 @@ pub(super) fn gen_view_node_tsx(
 
             // Collect binding attr names for dedup with static props
             let bound_attr_names: HashSet<String> = el
-                .bindings
-                .iter()
-                .map(|(bind_name, _)| to_jsx_attr(bind_name))
+                .bindings.keys().map(|bind_name| to_jsx_attr(bind_name))
                 .collect();
 
             // Collect class_map_binding names so we can exclude them from static className
             let binding_names: std::collections::HashSet<&str> = el
-                .class_map_bindings
-                .iter()
-                .map(|(cls, _)| cls.as_str())
+                .class_map_bindings.keys().map(|cls| cls.as_str())
                 .collect();
 
             // Static props — skip names that will be populated by bindings
@@ -309,7 +305,7 @@ pub(super) fn gen_view_node_tsx(
                     }
                     "store_action" => {
                         if let Some(ref action) = handler.r#ref {
-                            let action_fn = action.split('.').last().unwrap_or(action);
+                            let action_fn = action.split('.').next_back().unwrap_or(action);
                             if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}; {}(); }}}}",

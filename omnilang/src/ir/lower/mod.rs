@@ -5,16 +5,15 @@
 //! statements, and motion/animation definitions.
 
 mod component;
-mod view;
 mod expr;
-mod stmt;
 mod motion;
+mod stmt;
+mod view;
 
 pub(crate) use component::*;
-pub(crate) use view::*;
-pub(crate) use expr::*;
+#[allow(unused_imports)]
+pub(super) use motion::*;
 pub(crate) use stmt::*;
-pub(crate) use motion::*;
 
 use super::logic::*;
 use super::types::*;

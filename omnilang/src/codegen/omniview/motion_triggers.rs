@@ -128,11 +128,7 @@ impl OmniViewGenerator {
                         let repeat_val = match &el.in_view_repeat {
                             Some(expr) => {
                                 let js = self.expr_to_js(expr);
-                                if js == "true" {
-                                    true
-                                } else {
-                                    false
-                                }
+                                js == "true"
                             }
                             None => false,
                         };

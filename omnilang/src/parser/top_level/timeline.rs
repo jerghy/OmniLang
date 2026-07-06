@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
                     && self
                         .tokens
                         .get(self.pos + 1)
-                        .map_or(false, |t| t.kind == TokenKind::Colon) =>
+                        .is_some_and(|t| t.kind == TokenKind::Colon) =>
             {
                 self.advance(); // consume 'start'
                 self.advance(); // consume ':'
@@ -185,6 +185,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse timeline item timing: over:, ease:, delay:, start:, path:, pathRotate:
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn parse_timeline_item_timing(
         &mut self,
         over: &mut Expr,
@@ -335,7 +336,7 @@ impl<'a> Parser<'a> {
                 // Check for to { ... } — second direction item (handles its own timing)
                 let has_to = self
                     .peek_ident_value()
-                    .map_or(false, |s| s == "to" || s == "from");
+                    .is_some_and(|s| s == "to" || s == "from");
                 if has_to {
                     let dir2 = self.parse_direction_item()?;
                     items.push(TimelineItem {

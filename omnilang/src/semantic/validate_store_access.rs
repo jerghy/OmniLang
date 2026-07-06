@@ -294,8 +294,9 @@ impl SemanticAnalyzer {
                                     check_expr_for_undeclared_store(expr, store_refs, diagnostics);
                                 }
                             }
-                            ElementProp::Class { value } => {
-                                if let ClassValue::ClassMap(entries) = value {
+                            ElementProp::Class {
+                                    value: ClassValue::ClassMap(entries),
+                                } => {
                                     for (_, expr) in entries {
                                         check_expr_for_undeclared_store(
                                             expr,
@@ -304,9 +305,10 @@ impl SemanticAnalyzer {
                                         );
                                     }
                                 }
-                            }
-                            ElementProp::Event { handler, .. } => {
-                                if let EventHandler::InlineFn { body, .. } = handler {
+                            ElementProp::Event {
+                                    handler: EventHandler::InlineFn { body, .. },
+                                    ..
+                                } => {
                                     for stmt in &body.stmts {
                                         check_stmt_for_undeclared_store(
                                             stmt,
@@ -322,7 +324,6 @@ impl SemanticAnalyzer {
                                         );
                                     }
                                 }
-                            }
                             _ => {}
                         }
                     }

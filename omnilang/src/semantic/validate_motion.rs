@@ -336,26 +336,30 @@ impl SemanticAnalyzer {
                 ));
             }
         }
-        if let EasingExpr::Back { direction, .. } = e {
-            if let Some(ref dir_name) = direction {
-                if !is_valid_easing_name(dir_name) {
-                    self.diagnostics.push(Diagnostic::error(
-                        "E0006",
-                        &format!("Unknown easing name '{}'", dir_name),
-                        span,
-                    ));
-                }
+        if let EasingExpr::Back {
+                direction: Some(ref dir_name),
+                ..
+            } = e
+        {
+            if !is_valid_easing_name(dir_name) {
+                self.diagnostics.push(Diagnostic::error(
+                    "E0006",
+                    &format!("Unknown easing name '{}'", dir_name),
+                    span,
+                ));
             }
         }
-        if let EasingExpr::Elastic { direction, .. } = e {
-            if let Some(ref dir_name) = direction {
-                if !is_valid_easing_name(dir_name) {
-                    self.diagnostics.push(Diagnostic::error(
-                        "E0006",
-                        &format!("Unknown easing name '{}'", dir_name),
-                        span,
-                    ));
-                }
+        if let EasingExpr::Elastic {
+                direction: Some(ref dir_name),
+                ..
+            } = e
+        {
+            if !is_valid_easing_name(dir_name) {
+                self.diagnostics.push(Diagnostic::error(
+                    "E0006",
+                    &format!("Unknown easing name '{}'", dir_name),
+                    span,
+                ));
             }
         }
     }

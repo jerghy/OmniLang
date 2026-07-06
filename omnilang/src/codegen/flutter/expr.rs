@@ -8,7 +8,7 @@ pub(crate) fn format_block_as_flutter_expr(block: &BlockIR) -> String {
             StatementIR::ExprStmtIR { expr } => format_expr_ir_flutter(expr),
             StatementIR::ReturnStmtIR { value } => value
                 .as_ref()
-                .map(|e| format_expr_ir_flutter(e))
+                .map(format_expr_ir_flutter)
                 .unwrap_or_else(|| "null".into()),
             // Non-value-producing statements — block yields null
             StatementIR::LetStmtIR { .. }
@@ -113,7 +113,7 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
             ..
         } => {
             let obj = format_expr_ir_flutter(object);
-            let arg_strs: Vec<String> = args.iter().map(|a| format_expr_ir_flutter(a)).collect();
+            let arg_strs: Vec<String> = args.iter().map(format_expr_ir_flutter).collect();
             format!("{}.{}({})", obj, method, arg_strs.join(", "))
         }
         ExprIR::BlockExpr {

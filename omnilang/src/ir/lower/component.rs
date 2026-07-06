@@ -10,8 +10,8 @@ use crate::parser::ast::*;
 use std::collections::HashMap;
 
 use super::expr::lower_expr;
+use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
 use super::stmt::lower_block;
-use super::motion::{lower_motion_def, lower_timeline_def, lower_easing};
 use super::view::lower_view_block;
 
 // ═══════════════════════════════════════════════════════
@@ -243,7 +243,7 @@ pub(super) fn lower_component(
         .map(|h| HeroIntent {
             name: h.name.clone(),
             over: lower_expr(&h.over, variant_map),
-            ease: h.ease.as_ref().map(|e| lower_easing(e)),
+            ease: h.ease.as_ref().map(lower_easing),
         })
         .collect();
 

@@ -3,10 +3,9 @@
 //! Includes: `lower_view_block`, `lower_view_node`,
 //! and `EventFieldCollector` for inline event handlers.
 
-use crate::ir::TriggerKind;
-use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
+use crate::ir::TriggerKind;
 use crate::parser::ast::*;
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -264,7 +263,7 @@ pub(super) fn lower_view_node(
                     }
                     ElementProp::Event { name, handler } => {
                         // Collect event data kind
-                        let event_data = map_event_data_kind(&name);
+                        let event_data = map_event_data_kind(name);
                         let mut needs_pd = name == "onSubmit"; // backward compat
                         let mut needs_sp = false;
                         let mut used_fields: Option<Vec<String>> = None;
@@ -428,7 +427,10 @@ pub(super) fn lower_view_node(
                                 .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
                                 .collect();
                             let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map));
-                            let ease = state_def.ease.as_ref().map(|e| super::motion::lower_easing(e));
+                            let ease = state_def
+                                .ease
+                                .as_ref()
+                                .map(super::motion::lower_easing);
                             states_hm.insert(
                                 name.clone(),
                                 StateTweenIR {

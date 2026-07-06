@@ -18,7 +18,7 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
             {
                 return true;
             }
-            el.children.iter().any(|c| has_trigger_kind_in_view(c))
+            el.children.iter().any(has_trigger_kind_in_view)
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
@@ -30,7 +30,7 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
             }
             cond.fallback
                 .as_ref()
-                .map_or(false, |fb| has_trigger_kind_in_view(fb))
+                .is_some_and(has_trigger_kind_in_view)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -40,7 +40,7 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
             }
             list.empty_body
                 .as_ref()
-                .map_or(false, |e| has_trigger_kind_in_view(e))
+                .is_some_and(has_trigger_kind_in_view)
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
@@ -57,7 +57,7 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
             {
                 return true;
             }
-            el.children.iter().any(|c| has_trigger_kind_scroll(c))
+            el.children.iter().any(has_trigger_kind_scroll)
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
@@ -69,7 +69,7 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
             }
             cond.fallback
                 .as_ref()
-                .map_or(false, |fb| has_trigger_kind_scroll(fb))
+                .is_some_and(has_trigger_kind_scroll)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -79,7 +79,7 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
             }
             list.empty_body
                 .as_ref()
-                .map_or(false, |e| has_trigger_kind_scroll(e))
+                .is_some_and(has_trigger_kind_scroll)
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
@@ -335,7 +335,7 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
             }) {
                 return true;
             }
-            el.children.iter().any(|c| has_trigger_kind_drag(c))
+            el.children.iter().any(has_trigger_kind_drag)
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
@@ -347,7 +347,7 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
             }
             cond.fallback
                 .as_ref()
-                .map_or(false, |fb| has_trigger_kind_drag(fb))
+                .is_some_and(has_trigger_kind_drag)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -357,7 +357,7 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
             }
             list.empty_body
                 .as_ref()
-                .map_or(false, |e| has_trigger_kind_drag(e))
+                .is_some_and(has_trigger_kind_drag)
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }
@@ -505,8 +505,8 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         }
         (EventDataKind::PointerEvent, "pressure") => format!("{}.pressure", raw),
         (EventDataKind::PointerEvent, "tiltX") => format!("{}.tilt", raw),
-        (EventDataKind::PointerEvent, "tiltY") => format!("0.0"),
-        (EventDataKind::PointerEvent, "pointerType") => format!("'pointer'"),
+        (EventDataKind::PointerEvent, "tiltY") => "0.0".to_string(),
+        (EventDataKind::PointerEvent, "pointerType") => "'pointer'".to_string(),
         (EventDataKind::PointerEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -518,7 +518,7 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         }
 
         // TouchEvent
-        (EventDataKind::TouchEvent, "touches") => format!("<Map<String,dynamic>>[]"),
+        (EventDataKind::TouchEvent, "touches") => "<Map<String,dynamic>>[]".to_string(),
         (EventDataKind::TouchEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -535,7 +535,7 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         (EventDataKind::WheelEvent, "deltaX") => format!("{}.scrollDelta.dx", raw),
         (EventDataKind::WheelEvent, "deltaY") => format!("{}.scrollDelta.dy", raw),
         (EventDataKind::WheelEvent, "deltaZ") => format!("{}.scrollDelta.dy", raw),
-        (EventDataKind::WheelEvent, "deltaMode") => format!("0"),
+        (EventDataKind::WheelEvent, "deltaMode") => "0".to_string(),
         (EventDataKind::WheelEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -564,22 +564,22 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         (EventDataKind::ScrollEvent, "y") => format!("{}.metrics.pixels", raw),
 
         // InputEvent
-        (EventDataKind::InputEvent, "value") => format!("{}", raw),
-        (EventDataKind::InputEvent, "checked") => format!("{}", raw),
+        (EventDataKind::InputEvent, "value") => raw.to_string(),
+        (EventDataKind::InputEvent, "checked") => raw.to_string(),
 
         // ToggleEvent
-        (EventDataKind::ToggleEvent, "checked") => format!("{}", raw),
+        (EventDataKind::ToggleEvent, "checked") => raw.to_string(),
 
         // SubmitEvent
         (EventDataKind::SubmitEvent, "values") => {
-            format!("{{}} /* FormData not available in Flutter */")
+            "{} /* FormData not available in Flutter */".to_string()
         }
 
         // FocusEvent
-        (EventDataKind::FocusEvent, "value") => format!("{}", raw),
+        (EventDataKind::FocusEvent, "value") => raw.to_string(),
 
         // ClipboardEvent
-        (EventDataKind::ClipboardEvent, "text") => format!("''"),
+        (EventDataKind::ClipboardEvent, "text") => "''".to_string(),
 
         // DragEvent — from DragUpdateDetails
         (EventDataKind::DragEvent, "x") => format!("{}.localPosition.dx", raw),
@@ -597,8 +597,8 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         // DropEvent
         (EventDataKind::DropEvent, "x") => format!("{}.localPosition.dx", raw),
         (EventDataKind::DropEvent, "y") => format!("{}.localPosition.dy", raw),
-        (EventDataKind::DropEvent, "files") => format!("<String>[]"),
-        (EventDataKind::DropEvent, "text") => format!("''"),
+        (EventDataKind::DropEvent, "files") => "<String>[]".to_string(),
+        (EventDataKind::DropEvent, "text") => "''".to_string(),
         (EventDataKind::DropEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -623,31 +623,31 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         }
 
         // SelectEvent
-        (EventDataKind::SelectEvent, "start") => format!("0"),
-        (EventDataKind::SelectEvent, "end") => format!("0"),
-        (EventDataKind::SelectEvent, "text") => format!("''"),
+        (EventDataKind::SelectEvent, "start") => "0".to_string(),
+        (EventDataKind::SelectEvent, "end") => "0".to_string(),
+        (EventDataKind::SelectEvent, "text") => "''".to_string(),
 
         // ResizeEvent — Flutter uses MediaQuery or LayoutBuilder
-        (EventDataKind::ResizeEvent, "width") => format!("MediaQuery.of(context).size.width"),
-        (EventDataKind::ResizeEvent, "height") => format!("MediaQuery.of(context).size.height"),
+        (EventDataKind::ResizeEvent, "width") => "MediaQuery.of(context).size.width".to_string(),
+        (EventDataKind::ResizeEvent, "height") => "MediaQuery.of(context).size.height".to_string(),
 
         // MediaEvent
         (EventDataKind::MediaEvent, "currentTime") => format!("{}.position.inSeconds", raw),
         (EventDataKind::MediaEvent, "duration") => format!("{}.duration?.inSeconds ?? 0.0", raw),
 
         // MediaLoadEvent
-        (EventDataKind::MediaLoadEvent, "naturalWidth") => format!("0.0"),
-        (EventDataKind::MediaLoadEvent, "naturalHeight") => format!("0.0"),
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => "0.0".to_string(),
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => "0.0".to_string(),
 
         // MediaErrorEvent
-        (EventDataKind::MediaErrorEvent, "message") => format!("''"),
+        (EventDataKind::MediaErrorEvent, "message") => "''".to_string(),
 
         // AnimationEvent
-        (EventDataKind::AnimationEvent, "animationName") => format!("''"),
+        (EventDataKind::AnimationEvent, "animationName") => "''".to_string(),
         (EventDataKind::AnimationEvent, "elapsedTime") => format!("{}.value", raw),
 
         // TransitionEvent
-        (EventDataKind::TransitionEvent, "propertyName") => format!("''"),
+        (EventDataKind::TransitionEvent, "propertyName") => "''".to_string(),
         (EventDataKind::TransitionEvent, "elapsedTime") => format!("{}.value", raw),
 
         _ => format!("null /* {} */", field),

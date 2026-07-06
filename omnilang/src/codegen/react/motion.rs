@@ -90,7 +90,6 @@ pub(super) fn emit_motion_effects_tsx(
 }
 
 /// ── Helpers ────────────────────────────────────────────────────────────
-
 /// Collect all unique motion names referenced by @enter triggers in a view tree.
 fn collect_enter_motion_refs(node: &ViewTree) -> HashSet<String> {
     let mut refs = HashSet::new();
@@ -403,7 +402,7 @@ fn translate_easing(ease: &EasingIR, warnings: &mut Vec<String>) -> String {
             direction,
         } => {
             let dir = direction.as_deref().unwrap_or("Out");
-            let i = intensity.min(2.0).max(0.5);
+            let i = intensity.clamp(0.5, 2.0);
             match dir {
                 "In" => format!("cubic-bezier({},-{},0.735,0.045)", 0.600, 0.28 * i),
                 "InOut" => format!(
@@ -532,20 +531,20 @@ pub(super) fn has_driven_by(node: &ViewTree) -> bool {
             if el.driven_by.is_some() {
                 return true;
             }
-            el.children.iter().any(|c| has_driven_by(c))
+            el.children.iter().any(has_driven_by)
         }
         ViewTree::Conditional(cond) => {
             cond.branches
                 .iter()
-                .any(|b| b.body.as_ref().map_or(false, |body| has_driven_by(body)))
-                || cond.fallback.as_ref().map_or(false, |fb| has_driven_by(fb))
+                .any(|b| b.body.as_ref().is_some_and(has_driven_by))
+                || cond.fallback.as_ref().is_some_and(has_driven_by)
         }
         ViewTree::ListRendering(list) => {
-            list.body.as_ref().map_or(false, |body| has_driven_by(body))
+            list.body.as_ref().is_some_and(has_driven_by)
                 || list
                     .empty_body
                     .as_ref()
-                    .map_or(false, |empty| has_driven_by(empty))
+                    .is_some_and(has_driven_by)
         }
         _ => false,
     }
@@ -599,26 +598,26 @@ pub(super) fn has_inview_trigger(node: &ViewTree) -> bool {
             {
                 return true;
             }
-            el.children.iter().any(|c| has_inview_trigger(c))
+            el.children.iter().any(has_inview_trigger)
         }
         ViewTree::Conditional(cond) => {
             cond.branches.iter().any(|b| {
                 b.body
                     .as_ref()
-                    .map_or(false, |body| has_inview_trigger(body))
+                    .is_some_and(has_inview_trigger)
             }) || cond
                 .fallback
                 .as_ref()
-                .map_or(false, |fb| has_inview_trigger(fb))
+                .is_some_and(has_inview_trigger)
         }
         ViewTree::ListRendering(list) => {
             list.body
                 .as_ref()
-                .map_or(false, |body| has_inview_trigger(body))
+                .is_some_and(has_inview_trigger)
                 || list
                     .empty_body
                     .as_ref()
-                    .map_or(false, |empty| has_inview_trigger(empty))
+                    .is_some_and(has_inview_trigger)
         }
         _ => false,
     }
@@ -724,26 +723,26 @@ pub(super) fn has_scroll_trigger(node: &ViewTree) -> bool {
             {
                 return true;
             }
-            el.children.iter().any(|c| has_scroll_trigger(c))
+            el.children.iter().any(has_scroll_trigger)
         }
         ViewTree::Conditional(cond) => {
             cond.branches.iter().any(|b| {
                 b.body
                     .as_ref()
-                    .map_or(false, |body| has_scroll_trigger(body))
+                    .is_some_and(has_scroll_trigger)
             }) || cond
                 .fallback
                 .as_ref()
-                .map_or(false, |fb| has_scroll_trigger(fb))
+                .is_some_and(has_scroll_trigger)
         }
         ViewTree::ListRendering(list) => {
             list.body
                 .as_ref()
-                .map_or(false, |body| has_scroll_trigger(body))
+                .is_some_and(has_scroll_trigger)
                 || list
                     .empty_body
                     .as_ref()
-                    .map_or(false, |empty| has_scroll_trigger(empty))
+                    .is_some_and(has_scroll_trigger)
         }
         _ => false,
     }
@@ -761,25 +760,25 @@ pub(super) fn has_drag_trigger(node: &ViewTree) -> bool {
             }) {
                 return true;
             }
-            el.children.iter().any(|c| has_drag_trigger(c))
+            el.children.iter().any(has_drag_trigger)
         }
         ViewTree::Conditional(cond) => {
             cond.branches
                 .iter()
-                .any(|b| b.body.as_ref().map_or(false, |body| has_drag_trigger(body)))
+                .any(|b| b.body.as_ref().is_some_and(has_drag_trigger))
                 || cond
                     .fallback
                     .as_ref()
-                    .map_or(false, |fb| has_drag_trigger(fb))
+                    .is_some_and(has_drag_trigger)
         }
         ViewTree::ListRendering(list) => {
             list.body
                 .as_ref()
-                .map_or(false, |body| has_drag_trigger(body))
+                .is_some_and(has_drag_trigger)
                 || list
                     .empty_body
                     .as_ref()
-                    .map_or(false, |empty| has_drag_trigger(empty))
+                    .is_some_and(has_drag_trigger)
         }
         _ => false,
     }

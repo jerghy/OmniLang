@@ -4,12 +4,11 @@
 //! timeline definitions, keyframes, callbacks, playback properties,
 //! easing, stagger, connectors, and position values.
 
-use crate::ir::{
-    DirectionValue, FillValue, InterruptValue, LoopValue, StaggerDirection, TriggerKind, WhenValue,
-};
-use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
+use crate::ir::{
+    DirectionValue, FillValue, InterruptValue, LoopValue, StaggerDirection, WhenValue,
+};
 use crate::parser::ast::*;
 use std::collections::HashMap;
 
@@ -72,7 +71,7 @@ pub(super) fn lower_keyframe_body(
                 .iter()
                 .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
                 .collect();
-            let ease = s.ease.as_ref().map(|e| lower_easing(e));
+            let ease = s.ease.as_ref().map(lower_easing);
             KeyframeStopIR {
                 position,
                 properties,
@@ -81,7 +80,7 @@ pub(super) fn lower_keyframe_body(
         })
         .collect();
     let over = lower_expr(&kf.over, variant_map);
-    let ease = kf.ease.as_ref().map(|e| lower_easing(e));
+    let ease = kf.ease.as_ref().map(lower_easing);
     let playback = lower_playback_props(&kf.playback, variant_map);
     let callbacks: Vec<(CallbackKindIR, ExprIR)> = kf
         .callbacks
@@ -184,10 +183,10 @@ pub(super) fn lower_timeline_items(
                             .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
                             .collect(),
                         over: lower_expr(&di.over, variant_map),
-                        ease: di.ease.as_ref().map(|e| lower_easing(e)),
+                        ease: di.ease.as_ref().map(lower_easing),
                         delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
                         color_space: di.color_space.clone(),
-                        start: di.start.as_ref().map(|pv| format_position_value(pv)),
+                        start: di.start.as_ref().map(format_position_value),
                         path: di.path.clone(),
                         path_rotate: di.path_rotate,
                     },
@@ -224,7 +223,7 @@ pub(super) fn lower_timeline_item_kind_simple(
                 .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
                 .collect(),
             over: lower_expr(&di.over, variant_map),
-            ease: di.ease.as_ref().map(|e| lower_easing(e)),
+            ease: di.ease.as_ref().map(lower_easing),
             delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map)),
             color_space: di.color_space.clone(),
             start: di.start.as_ref().map(format_position_value),

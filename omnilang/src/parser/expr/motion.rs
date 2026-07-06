@@ -45,7 +45,7 @@ impl<'a> Parser<'a> {
         let mut amplitude = 1.0;
         let mut period = 0.5;
         // Parse amplitude if present
-        if self.peek_ident_value().map_or(false, |s| s == "amplitude") {
+        if self.peek_ident_value().is_some_and(|s| s == "amplitude") {
             self.advance(); // ident
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             amplitude = self.parse_number_literal()?;
@@ -53,7 +53,7 @@ impl<'a> Parser<'a> {
                 self.advance();
             }
         }
-        if self.peek_ident_value().map_or(false, |s| s == "period") {
+        if self.peek_ident_value().is_some_and(|s| s == "period") {
             self.advance(); // ident
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             period = self.parse_number_literal()?;

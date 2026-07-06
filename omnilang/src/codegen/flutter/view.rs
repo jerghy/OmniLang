@@ -87,7 +87,7 @@ fn format_element(
                 }
                 "store_action" => {
                     if let Some(ref action) = handler.r#ref {
-                        let action_fn = action.split('.').last().unwrap_or(action);
+                        let action_fn = action.split('.').next_back().unwrap_or(action);
                         format!("() {{ {}(); }}", action_fn)
                     } else {
                         "() {}".to_string()
@@ -125,8 +125,10 @@ fn format_element(
         match name.as_str() {
             "style" => {
                 // Map common CSS properties to Flutter widget parameters
-                if let ExprIR::LiteralExpr { value: v } = value {
-                    if let serde_json::Value::Object(ref style_obj) = v {
+                if let ExprIR::LiteralExpr {
+                        value: serde_json::Value::Object(ref style_obj),
+                    } = value
+                    {
                         for (css_prop, css_val) in style_obj {
                             match css_prop.as_str() {
                                 "padding" => {
@@ -154,7 +156,6 @@ fn format_element(
                         }
                     }
                 }
-            }
             other => {
                 let param = prop_to_flutter_param_name(other);
                 if !param.is_empty() {
@@ -213,7 +214,7 @@ fn format_element(
             }
             "store_action" => {
                 if let Some(ref action) = handler.r#ref {
-                    let action_fn = action.split('.').last().unwrap_or(action);
+                    let action_fn = action.split('.').next_back().unwrap_or(action);
                     format!("() {{ {}(); }}", action_fn)
                 } else {
                     "() {}".to_string()

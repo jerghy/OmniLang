@@ -322,7 +322,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         // Optional per-stop ease
-        let ease = if self.peek_ident_value().map_or(false, |s| s == "ease") {
+        let ease = if self.peek_ident_value().is_some_and(|s| s == "ease") {
             self.advance();
             if self.peek_kind() == TokenKind::Colon {
                 self.advance();
@@ -484,7 +484,7 @@ impl<'a> Parser<'a> {
                 col: 0,
             },
         );
-        if self.peek_ident_value().map_or(false, |s| s == "over") {
+        if self.peek_ident_value().is_some_and(|s| s == "over") {
             self.advance();
             over = self.parse_expr()?;
         }

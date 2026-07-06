@@ -76,6 +76,7 @@ pub struct TimelineItem {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum TimelineItemKind {
     Direction(DirectionItem),
     SetBlock(Vec<(String, Expr)>),

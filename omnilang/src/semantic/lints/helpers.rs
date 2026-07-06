@@ -95,8 +95,9 @@ pub(super) fn check_block_ir_for_store_mutations(
 ) {
     for stmt in &block.statements {
         match stmt {
-            StatementIR::MutationStmt { intent } => {
-                if let Some(ref mutation) = intent {
+            StatementIR::MutationStmt {
+                    intent: Some(ref mutation),
+                } => {
                     if let Some(ref owner) = mutation.target.owner {
                         if let Some(signals) = store_signals.get(owner.as_str()) {
                             if signals.contains(mutation.target.name.as_str()) {
@@ -116,7 +117,6 @@ pub(super) fn check_block_ir_for_store_mutations(
                         }
                     }
                 }
-            }
             StatementIR::IfStmtIR {
                 then_body,
                 else_ifs,
@@ -151,8 +151,8 @@ pub(super) fn check_block_ir_for_store_mutations(
                     check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
                 }
             }
-            StatementIR::ExprStmtIR { expr } => {
-                if expr_ir_contains_store_mutation(expr, store_signals) {
+            StatementIR::ExprStmtIR { expr }
+                if expr_ir_contains_store_mutation(expr, store_signals) => {
                     diags.push(LintDiagnostic {
                         rule: "store-field-direct-mutation".into(),
                         severity: super::LintSeverity::Error,
@@ -166,7 +166,6 @@ pub(super) fn check_block_ir_for_store_mutations(
                         col: 0,
                     });
                 }
-            }
             _ => {}
         }
     }
@@ -251,13 +250,14 @@ pub(super) fn expr_ir_contains_store_mutation(
         ExprIR::ClosureExpr { body, .. } => expr_ir_contains_store_mutation(body, store_signals),
         ExprIR::BlockExpr { statements, tail } => {
             statements.iter().any(|s| {
-                if let StatementIR::MutationStmt { intent } = s {
-                    if let Some(ref m) = intent {
+                if let StatementIR::MutationStmt {
+                        intent: Some(ref m),
+                    } = s
+                    {
                         if let Some(ref owner) = m.target.owner {
                             return store_signals.contains_key(owner.as_str());
                         }
                     }
-                }
                 false
             }) || expr_ir_contains_store_mutation(tail, store_signals)
         }
@@ -265,11 +265,12 @@ pub(super) fn expr_ir_contains_store_mutation(
             expr_ir_contains_store_mutation(matched, store_signals)
                 || arms.iter().any(|arm| {
                     arm.body.statements.iter().any(|s| {
-                        if let StatementIR::MutationStmt { intent } = s {
-                            if let Some(ref m) = intent {
-                                if let Some(ref owner) = m.target.owner {
-                                    return store_signals.contains_key(owner.as_str());
-                                }
+                        if let StatementIR::MutationStmt {
+                            intent: Some(ref m),
+                        } = s
+                        {
+                            if let Some(ref owner) = m.target.owner {
+                                return store_signals.contains_key(owner.as_str());
                             }
                         }
                         false
@@ -291,7 +292,7 @@ pub(super) fn check_view_tree_events_for_store_mutations(
 ) {
     match tree {
         ViewTree::Element(el) => {
-            for (_event_name, handler) in &el.events {
+            for handler in el.events.values() {
                 if let Some(ref body) = handler.body {
                     check_block_ir_for_store_mutations(
                         body,
@@ -455,8 +456,11 @@ pub(super) fn check_view_for_prop_assign(
         match node {
             ViewNode::Element(el) => {
                 for prop in &el.props {
-                    if let ElementProp::Event { handler, .. } = prop {
-                        if let EventHandler::InlineFn { body, .. } = handler {
+                    if let ElementProp::Event {
+                            handler: EventHandler::InlineFn { body, .. },
+                            ..
+                        } = prop
+                        {
                             check_block_for_prop_assign(
                                 body,
                                 prop_names,
@@ -465,7 +469,6 @@ pub(super) fn check_view_for_prop_assign(
                                 diags,
                             );
                         }
-                    }
                 }
                 check_view_for_prop_assign(&el.children, prop_names, comp_name, diags);
             }
@@ -561,11 +564,10 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
                             return true;
                         }
                     }
-                    Stmt::Return { value: Some(e), .. } | Stmt::Print { arg: e, .. } => {
-                        if expr_contains_side_effect(e, signal_names) {
+                    Stmt::Return { value: Some(e), .. } | Stmt::Print { arg: e, .. }
+                        if expr_contains_side_effect(e, signal_names) => {
                             return true;
                         }
-                    }
                     _ => {}
                 }
             }
@@ -629,7 +631,7 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
                         .body
                         .trailing_expr
                         .as_ref()
-                        .map_or(false, |e| expr_contains_side_effect(e, signal_names))
+                        .is_some_and(|e| expr_contains_side_effect(e, signal_names))
                 })
         }
         Expr::NotYetImplemented { .. } => false,
