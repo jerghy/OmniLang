@@ -106,10 +106,3 @@ pub(crate) fn binding_to_flutter_param(bind_name: &str) -> &str {
     }
 }
 
-pub(crate) fn capitalize_first(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
-}

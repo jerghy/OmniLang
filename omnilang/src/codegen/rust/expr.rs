@@ -7,18 +7,7 @@ use super::CodeWriter;
 use crate::ir::*;
 
 pub(super) fn format_block_as_rust_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_ir)
-                .unwrap_or_else(|| "None".into()),
-            _ => "None".into(),
-        }
-    } else {
-        "None".into()
-    }
+    super::super::format_block_as_expr(block, &format_expr_ir, "None")
 }
 
 pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
@@ -186,28 +175,7 @@ pub(super) fn format_json_value(value: &serde_json::Value) -> String {
 
 /// Map OMNI binary operator name to Rust operator.
 pub(super) fn binary_op_to_rust(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "==",
-        "neq" => "!=",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    super::super::binary_op_to_str(op, false, false)
 }
 
 /// Map OMNI type to Rust type annotation string.

@@ -3,29 +3,7 @@
 use crate::ir::*;
 
 pub(crate) fn format_block_as_flutter_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir_flutter(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_ir_flutter)
-                .unwrap_or_else(|| "null".into()),
-            // Non-value-producing statements — block yields null
-            StatementIR::LetStmtIR { .. }
-            | StatementIR::IfStmtIR { .. }
-            | StatementIR::MutationStmt { .. }
-            | StatementIR::EventEmitStmtIR { .. }
-            | StatementIR::BlockStmtIR { .. }
-            | StatementIR::WhileStmtIR { .. }
-            | StatementIR::ForInStmtIR { .. }
-            | StatementIR::BreakStmtIR
-            | StatementIR::ContinueStmtIR
-            | StatementIR::ThrowStmtIR { .. }
-            | StatementIR::TryCatchStmtIR { .. } => "null".into(),
-        }
-    } else {
-        "null".into()
-    }
+    super::super::format_block_as_expr(block, &format_expr_ir_flutter, "null")
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -192,26 +170,5 @@ pub(crate) fn format_json_value_flutter(value: &serde_json::Value) -> String {
 
 /// Map OMNI binary operator name to Dart/Flutter operator.
 pub(crate) fn binary_op_to_flutter(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "==",
-        "neq" => "!=",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    super::super::binary_op_to_str(op, false, false)
 }

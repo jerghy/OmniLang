@@ -245,7 +245,7 @@ impl ReactCodegen {
         // State hooks (useState) — rename setters that conflict with local function names
         for state in &comp.states {
             let init_val = expr::format_expr_ir_tsx(&state.initial_value);
-            let setter_base = format!("set{}", utils::capitalize_first(&state.name));
+            let setter_base = format!("set{}", super::capitalize_first(&state.name));
             let setter = if fn_names.contains(&setter_base) {
                 format!("__{}", setter_base)
             } else {
@@ -430,7 +430,7 @@ impl ReactCodegen {
                 .states
                 .iter()
                 .filter_map(|s| {
-                    let setter_name = format!("set{}", utils::capitalize_first(&s.name));
+                    let setter_name = format!("set{}", super::capitalize_first(&s.name));
                     if fn_names.contains(&setter_name) {
                         Some((setter_name.clone(), format!("__{}", setter_name)))
                     } else {
@@ -564,7 +564,7 @@ impl ReactCodegen {
         let signal_setter_names: std::collections::HashSet<String> = store
             .signals
             .keys()
-            .map(|s| format!("set{}", utils::capitalize_first(s)))
+            .map(|s| format!("set{}", super::capitalize_first(s)))
             .collect();
 
         // Signals as state variables
@@ -574,7 +574,7 @@ impl ReactCodegen {
                 .get(sig_name)
                 .map(utils::format_json_value_tsx)
                 .unwrap_or_else(|| "null".into());
-            let setter = format!("set{}", utils::capitalize_first(sig_name));
+            let setter = format!("set{}", super::capitalize_first(sig_name));
             let ts_type = super::javascript::js_type(&sig_type.kind, &sig_type.type_args, true);
             w.emit(&format!(
                 "const [{}, {}] = useState<{}>({});",
@@ -613,7 +613,7 @@ impl ReactCodegen {
             let params_str = params.join(", ");
             // If the action name conflicts with a signal setter, rename the local variable
             let local_action_name = if signal_setter_names.contains(&action.name) {
-                format!("__act{}", utils::capitalize_first(&action.name))
+                format!("__act{}", super::capitalize_first(&action.name))
             } else {
                 action.name.clone()
             };

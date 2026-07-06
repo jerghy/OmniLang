@@ -24,10 +24,10 @@
   },
   "plugins": {
     "fs": {
-        "scope": ["$RESOURCE/**", "$APPDATA/**"]
-      },
-      "shell": {
-        "scope": []
-      }
+      "scope": ["$RESOURCE/**", "$APPDATA/**"]
+    },
+    "shell": {
+      "scope": []
+    }
   }
 }

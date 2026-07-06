@@ -8,7 +8,7 @@ use super::expr::*;
 #[allow(unused_imports)]
 use super::utils::*;
 use super::ReactCodegen;
-use crate::codegen::{CodeWriter, Codegen};
+use crate::codegen::{binary_op_to_str, capitalize_first, CodeWriter, Codegen};
 use crate::ir::ModuleIR;
 use crate::ir::*;
 
@@ -68,12 +68,18 @@ fn test_to_react_event() {
 }
 
 #[test]
-fn test_binary_op_to_tsx() {
-    assert_eq!(binary_op_to_tsx("add"), "+");
-    assert_eq!(binary_op_to_tsx("eq"), "===");
-    assert_eq!(binary_op_to_tsx("and"), "&&");
-    assert_eq!(binary_op_to_tsx("or"), "||");
-    assert_eq!(binary_op_to_tsx("neq"), "!==");
+fn test_binary_op_to_str() {
+    assert_eq!(binary_op_to_str("add", true, false), "+");
+    assert_eq!(binary_op_to_str("eq", true, false), "===");
+    assert_eq!(binary_op_to_str("and", true, false), "&&");
+    assert_eq!(binary_op_to_str("or", true, false), "||");
+    assert_eq!(binary_op_to_str("neq", true, false), "!==");
+    // C-loose eq
+    assert_eq!(binary_op_to_str("eq", false, false), "==");
+    assert_eq!(binary_op_to_str("neq", false, false), "!=");
+    // Python textual bool
+    assert_eq!(binary_op_to_str("and", false, true), "and");
+    assert_eq!(binary_op_to_str("or", false, true), "or");
 }
 
 // ── format_expr_ir_tsx tests ────────────────────────────

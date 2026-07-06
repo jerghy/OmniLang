@@ -2,6 +2,7 @@
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
+use super::super::capitalize_first;
 use crate::codegen::sanitize_css_value;
 use crate::ir::*;
 
@@ -99,13 +100,6 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
     }
 }
 
-pub(super) fn capitalize_first(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
-}
 
 pub(super) fn format_json_value_tsx(value: &serde_json::Value) -> String {
     match value {
@@ -135,30 +129,6 @@ pub(super) fn format_json_value_tsx(value: &serde_json::Value) -> String {
     }
 }
 
-pub(super) fn binary_op_to_tsx(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "===",
-        "neq" => "!==",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
-}
 
 pub(super) fn format_css_value(value: &ExprIR) -> String {
     match value {
