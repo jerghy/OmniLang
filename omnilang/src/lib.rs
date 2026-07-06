@@ -7,13 +7,14 @@
 //!   4. IR lowering → Intent IR
 //!   5. Codegen / JSON serialization
 
+pub mod analyse;
 pub mod codegen;
 pub mod error;
 pub mod ffi;
 pub mod ir;
 pub mod lexer;
-pub mod path_mapping;
 pub mod parser;
+pub mod path_mapping;
 pub mod semantic;
 pub mod sourcemap;
 pub mod stdlib;
@@ -26,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::codegen::omniview::ComponentOutput;
-use crate::parser::ast::Program;
 
 /// Top-level compile result — returned as JSON by WASM/native bindings.
 #[derive(Debug, Serialize, Deserialize)]
@@ -264,126 +264,29 @@ pub fn compile_multi_to_target(
     path_mapping: HashMap<String, String>,
     editor_mode: bool,
 ) -> String {
-    let mut diags: Vec<error::Diagnostic> = Vec::new();
-    let mut programs: HashMap<String, Program> = HashMap::new();
+    // Run the unified analysis pipeline (parse → validate → semantic → lint)
+    let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
+    let mut diags = analysis.diagnostics;
+    let warnings = analysis.warnings;
 
-    // Phase 1: Parse all sources
-    for (path, source) in &sources {
-        let tokens = lexer::tokenize(source);
-        match parser::parse(&tokens, source) {
-            Ok(program) => {
-                programs.insert(path.clone(), program);
-            }
-            Err(e) => {
-                let d: error::Diagnostic = e.into();
-                diags.push(d.with_file(path));
-            }
+    let merged_ir = match analysis.ir {
+        Some(ir) => ir,
+        None => {
+            // Parse failed — return errors early
+            return serde_json::to_string(&serde_json::json!({
+                "success": false,
+                "files": {},
+                "errors": diags,
+                "warnings": [],
+            }))
+            .unwrap_or_else(|e| {
+                format!(
+                    r#"{{"success":false,"files":{{}},"errors":[{{"severity":"error","code":"E_SERIALIZE","message":"{}","file":null,"line":0,"col":0,"end_line":0,"end_col":0,"suggestion":null}}],"warnings":[]}}"#,
+                    e
+                )
+            });
         }
-    }
-
-    if !diags.is_empty() {
-        return serde_json::to_string(&serde_json::json!({
-            "success": false,
-            "files": {},
-            "errors": diags,
-            "warnings": [],
-        }))
-        .unwrap_or_else(|e| {
-            format!(
-                r#"{{"success":false,"files":{{}},"errors":[{{"severity":"error","code":"E_SERIALIZE","message":"{}","file":null,"line":0,"col":0,"end_line":0,"end_col":0,"suggestion":null}}],"warnings":[]}}"#,
-                e
-            )
-        });
-    }
-
-    // Phase 2: Cross-file validation
-    let validation_result = validate::validate_multi(sources.clone(), path_mapping);
-    diags.extend(validation_result.errors);
-
-    // Phase 3: Per-file semantic analysis + IR lowering → merged IR
-    let mut merged_ir = ir::IRProgram {
-        version: "1.0".to_string(),
-        modules: HashMap::new(),
-        source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
     };
-
-    for (path, program) in &programs {
-        let semantics = semantic::analyze(program);
-        for d in &semantics.diagnostics {
-            let mut d = d.clone();
-            if d.file.is_none() {
-                d.file = Some(path.clone());
-            }
-            diags.push(d);
-        }
-
-        let ir_program = ir::lower(program, &semantics);
-
-        // Annotate components and stores with their source file path,
-        // then merge modules — combine declarations from multiple files.
-        for (mod_name, mut mod_ir) in ir_program.modules {
-            // Stamp source file path onto each component and store
-            for comp in mod_ir.components.values_mut() {
-                if comp.source_file.is_none() {
-                    comp.source_file = Some(path.clone());
-                }
-            }
-            for store in mod_ir.stores.values_mut() {
-                if store.source_file.is_none() {
-                    store.source_file = Some(path.clone());
-                }
-            }
-
-            merged_ir
-                .modules
-                .entry(mod_name)
-                .and_modify(|existing| {
-                    existing.components.extend(mod_ir.components.clone());
-                    existing.stores.extend(mod_ir.stores.clone());
-                    existing.functions.extend(mod_ir.functions.clone());
-                    existing.structs.extend(mod_ir.structs.clone());
-                    existing.type_aliases.extend(mod_ir.type_aliases.clone());
-                    existing.imports.extend(mod_ir.imports.clone());
-                    existing.exports.extend(mod_ir.exports.clone());
-                    existing.motions.extend(mod_ir.motions.clone());
-                    existing.timelines.extend(mod_ir.timelines.clone());
-                })
-                .or_insert(mod_ir);
-        }
-        // Merge source maps
-        for (key, entry) in ir_program.source_map {
-            merged_ir.source_map.entry(key).or_insert(entry);
-        }
-    }
-
-    // Phase 4: Run lint rules against ASTs and merged IR
-    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
-    let warnings: Vec<error::Diagnostic> = lint_diags
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.severity,
-                crate::semantic::lints::LintSeverity::Warning
-                    | crate::semantic::lints::LintSeverity::Info
-            )
-        })
-        .map(|d| error::Diagnostic {
-            severity: match d.severity {
-                crate::semantic::lints::LintSeverity::Warning => error::Severity::Warning,
-                crate::semantic::lints::LintSeverity::Info => error::Severity::Info,
-                _ => error::Severity::Warning,
-            },
-            code: d.rule.clone(),
-            message: d.message.clone(),
-            file: Some(d.file.clone()),
-            line: d.line,
-            col: d.col,
-            end_line: d.line,
-            end_col: d.col.saturating_add(d.message.len() as u32),
-            suggestion: None,
-        })
-        .collect();
 
     // Phase 5: Dispatch to target codegen
     let output = codegen::compile(&merged_ir, target, &sources);

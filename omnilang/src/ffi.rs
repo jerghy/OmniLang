@@ -9,7 +9,6 @@ use std::os::raw::c_char;
 use serde::Deserialize;
 
 use crate::compile_multi_to_target;
-use crate::parser::ast::Program;
 
 fn rust_to_c_string(s: String) -> *mut c_char {
     // If the string contains an interior NUL byte, replace it
@@ -71,16 +70,19 @@ pub unsafe extern "C" fn omni_analyse(
         match std::str::from_utf8(slice) {
             Ok(s) => s,
             Err(e) => {
-                return rust_to_c_string(serde_json::json!({
-                    "success": false,
-                    "diagnostics": [{
-                        "severity": "error",
-                        "code": "E0000",
-                        "message": format!("Invalid UTF-8 input: {}", e),
-                        "line": 0,
-                        "col": 0
-                    }]
-                }).to_string());
+                return rust_to_c_string(
+                    serde_json::json!({
+                        "success": false,
+                        "diagnostics": [{
+                            "severity": "error",
+                            "code": "E0000",
+                            "message": format!("Invalid UTF-8 input: {}", e),
+                            "line": 0,
+                            "col": 0
+                        }]
+                    })
+                    .to_string(),
+                );
             }
         }
     };
@@ -89,7 +91,6 @@ pub unsafe extern "C" fn omni_analyse(
     struct AnalyseRequest {
         sources: HashMap<String, String>,
         #[serde(default)]
-        #[allow(dead_code)]
         path_mapping: HashMap<String, String>,
     }
 
@@ -110,78 +111,36 @@ pub unsafe extern "C" fn omni_analyse(
         }
     };
 
+    // Run the unified analysis pipeline
+    let analysis = crate::analyse::analyse_multi(&input.sources, &input.path_mapping);
+
+    // Convert Diagnostics to JSON Value objects matching FFI output format
     let mut diagnostics: Vec<serde_json::Value> = Vec::new();
-    let mut programs: HashMap<String, Program> = HashMap::new();
 
-    // Phase 1: Parse all sources
-    for (path, source) in &input.sources {
-        let tokens = crate::lexer::tokenize(source);
-        match crate::parser::parse(&tokens, source) {
-            Ok(program) => {
-                programs.insert(path.clone(), program);
-            }
-            Err(e) => {
-                diagnostics.push(serde_json::json!({
-                    "severity": "error",
-                    "code": "PARSE_ERROR",
-                    "message": e.message,
-                    "file": path,
-                    "line": e.span.line,
-                    "col": e.span.col,
-                    "suggestion": null,
-                }));
-            }
-        }
-    }
-
-    // Phase 2: Semantic analysis + IR lowering
-    let mut merged_ir = crate::ir::IRProgram {
-        version: "1.0".to_string(),
-        modules: HashMap::new(),
-        source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
-
-    for (path, program) in &programs {
-        let semantics = crate::semantic::analyze(program);
-        for diag in &semantics.diagnostics {
-            diagnostics.push(serde_json::json!({
-                "severity": match diag.severity {
-                    crate::error::Severity::Error => "error",
-                    crate::error::Severity::Warning => "warning",
-                    crate::error::Severity::Info => "info",
-                },
-                "code": diag.code,
-                "message": diag.message,
-                "file": path,
-                "line": diag.line,
-                "col": diag.col,
-                "suggestion": diag.suggestion,
-            }));
-        }
-        let ir_program = crate::ir::lower(program, &semantics);
-        for (mod_name, mod_ir) in ir_program.modules {
-            merged_ir.modules.entry(mod_name).or_insert(mod_ir);
-        }
-        for (key, entry) in ir_program.source_map {
-            merged_ir.source_map.entry(key).or_insert(entry);
-        }
-    }
-
-    // Phase 3: Run lint rules
-    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
-    for lint in &lint_diags {
+    for d in &analysis.diagnostics {
         diagnostics.push(serde_json::json!({
-            "severity": match lint.severity {
-                crate::semantic::lints::LintSeverity::Error => "error",
-                crate::semantic::lints::LintSeverity::Warning => "warning",
-                crate::semantic::lints::LintSeverity::Info => "info",
+            "severity": match d.severity {
+                crate::error::Severity::Error => "error",
+                crate::error::Severity::Warning => "warning",
+                crate::error::Severity::Info => "info",
             },
-            "code": lint.rule,
-            "message": lint.message,
-            "file": lint.file,
-            "line": lint.line,
-            "col": lint.col,
+            "code": d.code,
+            "message": d.message,
+            "file": d.file,
+            "line": d.line,
+            "col": d.col,
+            "suggestion": d.suggestion,
+        }));
+    }
+
+    for w in &analysis.warnings {
+        diagnostics.push(serde_json::json!({
+            "severity": "warning",
+            "code": w.code,
+            "message": w.message,
+            "file": w.file,
+            "line": w.line,
+            "col": w.col,
             "suggestion": null,
         }));
     }
@@ -229,11 +188,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         match std::str::from_utf8(slice) {
             Ok(s) => s,
             Err(e) => {
-                return rust_to_c_string(serde_json::json!({
-                    "success": false,
-                    "files": {},
-                    "errors": [format!("Invalid UTF-8 input for sources: {}", e)]
-                }).to_string());
+                return rust_to_c_string(
+                    serde_json::json!({
+                        "success": false,
+                        "files": {},
+                        "errors": [format!("Invalid UTF-8 input for sources: {}", e)]
+                    })
+                    .to_string(),
+                );
             }
         }
     };
@@ -249,11 +211,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         match std::str::from_utf8(slice) {
             Ok(s) => s,
             Err(e) => {
-                return rust_to_c_string(serde_json::json!({
-                    "success": false,
-                    "files": {},
-                    "errors": [format!("Invalid UTF-8 input for target: {}", e)]
-                }).to_string());
+                return rust_to_c_string(
+                    serde_json::json!({
+                        "success": false,
+                        "files": {},
+                        "errors": [format!("Invalid UTF-8 input for target: {}", e)]
+                    })
+                    .to_string(),
+                );
             }
         }
     };
@@ -268,11 +233,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         match std::str::from_utf8(slice) {
             Ok(s) => s,
             Err(e) => {
-                return rust_to_c_string(serde_json::json!({
-                    "success": false,
-                    "files": {},
-                    "errors": [format!("Invalid UTF-8 input for path_mapping: {}", e)]
-                }).to_string());
+                return rust_to_c_string(
+                    serde_json::json!({
+                        "success": false,
+                        "files": {},
+                        "errors": [format!("Invalid UTF-8 input for path_mapping: {}", e)]
+                    })
+                    .to_string(),
+                );
             }
         }
     };
@@ -329,11 +297,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         match std::str::from_utf8(slice) {
             Ok(s) => s.trim() == "true",
             Err(e) => {
-                return rust_to_c_string(serde_json::json!({
-                    "success": false,
-                    "files": {},
-                    "errors": [format!("Invalid UTF-8 input for editor_mode: {}", e)]
-                }).to_string());
+                return rust_to_c_string(
+                    serde_json::json!({
+                        "success": false,
+                        "files": {},
+                        "errors": [format!("Invalid UTF-8 input for editor_mode: {}", e)]
+                    })
+                    .to_string(),
+                );
             }
         }
     };

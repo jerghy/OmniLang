@@ -99,80 +99,46 @@ pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
         None => return serde_json::json!({ "success": false, "diagnostics": [] }),
     };
 
+    let path_mapping: HashMap<String, String> =
+        match request.get("path_mapping").and_then(|v| v.as_object()) {
+            Some(obj) => obj
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                .collect(),
+            None => HashMap::new(),
+        };
+
+    // Run the unified analysis pipeline
+    let analysis = omnilang::analyse::analyse_multi(&sources, &path_mapping);
+
+    // Convert Diagnostics to JSON Value objects matching CLI output format
     let mut diagnostics: Vec<serde_json::Value> = Vec::new();
-    let mut programs: HashMap<String, omnilang::parser::ast::Program> = HashMap::new();
 
-    // Phase 1: Parse all sources
-    for (path, source) in &sources {
-        let tokens = omnilang::lexer::tokenize(source);
-        match omnilang::parser::parse(&tokens, source) {
-            Ok(program) => {
-                programs.insert(path.clone(), program);
-            }
-            Err(e) => {
-                diagnostics.push(serde_json::json!({
-                    "severity": "error",
-                    "code": "PARSE_ERROR",
-                    "message": e.message,
-                    "file": path,
-                    "line": e.span.line,
-                    "col": e.span.col,
-                    "suggestion": null,
-                }));
-            }
-        }
-    }
-
-    // Phase 2: Semantic analysis + IR lowering (mirrors lib.rs:822-846)
-    let mut merged_ir = omnilang::ir::IRProgram {
-        version: "1.0".to_string(),
-        modules: HashMap::new(),
-        source_map: HashMap::new(),
-        stdlib_imports: Vec::new(),
-    };
-
-    for (path, program) in &programs {
-        let semantics = omnilang::semantic::analyze(program);
-        for d in &semantics.diagnostics {
-            let severity = match d.severity {
-                omnilang::error::Severity::Error => "error",
-                omnilang::error::Severity::Warning => "warning",
-                omnilang::error::Severity::Info => "info",
-            };
-            diagnostics.push(serde_json::json!({
-                "severity": severity,
-                "code": d.code,
-                "message": d.message,
-                "file": path,
-                "line": d.line,
-                "col": d.col,
-                "suggestion": d.suggestion,
-            }));
-        }
-        let ir_program = omnilang::ir::lower(program, &semantics);
-        for (mod_name, mod_ir) in ir_program.modules {
-            merged_ir.modules.entry(mod_name).or_insert(mod_ir);
-        }
-        for (key, entry) in ir_program.source_map {
-            merged_ir.source_map.entry(key).or_insert(entry);
-        }
-    }
-
-    // Phase 3: Run lint rules (mirrors lib.rs:848-864)
-    let lint_diags = omnilang::semantic::lints::run_all(&programs, &merged_ir);
-    for lint in &lint_diags {
-        let severity = match lint.severity {
-            omnilang::semantic::lints::LintSeverity::Error => "error",
-            omnilang::semantic::lints::LintSeverity::Warning => "warning",
-            omnilang::semantic::lints::LintSeverity::Info => "info",
+    for d in &analysis.diagnostics {
+        let severity = match d.severity {
+            omnilang::error::Severity::Error => "error",
+            omnilang::error::Severity::Warning => "warning",
+            omnilang::error::Severity::Info => "info",
         };
         diagnostics.push(serde_json::json!({
             "severity": severity,
-            "code": lint.rule,
-            "message": lint.message,
-            "file": lint.file,
-            "line": lint.line,
-            "col": lint.col,
+            "code": d.code,
+            "message": d.message,
+            "file": d.file,
+            "line": d.line,
+            "col": d.col,
+            "suggestion": d.suggestion,
+        }));
+    }
+
+    for w in &analysis.warnings {
+        diagnostics.push(serde_json::json!({
+            "severity": "warning",
+            "code": w.code,
+            "message": w.message,
+            "file": w.file,
+            "line": w.line,
+            "col": w.col,
             "suggestion": null,
         }));
     }

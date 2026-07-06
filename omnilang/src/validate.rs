@@ -69,20 +69,31 @@ pub fn validate_multi(
         };
     }
 
+    validate_multi_ref(&programs, &path_mapping)
+}
+
+/// Cross-file validation using already-parsed programs.
+/// Avoids re-parsing when callers already have parsed ASTs.
+pub fn validate_multi_ref(
+    programs: &HashMap<String, Program>,
+    path_mapping: &HashMap<String, String>,
+) -> MultiFileResult {
+    let mut errors: Vec<Diagnostic> = Vec::new();
+
     // Phase 2: Per-file consistency checks (omniview double-check)
-    for (path, program) in &programs {
+    for (path, program) in programs {
         if let Err(file_errors) = validate_file_consistency(path, program) {
             errors.extend(file_errors);
         }
     }
 
     // Phase 3: Cross-file import validation
-    if let Err(more_errors) = validate_cross_file(&programs, &path_mapping) {
+    if let Err(more_errors) = validate_cross_file(programs, path_mapping) {
         errors.extend(more_errors);
     }
 
     // Phase 4: Cycle detection
-    let cycles = crate::semantic::cycles::detect_cycles(&programs, &path_mapping);
+    let cycles = crate::semantic::cycles::detect_cycles(programs, path_mapping);
     for cycle in &cycles {
         let file = cycle.first().map(|s| s.as_str()).unwrap_or("unknown");
         errors.push(Diagnostic {
