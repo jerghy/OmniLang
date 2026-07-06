@@ -68,7 +68,21 @@ pub unsafe extern "C" fn omni_analyse(
         // UTF-8 data for the duration of this call.
         let slice =
             unsafe { std::slice::from_raw_parts(request_json_ptr, request_json_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("{}")
+        match std::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(e) => {
+                return rust_to_c_string(serde_json::json!({
+                    "success": false,
+                    "diagnostics": [{
+                        "severity": "error",
+                        "code": "E0000",
+                        "message": format!("Invalid UTF-8 input: {}", e),
+                        "line": 0,
+                        "col": 0
+                    }]
+                }).to_string());
+            }
+        }
     };
 
     #[derive(Deserialize)]
@@ -212,7 +226,16 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         // UTF-8 data for the duration of this call.
         let slice =
             unsafe { std::slice::from_raw_parts(sources_json_ptr, sources_json_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("{}")
+        match std::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(e) => {
+                return rust_to_c_string(serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [format!("Invalid UTF-8 input for sources: {}", e)]
+                }).to_string());
+            }
+        }
     };
 
     let target_str = if target_ptr.is_null() {
@@ -223,7 +246,16 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         // SAFETY: `target_ptr` is non-null (checked above) and the caller
         // guarantees it points to `target_len` bytes of valid UTF-8 data.
         let slice = unsafe { std::slice::from_raw_parts(target_ptr, target_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("")
+        match std::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(e) => {
+                return rust_to_c_string(serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [format!("Invalid UTF-8 input for target: {}", e)]
+                }).to_string());
+            }
+        }
     };
 
     let path_mapping_str = if path_mapping_ptr.is_null() {
@@ -233,7 +265,16 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         // and the caller guarantees it points to `path_mapping_len` bytes.
         let slice =
             unsafe { std::slice::from_raw_parts(path_mapping_ptr, path_mapping_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("{}")
+        match std::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(e) => {
+                return rust_to_c_string(serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [format!("Invalid UTF-8 input for path_mapping: {}", e)]
+                }).to_string());
+            }
+        }
     };
 
     // Parse sources
@@ -268,13 +309,16 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
         }
     };
 
+    let mut warnings: Vec<String> = Vec::new();
+
     // Parse path_mapping (optional — defaults to empty on parse failure)
-    let path_mapping: HashMap<String, String> = serde_json::from_str(path_mapping_str)
-        .unwrap_or_else(|e| {
-            // Log a diagnostic but continue — path_mapping is non-critical
-            eprintln!("[omni] warning: failed to parse path_mapping JSON: {}", e);
+    let path_mapping: HashMap<String, String> = match serde_json::from_str(path_mapping_str) {
+        Ok(m) => m,
+        Err(e) => {
+            warnings.push(format!("Warning: failed to parse path_mapping JSON: {}", e));
             HashMap::new()
-        });
+        }
+    };
 
     // Parse editor_mode
     let editor_mode = if editor_mode_ptr.is_null() {
@@ -282,9 +326,29 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     } else {
         let slice =
             unsafe { std::slice::from_raw_parts(editor_mode_ptr, editor_mode_len as usize) };
-        std::str::from_utf8(slice).unwrap_or("false").trim() == "true"
+        match std::str::from_utf8(slice) {
+            Ok(s) => s.trim() == "true",
+            Err(e) => {
+                return rust_to_c_string(serde_json::json!({
+                    "success": false,
+                    "files": {},
+                    "errors": [format!("Invalid UTF-8 input for editor_mode: {}", e)]
+                }).to_string());
+            }
+        }
     };
 
     let result = compile_multi_to_target(sources, target, path_mapping, editor_mode);
-    rust_to_c_string(result)
+    if warnings.is_empty() {
+        rust_to_c_string(result)
+    } else {
+        let mut response: serde_json::Value =
+            serde_json::from_str(&result).unwrap_or(serde_json::json!({
+                "success": false,
+                "files": {},
+                "errors": []
+            }));
+        response["warnings"] = serde_json::json!(warnings);
+        rust_to_c_string(response.to_string())
+    }
 }
