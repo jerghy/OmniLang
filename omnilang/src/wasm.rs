@@ -101,7 +101,8 @@ pub fn compile_to_omniview_full(source: &str, options_json: &str) -> String {
 /// sources_json: {"path": "source content", ...}
 /// Returns JSON with `success`, `files`, and `errors`.
 #[wasm_bindgen]
-pub fn compile_multi_to_omniview(sources_json: &str) -> String {
+pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> String {
+    let _opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
     let sources: HashMap<String, String> = match serde_json::from_str(sources_json) {
         Ok(s) => s,
         Err(e) => {
@@ -120,7 +121,7 @@ pub fn compile_multi_to_omniview(sources_json: &str) -> String {
 #[wasm_bindgen]
 pub struct OmniCompiler {
     sources: HashMap<String, String>,
-    cached_compile_result: Option<String>,
+    cached_compile_result: Option<(String, String)>,  // (options_json, result)
     cached_diags_result: Option<String>,
 }
 
@@ -163,8 +164,10 @@ impl OmniCompiler {
             })
             .to_string();
         }
-        if let Some(ref cached) = self.cached_compile_result {
-            return cached.clone();
+        if let Some((ref cached_opts, ref cached)) = self.cached_compile_result {
+            if cached_opts == options_json {
+                return cached.clone();
+            }
         }
         let result = if self.sources.len() == 1 {
             // Single file: use compile_omniview_full for full result with IR
@@ -187,7 +190,7 @@ impl OmniCompiler {
                 HashMap::new(),
             )
         };
-        self.cached_compile_result = Some(result.clone());
+        self.cached_compile_result = Some((options_json.to_string(), result.clone()));
         self.cached_diags_result = None;
         result
     }

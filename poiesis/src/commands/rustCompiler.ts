@@ -74,7 +74,7 @@ class RustCompiler {
     compile_omniview_component?: (source: string, component_name: string, options_json: string) => string;
     version: () => string;
     compile_to_omniview_full?: (source: string, options_json: string) => string;
-    compile_multi_to_omniview?: (source: string) => string;
+    compile_multi_to_omniview?: (sourcesJson: string, optionsJson: string) => string;
   } | null = null;
   private ready = false;
 
@@ -234,7 +234,7 @@ class RustCompiler {
     }
   }
 
-  compileMultiToOmniView(sources: Record<string, string>): MultiCompileResult {
+  compileMultiToOmniView(sources: Record<string, string>, editorMode: boolean = false): MultiCompileResult {
     if (!this.wasm || !this.wasm.compile_multi_to_omniview) {
       return {
         success: false,
@@ -243,7 +243,8 @@ class RustCompiler {
       };
     }
     try {
-      const json = this.wasm.compile_multi_to_omniview(JSON.stringify(sources));
+      const options = JSON.stringify({ editor_mode: editorMode });
+      const json = this.wasm.compile_multi_to_omniview(JSON.stringify(sources), options);
       return JSON.parse(json) as MultiCompileResult;
     } catch (e) {
       return {

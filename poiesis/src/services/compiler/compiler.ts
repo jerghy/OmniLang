@@ -85,7 +85,7 @@ export async function compileProject(
           file: '',
           line: e.line,
           col: e.col,
-          severity: (e.severity === 'warning' ? 'warning' : 'error') as 'error' | 'warning',
+          severity: (e.severity as 'error' | 'warning'),
           code: e.code,
           message: e.message,
           suggestion: e.suggestion || null,
