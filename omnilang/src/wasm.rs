@@ -14,11 +14,31 @@ struct CompileOptions {
     editor_mode: bool,
 }
 
+/// Parse options JSON, returning a structured error JSON string on failure.
+fn parse_options_or_error(options_json: &str) -> Result<CompileOptions, String> {
+    serde_json::from_str::<CompileOptions>(options_json).map_err(|e| {
+        serde_json::json!({
+            "success": false,
+            "files": null,
+            "errors": [{
+                "severity": "error",
+                "code": "E_INVALID_OPTIONS",
+                "message": format!("Failed to parse options JSON: {}", e),
+                "line": 0, "col": 0, "end_line": 0, "end_col": 0, "suggestion": null
+            }]
+        })
+        .to_string()
+    })
+}
+
 /// Compile .omni source to OmniView (JS + HTML + CSS). Returns JSON string.
 /// options_json: {"editor_mode": true}
 #[wasm_bindgen]
 pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
-    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let opts = match parse_options_or_error(options_json) {
+        Ok(o) => o,
+        Err(error_json) => return error_json,
+    };
     let result = compile_omniview(source, opts.editor_mode);
     serde_json::to_string(&result).unwrap_or_else(|e| {
         serde_json::json!({
@@ -50,7 +70,10 @@ pub fn compile_omniview_component(
     component_name: &str,
     options_json: &str,
 ) -> String {
-    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let opts = match parse_options_or_error(options_json) {
+        Ok(o) => o,
+        Err(error_json) => return error_json,
+    };
     let result = compile_omniview(source, opts.editor_mode);
 
     let component = result
@@ -100,7 +123,10 @@ pub fn compile_to_ir(source: &str) -> String {
 /// options_json: {"editor_mode": true}
 #[wasm_bindgen]
 pub fn compile_to_omniview_full(source: &str, options_json: &str) -> String {
-    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let opts = match parse_options_or_error(options_json) {
+        Ok(o) => o,
+        Err(error_json) => return error_json,
+    };
     let result = crate::compile_omniview_full(source, opts.editor_mode);
     serde_json::to_string(&result).unwrap_or_else(|e| {
         serde_json::json!({
@@ -129,7 +155,10 @@ pub fn compile_to_omniview_full(source: &str, options_json: &str) -> String {
 /// Returns JSON with `success`, `files`, and `errors`.
 #[wasm_bindgen]
 pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> String {
-    let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+    let opts = match parse_options_or_error(options_json) {
+        Ok(o) => o,
+        Err(error_json) => return error_json,
+    };
     let sources: HashMap<String, String> = match serde_json::from_str(sources_json) {
         Ok(s) => s,
         Err(e) => {
@@ -204,7 +233,10 @@ impl OmniCompiler {
         let result = if self.sources.len() == 1 {
             // Single file: use compile_omniview_full for full result with IR
             let source = self.sources.values().next().expect("len checked above");
-            let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+            let opts = match parse_options_or_error(options_json) {
+                Ok(o) => o,
+                Err(error_json) => return error_json,
+            };
             let full = crate::compile_omniview_full(source, opts.editor_mode);
             serde_json::to_string(&full).unwrap_or_else(|e| {
                 serde_json::json!({
@@ -216,7 +248,10 @@ impl OmniCompiler {
             })
         } else {
             // Multi-file: use compile_multi_to_target with editor_mode support.
-            let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
+            let opts = match parse_options_or_error(options_json) {
+                Ok(o) => o,
+                Err(error_json) => return error_json,
+            };
             crate::compile_multi_to_target(
                 self.sources.clone(),
                 crate::codegen::Target::OmniView,
