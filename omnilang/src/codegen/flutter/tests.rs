@@ -101,6 +101,7 @@ fn test_format_expr_literal() {
 fn test_format_expr_identifier() {
     let expr = ExprIR::IdentifierExpr {
         name: "count".into(),
+        type_ann: None,
     };
     assert_eq!(format_expr_ir_flutter(&expr), "count");
 }
@@ -109,8 +110,8 @@ fn test_format_expr_identifier() {
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
         op: "add".into(),
-        left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
-        right: Box::new(ExprIR::IdentifierExpr { name: "b".into() }),
+        left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
+        right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "a + b");
 }
@@ -118,7 +119,7 @@ fn test_format_expr_binary() {
 #[test]
 fn test_format_expr_ternary() {
     let expr = ExprIR::TernaryIR {
-        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
         }),
@@ -132,7 +133,7 @@ fn test_format_expr_ternary() {
 #[test]
 fn test_format_expr_field_access() {
     let expr = ExprIR::FieldAccessExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
+        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "obj.prop");
@@ -144,6 +145,7 @@ fn test_format_expr_unary_not() {
         op: "not".into(),
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "flag".into(),
+            type_ann: None,
         }),
     };
     assert_eq!(format_expr_ir_flutter(&expr), "!flag");
@@ -181,6 +183,7 @@ fn test_stmt_return() {
     let stmt = StatementIR::ReturnStmtIR {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
+            type_ann: None,
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -262,6 +265,7 @@ fn test_stmt_if() {
     let stmt = StatementIR::IfStmtIR {
         condition: ExprIR::IdentifierExpr {
             name: "cond".into(),
+            type_ann: None,
         },
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
@@ -764,6 +768,7 @@ fn test_component_with_mount_lifecycle() {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::IdentifierExpr {
                     name: "init".into(),
+                    type_ann: None,
                 },
             }],
         },
@@ -817,6 +822,7 @@ fn test_component_with_unmount_lifecycle() {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::IdentifierExpr {
                     name: "cleanup".into(),
+                    type_ann: None,
                 },
             }],
         },
@@ -935,6 +941,7 @@ fn test_store_dart_with_getters() {
             op: "mul".into(),
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "count".into(),
+                type_ann: None,
             }),
             right: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(2),

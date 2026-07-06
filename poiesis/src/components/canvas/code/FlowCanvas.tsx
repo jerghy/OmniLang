@@ -38,7 +38,19 @@ function FlowCanvasInner() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
-  const _registeredFns = useRef<Set<string>>(new Set());
+
+  // Derive registered custom functions from elements
+  const registeredFns = useMemo(() => {
+    const registered = new Set<string>();
+    for (const el of elements) {
+      if (el.tag === "customFn" && el.config?.fnName) {
+        registered.add(el.config.fnName as string);
+      } else if (el.tag === "fn" && el.props?.name) {
+        registered.add(el.props.name as string);
+      }
+    }
+    return registered;
+  }, [elements]);
 
   // Reset collapsed sections when menu opens
   useEffect(() => {
@@ -152,14 +164,20 @@ function FlowCanvasInner() {
 
   // ── Keyboard: arrow keys to move selected nodes, Delete to remove ──
   const MOVE_STEP = 10;
+  const selectedNodeIdsRef = useRef(selectedNodeIds);
+  selectedNodeIdsRef.current = selectedNodeIds;
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+
   useEffect(() => {
-    if (selectedNodeIds.length === 0) return;
     const handler = (e: KeyboardEvent) => {
+      const ids = selectedNodeIdsRef.current;
+      if (ids.length === 0) return;
       // Skip if user is typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        for (const id of selectedNodeIds) removeElement(id);
+        for (const id of ids) removeElement(id);
         setSelectedNodeIds([]);
         return;
       }
@@ -170,8 +188,8 @@ function FlowCanvasInner() {
       else if (e.key === "ArrowRight") dx = MOVE_STEP;
       else return;
       e.preventDefault();
-      for (const id of selectedNodeIds) {
-        const el = elements.find((x) => x.id === id);
+      for (const id of ids) {
+        const el = elementsRef.current.find((x) => x.id === id);
         if (el) {
           const pos = el.position || { x: 0, y: 0 };
           setElementPosition(id, { x: pos.x + dx, y: pos.y + dy });
@@ -180,7 +198,7 @@ function FlowCanvasInner() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedNodeIds, elements, setElementPosition, removeElement]);
+  }, []); // stable — bind once
 
   // ── Drag: sync position back to store ──
   const onNodesChange: OnNodesChange = useCallback(
@@ -286,20 +304,6 @@ function FlowCanvasInner() {
         />
       )}
 
-      {/* Derive registered custom functions from elements */}
-      {useMemo(() => {
-        const registered = new Set<string>();
-        for (const el of elements) {
-          if (el.tag === "customFn" && el.config?.fnName) {
-            registered.add(el.config.fnName as string);
-          } else if (el.tag === "fn" && el.props?.name) {
-            registered.add(el.props.name as string);
-          }
-        }
-        _registeredFns.current = registered;
-        return null;
-      }, [elements])}
-
       {/* Right-click context menu with collapsible sections and overflow handling */}
       {contextMenu && (
         <ContextMenu
@@ -307,7 +311,7 @@ function FlowCanvasInner() {
           y={contextMenu.y}
           menuRef={menuRef}
           collapsedSections={collapsedSections}
-          registeredFns={_registeredFns.current}
+          registeredFns={registeredFns}
           onToggleSection={(i) => setCollapsedSections((prev) => {
             const next = new Set(prev);
             if (next.has(i)) next.delete(i); else next.add(i);

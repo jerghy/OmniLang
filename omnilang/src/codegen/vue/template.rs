@@ -22,7 +22,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value
                             .as_str()
-                            .expect("literal string value confirmed by is_string()");
+                            .unwrap_or_default(); // defense-in-depth fallback
                         // Escape quotes for HTML attribute
                         let escaped = s.replace('"', "&quot;");
                         attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
@@ -88,7 +88,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                     }
                     EventHandlerKind::StoreAction => {
                         if let Some(ref action) = handler.r#ref {
-                            attrs.push(format!("@{}=\"/* TODO: action {} */\"", vue_event, action));
+                            attrs.push(format!("@{}=\"{}()\"", vue_event, action));
                         }
                     }
                 }
@@ -102,8 +102,18 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             }
 
             // Inline style
-            if el.inline_style.is_some() {
-                attrs.push(":style=\"{ /* TODO: inline style */ }\"".into());
+            if let Some(ref style_json) = el.inline_style {
+                if let Some(obj) = style_json.as_object() {
+                    let mut pairs: Vec<String> = Vec::new();
+                    for (prop, val) in obj {
+                        let js_prop = crate::codegen::react::view::format_style_prop_key(prop);
+                        let js_val = crate::codegen::react::view::format_style_value_expr(val);
+                        pairs.push(format!("{}: {}", js_prop, js_val));
+                    }
+                    if !pairs.is_empty() {
+                        attrs.push(format!(":style=\"{{ {} }}\"", pairs.join(", ")));
+                    }
+                }
             }
 
             // Emit opening tag
@@ -226,8 +236,9 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 w.emit(&safe);
             }
         }
-        ViewTree::Interpolation(_expr) => {
-            w.emit("{{ }}");
+        ViewTree::Interpolation(expr) => {
+            let formatted = fmt.format_expr(expr);
+            w.emit_fmt(format_args!("{{{{ {} }}}}", formatted));
         }
         ViewTree::Slot(_) => {
             // slots not supported in Vue codegen — emit placeholder

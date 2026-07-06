@@ -129,6 +129,7 @@ fn test_format_expr_literal() {
 fn test_format_expr_identifier() {
     let expr = ExprIR::IdentifierExpr {
         name: "count".into(),
+        type_ann: None,
     };
     assert_eq!(format_expr_ir(&expr, false), "count");
 }
@@ -137,8 +138,8 @@ fn test_format_expr_identifier() {
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
         op: "add".into(),
-        left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
-        right: Box::new(ExprIR::IdentifierExpr { name: "b".into() }),
+        left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
+        right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
     };
     assert_eq!(format_expr_ir(&expr, false), "a + b");
 }
@@ -146,7 +147,7 @@ fn test_format_expr_binary() {
 #[test]
 fn test_format_expr_ternary() {
     let expr = ExprIR::TernaryIR {
-        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
         }),
@@ -160,7 +161,7 @@ fn test_format_expr_ternary() {
 #[test]
 fn test_format_expr_field_access() {
     let expr = ExprIR::FieldAccessExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
+        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir(&expr, false), "obj.prop");
@@ -172,6 +173,7 @@ fn test_format_expr_unary_not() {
         op: "not".into(),
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "flag".into(),
+            type_ann: None,
         }),
     };
     assert_eq!(format_expr_ir(&expr, false), "!flag");
@@ -181,7 +183,7 @@ fn test_format_expr_unary_not() {
 fn test_format_expr_unary_neg() {
     let expr = ExprIR::UnaryOpExpr {
         op: "neg".into(),
-        operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+        operand: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
     };
     assert_eq!(format_expr_ir(&expr, false), "-x");
 }
@@ -639,6 +641,7 @@ fn test_js_generate_statement_return() {
     let stmt = StatementIR::ReturnStmtIR {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
+            type_ann: None,
         }),
     };
     generate_statement(&mut w, &stmt, false);
@@ -1121,6 +1124,7 @@ fn test_match_expr_single_variant() {
     let expr = ExprIR::MatchExpr {
         matched: Box::new(ExprIR::IdentifierExpr {
             name: "result".into(),
+            type_ann: None,
         }),
         arms: vec![MatchArmIR {
             pattern: MatchPatternIR {
@@ -1133,6 +1137,7 @@ fn test_match_expr_single_variant() {
                 statements: vec![StatementIR::ReturnStmtIR {
                     value: Some(ExprIR::IdentifierExpr {
                         name: "value".into(),
+                        type_ann: None,
                     }),
                 }],
             },
@@ -1159,7 +1164,7 @@ fn test_match_expr_single_variant() {
 #[test]
 fn test_match_expr_with_wildcard() {
     let expr = ExprIR::MatchExpr {
-        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into() }),
+        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into(), type_ann: None }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1170,7 +1175,7 @@ fn test_match_expr_with_wildcard() {
                 },
                 body: BlockIR {
                     statements: vec![StatementIR::ReturnStmtIR {
-                        value: Some(ExprIR::IdentifierExpr { name: "v".into() }),
+                        value: Some(ExprIR::IdentifierExpr { name: "v".into(), type_ann: None }),
                     }],
                 },
             },
@@ -1206,7 +1211,7 @@ fn test_match_expr_with_wildcard() {
 #[test]
 fn test_match_expr_multiple_variants() {
     let expr = ExprIR::MatchExpr {
-        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into() }),
+        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into(), type_ann: None }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1283,6 +1288,7 @@ fn test_format_block_as_js_expr_with_expr_stmt() {
         statements: vec![StatementIR::ExprStmtIR {
             expr: ExprIR::IdentifierExpr {
                 name: "result".into(),
+                type_ann: None,
             },
         }],
     };

@@ -94,6 +94,7 @@ mod tests {
     fn test_format_expr_identifier() {
         let expr = ExprIR::IdentifierExpr {
             name: "count".into(),
+            type_ann: None,
         };
         assert_eq!(format_expr_vue(&expr), "count");
     }
@@ -102,8 +103,8 @@ mod tests {
     fn test_format_expr_binary() {
         let expr = ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() }),
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
         };
         assert_eq!(format_expr_vue(&expr), "a + b");
     }
@@ -111,7 +112,7 @@ mod tests {
     #[test]
     fn test_format_expr_ternary() {
         let expr = ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -125,7 +126,7 @@ mod tests {
     #[test]
     fn test_format_expr_field_access() {
         let expr = ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
             field: "prop".into(),
         };
         assert_eq!(format_expr_vue(&expr), "obj.prop");
@@ -137,6 +138,7 @@ mod tests {
             op: "not".into(),
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "flag".into(),
+                type_ann: None,
             }),
         };
         assert_eq!(format_expr_vue(&expr), "!flag");
@@ -174,6 +176,7 @@ mod tests {
         let stmt = StatementIR::ReturnStmtIR {
             value: Some(ExprIR::IdentifierExpr {
                 name: "result".into(),
+                type_ann: None,
             }),
         };
         generate_statement_vue(&mut w, &stmt);
@@ -226,6 +229,7 @@ mod tests {
         let stmt = StatementIR::IfStmtIR {
             condition: ExprIR::IdentifierExpr {
                 name: "cond".into(),
+                type_ann: None,
             },
             then_body: BlockIR {
                 statements: vec![StatementIR::LetStmtIR {
@@ -443,6 +447,7 @@ mod tests {
                 statements: vec![StatementIR::ExprStmtIR {
                     expr: ExprIR::IdentifierExpr {
                         name: "console.log(count)".into(),
+                        type_ann: None,
                     },
                 }],
             },
@@ -602,6 +607,7 @@ mod tests {
                 op: "mul".into(),
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
+                    type_ann: None,
                 }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),

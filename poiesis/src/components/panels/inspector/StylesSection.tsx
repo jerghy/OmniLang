@@ -1,7 +1,7 @@
 // components/panels/inspector/StylesSection.tsx
 // Inline style editor with simple key-value pair rows.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
 import type { StyleProperty } from "../../../core/types/style";
@@ -29,27 +29,34 @@ const COMMON_STYLES = [
   "opacity",
 ];
 
+function buildLocalStyles(element: ElementData): Record<string, string> {
+  const existingProperties = element.style?.inlineProperties ?? [];
+  const initial: Record<string, string> = {};
+  for (const p of existingProperties) {
+    if (
+      p.segments.length > 0 &&
+      p.segments[0].type === "text"
+    ) {
+      initial[p.name] = p.segments[0].value;
+    }
+  }
+  return initial;
+}
+
 export function StylesSection({ element }: StylesSectionProps) {
   const setElementInlineStyles = usePoiesisStore(
     (s) => s.setElementInlineStyles
   );
 
-  const existingProperties = element.style?.inlineProperties ?? [];
-
   const [localStyles, setLocalStyles] = useState<
     Record<string, string>
-  >(() => {
-    const initial: Record<string, string> = {};
-    for (const p of existingProperties) {
-      if (
-        p.segments.length > 0 &&
-        p.segments[0].type === "text"
-      ) {
-        initial[p.name] = p.segments[0].value;
-      }
-    }
-    return initial;
-  });
+  >(() => buildLocalStyles(element));
+
+  const prevElementIdRef = useRef(element.id);
+  if (element.id !== prevElementIdRef.current) {
+    prevElementIdRef.current = element.id;
+    setLocalStyles(buildLocalStyles(element));
+  }
 
   const [addingStyle, setAddingStyle] = useState<string>("");
 
@@ -69,20 +76,24 @@ export function StylesSection({ element }: StylesSectionProps) {
 
   const handleChange = useCallback(
     (styleName: string, value: string) => {
-      const updated = { ...localStyles, [styleName]: value };
-      setLocalStyles(updated);
-      commitStyles(updated);
+      setLocalStyles((prev) => {
+        const updated = { ...prev, [styleName]: value };
+        commitStyles(updated);
+        return updated;
+      });
     },
-    [localStyles, commitStyles]
+    [commitStyles]
   );
 
   const handleRemove = useCallback(
     (styleName: string) => {
-      const { [styleName]: _, ...rest } = localStyles;
-      setLocalStyles(rest);
-      commitStyles(rest);
+      setLocalStyles((prev) => {
+        const { [styleName]: _, ...rest } = prev;
+        commitStyles(rest);
+        return rest;
+      });
     },
-    [localStyles, commitStyles]
+    [commitStyles]
   );
 
   const handleAddStyle = useCallback(() => {

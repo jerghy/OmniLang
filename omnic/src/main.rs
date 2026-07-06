@@ -157,7 +157,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
         let json = serde_json::to_string(&result)?;
         println!("{json}");
         if !result["success"].as_bool().unwrap_or(false) {
-            std::process::exit(1);
+            anyhow::bail!("analysis failed");
         }
         return Ok(());
     }
@@ -207,7 +207,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
         // Summary — matches Python line 236-243
         if error_count > 0 {
             println!("\n{} diagnostic(s) — {error_count} error(s)", diags.len());
-            std::process::exit(1);
+            anyhow::bail!("analyse found {error_count} error(s)");
         }
         if warn_count > 0 {
             println!("\n{warn_count} warning(s)");
@@ -328,15 +328,14 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
                 .args(["ts-node", &out_path.to_string_lossy()])
                 .status()?;
             if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
+                anyhow::bail!("ts-node exited with code {:?}", status.code());
             }
             Ok(())
         }
         "rust" => run_rust(&out_path),
         "dart" => run_dart(&out_path),
         other => {
-            eprintln!("Don't know how to run target: {other}");
-            std::process::exit(1);
+            anyhow::bail!("Don't know how to run target: {other}");
         }
     }
 }
@@ -416,8 +415,7 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
         .cloned()
         .unwrap_or_default();
     if first_name.is_empty() {
-        eprintln!("No output generated.");
-        std::process::exit(1);
+        anyhow::bail!("No output generated.");
     }
 
     Ok((output_dir.to_path_buf(), first_name))
@@ -427,7 +425,14 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
 fn assemble_omniview_html(output_dir: &Path) -> anyhow::Result<()> {
     let read_file = |name: &str| -> String {
         let path = output_dir.join(name);
-        std::fs::read_to_string(path).unwrap_or_default()
+        match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => {
+                eprintln!("warning: failed to read {}: {}", path.display(), e);
+                String::new()
+            }
+        }
     };
 
     // Check both body.html and index.html — Python cli.py:342

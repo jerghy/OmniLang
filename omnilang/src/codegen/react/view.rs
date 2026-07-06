@@ -109,7 +109,7 @@ pub(super) fn gen_view_node_tsx(
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value
                             .as_str()
-                            .expect("literal string value confirmed by is_string()");
+                            .unwrap_or_default(); // defense-in-depth fallback
                         // Use CSS module syntax for className props
                         if jsx_attr == "className" {
                             // Split multi-class names: "browserTab tabActive" → styles['browserTab'] + ' ' + styles['tabActive']
@@ -619,7 +619,7 @@ pub(super) fn gen_view_node_tsx(
 
 /// Format a CSS property key for use in a JSX style object.
 /// Quotes the key if it starts with `--` (custom property) or contains hyphens.
-fn format_style_prop_key(key: &str) -> String {
+pub(crate) fn format_style_prop_key(key: &str) -> String {
     if key.starts_with("--") || key.contains('-') {
         format!("'{}'", key)
     } else {
@@ -629,7 +629,7 @@ fn format_style_prop_key(key: &str) -> String {
 
 /// Translate an inline style value from the IR JSON representation into a TSX expression.
 /// Handles $signal, $call, and $concat meta-objects.
-fn format_style_value_expr(val: &serde_json::Value) -> String {
+pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
     match val {
         // Static string: 'value'
         serde_json::Value::String(s) => format!("'{}'", s),

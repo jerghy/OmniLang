@@ -299,7 +299,28 @@ impl ReactCodegen {
                     w.emit("}, []);");
                 }
                 LifecycleKind::Effect => {
-                    w.emit_fmt(format_args!("// TODO: lifecycle '{}'", lc.kind));
+                    let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
+                    if body_has_await {
+                        w.emit("useEffect(() => {");
+                        w.indent();
+                        w.emit("(async () => {");
+                        w.indent();
+                        for stmt in &lc.body.statements {
+                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                        }
+                        w.dedent();
+                        w.emit("})();");
+                        w.dedent();
+                        w.emit("});");
+                    } else {
+                        w.emit("useEffect(() => {");
+                        w.indent();
+                        for stmt in &lc.body.statements {
+                            expr::generate_statement_tsx(&mut w, stmt, &signal_names);
+                        }
+                        w.dedent();
+                        w.emit("});");
+                    }
                 }
             }
         }

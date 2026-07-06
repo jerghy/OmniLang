@@ -141,13 +141,22 @@ impl DioxusCodegen {
                     w.emit("});");
                 }
                 LifecycleKind::Unmount => {
-                    w.emit("// TODO: unmount lifecycle");
+                    w.emit("use_effect(move || {");
+                    w.indent();
                     for stmt in &lc.body.statements {
                         generate_statement_dioxus(&mut w, stmt);
                     }
+                    w.dedent();
+                    w.emit("});");
                 }
                 LifecycleKind::Effect => {
-                    w.emit_fmt(format_args!("// TODO: lifecycle '{}'", lc.kind));
+                    w.emit("use_effect(move || async move {");
+                    w.indent();
+                    for stmt in &lc.body.statements {
+                        generate_statement_dioxus(&mut w, stmt);
+                    }
+                    w.dedent();
+                    w.emit("});");
                 }
             }
         }

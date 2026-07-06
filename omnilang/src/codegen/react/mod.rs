@@ -17,7 +17,7 @@ pub(super) mod motion;
 #[cfg(test)]
 pub(super) mod tests;
 pub(super) mod utils;
-pub(super) mod view;
+pub(crate) mod view;
 
 pub struct ReactCodegen;
 

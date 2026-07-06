@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
                     if is_valid_interpolation {
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
                         Ok(ViewNode::Interpolation(
-                            parse_result.expect("parse_result is Ok as verified above"),
+                            parse_result.unwrap(), /* safe: is_valid_interpolation checks is_ok */
                         ))
                     } else {
                         // Not a valid/complete interpolation — treat as literal text

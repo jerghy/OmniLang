@@ -183,7 +183,7 @@ fn test_store_getters() {
                 "doubled".into(),
                 ExprIR::BinaryOpExpr {
                     op: "mul".into(),
-                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
                     }),
@@ -286,7 +286,8 @@ fn test_expr_identifier() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::IdentifierExpr {
-            name: "count".into()
+            name: "count".into(),
+            type_ann: None,
         }),
         "count"
     );
@@ -298,24 +299,24 @@ fn test_expr_binary() {
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None })
         }),
         "a + b"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "eq".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "y".into() })
+            left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "y".into(), type_ann: None })
         }),
         "x === y"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "and".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into() }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into() })
+            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
+            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None })
         }),
         "a && b"
     );
@@ -328,7 +329,8 @@ fn test_expr_unary() {
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
             op: "!".into(),
             operand: Box::new(ExprIR::IdentifierExpr {
-                name: "flag".into()
+                name: "flag".into(),
+                type_ann: None,
             })
         }),
         "!flag"
@@ -336,7 +338,7 @@ fn test_expr_unary() {
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
             op: "-".into(),
-            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into() })
+            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None })
         }),
         "-x"
     );
@@ -347,7 +349,7 @@ fn test_expr_ternary() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1)
             }),
@@ -364,7 +366,7 @@ fn test_expr_field_access() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into() }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
             field: "prop".into()
         }),
         "obj.prop"
@@ -376,7 +378,7 @@ fn test_expr_method_call() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "arr".into() }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "arr".into(), type_ann: None }),
             method: "len".into(),
             args: vec![],
             is_optional: false
@@ -385,7 +387,7 @@ fn test_expr_method_call() {
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "val".into() }),
+            object: Box::new(ExprIR::IdentifierExpr { name: "val".into(), type_ann: None }),
             method: "to_string".into(),
             args: vec![],
             is_optional: false
@@ -402,7 +404,7 @@ fn test_expr_closure() {
             params: vec!["x".into()],
             body: Box::new(ExprIR::BinaryOpExpr {
                 op: "mul".into(),
-                left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+                left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2)
                 }),
@@ -456,7 +458,7 @@ fn test_expr_block() {
             }),
             r#type: None,
         }],
-        tail: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+        tail: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
     });
     assert!(js.contains("function"));
     assert!(js.contains("let x = 42"));
@@ -501,6 +503,7 @@ fn test_stmt_return() {
     gen.emit_statement(&StatementIR::ReturnStmtIR {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
+            type_ann: None,
         }),
     });
     assert!(gen.js.contains("return result"));
@@ -512,6 +515,7 @@ fn test_stmt_if_else() {
     gen.emit_statement(&StatementIR::IfStmtIR {
         condition: ExprIR::IdentifierExpr {
             name: "cond".into(),
+            type_ann: None,
         },
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
@@ -545,6 +549,7 @@ fn test_stmt_while() {
     gen.emit_statement(&StatementIR::WhileStmtIR {
         condition: ExprIR::IdentifierExpr {
             name: "running".into(),
+            type_ann: None,
         },
         body: BlockIR {
             statements: vec![StatementIR::BreakStmtIR],
@@ -561,6 +566,7 @@ fn test_stmt_for_in() {
         var_name: "item".into(),
         iterable: ExprIR::IdentifierExpr {
             name: "items".into(),
+            type_ann: None,
         },
         body: BlockIR {
             statements: vec![StatementIR::ExprStmtIR {
@@ -568,6 +574,7 @@ fn test_stmt_for_in() {
                     name: "println".into(),
                     args: vec![ExprIR::IdentifierExpr {
                         name: "item".into(),
+                        type_ann: None,
                     }],
                 },
             }],
@@ -653,7 +660,7 @@ fn test_stmt_try_catch() {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::CallExpr {
                     name: "println".into(),
-                    args: vec![ExprIR::IdentifierExpr { name: "err".into() }],
+                    args: vec![ExprIR::IdentifierExpr { name: "err".into(), type_ann: None }],
                 },
             }],
         }),
@@ -746,7 +753,7 @@ fn test_component_with_computed() {
                 },
                 body: ExprIR::BinaryOpExpr {
                     op: "mul".into(),
-                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into() }),
+                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
                     }),
@@ -787,6 +794,7 @@ fn test_component_with_functions() {
                                 }),
                                 right: Box::new(ExprIR::IdentifierExpr {
                                     name: "name".into(),
+                                    type_ann: None,
                                 }),
                             }],
                         },
@@ -910,6 +918,7 @@ fn test_component_with_effect() {
                             name: "println".into(),
                             args: vec![ExprIR::IdentifierExpr {
                                 name: "count".into(),
+                                type_ann: None,
                             }],
                         },
                     }],
@@ -978,6 +987,7 @@ fn test_html_interpolation() {
     let mut el = make_element("div");
     el.children = vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
         name: "name".into(),
+        type_ann: None,
     }))];
     module.components.insert(
         "App".to_string(),
@@ -1021,6 +1031,7 @@ fn test_html_conditional() {
                 branches: vec![ConditionalBranch {
                     condition: ExprIR::IdentifierExpr {
                         name: "show".into(),
+                        type_ann: None,
                     },
                     body: Some(ViewTree::Element(visible_el)),
                 }],

@@ -55,7 +55,13 @@ pub fn source_map_json(entries: &[SourceMapEntry]) -> String {
             })
         })
         .collect();
-    serde_json::to_string(&mappings).unwrap_or_else(|_| "[]".into())
+    match serde_json::to_string(&mappings) {
+        Ok(json) => json,
+        Err(e) => {
+            eprintln!("Warning: failed to serialize source map: {}", e);
+            "[]".into()
+        }
+    }
 }
 
 #[cfg(test)]

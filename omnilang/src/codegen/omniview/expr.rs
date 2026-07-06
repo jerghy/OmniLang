@@ -11,7 +11,7 @@ impl OmniViewGenerator {
     pub(super) fn expr_to_js(&self, expr: &ExprIR) -> String {
         match expr {
             ExprIR::LiteralExpr { value } => serde_value_to_js(value),
-            ExprIR::IdentifierExpr { name } => {
+            ExprIR::IdentifierExpr { name, .. } => {
                 let resolved = self
                     .name_renames
                     .get(name.as_str())
@@ -42,7 +42,7 @@ impl OmniViewGenerator {
                 format!("{}{}", op, o)
             }
             ExprIR::FieldAccessExpr { object, field } => {
-                let raw_obj_name = if let ExprIR::IdentifierExpr { name } = object.as_ref() {
+                let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
                     Some(name.clone())
                 } else {
                     None
@@ -67,7 +67,7 @@ impl OmniViewGenerator {
                 }
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
-                let raw_obj_name = if let ExprIR::IdentifierExpr { name } = object.as_ref() {
+                let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
                     Some(name.clone())
                 } else {
                     None
@@ -144,7 +144,7 @@ impl OmniViewGenerator {
                 object,
                 ..
             } => {
-                let raw_store_name = if let ExprIR::IdentifierExpr { name } = object.as_ref() {
+                let raw_store_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
                     name.clone()
                 } else {
                     String::new()
@@ -317,7 +317,7 @@ impl OmniViewGenerator {
                 serde_json::Value::Null => String::new(),
                 _ => String::new(),
             },
-            ExprIR::IdentifierExpr { name } => format!("{{{}}}", name),
+            ExprIR::IdentifierExpr { name, .. } => format!("{{{}}}", name),
             _ => String::new(),
         }
     }

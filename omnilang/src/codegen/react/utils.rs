@@ -60,7 +60,7 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
 /// Check if an ExprIR references a given identifier anywhere in its tree.
 pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
     match expr {
-        ExprIR::IdentifierExpr { name } => name == ident,
+        ExprIR::IdentifierExpr { name, .. } => name == ident,
         ExprIR::BinaryOpExpr { left, right, .. } => {
             getter_expr_contains_ident(left, ident) || getter_expr_contains_ident(right, ident)
         }

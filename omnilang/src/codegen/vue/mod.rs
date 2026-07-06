@@ -89,7 +89,9 @@ impl VueCodegen {
         {
             vue_imports.push("computed".into());
         }
-        if !comp.effects.is_empty() {
+        if !comp.effects.is_empty()
+            || comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Effect)
+        {
             vue_imports.push("watchEffect".into());
         }
         let has_mount = comp
@@ -199,7 +201,13 @@ impl VueCodegen {
                     w.emit("});");
                 }
                 LifecycleKind::Effect => {
-                    w.emit_fmt(format_args!("// TODO: lifecycle '{}'", lc.kind));
+                    w.emit("watchEffect(() => {");
+                    w.indent();
+                    for stmt in &lc.body.statements {
+                        generate_statement_vue(&mut w, stmt);
+                    }
+                    w.dedent();
+                    w.emit("});");
                 }
             }
         }

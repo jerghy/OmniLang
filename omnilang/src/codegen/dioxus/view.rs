@@ -21,7 +21,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                     ExprIR::LiteralExpr { value } if value.is_string() => {
                         let s = value
                             .as_str()
-                            .expect("literal string value confirmed by is_string()");
+                            .unwrap_or_default(); // defense-in-depth fallback
                         let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
                         attrs.push(format!(r#"{}: "{}","#, attr_name, escaped));
                     }
@@ -94,7 +94,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                     EventHandlerKind::StoreAction => {
                         if let Some(ref action) = handler.r#ref {
                             attrs.push(format!(
-                                "{}: move |_| {{ /* TODO: action {} */ }},",
+                                "{}: move |_| {{ {}(); }},",
                                 dioxus_event, action
                             ));
                         }
@@ -208,9 +208,10 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 w.emit_fmt(format_args!("\"{}\"{}", text, comma));
             }
         }
-        ViewTree::Interpolation(_expr) => {
+        ViewTree::Interpolation(expr) => {
             let comma = if is_root { "" } else { "," };
-            w.emit_fmt(format_args!("\"{{}}\"{}", comma));
+            let formatted = format_expr_ir_dioxus(expr);
+            w.emit_fmt(format_args!("\"{formatted}\"{comma}"));
         }
         ViewTree::Slot(_) => {
             // slots not supported in Dioxus — emit placeholder

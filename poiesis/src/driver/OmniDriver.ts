@@ -411,6 +411,10 @@ class OmniDriver {
       usePoiesisStore.getState().setElementsAndWires(elements, []);
     } catch (e) {
       console.warn("[OmniDriver] Canvas population failed:", e);
+      return {
+        success: false,
+        errors: [{ code: "CANVAS_POPULATION_FAILED", message: String(e), line: 0, severity: "error" }],
+      };
     }
 
     return {

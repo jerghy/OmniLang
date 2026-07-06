@@ -1,9 +1,22 @@
 // components/panels/inspector/PropsSection.tsx
 // Editable form for element properties (id, class binding, label, etc.).
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
+
+const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
+
+function buildLocalProps(element: ElementData): Record<string, string> {
+  const initial: Record<string, string> = {};
+  for (const key of KNOWN_PROPS) {
+    const val = element.props[key];
+    if (val !== undefined) {
+      initial[key] = String(val);
+    }
+  }
+  return initial;
+}
 
 interface PropsSectionProps {
   element: ElementData;
@@ -13,17 +26,15 @@ export function PropsSection({ element }: PropsSectionProps) {
   const setProp = usePoiesisStore((s) => s.setProp);
 
   // Local editing state to avoid store writes on every keystroke
-  const [localProps, setLocalProps] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    const known = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
-    for (const key of known) {
-      const val = element.props[key];
-      if (val !== undefined) {
-        initial[key] = String(val);
-      }
-    }
-    return initial;
-  });
+  const [localProps, setLocalProps] = useState<Record<string, string>>(() =>
+    buildLocalProps(element)
+  );
+
+  const prevElementIdRef = useRef(element.id);
+  if (element.id !== prevElementIdRef.current) {
+    prevElementIdRef.current = element.id;
+    setLocalProps(buildLocalProps(element));
+  }
 
   const handleChange = useCallback(
     (propName: string, value: string) => {
