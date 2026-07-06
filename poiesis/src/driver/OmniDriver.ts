@@ -373,7 +373,7 @@ class OmniDriver {
           const t = typeAnnotation?.trim() || "";
           const vt = t.length > 0 ? t : "i32";
           const cfg = getNodeConfig(blockType);
-          return cfg.defaultPorts.map((p) => {
+          return cfg.defaultPorts.map((p: PortDescriptor) => {
             const shouldMapType =
               p.type === "any" &&
               p.name !== "deps";

@@ -4,11 +4,11 @@ export async function startDebugSession(_options: unknown): Promise<void> {
 }
 export function handleDebugMessage(
   _msg: Record<string, unknown>,
-  _setDebugStateChanges: (v: unknown) => void,
+  _setDebugStateChanges: (v: any) => void,
   _setDebugConnected: (v: boolean) => void,
   _setDebugPaused: (v: boolean) => void,
-  _setActiveNodeIds: (v: unknown) => void,
-  _setActiveEdgeIds: (v: unknown) => void,
+  _setActiveNodeIds: (v: any) => void,
+  _setActiveEdgeIds: (v: any) => void,
   _setFnToNodeMap: (v: Record<string, string>) => void,
   _fnToNodeMapRef: { current: Record<string, string> },
 ): void {

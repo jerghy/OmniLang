@@ -1,4 +1,4 @@
-// @ts-nocheck — Legacy feature, needs refactoring for unified store
+// Legacy feature — runtime stub signatures in run-service.ts
 import { useState, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { handleRun as runService, handleStop as stopService } from "../../services/runtime/run-service";
