@@ -1,7 +1,13 @@
 #[cfg(test)]
 mod tests {
+    use super::super::expr::format_type_ir_rust;
     use super::super::*;
     use std::collections::HashMap;
+
+    /// Helper: create a RustVisitor for test use.
+    fn visitor() -> super::super::visitor::RustVisitor {
+        super::super::visitor::RustVisitor
+    }
 
     // ── rs_type tests ──────────────────────────────────────
 
@@ -742,7 +748,7 @@ mod tests {
                 },
             ],
         };
-        generate_struct(&mut w, &struct_ir);
+        visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
         assert!(out.contains("pub struct Point {"));
         assert!(out.contains("pub x: i32,"));
@@ -757,7 +763,7 @@ mod tests {
             visibility: Visibility::Public,
             fields: vec![],
         };
-        generate_struct(&mut w, &struct_ir);
+        visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
         assert!(out.contains("pub struct Empty {"));
         assert!(out.contains("}"));
@@ -784,7 +790,7 @@ mod tests {
                 },
             ],
         };
-        generate_enum(&mut w, &enum_ir);
+        visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
         assert!(out.contains("pub enum Color {"));
         assert!(out.contains("Red,"));
@@ -821,7 +827,7 @@ mod tests {
                 },
             ],
         };
-        generate_enum(&mut w, &enum_ir);
+        visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
         assert!(out.contains("pub enum Value {"));
         assert!(out.contains("Int(i32),"));
@@ -836,7 +842,7 @@ mod tests {
             visibility: Visibility::Public,
             variants: vec![],
         };
-        generate_enum(&mut w, &enum_ir);
+        visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
         assert!(out.contains("pub enum Empty {"));
         assert!(out.contains("}"));
@@ -856,7 +862,7 @@ mod tests {
                 needs_partial_eq: false,
             },
         };
-        generate_type_alias(&mut w, &alias);
+        visitor().generate_type_alias(&mut w, &alias);
         assert_eq!(w.into_string(), "pub type UserId = i32;\n");
     }
 
@@ -871,7 +877,7 @@ mod tests {
             body: BlockIR { statements: vec![] },
             is_async: false,
         };
-        generate_standalone_function(&mut w, &func);
+        visitor().generate_function(&mut w, &func);
         let out = w.into_string();
         assert!(out.contains("pub fn main() {"));
         assert!(out.contains(";"));
@@ -903,7 +909,7 @@ mod tests {
             body: BlockIR { statements: vec![] },
             is_async: false,
         };
-        generate_standalone_function(&mut w, &func);
+        visitor().generate_function(&mut w, &func);
         let out = w.into_string();
         assert!(out.contains("pub fn add(a: i32) -> i32 {"));
         assert!(!out.contains("&self"));
@@ -920,7 +926,7 @@ mod tests {
             body: BlockIR { statements: vec![] },
             is_async: false,
         };
-        generate_standalone_function(&mut w, &func);
+        visitor().generate_function(&mut w, &func);
         let out = w.into_string();
         assert!(out.contains("fn helper() {"));
         assert!(!out.contains("pub fn"));
@@ -964,7 +970,7 @@ mod tests {
             visibility: Visibility::Private,
             fields: vec![],
         };
-        generate_struct(&mut w, &struct_ir);
+        visitor().generate_struct(&mut w, &struct_ir);
         let out = w.into_string();
         assert!(out.contains("struct Internal {"));
         assert!(!out.contains("pub struct"));
@@ -978,7 +984,7 @@ mod tests {
             visibility: Visibility::Private,
             variants: vec![],
         };
-        generate_enum(&mut w, &enum_ir);
+        visitor().generate_enum(&mut w, &enum_ir);
         let out = w.into_string();
         assert!(out.contains("enum Internal {"));
         assert!(!out.contains("pub enum"));

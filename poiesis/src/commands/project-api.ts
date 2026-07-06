@@ -6,6 +6,7 @@ import { readDir, readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-
 import { Store } from "@tauri-apps/plugin-store";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { FsEntry, ProjectInfo } from "./types";
+import { usePoiesisStore } from "../store";
 
 const STORE_PATH = "project.json";
 const RECENT_KEY = "recentProjects";
@@ -117,7 +118,10 @@ export function createProjectApi() {
       error?: string;
     }> {
       try {
-        const normalized = path.replace(/\\/g, "/");
+        const dir = usePoiesisStore.getState().projectDir;
+        if (!dir) throw new Error("No project dir");
+        const resolvedPath = path.startsWith(dir) ? path : joinPath(dir, path);
+        const normalized = resolvedPath.replace(/\\/g, "/");
         const entries = await readDir(normalized);
         return {
           ok: true,

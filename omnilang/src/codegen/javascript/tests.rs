@@ -2,9 +2,15 @@
 
 #[allow(unused_imports)]
 use super::*;
+use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use std::collections::HashMap;
+
+/// Helper: create a JavaScriptVisitor for test use.
+fn visitor(ts_mode: bool) -> super::visitor::JavaScriptVisitor {
+    super::visitor::JavaScriptVisitor { ts_mode }
+}
 
 // ── js_type tests ──────────────────────────────────────
 
@@ -834,7 +840,7 @@ fn test_js_generate_struct() {
             },
         ],
     };
-    generate_struct(&mut w, &struct_ir, false);
+    visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Point {"));
     assert!(out.contains("constructor(x, y) {"));
@@ -873,7 +879,7 @@ fn test_ts_generate_struct() {
             },
         ],
     };
-    generate_struct(&mut w, &struct_ir, true);
+    visitor(true).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Point {"));
     assert!(out.contains("constructor(x: number, y: number) {"));
@@ -887,7 +893,7 @@ fn test_js_generate_empty_struct() {
         visibility: Visibility::Public,
         fields: vec![],
     };
-    generate_struct(&mut w, &struct_ir, false);
+    visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Empty {"));
     assert!(out.contains("}"));
@@ -914,7 +920,7 @@ fn test_js_generate_enum() {
             },
         ],
     };
-    generate_enum(&mut w, &enum_ir, false);
+    visitor(false).generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
     assert!(out.contains("const Color = Object.freeze({"));
     assert!(out.contains("Red: 0,"));
@@ -931,7 +937,7 @@ fn test_js_generate_empty_enum() {
         visibility: Visibility::Public,
         variants: vec![],
     };
-    generate_enum(&mut w, &enum_ir, false);
+    visitor(false).generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
     assert!(out.contains("const Empty = Object.freeze({"));
     assert!(out.contains("});"));
@@ -951,7 +957,7 @@ fn test_ts_generate_type_alias() {
             needs_partial_eq: false,
         },
     };
-    generate_type_alias(&mut w, &alias, true);
+    visitor(true).generate_type_alias(&mut w, &alias);
     assert_eq!(w.into_string(), "export type UserId = number;\n");
 }
 
@@ -969,7 +975,7 @@ fn test_js_skip_type_alias() {
             needs_partial_eq: false,
         },
     };
-    generate_type_alias(&mut w, &alias, false);
+    visitor(false).generate_type_alias(&mut w, &alias);
     // CodeWriter always appends trailing newline, even when empty
     assert_eq!(w.into_string(), "\n");
 }
@@ -985,7 +991,7 @@ fn test_js_generate_standalone_function() {
         body: BlockIR { statements: vec![] },
         is_async: false,
     };
-    generate_standalone_function(&mut w, &func, false);
+    visitor(false).generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("function main() {"));
     assert!(out.contains(";"));
@@ -1017,7 +1023,7 @@ fn test_ts_generate_standalone_function() {
         body: BlockIR { statements: vec![] },
         is_async: false,
     };
-    generate_standalone_function(&mut w, &func, true);
+    visitor(true).generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("function add(a: number): number {"));
 }
@@ -1033,7 +1039,7 @@ fn test_ts_generate_standalone_function_private() {
         body: BlockIR { statements: vec![] },
         is_async: false,
     };
-    generate_standalone_function(&mut w, &func, false);
+    visitor(false).generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("function helper() {"));
     assert!(!out.contains("export"));
@@ -1078,7 +1084,7 @@ fn test_js_generate_struct_private() {
         visibility: Visibility::Private,
         fields: vec![],
     };
-    generate_struct(&mut w, &struct_ir, false);
+    visitor(false).generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(!out.contains("export"));
 }

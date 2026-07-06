@@ -1,0 +1,20 @@
+---
+source: omnilang/src/codegen/tests_regression/rust.rs
+assertion_line: 44
+expression: "&format_output(&output)"
+---
+=== main.rs ===
+// Generated from main.omni
+
+struct AppStore {
+    count: i32,
+}
+impl AppStore {
+    fn new() -> Self {
+        Self {
+            count: 0,
+        }
+    }
+}
+
+struct CounterWithStore;

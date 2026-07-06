@@ -1,0 +1,36 @@
+---
+source: omnilang/src/codegen/tests_regression/rust.rs
+assertion_line: 57
+expression: "&format_output(&output)"
+---
+=== main.rs ===
+// Generated from main.omni
+
+pub fn testExpressions() {
+    let a = 10;
+    let b = 3;
+    let flag = true;
+    let name = "hello".to_string();
+    let nothing = None;
+    let add = a + b;
+    let sub = a - b;
+    let mul = a * b;
+    let div = a / b;
+    let eq = a == b;
+    let neq = a != b;
+    let and = flag && true;
+    let or = flag || false;
+    let neg = -a;
+    let not = !flag;
+    let ternary = if flag { "yes".to_string() } else { "no".to_string() };
+    let arr = vec![1, 2, 3];
+    let first = (arr)[0 as usize];
+    let len = name.length;
+    name.toUpperCase();
+    let closure = (|x, y| x + y);
+    console.log(a);
+    let matchResult = match &a {
+    UnionType::Some { .. } => val,
+    _ => 0,
+};
+}

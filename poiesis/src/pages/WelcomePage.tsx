@@ -27,12 +27,17 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
   }, [loadRecent]);
 
   const handleOpenProject = async () => {
-    const folder = await api.project.openFolderDialog();
-    if (!folder) return;
-    const name = folder.replace(/\\/g, "/").split("/").pop() || folder;
-    await api.project.setProjectDir(folder);
-    await api.project.addRecentProject(name, folder);
-    onProjectOpened(folder, name);
+    try {
+      const folder = await api.project.openFolderDialog();
+      if (!folder) return;
+      const name = folder.replace(/\\/g, "/").split("/").pop() || folder;
+      await api.project.setProjectDir(folder);
+      await api.project.addRecentProject(name, folder);
+      onProjectOpened(folder, name);
+    } catch (e) {
+      console.warn("[WelcomePage] Operation failed:", e);
+      setError("操作失败，请重试");
+    }
   };
 
   const handleOpenNewDialog = () => {
@@ -48,24 +53,34 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
   };
 
   const handleCreateProject = async () => {
-    if (!newProjectName.trim()) {
-      setError("请输入项目名称");
-      return;
+    try {
+      if (!newProjectName.trim()) {
+        setError("请输入项目名称");
+        return;
+      }
+      const result = await api.project.createProject(newProjectParent, newProjectName.trim());
+      if (!result.ok || !result.dir) {
+        setError(result.error ?? "创建失败");
+        return;
+      }
+      await api.project.addRecentProject(newProjectName.trim(), result.dir);
+      setShowNewDialog(false);
+      onProjectOpened(result.dir, newProjectName.trim());
+    } catch (e) {
+      console.warn("[WelcomePage] Operation failed:", e);
+      setError("操作失败，请重试");
     }
-    const result = await api.project.createProject(newProjectParent, newProjectName.trim());
-    if (!result.ok || !result.dir) {
-      setError(result.error ?? "创建失败");
-      return;
-    }
-    await api.project.addRecentProject(newProjectName.trim(), result.dir);
-    setShowNewDialog(false);
-    onProjectOpened(result.dir, newProjectName.trim());
   };
 
   const handleOpenRecent = async (proj: RecentProject) => {
-    await api.project.setProjectDir(proj.path);
-    await api.project.addRecentProject(proj.name, proj.path);
-    onProjectOpened(proj.path, proj.name);
+    try {
+      await api.project.setProjectDir(proj.path);
+      await api.project.addRecentProject(proj.name, proj.path);
+      onProjectOpened(proj.path, proj.name);
+    } catch (e) {
+      console.warn("[WelcomePage] Operation failed:", e);
+      setError("操作失败，请重试");
+    }
   };
 
   const handleRemoveRecent = async (e: React.MouseEvent, path: string) => {

@@ -1,0 +1,7 @@
+---
+source: omnilang/src/codegen/tests_regression/dart.rs
+assertion_line: 14
+expression: "&format_output(&output)"
+---
+=== main.dart ===
+// Generated from main.omni

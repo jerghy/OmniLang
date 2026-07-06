@@ -1,0 +1,7 @@
+---
+source: omnilang/src/codegen/tests_regression/rust.rs
+assertion_line: 14
+expression: "&format_output(&output)"
+---
+=== main.rs ===
+// Generated from main.omni

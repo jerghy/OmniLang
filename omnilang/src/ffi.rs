@@ -292,6 +292,7 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     let editor_mode = if editor_mode_ptr.is_null() {
         false
     } else {
+        // SAFETY: editor_mode_ptr is non-null and editor_mode_len bytes long, guaranteed by FFI caller contract.
         let slice =
             unsafe { std::slice::from_raw_parts(editor_mode_ptr, editor_mode_len as usize) };
         match std::str::from_utf8(slice) {

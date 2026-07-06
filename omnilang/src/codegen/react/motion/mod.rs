@@ -57,12 +57,12 @@ pub(super) fn emit_motion_effects_tsx(
     for name in &sorted {
         if let Some(body) = motion_bodies.get(name.as_str()) {
             let def_js = keyframes::format_motion_to_waapi(body, &mut motion_warnings);
-            w.emit(&format!("{}:{},", name, def_js));
+            w.emit_fmt(format_args!("{}:{},", name, def_js));
         }
     }
     // Surface any motion conversion warnings as code comments
     for warn in &motion_warnings {
-        w.emit(&format!("// WARN: {}", warn));
+        w.emit_fmt(format_args!("// WARN: {}", warn));
     }
     w.dedent();
     w.emit("};");
@@ -93,7 +93,7 @@ pub(super) fn emit_motion_effects_tsx(
         sorted.sort();
         let deps: Vec<&str> = sorted.iter().map(|s| s.as_str()).collect();
         let deps_str = deps.join(", ");
-        w.emit(&format!("}},[{}]);", deps_str));
+        w.emit_fmt(format_args!("}},[{}]);", deps_str));
     }
 }
 

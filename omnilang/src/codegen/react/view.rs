@@ -66,15 +66,15 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let attrs_str = comp_attrs.join(" ");
                 if el.children.is_empty() {
-                    w.emit(&format!("<{} {}/>", el.tag, attrs_str));
+                    w.emit_fmt(format_args!("<{} {}/>", el.tag, attrs_str));
                 } else {
-                    w.emit(&format!("<{} {}>", el.tag, attrs_str));
+                    w.emit_fmt(format_args!("<{} {}>", el.tag, attrs_str));
                     w.indent();
                     for child in &el.children {
                         gen_view_node_tsx(w, child, component_map, signal_names, motion_names);
                     }
                     w.dedent();
-                    w.emit(&format!("</{}>", el.tag));
+                    w.emit_fmt(format_args!("</{}>", el.tag));
                 }
                 return; // IMPORTANT: skip HTML element handling
             }
@@ -282,7 +282,7 @@ pub(super) fn gen_view_node_tsx(
                             if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 // Generate body with binding setter prepended
                                 let mut merged_hw = CodeWriter::new();
-                                merged_hw.emit(&format!("{};", setter_call));
+                                merged_hw.emit_fmt(format_args!("{};", setter_call));
                                 for stmt in &body.statements {
                                     generate_statement_tsx(&mut merged_hw, stmt, signal_names);
                                 }
@@ -423,14 +423,14 @@ pub(super) fn gen_view_node_tsx(
             // Emit opening tag
             if attrs.is_empty() && el.children.is_empty() {
                 // Self-closing tag
-                w.emit(&format!("<{} />", html_tag));
+                w.emit_fmt(format_args!("<{} />", html_tag));
                 return;
             }
 
             if attrs.is_empty() {
-                w.emit(&format!("<{}>", html_tag));
+                w.emit_fmt(format_args!("<{}>", html_tag));
             } else {
-                w.emit(&format!("<{}", html_tag));
+                w.emit_fmt(format_args!("<{}", html_tag));
                 w.indent();
                 for attr in &attrs {
                     w.emit(&attr.to_string());
@@ -452,7 +452,7 @@ pub(super) fn gen_view_node_tsx(
             w.dedent();
 
             // Closing tag
-            w.emit(&format!("</{}>", html_tag));
+            w.emit_fmt(format_args!("</{}>", html_tag));
         }
         ViewTree::Conditional(cond) => {
             let branches = &cond.branches;
@@ -470,7 +470,7 @@ pub(super) fn gen_view_node_tsx(
                 w.emit("{");
                 w.indent();
                 let cond_str = format_expr_ir_tsx(&branches[0].condition);
-                w.emit(&format!("{} && (", cond_str));
+                w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
                     gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
@@ -491,7 +491,7 @@ pub(super) fn gen_view_node_tsx(
             if let Some((first_branch, rest)) = branches.split_first() {
                 // First branch: `cond ? ( body )`
                 let cond_str = format_expr_ir_tsx(&first_branch.condition);
-                w.emit(&format!("{} ? (", cond_str));
+                w.emit_fmt(format_args!("{} ? (", cond_str));
                 w.indent();
                 if let Some(ref body) = first_branch.body {
                     gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
@@ -503,7 +503,7 @@ pub(super) fn gen_view_node_tsx(
                     w.emit(") : (");
                     w.indent();
                     let cond_str = format_expr_ir_tsx(&branch.condition);
-                    w.emit(&format!("{} ? (", cond_str));
+                    w.emit_fmt(format_args!("{} ? (", cond_str));
                     w.indent();
                     if let Some(ref body) = branch.body {
                         gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
@@ -544,7 +544,7 @@ pub(super) fn gen_view_node_tsx(
             if list.empty_body.is_some() {
                 w.emit("{");
                 w.indent();
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "({} && {}.length === 0) ? (",
                     iterable_str, iterable_str
                 ));
@@ -553,17 +553,20 @@ pub(super) fn gen_view_node_tsx(
                     gen_view_node_tsx(w, empty_body, component_map, signal_names, motion_names);
                 }
                 w.dedent();
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     ") : ({}.map(({}, index) => (",
                     iterable_str, item_name
                 ));
             } else {
                 w.emit("{");
                 w.indent();
-                w.emit(&format!("{}.map(({}, index) => (", iterable_str, item_name));
+                w.emit_fmt(format_args!(
+                    "{}.map(({}, index) => (",
+                    iterable_str, item_name
+                ));
             }
             w.indent();
-            w.emit(&format!("<React.Fragment{}>", key_attr));
+            w.emit_fmt(format_args!("<React.Fragment{}>", key_attr));
             w.indent();
             if let Some(ref body) = list.body {
                 gen_view_node_tsx(w, body, component_map, signal_names, motion_names);
@@ -592,7 +595,7 @@ pub(super) fn gen_view_node_tsx(
             if text.starts_with('{') && text.ends_with('}') {
                 // Interpolation expression like {name} or {param:xxx}
                 let inner = &text[1..text.len() - 1];
-                w.emit(&format!("{{{}}}", inner));
+                w.emit_fmt(format_args!("{{{}}}", inner));
             } else {
                 // Plain text — escape JSX-significant characters
                 let escaped = text
@@ -601,12 +604,12 @@ pub(super) fn gen_view_node_tsx(
                     .replace('<', "&lt;")
                     .replace('>', "&gt;")
                     .replace('&', "&amp;");
-                w.emit(&format!("{{'{}'}}", escaped));
+                w.emit_fmt(format_args!("{{'{}'}}", escaped));
             }
         }
         ViewTree::Interpolation(expr) => {
             let js_expr = format_expr_ir_tsx(expr);
-            w.emit(&format!("{{{}}}", js_expr));
+            w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
         ViewTree::Slot(_) => {
             // slots not supported in React — emit placeholder

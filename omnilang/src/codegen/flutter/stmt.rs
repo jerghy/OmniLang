@@ -46,9 +46,9 @@ impl FormatStmt for FlutterStmtFormatter {
             .unwrap_or_else(|| "null".into());
         if let Some(ref ty) = type_ann {
             let ann = super::super::dart::dart_type(&ty.kind, &ty.type_args);
-            w.emit(&format!("{ann} {name} = {rhs};"));
+            w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
         } else {
-            w.emit(&format!("var {name} = {rhs};"));
+            w.emit_fmt(format_args!("var {name} = {rhs};"));
         }
     }
 
@@ -63,25 +63,25 @@ impl FormatStmt for FlutterStmtFormatter {
         w.indent();
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("{} = {};", target, amount));
+                w.emit_fmt(format_args!("{} = {};", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("{} += {};", target, amount));
+                w.emit_fmt(format_args!("{} += {};", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("{} -= {};", target, amount));
+                w.emit_fmt(format_args!("{} -= {};", target, amount));
             }
             MutationOp::Multiply => {
-                w.emit(&format!("{} *= {};", target, amount));
+                w.emit_fmt(format_args!("{} *= {};", target, amount));
             }
             MutationOp::Divide => {
-                w.emit(&format!("{} /= {};", target, amount));
+                w.emit_fmt(format_args!("{} /= {};", target, amount));
             }
             MutationOp::Modulo => {
-                w.emit(&format!("{} %= {};", target, amount));
+                w.emit_fmt(format_args!("{} %= {};", target, amount));
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "// TODO: mutation operation '{}' on '{}'",
                     other, target
                 ));
@@ -140,7 +140,7 @@ pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
 
     let async_kw = if func.is_async { "async " } else { "" };
     let all_params = param_strs.join(", ");
-    w.emit(&format!(
+    w.emit_fmt(format_args!(
         "{}{}({}) {}{{",
         return_prefix, func.name, all_params, async_kw
     ));

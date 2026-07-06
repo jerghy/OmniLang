@@ -122,6 +122,9 @@ fn main() {
 /// Note: `sanitize_module_name` in `codegen/mod.rs` is a sanitizer (replaces bad chars);
 /// this function is a validator (rejects outright). They serve different purposes.
 fn validate_output_filename(name: &str) -> anyhow::Result<()> {
+    if name.contains("..") {
+        anyhow::bail!("Output filename must not contain '..': {name}");
+    }
     if name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '/' || c == '-')
@@ -473,20 +476,14 @@ fn assemble_omniview_html(output_dir: &Path) -> anyhow::Result<()> {
 
 /// Execute a Python file with `python <path>`.
 fn run_python(path: &Path) -> anyhow::Result<()> {
-    let status = std::process::Command::new("python").arg(path).status()?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
-    Ok(())
+    let mut child = std::process::Command::new("python").arg(path).spawn()?;
+    wait_with_timeout(&mut child, std::time::Duration::from_secs(30))
 }
 
 /// Execute a JavaScript file with `node <path>`.
 fn run_node(path: &Path) -> anyhow::Result<()> {
-    let status = std::process::Command::new("node").arg(path).status()?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
-    Ok(())
+    let mut child = std::process::Command::new("node").arg(path).spawn()?;
+    wait_with_timeout(&mut child, std::time::Duration::from_secs(30))
 }
 
 /// Execute a Rust program by copying to a Cargo project and running `cargo run`.
@@ -506,25 +503,44 @@ version = "0.1.0"
 edition = "2021"
 "#,
     )?;
-    let status = std::process::Command::new("cargo")
+    let mut child = std::process::Command::new("cargo")
         .args(["run", "--quiet"])
         .current_dir(&rust_dir)
-        .status()?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
-    Ok(())
+        .spawn()?;
+    wait_with_timeout(&mut child, std::time::Duration::from_secs(120))
 }
 
 /// Execute a Dart file with `dart run <path>`.
 fn run_dart(path: &Path) -> anyhow::Result<()> {
-    let status = std::process::Command::new("dart")
+    let mut child = std::process::Command::new("dart")
         .args(["run", &path.to_string_lossy()])
-        .status()?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
+        .spawn()?;
+    wait_with_timeout(&mut child, std::time::Duration::from_secs(30))
+}
+
+/// Wait for a child process with a timeout, polling with try_wait.
+fn wait_with_timeout(
+    child: &mut std::process::Child,
+    timeout: std::time::Duration,
+) -> anyhow::Result<()> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        match child.try_wait()? {
+            Some(status) => {
+                if status.success() {
+                    return Ok(());
+                }
+                anyhow::bail!("Process exited with: {status}");
+            }
+            None => {
+                if std::time::Instant::now() > deadline {
+                    let _ = child.kill(); // process may have exited between try_wait() and kill()
+                    anyhow::bail!("Process timed out after {}s", timeout.as_secs());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
     }
-    Ok(())
 }
 fn cmd_create(name: &str, project_type: &str) -> anyhow::Result<()> {
     let project_dir = Path::new(name);

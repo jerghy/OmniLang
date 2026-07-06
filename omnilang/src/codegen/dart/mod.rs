@@ -7,16 +7,21 @@
 mod expr;
 #[cfg(test)]
 mod tests;
+mod visitor;
 
-pub(crate) use expr::*;
+use crate::codegen::shared::visitor::CodegenVisitor;
 
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::shared::expr::{FormatExpr, DartFormatExpr};
+use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
+
+// Bring expr helpers into scope for mod.rs internals and pub(crate) visibility for visitor/tests
+pub(crate) use expr::dart_type;
+pub(crate) use expr::format_expr_ir;
 
 pub struct DartCodegen;
 
@@ -29,46 +34,11 @@ impl Codegen for DartCodegen {
             let source_path = format!("{}.omni", module_name);
 
             let mut w = CodeWriter::new();
-            w.emit(&format!("// Generated from {}", source_path));
+            w.emit_fmt(format_args!("// Generated from {}", source_path));
             w.emit("");
 
-            // Generate type aliases
-            for alias in module.type_aliases.values() {
-                generate_type_alias(&mut w, alias);
-            }
-            if !module.type_aliases.is_empty() {
-                w.emit("");
-            }
-
-            // Generate structs as classes
-            for struct_ir in module.structs.values() {
-                generate_struct(&mut w, struct_ir);
-                w.emit("");
-            }
-
-            // Generate enums
-            for enum_ir in module.enums.values() {
-                generate_enum(&mut w, enum_ir);
-                w.emit("");
-            }
-
-            // Generate standalone functions
-            for func in module.functions.values() {
-                generate_standalone_function(&mut w, func);
-                w.emit("");
-            }
-
-            // Generate stores from this module
-            for (store_name, store) in &module.stores {
-                generate_store(&mut w, store_name, store);
-                w.emit("");
-            }
-
-            // Generate components from this module
-            for (comp_name, comp) in &module.components {
-                generate_component(&mut w, comp_name, comp);
-                w.emit("");
-            }
+            let mut visitor = visitor::DartVisitor;
+            visitor.generate_module(&mut w, module);
 
             let out_path = format!("{}.dart", module_name);
             files.push(CompiledFile {
@@ -86,7 +56,7 @@ impl Codegen for DartCodegen {
 // ═══════════════════════════════════════════════════════════
 
 fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
-    w.emit(&format!("class {} {{", name));
+    w.emit_fmt(format_args!("class {} {{", name));
     w.indent();
 
     if comp.states.is_empty()
@@ -95,7 +65,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
         && comp.computeds.is_empty()
     {
         // Empty class — just emit default constructor
-        w.emit(&format!("{}();", name));
+        w.emit_fmt(format_args!("{}();", name));
         w.dedent();
         w.emit("}");
         return;
@@ -104,7 +74,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     // Field declarations for props (initialized to null)
     for (prop_name, prop_type) in &comp.props {
         let ann = dart_type(&prop_type.kind, &prop_type.type_args);
-        w.emit(&format!("{} {};", ann, prop_name));
+        w.emit_fmt(format_args!("{} {};", ann, prop_name));
     }
 
     // Field declarations + initialization for states
@@ -112,21 +82,21 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
         let ann = dart_type(&state.r#type.kind, &state.r#type.type_args);
         let init = format_expr_ir(&state.initial_value);
         // Use `late` for fields initialized in constructor
-        w.emit(&format!("{} {} = {};", ann, state.name, init));
+        w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
     }
 
     // Constructor with state/prop initialization
     if !comp.states.is_empty() || !comp.props.is_empty() {
         w.emit("");
-        w.emit(&format!("{}() {{", name));
+        w.emit_fmt(format_args!("{}() {{", name));
         w.indent();
         for prop in comp.props.keys() {
-            w.emit(&format!("this.{} = null;  // prop", prop));
+            w.emit_fmt(format_args!("this.{} = null;  // prop", prop));
         }
         // States are already initialized inline, but include as comments for clarity
         for state in &comp.states {
             let init = format_expr_ir(&state.initial_value);
-            w.emit(&format!("this.{} = {};", state.name, init));
+            w.emit_fmt(format_args!("this.{} = {};", state.name, init));
         }
         w.dedent();
         w.emit("}");
@@ -137,9 +107,9 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
         w.emit("");
         let body = format_expr_ir(&computed.body);
         let ret_type = dart_type(&computed.r#type.kind, &computed.r#type.type_args);
-        w.emit(&format!("{} {}() {{", ret_type, computed.name));
+        w.emit_fmt(format_args!("{} {}() {{", ret_type, computed.name));
         w.indent();
-        w.emit(&format!("return {};", body));
+        w.emit_fmt(format_args!("return {};", body));
         w.dedent();
         w.emit("}");
     }
@@ -159,11 +129,11 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
 // ═══════════════════════════════════════════════════════════
 
 fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
-    w.emit(&format!("class {} {{", name));
+    w.emit_fmt(format_args!("class {} {{", name));
     w.indent();
 
     if store.signals.is_empty() && store.getters.is_empty() {
-        w.emit(&format!("{}();", name));
+        w.emit_fmt(format_args!("{}();", name));
         w.dedent();
         w.emit("}");
         return;
@@ -177,13 +147,13 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
             .get(signal_name)
             .map(|v| format_json_value(v, &JSON_DART))
             .unwrap_or_else(|| "null".into());
-        w.emit(&format!("{} {} = {};", ann, signal_name, default));
+        w.emit_fmt(format_args!("{} {} = {};", ann, signal_name, default));
     }
 
     // Default constructor
     if !store.signals.is_empty() {
         w.emit("");
-        w.emit(&format!("{}() {{", name));
+        w.emit_fmt(format_args!("{}() {{", name));
         w.indent();
         for signal_name in store.signals.keys() {
             let default = store
@@ -191,7 +161,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
                 .get(signal_name)
                 .map(|v| format_json_value(v, &JSON_DART))
                 .unwrap_or_else(|| "null".into());
-            w.emit(&format!("this.{} = {};", signal_name, default));
+            w.emit_fmt(format_args!("this.{} = {};", signal_name, default));
         }
         w.dedent();
         w.emit("}");
@@ -200,9 +170,9 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     // Getters
     for (getter_name, getter_expr) in &store.getters {
         w.emit("");
-        w.emit(&format!("get {} {{", getter_name));
+        w.emit_fmt(format_args!("get {} {{", getter_name));
         w.indent();
-        w.emit(&format!("return {};", format_expr_ir(getter_expr)));
+        w.emit_fmt(format_args!("return {};", format_expr_ir(getter_expr)));
         w.dedent();
         w.emit("}");
     }
@@ -247,7 +217,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
 
     let async_kw = if func.is_async { "async " } else { "" };
     let all_params = param_strs.join(", ");
-    w.emit(&format!(
+    w.emit_fmt(format_args!(
         "{}{}({}) {}{{",
         return_prefix, func.name, all_params, async_kw
     ));
@@ -306,9 +276,9 @@ impl FormatStmt for DartStmtFormatter {
             .unwrap_or_else(|| "null".into());
         if let Some(ref ty) = type_ann {
             let ann = dart_type(&ty.kind, &ty.type_args);
-            w.emit(&format!("{ann} {name} = {rhs};"));
+            w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
         } else {
-            w.emit(&format!("var {name} = {rhs};"));
+            w.emit_fmt(format_args!("var {name} = {rhs};"));
         }
     }
 
@@ -321,25 +291,25 @@ impl FormatStmt for DartStmtFormatter {
             .unwrap_or_else(|| "0".into());
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("this.{} = {};", target, amount));
+                w.emit_fmt(format_args!("this.{} = {};", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("this.{} += {};", target, amount));
+                w.emit_fmt(format_args!("this.{} += {};", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("this.{} -= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} -= {};", target, amount));
             }
             MutationOp::Multiply => {
-                w.emit(&format!("this.{} *= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} *= {};", target, amount));
             }
             MutationOp::Divide => {
-                w.emit(&format!("this.{} /= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} /= {};", target, amount));
             }
             MutationOp::Modulo => {
-                w.emit(&format!("this.{} %= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} %= {};", target, amount));
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "// TODO: mutation operation '{}' on '{}'",
                     other, target
                 ));

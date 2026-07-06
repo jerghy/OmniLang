@@ -128,7 +128,7 @@ pub(super) fn lower_stmt(
                 .map(|b| lower_block(b, variant_map, event_fields.as_deref_mut())),
             finally_body: finally_body
                 .as_ref()
-                .map(|b| lower_block(b, variant_map, event_fields.as_deref_mut())),
+                .map(|b| lower_block(b, variant_map, event_fields)),
         },
         _ => StatementIR::ExprStmtIR {
             expr: ExprIR::LiteralExpr {
@@ -294,11 +294,7 @@ pub(super) fn try_lower_mutation(
                                 name: field.clone(),
                             },
                             operation: MutationOp::Decrement,
-                            amount: Some(lower_expr(
-                                right,
-                                variant_map,
-                                event_fields.as_deref_mut(),
-                            )),
+                            amount: Some(lower_expr(right, variant_map, event_fields)),
                             item: None,
                         });
                     }
@@ -315,13 +311,13 @@ pub(super) fn mutation_for_method(
     method: &str,
     amount: Option<&Expr>,
     variant_map: &HashMap<String, String>,
-    mut event_fields: Option<&mut Vec<String>>,
+    event_fields: Option<&mut Vec<String>>,
 ) -> Option<MutationIntent> {
     let target = SignalRefIR {
         owner: None,
         name: target_name.into(),
     };
-    let amount = amount.map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()));
+    let amount = amount.map(|e| lower_expr(e, variant_map, event_fields));
     match method {
         "set" | "setValue" => Some(MutationIntent {
             target,
@@ -380,7 +376,7 @@ pub(crate) fn lower_block(
             });
         } else {
             statements.push(StatementIR::ExprStmtIR {
-                expr: lower_expr(expr, variant_map, event_fields.as_deref_mut()),
+                expr: lower_expr(expr, variant_map, event_fields),
             });
         }
     }

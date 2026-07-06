@@ -20,6 +20,7 @@ use crate::ir::*;
 ///
 /// Default implementations produce JS-family syntax (React/Vue style).
 /// Backends override only the methods that differ.
+#[allow(dead_code)]
 pub(crate) trait FormatExpr {
     /// JSON literal formatting config for this language (REQUIRED).
     fn json_config(&self) -> &JsonFormatConfig;
@@ -259,6 +260,7 @@ pub(crate) trait FormatExpr {
 /// JS-family expression formatter.
 ///
 /// Defaults: `===`, `?.`, `undefined` fallback.
+#[allow(dead_code)]
 pub(crate) struct JsFormatExpr;
 
 impl FormatExpr for JsFormatExpr {
@@ -282,6 +284,7 @@ impl FormatExpr for JsFormatExpr {
 /// Dart-family expression formatter.
 ///
 /// Defaults: `==`, `.`, `null` fallback, Dart string/number config.
+#[allow(dead_code)]
 pub(crate) struct DartFormatExpr;
 
 impl FormatExpr for DartFormatExpr {
@@ -339,6 +342,7 @@ impl FormatExpr for DartFormatExpr {
 /// Rust-family expression formatter.
 ///
 /// Defaults: `if/else` ternary, `vec![]` arrays, `.await`, `None` fallback.
+#[allow(dead_code)]
 pub(crate) struct RustFormatExpr;
 
 impl FormatExpr for RustFormatExpr {

@@ -73,7 +73,7 @@ impl FlutterCodegen {
         // Store imports
         for store_ref in &comp.store_refs {
             if ir.all_stores().contains_key(store_ref.as_str()) {
-                w.emit(&format!("import './{}_store.dart';", store_ref));
+                w.emit_fmt(format_args!("import './{}_store.dart';", store_ref));
             }
         }
         if !comp.store_refs.is_empty() {
@@ -83,18 +83,18 @@ impl FlutterCodegen {
         let state_name = format!("_{}State", name);
 
         // ── StatefulWidget ──
-        w.emit(&format!("class {} extends StatefulWidget {{", name));
+        w.emit_fmt(format_args!("class {} extends StatefulWidget {{", name));
         w.indent();
 
         if comp.props.is_empty() {
-            w.emit(&format!("const {}({{super.key}});", name));
+            w.emit_fmt(format_args!("const {}({{super.key}});", name));
         } else {
             // Constructor with named parameters for props
             w.emit("const {");
             w.indent();
             w.emit("super.key,");
             for prop_name in comp.props.keys() {
-                w.emit(&format!("required this.{},", prop_name));
+                w.emit_fmt(format_args!("required this.{},", prop_name));
             }
             w.dedent();
             w.emit("});");
@@ -103,13 +103,13 @@ impl FlutterCodegen {
             w.emit("");
             for (prop_name, prop_type) in &comp.props {
                 let ann = super::dart::dart_type(&prop_type.kind, &prop_type.type_args);
-                w.emit(&format!("final {} {};", ann, prop_name));
+                w.emit_fmt(format_args!("final {} {};", ann, prop_name));
             }
         }
 
         w.emit("");
         w.emit("@override");
-        w.emit(&format!(
+        w.emit_fmt(format_args!(
             "State<{}> createState() => {}();",
             name, state_name
         ));
@@ -124,7 +124,7 @@ impl FlutterCodegen {
         } else {
             " with TickerProviderStateMixin".to_string()
         };
-        w.emit(&format!(
+        w.emit_fmt(format_args!(
             "class {} extends State<{}>{} {{",
             state_name, name, state_mixin
         ));
@@ -134,7 +134,7 @@ impl FlutterCodegen {
         for state in &comp.states {
             let ann = super::dart::dart_type(&state.r#type.kind, &state.r#type.type_args);
             let init = format_expr_ir_flutter(&state.initial_value);
-            w.emit(&format!("{} {} = {};", ann, state.name, init));
+            w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
         }
         if !comp.states.is_empty() {
             w.emit("");
@@ -144,15 +144,18 @@ impl FlutterCodegen {
         for motion in &comp.motions {
             let ctrl_name = format!("_{}Controller", motion.name);
             let anim_name = format!("_{}Animation", motion.name);
-            w.emit(&format!("late final AnimationController {};", ctrl_name));
-            w.emit(&format!("late final Animation<double> {};", anim_name));
+            w.emit_fmt(format_args!(
+                "late final AnimationController {};",
+                ctrl_name
+            ));
+            w.emit_fmt(format_args!("late final Animation<double> {};", anim_name));
             if motion_has_path(motion) {
                 let path_name = format!("_{}Path", motion.name);
                 let metric_name = format!("_{}Metric", motion.name);
                 let length_name = format!("_{}Length", motion.name);
-                w.emit(&format!("late final Path {};", path_name));
-                w.emit(&format!("late final PathMetric {};", metric_name));
-                w.emit(&format!("late final double {};", length_name));
+                w.emit_fmt(format_args!("late final Path {};", path_name));
+                w.emit_fmt(format_args!("late final PathMetric {};", metric_name));
+                w.emit_fmt(format_args!("late final double {};", length_name));
             }
         }
         if !comp.motions.is_empty() {
@@ -163,9 +166,9 @@ impl FlutterCodegen {
         for computed in &comp.computeds {
             let ret_type =
                 super::dart::dart_type(&computed.r#type.kind, &computed.r#type.type_args);
-            w.emit(&format!("{} get {} {{", ret_type, computed.name));
+            w.emit_fmt(format_args!("{} get {} {{", ret_type, computed.name));
             w.indent();
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "return {};",
                 format_expr_ir_flutter(&computed.body)
             ));
@@ -207,12 +210,12 @@ impl FlutterCodegen {
                     let has_enter = enter_motions.contains(&motion.name);
 
                     // Create AnimationController
-                    w.emit(&format!(
+                    w.emit_fmt(format_args!(
                         "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
                         ctrl_name, duration_ms
                     ));
                     // Create Animation with Tween + Curve
-                    w.emit(&format!(
+                    w.emit_fmt(format_args!(
                         "{0} = Tween<double>(begin: {1}, end: {2}).chain(CurveTween(curve: {3})).animate({4});",
                         anim_name, begin, end, ease_str, ctrl_name
                     ));
@@ -227,18 +230,18 @@ impl FlutterCodegen {
                             }) = &kf.ease
                             {
                                 let vel = velocity.unwrap_or(0.0);
-                                w.emit(&format!(
+                                w.emit_fmt(format_args!(
                                     "final _springDesc = SpringDescription(mass: 1.0, stiffness: {}, damping: {});",
                                     tension, friction
                                 ));
-                                w.emit(&format!(
+                                w.emit_fmt(format_args!(
                                     "final _simulation = SpringSimulation(_springDesc, 0.0, 1.0, {});",
                                     vel
                                 ));
-                                w.emit(&format!("{}.animateWith(_simulation);", ctrl_name));
+                                w.emit_fmt(format_args!("{}.animateWith(_simulation);", ctrl_name));
                             }
                         } else {
-                            w.emit(&format!("{}.forward();", ctrl_name));
+                            w.emit_fmt(format_args!("{}.forward();", ctrl_name));
                         }
                     }
                 }
@@ -255,7 +258,7 @@ impl FlutterCodegen {
             // Effects
             for (i, effect) in comp.effects.iter().enumerate() {
                 let method_name = format!("_runEffect_{}", i);
-                w.emit(&format!("{}();", method_name));
+                w.emit_fmt(format_args!("{}();", method_name));
                 for stmt in &effect.body.statements {
                     generate_statement_flutter(&mut w, stmt);
                 }
@@ -285,7 +288,7 @@ impl FlutterCodegen {
             // Dispose motion AnimationControllers
             for motion in &comp.motions {
                 let ctrl_name = format!("_{}Controller", motion.name);
-                w.emit(&format!("{}.dispose();", ctrl_name));
+                w.emit_fmt(format_args!("{}.dispose();", ctrl_name));
             }
             w.emit("super.dispose();");
             w.dedent();
@@ -311,12 +314,12 @@ impl FlutterCodegen {
                 .map(|(n, c)| (n.to_string(), c.clone()))
                 .collect();
             let tree_expr = format_view_tree(view, &comp.motions, &component_map);
-            w.emit(&format!("return {};", tree_expr));
+            w.emit_fmt(format_args!("return {};", tree_expr));
         } else {
             // Default widget tree
             w.emit("return Container(");
             w.indent();
-            w.emit(&format!("child: Text('{}'),", name));
+            w.emit_fmt(format_args!("child: Text('{}'),", name));
             w.dedent();
             w.emit(");");
         }
@@ -349,7 +352,7 @@ impl FlutterCodegen {
     /// Generate a store .dart file as a ChangeNotifier class.
     fn gen_store_dart(&self, name: &str, store: &StoreIR) -> String {
         let mut w = CodeWriter::new();
-        w.emit(&format!(
+        w.emit_fmt(format_args!(
             "// Generated by OmniLang \u{2014} Store: {}",
             name
         ));
@@ -358,9 +361,9 @@ impl FlutterCodegen {
         if store.signals.is_empty() && store.getters.is_empty() {
             w.emit("import 'package:flutter/material.dart';");
             w.emit("");
-            w.emit(&format!("class {} {{", name));
+            w.emit_fmt(format_args!("class {} {{", name));
             w.indent();
-            w.emit(&format!("{}();", name));
+            w.emit_fmt(format_args!("{}();", name));
             w.dedent();
             w.emit("}");
             return w.into_string();
@@ -370,7 +373,7 @@ impl FlutterCodegen {
         w.emit("");
 
         // ChangeNotifier class
-        w.emit(&format!("class {} extends ChangeNotifier {{", name));
+        w.emit_fmt(format_args!("class {} extends ChangeNotifier {{", name));
         w.indent();
 
         // Fields (signals)
@@ -381,12 +384,12 @@ impl FlutterCodegen {
                 .get(sig_name)
                 .map(|v| format_json_value(v, &JSON_FLUTTER))
                 .unwrap_or_else(|| "null".into());
-            w.emit(&format!("{} {} = {};", ann, sig_name, default_val));
+            w.emit_fmt(format_args!("{} {} = {};", ann, sig_name, default_val));
         }
 
         // Constructor
         w.emit("");
-        w.emit(&format!("{}() {{", name));
+        w.emit_fmt(format_args!("{}() {{", name));
         w.indent();
         for sig_name in store.signals.keys() {
             let default_val = store
@@ -394,7 +397,7 @@ impl FlutterCodegen {
                 .get(sig_name)
                 .map(|v| format_json_value(v, &JSON_FLUTTER))
                 .unwrap_or_else(|| "null".into());
-            w.emit(&format!("this.{} = {};", sig_name, default_val));
+            w.emit_fmt(format_args!("this.{} = {};", sig_name, default_val));
         }
         w.dedent();
         w.emit("}");
@@ -402,9 +405,12 @@ impl FlutterCodegen {
         // Getters
         for (getter_name, getter_expr) in &store.getters {
             w.emit("");
-            w.emit(&format!("get {} {{", getter_name));
+            w.emit_fmt(format_args!("get {} {{", getter_name));
             w.indent();
-            w.emit(&format!("return {};", format_expr_ir_flutter(getter_expr)));
+            w.emit_fmt(format_args!(
+                "return {};",
+                format_expr_ir_flutter(getter_expr)
+            ));
             w.dedent();
             w.emit("}");
         }
@@ -429,7 +435,7 @@ impl FlutterCodegen {
             } else {
                 "void"
             };
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "{} {}({}) {{",
                 prefix,
                 action.name,
@@ -449,9 +455,9 @@ impl FlutterCodegen {
             w.emit("");
             let setter_name = format!("set{}", capitalize_first(sig_name));
             let ann = super::dart::dart_type(&sig_type.kind, &sig_type.type_args);
-            w.emit(&format!("void {}({} value) {{", setter_name, ann));
+            w.emit_fmt(format_args!("void {}({} value) {{", setter_name, ann));
             w.indent();
-            w.emit(&format!("this.{} = value;", sig_name));
+            w.emit_fmt(format_args!("this.{} = value;", sig_name));
             w.emit("notifyListeners();");
             w.dedent();
             w.emit("}");

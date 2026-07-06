@@ -408,9 +408,9 @@ class OmniDriver {
         }
       }
 
-      usePoiesisStore.setState({ elements });
-    } catch {
-      // Canvas population is best-effort
+      usePoiesisStore.getState().setElementsAndWires(elements, []);
+    } catch (e) {
+      console.warn("[OmniDriver] Canvas population failed:", e);
     }
 
     return {

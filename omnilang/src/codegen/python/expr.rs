@@ -1,5 +1,6 @@
 //! Expression formatting for Python codegen.
 
+use crate::codegen::shared::types::{FormatType, PythonTypeFormatter};
 use crate::codegen::{format_json_value, JSON_PYTHON};
 use crate::ir::*;
 
@@ -140,41 +141,5 @@ fn binary_op_to_python(op: &str) -> &str {
 
 /// Format a TypeIR as a Python type annotation string.
 pub(super) fn format_type_ir(ty: &TypeIR) -> String {
-    match ty.kind.as_str() {
-        "i32" | "i64" | "int" | "u32" | "u64" => "int".into(),
-        "f64" | "f32" | "float" => "float".into(),
-        "bool" => "bool".into(),
-        "string" | "String" | "str" => "str".into(),
-        "void" | "()" => "None".into(),
-        "Vec" | "Array" | "List" => {
-            if let Some(inner) = ty.type_args.first() {
-                format!("list[{}]", format_type_ir(inner))
-            } else {
-                "list".into()
-            }
-        }
-        "HashMap" | "Map" | "Dict" => {
-            if ty.type_args.len() >= 2 {
-                let args: Vec<String> = ty.type_args.iter().map(format_type_ir).collect();
-                format!("dict[{}]", args.join(", "))
-            } else {
-                "dict".into()
-            }
-        }
-        "Option" => {
-            if let Some(inner) = ty.type_args.first() {
-                format!("Optional[{}]", format_type_ir(inner))
-            } else {
-                "Optional[Any]".into()
-            }
-        }
-        other => {
-            // If it looks like a user-defined type, use as-is
-            if other.chars().next().is_some_and(|c| c.is_uppercase()) {
-                format!("'{}'", other) // forward reference
-            } else {
-                "Any".into()
-            }
-        }
-    }
+    PythonTypeFormatter.format_type(&ty.kind, &ty.type_args)
 }

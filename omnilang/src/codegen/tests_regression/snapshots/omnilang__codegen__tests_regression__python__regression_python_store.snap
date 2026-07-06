@@ -1,0 +1,15 @@
+---
+source: omnilang/src/codegen/tests_regression/python.rs
+assertion_line: 34
+expression: "&format_output(&output)"
+---
+=== main.py ===
+# Generated from main.omni
+
+class AppStore:
+    def __init__(self):
+        self.count = 0
+
+    @property
+    def doubleCount(self):
+        return count * 2

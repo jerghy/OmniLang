@@ -135,6 +135,7 @@ ${result.files.html}
   return (
     <iframe
       ref={iframeRef}
+      sandbox="allow-scripts"
       title="compiler-preview"
       style={{
         width: "100%",

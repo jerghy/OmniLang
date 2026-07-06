@@ -121,6 +121,7 @@ export class CanvasDriver {
 
     // Auto-nest inline children
     for (const child of inlineChildren) {
+      // TODO: extract to store action
       usePoiesisStore.setState({
         elements: usePoiesisStore.getState().elements.map((e) => {
           if (e.id === child.id) return { ...e, parentId: id };

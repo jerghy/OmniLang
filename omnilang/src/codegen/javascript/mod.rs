@@ -9,17 +9,20 @@ mod expr;
 #[cfg(test)]
 mod tests;
 mod utils;
-
-use expr::*;
-pub use utils::*;
+mod visitor;
 
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
+use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::{format_json_value, JSON_JS};
 use crate::ir::*;
+
+use expr::*;
+pub use utils::*;
 
 pub struct JavaScriptCodegen {
     pub ts_mode: bool,
@@ -40,59 +43,13 @@ impl Codegen for JavaScriptCodegen {
             let source_path = format!("{}.omni", module_name);
 
             let mut w = CodeWriter::new();
-            w.emit(&format!("// Generated from {}", source_path));
+            w.emit_fmt(format_args!("// Generated from {}", source_path));
             w.emit("");
 
-            // Generate type aliases
-            for alias in module.type_aliases.values() {
-                generate_type_alias(&mut w, alias, self.ts_mode);
-            }
-            if !module.structs.is_empty()
-                || !module.enums.is_empty()
-                || !module.functions.is_empty()
-            {
-                w.emit("");
-            }
-
-            // Generate structs as classes
-            for struct_ir in module.structs.values() {
-                generate_struct(&mut w, struct_ir, self.ts_mode);
-                w.emit("");
-            }
-
-            // Generate enums as frozen objects
-            for enum_ir in module.enums.values() {
-                generate_enum(&mut w, enum_ir, self.ts_mode);
-                w.emit("");
-            }
-
-            // Generate standalone functions
-            let mut has_main = false;
-            for (fname, func) in &module.functions {
-                generate_standalone_function(&mut w, func, self.ts_mode);
-                w.emit("");
-                if fname == "main" {
-                    has_main = true;
-                }
-            }
-
-            // Entry point: if there's a main(), call it
-            if has_main {
-                w.emit("main();");
-                w.emit("");
-            }
-
-            // Generate stores from this module
-            for (store_name, store) in &module.stores {
-                generate_store(&mut w, store_name, store, self.ts_mode);
-                w.emit("");
-            }
-
-            // Generate components from this module
-            for (comp_name, comp) in &module.components {
-                generate_component(&mut w, comp_name, comp, self.ts_mode);
-                w.emit("");
-            }
+            let mut visitor = visitor::JavaScriptVisitor {
+                ts_mode: self.ts_mode,
+            };
+            visitor.generate_module(&mut w, module);
 
             let out_path = format!("{}{}", module_name, ext);
             files.push(CompiledFile {
@@ -111,7 +68,7 @@ impl Codegen for JavaScriptCodegen {
 
 fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mode: bool) {
     let fmt = JavaScriptFormatExpr { ts_mode };
-    w.emit(&format!("class {} {{", name));
+    w.emit_fmt(format_args!("class {} {{", name));
     w.indent();
 
     // Constructor with state initialization
@@ -119,23 +76,23 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         // TS: emit field declarations before constructor
         if fmt.ts_mode() {
             for (prop_name, prop_type) in &comp.props {
-                let ann = js_type(&prop_type.kind, &prop_type.type_args, true);
-                w.emit(&format!("{}: {};", prop_name, ann));
+                let ann = JsTypeFormatter.format_type(&prop_type.kind, &prop_type.type_args);
+                w.emit_fmt(format_args!("{}: {};", prop_name, ann));
             }
             for state in &comp.states {
-                let ann = js_type(&state.r#type.kind, &state.r#type.type_args, true);
-                w.emit(&format!("{}: {};", state.name, ann));
+                let ann = JsTypeFormatter.format_type(&state.r#type.kind, &state.r#type.type_args);
+                w.emit_fmt(format_args!("{}: {};", state.name, ann));
             }
         }
 
         w.emit("constructor() {");
         w.indent();
         for prop in comp.props.keys() {
-            w.emit(&format!("this.{} = null;  // prop", prop));
+            w.emit_fmt(format_args!("this.{} = null;  // prop", prop));
         }
         for state in &comp.states {
             let js_init = fmt.format_expr(&state.initial_value);
-            w.emit(&format!("this.{} = {};", state.name, js_init));
+            w.emit_fmt(format_args!("this.{} = {};", state.name, js_init));
         }
         w.dedent();
         w.emit("}");
@@ -145,7 +102,8 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
     for computed in &comp.computeds {
         let body = fmt.format_expr(&computed.body);
         let ret_ann = if fmt.ts_mode() {
-            let ann = js_type(&computed.r#type.kind, &computed.r#type.type_args, true);
+            let ann =
+                JsTypeFormatter.format_type(&computed.r#type.kind, &computed.r#type.type_args);
             if ann.is_empty() {
                 String::new()
             } else {
@@ -154,9 +112,9 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         } else {
             String::new()
         };
-        w.emit(&format!("get {}(){}{{", computed.name, ret_ann));
+        w.emit_fmt(format_args!("get {}(){}{{", computed.name, ret_ann));
         w.indent();
-        w.emit(&format!("return {};", body));
+        w.emit_fmt(format_args!("return {};", body));
         w.dedent();
         w.emit("}");
     }
@@ -176,17 +134,17 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
 
 fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool) {
     let fmt = JavaScriptFormatExpr { ts_mode };
-    w.emit(&format!("class {} {{", name));
+    w.emit_fmt(format_args!("class {} {{", name));
     w.indent();
 
     // TS: field declarations
     if fmt.ts_mode() {
         for (signal_name, signal_type) in &store.signals {
-            let ann = js_type(&signal_type.kind, &signal_type.type_args, true);
-            w.emit(&format!("{}: {};", signal_name, ann));
+            let ann = JsTypeFormatter.format_type(&signal_type.kind, &signal_type.type_args);
+            w.emit_fmt(format_args!("{}: {};", signal_name, ann));
         }
         for getter_name in store.getters.keys() {
-            w.emit(&format!("get {}(): any;", getter_name));
+            w.emit_fmt(format_args!("get {}(): any;", getter_name));
         }
     }
 
@@ -199,7 +157,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
             .get(signal_name)
             .map(|v| format_json_value(v, &JSON_JS))
             .unwrap_or_else(|| "null".into());
-        w.emit(&format!("this.{} = {};", signal_name, default));
+        w.emit_fmt(format_args!("this.{} = {};", signal_name, default));
     }
     w.dedent();
     w.emit("}");
@@ -212,9 +170,9 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
         } else {
             String::new()
         };
-        w.emit(&format!("get {}(){}{{", getter_name, ret_ann));
+        w.emit_fmt(format_args!("get {}(){}{{", getter_name, ret_ann));
         w.indent();
-        w.emit(&format!("return {};", fmt.format_expr(getter_expr)));
+        w.emit_fmt(format_args!("return {};", fmt.format_expr(getter_expr)));
         w.dedent();
         w.emit("}");
     }
@@ -235,7 +193,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         let mut s = safe_name;
         if ts_mode {
             if let Some(ref ty) = p.r#type {
-                let ann = js_type(&ty.kind, &ty.type_args, true);
+                let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
                 if !ann.is_empty() {
                     s.push_str(&format!(": {}", ann));
                 }
@@ -249,7 +207,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         func.return_type
             .as_ref()
             .map(|rt| {
-                let ann = js_type(&rt.kind, &rt.type_args, true);
+                let ann = JsTypeFormatter.format_type(&rt.kind, &rt.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -263,7 +221,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
 
     let all_params = param_strs.join(", ");
     let async_prefix = if func.is_async { "async " } else { "" };
-    w.emit(&format!(
+    w.emit_fmt(format_args!(
         "{}{}({}){} {{",
         async_prefix, func.name, all_params, ret_ann
     ));
@@ -309,7 +267,7 @@ impl FormatStmt for JsStmtFormatter {
         if self.expr.ts_mode() {
             ty.as_ref()
                 .map(|t| {
-                    let ann = js_type(&t.kind, &t.type_args, true);
+                    let ann = JsTypeFormatter.format_type(&t.kind, &t.type_args);
                     if ann.is_empty() {
                         String::new()
                     } else {
@@ -340,7 +298,7 @@ impl FormatStmt for JsStmtFormatter {
             .as_ref()
             .map(|v| self.expr.format_expr(v))
             .unwrap_or_else(|| self.null_value().to_string());
-        w.emit(&format!("{kw} {safe_name}{ty} = {rhs};"));
+        w.emit_fmt(format_args!("{kw} {safe_name}{ty} = {rhs};"));
     }
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
@@ -352,22 +310,22 @@ impl FormatStmt for JsStmtFormatter {
             .unwrap_or_else(|| "0".into());
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("this.{} = {};", target, amount));
+                w.emit_fmt(format_args!("this.{} = {};", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("this.{} += {};", target, amount));
+                w.emit_fmt(format_args!("this.{} += {};", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("this.{} -= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} -= {};", target, amount));
             }
             MutationOp::Multiply => {
-                w.emit(&format!("this.{} *= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} *= {};", target, amount));
             }
             MutationOp::Divide => {
-                w.emit(&format!("this.{} /= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} /= {};", target, amount));
             }
             MutationOp::Modulo => {
-                w.emit(&format!("this.{} %= {};", target, amount));
+                w.emit_fmt(format_args!("this.{} %= {};", target, amount));
             }
             MutationOp::Push => {
                 let item = intent
@@ -375,10 +333,10 @@ impl FormatStmt for JsStmtFormatter {
                     .as_ref()
                     .map(|v| self.expr.format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
-                w.emit(&format!("this.{}.push({});", target, item));
+                w.emit_fmt(format_args!("this.{}.push({});", target, item));
             }
             MutationOp::Pop => {
-                w.emit(&format!("this.{}.pop();", target));
+                w.emit_fmt(format_args!("this.{}.pop();", target));
             }
         }
     }

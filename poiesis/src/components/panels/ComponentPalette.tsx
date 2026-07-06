@@ -276,7 +276,7 @@ export function ComponentPalette() {
                             if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
                               removeComponent(m.component);
                               import("../../commands").then(({ api }) => {
-                                api.annotation.deleteComponentDefinitions([m.component]).catch(() => {});
+                                api.annotation.deleteComponentDefinitions([m.component]).catch((e) => { console.warn("[ComponentPalette] Failed to delete component:", e); });
                               });
                             }
                           }

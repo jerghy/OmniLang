@@ -544,7 +544,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   defineComponent: (name, def) => {
     const s = get();
     // Register the component definition so it appears in the palette
-    s.setComponentDef(name, def as unknown as ComponentDef);
+    if (def && typeof def === 'object' && 'name' in def) {
+      s.setComponentDef(name, def as unknown as ComponentDef);
+    }
     // Open the component in a new tab for editing
     // The .omni file is persisted when the user saves (Ctrl+S)
     const filePath = `src/components/${name}.omni`;
@@ -755,7 +757,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     ),
   })),
   setSourceCode: (content) => set({ sourceCode: content }),
-  loadFiles: (files) => set({ files: files as PoiesisState["files"] }),
+  loadFiles: (files) => set({ files: files.filter((f: any) => f.type === 'file' || f.type === 'directory') as PoiesisState["files"] }),
 }));
 
 // ── Window exposure for E2E / Victauri ──

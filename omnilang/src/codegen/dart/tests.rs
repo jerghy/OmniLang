@@ -1,10 +1,16 @@
 //! Unit tests for dart codegen.
 
+use super::expr::format_type_ir_dart;
 #[allow(unused_imports)]
 use super::*;
 use crate::codegen::{format_json_value, CodeWriter, JSON_DART};
 use crate::ir::*;
 use std::collections::HashMap;
+
+/// Helper: create a DartVisitor for test use.
+fn visitor() -> super::visitor::DartVisitor {
+    super::visitor::DartVisitor
+}
 
 // ── dart_type tests ────────────────────────────────────
 
@@ -712,7 +718,7 @@ fn test_dart_generate_struct() {
             },
         ],
     };
-    generate_struct(&mut w, &struct_ir);
+    visitor().generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Point {"));
     assert!(out.contains("final int x;"));
@@ -728,7 +734,7 @@ fn test_dart_generate_empty_struct() {
         visibility: Visibility::Public,
         fields: vec![],
     };
-    generate_struct(&mut w, &struct_ir);
+    visitor().generate_struct(&mut w, &struct_ir);
     let out = w.into_string();
     assert!(out.contains("class Empty {"));
     assert!(out.contains("Empty();"));
@@ -756,7 +762,7 @@ fn test_dart_generate_enum() {
             },
         ],
     };
-    generate_enum(&mut w, &enum_ir);
+    visitor().generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
     assert!(out.contains("enum Color {"));
     assert!(out.contains("Red, Green, Blue"));
@@ -771,7 +777,7 @@ fn test_dart_generate_empty_enum() {
         visibility: Visibility::Public,
         variants: vec![],
     };
-    generate_enum(&mut w, &enum_ir);
+    visitor().generate_enum(&mut w, &enum_ir);
     let out = w.into_string();
     assert!(out.contains("enum Empty {"));
 }
@@ -790,7 +796,7 @@ fn test_dart_generate_type_alias() {
             needs_partial_eq: false,
         },
     };
-    generate_type_alias(&mut w, &alias);
+    visitor().generate_type_alias(&mut w, &alias);
     assert_eq!(w.into_string(), "typedef UserId = int;\n");
 }
 
@@ -805,7 +811,7 @@ fn test_dart_generate_standalone_function() {
         body: BlockIR { statements: vec![] },
         is_async: false,
     };
-    generate_standalone_function(&mut w, &func);
+    visitor().generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("main() {"));
 }
@@ -836,7 +842,7 @@ fn test_dart_generate_standalone_function_with_return_type() {
         body: BlockIR { statements: vec![] },
         is_async: false,
     };
-    generate_standalone_function(&mut w, &func);
+    visitor().generate_function(&mut w, &func);
     let out = w.into_string();
     assert!(out.contains("int add(int a) {"));
 }

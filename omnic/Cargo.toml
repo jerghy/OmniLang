@@ -18,3 +18,4 @@ pathdiff = "0.2"
 
 [dependencies.omnilang]
 path = "../omnilang"
+features = ["all-backends"]

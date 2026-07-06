@@ -31,7 +31,7 @@ export function ComponentTree({ ctx, treeDropState }: ComponentTreeProps) {
   const rootOrder = usePoiesisStore((s) => s.rootOrder);
   const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
-  const enterCanvas = usePoiesisStore.getState().enterComponentCanvas;
+  const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
 
   // Helper: execute a Command — store methods handle undo tracking internally
   const exec = useCallback(

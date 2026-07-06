@@ -554,7 +554,7 @@ class AnimationPlayer {
         };
         var player = new AnimationPlayer(child, childConfig);
         player.play();
-        // Track stagger completion
+        // TODO: replace polling with Animation.finished Promise
         var checkDone = setInterval(function() {
           if (player._completed) {
             clearInterval(checkDone);

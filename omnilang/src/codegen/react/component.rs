@@ -6,7 +6,8 @@ use std::collections::{HashMap, HashSet};
 
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use super::{expr, motion, utils, view};
-use crate::codegen::{capitalize_first, javascript};
+use crate::codegen::capitalize_first;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 
 impl ReactCodegen {
@@ -23,24 +24,24 @@ impl ReactCodegen {
 
         // Imports
         w.emit("import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';");
-        w.emit(&format!("import styles from './{}.module.css';", name));
+        w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         w.emit("");
 
         // Props interface — regular props + event callbacks
         let has_props = !comp.props.is_empty() || !comp.event_names.is_empty();
         if has_props {
-            w.emit(&format!("interface {}Props {{", name));
+            w.emit_fmt(format_args!("interface {}Props {{", name));
             for (prop_name, prop_type) in &comp.props {
-                let ts_type = javascript::js_type(&prop_type.kind, &prop_type.type_args, true);
+                let ts_type = JsTypeFormatter.format_type(&prop_type.kind, &prop_type.type_args);
                 let optional = if comp.prop_defaults.contains_key(prop_name) {
                     "?"
                 } else {
                     ""
                 };
-                w.emit(&format!("  {}{}: {};", prop_name, optional, ts_type));
+                w.emit_fmt(format_args!("  {}{}: {};", prop_name, optional, ts_type));
             }
             for event_name in &comp.event_names {
-                w.emit(&format!("  {}?: (value: any) => void;", event_name));
+                w.emit_fmt(format_args!("  {}?: (value: any) => void;", event_name));
             }
             w.emit("}");
             w.emit("");
@@ -105,7 +106,7 @@ impl ReactCodegen {
         let mut child_comp_names: Vec<&String> = child_comps.iter().collect();
         child_comp_names.sort();
         for child_name in &child_comp_names {
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "import {{ {} }} from './{}';",
                 child_name, child_name
             ));
@@ -133,7 +134,7 @@ impl ReactCodegen {
             let params_str = param_escaped.join(", ");
             let is_async = fun.is_async || fun.body.statements.iter().any(stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "const {} = {}({}) => {{",
                 fun.name, async_prefix, params_str
             ));
@@ -165,7 +166,7 @@ impl ReactCodegen {
 
         // Component function signature
         if !has_props {
-            w.emit(&format!("export function {}() {{", name));
+            w.emit_fmt(format_args!("export function {}() {{", name));
         } else {
             let mut prop_list: Vec<String> = comp
                 .props
@@ -183,7 +184,7 @@ impl ReactCodegen {
             for event_name in &comp.event_names {
                 prop_list.push(event_name.clone());
             }
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "export function {}({{ {} }}: {}Props) {{",
                 name,
                 prop_list.join(", "),
@@ -196,7 +197,7 @@ impl ReactCodegen {
         for store_ref in &comp.store_refs {
             if ir.all_stores().contains_key(store_ref.as_str()) {
                 let hook_name = format!("use{}", store_ref);
-                w.emit(&format!("const {} = {}();", store_ref, hook_name));
+                w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
             }
         }
 
@@ -213,7 +214,7 @@ impl ReactCodegen {
             } else {
                 setter_base
             };
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "const [{}, {}] = useState({});",
                 state.name, setter, init_val
             ));
@@ -245,7 +246,7 @@ impl ReactCodegen {
                 w.dedent();
                 w.emit("})();");
                 w.dedent();
-                w.emit(&format!("}}, [{}]);", deps_str));
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
             } else {
                 w.emit("useEffect(() => {");
                 w.indent();
@@ -253,7 +254,7 @@ impl ReactCodegen {
                     expr::generate_statement_tsx(&mut w, stmt, &signal_names);
                 }
                 w.dedent();
-                w.emit(&format!("}}, [{}]);", deps_str));
+                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
             }
         }
 
@@ -298,7 +299,7 @@ impl ReactCodegen {
                     w.emit("}, []);");
                 }
                 LifecycleKind::Effect => {
-                    w.emit(&format!("// TODO: lifecycle '{}'", lc.kind));
+                    w.emit_fmt(format_args!("// TODO: lifecycle '{}'", lc.kind));
                 }
             }
         }
@@ -328,9 +329,12 @@ impl ReactCodegen {
             };
 
             if is_fn_form {
-                w.emit(&format!("const {} = useCallback(() => {{", computed.name));
+                w.emit_fmt(format_args!(
+                    "const {} = useCallback(() => {{",
+                    computed.name
+                ));
             } else {
-                w.emit(&format!("const {} = useMemo(() => {{", computed.name));
+                w.emit_fmt(format_args!("const {} = useMemo(() => {{", computed.name));
             }
             w.indent();
             if let ExprIR::BlockExpr { statements, tail } = &computed.body {
@@ -344,16 +348,16 @@ impl ReactCodegen {
                     tail.as_ref(),
                     ExprIR::LiteralExpr { value } if value == &serde_json::Value::Null
                 ) {
-                    w.emit(&format!("return {};", expr::format_expr_ir_tsx(tail)));
+                    w.emit_fmt(format_args!("return {};", expr::format_expr_ir_tsx(tail)));
                 }
             } else {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "return {};",
                     expr::format_expr_ir_tsx(&computed.body)
                 ));
             }
             w.dedent();
-            w.emit(&format!("}}, [{}]);", deps_list.join(", ")));
+            w.emit_fmt(format_args!("}}, [{}]);", deps_list.join(", ")));
         }
 
         // Component-local functions (fn declarations in the component body)
@@ -371,7 +375,7 @@ impl ReactCodegen {
             let params_str = param_escaped.join(", ");
             let is_async = fun.is_async || fun.body.statements.iter().any(stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "const {} = {}({}) => {{",
                 fun.name, async_prefix, params_str
             ));
@@ -465,7 +469,7 @@ impl ReactCodegen {
         } else {
             w.emit("<div className={styles.container}>");
             w.indent();
-            w.emit(&format!("<h1>{{'{0}'}}</h1>", name));
+            w.emit_fmt(format_args!("<h1>{{'{0}'}}</h1>", name));
             w.dedent();
             w.emit("</div>");
         }
@@ -481,7 +485,7 @@ impl ReactCodegen {
     /// Generate a CSS module file from component styles.
     pub(super) fn gen_component_css(&self, name: &str, comp: &ComponentIR) -> String {
         let mut w = CodeWriter::new();
-        w.emit(&format!("/* Styles for {} */", name));
+        w.emit_fmt(format_args!("/* Styles for {} */", name));
         crate::codegen::generate_css_style_block(&mut w, &comp.styles);
         w.into_string()
     }

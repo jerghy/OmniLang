@@ -7,16 +7,19 @@
 mod expr;
 #[cfg(test)]
 mod tests;
-
-pub(crate) use expr::*;
+mod visitor;
 
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::{format_json_value, JSON_RUST};
 use crate::ir::*;
+
+pub(crate) use expr::format_expr_ir;
+pub(crate) use expr::rs_type;
 
 pub struct RustCodegen;
 
@@ -29,46 +32,11 @@ impl Codegen for RustCodegen {
             let source_path = format!("{}.omni", module_name);
 
             let mut w = CodeWriter::new();
-            w.emit(&format!("// Generated from {}", source_path));
+            w.emit_fmt(format_args!("// Generated from {}", source_path));
             w.emit("");
 
-            // Generate type aliases
-            for alias in module.type_aliases.values() {
-                generate_type_alias(&mut w, alias);
-            }
-            if !module.type_aliases.is_empty() {
-                w.emit("");
-            }
-
-            // Generate structs
-            for struct_ir in module.structs.values() {
-                generate_struct(&mut w, struct_ir);
-                w.emit("");
-            }
-
-            // Generate enums
-            for enum_ir in module.enums.values() {
-                generate_enum(&mut w, enum_ir);
-                w.emit("");
-            }
-
-            // Generate standalone functions
-            for func in module.functions.values() {
-                generate_standalone_function(&mut w, func);
-                w.emit("");
-            }
-
-            // Generate stores from this module
-            for (store_name, store) in &module.stores {
-                generate_store(&mut w, store_name, store);
-                w.emit("");
-            }
-
-            // Generate components from this module
-            for (comp_name, comp) in &module.components {
-                generate_component(&mut w, comp_name, comp);
-                w.emit("");
-            }
+            let mut visitor = visitor::RustVisitor;
+            visitor.generate_module(&mut w, module);
 
             let out_path = format!("{}.rs", module_name);
             files.push(CompiledFile {
@@ -91,17 +59,17 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
 
     // Emit struct definition
     if has_fields {
-        w.emit(&format!("struct {} {{", name));
+        w.emit_fmt(format_args!("struct {} {{", name));
         w.indent();
         for (prop_name, prop_type) in &comp.props {
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "{}: Option<{}>,",
                 prop_name,
                 rs_type(&prop_type.kind, &prop_type.type_args)
             ));
         }
         for state in &comp.states {
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "{}: {},",
                 state.name,
                 rs_type(&state.r#type.kind, &state.r#type.type_args)
@@ -110,7 +78,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
         w.dedent();
         w.emit("}");
     } else {
-        w.emit(&format!("struct {};", name));
+        w.emit_fmt(format_args!("struct {};", name));
     }
 
     if !has_methods {
@@ -118,7 +86,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     }
 
     // Emit impl block
-    w.emit(&format!("impl {} {{", name));
+    w.emit_fmt(format_args!("impl {} {{", name));
     w.indent();
 
     // Constructor (new) if there are fields
@@ -131,11 +99,11 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
             w.emit("Self {");
             w.indent();
             for prop_name in comp.props.keys() {
-                w.emit(&format!("{}: None,  // prop", prop_name));
+                w.emit_fmt(format_args!("{}: None,  // prop", prop_name));
             }
             for state in &comp.states {
                 let rs_init = format_expr_ir(&state.initial_value);
-                w.emit(&format!("{}: {},", state.name, rs_init));
+                w.emit_fmt(format_args!("{}: {},", state.name, rs_init));
             }
             w.dedent();
             w.emit("}");
@@ -149,7 +117,10 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     for computed in &comp.computeds {
         let body = format_expr_ir(&computed.body);
         let ret_type = rs_type(&computed.r#type.kind, &computed.r#type.type_args);
-        w.emit(&format!("fn {}(&self) -> {} {{", computed.name, ret_type));
+        w.emit_fmt(format_args!(
+            "fn {}(&self) -> {} {{",
+            computed.name, ret_type
+        ));
         w.indent();
         w.emit(&body.to_string());
         w.dedent();
@@ -173,9 +144,9 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
 
 fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     if store.signals.is_empty() {
-        w.emit(&format!("struct {};", name));
+        w.emit_fmt(format_args!("struct {};", name));
         w.emit("");
-        w.emit(&format!("impl {} {{", name));
+        w.emit_fmt(format_args!("impl {} {{", name));
         w.indent();
         w.emit("fn new() -> Self {");
         w.indent();
@@ -188,10 +159,10 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     }
 
     // Struct with fields
-    w.emit(&format!("struct {} {{", name));
+    w.emit_fmt(format_args!("struct {} {{", name));
     w.indent();
     for (signal_name, signal_type) in &store.signals {
-        w.emit(&format!(
+        w.emit_fmt(format_args!(
             "{}: {},",
             signal_name,
             rs_type(&signal_type.kind, &signal_type.type_args)
@@ -201,7 +172,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     w.emit("}");
 
     // Impl block
-    w.emit(&format!("impl {} {{", name));
+    w.emit_fmt(format_args!("impl {} {{", name));
     w.indent();
 
     // Constructor
@@ -215,7 +186,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
             .get(signal_name)
             .map(|v| format_json_value(v, &JSON_RUST))
             .unwrap_or_else(|| "None".into());
-        w.emit(&format!("{}: {},", signal_name, default));
+        w.emit_fmt(format_args!("{}: {},", signal_name, default));
     }
     w.dedent();
     w.emit("}");
@@ -226,7 +197,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     for (getter_name, getter_expr) in &store.getters {
         w.emit("");
         let body = format_expr_ir(getter_expr);
-        w.emit(&format!("fn {}(&self) {{", getter_name));
+        w.emit_fmt(format_args!("fn {}(&self) {{", getter_name));
         w.indent();
         w.emit(&body.to_string());
         w.dedent();
@@ -263,7 +234,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
     let all_params = param_strs.join(", ");
 
     let async_kw = if func.is_async { "async " } else { "" };
-    w.emit(&format!(
+    w.emit_fmt(format_args!(
         "{}fn {}({}){} {{",
         async_kw, func.name, all_params, ret_ann
     ));
@@ -329,13 +300,13 @@ impl FormatStmt for RustStmtFormatter {
         else_body: &Option<BlockIR>,
     ) {
         let cond = self.expr.format_expr(condition);
-        w.emit(&format!("if {cond} {{"));
+        w.emit_fmt(format_args!("if {cond} {{"));
         w.indent();
         self.format_block(w, then_body);
         w.dedent();
         for (elif_cond, elif_body) in else_ifs {
             let elif = self.expr.format_expr(elif_cond);
-            w.emit(&format!("}} else if {elif} {{"));
+            w.emit_fmt(format_args!("}} else if {elif} {{"));
             w.indent();
             self.format_block(w, elif_body);
             w.dedent();
@@ -354,7 +325,7 @@ impl FormatStmt for RustStmtFormatter {
     // Rust uses `while cond {` without parentheses
     fn format_while_stmt(&self, w: &mut CodeWriter, condition: &ExprIR, body: &BlockIR) {
         let cond = self.expr.format_expr(condition);
-        w.emit(&format!("while {cond} {{"));
+        w.emit_fmt(format_args!("while {cond} {{"));
         w.indent();
         self.format_block(w, body);
         w.dedent();
@@ -370,25 +341,25 @@ impl FormatStmt for RustStmtFormatter {
             .unwrap_or_else(|| "0".into());
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("self.{} = {};", target, amount));
+                w.emit_fmt(format_args!("self.{} = {};", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("self.{} += {};", target, amount));
+                w.emit_fmt(format_args!("self.{} += {};", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("self.{} -= {};", target, amount));
+                w.emit_fmt(format_args!("self.{} -= {};", target, amount));
             }
             MutationOp::Multiply => {
-                w.emit(&format!("self.{} *= {};", target, amount));
+                w.emit_fmt(format_args!("self.{} *= {};", target, amount));
             }
             MutationOp::Divide => {
-                w.emit(&format!("self.{} /= {};", target, amount));
+                w.emit_fmt(format_args!("self.{} /= {};", target, amount));
             }
             MutationOp::Modulo => {
-                w.emit(&format!("self.{} %= {};", target, amount));
+                w.emit_fmt(format_args!("self.{} %= {};", target, amount));
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "// TODO: mutation operation '{}' on '{}'",
                     other, target
                 ));

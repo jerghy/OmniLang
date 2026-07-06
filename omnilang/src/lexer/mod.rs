@@ -261,7 +261,7 @@ impl Lexer {
     /// Advance without checking bounds. Only safe when `peek()` has confirmed
     /// a character is available.
     fn advance_unchecked(&mut self) -> char {
-        self.advance().unwrap()
+        self.advance().expect("peek() confirmed char available")
     }
 
     fn peek(&self) -> Option<char> {

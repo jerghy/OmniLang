@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
 use crate::codegen::{capitalize_first, JsonFormatConfig, JSON_REACT};
 use crate::ir::*;
@@ -102,7 +103,7 @@ impl FormatStmt for ReactStmtFormatter {
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| {
-                let ann = super::super::javascript::js_type(&t.kind, &t.type_args, true);
+                let ann = JsTypeFormatter.format_type(&t.kind, &t.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -119,7 +120,7 @@ impl FormatStmt for ReactStmtFormatter {
             let formatted: Vec<String> = args.iter().map(|a| self.expr.format_expr(a)).collect();
             format!("({})", formatted.join(", "))
         };
-        w.emit(&format!("{}{};", event_name, arg_str));
+        w.emit_fmt(format_args!("{}{};", event_name, arg_str));
     }
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
@@ -136,55 +137,55 @@ impl FormatStmt for ReactStmtFormatter {
         match &intent.operation {
             MutationOp::DirectAssign => {
                 if use_setter {
-                    w.emit(&format!("{}({});", setter, amount));
+                    w.emit_fmt(format_args!("{}({});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {};", target, amount));
+                    w.emit_fmt(format_args!("{} = {};", target, amount));
                 }
             }
             MutationOp::Increment => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => prev + {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {} + {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} + {};", target, target, amount));
                 }
             }
             MutationOp::Decrement => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => prev - {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {} - {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} - {};", target, target, amount));
                 }
             }
             MutationOp::Multiply => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => prev * {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {} * {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} * {};", target, target, amount));
                 }
             }
             MutationOp::Divide => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => prev / {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {} / {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} / {};", target, target, amount));
                 }
             }
             MutationOp::Modulo => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => prev % {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amount));
                 } else {
-                    w.emit(&format!("{} = {} % {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} % {};", target, target, amount));
                 }
             }
             MutationOp::Push => {
                 if use_setter {
-                    w.emit(&format!("{}(prev => [...prev, {}]);", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, amount));
                 } else {
-                    w.emit(&format!("{}.push({});", target, amount));
+                    w.emit_fmt(format_args!("{}.push({});", target, amount));
                 }
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "// TODO: mutation operation '{}' on {}",
                     other, target
                 ));

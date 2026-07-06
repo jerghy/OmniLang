@@ -1,0 +1,32 @@
+---
+source: omnilang/src/codegen/tests_regression/python.rs
+assertion_line: 57
+expression: "&format_output(&output)"
+---
+=== main.py ===
+# Generated from main.omni
+
+def testExpressions():
+    a = 10
+    b = 3
+    flag = True
+    name = 'hello'
+    nothing = None
+    add = a + b
+    sub = a - b
+    mul = a * b
+    div = a / b
+    eq = a == b
+    neq = a != b
+    and = flag and True
+    or = flag or False
+    neg = -a
+    not = not flag
+    ternary = 'yes' if flag else 'no'
+    arr = [1, 2, 3]
+    first = arr[0]
+    len = name.length
+    name.toUpperCase()
+    closure = lambda x, y: x + y
+    console.log(a)
+    matchResult = (val) if a.get("_variant") == "Some" else (0)

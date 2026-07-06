@@ -1,0 +1,6 @@
+---
+source: omnilang/src/codegen/tests_regression/react.rs
+assertion_line: 14
+expression: "&format_output(&output)"
+---
+(no output files)

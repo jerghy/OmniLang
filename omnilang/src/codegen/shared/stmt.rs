@@ -27,6 +27,7 @@ use crate::ir::*;
 ///
 /// Default implementations produce C-family syntax (JS/Dart/Rust style).
 /// Backends override only the methods that differ.
+#[allow(dead_code)]
 pub(crate) trait FormatStmt {
     /// The expression formatter used by this statement formatter.
     type ExprFormatter: FormatExpr;
@@ -149,7 +150,7 @@ pub(crate) trait FormatStmt {
             .map(|v| self.expr_fmt().format_expr(v))
             .unwrap_or_else(|| self.null_value().to_string());
         let semi = if self.needs_semicolon() { ";" } else { "" };
-        w.emit(&format!("{kw} {name}{ty} = {rhs}{semi}"));
+        w.emit_fmt(format_args!("{kw} {name}{ty} = {rhs}{semi}"));
     }
 
     /// Format a `return` statement.
@@ -159,7 +160,7 @@ pub(crate) trait FormatStmt {
             .map(|v| self.expr_fmt().format_expr(v))
             .unwrap_or_else(|| self.return_null_value().to_string());
         let semi = if self.needs_semicolon() { ";" } else { "" };
-        w.emit(&format!("return {v}{semi}"));
+        w.emit_fmt(format_args!("return {v}{semi}"));
     }
 
     /// Format an `if/else if/else` chain.
@@ -172,13 +173,13 @@ pub(crate) trait FormatStmt {
         else_body: &Option<BlockIR>,
     ) {
         let cond = self.expr_fmt().format_expr(condition);
-        w.emit(&format!("if ({cond}) {{"));
+        w.emit_fmt(format_args!("if ({cond}) {{"));
         w.indent();
         self.format_block(w, then_body);
         w.dedent();
         for (elif_cond, elif_body) in else_ifs {
             let elif = self.expr_fmt().format_expr(elif_cond);
-            w.emit(&format!("}} else if ({elif}) {{"));
+            w.emit_fmt(format_args!("}} else if ({elif}) {{"));
             w.indent();
             self.format_block(w, elif_body);
             w.dedent();
@@ -197,7 +198,7 @@ pub(crate) trait FormatStmt {
     /// Format a `while` statement.
     fn format_while_stmt(&self, w: &mut CodeWriter, condition: &ExprIR, body: &BlockIR) {
         let cond = self.expr_fmt().format_expr(condition);
-        w.emit(&format!("while ({cond}) {{"));
+        w.emit_fmt(format_args!("while ({cond}) {{"));
         w.indent();
         self.format_block(w, body);
         w.dedent();
@@ -216,9 +217,9 @@ pub(crate) trait FormatStmt {
         let kw = self.for_in_keyword();
         let sep = if self.for_in_uses_of() { "of" } else { "in" };
         if kw.is_empty() {
-            w.emit(&format!("for {var_name} {sep} {iter} {{"));
+            w.emit_fmt(format_args!("for {var_name} {sep} {iter} {{"));
         } else {
-            w.emit(&format!("for ({kw} {var_name} {sep} {iter}) {{"));
+            w.emit_fmt(format_args!("for ({kw} {var_name} {sep} {iter}) {{"));
         }
         w.indent();
         self.format_block(w, body);
@@ -231,7 +232,7 @@ pub(crate) trait FormatStmt {
         let line = self.expr_fmt().format_expr(expr);
         if line != self.null_value() {
             if self.needs_semicolon() {
-                w.emit(&format!("{line};"));
+                w.emit_fmt(format_args!("{line};"));
             } else {
                 w.emit(&line);
             }
@@ -241,13 +242,13 @@ pub(crate) trait FormatStmt {
     /// Format a `break` statement.
     fn format_break_stmt(&self, w: &mut CodeWriter) {
         let semi = if self.needs_semicolon() { ";" } else { "" };
-        w.emit(&format!("break{semi}"));
+        w.emit_fmt(format_args!("break{semi}"));
     }
 
     /// Format a `continue` statement.
     fn format_continue_stmt(&self, w: &mut CodeWriter) {
         let semi = if self.needs_semicolon() { ";" } else { "" };
-        w.emit(&format!("continue{semi}"));
+        w.emit_fmt(format_args!("continue{semi}"));
     }
 
     /// Format a mutation statement (override per backend — each is unique).
@@ -260,16 +261,19 @@ pub(crate) trait FormatStmt {
         let arg_str = if args.is_empty() {
             String::new()
         } else {
-            let formatted: Vec<String> = args.iter().map(|a| self.expr_fmt().format_expr(a)).collect();
+            let formatted: Vec<String> = args
+                .iter()
+                .map(|a| self.expr_fmt().format_expr(a))
+                .collect();
             format!("({})", formatted.join(", "))
         };
-        w.emit(&format!("// emit event: {event_name}{arg_str}"));
+        w.emit_fmt(format_args!("// emit event: {event_name}{arg_str}"));
     }
 
     /// Format a `throw` statement.
     fn format_throw_stmt(&self, w: &mut CodeWriter, expr: &ExprIR) {
         let e = self.expr_fmt().format_expr(expr);
-        w.emit(&format!("throw {e};"));
+        w.emit_fmt(format_args!("throw {e};"));
     }
 
     /// Format a `try/catch/finally` statement.
@@ -286,7 +290,7 @@ pub(crate) trait FormatStmt {
         self.format_block(w, try_body);
         w.dedent();
         if let Some(ref cv) = catch_var {
-            w.emit(&format!("}} catch ({cv}) {{"));
+            w.emit_fmt(format_args!("}} catch ({cv}) {{"));
         } else if catch_body.is_some() {
             w.emit("} catch (_) {");
         }

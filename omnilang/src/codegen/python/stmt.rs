@@ -62,7 +62,7 @@ impl FormatStmt for PythonStmtFormatter {
             .as_ref()
             .map(|t| format!(": {}", expr::format_type_ir(t)))
             .unwrap_or_default();
-        w.emit(&format!("{name}{type_hint} = {rhs}"));
+        w.emit_fmt(format_args!("{name}{type_hint} = {rhs}"));
     }
 
     fn format_if_stmt(
@@ -74,13 +74,13 @@ impl FormatStmt for PythonStmtFormatter {
         else_body: &Option<BlockIR>,
     ) {
         let cond = self.expr.format_expr(condition);
-        w.emit(&format!("if {cond}:"));
+        w.emit_fmt(format_args!("if {cond}:"));
         w.indent();
         self.format_block(w, then_body);
         w.dedent();
         for (elif_cond, elif_body) in else_ifs {
             let elif = self.expr.format_expr(elif_cond);
-            w.emit(&format!("elif {elif}:"));
+            w.emit_fmt(format_args!("elif {elif}:"));
             w.indent();
             self.format_block(w, elif_body);
             w.dedent();
@@ -97,7 +97,7 @@ impl FormatStmt for PythonStmtFormatter {
 
     fn format_while_stmt(&self, w: &mut CodeWriter, condition: &ExprIR, body: &BlockIR) {
         let cond = self.expr.format_expr(condition);
-        w.emit(&format!("while {cond}:"));
+        w.emit_fmt(format_args!("while {cond}:"));
         w.indent();
         self.format_block(w, body);
         w.dedent();
@@ -111,7 +111,7 @@ impl FormatStmt for PythonStmtFormatter {
         body: &BlockIR,
     ) {
         let iter = self.expr.format_expr(iterable);
-        w.emit(&format!("for {var_name} in {iter}:"));
+        w.emit_fmt(format_args!("for {var_name} in {iter}:"));
         w.indent();
         self.format_block(w, body);
         w.dedent();
@@ -126,16 +126,16 @@ impl FormatStmt for PythonStmtFormatter {
             .unwrap_or_else(|| "0".into());
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("{} = {}", target, amount));
+                w.emit_fmt(format_args!("{} = {}", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("{} += {}", target, amount));
+                w.emit_fmt(format_args!("{} += {}", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("{} -= {}", target, amount));
+                w.emit_fmt(format_args!("{} -= {}", target, amount));
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "# TODO: mutation operation '{}' on {}",
                     other, target
                 ));
@@ -169,7 +169,10 @@ pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standa
 
     let all_params = param_strs.join(", ");
 
-    w.emit(&format!("def {}({}){}:", func.name, all_params, ret_ann));
+    w.emit_fmt(format_args!(
+        "def {}({}){}:",
+        func.name, all_params, ret_ann
+    ));
     w.indent();
 
     if func.body.statements.is_empty() {
@@ -188,7 +191,7 @@ pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standa
 
 /// Generate a component class.
 pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
-    w.emit(&format!("class {}:", name));
+    w.emit_fmt(format_args!("class {}:", name));
     w.indent();
 
     // Constructor with signals as instance variables
@@ -196,11 +199,11 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
         w.emit("def __init__(self):");
         w.indent();
         for prop in comp.props.keys() {
-            w.emit(&format!("self.{} = None  # prop", prop));
+            w.emit_fmt(format_args!("self.{} = None  # prop", prop));
         }
         for state in &comp.states {
             let py_init = expr::format_expr_ir(&state.initial_value);
-            w.emit(&format!("self.{} = {}", state.name, py_init));
+            w.emit_fmt(format_args!("self.{} = {}", state.name, py_init));
         }
         w.dedent();
         w.emit("");
@@ -211,9 +214,9 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
         let body = expr::format_expr_ir(&computed.body);
         // Use @cached_property or simple @property for now
         w.emit("@property");
-        w.emit(&format!("def {}(self):", computed.name));
+        w.emit_fmt(format_args!("def {}(self):", computed.name));
         w.indent();
-        w.emit(&format!("return {}", body));
+        w.emit_fmt(format_args!("return {}", body));
         w.dedent();
         w.emit("");
     }
@@ -229,7 +232,7 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
 
 /// Generate a store class.
 pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
-    w.emit(&format!("class {}:", name));
+    w.emit_fmt(format_args!("class {}:", name));
     w.indent();
 
     // Constructor with signal defaults
@@ -241,7 +244,7 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
             .get(signal_name)
             .map(|v| crate::codegen::format_json_value(v, &crate::codegen::JSON_PYTHON))
             .unwrap_or_else(|| "None".into());
-        w.emit(&format!("self.{} = {}", signal_name, default));
+        w.emit_fmt(format_args!("self.{} = {}", signal_name, default));
     }
     w.dedent();
 
@@ -249,9 +252,9 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     for (getter_name, getter_expr) in &store.getters {
         w.emit("");
         w.emit("@property");
-        w.emit(&format!("def {}(self):", getter_name));
+        w.emit_fmt(format_args!("def {}(self):", getter_name));
         w.indent();
-        w.emit(&format!("return {}", expr::format_expr_ir(getter_expr)));
+        w.emit_fmt(format_args!("return {}", expr::format_expr_ir(getter_expr)));
         w.dedent();
     }
 

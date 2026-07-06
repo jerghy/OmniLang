@@ -2,8 +2,8 @@
 
 use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
 use crate::codegen::emit_event_object as emit_event_object_js;
-use crate::codegen::javascript::js_type;
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -108,14 +108,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
 
             // Emit opening tag
             if attrs.is_empty() && el.children.is_empty() {
-                w.emit(&format!("<{} />", el.tag));
+                w.emit_fmt(format_args!("<{} />", el.tag));
                 return;
             }
 
             if attrs.is_empty() {
-                w.emit(&format!("<{}>", el.tag));
+                w.emit_fmt(format_args!("<{}>", el.tag));
             } else {
-                w.emit(&format!("<{}", el.tag));
+                w.emit_fmt(format_args!("<{}", el.tag));
                 w.indent();
                 for attr in &attrs {
                     w.emit(&attr.to_string());
@@ -137,7 +137,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             w.dedent();
 
             // Closing tag
-            w.emit(&format!("</{}>", el.tag));
+            w.emit_fmt(format_args!("</{}>", el.tag));
         }
 
         ViewTree::Conditional(cond) => {
@@ -158,7 +158,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             if branches.len() == 1 && fallback.is_none() {
                 let cond_str = fmt.format_expr(&branches[0].condition);
                 let cond_safe = cond_str.replace('"', "&quot;");
-                w.emit(&format!("<template v-if=\"{}\">", cond_safe));
+                w.emit_fmt(format_args!("<template v-if=\"{}\">", cond_safe));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
                     gen_template_node(w, body, fmt);
@@ -173,9 +173,9 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 let cond_str = fmt.format_expr(&branch.condition);
                 let cond_safe = cond_str.replace('"', "&quot;");
                 if i == 0 {
-                    w.emit(&format!("<template v-if=\"{}\">", cond_safe));
+                    w.emit_fmt(format_args!("<template v-if=\"{}\">", cond_safe));
                 } else {
-                    w.emit(&format!("<template v-else-if=\"{}\">", cond_safe));
+                    w.emit_fmt(format_args!("<template v-else-if=\"{}\">", cond_safe));
                 }
                 w.indent();
                 if let Some(ref body) = branch.body {
@@ -197,7 +197,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
         ViewTree::ListRendering(list) => {
             let iterable_str = fmt.format_expr(&list.iterable);
             let item_name = &list.item_binding.name;
-            w.emit(&format!(
+            w.emit_fmt(format_args!(
                 "<template v-for=\"({}, index) in {}\" :key=\"index\">",
                 item_name, iterable_str
             ));
@@ -214,7 +214,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 // Interpolation expression like {name} or {param:xxx}
                 // In Vue, use {{ }} for interpolation
                 let inner = &text[1..text.len() - 1];
-                w.emit(&format!("{{{{ {} }}}}", inner));
+                w.emit_fmt(format_args!("{{{{ {} }}}}", inner));
             } else {
                 // Plain text — escape Vue template delimiters and HTML-significant chars
                 let safe = text
@@ -262,7 +262,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
     for p in &func.params {
         let mut s = p.name.clone();
         if let Some(ref ty) = p.r#type {
-            let ann = js_type(&ty.kind, &ty.type_args, true);
+            let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
             if !ann.is_empty() {
                 s.push_str(&format!(": {}", ann));
             }
@@ -274,7 +274,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
         .return_type
         .as_ref()
         .map(|rt| {
-            let ann = js_type(&rt.kind, &rt.type_args, true);
+            let ann = JsTypeFormatter.format_type(&rt.kind, &rt.type_args);
             if ann.is_empty() {
                 String::new()
             } else {
@@ -285,7 +285,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
 
     let all_params = param_strs.join(", ");
     let async_kw = if func.is_async { "async " } else { "" };
-    w.emit(&format!(
+    w.emit_fmt(format_args!(
         "{}function {}({}){} {{",
         async_kw, func.name, all_params, ret_ann
     ));

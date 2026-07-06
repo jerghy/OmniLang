@@ -1,9 +1,9 @@
 //! Expression and statement generation for Vue codegen, plus helpers.
 
 use super::CodeWriter;
-use crate::codegen::javascript::js_type;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{JsonFormatConfig, JSON_VUE};
 use crate::ir::*;
 
@@ -70,7 +70,7 @@ impl FormatStmt for VueStmtFormatter {
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| {
-                let ann = js_type(&t.kind, &t.type_args, true);
+                let ann = JsTypeFormatter.format_type(&t.kind, &t.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -89,25 +89,25 @@ impl FormatStmt for VueStmtFormatter {
             .unwrap_or_else(|| "0".into());
         match &intent.operation {
             MutationOp::DirectAssign => {
-                w.emit(&format!("{}.value = {};", target, amount));
+                w.emit_fmt(format_args!("{}.value = {};", target, amount));
             }
             MutationOp::Increment => {
-                w.emit(&format!("{}.value += {};", target, amount));
+                w.emit_fmt(format_args!("{}.value += {};", target, amount));
             }
             MutationOp::Decrement => {
-                w.emit(&format!("{}.value -= {};", target, amount));
+                w.emit_fmt(format_args!("{}.value -= {};", target, amount));
             }
             MutationOp::Multiply => {
-                w.emit(&format!("{}.value *= {};", target, amount));
+                w.emit_fmt(format_args!("{}.value *= {};", target, amount));
             }
             MutationOp::Divide => {
-                w.emit(&format!("{}.value /= {};", target, amount));
+                w.emit_fmt(format_args!("{}.value /= {};", target, amount));
             }
             MutationOp::Modulo => {
-                w.emit(&format!("{}.value %= {};", target, amount));
+                w.emit_fmt(format_args!("{}.value %= {};", target, amount));
             }
             other => {
-                w.emit(&format!(
+                w.emit_fmt(format_args!(
                     "// TODO: mutation operation '{}' on {}",
                     other, target
                 ));

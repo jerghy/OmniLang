@@ -113,12 +113,12 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             if attrs.is_empty() && el.children.is_empty() {
                 // Self-closing empty element
                 let suffix = if is_root { "" } else { "," };
-                w.emit(&format!("{} {{}}{}", el.tag, suffix));
+                w.emit_fmt(format_args!("{} {{}}{}", el.tag, suffix));
                 return;
             }
 
             let suffix = if is_root { "" } else { "," };
-            w.emit(&format!("{} {{", el.tag));
+            w.emit_fmt(format_args!("{} {{", el.tag));
             w.indent();
             for attr in &attrs {
                 w.emit(attr);
@@ -127,7 +127,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 gen_view_node_dioxus(w, child, false);
             }
             w.dedent();
-            w.emit(&format!("}}{}", suffix));
+            w.emit_fmt(format_args!("}}{}", suffix));
         }
         ViewTree::Conditional(cond) => {
             if cond.branches.is_empty() {
@@ -139,7 +139,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
 
             // First branch
             let cond_str = format_expr_ir_dioxus(&cond.branches[0].condition);
-            w.emit(&format!("if {} {{", cond_str));
+            w.emit_fmt(format_args!("if {} {{", cond_str));
             w.indent();
             w.emit("rsx! {");
             w.indent();
@@ -153,7 +153,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             // Else-if branches
             for branch in cond.branches[1..].iter() {
                 let else_if_cond = format_expr_ir_dioxus(&branch.condition);
-                w.emit(&format!("}} else if {} {{", else_if_cond));
+                w.emit_fmt(format_args!("}} else if {} {{", else_if_cond));
                 w.indent();
                 w.emit("rsx! {");
                 w.indent();
@@ -182,7 +182,10 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
         ViewTree::ListRendering(list) => {
             let iterable_str = format_expr_ir_dioxus(&list.iterable);
             let item_name = &list.item_binding.name;
-            w.emit(&format!("{}.iter().map(|{}| {{", iterable_str, item_name));
+            w.emit_fmt(format_args!(
+                "{}.iter().map(|{}| {{",
+                iterable_str, item_name
+            ));
             w.indent();
             w.emit("rsx! {");
             w.indent();
@@ -199,15 +202,15 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             if text.starts_with('{') && text.ends_with('}') {
                 // Interpolation: {name} -> "{name}"
                 let inner = &text[1..text.len() - 1];
-                w.emit(&format!("\"{{{}}}\"{}", inner, comma));
+                w.emit_fmt(format_args!("\"{{{}}}\"{}", inner, comma));
             } else {
                 // Plain text
-                w.emit(&format!("\"{}\"{}", text, comma));
+                w.emit_fmt(format_args!("\"{}\"{}", text, comma));
             }
         }
         ViewTree::Interpolation(_expr) => {
             let comma = if is_root { "" } else { "," };
-            w.emit(&format!("\"{{}}\"{}", comma));
+            w.emit_fmt(format_args!("\"{{}}\"{}", comma));
         }
         ViewTree::Slot(_) => {
             // slots not supported in Dioxus — emit placeholder

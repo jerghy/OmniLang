@@ -115,9 +115,10 @@ export function parseViewTextContent(internals: ParserInternals): void {
         ? internals.ctx.viewParentStack[internals.ctx.viewParentStack.length - 1]
         : null;
     if (parentId) {
-      const parent = internals.ctx.elements.find((e) => e.id === parentId);
-      if (parent && !parent.props.label) {
-        parent.props.label = text;
+      const idx = internals.ctx.elements.findIndex(e => e.id === parentId);
+      if (idx !== -1 && !internals.ctx.elements[idx].props.label) {
+        const parent = internals.ctx.elements[idx];
+        internals.ctx.elements[idx] = { ...parent, props: { ...parent.props, label: text } };
       }
     }
   }
@@ -178,8 +179,11 @@ export function parseViewElement(internals: ParserInternals): void {
 
         // Set text content if we collected any
         const textContent = textTokens.join("").trim();
-        if (textContent && !el.props.label) {
-          el.props.label = textContent;
+        if (textContent) {
+          const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
+          if (elIdx !== -1 && !internals.ctx.elements[elIdx].props.label) {
+            internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } };
+          }
         }
         return;
       }
@@ -189,8 +193,11 @@ export function parseViewElement(internals: ParserInternals): void {
 
     // If no closing tag on same line, set text content from any collected text
     const textContent = textTokens.join("").trim();
-    if (textContent && !el.props.label) {
-      el.props.label = textContent;
+    if (textContent) {
+      const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
+      if (elIdx !== -1 && !internals.ctx.elements[elIdx].props.label) {
+        internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } };
+      }
     }
   }
 }
