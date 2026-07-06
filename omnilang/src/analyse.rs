@@ -100,21 +100,18 @@ pub fn analyse_multi(
                 }
             }
 
-            merged_ir
-                .modules
-                .entry(mod_name)
-                .and_modify(|existing| {
-                    existing.components.extend(mod_ir.components.clone());
-                    existing.stores.extend(mod_ir.stores.clone());
-                    existing.functions.extend(mod_ir.functions.clone());
-                    existing.structs.extend(mod_ir.structs.clone());
-                    existing.type_aliases.extend(mod_ir.type_aliases.clone());
-                    existing.imports.extend(mod_ir.imports.clone());
-                    existing.exports.extend(mod_ir.exports.clone());
-                    existing.motions.extend(mod_ir.motions.clone());
-                    existing.timelines.extend(mod_ir.timelines.clone());
-                })
-                .or_insert(mod_ir);
+            // Use entry().or_default() + std::mem::take to avoid cloning
+            // all collections on the merge path.
+            let existing = merged_ir.modules.entry(mod_name).or_default();
+            existing.components.extend(std::mem::take(&mut mod_ir.components));
+            existing.stores.extend(std::mem::take(&mut mod_ir.stores));
+            existing.functions.extend(std::mem::take(&mut mod_ir.functions));
+            existing.structs.extend(std::mem::take(&mut mod_ir.structs));
+            existing.type_aliases.extend(std::mem::take(&mut mod_ir.type_aliases));
+            existing.imports.extend(std::mem::take(&mut mod_ir.imports));
+            existing.exports.extend(std::mem::take(&mut mod_ir.exports));
+            existing.motions.extend(std::mem::take(&mut mod_ir.motions));
+            existing.timelines.extend(std::mem::take(&mut mod_ir.timelines));
         }
 
         for (key, entry) in ir_program.source_map {
