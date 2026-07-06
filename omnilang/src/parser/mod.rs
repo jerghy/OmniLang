@@ -34,6 +34,7 @@ pub struct Parser<'a> {
     depth: usize,
     source: &'a str,
     /// Collected parse errors — parser continues past recoverable errors.
+    #[allow(dead_code)]
     errors: Vec<ParseError>,
 }
 
@@ -132,6 +133,61 @@ impl<'a> Parser<'a> {
             message: msg.into(),
             span: self.peek_span(),
         }
+    }
+
+    // ── Error recovery helpers ──────────────────────────
+    // These are intentionally unused until error recovery logic is activated.
+
+    /// Record a parse error (non-fatal — parsing continues).
+    #[allow(dead_code)]
+    fn emit_error(&mut self, err: ParseError) {
+        self.errors.push(err);
+    }
+
+    /// True if any errors have been collected.
+    #[allow(dead_code)]
+    fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Skip tokens until one of `expected` is found (or EOF).
+    /// Returns number of tokens skipped. Does NOT consume the found token.
+    #[allow(dead_code)]
+    fn skip_to(&mut self, expected: &[TokenKind]) -> usize {
+        let start = self.pos;
+        loop {
+            let kind = self.peek_kind();
+            if expected.contains(&kind) || kind == TokenKind::Eof {
+                break;
+            }
+            self.advance();
+        }
+        self.pos - start
+    }
+
+    /// Skip to a statement boundary: ';' (consumed), '}', or EOF.
+    #[allow(dead_code)]
+    fn skip_to_stmt_boundary(&mut self) {
+        loop {
+            match self.peek_kind() {
+                TokenKind::Semicolon => { self.advance(); return; }
+                TokenKind::RBrace | TokenKind::Eof => return,
+                _ => { self.advance(); }
+            }
+        }
+    }
+
+    /// Skip to next top-level declaration keyword.
+    #[allow(dead_code)]
+    fn skip_to_top_level(&mut self) {
+        const TOP_LEVEL: &[TokenKind] = &[
+            TokenKind::Fn, TokenKind::Pub, TokenKind::Component,
+            TokenKind::Store, TokenKind::Theme, TokenKind::Struct,
+            TokenKind::Type, TokenKind::Const, TokenKind::Import,
+            TokenKind::Export, TokenKind::AtMotion, TokenKind::AtTimeline,
+            TokenKind::Async,
+        ];
+        self.skip_to(TOP_LEVEL);
     }
 }
 

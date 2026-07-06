@@ -330,6 +330,12 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 value: serde_json::Value::Null,
             }
         },
+        Expr::Error { .. } => {
+            // Error nodes should be filtered upstream; emit null as fallback.
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Null,
+            }
+        },
     }
 }
 

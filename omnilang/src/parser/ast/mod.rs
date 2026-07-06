@@ -147,6 +147,13 @@ pub enum Expr {
         feature: String,
         span: Span,
     },
+
+    /// Placeholder for a syntax error in an expression.
+    /// Downstream passes should skip or propagate this node.
+    Error {
+        message: String,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -259,6 +266,12 @@ pub enum Stmt {
         catch_var: Option<String>,
         catch_body: Option<Block>,
         finally_body: Option<Block>,
+        span: Span,
+    },
+
+    /// Placeholder for a statement that could not be parsed.
+    Error {
+        message: String,
         span: Span,
     },
 }

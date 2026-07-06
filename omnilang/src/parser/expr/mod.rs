@@ -757,13 +757,14 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_close(&mut self, expected: TokenKind, msg: &str) -> Result<(), ParseError> {
-        let t = self.advance();
+        let t = self.peek();
         if t.kind != expected {
             return Err(ParseError {
                 message: format!("{} — found {:?}", msg, t.kind),
                 span: t.span,
             });
         }
+        self.advance();
         Ok(())
     }
 }
@@ -792,5 +793,6 @@ pub fn span_of(expr: &Expr) -> &Span {
         Expr::AwaitExpr { span, .. } => span,
         Expr::MatchExpr { span, .. } => span,
         Expr::NotYetImplemented { span, .. } => span,
+        Expr::Error { span, .. } => span,
     }
 }

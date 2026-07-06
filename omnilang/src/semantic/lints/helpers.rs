@@ -637,6 +637,7 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
         Expr::NotYetImplemented { .. } => false,
         Expr::StoreFieldAccess { .. } => false,
         Expr::Literal(..) | Expr::VarRef(..) => false,
+        Expr::Error { .. } => false,
     }
 }
 

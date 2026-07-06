@@ -27,7 +27,7 @@ impl<'a> Parser<'a> {
                         if let TokenKind::StringLiteral(s) = &t.kind {
                             s.clone()
                         } else {
-                            unreachable!()
+                            Err(self.error("expected string literal"))?
                         }
                     } else {
                         self.expect_ident("expected label name")?
@@ -46,7 +46,7 @@ impl<'a> Parser<'a> {
                     if let TokenKind::StringLiteral(s) = &t.kind {
                         Ok(TimelineItemKind::Label(s.clone(), None))
                     } else {
-                        unreachable!()
+                        Err(self.error("expected string literal"))
                     }
                 } else {
                     // label name — bare ident form

@@ -15,7 +15,7 @@
 
 ### Phase 2A: Core Refactors
 - [ ] Task 5: format_json_value unification
-- [ ] Task 6: Parser infrastructure + Error AST nodes
+- [x] Task 6: Parser infrastructure + Error AST nodes
 - [ ] Task 7: PoiesisState missing methods
 
 ### Phase 2B: Deeper Changes
@@ -32,3 +32,7 @@
 
 - [x] Task 3: 5d0c6a24 refactor: add #[must_use] (31 annotations, 9 modules, review pending)
 - [x] Task 4: 9995732e fix: restore type checking (review: PASS/Approved))
+
+- [x] Task 5: 3dce5243 refactor: unify format_json_value (review: PASS/Approved with fix a28ffe78)
+
+- [x] Task 6: Parser infrastructure + Error AST nodes

@@ -191,7 +191,8 @@ pub(super) fn contains_velocity_ref(expr: &Expr) -> bool {
         | Expr::Literal(..)
         | Expr::NotYetImplemented { .. }
         | Expr::StoreFieldAccess { .. }
-        | Expr::StructLiteral { .. } => false,
+        | Expr::StructLiteral { .. }
+        | Expr::Error { .. } => false,
     }
 }
 
@@ -243,6 +244,7 @@ pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
                     .is_some_and(|b| b.stmts.iter().any(contains_velocity_stmt))
         }
         Stmt::Break(_) | Stmt::Continue(_) => false,
+        Stmt::Error { .. } => false,
     }
 }
 

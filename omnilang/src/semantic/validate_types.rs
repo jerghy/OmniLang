@@ -162,6 +162,7 @@ impl SemanticAnalyzer {
                         self.validate_block(b, is_async, loop_depth);
                     }
                 }
+                Stmt::Error { .. } => {}
             }
         }
         // Check trailing expression for await-in-non-async

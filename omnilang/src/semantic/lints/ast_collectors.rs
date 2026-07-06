@@ -79,6 +79,7 @@ pub(super) fn collect_used_names_in_block<'a>(block: &'a Block, used: &mut HashS
                     collect_used_names_in_block(b, used);
                 }
             }
+            crate::parser::ast::Stmt::Error { .. } => {}
         }
     }
     if let Some(ref expr) = block.trailing_expr {
@@ -172,6 +173,7 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut HashSet<
         }
         Expr::Block { .. } => {}
         Expr::NotYetImplemented { .. } => {}
+        Expr::Error { .. } => {}
     }
 }
 
