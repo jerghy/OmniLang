@@ -1,9 +1,9 @@
 //! Codegen module -- multi-target code generation from Intent IR.
 //!
 //! Currently supported targets:
-//! - OmniView (mature): JS/HTML/CSS with inline signal runtime
-//! - Python, JavaScript, Rust, Dart (planned): pure-logic codegen
-//! - React, Vue, Dioxus, Flutter (planned): framework-based codegen
+//! - OmniView: JS/HTML/CSS with inline signal runtime
+//! - Python, JavaScript, Rust, Dart: pure-logic codegen
+//! - React, Vue, Dioxus, Flutter: framework-based codegen
 
 pub mod dart;
 pub mod dioxus;
