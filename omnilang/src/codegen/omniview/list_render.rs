@@ -82,8 +82,9 @@ impl OmniViewGenerator {
         self.js.push_str(
             "          // new Function() runs in global scope — only globally accessible signals work\n",
         );
-        self.js
-            .push_str("          el.textContent = String(new Function('return (' + expr + ')')());\n");
+        self.js.push_str(
+            "          el.textContent = String(new Function('return (' + expr + ')')());\n",
+        );
         self.js
             .push_str("        } catch(e) { el.textContent = ''; }\n");
         self.js.push_str("      }\n");
@@ -147,8 +148,9 @@ impl OmniViewGenerator {
         self.js.push_str(
             "            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n",
         );
-        self.js
-            .push_str("            const resolved = new Function('return `' + jsTemplate + '`')();\n");
+        self.js.push_str(
+            "            const resolved = new Function('return `' + jsTemplate + '`')();\n",
+        );
         self.js
             .push_str("            el.setAttribute(attr.name, resolved);\n");
         self.js

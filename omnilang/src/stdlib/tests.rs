@@ -158,9 +158,18 @@ fn test_codegen_storage_set_js() {
 }
 
 #[test]
-#[should_panic(expected = "storage_get not available")]
-fn test_codegen_storage_get_panics_on_rust() {
-    codegen_storage_get(&["\"key\"".into()], Target::Rust);
+fn test_codegen_storage_get_compile_error_on_unsupported_target() {
+    let result = codegen_storage_get(&["\"key\"".into()], Target::Rust);
+    assert!(
+        result.contains("compile_error!"),
+        "Expected compile_error! for unsupported target, got: {}",
+        result
+    );
+    assert!(
+        result.contains("storage_get not available"),
+        "Expected error message about storage_get, got: {}",
+        result
+    );
 }
 
 #[test]
