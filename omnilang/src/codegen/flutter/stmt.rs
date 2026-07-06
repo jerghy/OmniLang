@@ -80,23 +80,23 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
                 .unwrap_or_else(|| "0".into());
             w.emit("setState(() {");
             w.indent();
-            match mut_intent.operation.as_str() {
-                "direct_assign" => {
+            match &mut_intent.operation {
+                MutationOp::DirectAssign => {
                     w.emit(&format!("{} = {};", target, amount));
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     w.emit(&format!("{} += {};", target, amount));
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     w.emit(&format!("{} -= {};", target, amount));
                 }
-                "multiply" => {
+                MutationOp::Multiply => {
                     w.emit(&format!("{} *= {};", target, amount));
                 }
-                "divide" => {
+                MutationOp::Divide => {
                     w.emit(&format!("{} /= {};", target, amount));
                 }
-                "modulo" => {
+                MutationOp::Modulo => {
                     w.emit(&format!("{} %= {};", target, amount));
                 }
                 other => {

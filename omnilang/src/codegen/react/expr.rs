@@ -93,50 +93,50 @@ pub(super) fn generate_statement_tsx(
             let is_component_state = !is_store_signal && signal_names.contains(target.as_str());
             let use_setter = is_store_signal || is_component_state;
             let setter = format!("set{}", capitalize_first(target));
-            match mut_intent.operation.as_str() {
-                "direct_assign" => {
+            match &mut_intent.operation {
+                MutationOp::DirectAssign => {
                     if use_setter {
                         w.emit(&format!("{}({});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {};", target, amount));
                     }
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     if use_setter {
                         w.emit(&format!("{}(prev => prev + {});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {} + {};", target, target, amount));
                     }
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     if use_setter {
                         w.emit(&format!("{}(prev => prev - {});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {} - {};", target, target, amount));
                     }
                 }
-                "multiply" => {
+                MutationOp::Multiply => {
                     if use_setter {
                         w.emit(&format!("{}(prev => prev * {});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {} * {};", target, target, amount));
                     }
                 }
-                "divide" => {
+                MutationOp::Divide => {
                     if use_setter {
                         w.emit(&format!("{}(prev => prev / {});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {} / {};", target, target, amount));
                     }
                 }
-                "modulo" => {
+                MutationOp::Modulo => {
                     if use_setter {
                         w.emit(&format!("{}(prev => prev % {});", setter, amount));
                     } else {
                         w.emit(&format!("{} = {} % {};", target, target, amount));
                     }
                 }
-                "push" => {
+                MutationOp::Push => {
                     // Array push
                     if use_setter {
                         w.emit(&format!("{}(prev => [...prev, {}]);", setter, amount));

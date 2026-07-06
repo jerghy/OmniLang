@@ -214,7 +214,7 @@ fn fixture_store() -> IRProgram {
                             owner: None,
                             name: "count".into(),
                         },
-                        operation: "increment".into(),
+                        operation: MutationOp::Increment,
                         amount: Some(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         }),
@@ -272,7 +272,7 @@ fn fixture_component_with_store() -> IRProgram {
                             owner: None,
                             name: "count".into(),
                         },
-                        operation: "increment".into(),
+                        operation: MutationOp::Increment,
                         amount: Some(ExprIR::LiteralExpr {
                             value: serde_json::json!(1),
                         }),

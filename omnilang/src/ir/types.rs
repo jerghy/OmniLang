@@ -476,10 +476,38 @@ pub struct StateIntent {
     pub is_copy: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MutationOp {
+    DirectAssign,
+    Increment,
+    Decrement,
+    Multiply,
+    Divide,
+    Modulo,
+    Push,
+    Pop,
+}
+
+impl std::fmt::Display for MutationOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MutationOp::DirectAssign => write!(f, "direct_assign"),
+            MutationOp::Increment => write!(f, "increment"),
+            MutationOp::Decrement => write!(f, "decrement"),
+            MutationOp::Multiply => write!(f, "multiply"),
+            MutationOp::Divide => write!(f, "divide"),
+            MutationOp::Modulo => write!(f, "modulo"),
+            MutationOp::Push => write!(f, "push"),
+            MutationOp::Pop => write!(f, "pop"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MutationIntent {
     pub target: SignalRefIR,
-    pub operation: String,
+    pub operation: MutationOp,
     pub amount: Option<ExprIR>,
     pub item: Option<ExprIR>,
 }
@@ -829,5 +857,79 @@ mod tests {
         assert_eq!(json, "\"store_action\"");
         let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
         assert_eq!(back, EventHandlerKind::StoreAction);
+    }
+
+    // ── MutationOp serde round-trip tests ──
+
+    #[test]
+    fn serde_roundtrip_mutation_op_direct_assign() {
+        let v = MutationOp::DirectAssign;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"direct_assign\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::DirectAssign);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_increment() {
+        let v = MutationOp::Increment;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"increment\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Increment);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_decrement() {
+        let v = MutationOp::Decrement;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"decrement\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Decrement);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_multiply() {
+        let v = MutationOp::Multiply;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"multiply\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Multiply);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_divide() {
+        let v = MutationOp::Divide;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"divide\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Divide);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_modulo() {
+        let v = MutationOp::Modulo;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"modulo\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Modulo);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_push() {
+        let v = MutationOp::Push;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"push\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Push);
+    }
+
+    #[test]
+    fn serde_roundtrip_mutation_op_pop() {
+        let v = MutationOp::Pop;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"pop\"");
+        let back: MutationOp = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MutationOp::Pop);
     }
 }

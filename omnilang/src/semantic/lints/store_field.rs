@@ -151,7 +151,7 @@ mod tests {
                                     owner: Some("MyStore".into()),
                                     name: "count".into(),
                                 },
-                                operation: "direct_assign".into(),
+                                operation: crate::ir::MutationOp::DirectAssign,
                                 amount: Some(crate::ir::ExprIR::LiteralExpr {
                                     value: serde_json::Value::Number(99.into()),
                                 }),
@@ -226,7 +226,7 @@ mod tests {
                                     owner: None,
                                     name: "count".into(),
                                 },
-                                operation: "increment".into(),
+                                operation: crate::ir::MutationOp::Increment,
                                 amount: Some(crate::ir::ExprIR::LiteralExpr {
                                     value: serde_json::Value::Number(1.into()),
                                 }),

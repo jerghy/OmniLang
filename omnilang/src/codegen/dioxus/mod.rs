@@ -314,23 +314,23 @@ pub(super) fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) 
                 .as_ref()
                 .map(format_expr_ir_dioxus)
                 .unwrap_or_else(|| "0".into());
-            match mut_intent.operation.as_str() {
-                "direct_assign" => {
+            match &mut_intent.operation {
+                MutationOp::DirectAssign => {
                     w.emit(&format!("{}.set({});", target, amount));
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     w.emit(&format!("{} += {};", target, amount));
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     w.emit(&format!("{} -= {};", target, amount));
                 }
-                "multiply" => {
+                MutationOp::Multiply => {
                     w.emit(&format!("{} *= {};", target, amount));
                 }
-                "divide" => {
+                MutationOp::Divide => {
                     w.emit(&format!("{} /= {};", target, amount));
                 }
-                "modulo" => {
+                MutationOp::Modulo => {
                     w.emit(&format!("{} %= {};", target, amount));
                 }
                 other => {

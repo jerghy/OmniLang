@@ -530,7 +530,7 @@ mod tests {
                     owner: None,
                     name: "count".into(),
                 },
-                operation: "increment".into(),
+                operation: MutationOp::Increment,
                 amount: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 }),
@@ -550,7 +550,7 @@ mod tests {
                     owner: None,
                     name: "name".into(),
                 },
-                operation: "direct_assign".into(),
+                operation: MutationOp::DirectAssign,
                 amount: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!("hello"),
                 }),
@@ -570,7 +570,7 @@ mod tests {
                     owner: None,
                     name: "count".into(),
                 },
-                operation: "decrement".into(),
+                operation: MutationOp::Decrement,
                 amount: Some(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
                 }),

@@ -343,14 +343,14 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
                 .as_ref()
                 .map(format_expr_ir)
                 .unwrap_or_else(|| "0".into());
-            match mut_intent.operation.as_str() {
-                "direct_assign" => {
+            match &mut_intent.operation {
+                MutationOp::DirectAssign => {
                     w.emit(&format!("{} = {}", target, amount));
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     w.emit(&format!("{} += {}", target, amount));
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     w.emit(&format!("{} -= {}", target, amount));
                 }
                 other => {

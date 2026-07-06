@@ -391,26 +391,26 @@ pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode
                 .as_ref()
                 .map(|v| format_expr_ir(v, ts_mode))
                 .unwrap_or_else(|| "0".into());
-            match mut_intent.operation.as_str() {
-                "direct_assign" => {
+            match &mut_intent.operation {
+                MutationOp::DirectAssign => {
                     w.emit(&format!("this.{} = {};", target, amount));
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     w.emit(&format!("this.{} += {};", target, amount));
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     w.emit(&format!("this.{} -= {};", target, amount));
                 }
-                "multiply" => {
+                MutationOp::Multiply => {
                     w.emit(&format!("this.{} *= {};", target, amount));
                 }
-                "divide" => {
+                MutationOp::Divide => {
                     w.emit(&format!("this.{} /= {};", target, amount));
                 }
-                "modulo" => {
+                MutationOp::Modulo => {
                     w.emit(&format!("this.{} %= {};", target, amount));
                 }
-                "push" => {
+                MutationOp::Push => {
                     let item = mut_intent
                         .item
                         .as_ref()
@@ -418,14 +418,8 @@ pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode
                         .unwrap_or_else(|| "undefined".into());
                     w.emit(&format!("this.{}.push({});", target, item));
                 }
-                "pop" => {
+                MutationOp::Pop => {
                     w.emit(&format!("this.{}.pop();", target));
-                }
-                other => {
-                    w.emit(&format!(
-                        "// TODO: mutation operation '{}' on {}",
-                        other, target
-                    ));
                 }
             }
         }

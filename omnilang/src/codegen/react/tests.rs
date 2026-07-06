@@ -206,7 +206,7 @@ fn test_tsx_stmt_mutation_increment_local() {
                 owner: None,
                 name: "count".into(),
             },
-            operation: "increment".into(),
+            operation: MutationOp::Increment,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -227,7 +227,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
                 owner: None,
                 name: "count".into(),
             },
-            operation: "increment".into(),
+            operation: MutationOp::Increment,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -250,7 +250,7 @@ fn test_tsx_stmt_mutation_assign_local() {
                 owner: None,
                 name: "name".into(),
             },
-            operation: "direct_assign".into(),
+            operation: MutationOp::DirectAssign,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             }),
@@ -271,7 +271,7 @@ fn test_tsx_stmt_mutation_assign_store() {
                 owner: Some("Store".to_string()),
                 name: "name".into(),
             },
-            operation: "direct_assign".into(),
+            operation: MutationOp::DirectAssign,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!("alice"),
             }),

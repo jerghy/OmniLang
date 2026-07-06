@@ -196,7 +196,7 @@ fn test_stmt_mutation_increment() {
                 owner: None,
                 name: "count".into(),
             },
-            operation: "increment".into(),
+            operation: MutationOp::Increment,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -219,7 +219,7 @@ fn test_stmt_mutation_assign() {
                 owner: None,
                 name: "name".into(),
             },
-            operation: "direct_assign".into(),
+            operation: MutationOp::DirectAssign,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             }),
@@ -242,7 +242,7 @@ fn test_stmt_mutation_decrement() {
                 owner: None,
                 name: "count".into(),
             },
-            operation: "decrement".into(),
+            operation: MutationOp::Decrement,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -530,7 +530,7 @@ fn test_generate_function_with_mutation() {
                         owner: None,
                         name: "count".into(),
                     },
-                    operation: "increment".into(),
+                    operation: MutationOp::Increment,
                     amount: Some(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
                     }),
@@ -661,7 +661,7 @@ fn test_component_with_state() {
                                 owner: None,
                                 name: "count".into(),
                             },
-                            operation: "increment".into(),
+                            operation: MutationOp::Increment,
                             amount: Some(ExprIR::LiteralExpr {
                                 value: serde_json::json!(1),
                             }),

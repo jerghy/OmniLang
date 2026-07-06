@@ -675,7 +675,7 @@ fn test_js_generate_statement_mutation() {
                 owner: None,
                 name: "count".into(),
             },
-            operation: "increment".into(),
+            operation: MutationOp::Increment,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -695,7 +695,7 @@ fn test_js_generate_statement_mutation_assign() {
                 owner: None,
                 name: "name".into(),
             },
-            operation: "direct_assign".into(),
+            operation: MutationOp::DirectAssign,
             amount: Some(ExprIR::LiteralExpr {
                 value: serde_json::json!("hello"),
             }),

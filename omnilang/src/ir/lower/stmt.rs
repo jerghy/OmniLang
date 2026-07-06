@@ -90,7 +90,7 @@ pub(super) fn lower_stmt(stmt: &Stmt, variant_map: &HashMap<String, String>) -> 
             StatementIR::MutationStmt {
                 intent: Some(MutationIntent {
                     target: SignalRefIR { owner, name },
-                    operation: "direct_assign".into(),
+                    operation: MutationOp::DirectAssign,
                     amount: Some(lower_expr(value, variant_map)),
                     item: None,
                 }),
@@ -160,7 +160,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "direct_assign".into(),
+                        operation: MutationOp::DirectAssign,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -171,7 +171,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "increment".into(),
+                        operation: MutationOp::Increment,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -182,7 +182,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "decrement".into(),
+                        operation: MutationOp::Decrement,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -193,7 +193,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "multiply".into(),
+                        operation: MutationOp::Multiply,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -204,7 +204,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "divide".into(),
+                        operation: MutationOp::Divide,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -215,7 +215,7 @@ pub(super) fn try_lower_mutation(
                             owner: None,
                             name: target_name.clone(),
                         },
-                        operation: "modulo".into(),
+                        operation: MutationOp::Modulo,
                         amount: Some(lower_expr(right, variant_map)),
                         item: None,
                     });
@@ -233,7 +233,7 @@ pub(super) fn try_lower_mutation(
                                 owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
-                            operation: "direct_assign".into(),
+                            operation: MutationOp::DirectAssign,
                             amount: Some(lower_expr(right, variant_map)),
                             item: None,
                         });
@@ -244,7 +244,7 @@ pub(super) fn try_lower_mutation(
                                 owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
-                            operation: "increment".into(),
+                            operation: MutationOp::Increment,
                             amount: Some(lower_expr(right, variant_map)),
                             item: None,
                         });
@@ -255,7 +255,7 @@ pub(super) fn try_lower_mutation(
                                 owner: Some(owner_name.clone()),
                                 name: field.clone(),
                             },
-                            operation: "decrement".into(),
+                            operation: MutationOp::Decrement,
                             amount: Some(lower_expr(right, variant_map)),
                             item: None,
                         });
@@ -282,31 +282,31 @@ pub(super) fn mutation_for_method(
     match method {
         "set" | "setValue" => Some(MutationIntent {
             target,
-            operation: "direct_assign".into(),
+            operation: MutationOp::DirectAssign,
             amount,
             item: None,
         }),
         "inc" | "increment" => Some(MutationIntent {
             target,
-            operation: "increment".into(),
+            operation: MutationOp::Increment,
             amount,
             item: None,
         }),
         "dec" | "decrement" => Some(MutationIntent {
             target,
-            operation: "decrement".into(),
+            operation: MutationOp::Decrement,
             amount,
             item: None,
         }),
         "push" => Some(MutationIntent {
             target,
-            operation: "push".into(),
+            operation: MutationOp::Push,
             amount,
             item: None,
         }),
         "pop" => Some(MutationIntent {
             target,
-            operation: "pop".into(),
+            operation: MutationOp::Pop,
             amount,
             item: None,
         }),

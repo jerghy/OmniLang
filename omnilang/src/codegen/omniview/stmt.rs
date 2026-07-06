@@ -153,7 +153,7 @@ impl OmniViewGenerator {
                         .get(intent.target.name.as_str())
                         .cloned()
                         .unwrap_or_else(|| intent.target.name.clone());
-                    let op = &intent.operation;
+                    let op = intent.operation.to_string();
                     match &intent.amount {
                         Some(amt) => {
                             format!("{} {} {}", target, op, self.expr_to_js(amt))
@@ -178,7 +178,6 @@ impl OmniViewGenerator {
         // If not, it's a local variable — emit regular JS assignment.
         let is_signal =
             self.signal_names.contains(&target) || self.store_signal_names.contains(&target);
-        let op = &intent.operation;
         if !is_signal {
             // Local variable mutation — plain JS assignment
             let amt = intent
@@ -186,23 +185,23 @@ impl OmniViewGenerator {
                 .as_ref()
                 .map(|e| self.expr_to_js(e))
                 .unwrap_or_else(|| "undefined".into());
-            match op.as_str() {
-                "direct_assign" => {
+            match &intent.operation {
+                MutationOp::DirectAssign => {
                     self.js.push_str(&format!("  {} = {};\n", target, amt));
                 }
-                "increment" => {
+                MutationOp::Increment => {
                     self.js.push_str(&format!("  {} += {};\n", target, amt));
                 }
-                "decrement" => {
+                MutationOp::Decrement => {
                     self.js.push_str(&format!("  {} -= {};\n", target, amt));
                 }
-                "multiply" => {
+                MutationOp::Multiply => {
                     self.js.push_str(&format!("  {} *= {};\n", target, amt));
                 }
-                "divide" => {
+                MutationOp::Divide => {
                     self.js.push_str(&format!("  {} /= {};\n", target, amt));
                 }
-                "modulo" => {
+                MutationOp::Modulo => {
                     self.js.push_str(&format!("  {} %= {};\n", target, amt));
                 }
                 _ => {
@@ -211,8 +210,8 @@ impl OmniViewGenerator {
             }
             return;
         }
-        match op.as_str() {
-            "direct_assign" => {
+        match &intent.operation {
+            MutationOp::DirectAssign => {
                 let val = intent
                     .amount
                     .as_ref()
@@ -220,7 +219,7 @@ impl OmniViewGenerator {
                     .unwrap_or_else(|| "undefined".into());
                 self.js.push_str(&format!("  {}.set({});\n", target, val));
             }
-            "increment" => {
+            MutationOp::Increment => {
                 let amt = intent
                     .amount
                     .as_ref()
@@ -229,7 +228,7 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}.set({}.value + {});\n", target, target, amt));
             }
-            "decrement" => {
+            MutationOp::Decrement => {
                 let amt = intent
                     .amount
                     .as_ref()
@@ -238,7 +237,7 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}.set({}.value - {});\n", target, target, amt));
             }
-            "multiply" => {
+            MutationOp::Multiply => {
                 let amt = intent
                     .amount
                     .as_ref()
@@ -247,7 +246,7 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}.set({}.value * {});\n", target, target, amt));
             }
-            "divide" => {
+            MutationOp::Divide => {
                 let amt = intent
                     .amount
                     .as_ref()
@@ -256,7 +255,7 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}.set({}.value / {});\n", target, target, amt));
             }
-            "modulo" => {
+            MutationOp::Modulo => {
                 let amt = intent
                     .amount
                     .as_ref()
@@ -265,7 +264,7 @@ impl OmniViewGenerator {
                 self.js
                     .push_str(&format!("  {}.set({}.value % {});\n", target, target, amt));
             }
-            "push" => {
+            MutationOp::Push => {
                 let item = intent
                     .amount
                     .as_ref()
@@ -276,15 +275,11 @@ impl OmniViewGenerator {
                     target, item, target, target
                 ));
             }
-            "pop" => {
+            MutationOp::Pop => {
                 self.js.push_str(&format!(
                     "  {}.value.pop(); {}.set({}.value.slice());\n",
                     target, target, target
                 ));
-            }
-            _ => {
-                self.js
-                    .push_str(&format!("  /* mutation: {} {} */\n", target, op));
             }
         }
     }
