@@ -200,12 +200,12 @@ fn lower_element(
     sig_idx: Option<&Cell<usize>>,
     variant_map: &HashMap<String, String>,
 ) -> ViewTree {
-    let mut props = HashMap::new();
-    let mut bindings = HashMap::new();
-    let mut events = HashMap::new();
+    let mut props: Option<HashMap<String, ExprIR>> = None;
+    let mut bindings: Option<HashMap<String, SignalRefIR>> = None;
+    let mut events: Option<HashMap<String, EventHandlerIR>> = None;
     let mut inline_style: Option<serde_json::Value> = None;
     let mut has_value_binding = false;
-    let mut class_map_bindings_from_prop: HashMap<String, ExprIR> = HashMap::new();
+    let mut class_map_bindings_from_prop: Option<HashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
     let mut states_map: Option<HashMap<String, StateTweenIR>> = None;
     let mut animate_signal: Option<ExprIR> = None;
@@ -230,13 +230,13 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props.insert(name.clone(), lower_expr(value, variant_map, None));
+                props.get_or_insert_with(HashMap::new).insert(name.clone(), lower_expr(value, variant_map, None));
             }
             ElementProp::Bind { name, signal_path } => {
                 if name == "value" {
                     has_value_binding = true;
                 }
-                bindings.insert(
+                bindings.get_or_insert_with(HashMap::new).insert(
                     name.clone(),
                     SignalRefIR {
                         owner: None,
@@ -313,7 +313,7 @@ fn lower_element(
                         }
                     }
                 };
-                events.insert(name.clone(), ir_handler);
+                events.get_or_insert_with(HashMap::new).insert(name.clone(), ir_handler);
             }
             ElementProp::Class { value } => {
                 // class: styleRef or class: "literal-class"
@@ -347,14 +347,14 @@ fn lower_element(
                         static_classes.join(" ")
                     }
                 };
-                props.insert(
+                props.get_or_insert_with(HashMap::new).insert(
                     "class".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(class_str),
                     },
                 );
                 // Pass class_map_bindings through the element
-                class_map_bindings_from_prop = class_map_bindings;
+                class_map_bindings_from_prop = Some(class_map_bindings);
             }
             ElementProp::Style { entries } => {
                 // style: { key: value, ... } — passed as inline_style
@@ -371,7 +371,7 @@ fn lower_element(
             }
             ElementProp::TestId(id) => {
                 // test-id="..." attribute
-                props.insert(
+                props.get_or_insert_with(HashMap::new).insert(
                     "data-testid".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(id.clone()),
@@ -380,7 +380,7 @@ fn lower_element(
             }
             ElementProp::Ref(r) => {
                 // ref="..." attribute
-                props.insert(
+                props.get_or_insert_with(HashMap::new).insert(
                     "data-ref".into(),
                     ExprIR::LiteralExpr {
                         value: serde_json::Value::String(r.clone()),
@@ -515,7 +515,7 @@ fn lower_element(
         if el.tag == "input" && !has_value_binding && idx < string_signals.len() {
             let sig_name = string_signals[idx].clone();
             sig_counter.set(idx + 1);
-            bindings.insert(
+            bindings.get_or_insert_with(HashMap::new).insert(
                 "value".into(),
                 SignalRefIR {
                     owner: None,
@@ -533,16 +533,16 @@ fn lower_element(
 
     ViewTree::Element(ElementIR {
         tag: el.tag.clone(),
-        props,
-        bindings,
-        events,
+        props: props.unwrap_or_default(),
+        bindings: bindings.unwrap_or_default(),
+        events: events.unwrap_or_default(),
         style_classes: None,
         inline_style,
         children,
         test_id: None,
         ref_name: None,
         construction_kind: ConstructionKind::TagMapping,
-        class_map_bindings: class_map_bindings_from_prop,
+        class_map_bindings: class_map_bindings_from_prop.unwrap_or_default(),
         source_line: el.span.line,
         source_col: el.span.col,
         motion_triggers,
