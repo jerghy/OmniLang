@@ -516,7 +516,7 @@ fn test_tsx_empty_component() {
     let tsx = codegen.gen_component_tsx("App", comp_ref, &ir);
     assert!(tsx.contains("export function App() {"));
     assert!(tsx.contains("import styles from './App.module.css';"));
-    assert!(tsx.contains("import React, { useState, useEffect, useMemo, useRef } from 'react';"));
+    assert!(tsx.contains("import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';"));
 }
 
 #[test]
