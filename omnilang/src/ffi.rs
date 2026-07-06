@@ -114,11 +114,36 @@ pub unsafe extern "C" fn omni_analyse(
     // Run the unified analysis pipeline
     let analysis = crate::analyse::analyse_multi(&input.sources, &input.path_mapping);
 
-    // Use unified diagnostic serialization from error.rs
-    let mut diagnostics = crate::error::diagnostics_to_json(&analysis.diagnostics);
-    // Warnings also use the same Diagnostic type — serialize them too
-    let warning_jsons = crate::error::diagnostics_to_json(&analysis.warnings);
-    diagnostics.extend(warning_jsons);
+    // Convert Diagnostics to JSON Value objects matching FFI output format
+    let mut diagnostics: Vec<serde_json::Value> = Vec::new();
+
+    for d in &analysis.diagnostics {
+        diagnostics.push(serde_json::json!({
+            "severity": match d.severity {
+                crate::error::Severity::Error => "error",
+                crate::error::Severity::Warning => "warning",
+                crate::error::Severity::Info => "info",
+            },
+            "code": d.kind.code_str(),
+            "message": d.message,
+            "file": d.file,
+            "line": d.line,
+            "col": d.col,
+            "suggestion": d.suggestion,
+        }));
+    }
+
+    for w in &analysis.warnings {
+        diagnostics.push(serde_json::json!({
+            "severity": "warning",
+            "code": w.kind.code_str(),
+            "message": w.message,
+            "file": w.file,
+            "line": w.line,
+            "col": w.col,
+            "suggestion": null,
+        }));
+    }
 
     let response = serde_json::json!({
         "success": diagnostics.iter().all(|d| d["severity"] != "error"),
@@ -267,9 +292,6 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     let editor_mode = if editor_mode_ptr.is_null() {
         false
     } else {
-        // SAFETY: `editor_mode_ptr` is non-null (checked above) and the
-        // caller guarantees it points to `editor_mode_len` bytes of valid
-        // initialized memory for the duration of this call.
         let slice =
             unsafe { std::slice::from_raw_parts(editor_mode_ptr, editor_mode_len as usize) };
         match std::str::from_utf8(slice) {

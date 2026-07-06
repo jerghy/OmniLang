@@ -65,13 +65,13 @@ impl SemanticAnalyzer {
         if let Err(msg) = self.symbols.declare(symbol) {
             self.diagnostics.push(Diagnostic {
                 severity: crate::error::Severity::Warning,
-                code: "E0002".into(),
+                kind: crate::error::DiagnosticKind::E0002,
                 message: msg,
                 file: None,
                 line: 0,
                 col: declared_at as u32,
-                end_line: 0,
-                end_col: declared_at as u32,
+                end_line: None,
+                end_col: None,
                 suggestion: None,
             });
         }

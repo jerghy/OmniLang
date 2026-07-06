@@ -111,10 +111,37 @@ pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
     // Run the unified analysis pipeline
     let analysis = omnilang::analyse::analyse_multi(&sources, &path_mapping);
 
-    // Use unified diagnostic serialization from omnilang::error
-    let mut diagnostics = omnilang::error::diagnostics_to_json(&analysis.diagnostics);
-    let warning_jsons = omnilang::error::diagnostics_to_json(&analysis.warnings);
-    diagnostics.extend(warning_jsons);
+    // Convert Diagnostics to JSON Value objects matching CLI output format
+    let mut diagnostics: Vec<serde_json::Value> = Vec::new();
+
+    for d in &analysis.diagnostics {
+        let severity = match d.severity {
+            omnilang::error::Severity::Error => "error",
+            omnilang::error::Severity::Warning => "warning",
+            omnilang::error::Severity::Info => "info",
+        };
+        diagnostics.push(serde_json::json!({
+            "severity": severity,
+            "code": d.kind.code_str(),
+            "message": d.message,
+            "file": d.file,
+            "line": d.line,
+            "col": d.col,
+            "suggestion": d.suggestion,
+        }));
+    }
+
+    for w in &analysis.warnings {
+        diagnostics.push(serde_json::json!({
+            "severity": "warning",
+            "code": w.kind.code_str(),
+            "message": w.message,
+            "file": w.file,
+            "line": w.line,
+            "col": w.col,
+            "suggestion": null,
+        }));
+    }
 
     let has_errors = diagnostics.iter().any(|d| d["severity"] == "error");
 

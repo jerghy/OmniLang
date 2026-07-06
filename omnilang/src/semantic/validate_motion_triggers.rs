@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use super::helpers::is_non_interpolatable;
 use super::motion::has_enter_leave_animation;
 use super::SemanticAnalyzer;
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
 
@@ -25,7 +25,7 @@ impl SemanticAnalyzer {
                 TimelineItemKind::MotionRef(ref_name) => {
                     if !all_motion_names.contains(ref_name.as_str()) {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0006",
+                            DiagnosticKind::E0006,
                             &format!(
                                 "@timeline '{}': references undefined motion '{}'",
                                 timeline.name, ref_name
@@ -38,7 +38,7 @@ impl SemanticAnalyzer {
                     for (prop, _) in &dir.properties {
                         if is_non_interpolatable(prop) {
                             self.diagnostics.push(Diagnostic::error(
-                                "E0006",
+                                DiagnosticKind::E0006,
                                 &format!(
                                     "@timeline '{}': '{}' is not interpolatable \
                                      and cannot be animated",
@@ -53,7 +53,7 @@ impl SemanticAnalyzer {
                     if let Expr::VarRef(ref_name, _) = stagger.motion.as_ref() {
                         if !all_motion_names.contains(ref_name.as_str()) {
                             self.diagnostics.push(Diagnostic::error(
-                                "E0006",
+                                DiagnosticKind::E0006,
                                 &format!(
                                     "@timeline '{}': references undefined motion '{}'",
                                     timeline.name, ref_name
@@ -98,7 +98,7 @@ impl SemanticAnalyzer {
                         if next == start_name {
                             reported.insert(start_name);
                             self.diagnostics.push(Diagnostic::error(
-                                "E0006",
+                                DiagnosticKind::E0006,
                                 &format!(
                                     "Timeline '{}' contains a circular motion reference",
                                     start_name
@@ -163,7 +163,7 @@ impl SemanticAnalyzer {
                     let has_key = for_dir.key_expr.is_some();
                     if has_anim && !has_key {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0006",
+                            DiagnosticKind::E0006,
                             "@for with @enter/@leave/stagger animation requires key={} \
                              for identity tracking",
                             &for_dir.span,

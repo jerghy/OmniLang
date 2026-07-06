@@ -11,7 +11,7 @@ use super::motion::{
     collect_element_ids, contains_velocity_ref, is_keyword_value, is_valid_easing_name,
 };
 use super::SemanticAnalyzer;
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
 
@@ -93,7 +93,7 @@ impl SemanticAnalyzer {
                     .any(|s| matches!(s.position, StopPosition::To));
                 if has_from && !has_to {
                     self.diagnostics.push(Diagnostic::error(
-                        "E0006",
+                        DiagnosticKind::E0006,
                         &format!("@motion '{}': 'from' must be paired with 'to'", motion.name),
                         &motion.span,
                     ));
@@ -104,7 +104,7 @@ impl SemanticAnalyzer {
                     for (prop, expr) in &stop.properties {
                         if is_non_interpolatable(prop) {
                             self.diagnostics.push(Diagnostic::error(
-                                "E0006",
+                                DiagnosticKind::E0006,
                                 &format!("@motion '{}': '{}' is not interpolatable and cannot be animated", motion.name, prop),
                                 &motion.span,
                             ));
@@ -113,7 +113,7 @@ impl SemanticAnalyzer {
                         if let Expr::VarRef(name, _) = expr {
                             if is_keyword_value(name) {
                                 self.diagnostics.push(Diagnostic::error(
-                                    "E0006",
+                                    DiagnosticKind::E0006,
                                     &format!("@motion '{}': keyword value '{}' cannot be used in animation for property '{}'", motion.name, name, prop),
                                     &motion.span,
                                 ));
@@ -163,7 +163,7 @@ impl SemanticAnalyzer {
                             for (prop, expr) in &dir.properties {
                                 if is_non_interpolatable(prop) {
                                     self.diagnostics.push(Diagnostic::error(
-                                        "E0006",
+                                        DiagnosticKind::E0006,
                                         &format!("@motion '{}': '{}' is not interpolatable and cannot be animated", motion.name, prop),
                                         &motion.span,
                                     ));
@@ -171,7 +171,7 @@ impl SemanticAnalyzer {
                                 if let Expr::VarRef(name, _) = expr {
                                     if is_keyword_value(name) {
                                         self.diagnostics.push(Diagnostic::error(
-                                            "E0006",
+                                            DiagnosticKind::E0006,
                                             &format!("@motion '{}': keyword value '{}' cannot be used in animation for property '{}'", motion.name, name, prop),
                                             &motion.span,
                                         ));
@@ -182,7 +182,7 @@ impl SemanticAnalyzer {
                         TimelineItemKind::MotionRef(ref_name) => {
                             if !all_motion_names.contains(ref_name.as_str()) {
                                 self.diagnostics.push(Diagnostic::error(
-                                    "E0006",
+                                    DiagnosticKind::E0006,
                                     &format!(
                                         "@motion '{}': references undefined motion '{}'",
                                         motion.name, ref_name
@@ -193,7 +193,7 @@ impl SemanticAnalyzer {
                             // Check circular self-reference
                             if ref_name == &motion.name {
                                 self.diagnostics.push(Diagnostic::error(
-                                    "E0006",
+                                    DiagnosticKind::E0006,
                                     &format!(
                                         "@motion '{}': circular reference to itself",
                                         motion.name
@@ -206,7 +206,7 @@ impl SemanticAnalyzer {
                             if let Expr::VarRef(ref_name, _) = stagger.motion.as_ref() {
                                 if !all_motion_names.contains(ref_name.as_str()) {
                                     self.diagnostics.push(Diagnostic::error(
-                                        "E0006",
+                                        DiagnosticKind::E0006,
                                         &format!(
                                             "@motion '{}': references undefined motion '{}'",
                                             motion.name, ref_name
@@ -216,7 +216,7 @@ impl SemanticAnalyzer {
                                 }
                                 if ref_name == &motion.name {
                                     self.diagnostics.push(Diagnostic::error(
-                                        "E0006",
+                                        DiagnosticKind::E0006,
                                         &format!("@motion '{}': circular reference to itself via stagger", motion.name),
                                         &motion.span,
                                     ));
@@ -244,7 +244,7 @@ impl SemanticAnalyzer {
                     };
                     if contains_velocity_ref(expr) {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0006",
+                            DiagnosticKind::E0006,
                             &format!("@motion '{}': '$velocity' is only valid in @drag-horizontal/@drag-vertical callbacks, not in standalone motion definitions", motion.name),
                             &motion.span,
                         ));
@@ -286,7 +286,7 @@ impl SemanticAnalyzer {
                         ) && matches!(lv, LoopValue::Count(1))
                         {
                             self.diagnostics.push(Diagnostic::warning(
-                                "W0001",
+                                DiagnosticKind::WMotion,
                                 &format!("@motion '{}': direction 'alternate' with loop: 1 — animation plays forward then reverse; is this intended?", motion.name),
                                 &motion.span,
                             ));
@@ -298,7 +298,7 @@ impl SemanticAnalyzer {
                 }
                 PlaybackProp::When(_) => {
                     self.diagnostics.push(Diagnostic::error(
-                        "E0006",
+                        DiagnosticKind::E0006,
                         &format!("@motion '{}': 'when' is only valid on @enter/@leave element triggers, not on @motion definitions", motion.name),
                         &motion.span,
                     ));
@@ -315,7 +315,7 @@ impl SemanticAnalyzer {
         // Check fill: both + loop: infinite
         if has_fill_both && has_loop_infinite {
             self.diagnostics.push(Diagnostic::warning(
-                "W0001",
+                DiagnosticKind::WMotion,
                 &format!(
                     "@motion '{}': fill 'both' has no meaning with loop 'infinite'",
                     motion.name
@@ -330,7 +330,7 @@ impl SemanticAnalyzer {
         if let EasingExpr::Named(name) = e {
             if !is_valid_easing_name(name) {
                 self.diagnostics.push(Diagnostic::error(
-                    "E0006",
+                    DiagnosticKind::E0006,
                     &format!("Unknown easing name '{}'", name),
                     span,
                 ));
@@ -343,7 +343,7 @@ impl SemanticAnalyzer {
         {
             if !is_valid_easing_name(dir_name) {
                 self.diagnostics.push(Diagnostic::error(
-                    "E0006",
+                    DiagnosticKind::E0006,
                     &format!("Unknown easing name '{}'", dir_name),
                     span,
                 ));
@@ -356,7 +356,7 @@ impl SemanticAnalyzer {
         {
             if !is_valid_easing_name(dir_name) {
                 self.diagnostics.push(Diagnostic::error(
-                    "E0006",
+                    DiagnosticKind::E0006,
                     &format!("Unknown easing name '{}'", dir_name),
                     span,
                 ));
@@ -385,7 +385,7 @@ impl SemanticAnalyzer {
                     if let Expr::VarRef(name, span) = &trigger.motion_expr {
                         if !all_motion_names.contains(name.as_str()) {
                             self.diagnostics.push(Diagnostic::error(
-                                "E0006",
+                                DiagnosticKind::E0006,
                                 &format!(
                                     "Undefined motion '{}' referenced in element trigger",
                                     name
@@ -409,7 +409,7 @@ impl SemanticAnalyzer {
                     });
                     if !has_enter_leave {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0006",
+                            DiagnosticKind::E0006,
                             "when:/delayChildren:/staggerChildren: are only valid on @enter/@leave triggers",
                             &el.span,
                         ));
@@ -426,7 +426,7 @@ impl SemanticAnalyzer {
         // Warning: >10 animations on a single element (performance risk)
         if motion_count > 10 {
             self.diagnostics.push(Diagnostic::warning(
-                "W0001",
+                DiagnosticKind::WMotion,
                 &format!(
                     "Element has {} motion triggers — performance risk (>10 recommended max)",
                     motion_count
@@ -462,7 +462,7 @@ impl SemanticAnalyzer {
 
         if has_reserved && has_custom && has_on_signal {
             self.diagnostics.push(Diagnostic::error(
-                "E0006",
+                DiagnosticKind::E0006,
                 "states: cannot mix reserved names (idle/hover/pressed) with custom names and on: signal binding",
                 &el.span,
             ));
@@ -471,7 +471,7 @@ impl SemanticAnalyzer {
         // Custom states require on: signal
         if !has_reserved && !has_on_signal {
             self.diagnostics.push(Diagnostic::error(
-                "E0006",
+                DiagnosticKind::E0006,
                 "states: with custom state names requires on: signal binding to drive state selection",
                 &el.span,
             ));
@@ -480,7 +480,7 @@ impl SemanticAnalyzer {
         // Reserved names with on: present is an error
         if has_reserved && has_on_signal {
             self.diagnostics.push(Diagnostic::error(
-                "E0006",
+                DiagnosticKind::E0006,
                 "states: reserved names (idle/hover/pressed) auto-bind to mouse events; on: is only valid with custom state names",
                 &el.span,
             ));
@@ -491,7 +491,7 @@ impl SemanticAnalyzer {
         for (name, _) in states {
             if !seen.insert(name.as_str()) {
                 self.diagnostics.push(Diagnostic::error(
-                    "E0006",
+                    DiagnosticKind::E0006,
                     &format!("Duplicate state name '{}' in states: block", name),
                     &el.span,
                 ));
@@ -503,7 +503,7 @@ impl SemanticAnalyzer {
     pub(super) fn validate_if_mode(&mut self, mode: &str, span: &Span) {
         if mode != "sync" && mode != "wait" {
             self.diagnostics.push(Diagnostic::error(
-                "E0006",
+                DiagnosticKind::E0006,
                 &format!("@if mode '{}' is invalid; expected 'sync' or 'wait'", mode),
                 span,
             ));
@@ -527,7 +527,7 @@ impl SemanticAnalyzer {
                 if let Some(prev_tag) = prop_types.get(prop.as_str()) {
                     if *prev_tag != tag && *prev_tag != "unknown" && tag != "unknown" {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0006",
+                            DiagnosticKind::E0006,
                             &format!(
                                 "@motion '{}': type mismatch for property '{}' ({} vs {})",
                                 motion.name, prop, prev_tag, tag
@@ -563,7 +563,7 @@ impl SemanticAnalyzer {
                                             && !other_shape.is_empty()
                                         {
                                             self.diagnostics.push(Diagnostic::error(
-                                                "E0006",
+                                                DiagnosticKind::E0006,
                                                 &format!("@motion '{}': clipPath shape mismatch — '{}()' and '{}()' are different shape functions", motion.name, shape, other_shape),
                                                 &motion.span,
                                             ));
@@ -590,7 +590,7 @@ impl SemanticAnalyzer {
                             let has_rgba2 = val.contains("rgba");
                             if has_rgba1 != has_rgba2 {
                                 self.diagnostics.push(Diagnostic::error(
-                                    "E0006",
+                                    DiagnosticKind::E0006,
                                     &format!("@motion '{}': boxShadow value structure mismatch — one uses rgba() and the other does not", motion.name),
                                     &motion.span,
                                 ));
@@ -618,7 +618,7 @@ impl SemanticAnalyzer {
                                 val.chars().filter(|c| c.is_alphabetic()).collect();
                             if cmds1 != cmds2 {
                                 self.diagnostics.push(Diagnostic::warning(
-                                    "W0001",
+                                    DiagnosticKind::WMotion,
                                     &format!("@motion '{}': SVG path 'd' attribute command structure differs between keyframe stops — interpolation may not work as expected", motion.name),
                                     &motion.span,
                                 ));
@@ -662,7 +662,7 @@ impl SemanticAnalyzer {
             if let Expr::Literal(Literal::String(val), _) = expr {
                 if val == "0ms" || val == "0s" {
                     self.diagnostics.push(Diagnostic::warning(
-                        "W0001",
+                        DiagnosticKind::WMotion,
                         &format!("@motion '{}': over: 0ms — consider using 'set' instead for instant assignment", motion.name),
                         &motion.span,
                     ));
@@ -670,7 +670,7 @@ impl SemanticAnalyzer {
                 if let Some(ms) = parse_duration_ms(val) {
                     if ms > 3_600_000.0 {
                         self.diagnostics.push(Diagnostic::warning(
-                            "W0001",
+                            DiagnosticKind::WMotion,
                             &format!(
                                 "@motion '{}': over > 3600s ({}) — suspiciously long duration",
                                 motion.name, val
@@ -705,7 +705,7 @@ impl SemanticAnalyzer {
                     match lit {
                         Literal::Float(f) if *f < 0.0 || *f > 1.0 => {
                             self.diagnostics.push(Diagnostic::warning(
-                                "W0001",
+                                DiagnosticKind::WMotion,
                                 &format!(
                                     "@motion '{}': opacity value {} is outside [0, 1] range",
                                     motion.name, f
@@ -715,7 +715,7 @@ impl SemanticAnalyzer {
                         }
                         Literal::Int(i) if *i > 1 => {
                             self.diagnostics.push(Diagnostic::warning(
-                                "W0001",
+                                DiagnosticKind::WMotion,
                                 &format!(
                                     "@motion '{}': opacity value {} is outside [0, 1] range",
                                     motion.name, i

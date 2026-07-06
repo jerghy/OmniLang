@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 
 use super::SemanticAnalyzer;
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
 
@@ -30,7 +30,7 @@ impl SemanticAnalyzer {
                 Expr::StoreFieldAccess { store_alias, .. } => {
                     if !store_refs.contains(store_alias.as_str()) {
                         diagnostics.push(Diagnostic::error(
-                            "E0008",
+                            DiagnosticKind::E0008,
                             &format!(
                                 "Accessing store '{}' without @store declaration — \
                                  add '@store {};' to the component body",
