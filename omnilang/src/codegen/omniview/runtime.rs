@@ -109,7 +109,7 @@ function __omni_bindText(nid) {
 	  if (!comp.__omniState) comp.__omniState = {};
 	  comp.__omniState[name] = val;
 	  comp.querySelectorAll('[data-bind-text]').forEach(function(el) {
-	    try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) {}
+	    try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) { console.warn('OmniView: text bind eval failed', e); }
 	  });
 	}
 	function __omni_forToggleState(comp, name) {

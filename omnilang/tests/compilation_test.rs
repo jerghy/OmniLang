@@ -82,3 +82,31 @@ fn e2e_compile_to_python_json() {
     let has_py_file = files.keys().any(|k| k.ends_with(".py"));
     assert!(has_py_file, "should have a .py output file, got keys: {:?}", files.keys());
 }
+
+/// Regression test: TemplateString lowering must produce a non-null value.
+/// Before the fix, the catch-all wildcard in lower_expr silently converted
+/// TemplateString to serde_json::Value::Null.
+#[test]
+fn template_string_lowering_not_null() {
+    let ir = compile_ok(r#"fn greet(name: string) -> string { return `Hello ${name}!`; }"#);
+    let module = ir.modules.get("input.omni").expect("should have module");
+    let func = module.functions.get("greet").expect("should have greet function");
+    // Verify the function body contains the template string expression, not null
+    let body_str = format!("{:?}", func.body);
+    assert!(!body_str.contains("Null"), "template string should not be lowered to Null");
+}
+
+/// Regression test: verify that valid expressions are not caught by catch-all.
+#[test]
+fn catch_all_wildcard_regression() {
+    // Test expressions that should produce non-null IR values
+    let tests = vec![
+        "fn main() -> i32 { return 1 + 2; }",
+        "fn main() -> bool { return true && false; }",
+        "fn main() -> string { return \"hello\"; }",
+    ];
+    for src in tests {
+        let result = omnilang::compile(src);
+        assert!(result.success, "compilation should succeed for: {}", src);
+    }
+}

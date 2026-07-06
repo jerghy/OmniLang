@@ -1,0 +1,11 @@
+---
+source: omnilang/src/codegen/javascript/tests.rs
+expression: "&output.files[0].content"
+---
+// Generated from main.omni
+
+class App {
+    run(): void {
+        ;
+    }
+}

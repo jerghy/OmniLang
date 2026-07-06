@@ -722,8 +722,9 @@ mod tests {
         assert_eq!(output.files.len(), 1);
         let rs = &output.files[0];
         assert!(rs.path.ends_with(".rs"));
-        assert!(rs.content.contains("pub fn App() -> Element {"));
-        assert!(rs.content.contains("let mut count = use_signal(|| 0);"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_component", &rs.content);
+        });
     }
 
     #[test]
@@ -766,10 +767,9 @@ mod tests {
         assert_eq!(output.files.len(), 1);
         let store_file = &output.files[0];
         assert_eq!(store_file.path, "app_store.rs");
-        assert!(store_file
-            .content
-            .contains("pub fn use_app_store() -> AppStore {"));
-        assert!(store_file.content.contains("count: use_signal(|| 0),"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_with_store", &store_file.content);
+        });
     }
 
     #[test]
@@ -830,9 +830,10 @@ mod tests {
         let sources = HashMap::from([("main.omni".into(), "".into())]);
         let output = codegen.generate(&ir, &sources);
         assert!(output.errors.is_empty());
+        assert_eq!(output.files.len(), 2); // App.rs + app_store.rs
         let comp_file = output.files.iter().find(|f| f.path == "App.rs").unwrap();
-        assert!(comp_file
-            .content
-            .contains("let AppStore = app_store::use_app_store();"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &comp_file.content);
+        });
     }
 }

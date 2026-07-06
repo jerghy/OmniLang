@@ -230,6 +230,19 @@ impl Diagnostic {
         self.suggestion = Some(suggestion.to_string());
         self
     }
+
+    /// Convert this diagnostic to a JSON value for FFI / CLI output.
+    /// Uses serde serialization (Diagnostic already derives Serialize).
+    pub fn to_json_value(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or_else(|_| {
+            serde_json::json!({"severity":"error","code":"E_SERIALIZE","message":"failed to serialize diagnostic"})
+        })
+    }
+}
+
+/// Convert a slice of diagnostics to a JSON array for FFI / CLI output.
+pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value> {
+    diagnostics.iter().map(|d| d.to_json_value()).collect()
 }
 
 /// A raw parse error before conversion to Diagnostic.

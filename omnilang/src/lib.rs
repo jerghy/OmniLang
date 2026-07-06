@@ -260,6 +260,7 @@ fn extract_body_html(html: &str) -> String {
 ///
 /// Returns JSON with structured Diagnostic errors (severity, code, file, line, col, …)
 /// plus a flat `warnings` array from lint rules.
+#[must_use]
 pub fn compile_multi_to_target(
     sources: HashMap<String, String>,
     target: codegen::Target,

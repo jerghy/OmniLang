@@ -938,22 +938,15 @@ fn test_full_pipeline_component() {
     assert!(output.errors.is_empty());
     assert_eq!(output.files.len(), 2); // .tsx + .module.css
 
-    let tsx = output
-        .files
-        .iter()
-        .find(|f| f.path.ends_with(".tsx"))
-        .unwrap();
-    assert!(tsx.content.contains("export function App() {"));
-    assert!(tsx
-        .content
-        .contains("const [count, setCount] = useState(0);"));
-
-    let css = output
-        .files
-        .iter()
-        .find(|f| f.path.ends_with(".module.css"))
-        .unwrap();
-    assert!(css.content.contains(".container"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        let mut snapshot_content = String::new();
+        for f in &output.files {
+            snapshot_content.push_str(&format!("=== {} ===\n", f.path));
+            snapshot_content.push_str(&f.content);
+            snapshot_content.push('\n');
+        }
+        insta::assert_snapshot!("test_full_pipeline_component", &snapshot_content);
+    });
 }
 
 #[test]
@@ -996,10 +989,9 @@ fn test_full_pipeline_with_store() {
     assert_eq!(output.files.len(), 1); // just useAppStore.ts
     let hook = &output.files[0];
     assert_eq!(hook.path, "useAppStore.ts");
-    assert!(hook.content.contains("export function useAppStore() {"));
-    assert!(hook
-        .content
-        .contains("const [count, setCount] = useState<number>(0);"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_with_store", &hook.content);
+    });
 }
 
 #[test]
@@ -1060,10 +1052,9 @@ fn test_full_pipeline_component_with_store_ref() {
     let sources = HashMap::from([("main.omni".into(), "".into())]);
     let output = codegen.generate(&ir, &sources);
     assert!(output.errors.is_empty());
-    // Expect .tsx (App component) + .module.css + useAppStore.ts store hook
+    assert_eq!(output.files.len(), 3); // .tsx + .module.css + useAppStore.ts
     let tsx = output.files.iter().find(|f| f.path == "App.tsx").unwrap();
-    assert!(tsx
-        .content
-        .contains("import { useAppStore } from './useAppStore';"));
-    assert!(tsx.content.contains("const AppStore = useAppStore();"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &tsx.content);
+    });
 }

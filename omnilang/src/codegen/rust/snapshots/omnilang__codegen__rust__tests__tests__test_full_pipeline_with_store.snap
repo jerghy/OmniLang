@@ -1,0 +1,16 @@
+---
+source: omnilang/src/codegen/rust/tests.rs
+expression: "&output.files[0].content"
+---
+// Generated from main.omni
+
+struct AppStore {
+    count: i32,
+}
+impl AppStore {
+    fn new() -> Self {
+        Self {
+            count: 0,
+        }
+    }
+}

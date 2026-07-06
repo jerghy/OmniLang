@@ -1,43 +1,17 @@
-# Progress Ledger — Poiesis v2 Redesign
-Phase0-Task1: complete (commits d721aefe..7cb60743, review clean)
-Phase0-Task3: complete (commits 7cb60743..59dd55c1, review clean)
-Phase1: complete (commits 59dd55c1..f26894e3, review clean)
-Phase2: complete (commits f26894e3..dfb4d8a2, review clean)
-Phase3: complete (commits dfb4d8a2..a8c96d40, review clean)
-Phase4: complete (commits a8c96d40..c7dcb42d, review clean)
-Phase5: complete (commits c7dcb42d..1bccd8d8, review clean)
-Phase6: complete (commits 1bccd8d8..33dabf86, review clean)
-Phase7: complete (commits 33dabf86..c34f7645, review clean)
-Integ3: complete (0 TS errors)
-Integ2: complete (225 bubbles, 65 edges from real scan)
-Integ1: complete (0 TS errors, vite build passes)
-Fix-review: complete (0 TS errors, vite build passes)
-Re-review: confirmed all 11 findings fixed. Ready to merge.
-Fix-review2: complete (0 TS errors, vite build passes)
-Fix-review3: complete (0 TS errors, vite build passes)
-Fix-review4: complete (0 TS errors, store 571 lines)
-Victauri tests: extracted (10 files, 64 assertions)
-Task 1: complete (commits c8dbc82f..836a6840, review clean)
-Task 2: complete (commits 836a6840..1b9215c4, 376 passed, 1 pre-existing fail, review clean)
-Task 3: complete (commits 1b9215c4..de01569a, 376 passed, 1 pre-existing fail, review clean)
-Task 4-5: complete (commits de01569a..HEAD, tsc 0 errors, vite build passes)
-Fix-review: complete (commit ea3f0a10, 1 critical + 3 important fixed, 376 passed, tsc 0 errors)
-Phase1-Task1.1: complete (commits f007ce6..6fb2a9e4, review clean)
-Phase1-Task1.2: complete (commits 6fb2a9e4..b1849efc, review clean)
-Phase1-Task1.3: complete (commits b1849efc..4b9d22a7, review clean)
-Phase1-Task1.4: complete (commits 4b9d22a7..2e197884, review clean)
-Phase1-Task1.5: complete (commits 2e197884..b830cb47, review clean)
-Phase1-Task1.6: complete (commits b830cb47..659bf05b, review clean)
-Phase1-Task1.7: complete (commits 659bf05b..5d8ac124, review clean)
-Phase1-Task1.8: complete (commits 5d8ac124..4e95e947, review clean)
-Phase1-Task1.9: complete (commits 4e95e947..68f6814a, review clean)
-Phase1-Final: complete (12 commits f007ce67..9f7a295a, 386 tests pass, tsc 0 errors, 9 CRITICAL fixed)
-Phase2-Task2.1: complete (commits d6c9530c..5ab39f97, 322 tests pass)
-Phase2-Task2.2: complete (commits 5ab39f97..1a3d8247, 386 tests pass)
-Phase2-Task2.3: complete (commits 1a3d8247..1fd5cd3a)
-Phase2-Task2.4: complete (commits 1fd5cd3a..2048eea2)
-Phase3-Task3.1: complete (commits 2048eea2..6fee00bd, 379 tests pass)
-Phase3-Task3.2: complete (commits 6fee00bd..a13446d7)
-Phase3-Task3.3+3.4: complete (commits a13446d7..6eb75cbe, 379 tests pass)
-Phase3-Task3.5: complete (commits 6eb75cbe..d7175d46)
-Phase4-Task4.3+4.5: complete (commits d7175d46..1293dca4)
+# OmniLang Code Review Fix Progress
+> branch: worktree-code-review-fixes | start: 2026-07-06
+
+## Commits
+- a0bcf701: Phase 1-2: security + error handling (6 files)
+- 610d0202: Phase 4: #[must_use] + docs (3 files)
+- 73d75e2c: Phase 3: shared codegen utilities (18 files, ~400 lines saved)
+- cb0758fb: merge Phase 3
+- bc15e388: T4.2: unified diagnostic JSON serialization (-22 lines)
+- 40e277f1: T5.3: TemplateString + catch-all regression tests (+2 tests)
+
+## Verification
+- cargo build: PASS | cargo test: 407/407 PASS | cargo clippy: PASS
+
+## Remaining
+- T5.2: Split large files (agent dispatched)
+- Phase 5: insta snapshots, property tests (deferred)

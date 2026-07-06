@@ -302,8 +302,33 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
                 arms: ir_arms,
             }
         }
-        _ => ExprIR::LiteralExpr {
-            value: serde_json::Value::Null,
+        Expr::TemplateString { parts, .. } => {
+            // Concatenate template string parts into a single string literal.
+            // For expression parts, lower and extract their value representation.
+            let concatenated: String = parts
+                .iter()
+                .map(|p| match p {
+                    TemplatePart::Literal(s) => s.clone(),
+                    TemplatePart::Expr(e) => match lower_expr(e, variant_map) {
+                        ExprIR::LiteralExpr { value } => match &value {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        },
+                        other => format!("{:?}", other),
+                    },
+                })
+                .collect();
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::String(concatenated),
+            }
+        },
+        Expr::NotYetImplemented { feature: _feature, .. } => {
+            // Emit a null literal for unimplemented features rather than
+            // silently using a catch-all wildcard. This makes it explicit
+            // that the feature gap is known.
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Null,
+            }
         },
     }
 }

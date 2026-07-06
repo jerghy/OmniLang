@@ -716,10 +716,9 @@ mod tests {
 
         let sfc = &output.files[0];
         assert_eq!(sfc.path, "App.vue");
-        assert!(sfc.content.contains("<template>"));
-        assert!(sfc.content.contains("<script setup lang=\"ts\">"));
-        assert!(sfc.content.contains("<style scoped>"));
-        assert!(sfc.content.contains("const count = ref<number>(0);"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_component", &sfc.content);
+        });
     }
 
     #[test]
@@ -762,8 +761,9 @@ mod tests {
         assert_eq!(output.files.len(), 1); // just useAppStore.ts
         let hook = &output.files[0];
         assert_eq!(hook.path, "useAppStore.ts");
-        assert!(hook.content.contains("export function useAppStore() {"));
-        assert!(hook.content.contains("const count = ref<number>(0);"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_with_store", &hook.content);
+        });
     }
 
     #[test]
@@ -827,9 +827,8 @@ mod tests {
         // Expect App.vue + useAppStore.ts
         assert_eq!(output.files.len(), 2);
         let sfc = output.files.iter().find(|f| f.path == "App.vue").unwrap();
-        assert!(sfc
-            .content
-            .contains("import { useAppStore } from './useAppStore';"));
-        assert!(sfc.content.contains("const AppStore = useAppStore();"));
+        insta::with_settings!({snapshot_path => "snapshots"}, {
+            insta::assert_snapshot!("test_full_pipeline_component_with_store_ref", &sfc.content);
+        });
     }
 }
