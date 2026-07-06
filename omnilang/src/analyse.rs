@@ -30,6 +30,7 @@ pub struct AnalyseOutput {
 ///   4. Lint rules (AST-level and IR-level)
 ///
 /// Returns early on parse failure (ir = None, success = false).
+#[must_use]
 pub fn analyse_multi(
     sources: &HashMap<String, String>,
     path_mapping: &HashMap<String, String>,

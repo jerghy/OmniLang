@@ -27,3 +27,5 @@
 - cargo check: PASS | cargo test: PASS | cargo clippy: PASS
 
 - [x] Task 1: ba401f2c refactor: extract shared codegen utilities (review: PASS/Approved)
+
+- [x] Task 2: 93600150 fix: security hardening (review: PASS/Approved)

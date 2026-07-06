@@ -235,6 +235,7 @@ pub struct EventFieldDef {
 
 /// Full schema: kind -> ordered field definitions.
 /// Used by both lowering (field validation) and codegen (extraction).
+#[must_use]
 pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
     let f = |name: &str, field_type: &str| EventFieldDef {
         name: name.to_string(),
@@ -331,6 +332,7 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
 
 /// Map .omni event name string -> EventDataKind.
 /// Returns None for store-only or non-data events.
+#[must_use]
 pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
     match event_name {
         "onClick" | "onPress" | "onTap" | "onDoubleClick" | "onLongPress" | "onMouseMove"
@@ -364,6 +366,7 @@ pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
 }
 
 /// Map EventDataKind to a string label for the @for JS kind-lookup map.
+#[must_use]
 pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
     match kind {
         EventDataKind::PointerEvent => "PointerEvent",
@@ -715,6 +718,7 @@ impl Default for IRProgram {
 
 impl IRProgram {
     /// Collect all components across all modules.
+    #[must_use]
     pub fn all_components(&self) -> HashMap<&str, &ComponentIR> {
         self.modules
             .values()
@@ -724,6 +728,7 @@ impl IRProgram {
     }
 
     /// Collect all public functions across all modules.
+    #[must_use]
     pub fn all_functions(&self) -> Vec<&FunctionIR> {
         self.modules
             .values()
@@ -733,6 +738,7 @@ impl IRProgram {
     }
 
     /// Collect all stores across all modules.
+    #[must_use]
     pub fn all_stores(&self) -> HashMap<&str, &StoreIR> {
         self.modules
             .values()

@@ -37,6 +37,7 @@ pub enum TargetSpanKind {
 /// Each entry maps a generated position back to its source position.
 /// Since one source node can produce multiple generated outputs (e.g., DOM, JS, CSS),
 /// each target span becomes a separate JSON object.
+#[must_use]
 pub fn source_map_json(entries: &[SourceMapEntry]) -> String {
     let mappings: Vec<serde_json::Value> = entries
         .iter()

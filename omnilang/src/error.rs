@@ -193,6 +193,7 @@ impl Serialize for Diagnostic {
 }
 
 impl Diagnostic {
+    #[must_use]
     pub fn error(kind: DiagnosticKind, message: &str, span: &Span) -> Self {
         Diagnostic {
             severity: Severity::Error,
@@ -207,6 +208,7 @@ impl Diagnostic {
         }
     }
 
+    #[must_use]
     pub fn warning(kind: DiagnosticKind, message: &str, span: &Span) -> Self {
         Diagnostic {
             severity: Severity::Warning,
@@ -221,11 +223,13 @@ impl Diagnostic {
         }
     }
 
+    #[must_use]
     pub fn with_file(mut self, file: &str) -> Self {
         self.file = Some(file.to_string());
         self
     }
 
+    #[must_use]
     pub fn with_suggestion(mut self, suggestion: &str) -> Self {
         self.suggestion = Some(suggestion.to_string());
         self
@@ -233,6 +237,7 @@ impl Diagnostic {
 
     /// Convert this diagnostic to a JSON value for FFI / CLI output.
     /// Uses serde serialization (Diagnostic already derives Serialize).
+    #[must_use]
     pub fn to_json_value(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap_or_else(|_| {
             serde_json::json!({"severity":"error","code":"E_SERIALIZE","message":"failed to serialize diagnostic"})
@@ -241,6 +246,7 @@ impl Diagnostic {
 }
 
 /// Convert a slice of diagnostics to a JSON array for FFI / CLI output.
+#[must_use]
 pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value> {
     diagnostics.iter().map(|d| d.to_json_value()).collect()
 }

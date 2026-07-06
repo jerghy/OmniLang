@@ -28,6 +28,7 @@ pub struct CodeWriter {
 }
 
 impl CodeWriter {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             lines: vec![],
@@ -85,6 +86,7 @@ pub struct CompileOutput {
 
 impl CompileOutput {
     /// Build a successful output with the given files.
+    #[must_use]
     pub fn success(files: Vec<CompiledFile>) -> Self {
         Self {
             files,
@@ -93,6 +95,7 @@ impl CompileOutput {
     }
 
     /// Build an error output with a message.
+    #[must_use]
     pub fn error(msg: String) -> Self {
         Self {
             files: vec![],
@@ -185,6 +188,7 @@ pub fn sanitize_css_value(value: &str) -> String {
 /// to prevent path traversal when constructing output file paths.
 /// The actual file I/O is handled by the Python CLI; this ensures
 /// generated paths are safe regardless.
+#[must_use]
 pub fn sanitize_module_name(name: &str) -> String {
     let sanitized = name
         .strip_suffix(".omni")
@@ -207,6 +211,7 @@ pub fn sanitize_module_name(name: &str) -> String {
 /// (e.g. `default` → `default_`, `class` → `class_`).
 /// This prevents syntax errors when OmniLang identifiers use names
 /// that are valid in Omni but reserved in JavaScript.
+#[must_use]
 pub fn sanitize_js_ident(name: &str) -> String {
     // JavaScript reserved words (ES5+ strict mode) that cannot be used as identifiers
     const JS_RESERVED: &[&str] = &[
@@ -361,6 +366,7 @@ pub fn validate_stdlib_imports(
 /// Map an OMNI binary operator name to the target language's operator symbol.
 /// - `strict_eq`: if true, uses `===`/`!==` (JS-style); otherwise `==`/`!=`
 /// - `textual_bool`: if true, uses `and`/`or` (Python-style); otherwise `&&`/`||`
+#[must_use]
 pub fn binary_op_to_str(op: &str, strict_eq: bool, textual_bool: bool) -> &str {
     match op {
         "add" => "+",
@@ -412,6 +418,7 @@ pub fn binary_op_to_str(op: &str, strict_eq: bool, textual_bool: bool) -> &str {
 
 /// Escape a string value for use as a string literal in generated code.
 /// Handles backslash, the target quote character, and common whitespace escapes.
+#[must_use]
 pub fn escape_literal_str(s: &str, quote: char) -> String {
     s.replace('\\', "\\\\")
         .replace(quote, &format!("\\{}", quote))
@@ -422,6 +429,7 @@ pub fn escape_literal_str(s: &str, quote: char) -> String {
 
 /// Format a block IR node as a single expression by taking the last statement's value.
 /// Calls `fmt` for expression/return statements, returns `fallback` for empty/non-value blocks.
+#[must_use]
 pub fn format_block_as_expr<F>(block: &crate::ir::BlockIR, fmt: &F, fallback: &str) -> String
 where
     F: Fn(&crate::ir::ExprIR) -> String,
@@ -441,6 +449,7 @@ where
 }
 
 /// Capitalize the first character of a string.
+#[must_use]
 pub fn capitalize_first(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {

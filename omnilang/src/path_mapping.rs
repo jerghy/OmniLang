@@ -10,6 +10,7 @@ use std::path::Path;
 /// For each pair of source files, computes relative-path keys (e.g. `"./Component.omni"`,
 /// `"Component.omni"`, `"./Component"`) so that import statements can be resolved
 /// regardless of how the importer refers to the target.
+#[must_use]
 pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, String> {
     let mut mapping = HashMap::new();
 

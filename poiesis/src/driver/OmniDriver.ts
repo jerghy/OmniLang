@@ -1,4 +1,4 @@
-// @ts-nocheck — Legacy driver facade, needs type alignment with unified store
+// Legacy driver facade — global window.__* types declared in omni-driver.d.ts
 /** OmniDriver — Thin facade over 9 focused sub-modules.
  *
  *  The `window.__OMNI__` API surface is IDENTICAL to the original.

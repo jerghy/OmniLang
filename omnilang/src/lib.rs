@@ -169,6 +169,7 @@ pub struct OmniViewFullResult {
 
 /// Compile .omni -> OmniView + IR in one pass.
 /// Eliminates the double lex->parse->semantic->IR when both IR and codegen are needed.
+#[must_use]
 pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullResult {
     match run_pipeline(source) {
         Err(errors) => OmniViewFullResult {
@@ -206,6 +207,7 @@ pub fn compile_omniview_full(source: &str, editor_mode: bool) -> OmniViewFullRes
 // ═══════════════════════════════════════════════════════
 
 /// Compile IR to a specific target, returning JSON with { success, files: {path: content}, errors }.
+#[must_use]
 pub fn compile_to_target_json(
     ir: &ir::IRProgram,
     target: codegen::Target,

@@ -47,6 +47,7 @@ fn registry() -> &'static [StdlibFn] {
 }
 
 /// Look up a stdlib function by module and name.
+#[must_use]
 pub fn lookup(module: &str, name: &str) -> Option<&'static StdlibFn> {
     registry()
         .iter()
@@ -54,6 +55,7 @@ pub fn lookup(module: &str, name: &str) -> Option<&'static StdlibFn> {
 }
 
 /// Check if a stdlib module is available on a target.
+#[must_use]
 pub fn module_available(module: &str, target: Target) -> bool {
     registry()
         .iter()
@@ -62,6 +64,7 @@ pub fn module_available(module: &str, target: Target) -> bool {
 }
 
 /// List available targets for a module (for error messages).
+#[must_use]
 pub fn available_targets_for(module: &str) -> Vec<Target> {
     let mut targets: Vec<Target> = registry()
         .iter()

@@ -41,6 +41,7 @@ pub struct MultiFileResult {
 ///
 /// The compiler parses all files, resolves cross-file imports using the mapping,
 /// validates visibility and cycles. Codegen is done separately in Python.
+#[must_use]
 pub fn validate_multi(
     sources: HashMap<String, String>,
     path_mapping: HashMap<String, String>,
@@ -74,6 +75,7 @@ pub fn validate_multi(
 
 /// Cross-file validation using already-parsed programs.
 /// Avoids re-parsing when callers already have parsed ASTs.
+#[must_use]
 pub fn validate_multi_ref(
     programs: &HashMap<String, Program>,
     path_mapping: &HashMap<String, String>,
