@@ -45,11 +45,16 @@ pub(super) fn emit_motion_effects_tsx(
 
     let mut sorted: Vec<&String> = defined_refs.into_iter().collect();
     sorted.sort();
+    let mut motion_warnings: Vec<String> = Vec::new();
     for name in &sorted {
         if let Some(body) = motion_bodies.get(name.as_str()) {
-            let def_js = format_motion_to_waapi(body);
+            let def_js = format_motion_to_waapi(body, &mut motion_warnings);
             w.emit(&format!("{}:{},", name, def_js));
         }
+    }
+    // Surface any motion conversion warnings as code comments
+    for warn in &motion_warnings {
+        w.emit(&format!("// WARN: {}", warn));
     }
     w.dedent();
     w.emit("};");
@@ -130,11 +135,11 @@ fn collect_enter_motion_refs_inner(node: &ViewTree, refs: &mut HashSet<String>) 
 }
 
 /// Format a full MotionBodyIR into a JS tuple `[keyframes[], options{}, setupFn?]`.
-fn format_motion_to_waapi(body: &MotionBodyIR) -> String {
+fn format_motion_to_waapi(body: &MotionBodyIR, warnings: &mut Vec<String>) -> String {
     match body {
         MotionBodyIR::Keyframe(kf) => {
             let keyframes = format_keyframes(kf);
-            let options = format_playback_options(&kf.over, &kf.ease, &kf.playback);
+            let options = format_playback_options(&kf.over, &kf.ease, &kf.playback, warnings);
             // Path setup: if motion has a path, emit a setup function
             if let Some(path) = &kf.path {
                 let rot = kf.path_rotate.unwrap_or(false);
@@ -307,6 +312,7 @@ fn format_playback_options(
     over: &ExprIR,
     ease: &Option<EasingIR>,
     playback: &PlaybackIR,
+    warnings: &mut Vec<String>,
 ) -> String {
     let mut opts: Vec<String> = Vec::new();
 
@@ -316,7 +322,7 @@ fn format_playback_options(
 
     // Easing
     if let Some(easing) = ease {
-        opts.push(format!("easing:\"{}\"", translate_easing(easing)));
+        opts.push(format!("easing:\"{}\"", translate_easing(easing, warnings)));
     }
 
     // Fill mode
@@ -359,7 +365,7 @@ fn format_playback_options(
 }
 
 /// Translate an Omni easing IR to a WAAPI-compatible easing string.
-fn translate_easing(ease: &EasingIR) -> String {
+fn translate_easing(ease: &EasingIR, warnings: &mut Vec<String>) -> String {
     match ease {
         EasingIR::Named(name) => translate_named_easing(name),
         EasingIR::CubicBezier { x1, y1, x2, y2 } => {
@@ -371,7 +377,10 @@ fn translate_easing(ease: &EasingIR) -> String {
             velocity,
         } => {
             // Spring → approximate cubic-bezier based on parameters
-            let _ = velocity;
+            warnings.push(format!(
+                "Spring velocity {:?} discarded in React motion conversion",
+                velocity
+            ));
             let ratio = if *tension > 0.0 {
                 *friction / *tension
             } else {
@@ -416,8 +425,14 @@ fn translate_easing(ease: &EasingIR) -> String {
             direction,
         } => {
             // Elastic → approximate cubic-bezier
-            let _ = amplitude;
-            let _ = period;
+            warnings.push(format!(
+                "Elastic amplitude {:?} discarded in React motion conversion",
+                amplitude
+            ));
+            warnings.push(format!(
+                "Elastic period {:?} discarded in React motion conversion",
+                period
+            ));
             let dir = direction.as_deref().unwrap_or("Out");
             match dir {
                 "In" => "cubic-bezier(0.600,0.040,0.980,0.335)".to_string(),

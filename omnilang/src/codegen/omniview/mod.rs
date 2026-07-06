@@ -88,6 +88,7 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         enter_trigger_nids: Vec::new(),
         for_state_names: std::collections::HashMap::new(),
         motion_names: std::collections::HashSet::new(),
+        warnings: Vec::new(),
     };
 
     gen.emit_js_header();
@@ -267,6 +268,8 @@ struct OmniViewGenerator {
     enter_trigger_nids: Vec<(String, String, String)>,
     /// @for template: maps child component state names -> (original_name, default_js)
     for_state_names: std::collections::HashMap<String, (String, String)>,
+    /// Diagnostic warnings collected during codegen (e.g., missing animation params).
+    warnings: Vec<String>,
 }
 
 impl OmniViewGenerator {

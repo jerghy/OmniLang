@@ -71,9 +71,16 @@ impl OmniViewGenerator {
                         (cursor_delay, prev_item_start)
                     };
 
-                    let parse_ms = |s: &str| -> f64 {
+                    let mut parse_ms = |s: &str| -> f64 {
                         let trimmed = s.trim_end_matches("ms").trim();
-                        trimmed.parse::<f64>().unwrap_or(0.0)
+                        match trimmed.parse::<f64>() {
+                            Ok(v) => v,
+                            Err(_) => {
+                                self.warnings
+                                    .push(format!("Invalid timeline timing value '{}', using 0.0", s));
+                                0.0
+                            }
+                        }
                     };
 
                     let has_explicit_start = start.is_some();
@@ -127,7 +134,23 @@ impl OmniViewGenerator {
                     }
 
                     let over_ms = if let ExprIR::LiteralExpr { value } = over {
-                        value.as_f64().unwrap_or(300.0)
+                        match value.as_f64() {
+                            Some(d) if d > 0.0 => d,
+                            Some(_) => {
+                                self.warnings.push(
+                                    "Timeline 'over' duration must be positive, using default 300ms"
+                                        .into(),
+                                );
+                                300.0
+                            }
+                            None => {
+                                self.warnings.push(
+                                    "Timeline 'over' duration not a valid number, using default 300ms"
+                                        .into(),
+                                );
+                                300.0
+                            }
+                        }
                     } else {
                         300.0
                     };
@@ -230,7 +253,23 @@ impl OmniViewGenerator {
                         MotionExprIR::Inline(_) => String::new(),
                     };
                     let stagger_delay = if let ExprIR::LiteralExpr { value } = &timing.each {
-                        value.as_f64().unwrap_or(50.0)
+                        match value.as_f64() {
+                            Some(d) if d > 0.0 => d,
+                            Some(_) => {
+                                self.warnings.push(
+                                    "Stagger 'each' delay must be positive, using default 50ms"
+                                        .into(),
+                                );
+                                50.0
+                            }
+                            None => {
+                                self.warnings.push(
+                                    "Stagger 'each' delay not a valid number, using default 50ms"
+                                        .into(),
+                                );
+                                50.0
+                            }
+                        }
                     } else {
                         50.0
                     };
