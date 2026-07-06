@@ -175,7 +175,10 @@ impl FlutterCodegen {
         }
 
         // initState (for mount lifecycle, effects, and motion animations)
-        let has_mount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Mount);
+        let has_mount = comp
+            .lifecycles
+            .iter()
+            .any(|lc| lc.kind == LifecycleKind::Mount);
         let has_effects = !comp.effects.is_empty();
         let has_motions = !comp.motions.is_empty();
         if has_mount || has_effects || has_motions {
@@ -264,7 +267,10 @@ impl FlutterCodegen {
         }
 
         // dispose (for unmount lifecycle and motion controllers)
-        let has_unmount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Unmount);
+        let has_unmount = comp
+            .lifecycles
+            .iter()
+            .any(|lc| lc.kind == LifecycleKind::Unmount);
         if has_unmount || has_motions {
             w.emit("@override");
             w.emit("void dispose() {");

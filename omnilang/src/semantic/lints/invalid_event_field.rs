@@ -97,7 +97,8 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::{
-        ComponentIR, ElementIR, EventDataKind, EventHandlerIR, IRProgram, ModuleIR, ViewTree,
+        ComponentIR, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind, IRProgram,
+        ModuleIR, ViewTree,
     };
 
     use super::*;
@@ -155,7 +156,7 @@ mod tests {
             events: [(
                 "onChange".into(),
                 EventHandlerIR {
-                    kind: "inline_fn".into(),
+                    kind: EventHandlerKind::InlineFn,
                     body: None,
                     r#ref: None,
                     params: vec![],
@@ -226,7 +227,7 @@ mod tests {
             events: [(
                 "onChange".into(),
                 EventHandlerIR {
-                    kind: "inline_fn".into(),
+                    kind: EventHandlerKind::InlineFn,
                     body: None,
                     r#ref: None,
                     params: vec![],
@@ -285,7 +286,7 @@ mod tests {
             events: [(
                 "onCustomEvent".into(),
                 EventHandlerIR {
-                    kind: "inline_fn".into(),
+                    kind: EventHandlerKind::InlineFn,
                     body: None,
                     r#ref: None,
                     params: vec![],

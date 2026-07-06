@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::{IRProgram, ViewTree};
+use crate::ir::{EventHandlerKind, IRProgram, ViewTree};
 
 pub struct StoreActionEventData;
 
@@ -41,7 +41,7 @@ fn check_view_store_actions(
 ) {
     if let ViewTree::Element(el) = tree {
         for handler in el.events.values() {
-            if handler.kind == "store_action"
+            if handler.kind == EventHandlerKind::StoreAction
                 && handler.used_fields.is_some()
                 && !handler
                     .used_fields
@@ -75,7 +75,8 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::{
-        ComponentIR, ElementIR, EventDataKind, EventHandlerIR, IRProgram, ModuleIR, ViewTree,
+        ComponentIR, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind, IRProgram,
+        ModuleIR, ViewTree,
     };
 
     use super::*;
@@ -133,7 +134,7 @@ mod tests {
             events: [(
                 "onClick".into(),
                 EventHandlerIR {
-                    kind: "store_action".into(),
+                    kind: EventHandlerKind::StoreAction,
                     body: None,
                     r#ref: Some("MyStore.increment".into()),
                     params: vec![],
@@ -199,7 +200,7 @@ mod tests {
             events: [(
                 "onClick".into(),
                 EventHandlerIR {
-                    kind: "store_action".into(),
+                    kind: EventHandlerKind::StoreAction,
                     body: None,
                     r#ref: Some("MyStore.increment".into()),
                     params: vec![],
@@ -258,7 +259,7 @@ mod tests {
             events: [(
                 "onClick".into(),
                 EventHandlerIR {
-                    kind: "inline_fn".into(),
+                    kind: EventHandlerKind::InlineFn,
                     body: None,
                     r#ref: None,
                     params: vec![],

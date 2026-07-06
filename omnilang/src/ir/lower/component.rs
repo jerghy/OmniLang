@@ -292,7 +292,7 @@ pub(super) fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionI
             for (_event_name, handler) in el.events.iter_mut() {
                 if handler.used_fields.is_some()
                     || handler.event_data.is_none()
-                    || handler.kind != "fn_ref"
+                    || handler.kind != EventHandlerKind::FnRef
                 {
                     continue;
                 }

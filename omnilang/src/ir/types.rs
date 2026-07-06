@@ -167,10 +167,17 @@ pub struct BindingIR {
 // Event Handler IR
 // ═══════════════════════════════════════════════════════
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventHandlerKind {
+    FnRef,
+    InlineFn,
+    StoreAction,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventHandlerIR {
-    /// "fn_ref" | "inline_fn" | "store_action"
-    pub kind: String,
+    pub kind: EventHandlerKind,
     /// Inline handler body (None for fn_ref, store_action)
     pub body: Option<BlockIR>,
     /// Function name (fn_ref) or action path (store_action)
@@ -795,5 +802,32 @@ mod tests {
         assert_eq!(json, "\"effect\"");
         let back: LifecycleKind = serde_json::from_str(&json).unwrap();
         assert_eq!(back, LifecycleKind::Effect);
+    }
+
+    #[test]
+    fn serde_roundtrip_event_handler_kind_fn_ref() {
+        let v = EventHandlerKind::FnRef;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"fn_ref\"");
+        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, EventHandlerKind::FnRef);
+    }
+
+    #[test]
+    fn serde_roundtrip_event_handler_kind_inline_fn() {
+        let v = EventHandlerKind::InlineFn;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"inline_fn\"");
+        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, EventHandlerKind::InlineFn);
+    }
+
+    #[test]
+    fn serde_roundtrip_event_handler_kind_store_action() {
+        let v = EventHandlerKind::StoreAction;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"store_action\"");
+        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, EventHandlerKind::StoreAction);
     }
 }

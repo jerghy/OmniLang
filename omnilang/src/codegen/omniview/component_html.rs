@@ -152,8 +152,8 @@ impl OmniViewGenerator {
                         } else {
                             ""
                         };
-                        match handler.kind.as_str() {
-                            "fn_ref" => {
+                        match handler.kind {
+                            EventHandlerKind::FnRef => {
                                 if let Some(ref fn_name) = handler.r#ref {
                                     if self.motion_names.contains(fn_name.as_str()) {
                                         // Motion reference: create AnimationPlayer and play on event
@@ -178,7 +178,7 @@ impl OmniViewGenerator {
                                     }
                                 }
                             }
-                            "store_action" => {
+                            EventHandlerKind::StoreAction => {
                                 if let Some(ref action_path) = handler.r#ref {
                                     let var_name = action_path.replace('.', "_");
                                     self.js.push_str(&format!(
@@ -187,7 +187,7 @@ impl OmniViewGenerator {
                                     ));
                                 }
                             }
-                            "inline_fn" => {
+                            EventHandlerKind::InlineFn => {
                                 let wrapper_name =
                                     format!("__on{}_{}", event_name, nid.replace('-', "_"));
                                 let params_str = handler.params.join(", ");
@@ -211,7 +211,6 @@ impl OmniViewGenerator {
                                     nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                                 ));
                             }
-                            _ => {}
                         }
                     }
                 }

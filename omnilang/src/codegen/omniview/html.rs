@@ -295,8 +295,8 @@ impl OmniViewGenerator {
             if self.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
-                let val = match handler.kind.as_str() {
-                    "fn_ref" => {
+                let val = match handler.kind {
+                    EventHandlerKind::FnRef => {
                         if let Some(ref fn_name) = handler.r#ref {
                             let prefixed = format!("{}_{}", self.current_component, fn_name);
                             format!("fn:{}", escape_html(&prefixed))
@@ -304,7 +304,7 @@ impl OmniViewGenerator {
                             continue;
                         }
                     }
-                    "store_action" => {
+                    EventHandlerKind::StoreAction => {
                         if let Some(ref action_path) = handler.r#ref {
                             let var_name = action_path.replace('.', "_");
                             format!("store:{}", escape_html(&var_name))
@@ -312,7 +312,7 @@ impl OmniViewGenerator {
                             continue;
                         }
                     }
-                    "inline_fn" => {
+                    EventHandlerKind::InlineFn => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = handler.params.join(", ");
                         self.js
@@ -325,20 +325,22 @@ impl OmniViewGenerator {
                         self.js.push_str("}\n");
                         format!("fn:{}", escape_html(&wrapper_name))
                     }
-                    _ => continue,
                 };
                 attrs.push_str(&format!(" data-event-{}=\"{}\"", js_event, val));
                 // Register handler in the global lookup so the delegated
                 // listener can find it (functions are IIFE-local, not on
                 // window).
-                let handler_name = match handler.kind.as_str() {
-                    "fn_ref" => handler
+                let handler_name = match handler.kind {
+                    EventHandlerKind::FnRef => handler
                         .r#ref
                         .as_ref()
                         .map(|n| format!("{}_{}", self.current_component, n)),
-                    "store_action" => handler.r#ref.as_ref().map(|p| p.replace('.', "_")),
-                    "inline_fn" => Some(format!("__on{}_{}", event_name, nid.replace('-', "_"))),
-                    _ => None,
+                    EventHandlerKind::StoreAction => {
+                        handler.r#ref.as_ref().map(|p| p.replace('.', "_"))
+                    }
+                    EventHandlerKind::InlineFn => {
+                        Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))
+                    }
                 };
                 if let Some(ref hname) = handler_name {
                     self.js
@@ -349,8 +351,8 @@ impl OmniViewGenerator {
                 if let Some(EventDataKind::ResizeEvent) = handler.event_data {
                     let event_obj =
                         emit_event_object(&handler.event_data, &handler.used_fields, "_e");
-                    let handler_call = match handler.kind.as_str() {
-                        "fn_ref" => {
+                    let handler_call = match handler.kind {
+                        EventHandlerKind::FnRef => {
                             if let Some(ref fn_name) = handler.r#ref {
                                 let prefixed = format!("{}_{}", self.current_component, fn_name);
                                 format!("{}({})", prefixed, event_obj)
@@ -358,7 +360,7 @@ impl OmniViewGenerator {
                                 continue;
                             }
                         }
-                        "store_action" => {
+                        EventHandlerKind::StoreAction => {
                             if let Some(ref action_path) = handler.r#ref {
                                 let var_name = action_path.replace('.', "_");
                                 format!("{}()", var_name)
@@ -366,7 +368,7 @@ impl OmniViewGenerator {
                                 continue;
                             }
                         }
-                        "inline_fn" => {
+                        EventHandlerKind::InlineFn => {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
                             let params_str = handler.params.join(", ");
@@ -382,7 +384,6 @@ impl OmniViewGenerator {
                             self.js.push_str("}\n");
                             format!("{}({})", wrapper_name, event_obj)
                         }
-                        _ => continue,
                     };
                     self.js.push_str(&format!(
                         "{{ window.addEventListener(\"resize\", (_e) => {{ {} }}); }}\n",
@@ -400,8 +401,8 @@ impl OmniViewGenerator {
                 } else {
                     ""
                 };
-                match handler.kind.as_str() {
-                    "fn_ref" => {
+                match handler.kind {
+                    EventHandlerKind::FnRef => {
                         if let Some(ref fn_name) = handler.r#ref {
                             if self.motion_names.contains(fn_name.as_str()) {
                                 // Motion reference: create AnimationPlayer and play on event
@@ -425,7 +426,7 @@ impl OmniViewGenerator {
                             }
                         }
                     }
-                    "store_action" => {
+                    EventHandlerKind::StoreAction => {
                         if let Some(ref action_path) = handler.r#ref {
                             let var_name = action_path.replace('.', "_");
                             self.js.push_str(&format!(
@@ -434,7 +435,7 @@ impl OmniViewGenerator {
                             ));
                         }
                     }
-                    "inline_fn" => {
+                    EventHandlerKind::InlineFn => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
                         let params_str = handler.params.join(", ");
                         self.js
@@ -452,7 +453,6 @@ impl OmniViewGenerator {
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
                         ));
                     }
-                    _ => {}
                 }
             }
         }

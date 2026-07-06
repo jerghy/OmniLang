@@ -88,8 +88,14 @@ impl VueCodegen {
         if !comp.effects.is_empty() {
             vue_imports.push("watchEffect".into());
         }
-        let has_mount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Mount);
-        let has_unmount = comp.lifecycles.iter().any(|lc| lc.kind == LifecycleKind::Unmount);
+        let has_mount = comp
+            .lifecycles
+            .iter()
+            .any(|lc| lc.kind == LifecycleKind::Mount);
+        let has_unmount = comp
+            .lifecycles
+            .iter()
+            .any(|lc| lc.kind == LifecycleKind::Unmount);
         if has_mount {
             vue_imports.push("onMounted".into());
         }

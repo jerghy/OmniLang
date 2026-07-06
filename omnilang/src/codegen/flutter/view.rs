@@ -71,22 +71,22 @@ fn format_element(
         }
         // Events become callback parameters
         for (event_name, handler) in &el.events {
-            let cb = match handler.kind.as_str() {
-                "fn_ref" => {
+            let cb = match handler.kind {
+                EventHandlerKind::FnRef => {
                     if let Some(ref fn_name) = handler.r#ref {
                         format!("() {{ {}(); }}", fn_name)
                     } else {
                         "() {}".to_string()
                     }
                 }
-                "inline_fn" => {
+                EventHandlerKind::InlineFn => {
                     if let Some(ref body) = handler.body {
                         format_inline_handler_flutter(body)
                     } else {
                         "() {}".to_string()
                     }
                 }
-                "store_action" => {
+                EventHandlerKind::StoreAction => {
                     if let Some(ref action) = handler.r#ref {
                         let action_fn = action.split('.').next_back().unwrap_or(action);
                         format!("() {{ {}(); }}", action_fn)
@@ -94,7 +94,6 @@ fn format_element(
                         "() {}".to_string()
                     }
                 }
-                _ => "() {}".to_string(),
             };
             child_args.push(format!("on{}: {}", capitalize_first(event_name), cb));
         }
@@ -169,8 +168,8 @@ fn format_element(
     // Events -> callback parameters
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
-        let body = match handler.kind.as_str() {
-            "fn_ref" => {
+        let body = match handler.kind {
+            EventHandlerKind::FnRef => {
                 if let Some(ref fn_name) = handler.r#ref {
                     if handler.event_data.is_some() {
                         let event_obj = emit_event_object_flutter(
@@ -186,7 +185,7 @@ fn format_element(
                     "() {}".to_string()
                 }
             }
-            "inline_fn" => {
+            EventHandlerKind::InlineFn => {
                 if let Some(ref body) = handler.body {
                     if handler.event_data.is_some() {
                         let _event_obj = emit_event_object_flutter(
@@ -213,7 +212,7 @@ fn format_element(
                     "() {}".to_string()
                 }
             }
-            "store_action" => {
+            EventHandlerKind::StoreAction => {
                 if let Some(ref action) = handler.r#ref {
                     let action_fn = action.split('.').next_back().unwrap_or(action);
                     format!("() {{ {}(); }}", action_fn)
@@ -221,7 +220,6 @@ fn format_element(
                     "() {}".to_string()
                 }
             }
-            other => format!("() {{ /* TODO: kind '{}' */ }}", other),
         };
         args.push(format!("{}: {}", callback_name, body));
     }

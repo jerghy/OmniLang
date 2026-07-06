@@ -277,7 +277,7 @@ pub(super) fn lower_view_node(
                                     needs_sp = collector.needs_stop_propagation;
                                 }
                                 EventHandlerIR {
-                                    kind: "inline_fn".into(),
+                                    kind: EventHandlerKind::InlineFn,
                                     body: Some(lower_block(body, variant_map)),
                                     r#ref: None,
                                     params: params.iter().map(|p| p.name.clone()).collect(),
@@ -290,7 +290,7 @@ pub(super) fn lower_view_node(
                             EventHandler::FnRef(fn_name) => {
                                 // Defer used_fields to Pass 2 (fn_ref backfill)
                                 EventHandlerIR {
-                                    kind: "fn_ref".into(),
+                                    kind: EventHandlerKind::FnRef,
                                     body: None,
                                     r#ref: Some(fn_name.clone()),
                                     params: vec![],
@@ -303,7 +303,7 @@ pub(super) fn lower_view_node(
                             EventHandler::StoreAction { store, action } => {
                                 // Store actions receive no event data
                                 EventHandlerIR {
-                                    kind: "store_action".into(),
+                                    kind: EventHandlerKind::StoreAction,
                                     body: None,
                                     r#ref: Some(format!("{}.{}", store, action)),
                                     params: vec![],

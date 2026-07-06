@@ -40,20 +40,20 @@ pub(super) fn gen_view_node_tsx(
                 }
                 for (event_name, handler) in &el.events {
                     let jsx_event = to_react_event(event_name);
-                    match handler.kind.as_str() {
-                        "fn_ref" => {
+                    match handler.kind {
+                        EventHandlerKind::FnRef => {
                             if let Some(ref fn_name) = handler.r#ref {
                                 comp_attrs.push(format!("{}={{{}}}", jsx_event, fn_name));
                             }
                         }
-                        "inline_fn" => {
+                        EventHandlerKind::InlineFn => {
                             if let Some(ref body) = handler.body {
                                 let handler_str =
                                     format_inline_handler(body, signal_names, &handler.params);
                                 comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                             }
                         }
-                        "store_action" => {
+                        EventHandlerKind::StoreAction => {
                             if let Some(ref action) = handler.r#ref {
                                 let action_fn = action.split('.').next_back().unwrap_or(action);
                                 comp_attrs.push(format!(
@@ -62,7 +62,6 @@ pub(super) fn gen_view_node_tsx(
                                 ));
                             }
                         }
-                        _ => {}
                     }
                 }
                 let attrs_str = comp_attrs.join(" ");
@@ -239,8 +238,8 @@ pub(super) fn gen_view_node_tsx(
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {
                 let react_event = to_react_event(event_name);
-                match handler.kind.as_str() {
-                    "fn_ref" => {
+                match handler.kind {
+                    EventHandlerKind::FnRef => {
                         if let Some(ref fn_name) = handler.r#ref {
                             // Skip motion names — they're animation references, not functions
                             if motion_names.contains(fn_name.as_str()) {
@@ -278,7 +277,7 @@ pub(super) fn gen_view_node_tsx(
                             }
                         }
                     }
-                    "inline_fn" => {
+                    EventHandlerKind::InlineFn => {
                         if let Some(ref body) = handler.body {
                             if let Some(setter_call) = binding_events_map.remove(&react_event) {
                                 // Generate body with binding setter prepended
@@ -306,7 +305,7 @@ pub(super) fn gen_view_node_tsx(
                             }
                         }
                     }
-                    "store_action" => {
+                    EventHandlerKind::StoreAction => {
                         if let Some(ref action) = handler.r#ref {
                             let action_fn = action.split('.').next_back().unwrap_or(action);
                             if let Some(setter_call) = binding_events_map.remove(&react_event) {
@@ -321,19 +320,6 @@ pub(super) fn gen_view_node_tsx(
                                     action_fn = action_fn
                                 ));
                             }
-                        }
-                    }
-                    _ => {
-                        if let Some(setter_call) = binding_events_map.remove(&react_event) {
-                            attrs.push(format!(
-                                "{}={{(e) => {{ {}; }} }}",
-                                react_event, setter_call
-                            ));
-                        } else {
-                            attrs.push(format!(
-                                "{}={{/* TODO: handler kind '{}' */}}",
-                                react_event, handler.kind
-                            ));
                         }
                     }
                 }

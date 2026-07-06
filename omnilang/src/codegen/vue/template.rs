@@ -42,8 +42,8 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
             // Events -> @event="handler"
             for (event_name, handler) in &el.events {
                 let vue_event = to_vue_event(event_name);
-                match handler.kind.as_str() {
-                    "fn_ref" => {
+                match handler.kind {
+                    EventHandlerKind::FnRef => {
                         if let Some(ref fn_name) = handler.r#ref {
                             if handler.event_data.is_some() {
                                 let event_obj = emit_event_object_js(
@@ -60,7 +60,7 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                             }
                         }
                     }
-                    "inline_fn" => {
+                    EventHandlerKind::InlineFn => {
                         if let Some(ref body) = handler.body {
                             if handler.event_data.is_some() {
                                 let _event_obj = emit_event_object_js(
@@ -85,16 +85,10 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree) {
                             }
                         }
                     }
-                    "store_action" => {
+                    EventHandlerKind::StoreAction => {
                         if let Some(ref action) = handler.r#ref {
                             attrs.push(format!("@{}=\"/* TODO: action {} */\"", vue_event, action));
                         }
-                    }
-                    _ => {
-                        attrs.push(format!(
-                            "@{}=\"/* TODO: handler kind '{}' */\"",
-                            vue_event, handler.kind
-                        ));
                     }
                 }
             }

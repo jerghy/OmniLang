@@ -445,7 +445,7 @@ fn test_format_element_with_event() {
     events.insert(
         "click".into(),
         EventHandlerIR {
-            kind: "fn_ref".into(),
+            kind: EventHandlerKind::FnRef,
             body: None,
             r#ref: Some("handleClick".into()),
             params: vec![],

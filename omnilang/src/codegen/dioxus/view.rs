@@ -45,8 +45,8 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             // Events
             for (event_name, handler) in &el.events {
                 let dioxus_event = to_dioxus_event(event_name);
-                match handler.kind.as_str() {
-                    "fn_ref" => {
+                match handler.kind {
+                    EventHandlerKind::FnRef => {
                         if let Some(ref fn_name) = handler.r#ref {
                             if handler.event_data.is_some() {
                                 let event_obj = emit_event_object_dioxus(
@@ -63,7 +63,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                             }
                         }
                     }
-                    "inline_fn" => {
+                    EventHandlerKind::InlineFn => {
                         if let Some(ref body) = handler.body {
                             if handler.event_data.is_some() {
                                 let _event_obj = emit_event_object_dioxus(
@@ -91,19 +91,13 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                             }
                         }
                     }
-                    "store_action" => {
+                    EventHandlerKind::StoreAction => {
                         if let Some(ref action) = handler.r#ref {
                             attrs.push(format!(
                                 "{}: move |_| {{ /* TODO: action {} */ }},",
                                 dioxus_event, action
                             ));
                         }
-                    }
-                    _ => {
-                        attrs.push(format!(
-                            "{}: move |_| {{ /* TODO: kind '{}' */ }},",
-                            dioxus_event, handler.kind
-                        ));
                     }
                 }
             }

@@ -305,7 +305,7 @@ fn fixture_component_with_store() -> IRProgram {
             events: HashMap::from([(
                 "onClick".into(),
                 EventHandlerIR {
-                    kind: "store_action".into(),
+                    kind: crate::ir::EventHandlerKind::StoreAction,
                     body: None,
                     r#ref: Some("AppStore.increment".into()),
                     params: vec![],
