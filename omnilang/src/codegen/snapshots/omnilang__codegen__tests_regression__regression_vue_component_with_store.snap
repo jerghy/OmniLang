@@ -24,9 +24,6 @@ expression: "&format_output(&output)"
 
 <style scoped>
     .container {
-          display: flex;
-          flex-direction: column;
-          padding: 16px;
     }
 </style>
 

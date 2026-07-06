@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    use crate::codegen::camel_to_kebab;
     use crate::codegen::capitalize_first;
     use std::collections::HashMap;
 

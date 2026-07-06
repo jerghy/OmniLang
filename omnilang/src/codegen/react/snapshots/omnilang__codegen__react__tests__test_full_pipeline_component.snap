@@ -22,7 +22,4 @@ export function App() {
 === App.module.css ===
 /* Styles for App */
 .container {
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
 }

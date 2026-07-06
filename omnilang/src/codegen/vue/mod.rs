@@ -15,7 +15,8 @@ use template::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::{camel_to_kebab, format_css_value, format_json_value, JSON_VUE};
+use crate::codegen::format_json_value;
+use crate::codegen::JSON_VUE;
 use crate::ir::*;
 
 pub struct VueCodegen;
@@ -225,25 +226,7 @@ impl VueCodegen {
         // ═══════════════════════════════════════════════════════
         w.emit("<style scoped>");
         w.indent();
-        if comp.styles.is_empty() {
-            w.emit(".container {");
-            w.indent();
-            w.emit("  display: flex;");
-            w.emit("  flex-direction: column;");
-            w.emit("  padding: 16px;");
-            w.dedent();
-            w.emit("}");
-        } else {
-            for style in &comp.styles {
-                let prefix = if style.is_tag_selector { "" } else { "." };
-                w.emit(&format!("{}{} {{", prefix, style.class_name));
-                for (prop, value) in &style.properties {
-                    let css_val = format_css_value(value);
-                    w.emit(&format!("  {}: {};", camel_to_kebab(prop), css_val));
-                }
-                w.emit("}");
-            }
-        }
+        crate::codegen::generate_css_style_block(&mut w, &comp.styles);
         w.dedent();
         w.emit("</style>");
         w.emit("");

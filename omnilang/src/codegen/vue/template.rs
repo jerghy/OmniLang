@@ -1,8 +1,8 @@
 //! Vue template node generation.
 
 use super::{format_expr_vue, generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
+use crate::codegen::emit_event_object as emit_event_object_js;
 use crate::codegen::javascript::js_type;
-use crate::codegen::omniview::emit_event_object as emit_event_object_js;
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════

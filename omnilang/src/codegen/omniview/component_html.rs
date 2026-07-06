@@ -1,5 +1,6 @@
-use super::utils::{emit_event_object, map_event};
+use super::utils::map_event;
 use super::OmniViewGenerator;
+use crate::codegen::emit_event_object;
 use crate::ir::*;
 
 impl OmniViewGenerator {

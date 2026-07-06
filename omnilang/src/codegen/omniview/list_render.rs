@@ -3,8 +3,9 @@
 //! This module contains the iterative/cloning/binding portion of the @for
 //! render effect. The state initialization (template HTML, JS _effect header,
 //! key/empty-state setup) is in list.rs.
-use super::utils::{collect_for_events, emit_event_object};
+use super::utils::collect_for_events;
 use super::OmniViewGenerator;
+use crate::codegen::emit_event_object;
 use crate::ir::*;
 
 impl OmniViewGenerator {

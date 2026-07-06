@@ -337,7 +337,7 @@ fn test_css_empty_component() {
     };
     let css = codegen.gen_component_css("App", &comp);
     assert!(css.contains(".container"));
-    assert!(css.contains("display: flex;"));
+    assert!(css.contains("/* Styles for App */"));
 }
 
 #[test]

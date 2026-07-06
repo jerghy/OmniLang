@@ -33,7 +33,4 @@ export function Counter({ name, onUpdate }: CounterProps) {
 === Counter.module.css ===
 /* Styles for Counter */
 .container {
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
 }

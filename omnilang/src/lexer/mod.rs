@@ -264,6 +264,12 @@ impl Lexer {
         Some(c)
     }
 
+    /// Advance without checking bounds. Only safe when `peek()` has confirmed
+    /// a character is available.
+    fn advance_unchecked(&mut self) -> char {
+        self.advance().unwrap()
+    }
+
     fn peek(&self) -> Option<char> {
         self.source.get(self.pos).copied()
     }
@@ -445,9 +451,7 @@ impl Lexer {
                                 self.advance();
                                 let mut hex = String::new();
                                 while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
-                                    hex.push(self.advance().expect(
-                                        "peek() confirmed hex digit, advance() should return Some",
-                                    ));
+                                    hex.push(self.advance_unchecked());
                                 }
                                 if self.peek() == Some('}') {
                                     self.advance();
@@ -520,10 +524,7 @@ impl Lexer {
                     self.advance();
                     let mut hex = String::new();
                     while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
-                        hex.push(
-                            self.advance()
-                                .expect("peek() confirmed hex digit, advance() should return Some"),
-                        );
+                        hex.push(self.advance_unchecked());
                     }
                     return self.mk_token(
                         match u64::from_str_radix(&hex, 16) {
@@ -541,11 +542,7 @@ impl Lexer {
                     self.advance();
                     let mut oct = String::new();
                     while self.peek().is_some_and(|c| ('0'..='7').contains(&c)) {
-                        oct.push(
-                            self.advance().expect(
-                                "peek() confirmed octal digit, advance() should return Some",
-                            ),
-                        );
+                        oct.push(self.advance_unchecked());
                     }
                     return self.mk_token(
                         match u64::from_str_radix(&oct, 8) {
@@ -563,11 +560,7 @@ impl Lexer {
                     self.advance();
                     let mut bin = String::new();
                     while self.peek() == Some('0') || self.peek() == Some('1') {
-                        bin.push(
-                            self.advance().expect(
-                                "peek() confirmed binary digit, advance() should return Some",
-                            ),
-                        );
+                        bin.push(self.advance_unchecked());
                     }
                     return self.mk_token(
                         match u64::from_str_radix(&bin, 2) {
@@ -589,22 +582,13 @@ impl Lexer {
         let mut num = String::new();
         let mut is_float = false;
         while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-            num.push(
-                self.advance()
-                    .expect("peek() confirmed digit, advance() should return Some"),
-            );
+            num.push(self.advance_unchecked());
         }
         if self.peek() == Some('.') && self.peek_n(1).is_some_and(|c| c.is_ascii_digit()) {
             is_float = true;
-            num.push(
-                self.advance()
-                    .expect("peek() confirmed '.', advance() should return Some"),
-            );
+            num.push(self.advance_unchecked());
             while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-                num.push(
-                    self.advance()
-                        .expect("peek() confirmed digit, advance() should return Some"),
-                );
+                num.push(self.advance_unchecked());
             }
         }
         // Peek-ahead for scientific notation: e/E must be followed by at
@@ -624,21 +608,12 @@ impl Lexer {
             }
             if has_exponent {
                 is_float = true;
-                num.push(
-                    self.advance()
-                        .expect("peek() confirmed e/E, advance() should return Some"),
-                ); // consume e/E
+                num.push(self.advance_unchecked()); // consume e/E
                 if self.peek() == Some('+') || self.peek() == Some('-') {
-                    num.push(self.advance().expect(
-                        "peek() confirmed +/- after exponent, advance() should return Some",
-                    ));
+                    num.push(self.advance_unchecked());
                 }
                 while self.peek().is_some_and(|c| c.is_ascii_digit()) {
-                    num.push(
-                        self.advance().expect(
-                            "peek() confirmed exponent digit, advance() should return Some",
-                        ),
-                    );
+                    num.push(self.advance_unchecked());
                 }
             }
         }
@@ -678,10 +653,7 @@ impl Lexer {
                 || c == '_'
                 || (!c.is_ascii() && !c.is_whitespace() && !c.is_control())
         }) {
-            ident.push(
-                self.advance()
-                    .expect("peek() confirmed ident char, advance() should return Some"),
-            );
+            ident.push(self.advance_unchecked());
         }
         let kind = keywords::ident_to_keyword(&ident).unwrap_or(TokenKind::Ident(ident));
         self.mk_token(kind, start, self.pos, line, col)
@@ -697,10 +669,7 @@ impl Lexer {
             .peek()
             .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-')
         {
-            kw.push(
-                self.advance()
-                    .expect("peek() confirmed @keyword char, advance() should return Some"),
-            );
+            kw.push(self.advance_unchecked());
         }
         let kind = keywords::at_keyword_to_token(&kw).unwrap_or(TokenKind::Ident(kw));
         self.mk_token(kind, start, self.pos, line, col)

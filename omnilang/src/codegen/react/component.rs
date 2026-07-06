@@ -482,29 +482,7 @@ impl ReactCodegen {
     pub(super) fn gen_component_css(&self, name: &str, comp: &ComponentIR) -> String {
         let mut w = CodeWriter::new();
         w.emit(&format!("/* Styles for {} */", name));
-        if comp.styles.is_empty() {
-            w.emit(".container {");
-            w.indent();
-            w.emit("display: flex;");
-            w.emit("flex-direction: column;");
-            w.emit("padding: 16px;");
-            w.dedent();
-            w.emit("}");
-        } else {
-            for style in &comp.styles {
-                let prefix = if style.is_tag_selector { "" } else { "." };
-                w.emit(&format!("{}{} {{", prefix, style.class_name));
-                for (prop, value) in &style.properties {
-                    let css_val = crate::codegen::format_css_value(value);
-                    w.emit(&format!(
-                        "  {}: {};",
-                        crate::codegen::camel_to_kebab(prop),
-                        css_val
-                    ));
-                }
-                w.emit("}");
-            }
-        }
+        crate::codegen::generate_css_style_block(&mut w, &comp.styles);
         w.into_string()
     }
 }

@@ -1,5 +1,6 @@
-use super::utils::{emit_event_object, escape_html, map_event, map_tag};
+use super::utils::{escape_html, map_event, map_tag};
 use super::OmniViewGenerator;
+use crate::codegen::emit_event_object;
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};

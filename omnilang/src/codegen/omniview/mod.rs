@@ -24,7 +24,6 @@ mod store;
 mod timeline;
 mod utils;
 mod view;
-pub(crate) use utils::emit_event_object;
 pub use utils::{compile_files, wrap_debug_html};
 
 use crate::ir::*;
