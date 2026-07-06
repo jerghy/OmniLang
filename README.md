@@ -56,12 +56,14 @@ omni-test/         # Standalone test files
 
 | Target | Type | Status |
 |--------|------|--------|
+| omniview | UI | ✅ L2 |
 | react | UI | ✅ L2 |
 | vue | UI | ✅ L2 |
 | dioxus | UI | ✅ L2 |
 | flutter | UI | L1 (basic) |
 | python | Logic | ✅ |
 | javascript | Logic | ✅ |
+| typescript | Logic | ✅ |
 | rust | Logic | ✅ |
 | dart | Logic | ✅ |
 

@@ -56,17 +56,17 @@
 
 | 文档 | 受众 | 描述 |
 |------|------|------|
-| [语法规范](omni-grammar-spec.md) | 语言设计者、工具开发者 | 形式化语法 v2.0——源自 Rust 编译器实现 |
+| ~~语法规范~~（`omni-grammar-spec.md` — 待补充） | 语言设计者、工具开发者 | 形式化语法 v2.0——源自 Rust 编译器实现 |
 | [标准库](stdlib.md) | 所有用户 | `omni/math`、`omni/string`、`omni/async` API 参考 |
-| [v0.1 → v0.2 迁移指南](migration-v0.1-v0.2.md) | 升级用户 | 破坏性变更与迁移步骤 |
+| ~~v0.1 → v0.2 迁移指南~~（`migration-v0.1-v0.2.md` — 待补充） | 升级用户 | 破坏性变更与迁移步骤 |
 
 ## 内部文档
 
 | 文档 | 描述 |
 |------|------|
 | [ADR-001](adr/001-omnilang-omniview-unification.md) | 架构决策：OmniLang=Dart、OmniView=Flutter 模型 |
-| [E2E 验证报告](E2E_VALIDATION_REPORT.md) | 真实世界测试：5 个应用、23 个差距、10 个已修复 |
-| [真实世界差距](REAL_WORLD_GAPS.md) | 已知限制（剩余 12 个非关键问题） |
+| ~~E2E 验证报告~~（`E2E_VALIDATION_REPORT.md` — 待补充） | 真实世界测试：5 个应用、23 个差距、10 个已修复 |
+| ~~真实世界差距~~（`REAL_WORLD_GAPS.md` — 待补充） | 已知限制（剩余 12 个非关键问题） |
 
 ## 快速链接
 

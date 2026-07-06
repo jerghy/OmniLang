@@ -21,10 +21,7 @@
 # 从 OmniLang 仓库安装
 git clone https://github.com/omnilang/omnilang.git
 cd OmniLang
-pip install -e .
-
-# 编译 Rust 编译器（只需一次）
-cd omni-compiler && cargo build && cd ..
+cargo build -p omnilang
 ```
 
 验证：
@@ -362,8 +359,8 @@ done
 
 | 问题 | 原因 | 解决方案 |
 |------|------|---------|
-| `omnic: command not found` | 包未安装 | 在仓库根目录执行 `pip install -e .` |
-| `CompilerUnavailable` | Rust DLL 未编译 | `cd omni-compiler && cargo build` |
+| `omnic: command not found` | 包未安装 | 在仓库根目录执行 `cargo build -p omnilang` |
+| `CompilerUnavailable` | Rust DLL 未编译 | `cargo build -p omnilang` |
 | `No .omni files found` | 不在项目目录 | 切换到项目根目录，或指定文件路径 |
 | `No source file specified` | 没有 `src/main.omni` | 指定文件：`omnic run app.omni` |
 | `Directory already exists` | 目标目录已存在 | 换一个项目名称 |

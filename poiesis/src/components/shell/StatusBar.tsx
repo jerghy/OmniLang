@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════
 
 import { S } from "./theme";
-import { PerfBadge } from "../canvas/PerfBadge";
 
 export interface StatusBarProps {
   status: { text: string; isError: boolean };
@@ -11,7 +10,6 @@ export interface StatusBarProps {
   projectName?: string;
   projectDir: string | null;
   compileErrors?: Array<unknown>;
-  showPerfBadge?: boolean;
 }
 
 export function StatusBar({
@@ -20,7 +18,6 @@ export function StatusBar({
   projectName,
   projectDir,
   compileErrors,
-  showPerfBadge,
 }: StatusBarProps) {
   return (
     <div style={S.statusBar}>
@@ -30,12 +27,6 @@ export function StatusBar({
         {projectDir ? ` | 📁 ${projectDir}` : ""}
         {compileErrors && compileErrors.length > 0 ? ` — ${compileErrors.length} 条错误` : ""}
       </span>
-      {showPerfBadge && (
-        <>
-          <span style={{ flex: 1 }} />
-          <PerfBadge />
-        </>
-      )}
     </div>
   );
 }

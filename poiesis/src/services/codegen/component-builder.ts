@@ -4,7 +4,6 @@
 // results of Phase A (view tree + bindings), Phase B (stores + chains),
 // and Phase C (styles).
 
-import type { ElementData } from "../../core/types";
 import type {
   ComponentPart,
   ComponentMeta,

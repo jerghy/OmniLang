@@ -7,10 +7,9 @@
 ```bash
 # 1. 克隆并安装
 git clone <repo-url> && cd OmniLang
-pip install -e .
 
 # 2. 编译编译器（只需一次）
-cd omni-compiler && cargo build && cd ..
+cargo build -p omnilang
 
 # 3. 创建并运行一个视图项目
 omnic create my-app --type view

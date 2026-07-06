@@ -204,7 +204,6 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
 // ── Styles ──
 
 const accent = "#6d28d9";
-const accentLight = "#f5f3ff";
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

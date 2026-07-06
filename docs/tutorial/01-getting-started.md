@@ -16,15 +16,14 @@
 ```bash
 git clone https://github.com/omnilang/omnilang.git
 cd OmniLang
-pip install -e .
+cargo build -p omnilang
 ```
 
 编译器是用 Rust 写的，需要编译一次：
 
 ```bash
-cd omni-compiler
-cargo build
-cd ..
+cd OmniLang
+cargo build -p omnilang
 ```
 
 > **注意**：编译器产物为 `omni_compiler.dll`（Windows）/ `libomni_compiler.so`（Linux）/ `libomni_compiler.dylib`（macOS）。Python 包会自动发现它。
@@ -178,8 +177,8 @@ my-project/
 
 | 问题 | 解决方案 |
 |------|---------|
-| `omnic: command not found` | 在仓库根目录运行 `pip install -e .` |
-| `CompilerUnavailable` | 编译 Rust 编译器：`cd omni-compiler && cargo build` |
+| `omnic: command not found` | 在仓库根目录运行 `cargo build -p omnilang` |
+| `CompilerUnavailable` | 编译 Rust 编译器：`cargo build -p omnilang` |
 | `No .omni files found` | 在项目目录下运行，或指定文件：`omnic build src/main.omni` |
 | 视图项目被当作文本打开 | 在文件顶部添加 `import omniview;` |
 | 浏览器没有自动打开 | 文件在 `build/debug/index.html`，手动打开即可 |

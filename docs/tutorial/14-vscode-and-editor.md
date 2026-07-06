@@ -66,7 +66,7 @@ code --install-extension omnilang-vscode-0.2.0.vsix
 | **文档符号** | 大纲视图：组件、Store、函数 |
 | **折叠** | 按大括号折叠代码块 |
 
-> LSP 需要 Rust 编译器 DLL 已编译。如果看到 "language server not started"，运行 `cd omni-compiler && cargo build`。
+> LSP 需要 Rust 编译器 DLL 已编译。如果看到 "language server not started"，运行 `cargo build -p omnilang`。
 
 #### 语言配置
 
@@ -175,7 +175,7 @@ npx serve dist
 | 问题 | 解决方案 |
 |------|---------|
 | 没有语法高亮 | 安装 `.vsix`：`code --install-extension omnilang-vscode-0.2.1.vsix` |
-| LSP 未启动 | 编译 Rust 编译器：`cd omni-compiler && cargo build` |
+| LSP 未启动 | 编译 Rust 编译器：`cargo build -p omnilang` |
 | 代码片段不出现 | 确保文件保存为 `.omni`——片段只对 `omnilang` 语言 ID 激活 |
 | 编辑器无法启动 | 检查 `--dir` 指向包含 `.omnilang.toml` 的目录 |
 | 端口冲突 | 用 `--port 3000` 切换服务器端口 |

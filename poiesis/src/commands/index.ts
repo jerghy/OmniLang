@@ -74,14 +74,12 @@ class ApiClient {
   // file_watch command can be used.
 
   private watchTimer: number | null = null;
-  private onCompiled: ((data: unknown) => void) | null = null;
   private onStatusChange: ((status: string, isError: boolean) => void) | null = null;
 
   connectWatch(
-    onCompiled: (data: unknown) => void,
+    _onCompiled: (data: unknown) => void,
     onStatus: (status: string, isError: boolean) => void,
   ): void {
-    this.onCompiled = onCompiled;
     this.onStatusChange = onStatus;
     // Polling is light — the compile is triggered explicitly by the user,
     // so we just report connection status
@@ -93,7 +91,6 @@ class ApiClient {
       clearInterval(this.watchTimer);
       this.watchTimer = null;
     }
-    this.onCompiled = null;
     this.onStatusChange = null;
   }
 

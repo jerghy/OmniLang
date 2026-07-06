@@ -2,13 +2,8 @@
 // Hierarchical file tree panel showing .omni files for quick navigation.
 // Includes "New File" button to open the creation dialog.
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { api } from "../../commands";
-
-interface OmniFile {
-  path: string;
-  name: string;
-}
 
 interface FileTreeNode {
   name: string;

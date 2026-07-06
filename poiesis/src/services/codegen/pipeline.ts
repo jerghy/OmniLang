@@ -15,7 +15,7 @@ import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
-import type { PidMap } from "../../core/types/pid";
+// import type { PidMap } from "../../core/types/pid";
 import { getComponentDefinitions } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
@@ -27,10 +27,9 @@ import type {
   ChainBlock,
   BindingResult,
   LoweredCode,
-  AnnotationStrategy,
 } from "./types";
 import type { GenerateOmniSourceOptions } from "./pipeline-types";
-import { parseStylesFromAST } from "./style-parser";
+// import { parseStylesFromAST } from "./style-parser";
 import type { PhaseAContext, PhaseBContext, PhaseCContext, StyleCollection } from "./component-builder";
 import { buildComponentPart, buildComponentMeta, computeViewWrapperId } from "./component-builder";
 

@@ -149,7 +149,6 @@ export default function App() {
   const setProjectDir = usePoiesisStore((s) => s.setProjectDir);
   const setProjectName = usePoiesisStore((s) => s.setProjectName);
   const resetEditorState = usePoiesisStore((s) => s.resetEditorState);
-  const openTab = usePoiesisStore((s) => s.openTab);
   const compileErrors = usePoiesisStore((s) => s.compileErrors);
 
   const statusText =

@@ -1,5 +1,4 @@
 // Tree utilities for ComponentTree.
-import type { ElementData } from "../../core/types/element";
 
 export interface TreeNode {
   id: string;

@@ -7,7 +7,6 @@ import { usePoiesisStore } from "../store";
 import { getAllPorts } from "../components/canvas/shared/connectionValidators";
 import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
-import type { PortData } from "../core/types/element";
 
 const log = new Logger({ prefix: "OmniDriver" });
 

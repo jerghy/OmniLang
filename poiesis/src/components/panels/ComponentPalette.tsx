@@ -3,7 +3,7 @@
  *  META (COMPONENT_PROTOCOL) 是内置组件的单一真相源。
  *  自定义组件通过 useComponentRegistry 动态注入。 */
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
 import { usePoiesisStore } from "../../store";

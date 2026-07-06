@@ -2,14 +2,14 @@ import { create } from "zustand";
 import type { ElementData, PortData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
-import type { DesignPageState, DesignTab, Breadcrumb } from "../core/types/design-page";
+import type { DesignPageState, Breadcrumb } from "../core/types/design-page";
 import { detectTabType } from "../core/types/design-page";
 import type { PidEntry } from "../core/types/pid";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
 import type { StyleProperty } from "../core/types/style";
 import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
-import type { UndoAction, UndoStack } from "./undo-slice";
-import { skipUndoGuard, buildUndoUpdate, createUndoSlice } from "./undo-slice";
+import type { UndoStack } from "./undo-slice";
+import { buildUndoUpdate, createUndoSlice } from "./undo-slice";
 import { createTabSlice } from "./tab-slice";
 
 // ── Store Interface ──
