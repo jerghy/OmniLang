@@ -360,22 +360,20 @@ mod tests {
 
     #[test]
     fn validate_single_file_no_issues() {
-        let sources = make_sources(vec![(
-            "main.omni",
-            "fn main() -> i32 { return 42; }",
-        )]);
+        let sources = make_sources(vec![("main.omni", "fn main() -> i32 { return 42; }")]);
         let result = validate_sources(sources);
         assert!(result.success, "single function file should validate ok");
-        assert!(result.errors.is_empty(), "expected no errors, got: {:?}", result.errors);
+        assert!(
+            result.errors.is_empty(),
+            "expected no errors, got: {:?}",
+            result.errors
+        );
     }
 
     #[test]
     fn validate_cross_file_import_resolves() {
         let sources = make_sources(vec![
-            (
-                "a.omni",
-                "pub fn helper() -> i32 { return 1; }",
-            ),
+            ("a.omni", "pub fn helper() -> i32 { return 1; }"),
             (
                 "b.omni",
                 "import { helper } from \"./a.omni\"; fn main() -> i32 { return helper(); }",
@@ -401,7 +399,10 @@ mod tests {
         ]);
         let result = validate_sources(sources);
         assert!(!result.success, "import of private symbol should fail");
-        let has_vis_error = result.errors.iter().any(|d| d.kind == DiagnosticKind::EVisibility);
+        let has_vis_error = result
+            .errors
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::EVisibility);
         assert!(
             has_vis_error,
             "expected E_VISIBILITY error, got kinds: {:?}",
@@ -419,7 +420,10 @@ mod tests {
         // Don't include "./missing.omni" in the path mapping, so it can't be resolved
         let result = validate_multi(sources, path_mapping);
         assert!(!result.success, "unresolvable import should fail");
-        let has_import_error = result.errors.iter().any(|d| d.kind == DiagnosticKind::EImport);
+        let has_import_error = result
+            .errors
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::EImport);
         assert!(
             has_import_error,
             "expected E_IMPORT error, got kinds: {:?}",

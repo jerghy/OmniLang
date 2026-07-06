@@ -25,7 +25,11 @@ pub fn parse(tokens: &[Token], source: &str) -> Result<Program, ParseError> {
     // may be incomplete. The remaining errors are discarded at this level.
     if let Some(err) = parser.errors.first() {
         return Err(ParseError {
-            message: format!("{} (and {} more error(s))", err.message, parser.errors.len() - 1),
+            message: format!(
+                "{} (and {} more error(s))",
+                err.message,
+                parser.errors.len() - 1
+            ),
             span: err.span.clone(),
         });
     }
@@ -176,9 +180,14 @@ impl<'a> Parser<'a> {
     fn skip_to_stmt_boundary(&mut self) {
         loop {
             match self.peek_kind() {
-                TokenKind::Semicolon => { self.advance(); return; }
+                TokenKind::Semicolon => {
+                    self.advance();
+                    return;
+                }
                 TokenKind::RBrace | TokenKind::Eof => return,
-                _ => { self.advance(); }
+                _ => {
+                    self.advance();
+                }
             }
         }
     }
@@ -239,10 +248,18 @@ impl<'a> Parser<'a> {
     /// Skip to next top-level declaration keyword.
     fn skip_to_top_level(&mut self) {
         const TOP_LEVEL: &[TokenKind] = &[
-            TokenKind::Fn, TokenKind::Pub, TokenKind::Component,
-            TokenKind::Store, TokenKind::Theme, TokenKind::Struct,
-            TokenKind::Type, TokenKind::Const, TokenKind::Import,
-            TokenKind::Export, TokenKind::AtMotion, TokenKind::AtTimeline,
+            TokenKind::Fn,
+            TokenKind::Pub,
+            TokenKind::Component,
+            TokenKind::Store,
+            TokenKind::Theme,
+            TokenKind::Struct,
+            TokenKind::Type,
+            TokenKind::Const,
+            TokenKind::Import,
+            TokenKind::Export,
+            TokenKind::AtMotion,
+            TokenKind::AtTimeline,
             TokenKind::Async,
         ];
         self.skip_to(TOP_LEVEL);

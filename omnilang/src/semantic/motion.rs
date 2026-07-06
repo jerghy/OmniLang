@@ -220,9 +220,7 @@ pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
         }
         Stmt::While {
             condition, body, ..
-        } => {
-            contains_velocity_ref(condition) || body.stmts.iter().any(contains_velocity_stmt)
-        }
+        } => contains_velocity_ref(condition) || body.stmts.iter().any(contains_velocity_stmt),
         Stmt::ForIn { iterable, body, .. } => {
             contains_velocity_ref(iterable) || body.stmts.iter().any(contains_velocity_stmt)
         }

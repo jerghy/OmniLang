@@ -223,7 +223,7 @@ impl OmniViewGenerator {
                 self.motion_names.insert(motion.name.clone());
                 self.emit_motion_js(motion);
             }
-        } 
+        }
 
         // Timeline definitions — emit JS that orchestrates animations by element ID.
         if !comp.timelines.is_empty() {

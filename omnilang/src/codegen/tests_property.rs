@@ -4,8 +4,8 @@
 //! that translates OmniLang's internal operator names into target
 //! language symbols.
 
-use proptest::prelude::*;
 use crate::codegen::binary_op_to_str;
+use proptest::prelude::*;
 
 proptest! {
     #[test]

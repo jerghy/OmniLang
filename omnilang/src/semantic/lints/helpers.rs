@@ -96,27 +96,27 @@ pub(super) fn check_block_ir_for_store_mutations(
     for stmt in &block.statements {
         match stmt {
             StatementIR::MutationStmt {
-                    intent: Some(ref mutation),
-                } => {
-                    if let Some(ref owner) = mutation.target.owner {
-                        if let Some(signals) = store_signals.get(owner.as_str()) {
-                            if signals.contains(mutation.target.name.as_str()) {
-                                diags.push(LintDiagnostic {
-                                    rule: "store-field-direct-mutation".into(),
-                                    severity: super::LintSeverity::Error,
-                                    message: format!(
-                                        "Store signal '{}.{}' modified in '{}' — \
+                intent: Some(ref mutation),
+            } => {
+                if let Some(ref owner) = mutation.target.owner {
+                    if let Some(signals) = store_signals.get(owner.as_str()) {
+                        if signals.contains(mutation.target.name.as_str()) {
+                            diags.push(LintDiagnostic {
+                                rule: "store-field-direct-mutation".into(),
+                                severity: super::LintSeverity::Error,
+                                message: format!(
+                                    "Store signal '{}.{}' modified in '{}' — \
                                          store data must only be changed through store actions",
-                                        owner, mutation.target.name, context_name
-                                    ),
-                                    file: String::new(),
-                                    line: 0,
-                                    col: 0,
-                                });
-                            }
+                                    owner, mutation.target.name, context_name
+                                ),
+                                file: String::new(),
+                                line: 0,
+                                col: 0,
+                            });
                         }
                     }
                 }
+            }
             StatementIR::IfStmtIR {
                 then_body,
                 else_ifs,
@@ -152,20 +152,21 @@ pub(super) fn check_block_ir_for_store_mutations(
                 }
             }
             StatementIR::ExprStmtIR { expr }
-                if expr_ir_contains_store_mutation(expr, store_signals) => {
-                    diags.push(LintDiagnostic {
-                        rule: "store-field-direct-mutation".into(),
-                        severity: super::LintSeverity::Error,
-                        message: format!(
-                            "Expression in '{}' mutates store data — \
+                if expr_ir_contains_store_mutation(expr, store_signals) =>
+            {
+                diags.push(LintDiagnostic {
+                    rule: "store-field-direct-mutation".into(),
+                    severity: super::LintSeverity::Error,
+                    message: format!(
+                        "Expression in '{}' mutates store data — \
                              store data must only be changed through store actions",
-                            context_name
-                        ),
-                        file: String::new(),
-                        line: 0,
-                        col: 0,
-                    });
-                }
+                        context_name
+                    ),
+                    file: String::new(),
+                    line: 0,
+                    col: 0,
+                });
+            }
             _ => {}
         }
     }
@@ -251,13 +252,13 @@ pub(super) fn expr_ir_contains_store_mutation(
         ExprIR::BlockExpr { statements, tail } => {
             statements.iter().any(|s| {
                 if let StatementIR::MutationStmt {
-                        intent: Some(ref m),
-                    } = s
-                    {
-                        if let Some(ref owner) = m.target.owner {
-                            return store_signals.contains_key(owner.as_str());
-                        }
+                    intent: Some(ref m),
+                } = s
+                {
+                    if let Some(ref owner) = m.target.owner {
+                        return store_signals.contains_key(owner.as_str());
                     }
+                }
                 false
             }) || expr_ir_contains_store_mutation(tail, store_signals)
         }
@@ -457,18 +458,18 @@ pub(super) fn check_view_for_prop_assign(
             ViewNode::Element(el) => {
                 for prop in &el.props {
                     if let ElementProp::Event {
-                            handler: EventHandler::InlineFn { body, .. },
-                            ..
-                        } = prop
-                        {
-                            check_block_for_prop_assign(
-                                body,
-                                prop_names,
-                                comp_name,
-                                "inline event handler",
-                                diags,
-                            );
-                        }
+                        handler: EventHandler::InlineFn { body, .. },
+                        ..
+                    } = prop
+                    {
+                        check_block_for_prop_assign(
+                            body,
+                            prop_names,
+                            comp_name,
+                            "inline event handler",
+                            diags,
+                        );
+                    }
                 }
                 check_view_for_prop_assign(&el.children, prop_names, comp_name, diags);
             }
@@ -565,9 +566,10 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &HashSet<&str
                         }
                     }
                     Stmt::Return { value: Some(e), .. } | Stmt::Print { arg: e, .. }
-                        if expr_contains_side_effect(e, signal_names) => {
-                            return true;
-                        }
+                        if expr_contains_side_effect(e, signal_names) =>
+                    {
+                        return true;
+                    }
                     _ => {}
                 }
             }

@@ -295,35 +295,27 @@ impl SemanticAnalyzer {
                                 }
                             }
                             ElementProp::Class {
-                                    value: ClassValue::ClassMap(entries),
-                                } => {
-                                    for (_, expr) in entries {
-                                        check_expr_for_undeclared_store(
-                                            expr,
-                                            store_refs,
-                                            diagnostics,
-                                        );
-                                    }
+                                value: ClassValue::ClassMap(entries),
+                            } => {
+                                for (_, expr) in entries {
+                                    check_expr_for_undeclared_store(expr, store_refs, diagnostics);
                                 }
+                            }
                             ElementProp::Event {
-                                    handler: EventHandler::InlineFn { body, .. },
-                                    ..
-                                } => {
-                                    for stmt in &body.stmts {
-                                        check_stmt_for_undeclared_store(
-                                            stmt,
-                                            store_refs,
-                                            diagnostics,
-                                        );
-                                    }
-                                    if let Some(ref trailing) = body.trailing_expr {
-                                        check_expr_for_undeclared_store(
-                                            trailing,
-                                            store_refs,
-                                            diagnostics,
-                                        );
-                                    }
+                                handler: EventHandler::InlineFn { body, .. },
+                                ..
+                            } => {
+                                for stmt in &body.stmts {
+                                    check_stmt_for_undeclared_store(stmt, store_refs, diagnostics);
                                 }
+                                if let Some(ref trailing) = body.trailing_expr {
+                                    check_expr_for_undeclared_store(
+                                        trailing,
+                                        store_refs,
+                                        diagnostics,
+                                    );
+                                }
+                            }
                             _ => {}
                         }
                     }

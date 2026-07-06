@@ -57,7 +57,7 @@ impl LintRule for MissingReturn {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR};
+    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;
@@ -78,7 +78,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "getCount".into(),
-                    visibility: "private".to_string(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: Some(TypeIR {
                         kind: "Int".into(),
@@ -136,7 +136,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "log".into(),
-                    visibility: "private".to_string(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: Some(TypeIR {
                         kind: "void".into(),
@@ -189,7 +189,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "getCount".into(),
-                    visibility: "private".to_string(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: Some(TypeIR {
                         kind: "Int".into(),

@@ -143,4 +143,3 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
         }
     }
 }
-

@@ -62,9 +62,18 @@ mod tests {
 
     #[test]
     fn test_format_json_value() {
-        assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_RUST), "None");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_RUST), "true");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_RUST), "false");
+        assert_eq!(
+            format_json_value(&serde_json::Value::Null, &JSON_RUST),
+            "None"
+        );
+        assert_eq!(
+            format_json_value(&serde_json::Value::Bool(true), &JSON_RUST),
+            "true"
+        );
+        assert_eq!(
+            format_json_value(&serde_json::Value::Bool(false), &JSON_RUST),
+            "false"
+        );
         assert_eq!(format_json_value(&serde_json::json!(42), &JSON_RUST), "42");
         assert_eq!(
             format_json_value(&serde_json::json!("hello"), &JSON_RUST),
@@ -195,7 +204,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "do_thing".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -214,7 +223,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "get_value".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             params: vec![],
             return_type: Some(TypeIR {
                 kind: "i32".into(),
@@ -239,7 +248,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "greet".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             params: vec![ParamIR {
                 name: "name".into(),
                 r#type: Some(TypeIR {
@@ -313,7 +322,7 @@ mod tests {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "greet".into(),
-                visibility: "private".to_string(),
+                visibility: Visibility::Private,
                 params: vec![],
                 return_type: None,
                 body: BlockIR {
@@ -634,7 +643,7 @@ mod tests {
                             lifecycles: vec![],
                             fns: vec![FunctionIR {
                                 name: "run".into(),
-                                visibility: "private".to_string(),
+                                visibility: Visibility::Private,
                                 params: vec![],
                                 return_type: None,
                                 body: BlockIR {
@@ -727,7 +736,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let struct_ir = StructIR {
             name: "Point".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             fields: vec![
                 FieldIR {
                     name: "x".into(),
@@ -738,7 +747,7 @@ mod tests {
                         needs_clone: false,
                         needs_partial_eq: false,
                     },
-                    visibility: "public".into(),
+                    visibility: Visibility::Public,
                 },
                 FieldIR {
                     name: "y".into(),
@@ -749,7 +758,7 @@ mod tests {
                         needs_clone: false,
                         needs_partial_eq: false,
                     },
-                    visibility: "public".into(),
+                    visibility: Visibility::Public,
                 },
             ],
         };
@@ -765,7 +774,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let struct_ir = StructIR {
             name: "Empty".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             fields: vec![],
         };
         generate_struct(&mut w, &struct_ir);
@@ -779,7 +788,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let enum_ir = EnumIR {
             name: "Color".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             variants: vec![
                 VariantIR {
                     name: "Red".into(),
@@ -808,7 +817,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let enum_ir = EnumIR {
             name: "Value".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             variants: vec![
                 VariantIR {
                     name: "Int".into(),
@@ -844,7 +853,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let enum_ir = EnumIR {
             name: "Empty".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             variants: vec![],
         };
         generate_enum(&mut w, &enum_ir);
@@ -858,7 +867,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let alias = TypeAliasIR {
             name: "UserId".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             target: TypeIR {
                 kind: "i32".into(),
                 type_args: vec![],
@@ -876,7 +885,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "main".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -896,7 +905,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "add".into(),
-            visibility: "public".to_string(),
+            visibility: Visibility::Public,
             params: vec![ParamIR {
                 name: "a".into(),
                 r#type: Some(TypeIR {
@@ -931,7 +940,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let func = FunctionIR {
             name: "helper".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -981,7 +990,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let struct_ir = StructIR {
             name: "Internal".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             fields: vec![],
         };
         generate_struct(&mut w, &struct_ir);
@@ -995,7 +1004,7 @@ mod tests {
         let mut w = CodeWriter::new();
         let enum_ir = EnumIR {
             name: "Internal".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             variants: vec![],
         };
         generate_enum(&mut w, &enum_ir);

@@ -8,8 +8,8 @@
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
 use super::SemanticAnalyzer;
-use crate::error::DiagnosticKind;
 use crate::error::Diagnostic;
+use crate::error::DiagnosticKind;
 use crate::parser::ast::*;
 
 impl SemanticAnalyzer {

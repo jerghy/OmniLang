@@ -105,4 +105,3 @@ pub(crate) fn binding_to_flutter_param(bind_name: &str) -> &str {
         _ => bind_name,
     }
 }
-

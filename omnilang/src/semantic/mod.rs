@@ -141,9 +141,14 @@ mod tests {
             .iter()
             .filter(|d| d.severity == crate::error::Severity::Error)
             .collect();
-        assert!(!errors.is_empty(), "expected at least one error for unresolved variable");
         assert!(
-            errors.iter().any(|d| d.message.contains("unresolved") || d.message.contains("'y'")),
+            !errors.is_empty(),
+            "expected at least one error for unresolved variable"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("unresolved") || d.message.contains("'y'")),
             "error message should mention the unresolved variable 'y', got: {:?}",
             errors
         );

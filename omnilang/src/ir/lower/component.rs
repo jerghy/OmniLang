@@ -14,6 +14,9 @@ use super::motion::{lower_easing, lower_motion_def, lower_timeline_def};
 use super::stmt::lower_block;
 use super::view::lower_view_block;
 
+// Disambiguate Visibility between parser AST and IR
+use crate::ir::logic::Visibility as IRVisibility;
+
 // ═══════════════════════════════════════════════════════
 // Component lowering
 // ═══════════════════════════════════════════════════════
@@ -86,7 +89,7 @@ pub(super) fn lower_component(
         .iter()
         .map(|f| FunctionIR {
             name: f.name.clone(),
-            visibility: "private".to_string(),
+            visibility: IRVisibility::Private,
             params: f
                 .params
                 .iter()
@@ -104,7 +107,7 @@ pub(super) fn lower_component(
     for a in &comp.actions {
         fns.push(FunctionIR {
             name: a.name.clone(),
-            visibility: "private".to_string(),
+            visibility: IRVisibility::Private,
             params: a
                 .params
                 .iter()
@@ -566,7 +569,7 @@ pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String
         .iter()
         .map(|action| FunctionIR {
             name: action.name.clone(),
-            visibility: "public".into(),
+            visibility: IRVisibility::Public,
             params: action
                 .params
                 .iter()

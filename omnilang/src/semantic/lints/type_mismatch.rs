@@ -147,7 +147,7 @@ impl TypeMismatch {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR};
+    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;
@@ -168,7 +168,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "returns_void".into(),
-                    visibility: "private".into(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: Some(TypeIR {
                         kind: "void".into(),

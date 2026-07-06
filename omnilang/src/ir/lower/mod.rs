@@ -159,7 +159,10 @@ mod tests {
     fn lower_simple_function() {
         let ir = lower_source("fn main() -> i32 { return 42; }");
         assert_eq!(ir.version, "1.0");
-        let module = ir.modules.get("input.omni").expect("should have input.omni module");
+        let module = ir
+            .modules
+            .get("input.omni")
+            .expect("should have input.omni module");
         assert!(
             module.functions.contains_key("main"),
             "should contain 'main' function, got keys: {:?}",

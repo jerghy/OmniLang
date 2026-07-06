@@ -141,7 +141,6 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
     }
 }
 
-
 /// Map OMNI type to Rust type annotation string.
 pub fn rs_type(kind: &str, type_args: &[TypeIR]) -> String {
     match kind {
@@ -199,7 +198,7 @@ pub(super) fn format_type_ir_rust(ty: &TypeIR) -> String {
 }
 
 pub(super) fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR) {
-    let vis = if struct_ir.visibility == "public" {
+    let vis = if struct_ir.visibility == Visibility::Public {
         "pub "
     } else {
         ""
@@ -207,7 +206,7 @@ pub(super) fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR) {
     w.emit(&format!("{}struct {} {{", vis, struct_ir.name));
     w.indent();
     for field in &struct_ir.fields {
-        let field_vis = if field.visibility == "public" {
+        let field_vis = if field.visibility == Visibility::Public {
             "pub "
         } else {
             ""
@@ -220,7 +219,7 @@ pub(super) fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR) {
 }
 
 pub(super) fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR) {
-    let vis = if enum_ir.visibility == "public" {
+    let vis = if enum_ir.visibility == Visibility::Public {
         "pub "
     } else {
         ""
@@ -240,7 +239,7 @@ pub(super) fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR) {
 }
 
 pub(super) fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR) {
-    let vis = if alias.visibility == "public" {
+    let vis = if alias.visibility == Visibility::Public {
         "pub "
     } else {
         ""
@@ -250,7 +249,7 @@ pub(super) fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR) {
 }
 
 pub(super) fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR) {
-    let vis = if func.visibility == "public" {
+    let vis = if func.visibility == Visibility::Public {
         "pub "
     } else {
         ""

@@ -733,7 +733,7 @@ impl IRProgram {
         self.modules
             .values()
             .flat_map(|m| m.functions.values())
-            .filter(|f| f.visibility == "public")
+            .filter(|f| f.visibility == Visibility::Public)
             .collect()
     }
 

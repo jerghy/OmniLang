@@ -8,7 +8,11 @@ use std::collections::HashMap;
 /// Helper: compile single source and unwrap the IR.
 fn compile_ok(source: &str) -> omnilang::ir::IRProgram {
     let result = omnilang::compile(source);
-    assert!(result.success, "compilation should succeed, got errors: {:?}", result.errors);
+    assert!(
+        result.success,
+        "compilation should succeed, got errors: {:?}",
+        result.errors
+    );
     result.ir.expect("IR should be present on success")
 }
 
@@ -27,7 +31,10 @@ fn e2e_simple_function() {
 fn e2e_function_with_params() {
     let ir = compile_ok("fn add(a: i32, b: i32) -> i32 { return a + b; }");
     let module = ir.modules.get("input.omni").expect("should have module");
-    let func = module.functions.get("add").expect("should have add function");
+    let func = module
+        .functions
+        .get("add")
+        .expect("should have add function");
     assert_eq!(func.params.len(), 2, "add should have 2 params");
     assert_eq!(func.params[0].name, "a");
     assert_eq!(func.params[1].name, "b");
@@ -36,7 +43,10 @@ fn e2e_function_with_params() {
 #[test]
 fn e2e_invalid_syntax_produces_errors() {
     let result = omnilang::compile("fn main() { let x = ; }");
-    assert!(!result.success, "compilation with invalid syntax should fail");
+    assert!(
+        !result.success,
+        "compilation with invalid syntax should fail"
+    );
     assert!(
         !result.errors.is_empty(),
         "should have at least one error diagnostic"
@@ -50,8 +60,14 @@ fn e2e_struct_and_function() {
          fn origin() -> Point { return Point { x: 0, y: 0 }; }",
     );
     let module = ir.modules.get("input.omni").expect("should have module");
-    assert!(module.structs.contains_key("Point"), "should contain Point struct");
-    assert!(module.functions.contains_key("origin"), "should contain origin function");
+    assert!(
+        module.structs.contains_key("Point"),
+        "should contain Point struct"
+    );
+    assert!(
+        module.functions.contains_key("origin"),
+        "should contain origin function"
+    );
 }
 
 #[test]
@@ -80,7 +96,11 @@ fn e2e_compile_to_python_json() {
     let files = data["files"].as_object().expect("should have files");
     assert!(!files.is_empty(), "should have at least one output file");
     let has_py_file = files.keys().any(|k| k.ends_with(".py"));
-    assert!(has_py_file, "should have a .py output file, got keys: {:?}", files.keys());
+    assert!(
+        has_py_file,
+        "should have a .py output file, got keys: {:?}",
+        files.keys()
+    );
 }
 
 /// Regression test: TemplateString lowering must produce a non-null value.
@@ -90,10 +110,16 @@ fn e2e_compile_to_python_json() {
 fn template_string_lowering_not_null() {
     let ir = compile_ok(r#"fn greet(name: string) -> string { return `Hello ${name}!`; }"#);
     let module = ir.modules.get("input.omni").expect("should have module");
-    let func = module.functions.get("greet").expect("should have greet function");
+    let func = module
+        .functions
+        .get("greet")
+        .expect("should have greet function");
     // Verify the function body contains the template string expression, not null
     let body_str = format!("{:?}", func.body);
-    assert!(!body_str.contains("Null"), "template string should not be lowered to Null");
+    assert!(
+        !body_str.contains("Null"),
+        "template string should not be lowered to Null"
+    );
 }
 
 /// Regression test: verify that valid expressions are not caught by catch-all.

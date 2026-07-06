@@ -337,9 +337,9 @@ impl SemanticAnalyzer {
             }
         }
         if let EasingExpr::Back {
-                direction: Some(ref dir_name),
-                ..
-            } = e
+            direction: Some(ref dir_name),
+            ..
+        } = e
         {
             if !is_valid_easing_name(dir_name) {
                 self.diagnostics.push(Diagnostic::error(
@@ -350,9 +350,9 @@ impl SemanticAnalyzer {
             }
         }
         if let EasingExpr::Elastic {
-                direction: Some(ref dir_name),
-                ..
-            } = e
+            direction: Some(ref dir_name),
+            ..
+        } = e
         {
             if !is_valid_easing_name(dir_name) {
                 self.diagnostics.push(Diagnostic::error(

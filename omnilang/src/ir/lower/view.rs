@@ -427,10 +427,7 @@ pub(super) fn lower_view_node(
                                 .map(|(k, v)| (k.clone(), lower_expr(v, variant_map)))
                                 .collect();
                             let over = state_def.over.as_ref().map(|e| lower_expr(e, variant_map));
-                            let ease = state_def
-                                .ease
-                                .as_ref()
-                                .map(super::motion::lower_easing);
+                            let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
                             states_hm.insert(
                                 name.clone(),
                                 StateTweenIR {

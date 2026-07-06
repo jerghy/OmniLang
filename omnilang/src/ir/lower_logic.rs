@@ -4,12 +4,16 @@
 use super::*;
 use crate::parser::ast::*;
 
+// Disambiguate Visibility between parser AST and IR
+use crate::ir::logic::Visibility as IRVisibility;
+use crate::parser::ast::Visibility as ParserVisibility;
+
 pub fn lower_function(func: &FunctionDef, variant_map: &HashMap<String, String>) -> FunctionIR {
     FunctionIR {
         name: func.name.clone(),
         visibility: match func.visibility {
-            Visibility::Public => "public".into(),
-            Visibility::Private => "private".into(),
+            ParserVisibility::Public => IRVisibility::Public,
+            ParserVisibility::Private => IRVisibility::Private,
         },
         params: func
             .params
@@ -29,8 +33,8 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
     StructIR {
         name: s.name.clone(),
         visibility: match s.visibility {
-            Visibility::Public => "public".into(),
-            Visibility::Private => "private".into(),
+            ParserVisibility::Public => IRVisibility::Public,
+            ParserVisibility::Private => IRVisibility::Private,
         },
         fields: s
             .fields
@@ -38,7 +42,7 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
             .map(|f| FieldIR {
                 name: f.name.clone(),
                 r#type: lower_type(&f.type_ann),
-                visibility: "public".into(),
+                visibility: IRVisibility::Public,
             })
             .collect(),
     }
@@ -47,7 +51,7 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
 pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
     EnumIR {
         name: tu.name.clone(),
-        visibility: "public".into(),
+        visibility: IRVisibility::Public,
         variants: tu
             .variants
             .iter()
@@ -63,8 +67,8 @@ pub fn lower_type_alias(ta: &TypeAlias) -> TypeAliasIR {
     TypeAliasIR {
         name: ta.name.clone(),
         visibility: match ta.visibility {
-            Visibility::Public => "public".into(),
-            Visibility::Private => "private".into(),
+            ParserVisibility::Public => IRVisibility::Public,
+            ParserVisibility::Private => IRVisibility::Private,
         },
         target: lower_type(&ta.type_ann),
     }
@@ -127,7 +131,7 @@ mod tests {
         assert!(main_module.functions.contains_key("main"));
         let main_fn = &main_module.functions["main"];
         assert_eq!(main_fn.name, "main");
-        assert_eq!(main_fn.visibility, "private");
+        assert_eq!(main_fn.visibility, crate::ir::logic::Visibility::Private);
     }
 
     #[test]

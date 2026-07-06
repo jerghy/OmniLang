@@ -4,10 +4,17 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Visibility {
+    Public,
+    Private,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionIR {
     pub name: String,
-    pub visibility: String, // "public" | "private"
+    pub visibility: Visibility,
     pub params: Vec<ParamIR>,
     pub return_type: Option<TypeIR>,
     pub body: BlockIR,
@@ -18,7 +25,7 @@ pub struct FunctionIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StructIR {
     pub name: String,
-    pub visibility: String,
+    pub visibility: Visibility,
     pub fields: Vec<FieldIR>,
 }
 
@@ -26,13 +33,13 @@ pub struct StructIR {
 pub struct FieldIR {
     pub name: String,
     pub r#type: TypeIR,
-    pub visibility: String,
+    pub visibility: Visibility,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnumIR {
     pub name: String,
-    pub visibility: String,
+    pub visibility: Visibility,
     pub variants: Vec<VariantIR>,
 }
 
@@ -45,7 +52,7 @@ pub struct VariantIR {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeAliasIR {
     pub name: String,
-    pub visibility: String,
+    pub visibility: Visibility,
     pub target: TypeIR,
 }
 
@@ -89,4 +96,27 @@ pub struct ModuleIR {
     pub motions: Vec<super::MotionIntent>,
     #[serde(default)]
     pub timelines: Vec<super::TimelineIntent>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serde_roundtrip_visibility_public() {
+        let v = Visibility::Public;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"public\"");
+        let back: Visibility = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, Visibility::Public);
+    }
+
+    #[test]
+    fn serde_roundtrip_visibility_private() {
+        let v = Visibility::Private;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"private\"");
+        let back: Visibility = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, Visibility::Private);
+    }
 }

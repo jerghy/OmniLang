@@ -300,7 +300,6 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
 // Helpers
 // ═══════════════════════════════════════════════════════════
 
-
 /// Map OmniView attribute names to Vue HTML attribute names.
 /// Vue uses standard HTML attribute names (lowercase, kebab-case).
 pub(super) fn to_vue_attr(prop_name: &str) -> String {

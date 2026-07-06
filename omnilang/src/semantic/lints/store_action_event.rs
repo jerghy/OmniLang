@@ -43,26 +43,26 @@ fn check_view_store_actions(
         for handler in el.events.values() {
             if handler.kind == "store_action"
                 && handler.used_fields.is_some()
-                    && !handler
-                        .used_fields
-                        .as_ref()
-                        .expect("used_fields is Some as checked above")
-                        .is_empty()
-                {
-                    diags.push(LintDiagnostic {
-                        rule: rule.name().into(),
-                        severity: rule.severity(),
-                        message: format!(
-                            "Store action `{}` cannot access event data. \
+                && !handler
+                    .used_fields
+                    .as_ref()
+                    .expect("used_fields is Some as checked above")
+                    .is_empty()
+            {
+                diags.push(LintDiagnostic {
+                    rule: rule.name().into(),
+                    severity: rule.severity(),
+                    message: format!(
+                        "Store action `{}` cannot access event data. \
                              Store actions receive no arguments. \
                              Use an inline handler or fn_ref instead.",
-                            handler.r#ref.as_deref().unwrap_or("?")
-                        ),
-                        file: comp_name.to_string(),
-                        line: el.source_line,
-                        col: el.source_col,
-                    });
-                }
+                        handler.r#ref.as_deref().unwrap_or("?")
+                    ),
+                    file: comp_name.to_string(),
+                    line: el.source_line,
+                    col: el.source_col,
+                });
+            }
         }
         for child in &el.children {
             check_view_store_actions(child, comp_name, rule, diags);

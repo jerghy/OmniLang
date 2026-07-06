@@ -28,9 +28,7 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
                     }
                 }
             }
-            cond.fallback
-                .as_ref()
-                .is_some_and(has_trigger_kind_in_view)
+            cond.fallback.as_ref().is_some_and(has_trigger_kind_in_view)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -67,9 +65,7 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
                     }
                 }
             }
-            cond.fallback
-                .as_ref()
-                .is_some_and(has_trigger_kind_scroll)
+            cond.fallback.as_ref().is_some_and(has_trigger_kind_scroll)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -345,9 +341,7 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
                     }
                 }
             }
-            cond.fallback
-                .as_ref()
-                .is_some_and(has_trigger_kind_drag)
+            cond.fallback.as_ref().is_some_and(has_trigger_kind_drag)
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
@@ -355,9 +349,7 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
                     return true;
                 }
             }
-            list.empty_body
-                .as_ref()
-                .is_some_and(has_trigger_kind_drag)
+            list.empty_body.as_ref().is_some_and(has_trigger_kind_drag)
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) | ViewTree::Slot(_) => false,
     }

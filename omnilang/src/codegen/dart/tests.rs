@@ -68,11 +68,23 @@ fn test_dart_type_user_defined() {
 
 #[test]
 fn test_format_json_value() {
-    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_DART), "null");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_DART), "true");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_DART), "false");
+    assert_eq!(
+        format_json_value(&serde_json::Value::Null, &JSON_DART),
+        "null"
+    );
+    assert_eq!(
+        format_json_value(&serde_json::Value::Bool(true), &JSON_DART),
+        "true"
+    );
+    assert_eq!(
+        format_json_value(&serde_json::Value::Bool(false), &JSON_DART),
+        "false"
+    );
     assert_eq!(format_json_value(&serde_json::json!(42), &JSON_DART), "42");
-    assert_eq!(format_json_value(&serde_json::json!("hello"), &JSON_DART), "'hello'");
+    assert_eq!(
+        format_json_value(&serde_json::json!("hello"), &JSON_DART),
+        "'hello'"
+    );
     assert_eq!(
         format_json_value(&serde_json::json!("he'llo"), &JSON_DART),
         "'he\\'llo'"
@@ -177,7 +189,7 @@ fn test_generate_function_empty() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doSomething".into(),
-        visibility: "public".into(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -196,7 +208,7 @@ fn test_generate_function_with_return_type() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "getValue".into(),
-        visibility: "public".into(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "i32".into(),
@@ -221,7 +233,7 @@ fn test_generate_function_with_void_return() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doThing".into(),
-        visibility: "public".into(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "void".into(),
@@ -247,7 +259,7 @@ fn test_generate_function_with_params() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "greet".into(),
-        visibility: "public".into(),
+        visibility: Visibility::Public,
         params: vec![ParamIR {
             name: "name".into(),
             r#type: Some(TypeIR {
@@ -324,7 +336,7 @@ fn test_generate_component_with_function() {
         lifecycles: vec![],
         fns: vec![FunctionIR {
             name: "greet".into(),
-            visibility: "public".into(),
+            visibility: Visibility::Public,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -607,7 +619,7 @@ fn test_full_pipeline_through_trait() {
                         lifecycles: vec![],
                         fns: vec![FunctionIR {
                             name: "run".into(),
-                            visibility: "public".into(),
+                            visibility: Visibility::Public,
                             params: vec![],
                             return_type: None,
                             body: BlockIR {
@@ -697,7 +709,7 @@ fn test_dart_generate_struct() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Point".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         fields: vec![
             FieldIR {
                 name: "x".into(),
@@ -708,7 +720,7 @@ fn test_dart_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
             FieldIR {
                 name: "y".into(),
@@ -719,7 +731,7 @@ fn test_dart_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
         ],
     };
@@ -736,7 +748,7 @@ fn test_dart_generate_empty_struct() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Empty".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         fields: vec![],
     };
     generate_struct(&mut w, &struct_ir);
@@ -751,7 +763,7 @@ fn test_dart_generate_enum() {
     let mut w = CodeWriter::new();
     let enum_ir = EnumIR {
         name: "Color".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         variants: vec![
             VariantIR {
                 name: "Red".into(),
@@ -779,7 +791,7 @@ fn test_dart_generate_empty_enum() {
     let mut w = CodeWriter::new();
     let enum_ir = EnumIR {
         name: "Empty".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         variants: vec![],
     };
     generate_enum(&mut w, &enum_ir);
@@ -792,7 +804,7 @@ fn test_dart_generate_type_alias() {
     let mut w = CodeWriter::new();
     let alias = TypeAliasIR {
         name: "UserId".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         target: TypeIR {
             kind: "i32".into(),
             type_args: vec![],
@@ -810,7 +822,7 @@ fn test_dart_generate_standalone_function() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "main".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -829,7 +841,7 @@ fn test_dart_generate_standalone_function_with_return_type() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "add".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         params: vec![ParamIR {
             name: "a".into(),
             r#type: Some(TypeIR {
@@ -893,7 +905,7 @@ fn test_generate_async_function_dart() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "fetchData".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "String".into(),
@@ -922,7 +934,7 @@ fn test_generate_async_function_dart_void() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doAsync".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: None,
         body: BlockIR {

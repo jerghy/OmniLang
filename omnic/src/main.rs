@@ -607,8 +607,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         sources.insert(file.to_string(), source);
         let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
-        let result_json =
-            omnilang::compile_multi_to_target(sources, t, path_mapping, false);
+        let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false);
         let data: serde_json::Value = match serde_json::from_str(&result_json) {
             Ok(v) => v,
             Err(e) => {
@@ -708,7 +707,10 @@ mod tests {
     fn derive_path_mapping_basic() {
         let mut sources = std::collections::HashMap::new();
         sources.insert("src/main.omni".to_string(), "fn main() {}".to_string());
-        sources.insert("src/lib/helper.omni".to_string(), "pub fn help() {}".to_string());
+        sources.insert(
+            "src/lib/helper.omni".to_string(),
+            "pub fn help() {}".to_string(),
+        );
         let mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
         assert_eq!(

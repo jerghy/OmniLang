@@ -204,7 +204,7 @@ fn fixture_store() -> IRProgram {
         )]),
         actions: vec![FunctionIR {
             name: "increment".into(),
-            visibility: "public".into(),
+            visibility: Visibility::Public,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -262,7 +262,7 @@ fn fixture_component_with_store() -> IRProgram {
         getters: HashMap::new(),
         actions: vec![FunctionIR {
             name: "increment".into(),
-            visibility: "public".into(),
+            visibility: Visibility::Public,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -383,7 +383,7 @@ fn fixture_component_with_store() -> IRProgram {
 fn fixture_expressions() -> IRProgram {
     let func = FunctionIR {
         name: "testExpressions".into(),
-        visibility: "public".into(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: None,
         body: BlockIR {

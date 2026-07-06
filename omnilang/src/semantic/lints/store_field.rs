@@ -97,7 +97,7 @@ impl LintRule for StoreFieldDirectMutation {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, StoreIR, TypeIR};
+    use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, StoreIR, TypeIR, Visibility};
 
     use super::super::helpers::test_helpers::make_test_ir;
     use super::*;
@@ -141,7 +141,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "hack".into(),
-                    visibility: "private".into(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: None,
                     body: BlockIR {
@@ -216,7 +216,7 @@ mod tests {
                 lifecycles: vec![],
                 fns: vec![FunctionIR {
                     name: "increment".into(),
-                    visibility: "private".into(),
+                    visibility: Visibility::Private,
                     params: vec![],
                     return_type: None,
                     body: BlockIR {

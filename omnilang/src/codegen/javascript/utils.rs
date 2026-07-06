@@ -58,7 +58,7 @@ pub(super) fn format_type_ir_js(ty: &TypeIR, ts_mode: bool) -> String {
 }
 
 pub(super) fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR, ts_mode: bool) {
-    let export_prefix = if struct_ir.visibility == "public" {
+    let export_prefix = if struct_ir.visibility == Visibility::Public {
         "export "
     } else {
         ""
@@ -93,7 +93,7 @@ pub(super) fn generate_struct(w: &mut CodeWriter, struct_ir: &StructIR, ts_mode:
 }
 
 pub(super) fn generate_enum(w: &mut CodeWriter, enum_ir: &EnumIR, _ts_mode: bool) {
-    let export_prefix = if enum_ir.visibility == "public" {
+    let export_prefix = if enum_ir.visibility == Visibility::Public {
         "export "
     } else {
         ""
@@ -119,7 +119,7 @@ pub(super) fn generate_type_alias(w: &mut CodeWriter, alias: &TypeAliasIR, ts_mo
         return; // Skip in JS mode
     }
     let target = format_type_ir_js(&alias.target, true);
-    let export_prefix = if alias.visibility == "public" {
+    let export_prefix = if alias.visibility == Visibility::Public {
         "export "
     } else {
         ""
@@ -164,7 +164,7 @@ pub(super) fn generate_standalone_function(w: &mut CodeWriter, func: &FunctionIR
     let all_params = param_strs.join(", ");
 
     let async_kw = if func.is_async { "async " } else { "" };
-    let prefix = if func.visibility == "public" {
+    let prefix = if func.visibility == Visibility::Public {
         format!("export {}function ", async_kw)
     } else {
         format!("{}function ", async_kw)

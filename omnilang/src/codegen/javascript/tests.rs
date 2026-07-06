@@ -76,11 +76,23 @@ fn test_ts_type_user_defined() {
 #[test]
 fn test_format_json_value() {
     use crate::codegen::JSON_JS;
-    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_JS), "null");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_JS), "true");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_JS), "false");
+    assert_eq!(
+        format_json_value(&serde_json::Value::Null, &JSON_JS),
+        "null"
+    );
+    assert_eq!(
+        format_json_value(&serde_json::Value::Bool(true), &JSON_JS),
+        "true"
+    );
+    assert_eq!(
+        format_json_value(&serde_json::Value::Bool(false), &JSON_JS),
+        "false"
+    );
     assert_eq!(format_json_value(&serde_json::json!(42), &JSON_JS), "42");
-    assert_eq!(format_json_value(&serde_json::json!("hello"), &JSON_JS), "\"hello\"");
+    assert_eq!(
+        format_json_value(&serde_json::json!("hello"), &JSON_JS),
+        "\"hello\""
+    );
     assert_eq!(
         format_json_value(&serde_json::json!("he\"llo"), &JSON_JS),
         "\"he\\\"llo\""
@@ -175,7 +187,7 @@ fn test_generate_function_empty_js() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doThing".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -194,7 +206,7 @@ fn test_generate_function_empty_ts() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doThing".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "void".into(),
@@ -219,7 +231,7 @@ fn test_generate_function_with_params_ts() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "greet".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![ParamIR {
             name: "name".into(),
             r#type: Some(TypeIR {
@@ -253,7 +265,7 @@ fn test_generate_function_with_params_js() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "greet".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![ParamIR {
             name: "name".into(),
             r#type: Some(TypeIR {
@@ -282,7 +294,7 @@ fn test_generate_async_function_js() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "fetchData".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "String".into(),
@@ -311,7 +323,7 @@ fn test_generate_async_function_ts() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "fetchData".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: Some(TypeIR {
             kind: "String".into(),
@@ -432,7 +444,7 @@ fn test_js_component_with_function() {
         lifecycles: vec![],
         fns: vec![FunctionIR {
             name: "greet".into(),
-            visibility: "private".to_string(),
+            visibility: Visibility::Private,
             params: vec![],
             return_type: None,
             body: BlockIR {
@@ -718,7 +730,7 @@ fn test_js_full_pipeline_through_trait() {
                         lifecycles: vec![],
                         fns: vec![FunctionIR {
                             name: "run".into(),
-                            visibility: "private".to_string(),
+                            visibility: Visibility::Private,
                             params: vec![],
                             return_type: None,
                             body: BlockIR {
@@ -778,7 +790,7 @@ fn test_ts_full_pipeline_through_trait() {
                         lifecycles: vec![],
                         fns: vec![FunctionIR {
                             name: "run".into(),
-                            visibility: "private".to_string(),
+                            visibility: Visibility::Private,
                             params: vec![],
                             return_type: Some(TypeIR {
                                 kind: "void".into(),
@@ -829,7 +841,7 @@ fn test_js_generate_struct() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Point".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         fields: vec![
             FieldIR {
                 name: "x".into(),
@@ -840,7 +852,7 @@ fn test_js_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
             FieldIR {
                 name: "y".into(),
@@ -851,7 +863,7 @@ fn test_js_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
         ],
     };
@@ -868,7 +880,7 @@ fn test_ts_generate_struct() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Point".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         fields: vec![
             FieldIR {
                 name: "x".into(),
@@ -879,7 +891,7 @@ fn test_ts_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
             FieldIR {
                 name: "y".into(),
@@ -890,7 +902,7 @@ fn test_ts_generate_struct() {
                     needs_clone: false,
                     needs_partial_eq: false,
                 },
-                visibility: "public".into(),
+                visibility: Visibility::Public,
             },
         ],
     };
@@ -905,7 +917,7 @@ fn test_js_generate_empty_struct() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Empty".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         fields: vec![],
     };
     generate_struct(&mut w, &struct_ir, false);
@@ -919,7 +931,7 @@ fn test_js_generate_enum() {
     let mut w = CodeWriter::new();
     let enum_ir = EnumIR {
         name: "Color".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         variants: vec![
             VariantIR {
                 name: "Red".into(),
@@ -949,7 +961,7 @@ fn test_js_generate_empty_enum() {
     let mut w = CodeWriter::new();
     let enum_ir = EnumIR {
         name: "Empty".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         variants: vec![],
     };
     generate_enum(&mut w, &enum_ir, false);
@@ -963,7 +975,7 @@ fn test_ts_generate_type_alias() {
     let mut w = CodeWriter::new();
     let alias = TypeAliasIR {
         name: "UserId".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         target: TypeIR {
             kind: "i32".into(),
             type_args: vec![],
@@ -981,7 +993,7 @@ fn test_js_skip_type_alias() {
     let mut w = CodeWriter::new();
     let alias = TypeAliasIR {
         name: "UserId".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         target: TypeIR {
             kind: "i32".into(),
             type_args: vec![],
@@ -1000,7 +1012,7 @@ fn test_js_generate_standalone_function() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "main".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -1020,7 +1032,7 @@ fn test_ts_generate_standalone_function() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "add".into(),
-        visibility: "public".to_string(),
+        visibility: Visibility::Public,
         params: vec![ParamIR {
             name: "a".into(),
             r#type: Some(TypeIR {
@@ -1054,7 +1066,7 @@ fn test_ts_generate_standalone_function_private() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "helper".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -1105,7 +1117,7 @@ fn test_js_generate_struct_private() {
     let mut w = CodeWriter::new();
     let struct_ir = StructIR {
         name: "Internal".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         fields: vec![],
     };
     generate_struct(&mut w, &struct_ir, false);

@@ -7,11 +7,9 @@ use std::collections::{HashMap, HashSet};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
-use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::super::capitalize_first;
-use super::utils::{
-    emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag,
-};
+use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
+use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
 
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -89,12 +87,16 @@ pub(super) fn gen_view_node_tsx(
 
             // Collect binding attr names for dedup with static props
             let bound_attr_names: HashSet<String> = el
-                .bindings.keys().map(|bind_name| to_jsx_attr(bind_name))
+                .bindings
+                .keys()
+                .map(|bind_name| to_jsx_attr(bind_name))
                 .collect();
 
             // Collect class_map_binding names so we can exclude them from static className
             let binding_names: std::collections::HashSet<&str> = el
-                .class_map_bindings.keys().map(|cls| cls.as_str())
+                .class_map_bindings
+                .keys()
+                .map(|cls| cls.as_str())
                 .collect();
 
             // Static props — skip names that will be populated by bindings

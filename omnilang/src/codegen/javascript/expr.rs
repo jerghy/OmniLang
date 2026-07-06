@@ -3,7 +3,9 @@
 //! Formats IR expressions, statements (as expressions), JSON values,
 //! and binary operators into JavaScript/TypeScript source strings.
 
-use crate::codegen::{format_block_as_expr, format_json_value, try_format_stdlib_call, JSON_JS, Target};
+use crate::codegen::{
+    format_block_as_expr, format_json_value, try_format_stdlib_call, Target, JSON_JS,
+};
 use crate::ir::*;
 
 /// Format an IR expression node as a JS/TS expression string.
@@ -189,4 +191,3 @@ pub(super) fn format_stmt_ir(stmt: &StatementIR, ts_mode: bool) -> String {
         _ => "/* stmt */".into(),
     }
 }
-

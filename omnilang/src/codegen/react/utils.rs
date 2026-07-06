@@ -40,18 +40,19 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
             .is_some_and(|v| getter_expr_contains_ident(v, ident)),
         StatementIR::ExprStmtIR { expr } => getter_expr_contains_ident(expr, ident),
         StatementIR::MutationStmt {
-                intent: Some(intent), ..
-            } => {
-                intent.target.name == *ident
-                    || intent
-                        .amount
-                        .as_ref()
-                        .is_some_and(|a| getter_expr_contains_ident(a, ident))
-                    || intent
-                        .item
-                        .as_ref()
-                        .is_some_and(|i| getter_expr_contains_ident(i, ident))
-            }
+            intent: Some(intent),
+            ..
+        } => {
+            intent.target.name == *ident
+                || intent
+                    .amount
+                    .as_ref()
+                    .is_some_and(|a| getter_expr_contains_ident(a, ident))
+                || intent
+                    .item
+                    .as_ref()
+                    .is_some_and(|i| getter_expr_contains_ident(i, ident))
+        }
         _ => false,
     }
 }
@@ -98,7 +99,6 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
         _ => false,
     }
 }
-
 
 /// Map OmniView attribute names to JSX attribute names.
 pub(super) fn to_jsx_attr(prop_name: &str) -> String {

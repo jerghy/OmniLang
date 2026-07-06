@@ -335,32 +335,32 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
             w.emit(&format!("return {}", rhs));
         }
         StatementIR::MutationStmt {
-                intent: Some(mut_intent),
-            } => {
-                let target = &mut_intent.target.name;
-                let amount = mut_intent
-                    .amount
-                    .as_ref()
-                    .map(format_expr_ir)
-                    .unwrap_or_else(|| "0".into());
-                match mut_intent.operation.as_str() {
-                    "direct_assign" => {
-                        w.emit(&format!("{} = {}", target, amount));
-                    }
-                    "increment" => {
-                        w.emit(&format!("{} += {}", target, amount));
-                    }
-                    "decrement" => {
-                        w.emit(&format!("{} -= {}", target, amount));
-                    }
-                    other => {
-                        w.emit(&format!(
-                            "# TODO: mutation operation '{}' on {}",
-                            other, target
-                        ));
-                    }
+            intent: Some(mut_intent),
+        } => {
+            let target = &mut_intent.target.name;
+            let amount = mut_intent
+                .amount
+                .as_ref()
+                .map(format_expr_ir)
+                .unwrap_or_else(|| "0".into());
+            match mut_intent.operation.as_str() {
+                "direct_assign" => {
+                    w.emit(&format!("{} = {}", target, amount));
+                }
+                "increment" => {
+                    w.emit(&format!("{} += {}", target, amount));
+                }
+                "decrement" => {
+                    w.emit(&format!("{} -= {}", target, amount));
+                }
+                other => {
+                    w.emit(&format!(
+                        "# TODO: mutation operation '{}' on {}",
+                        other, target
+                    ));
                 }
             }
+        }
         StatementIR::ExprStmtIR { expr } => {
             let line = format_expr_ir(expr);
             // Skip null expressions

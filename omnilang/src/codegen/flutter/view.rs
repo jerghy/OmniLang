@@ -5,14 +5,14 @@ use std::collections::HashMap;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
+use super::capitalize_first;
 use super::expr::format_expr_ir_flutter;
 use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
 use super::motion_widgets::emit_event_object_flutter;
 use super::stmt::generate_statement_flutter;
-use super::capitalize_first;
 use super::utils::{
-    binding_to_flutter_param, event_to_flutter_callback,
-    prop_to_flutter_param_name, tag_to_flutter_widget,
+    binding_to_flutter_param, event_to_flutter_callback, prop_to_flutter_param_name,
+    tag_to_flutter_widget,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -127,36 +127,36 @@ fn format_element(
             "style" => {
                 // Map common CSS properties to Flutter widget parameters
                 if let ExprIR::LiteralExpr {
-                        value: serde_json::Value::Object(ref style_obj),
-                    } = value
-                    {
-                        for (css_prop, css_val) in style_obj {
-                            match css_prop.as_str() {
-                                "padding" => {
-                                    if let Some(v) = css_val.as_str() {
-                                        args.push(format!("padding: EdgeInsets.all({})", v));
-                                    }
+                    value: serde_json::Value::Object(ref style_obj),
+                } = value
+                {
+                    for (css_prop, css_val) in style_obj {
+                        match css_prop.as_str() {
+                            "padding" => {
+                                if let Some(v) = css_val.as_str() {
+                                    args.push(format!("padding: EdgeInsets.all({})", v));
                                 }
-                                "margin" => {
-                                    if let Some(v) = css_val.as_str() {
-                                        args.push(format!("margin: EdgeInsets.all({})", v));
-                                    }
-                                }
-                                "color" => {
-                                    if let Some(v) = css_val.as_str() {
-                                        args.push(format!("color: {}", v));
-                                    }
-                                }
-                                "background-color" => {
-                                    if let Some(v) = css_val.as_str() {
-                                        args.push(format!("color: {}", v));
-                                    }
-                                }
-                                _ => {} // skip unknown CSS properties
                             }
+                            "margin" => {
+                                if let Some(v) = css_val.as_str() {
+                                    args.push(format!("margin: EdgeInsets.all({})", v));
+                                }
+                            }
+                            "color" => {
+                                if let Some(v) = css_val.as_str() {
+                                    args.push(format!("color: {}", v));
+                                }
+                            }
+                            "background-color" => {
+                                if let Some(v) = css_val.as_str() {
+                                    args.push(format!("color: {}", v));
+                                }
+                            }
+                            _ => {} // skip unknown CSS properties
                         }
                     }
                 }
+            }
             other => {
                 let param = prop_to_flutter_param_name(other);
                 if !param.is_empty() {

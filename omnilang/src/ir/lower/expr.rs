@@ -321,21 +321,23 @@ pub(crate) fn lower_expr(expr: &Expr, variant_map: &HashMap<String, String>) -> 
             ExprIR::LiteralExpr {
                 value: serde_json::Value::String(concatenated),
             }
-        },
-        Expr::NotYetImplemented { feature: _feature, .. } => {
+        }
+        Expr::NotYetImplemented {
+            feature: _feature, ..
+        } => {
             // Emit a null literal for unimplemented features rather than
             // silently using a catch-all wildcard. This makes it explicit
             // that the feature gap is known.
             ExprIR::LiteralExpr {
                 value: serde_json::Value::Null,
             }
-        },
+        }
         Expr::Error { .. } => {
             // Error nodes should be filtered upstream; emit null as fallback.
             ExprIR::LiteralExpr {
                 value: serde_json::Value::Null,
             }
-        },
+        }
     }
 }
 

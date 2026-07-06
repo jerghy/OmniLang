@@ -132,7 +132,9 @@ impl OmniViewGenerator {
             "            try { el.classList.toggle(cls, !!new Function('return (' + classMap[cls] + ')')()); } catch(e) { console.warn('OmniView: class expression eval failed for', cls, e); }\n",
         );
         self.js.push_str("          }\n");
-        self.js.push_str("        } catch(e) { console.warn('OmniView: class-expr JSON parse failed', e); }\n");
+        self.js.push_str(
+            "        } catch(e) { console.warn('OmniView: class-expr JSON parse failed', e); }\n",
+        );
         self.js.push_str("      }\n");
         self.js.push_str("    });\n");
 

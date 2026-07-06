@@ -148,7 +148,6 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
     }
 }
 
-
 /// Map OMNI type to Dart type annotation string.
 pub fn dart_type(kind: &str, type_args: &[TypeIR]) -> String {
     match kind {

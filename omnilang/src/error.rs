@@ -166,7 +166,8 @@ pub struct Diagnostic {
 /// whether `kind` is present in the struct (for backward compatibility).
 impl Serialize for Diagnostic {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let n = 7 + (self.file.is_some() as u8)
+        let n = 7
+            + (self.file.is_some() as u8)
             + (self.end_line.is_some() as u8)
             + (self.end_col.is_some() as u8)
             + (self.suggestion.is_some() as u8);

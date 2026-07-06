@@ -372,13 +372,13 @@ impl SemanticAnalyzer {
                     ViewNode::Element(el) => {
                         for prop in &el.props {
                             if let ElementProp::Event {
-                                    handler: EventHandler::StoreAction { store, action },
-                                    ..
-                                } = prop
+                                handler: EventHandler::StoreAction { store, action },
+                                ..
+                            } = prop
                             {
-                                    // Check @store declaration
-                                    if !store_refs.contains(store.as_str()) {
-                                        diagnostics.push(Diagnostic::error(
+                                // Check @store declaration
+                                if !store_refs.contains(store.as_str()) {
+                                    diagnostics.push(Diagnostic::error(
                                             DiagnosticKind::E0007,
                                             &format!(
                                                 "Store '{}' is not declared with @store in this \
@@ -387,27 +387,27 @@ impl SemanticAnalyzer {
                                             ),
                                             &el.span,
                                         ));
-                                    }
-                                    // Check action exists
-                                    if let Some(actions) = store_actions.get(store.as_str()) {
-                                        if !actions.contains(action.as_str()) {
-                                            diagnostics.push(Diagnostic::error(
-                                                DiagnosticKind::E0007,
-                                                &format!(
-                                                    "Store '{}' has no action '{}'",
-                                                    store, action
-                                                ),
-                                                &el.span,
-                                            ));
-                                        }
-                                    } else {
-                                        // Store not found at all
+                                }
+                                // Check action exists
+                                if let Some(actions) = store_actions.get(store.as_str()) {
+                                    if !actions.contains(action.as_str()) {
                                         diagnostics.push(Diagnostic::error(
                                             DiagnosticKind::E0007,
-                                            &format!("Store '{}' not found", store),
+                                            &format!(
+                                                "Store '{}' has no action '{}'",
+                                                store, action
+                                            ),
                                             &el.span,
                                         ));
                                     }
+                                } else {
+                                    // Store not found at all
+                                    diagnostics.push(Diagnostic::error(
+                                        DiagnosticKind::E0007,
+                                        &format!("Store '{}' not found", store),
+                                        &el.span,
+                                    ));
+                                }
                             }
                         }
                         walk_nodes(&el.children, store_actions, store_refs, diagnostics);
@@ -537,9 +537,9 @@ impl SemanticAnalyzer {
                         ViewNode::Element(el) => {
                             for prop in &el.props {
                                 if let ElementProp::Event {
-                                        handler: EventHandler::InlineFn { body, .. },
-                                        ..
-                                    } = prop
+                                    handler: EventHandler::InlineFn { body, .. },
+                                    ..
+                                } = prop
                                 {
                                     check_block(body, prop_names, diagnostics);
                                 }

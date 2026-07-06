@@ -61,7 +61,10 @@ fn test_binary_op_to_flutter() {
 
 #[test]
 fn test_format_json_value_flutter() {
-    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_FLUTTER), "null");
+    assert_eq!(
+        format_json_value(&serde_json::Value::Null, &JSON_FLUTTER),
+        "null"
+    );
     assert_eq!(
         format_json_value(&serde_json::Value::Bool(true), &JSON_FLUTTER),
         "true"
@@ -70,7 +73,10 @@ fn test_format_json_value_flutter() {
         format_json_value(&serde_json::Value::Bool(false), &JSON_FLUTTER),
         "false"
     );
-    assert_eq!(format_json_value(&serde_json::json!(42), &JSON_FLUTTER), "42");
+    assert_eq!(
+        format_json_value(&serde_json::json!(42), &JSON_FLUTTER),
+        "42"
+    );
     assert_eq!(
         format_json_value(&serde_json::json!("hello"), &JSON_FLUTTER),
         "'hello'"
@@ -495,7 +501,7 @@ fn test_generate_function_empty() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "doSomething".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -514,7 +520,7 @@ fn test_generate_function_with_mutation() {
     let mut w = CodeWriter::new();
     let func = FunctionIR {
         name: "increment".into(),
-        visibility: "private".to_string(),
+        visibility: Visibility::Private,
         params: vec![],
         return_type: None,
         body: BlockIR {
@@ -645,7 +651,7 @@ fn test_component_with_state() {
             lifecycles: vec![],
             fns: vec![FunctionIR {
                 name: "increment".into(),
-                visibility: "private".to_string(),
+                visibility: Visibility::Private,
                 params: vec![],
                 return_type: None,
                 body: BlockIR {

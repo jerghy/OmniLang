@@ -51,9 +51,9 @@ impl<'a> Parser<'a> {
                     TokenKind::Async => {
                         self.advance(); // 'async'
                         self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
-                        module
-                            .functions
-                            .push(self.parse_function_def_after_keyword(Visibility::Private, true)?);
+                        module.functions.push(
+                            self.parse_function_def_after_keyword(Visibility::Private, true)?,
+                        );
                     }
                     TokenKind::Fn => {
                         module
@@ -72,7 +72,10 @@ impl<'a> Parser<'a> {
                                 self.advance(); // 'async'
                                 self.expect_token(TokenKind::Fn, "expected 'fn' after 'async'")?;
                                 module.functions.push(
-                                    self.parse_function_def_after_keyword(Visibility::Public, true)?,
+                                    self.parse_function_def_after_keyword(
+                                        Visibility::Public,
+                                        true,
+                                    )?,
                                 );
                             }
                             TokenKind::Fn => {
@@ -123,9 +126,11 @@ impl<'a> Parser<'a> {
 
                             // Check if next token starts a variant: Ident { ... } or Ident | ...
                             let is_tagged = match self.peek_kind() {
-                                TokenKind::Ident(_) => self.tokens.get(self.pos + 1).is_some_and(|t| {
-                                    t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe
-                                }),
+                                TokenKind::Ident(_) => {
+                                    self.tokens.get(self.pos + 1).is_some_and(|t| {
+                                        t.kind == TokenKind::LBrace || t.kind == TokenKind::Pipe
+                                    })
+                                }
                                 _ => false,
                             };
 
