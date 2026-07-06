@@ -36,7 +36,7 @@ pub(super) fn codegen_storage_get(args: &[String], target: Target) -> String {
                 key = key
             )
         }
-        _ => unreachable!("storage_get not available on {:?}", target),
+        _ => format!("compile_error!(\"storage_get not available on {:?} target\")", target),
     }
 }
 
@@ -58,6 +58,6 @@ pub(super) fn codegen_storage_set(args: &[String], target: Target) -> String {
                 val = val
             )
         }
-        _ => unreachable!("storage_set not available on {:?}", target),
+        _ => format!("compile_error!(\"storage_set not available on {:?} target\")", target),
     }
 }

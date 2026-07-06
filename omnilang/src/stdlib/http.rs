@@ -49,7 +49,7 @@ pub(super) fn codegen_http_send(args: &[String], target: Target) -> String {
         }
         Target::Rust | Target::Dioxus => {
             format!(
-                "reqwest::Client::new().request(reqwest::Method::from_str(&{req}.method).unwrap(), &{req}.url).headers({req}.headers.clone()).query(&{req}.query).body({req}.body.clone()).timeout(std::time::Duration::from_millis({req}.timeout as u64)).send()",
+                "reqwest::Client::new().request(reqwest::Method::from_str(&{req}.method).expect(\"Invalid HTTP method\"), &{req}.url).headers({req}.headers.clone()).query(&{req}.query).body({req}.body.clone()).timeout(std::time::Duration::from_millis({req}.timeout as u64)).send()",
                 req = req
             )
         }

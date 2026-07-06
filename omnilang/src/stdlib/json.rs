@@ -32,7 +32,7 @@ pub(super) fn codegen_json_parse(args: &[String], target: Target) -> String {
         }
         Target::Python => format!("json.loads({text})", text = text),
         Target::Rust | Target::Dioxus => {
-            format!("serde_json::from_str(&{text}).unwrap()", text = text)
+            format!("serde_json::from_str(&{text}).expect(\"JSON parse error\")", text = text)
         }
         Target::Dart | Target::Flutter => {
             format!("json.decode({text})", text = text)
@@ -52,7 +52,7 @@ pub(super) fn codegen_json_stringify(args: &[String], target: Target) -> String 
         }
         Target::Python => format!("json.dumps({val})", val = val),
         Target::Rust | Target::Dioxus => {
-            format!("serde_json::to_string(&{val}).unwrap()", val = val)
+            format!("serde_json::to_string(&{val}).expect(\"JSON serialize error\")", val = val)
         }
         Target::Dart | Target::Flutter => {
             format!("json.encode({val})", val = val)
