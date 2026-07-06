@@ -26,7 +26,7 @@ type IRProgram = {
 };
 
 type Diagnostic = {
-  severity: string;
+  severity: 'error' | 'warning' | 'info';
   code: string;
   message: string;
   line: number;

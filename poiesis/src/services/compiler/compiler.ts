@@ -18,6 +18,7 @@ export interface CompileProjectParams {
   activeFileContent: string;
   target: string;
   isRunning: boolean;
+  editorMode?: boolean;
 }
 
 export interface CompileProjectResult {
@@ -60,12 +61,22 @@ export async function compileProject(
   if (genResult.value) {
     generatedSource = genResult.value;
     // ONE WASM call: validate + compile in single pass
-    const fullResult = rustCompiler.compileToOmniViewFull(genResult.value, false);
+    const fullResult = rustCompiler.compileToOmniViewFull(genResult.value, params.editorMode ?? false);
 
     const hasErrors = (fullResult.errors || []).some(e => e.severity === 'error');
-    if (hasErrors || !fullResult.files) {
+    if (!fullResult.success || hasErrors || !fullResult.files) {
       // Generated source failed — fallback to original content
-      validationErrors = (fullResult.errors || []) as unknown as CompileError[];
+      validationErrors = (fullResult.errors || []).map(e => ({
+        file: '',
+        line: e.line,
+        col: e.col,
+        endLine: e.end_line,
+        endCol: e.end_col,
+        severity: (e.severity === 'warning' ? 'warning' : 'error') as 'error' | 'warning',
+        code: e.code,
+        message: e.message,
+        suggestion: e.suggestion ?? null,
+      }));
       content = params.activeFileContent;
       // Fallback: compile original content
       compileResponse = await api.compile.compile(content, params.target, undefined, params.isRunning);
