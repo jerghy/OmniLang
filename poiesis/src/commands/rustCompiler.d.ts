@@ -12,7 +12,7 @@ declare module '../../public/wasm/omnilang.js' {
     options_json: string,
   ): string;
   export function compile_to_omniview_full(source: string, options_json: string): string;
-  export function compile_multi_to_omniview(sources_json: string): string;
+  export function compile_multi_to_omniview(sources_json: string, options_json: string): string;
   export class OmniCompiler {
     constructor();
     upsert_source(path: string, source: string): void;
