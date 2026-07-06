@@ -28,7 +28,7 @@ export class CodeDriver {
   private _codeStore(): ReturnType<StoreApi<CodeEditorState>["getState"]> | null {
     const global = window.__CODE_GRAPH_STORE__;
     if (global?.getState) return global.getState();
-    try { return useCodeGraphStore.getState(); } catch { return null; }
+    try { return useCodeGraphStore.getState(); } catch (e) { console.debug("[CodeDriver] Store access failed:", e); return null; }
   }
 
   // ── Event Binding Queries (v2) ─────────────────────
@@ -198,7 +198,7 @@ export class CodeDriver {
       });
       for (const v of (data.tab.variables || [])) store.defineVariable(v);
       return { id };
-    } catch { return null; }
+    } catch (e) { console.debug("[CodeDriver] Store access failed:", e); return null; }
   }
 
   /** Add a variable to a tab's scope. */

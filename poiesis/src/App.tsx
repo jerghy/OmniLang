@@ -22,7 +22,7 @@ async function loadOmniFiles(): Promise<void> {
       for (const entry of result.entries) {
         if (entry.ext === "omni") omniPaths.push(entry.path);
       }
-    } catch { /* dir may not exist */ }
+    } catch (e) { console.warn("[App] Failed to read project directory:", e); }
   }
 
   let mainPath: string | null = null;

@@ -177,8 +177,8 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
           if (tomlResult.state?.open_files?.length) {
             usePoiesisStore.setState({ openTabs: tomlResult.state.open_files });
           }
-        } catch {
-          /* non-critical */
+        } catch (e) {
+          console.debug("[ProjectInit] Failed to restore editor state:", e);
         }
       })();
 

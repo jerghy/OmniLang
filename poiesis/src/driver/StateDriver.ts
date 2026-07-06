@@ -75,14 +75,20 @@ export class StateDriver {
   /** Import a canvas state previously exported with exportState().
    *  Replaces all current elements and wires. */
   importState(json: string): void {
-    const data = JSON.parse(json);
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(json);
+    } catch {
+      log.warn("importState: failed to parse JSON");
+      return;
+    }
     if (!data.elements || !data.wires) {
       log.warn("importState: invalid state JSON — expected { elements, wires }");
       return;
     }
     usePoiesisStore.setState({
-      elements: data.elements,
-      wires: data.wires,
+      elements: data.elements as ElementData[],
+      wires: data.wires as WireData[],
     });
   }
 
