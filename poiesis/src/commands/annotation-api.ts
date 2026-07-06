@@ -18,7 +18,8 @@ async function resolveProjectDir(): Promise<string | null> {
     const store = await Store.load(STORE_PATH);
     const val = await store.get<string>("projectDir");
     return val ?? null;
-  } catch {
+  } catch (e) {
+    console.warn("[annotation] Failed to resolve project dir:", e);
     return null;
   }
 }
@@ -33,8 +34,8 @@ async function ensurePoiesisDir(projectDir: string): Promise<string> {
   const dir = joinPath(projectDir, ".poiesis");
   try {
     await mkdir(dir, { recursive: true });
-  } catch {
-    // Directory may already exist
+  } catch (e) {
+    console.warn("[annotation] Failed to create .poiesis dir:", e);
   }
   return dir;
 }
@@ -102,8 +103,9 @@ export function createAnnotationApi() {
         const path = joinPath(dir, COMPONENT_DEFS_FILE);
         const content = await readTextFile(path);
         return { definitions: JSON.parse(content) };
-      } catch {
-        return { definitions: {} };
+      } catch (e) {
+        console.warn("[annotation] Failed to load component definitions:", e);
+        return { definitions: {}, error: String(e) };
       }
     },
 
@@ -142,7 +144,8 @@ export function createAnnotationApi() {
         const fullPath = joinPath(dir, filePath);
         const source = await readTextFile(fullPath);
         return parsePidComments(source);
-      } catch {
+      } catch (e) {
+        console.warn("[annotation] Failed to read PID map:", e);
         return { entries: {}, lineToPid: {} };
       }
     },
@@ -200,8 +203,9 @@ export function createAnnotationApi() {
         const path = joinPath(dir, EDITOR_TOML_FILE);
         const content = await readTextFile(path);
         return { state: JSON.parse(content) };
-      } catch {
-        return { state: null };
+      } catch (e) {
+        console.warn("[annotation] Failed to load editor.toml:", e);
+        return { state: null, error: String(e) };
       }
     },
 

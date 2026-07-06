@@ -22,7 +22,8 @@ export async function loadProject(projectDir: string, omniFiles: string[]): Prom
       // In Tauri: const raw = await readTextFile(`${projectDir}/project.json`);
       // For now, start with empty
       projectJson = createEmptyProjectJson();
-    } catch {
+    } catch (e) {
+      console.warn("[persistence] Failed to load project.json, using empty:", e);
       projectJson = createEmptyProjectJson();
     }
 

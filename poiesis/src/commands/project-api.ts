@@ -29,7 +29,8 @@ async function resolveProjectDir(): Promise<string | null> {
     const val = await store.get<string>("projectDir");
     cachedProjectDir = val ?? null;
     return cachedProjectDir;
-  } catch {
+  } catch (e) {
+    console.warn("[project] Failed to resolve project dir:", e);
     return null;
   }
 }
@@ -180,7 +181,8 @@ export function createProjectApi() {
           title: "选择项目文件夹",
         });
         return selected ?? null;
-      } catch {
+      } catch (e) {
+        console.warn("[project] Failed to open folder dialog:", e);
         return null;
       }
     },
@@ -191,7 +193,8 @@ export function createProjectApi() {
         const store = await getStore();
         const val = await store.get<RecentProject[]>(RECENT_KEY);
         return val ?? [];
-      } catch {
+      } catch (e) {
+        console.warn("[project] Failed to get recent projects:", e);
         return [];
       }
     },
@@ -208,8 +211,8 @@ export function createProjectApi() {
         const trimmed = filtered.slice(0, MAX_RECENT);
         await store.set(RECENT_KEY, trimmed);
         await store.save();
-      } catch {
-        // Non-critical — silently ignore
+      } catch (e) {
+        console.warn("[project] Failed to add recent project:", e);
       }
     },
 
@@ -220,8 +223,8 @@ export function createProjectApi() {
         const filtered = list.filter((p) => p.path !== path);
         await store.set(RECENT_KEY, filtered);
         await store.save();
-      } catch {
-        // Non-critical
+      } catch (e) {
+        console.warn("[project] Failed to remove recent project:", e);
       }
     },
   };

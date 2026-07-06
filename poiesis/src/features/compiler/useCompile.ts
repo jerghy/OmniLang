@@ -141,7 +141,7 @@ export function useCompile(
         isError: false,
       });
       if (runStatus.running && compileResponse.files) {
-        api.compile.writeRunFiles(compileResponse.files).catch(() => {});
+        api.compile.writeRunFiles(compileResponse.files).catch((e) => console.warn("[compile] Failed to write run files:", e));
       }
       const s = usePoiesisStore.getState();
       if (s.elements.length > 0) {

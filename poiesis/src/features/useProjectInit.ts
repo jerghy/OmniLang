@@ -29,7 +29,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        saveComponentDefinitionsToServer(state.definitions).catch(() => {});
+        saveComponentDefinitionsToServer(state.definitions).catch((e) => console.warn("[init] Failed to save component defs:", e));
       }, 2000);
     });
     return () => {
@@ -41,7 +41,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      api.compile.stopRun().catch(() => {});
+      api.compile.stopRun().catch((e) => console.warn("[init] Failed to stop run:", e));
       api.disconnectDebug();
     };
   }, []);
