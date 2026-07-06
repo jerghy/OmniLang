@@ -469,6 +469,13 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
 /// Validate and canonicalize a user-supplied relative path against a base directory.
 /// Returns the canonicalized path if it is within the base directory.
 /// Resolves symlinks, `..`, and other path traversal attempts.
+///
+/// # Safety note (TOCTOU)
+/// There is a time-of-check-time-of-use window between path validation and
+/// the subsequent file operation. This is acceptable because the project
+/// directory is assumed to be under the user's control and not shared with
+/// untrusted writers. On production deployments, consider using handle-based
+/// operations (e.g. O_NOFOLLOW on Unix) for stronger guarantees.
 fn sanitize_path(base: &std::path::Path, user_path: &str) -> Result<std::path::PathBuf, String> {
     // Reject empty paths
     if user_path.is_empty() {

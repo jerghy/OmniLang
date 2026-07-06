@@ -129,10 +129,10 @@ impl OmniViewGenerator {
         self.js
             .push_str("          for (const cls in classMap) {\n");
         self.js.push_str(
-            "            try { el.classList.toggle(cls, !!new Function('return (' + classMap[cls] + ')')()); } catch(e) {}\n",
+            "            try { el.classList.toggle(cls, !!new Function('return (' + classMap[cls] + ')')()); } catch(e) { console.warn('OmniView: class expression eval failed for', cls, e); }\n",
         );
         self.js.push_str("          }\n");
-        self.js.push_str("        } catch(e) {}\n");
+        self.js.push_str("        } catch(e) { console.warn('OmniView: class-expr JSON parse failed', e); }\n");
         self.js.push_str("      }\n");
         self.js.push_str("    });\n");
 
@@ -154,7 +154,7 @@ impl OmniViewGenerator {
         self.js
             .push_str("            el.setAttribute(attr.name, resolved);\n");
         self.js
-            .push_str("          } catch(e) { /* keep original */ }\n");
+            .push_str("          } catch(e) { console.warn('OmniView: attr interpolation failed for', attr.name, e); }\n");
         self.js.push_str("        }\n");
         self.js.push_str("      });\n");
         self.js.push_str("    });\n");
@@ -301,7 +301,7 @@ impl OmniViewGenerator {
             self.js.push_str(
                 "          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n",
             );
-            self.js.push_str("            try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) {}\n");
+            self.js.push_str("            try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) { console.warn('OmniView: for-state text bind eval failed', e); }\n");
             self.js.push_str("          });\n");
             self.js.push_str("        }\n");
             self.js
