@@ -305,26 +305,7 @@ impl OmniViewGenerator {
     }
 
     pub(super) fn js_value(&self, value: &serde_json::Value) -> String {
-        match value {
-            serde_json::Value::Null => "null".into(),
-            serde_json::Value::Bool(b) => b.to_string(),
-            serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::String(s) => {
-                let escaped = s
-                    .replace('\\', "\\\\")
-                    .replace('"', "\\\"")
-                    .replace('\n', "\\n")
-                    .replace('\r', "\\r")
-                    .replace('\t', "\\t")
-                    .replace('\0', "\\0");
-                format!("\"{}\"", escaped)
-            }
-            serde_json::Value::Array(arr) => {
-                let items: Vec<String> = arr.iter().map(|v| self.js_value(v)).collect();
-                format!("[{}]", items.join(", "))
-            }
-            serde_json::Value::Object(_) => "({})".into(),
-        }
+        crate::codegen::format_json_value(value, &crate::codegen::JSON_OMNIVIEW)
     }
 
     pub(super) fn expr_to_static_str(&self, expr: &ExprIR) -> String {

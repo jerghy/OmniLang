@@ -2,6 +2,7 @@
 
 use super::CodeWriter;
 use crate::codegen::javascript::js_type;
+use crate::codegen::{format_json_value, JSON_VUE};
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -169,7 +170,7 @@ pub(super) fn format_block_as_vue_expr(block: &BlockIR) -> String {
 
 pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value_vue(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_VUE),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_vue(object), field)
@@ -279,7 +280,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
                             format!("return {};", body)
                         }
                         MatchPatternKindIR::Literal { value } => {
-                            let v = format_json_value_vue(value);
+                            let v = format_json_value(value, &JSON_VUE);
                             format!("if (_v._variant === {}) {{ return {}; }}", v, body)
                         }
                     }
@@ -298,34 +299,6 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
 // ═══════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════
-
-pub(super) fn format_json_value_vue(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("\"{}\"", escaped)
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(format_json_value_vue).collect();
-            format!("[{}]", items.join(", "))
-        }
-        serde_json::Value::Object(obj) => {
-            let items: Vec<_> = obj
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_json_value_vue(v)))
-                .collect();
-            format!("{{ {} }}", items.join(", "))
-        }
-    }
-}
 
 pub(super) fn binary_op_to_vue(op: &str) -> &str {
     super::super::binary_op_to_str(op, true, false)

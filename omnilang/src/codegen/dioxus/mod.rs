@@ -15,6 +15,7 @@ use view::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 
 pub struct DioxusCodegen;
@@ -222,7 +223,7 @@ impl DioxusCodegen {
             let default = store
                 .signal_defaults
                 .get(sig_name)
-                .map(format_json_value_dioxus)
+                .map(|v| format_json_value(v, &JSON_DIOXUS))
                 .unwrap_or_else(|| "Default::default()".into());
             w.emit(&format!("{}: use_signal(|| {}),", sig_name, default));
         }

@@ -12,6 +12,7 @@
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_PYTHON};
 use crate::ir::*;
 
 pub struct PythonCodegen;
@@ -211,7 +212,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
         let default = store
             .signal_defaults
             .get(signal_name)
-            .map(format_json_value)
+            .map(|v| format_json_value(v, &JSON_PYTHON))
             .unwrap_or_else(|| "None".into());
         w.emit(&format!("self.{} = {}", signal_name, default));
     }
@@ -423,7 +424,7 @@ fn format_block_as_python_expr(block: &BlockIR) -> String {
 
 fn format_expr_ir(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_PYTHON),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir(object), field)
@@ -547,41 +548,6 @@ fn format_expr_ir(expr: &ExprIR) -> String {
             }
         }
         _ => "None".into(),
-    }
-}
-
-/// Format a JSON value as a Python literal.
-fn format_json_value(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "None".into(),
-        serde_json::Value::Bool(b) => {
-            if *b {
-                "True".into()
-            } else {
-                "False".into()
-            }
-        }
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                i.to_string()
-            } else if let Some(f) = n.as_f64() {
-                f.to_string()
-            } else {
-                n.to_string()
-            }
-        }
-        serde_json::Value::String(s) => {
-            // Escape special characters for Python string literals
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('\'', "\\'")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("'{}'", escaped)
-        }
-        // Arrays and objects: use repr
-        other => other.to_string(),
     }
 }
 

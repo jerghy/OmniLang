@@ -4,32 +4,7 @@ use crate::ir::*;
 use std::collections::HashMap;
 
 pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t")
-                .replace('\0', "\\0");
-            format!("\"{}\"", escaped)
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(serde_value_to_js).collect();
-            format!("[{}]", items.join(", "))
-        }
-        serde_json::Value::Object(obj) => {
-            let entries: Vec<String> = obj
-                .iter()
-                .map(|(k, v)| format!("\"{}\": {}", k, serde_value_to_js(v)))
-                .collect();
-            format!("{{{}}}", entries.join(", "))
-        }
-    }
+    crate::codegen::format_json_value(value, &crate::codegen::JSON_OMNIVIEW)
 }
 
 // ══════════════════════════════════════════════════════════

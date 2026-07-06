@@ -17,6 +17,7 @@ use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::omniview::{emit_event_object as emit_event_object_js, field_extract_js};
+use crate::codegen::{format_json_value, JSON_JS};
 use crate::ir::*;
 
 pub struct JavaScriptCodegen {
@@ -219,7 +220,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
         let default = store
             .signal_defaults
             .get(signal_name)
-            .map(format_json_value)
+            .map(|v| format_json_value(v, &JSON_JS))
             .unwrap_or_else(|| "null".into());
         w.emit(&format!("this.{} = {};", signal_name, default));
     }

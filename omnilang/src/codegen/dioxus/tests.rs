@@ -42,27 +42,27 @@ mod tests {
 
     #[test]
     fn test_format_json_value_dioxus() {
-        assert_eq!(format_json_value_dioxus(&serde_json::Value::Null), "None");
+        assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_DIOXUS), "None");
         assert_eq!(
-            format_json_value_dioxus(&serde_json::Value::Bool(true)),
+            format_json_value(&serde_json::Value::Bool(true), &JSON_DIOXUS),
             "true"
         );
         assert_eq!(
-            format_json_value_dioxus(&serde_json::Value::Bool(false)),
+            format_json_value(&serde_json::Value::Bool(false), &JSON_DIOXUS),
             "false"
         );
-        assert_eq!(format_json_value_dioxus(&serde_json::json!(42)), "42");
-        assert_eq!(format_json_value_dioxus(&serde_json::json!(2.71)), "2.71");
+        assert_eq!(format_json_value(&serde_json::json!(42), &JSON_DIOXUS), "42");
+        assert_eq!(format_json_value(&serde_json::json!(2.71), &JSON_DIOXUS), "2.71");
         assert_eq!(
-            format_json_value_dioxus(&serde_json::json!("hello")),
+            format_json_value(&serde_json::json!("hello"), &JSON_DIOXUS),
             "\"hello\".to_string()"
         );
         assert_eq!(
-            format_json_value_dioxus(&serde_json::json!("he\"llo")),
+            format_json_value(&serde_json::json!("he\"llo"), &JSON_DIOXUS),
             "\"he\\\"llo\".to_string()"
         );
         assert_eq!(
-            format_json_value_dioxus(&serde_json::json!(vec![1, 2, 3])),
+            format_json_value(&serde_json::json!(vec![1, 2, 3]), &JSON_DIOXUS),
             "vec![1, 2, 3]"
         );
     }

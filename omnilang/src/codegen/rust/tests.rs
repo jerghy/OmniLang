@@ -62,16 +62,16 @@ mod tests {
 
     #[test]
     fn test_format_json_value() {
-        assert_eq!(format_json_value(&serde_json::Value::Null), "None");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(true)), "true");
-        assert_eq!(format_json_value(&serde_json::Value::Bool(false)), "false");
-        assert_eq!(format_json_value(&serde_json::json!(42)), "42");
+        assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_RUST), "None");
+        assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_RUST), "true");
+        assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_RUST), "false");
+        assert_eq!(format_json_value(&serde_json::json!(42), &JSON_RUST), "42");
         assert_eq!(
-            format_json_value(&serde_json::json!("hello")),
+            format_json_value(&serde_json::json!("hello"), &JSON_RUST),
             "\"hello\".to_string()"
         );
         assert_eq!(
-            format_json_value(&serde_json::json!("he\"llo")),
+            format_json_value(&serde_json::json!("he\"llo"), &JSON_RUST),
             "\"he\\\"llo\".to_string()"
         );
     }

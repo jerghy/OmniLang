@@ -13,6 +13,7 @@ pub(crate) use expr::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_RUST};
 use crate::ir::*;
 
 pub struct RustCodegen;
@@ -210,7 +211,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
         let default = store
             .signal_defaults
             .get(signal_name)
-            .map(format_json_value)
+            .map(|v| format_json_value(v, &JSON_RUST))
             .unwrap_or_else(|| "None".into());
         w.emit(&format!("{}: {},", signal_name, default));
     }

@@ -3,13 +3,13 @@
 //! Formats IR expressions, statements (as expressions), JSON values,
 //! and binary operators into JavaScript/TypeScript source strings.
 
-use crate::codegen::{format_block_as_expr, try_format_stdlib_call, Target};
+use crate::codegen::{format_block_as_expr, format_json_value, try_format_stdlib_call, JSON_JS, Target};
 use crate::ir::*;
 
 /// Format an IR expression node as a JS/TS expression string.
 pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_JS),
         ExprIR::IdentifierExpr { name } => super::super::sanitize_js_ident(name),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir(object, _ts_mode), field)
@@ -148,7 +148,7 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
                             format!("  return {};", body_expr)
                         }
                         MatchPatternKindIR::Literal { value } => {
-                            let v = format_json_value(value);
+                            let v = format_json_value(value, &JSON_JS);
                             format!("  if (_v._variant === {}) {{ return {}; }}", v, body_expr)
                         }
                     }
@@ -190,40 +190,6 @@ pub(super) fn format_stmt_ir(stmt: &StatementIR, ts_mode: bool) -> String {
     }
 }
 
-/// Format a JSON value as a JavaScript literal.
-pub(super) fn format_json_value(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => {
-            if *b {
-                "true".into()
-            } else {
-                "false".into()
-            }
-        }
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                i.to_string()
-            } else if let Some(f) = n.as_f64() {
-                f.to_string()
-            } else {
-                n.to_string()
-            }
-        }
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("\"{}\"", escaped)
-        }
-        other => other.to_string(),
-    }
-}
-
-/// Map OMNI binary operator name to JavaScript operator.
 pub(super) fn binary_op_to_js(op: &str) -> &str {
     crate::codegen::binary_op_to_str(op, true, false)
 }

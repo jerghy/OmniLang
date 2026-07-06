@@ -15,7 +15,7 @@ use template::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
-use crate::codegen::{camel_to_kebab, format_css_value};
+use crate::codegen::{camel_to_kebab, format_css_value, format_json_value, JSON_VUE};
 use crate::ir::*;
 
 pub struct VueCodegen;
@@ -263,7 +263,7 @@ impl VueCodegen {
             let init = store
                 .signal_defaults
                 .get(sig_name)
-                .map(format_json_value_vue)
+                .map(|v| format_json_value(v, &JSON_VUE))
                 .unwrap_or_else(|| "null".into());
             let ts_type = super::javascript::js_type(&sig_type.kind, &sig_type.type_args, true);
             if ts_type.is_empty() {

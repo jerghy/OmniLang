@@ -8,7 +8,7 @@ use super::expr::*;
 #[allow(unused_imports)]
 use super::utils::*;
 use super::ReactCodegen;
-use crate::codegen::{binary_op_to_str, camel_to_kebab, capitalize_first, CodeWriter, Codegen};
+use crate::codegen::{binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen, JSON_REACT};
 use crate::ir::ModuleIR;
 use crate::ir::*;
 
@@ -24,17 +24,17 @@ fn test_capitalize_first() {
 
 #[test]
 fn test_format_json_value_tsx() {
-    assert_eq!(format_json_value_tsx(&serde_json::Value::Null), "null");
-    assert_eq!(format_json_value_tsx(&serde_json::json!(true)), "true");
-    assert_eq!(format_json_value_tsx(&serde_json::json!(false)), "false");
-    assert_eq!(format_json_value_tsx(&serde_json::json!(42)), "42");
-    assert_eq!(format_json_value_tsx(&serde_json::json!(2.71)), "2.71");
+    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_REACT), "null");
+    assert_eq!(format_json_value(&serde_json::json!(true), &JSON_REACT), "true");
+    assert_eq!(format_json_value(&serde_json::json!(false), &JSON_REACT), "false");
+    assert_eq!(format_json_value(&serde_json::json!(42), &JSON_REACT), "42");
+    assert_eq!(format_json_value(&serde_json::json!(2.71), &JSON_REACT), "2.71");
     assert_eq!(
-        format_json_value_tsx(&serde_json::json!("hello")),
+        format_json_value(&serde_json::json!("hello"), &JSON_REACT),
         "\"hello\""
     );
     assert_eq!(
-        format_json_value_tsx(&serde_json::json!("he\"llo")),
+        format_json_value(&serde_json::json!("he\"llo"), &JSON_REACT),
         "\"he\\\"llo\""
     );
 }

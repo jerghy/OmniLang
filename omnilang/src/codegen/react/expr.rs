@@ -8,7 +8,7 @@ use crate::codegen::CodeWriter;
 use crate::ir::*;
 
 use super::super::{binary_op_to_str, capitalize_first, format_block_as_expr};
-use super::utils::format_json_value_tsx;
+use crate::codegen::{format_json_value, JSON_REACT};
 
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
@@ -253,7 +253,7 @@ fn format_block_as_tsx_expr(block: &BlockIR) -> String {
 
 pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value_tsx(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_REACT),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir_tsx(object), field)
@@ -370,7 +370,7 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
                             format!("return {};", body)
                         }
                         MatchPatternKindIR::Literal { value } => {
-                            let v = format_json_value_tsx(value);
+                            let v = format_json_value(value, &JSON_REACT);
                             format!("if (_v._variant === {}) {{ return {}; }}", v, body)
                         }
                     }

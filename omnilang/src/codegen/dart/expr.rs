@@ -4,6 +4,7 @@
 //! (structs, enums, type aliases, standalone functions) as Dart source code.
 
 use super::CodeWriter;
+use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
 
 pub(super) fn format_block_as_dart_expr(block: &BlockIR) -> String {
@@ -16,7 +17,7 @@ pub(super) fn format_block_as_dart_expr(block: &BlockIR) -> String {
 
 pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_DART),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir(object), field)
@@ -144,39 +145,6 @@ pub(super) fn format_expr_ir(expr: &ExprIR) -> String {
                 format!("(({p}) => {b})")
             }
         }
-    }
-}
-
-/// Format a JSON value as a Dart literal.
-pub(super) fn format_json_value(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => {
-            if *b {
-                "true".into()
-            } else {
-                "false".into()
-            }
-        }
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                i.to_string()
-            } else if let Some(f) = n.as_f64() {
-                f.to_string()
-            } else {
-                n.to_string()
-            }
-        }
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('\'', "\\'")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("'{}'", escaped)
-        }
-        other => other.to_string(),
     }
 }
 

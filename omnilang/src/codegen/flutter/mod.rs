@@ -26,6 +26,7 @@ mod tests;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
 
 pub struct FlutterCodegen;
@@ -372,7 +373,7 @@ impl FlutterCodegen {
             let default_val = store
                 .signal_defaults
                 .get(sig_name)
-                .map(format_json_value_flutter)
+                .map(|v| format_json_value(v, &JSON_FLUTTER))
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("{} {} = {};", ann, sig_name, default_val));
         }
@@ -385,7 +386,7 @@ impl FlutterCodegen {
             let default_val = store
                 .signal_defaults
                 .get(sig_name)
-                .map(format_json_value_flutter)
+                .map(|v| format_json_value(v, &JSON_FLUTTER))
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("this.{} = {};", sig_name, default_val));
         }

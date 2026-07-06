@@ -2,7 +2,7 @@
 
 #[allow(unused_imports)]
 use super::*;
-use crate::codegen::CodeWriter;
+use crate::codegen::{format_json_value, CodeWriter, JSON_DART};
 use crate::ir::*;
 use std::collections::HashMap;
 
@@ -68,13 +68,13 @@ fn test_dart_type_user_defined() {
 
 #[test]
 fn test_format_json_value() {
-    assert_eq!(format_json_value(&serde_json::Value::Null), "null");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(true)), "true");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(false)), "false");
-    assert_eq!(format_json_value(&serde_json::json!(42)), "42");
-    assert_eq!(format_json_value(&serde_json::json!("hello")), "'hello'");
+    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_DART), "null");
+    assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_DART), "true");
+    assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_DART), "false");
+    assert_eq!(format_json_value(&serde_json::json!(42), &JSON_DART), "42");
+    assert_eq!(format_json_value(&serde_json::json!("hello"), &JSON_DART), "'hello'");
     assert_eq!(
-        format_json_value(&serde_json::json!("he'llo")),
+        format_json_value(&serde_json::json!("he'llo"), &JSON_DART),
         "'he\\'llo'"
     );
 }

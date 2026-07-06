@@ -16,17 +16,17 @@ mod tests {
 
     #[test]
     fn test_format_json_value_vue() {
-        assert_eq!(format_json_value_vue(&serde_json::Value::Null), "null");
-        assert_eq!(format_json_value_vue(&serde_json::json!(true)), "true");
-        assert_eq!(format_json_value_vue(&serde_json::json!(false)), "false");
-        assert_eq!(format_json_value_vue(&serde_json::json!(42)), "42");
-        assert_eq!(format_json_value_vue(&serde_json::json!(2.71)), "2.71");
+        assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_VUE), "null");
+        assert_eq!(format_json_value(&serde_json::json!(true), &JSON_VUE), "true");
+        assert_eq!(format_json_value(&serde_json::json!(false), &JSON_VUE), "false");
+        assert_eq!(format_json_value(&serde_json::json!(42), &JSON_VUE), "42");
+        assert_eq!(format_json_value(&serde_json::json!(2.71), &JSON_VUE), "2.71");
         assert_eq!(
-            format_json_value_vue(&serde_json::json!("hello")),
+            format_json_value(&serde_json::json!("hello"), &JSON_VUE),
             "\"hello\""
         );
         assert_eq!(
-            format_json_value_vue(&serde_json::json!("he\"llo")),
+            format_json_value(&serde_json::json!("he\"llo"), &JSON_VUE),
             "\"he\\\"llo\""
         );
     }

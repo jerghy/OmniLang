@@ -75,13 +75,14 @@ fn test_ts_type_user_defined() {
 
 #[test]
 fn test_format_json_value() {
-    assert_eq!(format_json_value(&serde_json::Value::Null), "null");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(true)), "true");
-    assert_eq!(format_json_value(&serde_json::Value::Bool(false)), "false");
-    assert_eq!(format_json_value(&serde_json::json!(42)), "42");
-    assert_eq!(format_json_value(&serde_json::json!("hello")), "\"hello\"");
+    use crate::codegen::JSON_JS;
+    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_JS), "null");
+    assert_eq!(format_json_value(&serde_json::Value::Bool(true), &JSON_JS), "true");
+    assert_eq!(format_json_value(&serde_json::Value::Bool(false), &JSON_JS), "false");
+    assert_eq!(format_json_value(&serde_json::json!(42), &JSON_JS), "42");
+    assert_eq!(format_json_value(&serde_json::json!("hello"), &JSON_JS), "\"hello\"");
     assert_eq!(
-        format_json_value(&serde_json::json!("he\"llo")),
+        format_json_value(&serde_json::json!("he\"llo"), &JSON_JS),
         "\"he\\\"llo\""
     );
 }

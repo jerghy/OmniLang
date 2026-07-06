@@ -13,6 +13,7 @@ pub(crate) use expr::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
 
 pub struct DartCodegen;
@@ -172,7 +173,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
         let default = store
             .signal_defaults
             .get(signal_name)
-            .map(format_json_value)
+            .map(|v| format_json_value(v, &JSON_DART))
             .unwrap_or_else(|| "null".into());
         w.emit(&format!("{} {} = {};", ann, signal_name, default));
     }
@@ -186,7 +187,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
             let default = store
                 .signal_defaults
                 .get(signal_name)
-                .map(format_json_value)
+                .map(|v| format_json_value(v, &JSON_DART))
                 .unwrap_or_else(|| "null".into());
             w.emit(&format!("this.{} = {};", signal_name, default));
         }

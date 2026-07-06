@@ -100,35 +100,6 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
 }
 
 
-pub(super) fn format_json_value_tsx(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("\"{}\"", escaped)
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(format_json_value_tsx).collect();
-            format!("[{}]", items.join(", "))
-        }
-        serde_json::Value::Object(obj) => {
-            let items: Vec<_> = obj
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_json_value_tsx(v)))
-                .collect();
-            format!("{{ {} }}", items.join(", "))
-        }
-    }
-}
-
-
 /// Map OmniView attribute names to JSX attribute names.
 pub(super) fn to_jsx_attr(prop_name: &str) -> String {
     match prop_name {

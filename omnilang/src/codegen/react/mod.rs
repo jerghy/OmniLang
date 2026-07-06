@@ -7,6 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
 
 pub(super) mod component;
@@ -77,7 +78,7 @@ impl ReactCodegen {
             let init = store
                 .signal_defaults
                 .get(sig_name)
-                .map(utils::format_json_value_tsx)
+                .map(|v| format_json_value(v, &JSON_REACT))
                 .unwrap_or_else(|| "null".into());
             let setter = format!("set{}", super::capitalize_first(sig_name));
             let ts_type = super::javascript::js_type(&sig_type.kind, &sig_type.type_args, true);

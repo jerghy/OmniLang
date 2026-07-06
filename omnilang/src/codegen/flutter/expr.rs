@@ -1,5 +1,6 @@
 //! Expression formatting for Flutter codegen.
 
+use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
 
 pub(crate) fn format_block_as_flutter_expr(block: &BlockIR) -> String {
@@ -12,7 +13,7 @@ pub(crate) fn format_block_as_flutter_expr(block: &BlockIR) -> String {
 
 pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value_flutter(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_FLUTTER),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir_flutter(object), field)
@@ -140,31 +141,6 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
                 format!("(({p}) => {b})")
             }
         }
-    }
-}
-
-/// Format a JSON value as a Dart literal (shared with Flutter).
-pub(crate) fn format_json_value_flutter(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".into(),
-        serde_json::Value::Bool(b) => {
-            if *b {
-                "true".into()
-            } else {
-                "false".into()
-            }
-        }
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('\'', "\\'")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("'{}'", escaped)
-        }
-        other => other.to_string(),
     }
 }
 

@@ -1,5 +1,6 @@
 //! Expression formatting, helpers, and event data extraction for Dioxus codegen.
 
+use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -16,7 +17,7 @@ pub(super) fn format_block_as_dioxus_expr(block: &BlockIR) -> String {
 
 pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
     match expr {
-        ExprIR::LiteralExpr { value } => format_json_value_dioxus(value),
+        ExprIR::LiteralExpr { value } => format_json_value(value, &JSON_DIOXUS),
         ExprIR::IdentifierExpr { name } => name.clone(),
         ExprIR::FieldAccessExpr { object, field } => {
             format!("{}.{}", format_expr_ir_dioxus(object), field)
@@ -136,41 +137,6 @@ pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
             let b = format_expr_ir_dioxus(body);
             let p = params.join(", ");
             format!("(move |{p}| {b})")
-        }
-    }
-}
-
-/// Format a JSON value as a Rust literal expression.
-pub(super) fn format_json_value_dioxus(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "None".into(),
-        serde_json::Value::Bool(b) => {
-            if *b {
-                "true".into()
-            } else {
-                "false".into()
-            }
-        }
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            let escaped = s
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r")
-                .replace('\t', "\\t");
-            format!("\"{}\".to_string()", escaped)
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<_> = arr.iter().map(format_json_value_dioxus).collect();
-            format!("vec![{}]", items.join(", "))
-        }
-        serde_json::Value::Object(obj) => {
-            let items: Vec<_> = obj
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_json_value_dioxus(v)))
-                .collect();
-            format!("{{ {} }}", items.join(", "))
         }
     }
 }

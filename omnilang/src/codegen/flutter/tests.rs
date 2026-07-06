@@ -1,6 +1,7 @@
 //! Unit tests for flutter codegen.
 
 use super::*;
+use crate::codegen::{format_json_value, JSON_FLUTTER};
 use std::collections::HashMap;
 
 // ── Helper tests ──────────────────────────────────────────
@@ -60,22 +61,22 @@ fn test_binary_op_to_flutter() {
 
 #[test]
 fn test_format_json_value_flutter() {
-    assert_eq!(format_json_value_flutter(&serde_json::Value::Null), "null");
+    assert_eq!(format_json_value(&serde_json::Value::Null, &JSON_FLUTTER), "null");
     assert_eq!(
-        format_json_value_flutter(&serde_json::Value::Bool(true)),
+        format_json_value(&serde_json::Value::Bool(true), &JSON_FLUTTER),
         "true"
     );
     assert_eq!(
-        format_json_value_flutter(&serde_json::Value::Bool(false)),
+        format_json_value(&serde_json::Value::Bool(false), &JSON_FLUTTER),
         "false"
     );
-    assert_eq!(format_json_value_flutter(&serde_json::json!(42)), "42");
+    assert_eq!(format_json_value(&serde_json::json!(42), &JSON_FLUTTER), "42");
     assert_eq!(
-        format_json_value_flutter(&serde_json::json!("hello")),
+        format_json_value(&serde_json::json!("hello"), &JSON_FLUTTER),
         "'hello'"
     );
     assert_eq!(
-        format_json_value_flutter(&serde_json::json!("he'llo")),
+        format_json_value(&serde_json::json!("he'llo"), &JSON_FLUTTER),
         "'he\\'llo'"
     );
 }
