@@ -550,7 +550,10 @@ impl Lexer {
                         );
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(u64::from_str_radix(&hex, 16).unwrap_or(0)),
+                        match u64::from_str_radix(&hex, 16) {
+                            Ok(v) => TokenKind::IntLiteral(v),
+                            Err(_) => TokenKind::Error(format!("invalid hex literal: 0x{}", hex)),
+                        },
                         start,
                         self.pos,
                         line,
@@ -569,7 +572,10 @@ impl Lexer {
                         );
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(u64::from_str_radix(&oct, 8).unwrap_or(0)),
+                        match u64::from_str_radix(&oct, 8) {
+                            Ok(v) => TokenKind::IntLiteral(v),
+                            Err(_) => TokenKind::Error(format!("invalid octal literal: 0o{}", oct)),
+                        },
                         start,
                         self.pos,
                         line,
@@ -588,7 +594,12 @@ impl Lexer {
                         );
                     }
                     return self.mk_token(
-                        TokenKind::IntLiteral(u64::from_str_radix(&bin, 2).unwrap_or(0)),
+                        match u64::from_str_radix(&bin, 2) {
+                            Ok(v) => TokenKind::IntLiteral(v),
+                            Err(_) => {
+                                TokenKind::Error(format!("invalid binary literal: 0b{}", bin))
+                            }
+                        },
                         start,
                         self.pos,
                         line,
@@ -658,7 +669,10 @@ impl Lexer {
 
         if is_float {
             self.mk_token(
-                TokenKind::FloatLiteral(num.parse().unwrap_or(0.0)),
+                match num.parse() {
+                    Ok(v) => TokenKind::FloatLiteral(v),
+                    Err(_) => TokenKind::Error(format!("invalid float literal: {}", num)),
+                },
                 start,
                 self.pos,
                 line,
@@ -666,7 +680,10 @@ impl Lexer {
             )
         } else {
             self.mk_token(
-                TokenKind::IntLiteral(num.parse().unwrap_or(0)),
+                match num.parse() {
+                    Ok(v) => TokenKind::IntLiteral(v),
+                    Err(_) => TokenKind::Error(format!("invalid integer literal: {}", num)),
+                },
                 start,
                 self.pos,
                 line,

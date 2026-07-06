@@ -189,4 +189,26 @@ mod roundtrip_tests {
         assert_eq!(module.imports.len(), 1);
         assert_eq!(module.exports.len(), 1);
     }
+
+    #[test]
+    fn test_reject_invalid_hex() {
+        let source = "let x = 0xFFG;";
+        let tokens = tokenize(source);
+        let result = parse(&tokens, source);
+        assert!(
+            result.is_err(),
+            "Invalid hex '0xFFG' should produce parse error"
+        );
+    }
+
+    #[test]
+    fn test_reject_invalid_float() {
+        let source = "let x = 1.2.3;";
+        let tokens = tokenize(source);
+        let result = parse(&tokens, source);
+        assert!(
+            result.is_err(),
+            "Invalid float '1.2.3' should produce parse error"
+        );
+    }
 }
