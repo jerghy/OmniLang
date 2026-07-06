@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::ir::IRProgram;
 use crate::parser::ast::Program;
 
@@ -138,13 +138,13 @@ pub fn analyse_multi(
                 crate::semantic::lints::LintSeverity::Info => crate::error::Severity::Info,
                 _ => crate::error::Severity::Warning,
             },
-            code: d.rule.clone(),
+            kind: DiagnosticKind::ELint(d.rule.clone()),
             message: d.message.clone(),
             file: Some(d.file.clone()),
             line: d.line,
             col: d.col,
-            end_line: d.line,
-            end_col: d.col.saturating_add(d.message.len() as u32),
+            end_line: None,
+            end_col: None,
             suggestion: None,
         })
         .collect();
@@ -155,13 +155,13 @@ pub fn analyse_multi(
         if d.severity == crate::semantic::lints::LintSeverity::Error {
             diags.push(Diagnostic {
                 severity: crate::error::Severity::Error,
-                code: d.rule.clone(),
+                kind: DiagnosticKind::ELint(d.rule.clone()),
                 message: d.message.clone(),
                 file: Some(d.file.clone()),
                 line: d.line,
                 col: d.col,
-                end_line: d.line,
-                end_col: d.col.saturating_add(d.message.len() as u32),
+                end_line: None,
+                end_col: None,
                 suggestion: None,
             });
         }

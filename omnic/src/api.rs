@@ -122,7 +122,7 @@ pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
         };
         diagnostics.push(serde_json::json!({
             "severity": severity,
-            "code": d.code,
+            "code": d.kind.code_str(),
             "message": d.message,
             "file": d.file,
             "line": d.line,
@@ -134,7 +134,7 @@ pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
     for w in &analysis.warnings {
         diagnostics.push(serde_json::json!({
             "severity": "warning",
-            "code": w.code,
+            "code": w.kind.code_str(),
             "message": w.message,
             "file": w.file,
             "line": w.line,

@@ -297,7 +297,7 @@ fn analyse_source(source: String, file_path: String) -> AnalyseResult {
                 omnilang::error::Severity::Warning => "warning".to_string(),
                 omnilang::error::Severity::Info => "info".to_string(),
             },
-            code: d.code.clone(),
+            code: d.kind.code_str().to_string(),
             message: d.message.clone(),
             file: file_path.clone(),
             line: d.line,

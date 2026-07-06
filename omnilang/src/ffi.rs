@@ -124,7 +124,7 @@ pub unsafe extern "C" fn omni_analyse(
                 crate::error::Severity::Warning => "warning",
                 crate::error::Severity::Info => "info",
             },
-            "code": d.code,
+            "code": d.kind.code_str(),
             "message": d.message,
             "file": d.file,
             "line": d.line,
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn omni_analyse(
     for w in &analysis.warnings {
         diagnostics.push(serde_json::json!({
             "severity": "warning",
-            "code": w.code,
+            "code": w.kind.code_str(),
             "message": w.message,
             "file": w.file,
             "line": w.line,

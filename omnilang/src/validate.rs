@@ -7,20 +7,20 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Diagnostic, Severity};
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::parser::ast::{ImportStmt, Program, Visibility};
 
 /// Build a file-level diagnostic (line/col = 0) for multi-file validation.
-fn make_diag(severity: Severity, code: &str, file: &str, message: String) -> Diagnostic {
+fn make_diag(severity: Severity, kind: DiagnosticKind, file: &str, message: String) -> Diagnostic {
     Diagnostic {
         severity,
-        code: code.to_string(),
+        kind,
         message,
         file: Some(file.to_string()),
         line: 0,
         col: 0,
-        end_line: 0,
-        end_col: 0,
+        end_line: None,
+        end_col: None,
         suggestion: None,
     }
 }
@@ -98,13 +98,13 @@ pub fn validate_multi_ref(
         let file = cycle.first().map(|s| s.as_str()).unwrap_or("unknown");
         errors.push(Diagnostic {
             severity: Severity::Error,
-            code: "E_CYCLE".to_string(),
+            kind: DiagnosticKind::ECycle,
             message: format!("circular import detected: {}", cycle.join(" → ")),
             file: Some(file.to_string()),
             line: 0,
             col: 0,
-            end_line: 0,
-            end_col: 0,
+            end_line: None,
+            end_col: None,
             suggestion: None,
         });
     }
@@ -133,15 +133,15 @@ fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), V
     if !has_omniview_marker && has_ui_declarations {
         errors.push(Diagnostic {
             severity: Severity::Warning,
-            code: "W_OMNIVIEW_MARKER".to_string(),
+            kind: DiagnosticKind::WOmniviewMarker,
             message: "has UI declarations (component/store/theme) but missing 'import omniview;'. \
              Add 'import omniview;' to mark this as a view file."
                 .to_string(),
             file: Some(file_path.to_string()),
             line: 0,
             col: 0,
-            end_line: 0,
-            end_col: 0,
+            end_line: None,
+            end_col: None,
             suggestion: Some("Add 'import omniview;' at the top of the file.".to_string()),
         });
     }
@@ -240,7 +240,7 @@ fn validate_cross_file(
                         } else {
                             errors.push(make_diag(
                                 Severity::Error,
-                                "E_IMPORT",
+                                DiagnosticKind::EImport,
                                 file_path,
                                 format!("could not resolve import path '{}'", named.path),
                             ));
@@ -252,7 +252,7 @@ fn validate_cross_file(
                         }
                         if let Some(target) = path_mapping.get(&ns.path) {
                             if !programs.contains_key(target.as_str()) {
-                                errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
+                                errors.push(make_diag(Severity::Error, DiagnosticKind::EImport, file_path, format!(
                                     "imported file '{}' (resolved to '{}') not found in compilation",
                                     ns.path, target
                                 )));
@@ -260,7 +260,7 @@ fn validate_cross_file(
                         } else {
                             errors.push(make_diag(
                                 Severity::Error,
-                                "E_IMPORT",
+                                DiagnosticKind::EImport,
                                 file_path,
                                 format!("could not resolve import path '{}'", ns.path),
                             ));
@@ -280,7 +280,7 @@ fn validate_cross_file(
                         } else {
                             errors.push(make_diag(
                                 Severity::Error,
-                                "E_IMPORT",
+                                DiagnosticKind::EImport,
                                 file_path,
                                 format!("could not resolve import path '{}'", ti.path),
                             ));
@@ -321,7 +321,7 @@ fn validate_cross_file(
                         if target_is_view {
                             errors.push(make_diag(
                                 Severity::Error,
-                                "E_BOUNDARY",
+                                DiagnosticKind::EBoundary,
                                 file_path,
                                 format!("logic file cannot import view file '{}'", target),
                             ));
@@ -399,11 +399,11 @@ mod tests {
         ]);
         let result = validate_sources(sources);
         assert!(!result.success, "import of private symbol should fail");
-        let has_vis_error = result.errors.iter().any(|d| d.code == "E_VISIBILITY");
+        let has_vis_error = result.errors.iter().any(|d| d.kind == DiagnosticKind::EVisibility);
         assert!(
             has_vis_error,
-            "expected E_VISIBILITY error, got codes: {:?}",
-            result.errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+            "expected E_VISIBILITY error, got kinds: {:?}",
+            result.errors.iter().map(|d| &d.kind).collect::<Vec<_>>()
         );
     }
 
@@ -417,11 +417,11 @@ mod tests {
         // Don't include "./missing.omni" in the path mapping, so it can't be resolved
         let result = validate_multi(sources, path_mapping);
         assert!(!result.success, "unresolvable import should fail");
-        let has_import_error = result.errors.iter().any(|d| d.code == "E_IMPORT");
+        let has_import_error = result.errors.iter().any(|d| d.kind == DiagnosticKind::EImport);
         assert!(
             has_import_error,
-            "expected E_IMPORT error, got codes: {:?}",
-            result.errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+            "expected E_IMPORT error, got kinds: {:?}",
+            result.errors.iter().map(|d| &d.kind).collect::<Vec<_>>()
         );
     }
 }
@@ -439,7 +439,7 @@ fn validate_named_import(
         None => {
             errors.push(make_diag(
                 Severity::Error,
-                "E_IMPORT",
+                DiagnosticKind::EImport,
                 importing_file,
                 format!("imported file '{}' not found in compilation", target_path),
             ));
@@ -451,7 +451,7 @@ fn validate_named_import(
         if !target_symbols.contains_key(name) {
             errors.push(make_diag(
                 Severity::Error,
-                "E_VISIBILITY",
+                DiagnosticKind::EVisibility,
                 importing_file,
                 format!("'{}' is not pub-visible in '{}'", name, target_path),
             ));

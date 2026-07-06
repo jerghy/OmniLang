@@ -8,6 +8,7 @@
 use super::helpers::type_to_string;
 use super::symbols::{Symbol, SymbolKind};
 use super::SemanticAnalyzer;
+use crate::error::DiagnosticKind;
 use crate::error::Diagnostic;
 use crate::parser::ast::*;
 
@@ -191,7 +192,7 @@ impl SemanticAnalyzer {
             Expr::VarRef(name, span) => {
                 if !self.symbols.contains(name) && !self.resolving_interpolation {
                     self.diagnostics.push(Diagnostic::error(
-                        "E0001",
+                        DiagnosticKind::E0001,
                         &format!("Undeclared variable '{}'", name),
                         span,
                     ));

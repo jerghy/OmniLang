@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::SemanticAnalyzer;
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
 
@@ -74,7 +74,7 @@ impl SemanticAnalyzer {
                 Stmt::Break(span) => {
                     if *loop_depth == 0 {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0003",
+                            DiagnosticKind::E0003,
                             "break used outside of a loop",
                             span,
                         ));
@@ -83,7 +83,7 @@ impl SemanticAnalyzer {
                 Stmt::Continue(span) => {
                     if *loop_depth == 0 {
                         self.diagnostics.push(Diagnostic::error(
-                            "E0003",
+                            DiagnosticKind::E0003,
                             "continue used outside of a loop",
                             span,
                         ));
@@ -175,7 +175,7 @@ impl SemanticAnalyzer {
         match expr {
             Expr::AwaitExpr { span, .. } if !is_async => {
                 self.diagnostics.push(Diagnostic::error(
-                    "E0004",
+                    DiagnosticKind::E0004,
                     "await used outside async function",
                     span,
                 ));
@@ -302,7 +302,7 @@ impl SemanticAnalyzer {
                                 if !signal_names.contains(root) && !signal_path.contains('.') {
                                     // Only flag if it doesn't look like a store reference
                                     diagnostics.push(Diagnostic::warning(
-                                        "E0005",
+                                        DiagnosticKind::E0005,
                                         &format!(
                                             "bind target '{}' is not a signal in this component",
                                             signal_path
@@ -378,7 +378,7 @@ impl SemanticAnalyzer {
                                     // Check @store declaration
                                     if !store_refs.contains(store.as_str()) {
                                         diagnostics.push(Diagnostic::error(
-                                            "E0007",
+                                            DiagnosticKind::E0007,
                                             &format!(
                                                 "Store '{}' is not declared with @store in this \
                                                  component — add '@store {};' to the component body",
@@ -391,7 +391,7 @@ impl SemanticAnalyzer {
                                     if let Some(actions) = store_actions.get(store.as_str()) {
                                         if !actions.contains(action.as_str()) {
                                             diagnostics.push(Diagnostic::error(
-                                                "E0007",
+                                                DiagnosticKind::E0007,
                                                 &format!(
                                                     "Store '{}' has no action '{}'",
                                                     store, action
@@ -402,7 +402,7 @@ impl SemanticAnalyzer {
                                     } else {
                                         // Store not found at all
                                         diagnostics.push(Diagnostic::error(
-                                            "E0007",
+                                            DiagnosticKind::E0007,
                                             &format!("Store '{}' not found", store),
                                             &el.span,
                                         ));
@@ -467,7 +467,7 @@ impl SemanticAnalyzer {
                 {
                     if prop_names.contains(name.as_str()) {
                         diagnostics.push(Diagnostic::error(
-                            "E0009",
+                            DiagnosticKind::E0009,
                             &format!(
                                 "Cannot assign to prop '{}' — component props are read-only. \
                                  Use a local signal if you need mutable state.",

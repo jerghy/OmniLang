@@ -304,13 +304,13 @@ pub fn compile_multi_to_target(
         .into_iter()
         .map(|msg| error::Diagnostic {
             severity: error::Severity::Error,
-            code: "E_CODEGEN".to_string(),
+            kind: error::DiagnosticKind::ECodegen,
             message: msg,
             file: None,
             line: 0,
             col: 0,
-            end_line: 0,
-            end_col: 0,
+            end_line: None,
+            end_col: None,
             suggestion: None,
         })
         .collect();
