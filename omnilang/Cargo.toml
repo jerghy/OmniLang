@@ -18,9 +18,6 @@ thiserror = "1"
 default = []
 wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
 [profile.release]
 lto = true
 opt-level = "s"
