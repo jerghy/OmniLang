@@ -1,0 +1,12 @@
+---
+source: omnilang/src/codegen/rust/tests.rs
+expression: "&output.files[0].content"
+---
+// Generated from main.omni
+
+struct App;
+impl App {
+    fn run(&self) {
+    }
+
+}
