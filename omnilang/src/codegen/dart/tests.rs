@@ -194,7 +194,6 @@ fn test_generate_function_empty() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -219,7 +218,6 @@ fn test_generate_function_with_return_type() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -244,7 +242,6 @@ fn test_generate_function_with_void_return() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -279,7 +276,6 @@ fn test_generate_function_with_params() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -341,7 +337,6 @@ fn test_generate_component_with_function() {
             return_type: None,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         }],
@@ -382,9 +377,6 @@ fn test_generate_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         }],
         computeds: vec![],
@@ -572,7 +564,6 @@ fn test_generate_statement_if() {
                 }),
                 r#type: None,
             }],
-            execution_mode: "client-only".into(),
         },
         else_ifs: vec![],
         else_body: Some(BlockIR {
@@ -583,7 +574,6 @@ fn test_generate_statement_if() {
                 }),
                 r#type: None,
             }],
-            execution_mode: "client-only".into(),
         }),
     };
     generate_statement(&mut w, &stmt);
@@ -624,7 +614,6 @@ fn test_full_pipeline_through_trait() {
                             return_type: None,
                             body: BlockIR {
                                 statements: vec![],
-                                execution_mode: "client-only".into(),
                             },
                             is_async: false,
                         }],
@@ -827,7 +816,6 @@ fn test_dart_generate_standalone_function() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -861,7 +849,6 @@ fn test_dart_generate_standalone_function_with_return_type() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -916,7 +903,6 @@ fn test_generate_async_function_dart() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: true,
     };
@@ -939,7 +925,6 @@ fn test_generate_async_function_dart_void() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: true,
     };

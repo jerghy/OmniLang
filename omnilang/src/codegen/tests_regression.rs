@@ -60,9 +60,6 @@ fn fixture_component() -> IRProgram {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        mutability: "mutable".into(),
-        update_semantics: "setter-call".into(),
-        accessor_style: "direct".into(),
         is_copy: false,
     };
     let effect = EffectIntent {
@@ -76,7 +73,6 @@ fn fixture_component() -> IRProgram {
                     }],
                 },
             }],
-            execution_mode: "client-only".into(),
         },
     };
     let comp = ComponentIR {
@@ -221,7 +217,6 @@ fn fixture_store() -> IRProgram {
                         item: None,
                     }),
                 }],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         }],
@@ -279,7 +274,6 @@ fn fixture_component_with_store() -> IRProgram {
                         item: None,
                     }),
                 }],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         }],
@@ -626,7 +620,6 @@ fn fixture_expressions() -> IRProgram {
                                     statements: vec![StatementIR::ExprStmtIR {
                                         expr: ExprIR::IdentifierExpr { name: "val".into() },
                                     }],
-                                    execution_mode: "client-only".into(),
                                 },
                             },
                             MatchArmIR {
@@ -639,7 +632,6 @@ fn fixture_expressions() -> IRProgram {
                                             value: serde_json::json!(0),
                                         },
                                     }],
-                                    execution_mode: "client-only".into(),
                                 },
                             },
                         ],
@@ -647,7 +639,6 @@ fn fixture_expressions() -> IRProgram {
                     r#type: None,
                 },
             ],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };

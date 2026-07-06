@@ -209,7 +209,6 @@ mod tests {
             return_type: None,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };
@@ -234,7 +233,6 @@ mod tests {
             }),
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };
@@ -268,7 +266,6 @@ mod tests {
             }),
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };
@@ -327,7 +324,6 @@ mod tests {
                 return_type: None,
                 body: BlockIR {
                     statements: vec![],
-                    execution_mode: "client-only".into(),
                 },
                 is_async: false,
             }],
@@ -369,9 +365,6 @@ mod tests {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                mutability: "mutable".into(),
-                update_semantics: "setter-call".into(),
-                accessor_style: "direct".into(),
                 is_copy: false,
             }],
             computeds: vec![],
@@ -596,7 +589,6 @@ mod tests {
                     }),
                     r#type: None,
                 }],
-                execution_mode: "client-only".into(),
             },
             else_ifs: vec![],
             else_body: Some(BlockIR {
@@ -607,7 +599,6 @@ mod tests {
                     }),
                     r#type: None,
                 }],
-                execution_mode: "client-only".into(),
             }),
         };
         generate_statement(&mut w, &stmt);
@@ -648,7 +639,6 @@ mod tests {
                                 return_type: None,
                                 body: BlockIR {
                                     statements: vec![],
-                                    execution_mode: "client-only".into(),
                                 },
                                 is_async: false,
                             }],
@@ -890,7 +880,6 @@ mod tests {
             return_type: None,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };
@@ -925,7 +914,6 @@ mod tests {
             }),
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };
@@ -945,7 +933,6 @@ mod tests {
             return_type: None,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         };

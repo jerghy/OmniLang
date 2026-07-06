@@ -340,6 +340,5 @@ pub(crate) fn lower_block(block: &Block, variant_map: &HashMap<String, String>) 
 
     BlockIR {
         statements,
-        execution_mode: "client-only".into(),
     }
 }

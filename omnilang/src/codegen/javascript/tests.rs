@@ -192,7 +192,6 @@ fn test_generate_function_empty_js() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -217,7 +216,6 @@ fn test_generate_function_empty_ts() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -251,7 +249,6 @@ fn test_generate_function_with_params_ts() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -279,7 +276,6 @@ fn test_generate_function_with_params_js() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -305,7 +301,6 @@ fn test_generate_async_function_js() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: true,
     };
@@ -334,7 +329,6 @@ fn test_generate_async_function_ts() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: true,
     };
@@ -449,7 +443,6 @@ fn test_js_component_with_function() {
             return_type: None,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
             is_async: false,
         }],
@@ -490,9 +483,6 @@ fn test_js_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         }],
         computeds: vec![],
@@ -537,9 +527,6 @@ fn test_ts_component_with_state() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         }],
         computeds: vec![],
@@ -735,7 +722,6 @@ fn test_js_full_pipeline_through_trait() {
                             return_type: None,
                             body: BlockIR {
                                 statements: vec![],
-                                execution_mode: "client-only".into(),
                             },
                             is_async: false,
                         }],
@@ -801,7 +787,6 @@ fn test_ts_full_pipeline_through_trait() {
                             }),
                             body: BlockIR {
                                 statements: vec![],
-                                execution_mode: "client-only".into(),
                             },
                             is_async: false,
                         }],
@@ -1017,7 +1002,6 @@ fn test_js_generate_standalone_function() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -1052,7 +1036,6 @@ fn test_ts_generate_standalone_function() {
         }),
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -1071,7 +1054,6 @@ fn test_ts_generate_standalone_function_private() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -1171,7 +1153,6 @@ fn test_match_expr_single_variant() {
                         name: "value".into(),
                     }),
                 }],
-                execution_mode: "client-only".into(),
             },
         }],
     };
@@ -1209,7 +1190,6 @@ fn test_match_expr_with_wildcard() {
                     statements: vec![StatementIR::ReturnStmtIR {
                         value: Some(ExprIR::IdentifierExpr { name: "v".into() }),
                     }],
-                    execution_mode: "client-only".into(),
                 },
             },
             MatchArmIR {
@@ -1222,7 +1202,6 @@ fn test_match_expr_with_wildcard() {
                             value: serde_json::json!(-1),
                         }),
                     }],
-                    execution_mode: "client-only".into(),
                 },
             },
         ],
@@ -1260,7 +1239,6 @@ fn test_match_expr_multiple_variants() {
                             value: serde_json::json!("success"),
                         }),
                     }],
-                    execution_mode: "client-only".into(),
                 },
             },
             MatchArmIR {
@@ -1276,7 +1254,6 @@ fn test_match_expr_multiple_variants() {
                             value: serde_json::json!("failure"),
                         }),
                     }],
-                    execution_mode: "client-only".into(),
                 },
             },
         ],
@@ -1313,7 +1290,6 @@ fn test_format_block_as_js_expr_with_return() {
                 }),
             },
         ],
-        execution_mode: "client-only".into(),
     };
     let out = format_block_as_js_expr(&block, false);
     assert_eq!(out, "42", "Should extract return value. Got: {}", out);
@@ -1327,7 +1303,6 @@ fn test_format_block_as_js_expr_with_expr_stmt() {
                 name: "result".into(),
             },
         }],
-        execution_mode: "client-only".into(),
     };
     let out = format_block_as_js_expr(&block, false);
     assert_eq!(out, "result", "Should extract expr stmt. Got: {}", out);

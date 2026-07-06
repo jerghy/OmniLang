@@ -34,9 +34,6 @@ pub(super) fn lower_component(
             name: s.name.clone(),
             r#type: lower_type(&s.type_ann),
             initial_value: lower_expr(&s.init, variant_map),
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         })
         .collect();

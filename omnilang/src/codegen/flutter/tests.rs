@@ -271,7 +271,6 @@ fn test_stmt_if() {
                 }),
                 r#type: None,
             }],
-            execution_mode: "client-only".into(),
         },
         else_ifs: vec![],
         else_body: Some(BlockIR {
@@ -282,7 +281,6 @@ fn test_stmt_if() {
                 }),
                 r#type: None,
             }],
-            execution_mode: "client-only".into(),
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
@@ -506,7 +504,6 @@ fn test_generate_function_empty() {
         return_type: None,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -537,7 +534,6 @@ fn test_generate_function_with_mutation() {
                     item: None,
                 }),
             }],
-            execution_mode: "client-only".into(),
         },
         is_async: false,
     };
@@ -632,9 +628,6 @@ fn test_component_with_state() {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        mutability: "mutable".into(),
-        update_semantics: "setter-call".into(),
-        accessor_style: "direct".into(),
         is_copy: false,
     };
     let mut components = HashMap::new();
@@ -668,7 +661,6 @@ fn test_component_with_state() {
                             item: None,
                         }),
                     }],
-                    execution_mode: "client-only".into(),
                 },
                 is_async: false,
             }],
@@ -776,7 +768,6 @@ fn test_component_with_mount_lifecycle() {
                     name: "init".into(),
                 },
             }],
-            execution_mode: "client-only".into(),
         },
     };
     let mut components = HashMap::new();
@@ -830,7 +821,6 @@ fn test_component_with_unmount_lifecycle() {
                     name: "cleanup".into(),
                 },
             }],
-            execution_mode: "client-only".into(),
         },
     };
     let mut components = HashMap::new();

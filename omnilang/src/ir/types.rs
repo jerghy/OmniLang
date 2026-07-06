@@ -406,7 +406,6 @@ pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockIR {
     pub statements: Vec<StatementIR>,
-    pub execution_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -470,9 +469,6 @@ pub struct StateIntent {
     pub name: String,
     pub r#type: TypeIR,
     pub initial_value: ExprIR,
-    pub mutability: String,
-    pub update_semantics: String,
-    pub accessor_style: String,
     pub is_copy: bool,
 }
 

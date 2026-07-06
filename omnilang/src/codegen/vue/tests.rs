@@ -234,7 +234,6 @@ mod tests {
                     }),
                     r#type: None,
                 }],
-                execution_mode: "client-only".into(),
             },
             else_ifs: vec![],
             else_body: None,
@@ -328,9 +327,6 @@ mod tests {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         };
         let mut components = HashMap::new();
@@ -448,7 +444,6 @@ mod tests {
                         name: "console.log(count)".into(),
                     },
                 }],
-                execution_mode: "client-only".into(),
             },
         };
         let mut components = HashMap::new();
@@ -496,7 +491,6 @@ mod tests {
             kind: LifecycleKind::Mount,
             body: BlockIR {
                 statements: vec![],
-                execution_mode: "client-only".into(),
             },
         };
         let mut components = HashMap::new();
@@ -688,9 +682,6 @@ mod tests {
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
                 },
-                mutability: "mutable".into(),
-                update_semantics: "setter-call".into(),
-                accessor_style: "direct".into(),
                 is_copy: false,
             }],
             computeds: vec![],

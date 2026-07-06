@@ -298,7 +298,6 @@ fn test_tsx_stmt_if() {
                 }),
                 r#type: None,
             }],
-            execution_mode: "client-only".into(),
         },
         else_ifs: vec![],
         else_body: None,
@@ -557,9 +556,6 @@ fn test_tsx_component_with_state() {
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
         },
-        mutability: "mutable".into(),
-        update_semantics: "setter-call".into(),
-        accessor_style: "direct".into(),
         is_copy: false,
     };
     let mut components = HashMap::new();
@@ -676,7 +672,6 @@ fn test_tsx_component_with_effect() {
                     name: "console.log(count)".into(),
                 },
             }],
-            execution_mode: "client-only".into(),
         },
     };
     let mut components = HashMap::new();
@@ -724,7 +719,6 @@ fn test_tsx_component_with_lifecycle_mount() {
         kind: LifecycleKind::Mount,
         body: BlockIR {
             statements: vec![],
-            execution_mode: "client-only".into(),
         },
     };
     let mut components = HashMap::new();
@@ -914,9 +908,6 @@ fn test_full_pipeline_component() {
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
             },
-            mutability: "mutable".into(),
-            update_semantics: "setter-call".into(),
-            accessor_style: "direct".into(),
             is_copy: false,
         }],
         computeds: vec![],

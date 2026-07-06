@@ -183,7 +183,6 @@ mod tests {
                                 value: serde_json::Value::Number(42.into()),
                             }),
                         }],
-                        execution_mode: "sync".into(),
                     },
                     is_async: false,
                 }],

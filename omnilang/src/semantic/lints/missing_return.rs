@@ -93,7 +93,6 @@ mod tests {
                             value: None,
                             r#type: None,
                         }],
-                        execution_mode: "client-only".into(),
                     },
                     is_async: false,
                 }],
@@ -147,7 +146,6 @@ mod tests {
                     }),
                     body: BlockIR {
                         statements: vec![],
-                        execution_mode: "client-only".into(),
                     },
                     is_async: false,
                 }],
@@ -204,7 +202,6 @@ mod tests {
                                 value: serde_json::Value::Number(42.into()),
                             }),
                         }],
-                        execution_mode: "client-only".into(),
                     },
                     is_async: false,
                 }],
