@@ -71,12 +71,14 @@ class RustBridge:
         func = dll.omni_compile_multi_to_target
         func.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
                          ctypes.c_void_p, ctypes.c_uint32,
+                         ctypes.c_void_p, ctypes.c_uint32,
                          ctypes.c_void_p, ctypes.c_uint32]
         func.restype = ctypes.c_void_p
 
         sources_bytes = json.dumps(sources).encode("utf-8")
         target_bytes = target.encode("utf-8")
         mapping_bytes = json.dumps(path_mapping or {}).encode("utf-8")
+        editor_mode_bytes = b"false"  # Python CLI: editor_mode is always false
 
         ptr = func(
             ctypes.cast(sources_bytes, ctypes.c_void_p),
@@ -85,6 +87,8 @@ class RustBridge:
             ctypes.c_uint32(len(target_bytes)),
             ctypes.cast(mapping_bytes, ctypes.c_void_p),
             ctypes.c_uint32(len(mapping_bytes)),
+            ctypes.cast(editor_mode_bytes, ctypes.c_void_p),
+            ctypes.c_uint32(len(editor_mode_bytes)),
         )
         if ptr is None:
             return CompileResult(success=False)

@@ -128,7 +128,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     let path_mapping = build_path_mapping(&sources);
 
     // Compile via omnilang crate
-    let result_json = omnilang::compile_multi_to_target(sources, codegen_target, path_mapping);
+    let result_json = omnilang::compile_multi_to_target(sources, codegen_target, path_mapping, false);
 
     // Parse result JSON
     match serde_json::from_str::<CompileResult>(&result_json) {

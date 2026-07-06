@@ -126,8 +126,10 @@ export function useCompile(
 
       useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
       usePoiesisStore.getState().setActiveFileContent(content);
-    } catch {
-      /* canvas not critical */
+    } catch (err) {
+      // Non-critical: code block parsing failure doesn't block compilation.
+      // Still log so we can diagnose parser bugs in production.
+      console.warn('[useCompile] code block parsing failed:', err);
     }
 
     const hasErrors = errs.some((e: { severity: string }) => e.severity === "error");

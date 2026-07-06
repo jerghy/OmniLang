@@ -271,7 +271,7 @@ fn cmd_build(
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {target_str}"))?;
 
-    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping);
+    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     // Python checks result.success (cli.py:173)
@@ -357,7 +357,7 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
         .parse()
         .map_err(|_| anyhow::anyhow!("unknown target: {run_target}"))?;
 
-    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping);
+    let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false);
     let data: serde_json::Value = serde_json::from_str(&result_json)?;
 
     if !data["success"].as_bool().unwrap_or(false) {
@@ -640,7 +640,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         sources.insert(file.to_string(), source);
         let path_mapping = derive_path_mapping(&sources);
 
-        let result_json = omnilang::compile_multi_to_target(sources, t.clone(), path_mapping);
+        let result_json = omnilang::compile_multi_to_target(sources, t.clone(), path_mapping, false);
         let data: serde_json::Value = match serde_json::from_str(&result_json) {
             Ok(v) => v,
             Err(e) => {

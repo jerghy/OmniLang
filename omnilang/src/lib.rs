@@ -227,19 +227,41 @@ pub fn compile_to_target_json(
     })
 }
 
+/// Extract the inner HTML between `<body>` and `</body>` tags.
+/// Works on both multi-line and minified/single-line HTML.
+fn extract_body_html(html: &str) -> String {
+    // Find <body> tag (with optional attributes)
+    let body_start = html.find("<body").and_then(|i| html[i..].find('>').map(|j| i + j + 1));
+    let body_end = html.find("</body>");
+
+    match (body_start, body_end) {
+        (Some(start), Some(end)) if start < end => html[start..end].to_string(),
+        _ => {
+            // Fallback: try line-based extraction for unusual formatting
+            html.lines()
+                .skip_while(|l| !l.contains("<body"))
+                .skip(1)
+                .take_while(|l| !l.contains("</body>"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+    }
+}
+
 /// Compile multiple .omni sources to a target language.
 ///
 /// Pipeline: parse all sources → cross-file validation → per-file semantic analysis
 /// → IR lowering → merged IR → target codegen.
 ///
-/// Returns JSON: { success: bool, files: { path: content }, errors: [...] }
+/// Returns JSON with structured Diagnostic errors (severity, code, file, line, col, …)
+/// plus a flat `warnings` array from lint rules.
 pub fn compile_multi_to_target(
     sources: HashMap<String, String>,
     target: codegen::Target,
     path_mapping: HashMap<String, String>,
     editor_mode: bool,
 ) -> String {
-    let mut errors: Vec<String> = Vec::new();
+    let mut diags: Vec<error::Diagnostic> = Vec::new();
     let mut programs: HashMap<String, Program> = HashMap::new();
 
     // Phase 1: Parse all sources
@@ -250,20 +272,22 @@ pub fn compile_multi_to_target(
                 programs.insert(path.clone(), program);
             }
             Err(e) => {
-                errors.push(format!("{}: parse error: {}", path, e.message));
+                let d: error::Diagnostic = e.into();
+                diags.push(d.with_file(path));
             }
         }
     }
 
-    if !errors.is_empty() {
+    if !diags.is_empty() {
         return serde_json::to_string(&serde_json::json!({
             "success": false,
             "files": {},
-            "errors": errors,
+            "errors": diags,
+            "warnings": [],
         }))
         .unwrap_or_else(|e| {
             format!(
-                r#"{{"success":false,"files":{{}},"errors":["serialization error: {}"]}}"#,
+                r#"{{"success":false,"files":{{}},"errors":[{{"severity":"error","code":"E_SERIALIZE","message":"{}","file":null,"line":0,"col":0,"end_line":0,"end_col":0,"suggestion":null}}],"warnings":[]}}"#,
                 e
             )
         });
@@ -271,7 +295,7 @@ pub fn compile_multi_to_target(
 
     // Phase 2: Cross-file validation
     let validation_result = validate::validate_multi(sources.clone(), path_mapping);
-    errors.extend(validation_result.errors);
+    diags.extend(validation_result.errors);
 
     // Phase 3: Per-file semantic analysis + IR lowering → merged IR
     let mut merged_ir = ir::IRProgram {
@@ -284,7 +308,11 @@ pub fn compile_multi_to_target(
     for (path, program) in &programs {
         let semantics = semantic::analyze(program);
         for d in &semantics.diagnostics {
-            errors.push(format!("{}: {}", path, d.message));
+            let mut d = d.clone();
+            if d.file.is_none() {
+                d.file = Some(path.clone());
+            }
+            diags.push(d);
         }
 
         let ir_program = ir::lower(program, &semantics);
@@ -328,7 +356,7 @@ pub fn compile_multi_to_target(
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
-    let warnings: Vec<String> = lint_diags
+    let warnings: Vec<error::Diagnostic> = lint_diags
         .iter()
         .filter(|d| {
             matches!(
@@ -337,11 +365,20 @@ pub fn compile_multi_to_target(
                     | crate::semantic::lints::LintSeverity::Info
             )
         })
-        .map(|d| {
-            format!(
-                "[{}] {}:{}: {} (rule: {})",
-                d.file, d.line, d.col, d.message, d.rule
-            )
+        .map(|d| error::Diagnostic {
+            severity: match d.severity {
+                crate::semantic::lints::LintSeverity::Warning => error::Severity::Warning,
+                crate::semantic::lints::LintSeverity::Info => error::Severity::Info,
+                _ => error::Severity::Warning,
+            },
+            code: d.rule.clone(),
+            message: d.message.clone(),
+            file: Some(d.file.clone()),
+            line: d.line,
+            col: d.col,
+            end_line: d.line,
+            end_col: d.col.saturating_add(d.message.len() as u32),
+            suggestion: None,
         })
         .collect();
 
@@ -353,20 +390,47 @@ pub fn compile_multi_to_target(
         .map(|f| (f.path, f.content))
         .collect();
 
+    // Convert codegen errors (plain strings) to Diagnostic objects
+    let codegen_diags: Vec<error::Diagnostic> = output.errors.into_iter().map(|msg| {
+        error::Diagnostic {
+            severity: error::Severity::Error,
+            code: "E_CODEGEN".to_string(),
+            message: msg,
+            file: None,
+            line: 0,
+            col: 0,
+            end_line: 0,
+            end_col: 0,
+            suggestion: None,
+        }
+    }).collect();
+    diags.extend(codegen_diags);
+
     // Post-process: wrap debug HTML for editor mode
     if editor_mode && matches!(target, codegen::Target::OmniView) {
         for path in files_map.keys().cloned().collect::<Vec<_>>() {
             if path.ends_with(".html") {
-                let js = files_map.get("index.js").map(|s| s.as_str()).unwrap_or("");
-                let css = files_map.get("index.css").map(|s| s.as_str()).unwrap_or("");
+                // Resolve JS/CSS by matching the HTML file's base name instead of
+                // hardcoding "index.*" — supports multi-page projects.
+                let base = path
+                    .strip_suffix(".html")
+                    .unwrap_or(&path);
+                let js_key = format!("{}.js", base);
+                let css_key = format!("{}.css", base);
+                let js = files_map
+                    .get(&js_key)
+                    .or_else(|| files_map.get("index.js"))
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                let css = files_map
+                    .get(&css_key)
+                    .or_else(|| files_map.get("index.css"))
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
                 if let Some(html_content) = files_map.get(&path) {
-                    let body_html = html_content
-                        .lines()
-                        .skip_while(|l| !l.contains("<body>"))
-                        .skip(1)
-                        .take_while(|l| !l.contains("</body>"))
-                        .collect::<Vec<_>>()
-                        .join("\n");
+                    // Use substring extraction instead of line-based parsing —
+                    // works on both multi-line and minified/single-line HTML.
+                    let body_html = extract_body_html(html_content);
                     files_map.insert(path, codegen::omniview::wrap_debug_html(js, css, &body_html));
                 }
                 break;
@@ -374,18 +438,16 @@ pub fn compile_multi_to_target(
         }
     }
 
-    // Combine codegen errors with earlier errors
-    let all_errors: Vec<String> = errors.into_iter().chain(output.errors).collect();
-
+    let success = diags.iter().all(|d| d.severity != error::Severity::Error);
     serde_json::to_string(&serde_json::json!({
-        "success": all_errors.is_empty(),
+        "success": success,
         "files": files_map,
-        "errors": all_errors,
+        "errors": diags,
         "warnings": warnings,
     }))
     .unwrap_or_else(|e| {
         format!(
-            r#"{{"success":false,"files":{{}},"errors":["serialization error: {}"]}}"#,
+            r#"{{"success":false,"files":{{}},"errors":[{{"severity":"error","code":"E_SERIALIZE","message":"{}","file":null,"line":0,"col":0,"end_line":0,"end_col":0,"suggestion":null}}],"warnings":[]}}"#,
             e
         )
     })

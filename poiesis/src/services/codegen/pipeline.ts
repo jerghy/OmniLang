@@ -451,7 +451,13 @@ function runPhaseC(
   };
 }
 
-/** Walk a ViewNode tree and merge signal bindings into resolvedStyle.bindings. */
+/**
+ * Walk a ViewNode tree and merge signal bindings into resolvedStyle.bindings.
+ *
+ * NOTE: This intentionally mutates `node.resolvedStyle.bindings` in place.
+ * The ViewNode tree is freshly built for each `generateOmniSource` call,
+ * so mutation is safe and avoids an expensive full-tree copy.
+ */
 function walkAndApplyBindings(
   node: ViewNode,
   elBindings: Map<string, Record<string, string>>,
@@ -586,6 +592,13 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     : options.designElements;
 
   const phaseA = runPhaseA(options, expandedElements);
+
+  // Short-circuit: if Phase A has fatal errors, phases B/C would produce
+  // meaningless results from default empty values — skip them.
+  if (phaseA.errors.some((e) => e.severity === "fatal")) {
+    return { value: null, errors: phaseA.errors };
+  }
+
   const phaseB = runPhaseB(options);
   const phaseC = runPhaseC(options, phaseA.ctx);
 

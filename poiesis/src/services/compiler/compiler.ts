@@ -60,6 +60,16 @@ export async function compileProject(
 
   if (genResult.value) {
     generatedSource = genResult.value;
+
+    // Surface non-fatal codegen pipeline warnings (e.g. missing store refs,
+    // unresolvable import paths, style analysis issues).
+    const pipelineWarnings = genResult.errors
+      .filter(e => e.severity === 'warning')
+      .map(e => e.message);
+    if (pipelineWarnings.length > 0) {
+      console.warn('[compileProject] Codegen warnings:', pipelineWarnings);
+    }
+
     // ONE WASM call: validate + compile in single pass
     const fullResult = rustCompiler.compileToOmniViewFull(genResult.value, params.editorMode ?? false);
 
@@ -100,7 +110,8 @@ export async function compileProject(
             col: e.col,
             endLine: e.end_line,
             endCol: e.end_col,
-            severity: (e.severity === 'error' || e.severity === 'warning') ? e.severity : 'warning',
+            // Filter guarantees severity is 'error' | 'warning' here
+            severity: e.severity as 'error' | 'warning',
             code: e.code,
             message: e.message,
             suggestion: e.suggestion || null,

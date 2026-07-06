@@ -14,6 +14,7 @@ type CompileResult = {
 type OmniViewResult = {
   success: boolean;
   files?: { js: string; html: string; css: string };
+  components?: Record<string, { js: string; html: string; css: string }>;
   sourceMap?: SourceMap;
   errors?: Diagnostic[];
 };
@@ -61,10 +62,23 @@ type OmniViewFullResult = {
   errors?: Diagnostic[];
 };
 
+type MultiCompileDiagnostic = {
+  severity: 'error' | 'warning' | 'info';
+  code: string;
+  message: string;
+  file?: string | null;
+  line: number;
+  col: number;
+  end_line: number;
+  end_col: number;
+  suggestion?: string | null;
+};
+
 type MultiCompileResult = {
   success: boolean;
   files: Record<string, string>;
-  errors?: string[];
+  errors?: MultiCompileDiagnostic[];
+  warnings?: MultiCompileDiagnostic[];
 };
 
 class RustCompiler {
@@ -109,7 +123,13 @@ class RustCompiler {
           '../../public/wasm/omnilang_bg.wasm',
         );
         const wasmBytes = readFileSync(wasmPath);
-        wasmModule.initSync(wasmBytes.buffer as ArrayBuffer);
+        // Slice the backing ArrayBuffer to the exact byte range — a
+        // Node.js Buffer may be a view into a larger pooled ArrayBuffer.
+        const exactBuffer = wasmBytes.buffer.slice(
+          wasmBytes.byteOffset,
+          wasmBytes.byteOffset + wasmBytes.byteLength,
+        );
+        wasmModule.initSync(exactBuffer);
       }
 
       this.wasm = {
@@ -146,6 +166,7 @@ class RustCompiler {
       const json = this.wasm.compile_to_ir(source);
       return JSON.parse(json);
     } catch (e) {
+      log.error('compileToIR failed:', e);
       return {
         success: false,
         errors: [{ severity: 'error', code: 'WASM', message: `Compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
@@ -165,6 +186,7 @@ class RustCompiler {
       const json = this.wasm.compile_to_omniview(source, options);
       return JSON.parse(json);
     } catch (e) {
+      log.error('compileToOmniView failed:', e);
       return {
         success: false,
         errors: [{ severity: 'error', code: 'WASM', message: `OmniView compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
@@ -193,6 +215,7 @@ class RustCompiler {
       const json = this.wasm.compile_omniview_component(source, componentName, options);
       return JSON.parse(json) as ComponentCompileResult;
     } catch (e) {
+      log.error('compileOmniViewComponent failed:', e);
       return {
         success: false,
         errors: [{ severity: 'error', code: 'WASM', message: `Component compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
@@ -227,6 +250,7 @@ class RustCompiler {
       const json = this.wasm.compile_to_omniview_full(source, options);
       return JSON.parse(json) as OmniViewFullResult;
     } catch (e) {
+      log.error('compileToOmniViewFull failed:', e);
       return {
         success: false,
         errors: [{ severity: 'error', code: 'WASM', message: `Compile error: ${e}`, line: 0, col: 0, end_line: 0, end_col: 0 }],
@@ -247,10 +271,11 @@ class RustCompiler {
       const json = this.wasm.compile_multi_to_omniview(JSON.stringify(sources), options);
       return JSON.parse(json) as MultiCompileResult;
     } catch (e) {
+      log.error('compileMultiToOmniView failed:', e);
       return {
         success: false,
         files: {},
-        errors: [`Multi compile error: ${e}`],
+        errors: [{ severity: 'error' as const, code: 'WASM', message: `Multi compile error: ${e}`, file: null, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
   }
@@ -258,4 +283,4 @@ class RustCompiler {
 
 // Singleton
 export const rustCompiler = new RustCompiler();
-export type { CompileResult, OmniViewResult, OmniViewFullResult, MultiCompileResult, ComponentCompileResult, Diagnostic, SourceMap };
+export type { CompileResult, OmniViewResult, OmniViewFullResult, MultiCompileResult, MultiCompileDiagnostic, ComponentCompileResult, Diagnostic, SourceMap };

@@ -7,14 +7,30 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::{Diagnostic, Severity};
 use crate::parser::ast::{ImportStmt, Program, Visibility};
+
+/// Build a file-level diagnostic (line/col = 0) for multi-file validation.
+fn make_diag(severity: Severity, code: &str, file: &str, message: String) -> Diagnostic {
+    Diagnostic {
+        severity,
+        code: code.to_string(),
+        message,
+        file: Some(file.to_string()),
+        line: 0,
+        col: 0,
+        end_line: 0,
+        end_col: 0,
+        suggestion: None,
+    }
+}
 
 /// Result of multi-file validation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MultiFileResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<String>,
+    pub errors: Vec<Diagnostic>,
 }
 
 /// Validate multiple .omni source files with cross-file checks.
@@ -29,7 +45,7 @@ pub fn validate_multi(
     sources: HashMap<String, String>,
     path_mapping: HashMap<String, String>,
 ) -> MultiFileResult {
-    let mut errors: Vec<String> = Vec::new();
+    let mut errors: Vec<Diagnostic> = Vec::new();
     let mut programs: HashMap<String, Program> = HashMap::new();
 
     // Phase 1: Parse all sources
@@ -40,7 +56,8 @@ pub fn validate_multi(
                 programs.insert(path.clone(), program);
             }
             Err(e) => {
-                errors.push(format!("{}: parse error: {}", path, e.message));
+                let diag: Diagnostic = e.into();
+                errors.push(diag.with_file(path));
             }
         }
     }
@@ -67,7 +84,18 @@ pub fn validate_multi(
     // Phase 4: Cycle detection
     let cycles = crate::semantic::cycles::detect_cycles(&programs, &path_mapping);
     for cycle in &cycles {
-        errors.push(format!("circular import detected: {}", cycle.join(" → ")));
+        let file = cycle.first().map(|s| s.as_str()).unwrap_or("unknown");
+        errors.push(Diagnostic {
+            severity: Severity::Error,
+            code: "E_CYCLE".to_string(),
+            message: format!("circular import detected: {}", cycle.join(" → ")),
+            file: Some(file.to_string()),
+            line: 0,
+            col: 0,
+            end_line: 0,
+            end_col: 0,
+            suggestion: None,
+        });
     }
 
     MultiFileResult {
@@ -77,7 +105,7 @@ pub fn validate_multi(
 }
 
 /// Check per-file consistency: omniview marker must match file contents.
-fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), Vec<String>> {
+fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut errors = Vec::new();
 
     let has_omniview_marker = program.modules.values().any(|module| {
@@ -92,11 +120,19 @@ fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), V
     });
 
     if !has_omniview_marker && has_ui_declarations {
-        errors.push(format!(
-            "{}: has UI declarations (component/store/theme) but missing 'import omniview;'. \
-             Add 'import omniview;' to mark this as a view file.",
-            file_path
-        ));
+        errors.push(Diagnostic {
+            severity: Severity::Warning,
+            code: "W_OMNIVIEW_MARKER".to_string(),
+            message: "has UI declarations (component/store/theme) but missing 'import omniview;'. \
+             Add 'import omniview;' to mark this as a view file."
+                .to_string(),
+            file: Some(file_path.to_string()),
+            line: 0,
+            col: 0,
+            end_line: 0,
+            end_col: 0,
+            suggestion: Some("Add 'import omniview;' at the top of the file.".to_string()),
+        });
     }
 
     if errors.is_empty() {
@@ -169,8 +205,8 @@ fn build_pub_symbols(
 fn validate_cross_file(
     programs: &HashMap<String, Program>,
     path_mapping: &HashMap<String, String>,
-) -> Result<(), Vec<String>> {
-    let mut errors: Vec<String> = Vec::new();
+) -> Result<(), Vec<Diagnostic>> {
+    let mut errors: Vec<Diagnostic> = Vec::new();
     let pub_symbols = build_pub_symbols(programs);
 
     for (file_path, program) in programs {
@@ -191,10 +227,10 @@ fn validate_cross_file(
                                 &pub_symbols,
                             ));
                         } else {
-                            errors.push(format!(
-                                "{}: could not resolve import path '{}'",
-                                file_path, named.path
-                            ));
+                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
+                                "could not resolve import path '{}'",
+                                named.path
+                            )));
                         }
                     }
                     ImportStmt::Namespace(ns) => {
@@ -203,16 +239,16 @@ fn validate_cross_file(
                         }
                         if let Some(target) = path_mapping.get(&ns.path) {
                             if !programs.contains_key(target.as_str()) {
-                                errors.push(format!(
-                                    "{}: imported file '{}' (resolved to '{}') not found in compilation",
-                                    file_path, ns.path, target
-                                ));
+                                errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
+                                    "imported file '{}' (resolved to '{}') not found in compilation",
+                                    ns.path, target
+                                )));
                             }
                         } else {
-                            errors.push(format!(
-                                "{}: could not resolve import path '{}'",
-                                file_path, ns.path
-                            ));
+                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
+                                "could not resolve import path '{}'",
+                                ns.path
+                            )));
                         }
                     }
                     ImportStmt::TypeOnly(ti) => {
@@ -227,10 +263,10 @@ fn validate_cross_file(
                                 &pub_symbols,
                             ));
                         } else {
-                            errors.push(format!(
-                                "{}: could not resolve import path '{}'",
-                                file_path, ti.path
-                            ));
+                            errors.push(make_diag(Severity::Error, "E_IMPORT", file_path, format!(
+                                "could not resolve import path '{}'",
+                                ti.path
+                            )));
                         }
                     }
                     ImportStmt::Lib(_) => {
@@ -266,10 +302,10 @@ fn validate_cross_file(
                             )
                         });
                         if target_is_view {
-                            errors.push(format!(
-                                "{}: logic file cannot import view file '{}'",
-                                file_path, target
-                            ));
+                            errors.push(make_diag(Severity::Error, "E_BOUNDARY", file_path, format!(
+                                "logic file cannot import view file '{}'",
+                                target
+                            )));
                         }
                     }
                 }
@@ -289,26 +325,26 @@ fn validate_named_import(
     names: &[String],
     target_path: &str,
     pub_symbols: &HashMap<String, HashMap<String, CrossFileSymbolKind>>,
-) -> Vec<String> {
+) -> Vec<Diagnostic> {
     let mut errors = Vec::new();
 
     let target_symbols = match pub_symbols.get(target_path) {
         Some(s) => s,
         None => {
-            errors.push(format!(
-                "{}: imported file '{}' not found in compilation",
-                importing_file, target_path
-            ));
+            errors.push(make_diag(Severity::Error, "E_IMPORT", importing_file, format!(
+                "imported file '{}' not found in compilation",
+                target_path
+            )));
             return errors;
         }
     };
 
     for name in names {
         if !target_symbols.contains_key(name) {
-            errors.push(format!(
-                "{}: '{}' is not pub-visible in '{}'",
-                importing_file, name, target_path
-            ));
+            errors.push(make_diag(Severity::Error, "E_VISIBILITY", importing_file, format!(
+                "'{}' is not pub-visible in '{}'",
+                name, target_path
+            )));
         }
     }
 

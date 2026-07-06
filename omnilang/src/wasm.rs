@@ -25,8 +25,17 @@ pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
             "success": false,
             "files": null,
             "components": null,
-            "source_map": null,
-            "errors": [{ "message": e.to_string() }]
+            "sourceMap": null,
+            "errors": [{
+                "severity": "error",
+                "code": "E_SERIALIZE",
+                "message": e.to_string(),
+                "line": 0,
+                "col": 0,
+                "end_line": 0,
+                "end_col": 0,
+                "suggestion": null
+            }]
         })
         .to_string()
     })
@@ -71,7 +80,16 @@ pub fn compile_to_ir(source: &str) -> String {
         serde_json::json!({
             "success": false,
             "ir": null,
-            "errors": [{ "message": e.to_string() }]
+            "errors": [{
+                "severity": "error",
+                "code": "E_SERIALIZE",
+                "message": e.to_string(),
+                "line": 0,
+                "col": 0,
+                "end_line": 0,
+                "end_col": 0,
+                "suggestion": null
+            }]
         })
         .to_string()
     })
@@ -90,8 +108,17 @@ pub fn compile_to_omniview_full(source: &str, options_json: &str) -> String {
             "ir": null,
             "files": null,
             "components": null,
-            "source_map": null,
-            "errors": [{ "message": e.to_string() }]
+            "sourceMap": null,
+            "errors": [{
+                "severity": "error",
+                "code": "E_SERIALIZE",
+                "message": e.to_string(),
+                "line": 0,
+                "col": 0,
+                "end_line": 0,
+                "end_col": 0,
+                "suggestion": null
+            }]
         })
         .to_string()
     })

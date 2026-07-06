@@ -10,6 +10,9 @@ pub struct Diagnostic {
     pub severity: Severity,
     pub code: String,
     pub message: String,
+    /// Source file path (set for multi-file compiles; omitted for single-file).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
     pub line: u32,
     pub col: u32,
     pub end_line: u32,
@@ -18,7 +21,7 @@ pub struct Diagnostic {
     pub suggestion: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
@@ -32,6 +35,7 @@ impl Diagnostic {
             severity: Severity::Error,
             code: code.to_string(),
             message: message.to_string(),
+            file: None,
             line: span.line,
             col: span.col,
             end_line: span.line,
@@ -45,12 +49,18 @@ impl Diagnostic {
             severity: Severity::Warning,
             code: code.to_string(),
             message: message.to_string(),
+            file: None,
             line: span.line,
             col: span.col,
             end_line: span.line,
             end_col: span.col + (span.end.saturating_sub(span.start)) as u32,
             suggestion: None,
         }
+    }
+
+    pub fn with_file(mut self, file: &str) -> Self {
+        self.file = Some(file.to_string());
+        self
     }
 
     pub fn with_suggestion(mut self, suggestion: &str) -> Self {

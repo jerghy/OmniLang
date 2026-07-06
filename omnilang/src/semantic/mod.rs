@@ -67,6 +67,7 @@ impl SemanticAnalyzer {
                 severity: crate::error::Severity::Warning,
                 code: "E0002".into(),
                 message: msg,
+                file: None,
                 line: 0,
                 col: declared_at as u32,
                 end_line: 0,

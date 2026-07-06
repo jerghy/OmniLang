@@ -57,6 +57,9 @@ export function lowerCode(
     const key = `${nodeId}:${port}`;
     const srcs = revWires.get(key);
     if (!srcs || srcs.length === 0) return "";
+    // Use the first wire when multiple wires feed the same port.
+    // Multiple-output-to-single-input is a user wiring error; the editor UI
+    // should prevent it, but we silently pick the first rather than erroring.
     return buildExpr(srcs[0].fromId, visiting);
   }
 

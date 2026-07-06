@@ -52,6 +52,7 @@ function collectReachable(
 ): { nodes: ElementData[]; wires: WireData[] } {
   const visitedNodes = new Set<string>();
   const collectedWires: WireData[] = [];
+  const collectedWireIds = new Set<string>();
   const queue = [fnNodeId];
 
   visitedNodes.add(fnNodeId);
@@ -62,8 +63,9 @@ function collectReachable(
     for (const w of allWires) {
       // Check if this wire connects to/from the current node
       if (w.fromId === current || w.toId === current) {
-        // Only collect if not already collected
-        if (!collectedWires.some((cw) => cw.id === w.id)) {
+        // O(1) dedup via Set (was O(n²) with Array.some)
+        if (!collectedWireIds.has(w.id)) {
+          collectedWireIds.add(w.id);
           collectedWires.push(w);
         }
 
