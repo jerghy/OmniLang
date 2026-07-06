@@ -21,9 +21,19 @@ type OmniViewResult = {
 
 type IRProgram = {
   version: string;
-  components: Record<string, unknown>;
-  stores: Record<string, unknown>;
+  modules: Record<string, {
+    components: Record<string, unknown>;
+    stores: Record<string, unknown>;
+    functions: unknown[];
+    structs: unknown[];
+    type_aliases: unknown[];
+    imports: unknown[];
+    exports: unknown[];
+    motions: unknown[];
+    timelines: unknown[];
+  }>;
   source_map: Record<string, unknown>;
+  stdlib_imports: string[];
 };
 
 type Diagnostic = {
@@ -37,9 +47,9 @@ type Diagnostic = {
   suggestion?: string;
 };
 
-type SourceMap = {
-  entries: SourceMapEntry[];
-};
+// SourceMap is a flat array — Rust serializes Vec<SourceMapEntry> directly,
+// NOT wrapped in { entries: [...] }.
+type SourceMap = SourceMapEntry[];
 
 type SourceMapEntry = {
   node_id: string;
@@ -263,7 +273,7 @@ class RustCompiler {
       return {
         success: false,
         files: {},
-        errors: ['compile_multi_to_omniview not available in WASM'],
+        errors: [{ severity: 'error' as const, code: 'WASM', message: 'compile_multi_to_omniview not available in WASM', file: null, line: 0, col: 0, end_line: 0, end_col: 0 }],
       };
     }
     try {

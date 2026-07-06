@@ -280,7 +280,14 @@ fn cmd_build(
             .as_array()
             .map(|arr| {
                 arr.iter()
-                    .map(|v| v.as_str().unwrap_or("?"))
+                    .map(|v| {
+                        // Support both structured Diagnostic objects ({message, ...})
+                        // and legacy plain-string errors.
+                        v.get("message")
+                            .and_then(|m| m.as_str())
+                            .or_else(|| v.as_str())
+                            .unwrap_or("?")
+                    })
                     .collect::<Vec<_>>()
                     .join("\n")
             })
@@ -365,7 +372,14 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
             .as_array()
             .map(|arr| {
                 arr.iter()
-                    .map(|v| v.as_str().unwrap_or("?"))
+                    .map(|v| {
+                        // Support both structured Diagnostic objects ({message, ...})
+                        // and legacy plain-string errors.
+                        v.get("message")
+                            .and_then(|m| m.as_str())
+                            .or_else(|| v.as_str())
+                            .unwrap_or("?")
+                    })
                     .collect::<Vec<_>>()
                     .join("\n")
             })

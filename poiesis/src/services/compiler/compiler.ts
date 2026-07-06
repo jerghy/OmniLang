@@ -58,17 +58,24 @@ export async function compileProject(
   let validationErrors: CompileError[] = [];
   let compileResponse: CompileResponse;
 
+  // Surface pipeline errors/warnings regardless of whether value was produced.
+  // This ensures fatal codegen failures are NOT silently dropped when we
+  // fall back to compiling the original file content.
+  const pipelineWarnings = genResult.errors
+    .filter(e => e.severity === 'warning')
+    .map(e => e.message);
+  if (pipelineWarnings.length > 0) {
+    console.warn('[compileProject] Codegen warnings:', pipelineWarnings);
+  }
+  const pipelineFatalErrors = genResult.errors
+    .filter(e => e.severity === 'fatal')
+    .map(e => ({ file: '', line: 0, col: 0, severity: 'error' as const, code: e.code, message: `[${e.module}] ${e.message}`, suggestion: null }));
+  if (pipelineFatalErrors.length > 0) {
+    console.error('[compileProject] Codegen fatal errors:', pipelineFatalErrors);
+  }
+
   if (genResult.value) {
     generatedSource = genResult.value;
-
-    // Surface non-fatal codegen pipeline warnings (e.g. missing store refs,
-    // unresolvable import paths, style analysis issues).
-    const pipelineWarnings = genResult.errors
-      .filter(e => e.severity === 'warning')
-      .map(e => e.message);
-    if (pipelineWarnings.length > 0) {
-      console.warn('[compileProject] Codegen warnings:', pipelineWarnings);
-    }
 
     // ONE WASM call: validate + compile in single pass
     const fullResult = rustCompiler.compileToOmniViewFull(genResult.value, params.editorMode ?? false);
@@ -119,7 +126,10 @@ export async function compileProject(
       };
     }
   } else {
-    // No generated source — compile original
+    // No generated source — compile original, but surface pipeline errors
+    if (pipelineFatalErrors.length > 0) {
+      validationErrors = pipelineFatalErrors as CompileError[];
+    }
     compileResponse = await api.compile.compile(content, params.target, undefined, params.isRunning);
   }
 

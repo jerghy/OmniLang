@@ -196,9 +196,8 @@ impl OmniCompiler {
                 return cached.clone();
             }
         }
-        let result = if self.sources.len() == 1 {
+        let result = if let Some(source) = self.sources.values().next() {
             // Single file: use compile_omniview_full for full result with IR
-            let source = self.sources.values().next().unwrap();
             let opts: CompileOptions = serde_json::from_str(options_json).unwrap_or_default();
             let full = crate::compile_omniview_full(source, opts.editor_mode);
             serde_json::to_string(&full).unwrap_or_else(|e| {

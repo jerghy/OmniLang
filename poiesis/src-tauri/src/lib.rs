@@ -8,11 +8,72 @@ use std::collections::HashMap;
 
 // ── Compile project ──
 
+/// Structured diagnostic from the omnilang compiler (matches omnilang::error::Diagnostic JSON).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompileDiagnostic {
+    pub severity: String,
+    pub code: String,
+    pub message: String,
+    #[serde(default)]
+    pub file: Option<String>,
+    #[serde(default)]
+    pub line: u32,
+    #[serde(default)]
+    pub col: u32,
+    #[serde(default)]
+    pub end_line: u32,
+    #[serde(default)]
+    pub end_col: u32,
+    #[serde(default)]
+    pub suggestion: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompileResult {
     pub success: bool,
     pub files: HashMap<String, String>,
-    pub errors: Vec<String>,
+    /// Structured diagnostics (post-H1 fix). Also accept legacy `Vec<String>`
+    /// for backward compatibility with older compiler versions.
+    #[serde(default)]
+    pub errors: Vec<CompileDiagnostic>,
+    #[serde(default)]
+    pub warnings: Vec<CompileDiagnostic>,
+}
+
+impl CompileResult {
+    /// Create a simple error result from a message string.
+    fn from_error(msg: &str) -> Self {
+        CompileResult {
+            success: false,
+            files: HashMap::new(),
+            errors: vec![CompileDiagnostic {
+                severity: "error".to_string(),
+                code: "E_IO".to_string(),
+                message: msg.to_string(),
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: 0,
+                end_col: 0,
+                suggestion: None,
+            }],
+            warnings: vec![],
+        }
+    }
+
+    /// Extract user-facing error messages from structured diagnostics.
+    fn error_messages(&self) -> Vec<String> {
+        self.errors
+            .iter()
+            .map(|d| {
+                if let Some(ref file) = d.file {
+                    format!("{}:{}: {}: {}", file, d.line, d.col, d.message)
+                } else {
+                    d.message.clone()
+                }
+            })
+            .collect()
+    }
 }
 
 #[tauri::command]
@@ -33,7 +94,18 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
             return CompileResult {
                 success: false,
                 files: HashMap::new(),
-                errors: vec![format!("Unknown target: {}", target)],
+                errors: vec![CompileDiagnostic {
+                    severity: "error".to_string(),
+                    code: "E_TARGET".to_string(),
+                    message: format!("Unknown target: {}", target),
+                    file: None,
+                    line: 0,
+                    col: 0,
+                    end_line: 0,
+                    end_col: 0,
+                    suggestion: None,
+                }],
+                warnings: vec![],
             };
         }
     };
@@ -73,11 +145,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                 sources.insert(name, content);
             }
             Err(e) => {
-                return CompileResult {
-                    success: false,
-                    files: HashMap::new(),
-                    errors: vec![format!("Cannot read {:?}: {}", project_dir, e)],
-                };
+                return CompileResult::from_error(&format!("Cannot read {:?}: {}", project_dir, e));
             }
         }
         // Walk sibling directories to resolve imports
@@ -107,11 +175,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
             }
         }
     } else {
-        return CompileResult {
-            success: false,
-            files: HashMap::new(),
-            errors: vec![format!("Project path not found: {}", project_path)],
-        };
+        return CompileResult::from_error(&format!("Project path not found: {}", project_path));
     }
 
     if sources.is_empty() {
@@ -120,7 +184,18 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
         return CompileResult {
             success: false,
             files: HashMap::new(),
-            errors: all_errors,
+            errors: all_errors.into_iter().map(|msg| CompileDiagnostic {
+                severity: "error".to_string(),
+                code: "E_IO".to_string(),
+                message: msg,
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: 0,
+                end_col: 0,
+                suggestion: None,
+            }).collect(),
+            warnings: vec![],
         };
     }
 
@@ -133,11 +208,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     // Parse result JSON
     match serde_json::from_str::<CompileResult>(&result_json) {
         Ok(result) => result,
-        Err(e) => CompileResult {
-            success: false,
-            files: HashMap::new(),
-            errors: vec![format!("Failed to parse compile result: {}", e)],
-        },
+        Err(e) => CompileResult::from_error(&format!("Failed to parse compile result: {}", e)),
     }
 }
 
@@ -224,7 +295,7 @@ fn project_export(project_path: String, output_dir: String, target: String) -> E
             success: false,
             output_dir: output_dir.clone(),
             file_count: 0,
-            errors: compile_result.errors,
+            errors: compile_result.error_messages(),
         };
     }
 
@@ -404,8 +475,24 @@ fn read_file(path: String, state: tauri::State<ProjectState>) -> Result<String, 
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    let full = std::path::Path::new(&dir).join(&path);
+    // Prevent path traversal: reject absolute paths and paths with `..` segments.
+    let clean = sanitize_path(&path)?;
+    let full = std::path::Path::new(&dir).join(&clean);
     std::fs::read_to_string(&full).map_err(|e| format!("Failed to read {}: {}", full.display(), e))
+}
+
+/// Reject paths that could escape the project directory.
+fn sanitize_path(path: &str) -> Result<String, String> {
+    let p = std::path::Path::new(path);
+    if p.is_absolute() {
+        return Err("Absolute paths are not allowed".to_string());
+    }
+    for component in p.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Path traversal (..) is not allowed".to_string());
+        }
+    }
+    Ok(path.to_string())
 }
 
 #[tauri::command]
@@ -420,7 +507,9 @@ fn write_file(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "No project open".to_string())?;
-    let full = std::path::Path::new(&dir).join(&path);
+    // Prevent path traversal.
+    let clean = sanitize_path(&path)?;
+    let full = std::path::Path::new(&dir).join(&clean);
     if let Some(parent) = full.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir: {}", e))?;

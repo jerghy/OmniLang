@@ -36,7 +36,11 @@ interface CacheEntry {
 class OmniCompilerCache {
   private cache = new Map<string, CacheEntry>();
   private lastOutput: CompileProjectOutput | null = null;
+  private lastOutputTimestamp: number = 0;
+  private consecutiveFailures: number = 0;
   private static readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+  private static readonly MAX_STALE_FAILURES = 3; // show error after N consecutive failures
+  private static readonly MAX_STALE_AGE = 2 * 60 * 1000; // show error if last success > 2 min ago
 
   /**
    * Compile a project design into an HTML srcdoc for the CanvasPreview iframe.
@@ -64,9 +68,17 @@ class OmniCompilerCache {
         genResult.errors.length > 0
           ? genResult.errors.map((e) => e.message)
           : ["No OmniLang source generated"];
-      // Return stale output if available, otherwise show error
-      if (this.lastOutput) {
-        log.warn('Source generation failed, returning stale output');
+      this.consecutiveFailures++;
+      const staleAge = Date.now() - this.lastOutputTimestamp;
+      if (
+        this.lastOutput &&
+        this.consecutiveFailures < OmniCompilerCache.MAX_STALE_FAILURES &&
+        staleAge < OmniCompilerCache.MAX_STALE_AGE
+      ) {
+        log.warn(
+          `Source generation failed (${this.consecutiveFailures}/${OmniCompilerCache.MAX_STALE_FAILURES}), ` +
+          `returning stale output (${Math.round(staleAge / 1000)}s old)`,
+        );
         return this.lastOutput;
       }
       return this.errorResult(msgs);
@@ -84,10 +96,23 @@ class OmniCompilerCache {
     if (!result.success || !result.files) {
       const msgs =
         result.errors?.map((e) => e.message) ?? ["WASM compilation failed"];
-      // Return stale output if available, otherwise show error
-      if (this.lastOutput) {
-        log.warn('WASM compilation failed, returning stale output');
+      this.consecutiveFailures++;
+      // Show stale output for transient failures, but escalate to error
+      // after N consecutive failures or if the last success is too old.
+      const staleAge = Date.now() - this.lastOutputTimestamp;
+      if (
+        this.lastOutput &&
+        this.consecutiveFailures < OmniCompilerCache.MAX_STALE_FAILURES &&
+        staleAge < OmniCompilerCache.MAX_STALE_AGE
+      ) {
+        log.warn(
+          `WASM compilation failed (${this.consecutiveFailures}/${OmniCompilerCache.MAX_STALE_FAILURES}), ` +
+          `returning stale output (${Math.round(staleAge / 1000)}s old)`,
+        );
         return this.lastOutput;
+      }
+      if (this.consecutiveFailures >= OmniCompilerCache.MAX_STALE_FAILURES) {
+        log.error(`WASM compilation failed ${this.consecutiveFailures} times — showing error`);
       }
       // Do NOT cache error results — transient failures should be retried
       return this.errorResult(msgs);
@@ -102,6 +127,8 @@ class OmniCompilerCache {
     const output: CompileProjectOutput = { srcdoc, omniSource: source };
     this.cache.set(source, { output, timestamp: Date.now() });
     this.lastOutput = output; // Save successful output for stale fallback
+    this.lastOutputTimestamp = Date.now();
+    this.consecutiveFailures = 0; // Reset failure counter on success
     return output;
   }
 
@@ -109,6 +136,8 @@ class OmniCompilerCache {
   invalidate(): void {
     this.cache.clear();
     this.lastOutput = null;
+    this.lastOutputTimestamp = 0;
+    this.consecutiveFailures = 0;
   }
 
   /**
