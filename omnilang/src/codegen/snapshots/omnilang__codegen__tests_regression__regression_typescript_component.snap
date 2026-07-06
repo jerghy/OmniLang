@@ -1,0 +1,15 @@
+---
+source: omnilang/src/codegen/tests_regression.rs
+expression: "&format_output(&output)"
+---
+=== main.ts ===
+// Generated from main.omni
+
+class Counter {
+    name: string;
+    count: number;
+    constructor() {
+        this.name = null;  // prop
+        this.count = 0;
+    }
+}

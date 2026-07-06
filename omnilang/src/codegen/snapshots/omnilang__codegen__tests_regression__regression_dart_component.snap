@@ -1,0 +1,16 @@
+---
+source: omnilang/src/codegen/tests_regression.rs
+expression: "&format_output(&output)"
+---
+=== main.dart ===
+// Generated from main.omni
+
+class Counter {
+    String name;
+    int count = 0;
+
+    Counter() {
+        this.name = null;  // prop
+        this.count = 0;
+    }
+}

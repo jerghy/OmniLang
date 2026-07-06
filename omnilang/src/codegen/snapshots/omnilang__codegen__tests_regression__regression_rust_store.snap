@@ -1,0 +1,21 @@
+---
+source: omnilang/src/codegen/tests_regression.rs
+expression: "&format_output(&output)"
+---
+=== main.rs ===
+// Generated from main.omni
+
+struct AppStore {
+    count: i32,
+}
+impl AppStore {
+    fn new() -> Self {
+        Self {
+            count: 0,
+        }
+    }
+
+    fn doubleCount(&self) {
+        count * 2
+    }
+}

@@ -440,10 +440,9 @@ where
     if let Some(last) = block.statements.last() {
         match last {
             crate::ir::StatementIR::ExprStmtIR { expr } => fmt(expr),
-            crate::ir::StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(fmt)
-                .unwrap_or_else(|| fallback.into()),
+            crate::ir::StatementIR::ReturnStmtIR { value } => {
+                value.as_ref().map(fmt).unwrap_or_else(|| fallback.into())
+            }
             _ => fallback.into(),
         }
     } else {
@@ -575,7 +574,11 @@ pub fn format_json_value(value: &serde_json::Value, cfg: &JsonFormatConfig) -> S
             if cfg.string_suffix.is_empty() {
                 format!("{c}{escaped}{c}", c = cfg.quote)
             } else {
-                format!("{c}{escaped}{c}{suffix}", c = cfg.quote, suffix = cfg.string_suffix)
+                format!(
+                    "{c}{escaped}{c}{suffix}",
+                    c = cfg.quote,
+                    suffix = cfg.string_suffix
+                )
             }
         }
         serde_json::Value::Array(arr) => match cfg.array_fmt {
@@ -669,6 +672,9 @@ pub const JSON_PYTHON: JsonFormatConfig = JsonFormatConfig {
 
 #[cfg(test)]
 mod tests_property;
+
+#[cfg(test)]
+mod tests_regression;
 
 #[cfg(test)]
 mod tests {
