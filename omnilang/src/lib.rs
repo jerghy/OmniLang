@@ -96,6 +96,7 @@ pub struct OmniViewResult {
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub components: Option<HashMap<String, ComponentOutput>>,
+    #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -156,6 +157,7 @@ pub struct OmniViewFullResult {
     /// Per-component output for hot-replace (keyed by component name)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub components: Option<HashMap<String, ComponentOutput>>,
+    #[serde(rename = "sourceMap")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -235,6 +237,7 @@ pub fn compile_multi_to_target(
     sources: HashMap<String, String>,
     target: codegen::Target,
     path_mapping: HashMap<String, String>,
+    editor_mode: bool,
 ) -> String {
     let mut errors: Vec<String> = Vec::new();
     let mut programs: HashMap<String, Program> = HashMap::new();
@@ -344,11 +347,32 @@ pub fn compile_multi_to_target(
 
     // Phase 5: Dispatch to target codegen
     let output = codegen::compile(&merged_ir, target, &sources);
-    let files_map: HashMap<String, String> = output
+    let mut files_map: HashMap<String, String> = output
         .files
         .into_iter()
         .map(|f| (f.path, f.content))
         .collect();
+
+    // Post-process: wrap debug HTML for editor mode
+    if editor_mode && matches!(target, codegen::Target::OmniView) {
+        for path in files_map.keys().cloned().collect::<Vec<_>>() {
+            if path.ends_with(".html") {
+                let js = files_map.get("index.js").map(|s| s.as_str()).unwrap_or("");
+                let css = files_map.get("index.css").map(|s| s.as_str()).unwrap_or("");
+                if let Some(html_content) = files_map.get(&path) {
+                    let body_html = html_content
+                        .lines()
+                        .skip_while(|l| !l.contains("<body>"))
+                        .skip(1)
+                        .take_while(|l| !l.contains("</body>"))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    files_map.insert(path, codegen::omniview::wrap_debug_html(js, css, &body_html));
+                }
+                break;
+            }
+        }
+    }
 
     // Combine codegen errors with earlier errors
     let all_errors: Vec<String> = errors.into_iter().chain(output.errors).collect();

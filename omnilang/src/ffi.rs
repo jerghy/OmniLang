@@ -198,6 +198,8 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     target_len: u32,
     path_mapping_ptr: *const u8,
     path_mapping_len: u32,
+    editor_mode_ptr: *const u8,
+    editor_mode_len: u32,
 ) -> *mut c_char {
     // Convert ptr+len to string slices
     let sources_str = if sources_json_ptr.is_null() {
@@ -274,6 +276,15 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
             HashMap::new()
         });
 
-    let result = compile_multi_to_target(sources, target, path_mapping);
+    // Parse editor_mode
+    let editor_mode = if editor_mode_ptr.is_null() {
+        false
+    } else {
+        let slice =
+            unsafe { std::slice::from_raw_parts(editor_mode_ptr, editor_mode_len as usize) };
+        std::str::from_utf8(slice).unwrap_or("false").trim() == "true"
+    };
+
+    let result = compile_multi_to_target(sources, target, path_mapping, editor_mode);
     rust_to_c_string(result)
 }
