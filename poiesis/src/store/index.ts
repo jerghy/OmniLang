@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ElementData } from "../core/types/element";
+import type { ElementData, PortData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
 import type { DesignPageState, DesignTab, Breadcrumb } from "../core/types/design-page";
@@ -62,6 +62,23 @@ export interface PoiesisState {
 
   // ── File explorer (runtime-only, not persisted) ──
   files?: Array<{ name: string; path: string; type: "file" | "directory"; ext?: string }>;
+
+  // ── Legacy runtime fields (backward compat with driver/service code) ──
+
+  /** @deprecated Legacy — use designPage.activeTabId instead */
+  activeDocId?: string;
+
+  /** @deprecated Legacy — use activeFileContent instead */
+  sourceCode?: string;
+
+  /** @deprecated Legacy — component canvas backup for save */
+  docBackup?: { elements: unknown[]; wires: unknown[] };
+
+  /** @deprecated Legacy — per-doc tab states */
+  tabStates?: Record<string, unknown>;
+
+  /** @deprecated Legacy — use designPage.openTabs instead */
+  openTabs: string[];
 
   // ── Editor metadata (for project.json save/load) ──
   nodeMeta: Record<string, NodeMeta>;
@@ -155,6 +172,23 @@ export interface PoiesisState {
   // Project.json load/save helpers
   toProjectJson: () => ProjectJson;
   loadFromProjectJson: (json: ProjectJson) => void;
+
+  // ── Legacy runtime methods (backward compat with driver/service code) ──
+
+  /** @deprecated Legacy — use setProp + proper element update instead */
+  setElementPorts: (id: string, ports: PortData[] | undefined) => void;
+
+  /** @deprecated Legacy — event binding management will be refactored */
+  setEventBindings: (id: string, eventName: string, bindings: unknown) => void;
+
+  /** @deprecated Legacy — event binding management will be refactored */
+  removeEventBindings: (id: string, eventName: string) => void;
+
+  /** @deprecated Legacy — use activeFileContent + generateOmniSource instead */
+  setSourceCode: (content: string) => void;
+
+  /** @deprecated Legacy — file loading will be consolidated */
+  loadFiles: (files: Array<{ name: string; path: string; type: string }>) => void;
 }
 
 // ── Initial State ──
@@ -201,6 +235,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   isDirty: false,
   activeFilePath: null,
   activeFileContent: null,
+  openTabs: [],
   compileErrors: [],
   previewUrl: null,
   nodeMeta: {},
@@ -686,6 +721,27 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
       camera: json.architecture?.camera || { x: 0, y: 0, zoom: 1 },
     },
   })),
+
+  // ── Legacy runtime methods (backward compat; minimal no-ops) ──
+  setElementPorts: (id, ports) => set((s) => ({
+    elements: s.elements.map(e => e.id === id ? { ...e, ports } : e),
+  })),
+  setEventBindings: (id, eventName, bindings) => set((s) => ({
+    elements: s.elements.map(e =>
+      e.id === id
+        ? { ...e, config: { ...(e.config || {}), _eventBindings: { ...((e.config?._eventBindings as Record<string, unknown>) || {}), [eventName]: bindings } } }
+        : e
+    ),
+  })),
+  removeEventBindings: (id, eventName) => set((s) => ({
+    elements: s.elements.map(e =>
+      e.id === id && e.config?._eventBindings
+        ? { ...e, config: { ...e.config, _eventBindings: Object.fromEntries(Object.entries(e.config._eventBindings as Record<string, unknown>).filter(([k]) => k !== eventName)) } }
+        : e
+    ),
+  })),
+  setSourceCode: (content) => set({ sourceCode: content }),
+  loadFiles: (files) => set({ files: files as PoiesisState["files"] }),
 }));
 
 // ── Window exposure for E2E / Victauri ──
