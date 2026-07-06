@@ -272,6 +272,41 @@ struct OmniViewGenerator {
 }
 
 impl OmniViewGenerator {
+    /// Create a minimal generator instance for testing.
+    #[cfg(test)]
+    pub(super) fn test_new() -> Self {
+        OmniViewGenerator {
+            js: String::new(),
+            html: String::new(),
+            css: String::new(),
+            source_map: Vec::new(),
+            node_counter: 0,
+            current_nid_path: Vec::new(),
+            signal_names: std::collections::HashSet::new(),
+            store_signal_names: std::collections::HashSet::new(),
+            store_field_names: std::collections::HashSet::new(),
+            store_names: std::collections::HashSet::new(),
+            name_renames: std::collections::HashMap::new(),
+            global_renames: std::collections::HashMap::new(),
+            component_map: std::collections::HashMap::new(),
+            emitting_root_view: false,
+            current_component: String::new(),
+            in_for_template: false,
+            deferred_js: String::new(),
+            all_deferred_js: String::new(),
+            dom_emitted: false,
+            guard_counter: 0,
+            mount_js: String::new(),
+            editor_mode: false,
+            comp_mount_js: String::new(),
+            component_js: HashMap::new(),
+            enter_trigger_nids: Vec::new(),
+            for_state_names: std::collections::HashMap::new(),
+            motion_names: std::collections::HashSet::new(),
+            warnings: Vec::new(),
+        }
+    }
+
     // ══════════════════════════════════════════════════════
     // Headers
     // ══════════════════════════════════════════════════════
@@ -295,21 +330,4 @@ impl OmniViewGenerator {
 /// Convert a serde_json::Value to JavaScript syntax.
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_wrap_debug_html() {
-        let html = wrap_debug_html(
-            "/// OmniView Native Runtime v2 — reactive signal system\nconsole.log('hi');",
-            "body { color: red; }",
-            "<div>Hello</div>",
-        );
-        assert!(html.contains("<!DOCTYPE html>"));
-        assert!(html.contains("OmniView Debug"));
-        assert!(html.contains("console.log('hi');"));
-        assert!(html.contains("body { color: red; }"));
-        assert!(html.contains("<div>Hello</div>"));
-        assert!(html.contains("OmniView Native Runtime v2"));
-    }
-}
+mod tests;

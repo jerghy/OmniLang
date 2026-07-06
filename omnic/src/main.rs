@@ -117,6 +117,18 @@ fn main() {
 // Analyse — mirrors Python cmd_analyse (cli.py:194)
 // ═══════════════════════════════════════════════════════════
 
+/// Validate an output filename — rejects characters that could cause
+/// path traversal or filesystem issues beyond standard OS protections.
+/// Note: `sanitize_module_name` in `codegen/mod.rs` is a sanitizer (replaces bad chars);
+/// this function is a validator (rejects outright). They serve different purposes.
+fn validate_output_filename(name: &str) -> anyhow::Result<()> {
+    if name.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '/' || c == '-') {
+        Ok(())
+    } else {
+        anyhow::bail!("Invalid character in output filename: {name}")
+    }
+}
+
 fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
     let sources = api::collect_sources(&files)?;
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
@@ -229,6 +241,7 @@ fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> an
 
     if let Some(files) = data["files"].as_object() {
         for (filename, content) in files {
+            validate_output_filename(filename)?;
             let content = match content.as_str() {
                 Some(s) => s,
                 None => {
@@ -371,6 +384,7 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
 
     if let Some(files) = data["files"].as_object() {
         for (filename, content) in files {
+            validate_output_filename(filename)?;
             let content = match content.as_str() {
                 Some(s) => s,
                 None => {
@@ -642,6 +656,10 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
             std::fs::create_dir_all(output_dir)?;
             if let Some(files) = data["files"].as_object() {
                 for (fname, content) in files {
+                    if let Err(e) = validate_output_filename(fname) {
+                        eprintln!("[{timestamp}] #{build_count} Invalid filename: {e}");
+                        continue;
+                    }
                     let out_path = Path::new(output_dir).join(fname);
                     if let Some(parent) = out_path.parent() {
                         if let Err(e) = std::fs::create_dir_all(parent) {
@@ -685,6 +703,26 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validate_output_filename_valid() {
+        assert!(validate_output_filename("index.js").is_ok());
+        assert!(validate_output_filename("src/main.rs").is_ok());
+        assert!(validate_output_filename("my_file.test.ts").is_ok());
+        assert!(validate_output_filename("a-b/c.js").is_ok());
+        assert!(validate_output_filename("index.html").is_ok());
+        assert!(validate_output_filename("style.css").is_ok());
+    }
+
+    #[test]
+    fn validate_output_filename_invalid() {
+        assert!(validate_output_filename("file with spaces.js").is_err());
+        assert!(validate_output_filename("file|bad.ts").is_err());
+        assert!(validate_output_filename("file<bad>.ts").is_err());
+        assert!(validate_output_filename("file?bad.ts").is_err());
+        assert!(validate_output_filename("file*bad.ts").is_err());
+        assert!(validate_output_filename("\"quote\".ts").is_err());
+    }
 
     #[test]
     fn extract_error_messages_structured() {

@@ -10,7 +10,7 @@
       "allow": [
         { "path": "$HOME/.omnilang/**" },
         { "path": "$APPDATA/omnilang/**" },
-        { "path": "$HOME/Documents/**" },
+        { "path": "$HOME/Documents/omnilang/**" },
         { "path": "$TEMP/omnilang/**" }
       ]
     },
