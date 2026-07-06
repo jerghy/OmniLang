@@ -4,7 +4,7 @@
 
 import { validate, parseOmniSource } from "../codegen";
 import { usePoiesisStore } from "../../store";
-import { useCodeGraphStore } from "../../services/codegraph/store";
+import { loadCodeTabs } from "../../services/codegraph/store";
 import type { ElementData, WireData } from "../../core/types";
 
 export interface ParseResult {
@@ -42,7 +42,7 @@ export function parseAndPopulate(
       elements: parseResult.designElements,
       wires: parseResult.designWires,
     });
-    useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
+    loadCodeTabs(parseResult.codeTabs);
 
     return {
       elements: parseResult.designElements,

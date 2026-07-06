@@ -140,3 +140,60 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
         stdlib_imports,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+    use crate::semantic::analyze;
+
+    fn lower_source(source: &str) -> IRProgram {
+        let tokens = tokenize(source);
+        let program = parse(&tokens, source).expect("parse should succeed");
+        let semantics = analyze(&program);
+        lower(&program, &semantics)
+    }
+
+    #[test]
+    fn lower_simple_function() {
+        let ir = lower_source("fn main() -> i32 { return 42; }");
+        assert_eq!(ir.version, "1.0");
+        let module = ir.modules.get("input.omni").expect("should have input.omni module");
+        assert!(
+            module.functions.contains_key("main"),
+            "should contain 'main' function, got keys: {:?}",
+            module.functions.keys()
+        );
+    }
+
+    #[test]
+    fn lower_struct_and_function() {
+        let source = "struct Point { x: i32, y: i32 }
+                       fn origin() -> Point { return Point { x: 0, y: 0 }; }";
+        let ir = lower_source(source);
+        let module = ir.modules.get("input.omni").expect("should have module");
+        assert!(
+            module.structs.contains_key("Point"),
+            "should contain 'Point' struct"
+        );
+        assert!(
+            module.functions.contains_key("origin"),
+            "should contain 'origin' function"
+        );
+    }
+
+    #[test]
+    fn lower_import_std() {
+        let source = "import { sqrt } from \"std/math\"; fn main() { print(sqrt(16)); }";
+        let ir = lower_source(source);
+        assert!(
+            !ir.stdlib_imports.is_empty(),
+            "should detect stdlib imports"
+        );
+        assert!(
+            ir.stdlib_imports.contains(&"math".to_string()),
+            "should contain 'math' stdlib import"
+        );
+    }
+}

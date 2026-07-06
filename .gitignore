@@ -20,5 +20,12 @@ poiesis/public/wasm/
 .vscode/
 .idea/
 
+# Logs and environment
+*.log
+.env
+
+# Debug symbols
+*.pdb
+
 # Docs
 docs/screenshots/

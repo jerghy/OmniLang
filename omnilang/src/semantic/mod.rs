@@ -106,3 +106,59 @@ impl SemanticAnalyzer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    fn analyze_source(source: &str) -> SemanticResult {
+        let tokens = tokenize(source);
+        let program = parse(&tokens, source).expect("parse should succeed");
+        analyze(&program)
+    }
+
+    #[test]
+    fn analyze_simple_function() {
+        let result = analyze_source("fn main() { let x = 42; print(x); }");
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+        // Should have collected at least: global scope, function:main
+        assert!(!result.symbols.scopes.is_empty(), "should have scopes");
+    }
+
+    #[test]
+    fn analyze_unresolved_variable() {
+        // 'y' is not declared anywhere — should produce an error diagnostic
+        let result = analyze_source("fn main() { let x = y; }");
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(!errors.is_empty(), "expected at least one error for unresolved variable");
+        assert!(
+            errors.iter().any(|d| d.message.contains("unresolved") || d.message.contains("'y'")),
+            "error message should mention the unresolved variable 'y', got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn analyze_valid_struct_and_function() {
+        let source = "struct Point { x: i32, y: i32 }
+                       fn distance(p: Point) -> i32 { return p.x + p.y; }";
+        let result = analyze_source(source);
+        let errors: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::error::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+}

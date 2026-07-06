@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/validator.ts
+// poiesis/src/omni-gen/validator.ts
 import { rustCompiler } from "../../commands/rustCompiler";
 import type { ValidationResult } from "./types";
 

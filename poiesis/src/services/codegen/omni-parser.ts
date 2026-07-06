@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/omni-parser.ts
+// poiesis/src/omni-gen/omni-parser.ts
 // Thin facade: tokenizes an OmniLang source string and runs the recursive-descent parser.
 
 import { tokenize } from "./omni-tokenizer";

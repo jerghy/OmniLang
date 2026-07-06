@@ -133,13 +133,10 @@ export function ComponentPalette() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  // NOTE: definitions, enterComponentCanvas, defineComponent, removeComponent not in PoiesisState — migration needed
-  const storeAny = usePoiesisStore as any;
-  const registryAny = useComponentRegistry as any;
-  const definitions = registryAny((s: any) => s.componentDefs) ?? {};
-  const enterCanvas = storeAny((s: any) => s.enterComponentCanvas) ?? (() => {});
-  const defineComponent = registryAny((s: any) => s.defineComponent) ?? (() => {});
-  const removeComponent = registryAny((s: any) => s.removeComponent) ?? (() => {});
+  const definitions = useComponentRegistry((s) => s.componentDefs) ?? {};
+  const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
+  const defineComponent = usePoiesisStore((s) => s.defineComponent);
+  const removeComponent = usePoiesisStore((s) => s.removeComponent);
 
   // Build unified metadata list — re-compute when custom component definitions change
   const allMeta = useMemo(() => {

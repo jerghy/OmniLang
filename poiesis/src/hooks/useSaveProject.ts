@@ -63,9 +63,14 @@ export function useSaveProject() {
       // ── 5. Update custom component def with designed elements ──
       if (componentName !== "main") {
         const currentDef = store.componentDefs[componentName] || {};
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (store.setComponentDef as any)(componentName, {
+        store.setComponentDef(componentName, {
           ...currentDef,
+          name: componentName,
+          filePath: `src/components/${componentName}.omni`,
+          signals: [],
+          props: [],
+          events: [],
+          fns: [],
           elements: store.elements,
           wires: store.wires,
           rootOrder: store.rootOrder,

@@ -661,3 +661,67 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_error_messages_structured() {
+        let json = serde_json::json!([
+            {"message": "parse error at line 3", "code": "E0001"},
+            {"message": "unresolved variable 'x'", "code": "E0002"},
+        ]);
+        let msg = extract_error_messages(&json);
+        assert!(
+            msg.contains("parse error at line 3"),
+            "should contain structured error message, got: {msg}"
+        );
+        assert!(
+            msg.contains("unresolved variable 'x'"),
+            "should contain second error message, got: {msg}"
+        );
+        let lines: Vec<&str> = msg.split('\n').collect();
+        assert_eq!(lines.len(), 2, "should have two lines, got: {msg:?}");
+    }
+
+    #[test]
+    fn extract_error_messages_legacy_strings() {
+        let json = serde_json::json!(["compilation failed", "missing semicolon"]);
+        let msg = extract_error_messages(&json);
+        assert!(msg.contains("compilation failed"), "got: {msg}");
+        assert!(msg.contains("missing semicolon"), "got: {msg}");
+    }
+
+    #[test]
+    fn extract_error_messages_fallback() {
+        let json = serde_json::json!([]);
+        let msg = extract_error_messages(&json);
+        assert_eq!(msg, "", "empty array should produce empty string");
+
+        let json = serde_json::json!({"not": "an array"});
+        let msg = extract_error_messages(&json);
+        assert_eq!(msg, "Compilation failed.", "non-array should fall back");
+    }
+
+    #[test]
+    fn derive_path_mapping_basic() {
+        let mut sources = std::collections::HashMap::new();
+        sources.insert("src/main.omni".to_string(), "fn main() {}".to_string());
+        sources.insert("src/lib/helper.omni".to_string(), "pub fn help() {}".to_string());
+        let mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+
+        assert_eq!(
+            mapping.get("src/main.omni"),
+            Some(&"src/main.omni".to_string())
+        );
+        assert_eq!(
+            mapping.get("./lib/helper.omni"),
+            Some(&"src/lib/helper.omni".to_string())
+        );
+        assert_eq!(
+            mapping.get("helper.omni"),
+            Some(&"src/lib/helper.omni".to_string())
+        );
+    }
+}

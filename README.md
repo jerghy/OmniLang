@@ -18,25 +18,38 @@ See [QUICKSTART.md](QUICKSTART.md) for more.
 ## Project Structure
 
 ```
-omnilang/          # Language core: grammar, parser, AST, pure-logic codegen
-  grammar/         # omnilang.lark — base grammar (Earley)
-  parser.py        # AST transformer
-  codegen/         # python, javascript, rust, dart targets
-  lexer.py         # Unified parser entry (create_parser / create_omniview_parser)
+omnilang/          # Language core: lexer, parser, semantic, IR, multi-target codegen (Rust)
+  src/
+    lexer/         # Tokenizer
+    parser/        # AST parser
+    semantic/      # Semantic analysis
+    ir/            # Intent IR
+    codegen/       # All targets: omniview, react, vue, dioxus, flutter, python, js, ts, rust, dart
+    stdlib/        # Standard library
+    runtime/       # Runtime support
+    sourcemap/     # Source map generation
 
-omniview/          # UI SDK: components, stores, directives, styling
-  grammar.lark     # UI grammar (extends base)
-  parser.py        # UI transformer + OmniLang delegation
-  codegen/         # react, vue, dioxus, flutter targets
-  cli.py           # omnic CLI (build, init, check, watch, fmt)
+omnic/             # CLI tool (Rust)
+  src/main.rs
 
-docs/              # Documentation (see docs/README.md for index)
+poiesis/           # Visual editor (TypeScript/React, Vite)
+  src/
+    components/    # React components
+    services/      # Codegen, compiler services
+    store/         # State management
+
+docs/              # Documentation
   adr/             # Architecture Decision Records
-  archive/         # Superseded v0.1-v0.3 documents
+  cookbook/        # Cookbook guides
+  design/          # Design documents
+  tutorial/        # Tutorials
 
-tests/             # 331 tests (unit + E2E)
-omniview/examples/ # .omni source examples
-build_output/      # Compiled output from examples
+test/              # Test projects (.omni examples)
+  projects/
+    learn-omniview/  # .omni examples: todo, dashboard, form, style, etc.
+    poiesis-test/
+
+omni-test/         # Standalone test files
 ```
 
 ## Targets
@@ -56,11 +69,11 @@ build_output/      # Compiled output from examples
 
 | File | Description |
 |------|-------------|
-| `omniview/examples/todo-app.omni` | Todo with store, @for, @if, events |
-| `omniview/examples/dashboard.omni` | KPI cards, multi-store, computed |
-| `omniview/examples/form-app.omni` | Form with bind:value, validation |
-| `omniview/examples/style-showcase.omni` | CSS properties demo |
-| `omniview/examples/pure-logic.omni` | Pure functions (no UI) |
+| `test/projects/learn-omniview/src/pages/TodoPage.omni` | Todo with store, @for, @if, events |
+| `test/projects/learn-omniview/src/pages/Dashboard.omni` | KPI cards, multi-store, computed |
+| `test/projects/learn-omniview/src/pages/DataSubmit.omni` | Form with bind:value, validation |
+| `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` | CSS/motion properties demo |
+| `test/projects/learn-omniview/src/pages/TimelineMotionDemo.omni` | Animation and motion |
 
 ## Key Documents
 

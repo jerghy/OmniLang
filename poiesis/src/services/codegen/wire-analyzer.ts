@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/wire-analyzer.ts
+// poiesis/src/omni-gen/wire-analyzer.ts
 // Analyzes wire connections between elements to extract signal/ref/dep bindings.
 
 import type { ElementData, WireData } from "../../core/types";

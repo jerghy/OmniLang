@@ -1,4 +1,4 @@
-// editor/client/src/services/codegen/parser-view.ts
+// poiesis/src/services/codegen/parser-view.ts
 // View parsing functions extracted from the Parser class.
 
 import type { Token } from "./omni-tokenizer";

@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/view-tree-builder.ts
+// poiesis/src/omni-gen/view-tree-builder.ts
 import type { ElementData } from "../../core/types";
 import type { ViewNode } from "./types";
 

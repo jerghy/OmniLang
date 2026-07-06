@@ -31,9 +31,7 @@ export function ComponentTree({ ctx, treeDropState }: ComponentTreeProps) {
   const rootOrder = usePoiesisStore((s) => s.rootOrder);
   const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const storeAny = usePoiesisStore as any;
-  const enterCanvas = storeAny.enterComponentCanvas as (name: string) => void;
+  const enterCanvas = usePoiesisStore.getState().enterComponentCanvas;
 
   // Helper: execute a Command — store methods handle undo tracking internally
   const exec = useCallback(
@@ -241,7 +239,7 @@ function ContextMenu({
       list.push({
         component: name,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        isCustom: (meta as any).isCustom ?? false,
+        isCustom: meta.isCustom ?? false,
       });
       map.set(meta.category, list);
     }
@@ -281,7 +279,7 @@ function ContextMenu({
 
   const handlePaste = useCallback(() => {
     const ids = pasteFromClipboard(ctx);
-    if (ids?.length) (usePoiesisStore as any).setState({ selectedElementIds: ids });
+    if (ids?.length) usePoiesisStore.setState({ selectedElementIds: ids });
     onClose();
   }, [ctx, onClose]);
 

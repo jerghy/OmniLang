@@ -1,4 +1,4 @@
-// editor/client/src/services/codegen/collect-styles.ts
+// poiesis/src/services/codegen/collect-styles.ts
 // Collect and merge style data from StyleRegistry + ElementStyle entries and
 // ViewNode resolvedStyle trees into the componentStyle map, elementClassMap,
 // and elementInlineMap consumed by SourceEmitter.

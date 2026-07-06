@@ -4,16 +4,14 @@ import { useState, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { api } from "../../commands";
 
-// NOTE: 'files' is not in PoiesisState yet — migration needed
 type FileEntry = { name: string; path: string; type: "file" | "directory"; ext?: string };
 
 function getFiles(): FileEntry[] {
-  return (usePoiesisStore.getState() as unknown as Record<string, unknown>).files as FileEntry[] || [];
+  return usePoiesisStore.getState().files ?? [];
 }
 
 function setFiles(files: FileEntry[]): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (usePoiesisStore as any).setState({ files });
+  usePoiesisStore.setState({ files });
 }
 
 export function FileExplorer() {

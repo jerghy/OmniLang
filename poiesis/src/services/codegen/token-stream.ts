@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/token-stream.ts
+// poiesis/src/omni-gen/token-stream.ts
 // TokenStream — a cursor over a Token[] array providing lookahead, consume, match, and expect.
 
 import type { Token, TokenKind } from "./omni-tokenizer";

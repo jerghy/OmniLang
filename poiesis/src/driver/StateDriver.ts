@@ -1,4 +1,3 @@
-// @ts-nocheck — Legacy driver, needs type alignment with unified store
 /** StateDriver — state queries, snapshots, diff, undo/redo.
  *  Extracted from OmniDriver god class. */
 
@@ -149,41 +148,12 @@ export class StateDriver {
 
   /** Undo the last operation. */
   undo(): void {
-    const store = getDesignStore();
-    // NOTE: undo with CommandContext is legacy pattern — casts to any for migration
-    (getUndoStore() as unknown as { undo: (ctx: Record<string, unknown>) => void }).undo({
-      getElement: (id) => store.elements.find((e) => e.id === id),
-      get elements() { return usePoiesisStore.getState().elements; },
-      get wires() { return usePoiesisStore.getState().wires; },
-      addElement: (el) => store.addElement(el),
-      removeElement: (id) => store.removeElement(id),
-      setProp: (id, p, v) => store.setProp(id, p, v),
-      getProp: (id, p) => store.getProp(id, p) ?? null,
-      addWire: (w) => store.addWire(w),
-      removeWire: (id) => store.removeWire(id),
-      setElementsAndWires: () => {},
-      reorderElement: () => {},
-      moveElement: () => {},
-    });
+    getUndoStore().undo();
   }
 
   /** Redo the last undone operation. */
   redo(): void {
-    const store = getDesignStore();
-    (getUndoStore() as unknown as { redo: (ctx: Record<string, unknown>) => void }).redo({
-      getElement: (id) => store.elements.find((e) => e.id === id),
-      get elements() { return usePoiesisStore.getState().elements; },
-      get wires() { return usePoiesisStore.getState().wires; },
-      addElement: (el) => store.addElement(el),
-      removeElement: (id) => store.removeElement(id),
-      setProp: (id, p, v) => store.setProp(id, p, v),
-      getProp: (id, p) => store.getProp(id, p) ?? null,
-      addWire: (w) => store.addWire(w),
-      removeWire: (id) => store.removeWire(id),
-      setElementsAndWires: () => {},
-      reorderElement: () => {},
-      moveElement: () => {},
-    });
+    getUndoStore().redo();
   }
 
   /** Save a snapshot token that can be restored later with restoreSnapshot().

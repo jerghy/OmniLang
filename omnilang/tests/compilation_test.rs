@@ -1,0 +1,84 @@
+//! End-to-end compilation tests for the OmniLang compiler.
+//!
+//! Tests the full pipeline: source text -> lexer -> parser -> semantic analysis
+//! -> IR lowering -> codegen, verifying output at each stage.
+
+use std::collections::HashMap;
+
+/// Helper: compile single source and unwrap the IR.
+fn compile_ok(source: &str) -> omnilang::ir::IRProgram {
+    let result = omnilang::compile(source);
+    assert!(result.success, "compilation should succeed, got errors: {:?}", result.errors);
+    result.ir.expect("IR should be present on success")
+}
+
+#[test]
+fn e2e_simple_function() {
+    let ir = compile_ok("fn main() -> i32 { return 42; }");
+    assert_eq!(ir.version, "1.0");
+    let module = ir.modules.get("input.omni").expect("should have module");
+    assert!(
+        module.functions.contains_key("main"),
+        "should contain 'main' function"
+    );
+}
+
+#[test]
+fn e2e_function_with_params() {
+    let ir = compile_ok("fn add(a: i32, b: i32) -> i32 { return a + b; }");
+    let module = ir.modules.get("input.omni").expect("should have module");
+    let func = module.functions.get("add").expect("should have add function");
+    assert_eq!(func.params.len(), 2, "add should have 2 params");
+    assert_eq!(func.params[0].name, "a");
+    assert_eq!(func.params[1].name, "b");
+}
+
+#[test]
+fn e2e_invalid_syntax_produces_errors() {
+    let result = omnilang::compile("fn main() { let x = ; }");
+    assert!(!result.success, "compilation with invalid syntax should fail");
+    assert!(
+        !result.errors.is_empty(),
+        "should have at least one error diagnostic"
+    );
+}
+
+#[test]
+fn e2e_struct_and_function() {
+    let ir = compile_ok(
+        "struct Point { x: i32, y: i32 }
+         fn origin() -> Point { return Point { x: 0, y: 0 }; }",
+    );
+    let module = ir.modules.get("input.omni").expect("should have module");
+    assert!(module.structs.contains_key("Point"), "should contain Point struct");
+    assert!(module.functions.contains_key("origin"), "should contain origin function");
+}
+
+#[test]
+fn e2e_compile_to_python_json() {
+    let mut sources = HashMap::new();
+    sources.insert(
+        "main.omni".to_string(),
+        "fn main() { print(\"hello\"); }".to_string(),
+    );
+    let mut path_mapping = HashMap::new();
+    path_mapping.insert("main.omni".to_string(), "main.omni".to_string());
+    path_mapping.insert("./main.omni".to_string(), "main.omni".to_string());
+
+    let json = omnilang::compile_multi_to_target(
+        sources,
+        omnilang::codegen::Target::Python,
+        path_mapping,
+        false,
+    );
+    let data: serde_json::Value = serde_json::from_str(&json).expect("should be valid JSON");
+    assert!(
+        data["success"].as_bool().unwrap_or(false),
+        "Python compilation should succeed, got: {:?}",
+        data
+    );
+    let files = data["files"].as_object().expect("should have files");
+    assert!(!files.is_empty(), "should have at least one output file");
+    let has_py_file = files.keys().any(|k| k.ends_with(".py"));
+    assert!(has_py_file, "should have a .py output file, got keys: {:?}", files.keys());
+}

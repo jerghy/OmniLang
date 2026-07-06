@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/chain-emitter.ts
+// poiesis/src/omni-gen/chain-emitter.ts
 // Converts code graph elements and wires to @chain/@node/@wire annotation blocks.
 // EmitChains maps each lowered function to a ChainBlock describing its subgraph.
 

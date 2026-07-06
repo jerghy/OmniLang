@@ -42,6 +42,10 @@ export interface PoiesisState {
   // ── Component definitions (parsed from .omni, cached) ──
   componentDefs: Record<string, ComponentDef>;
 
+  /** Legacy definitions field — set at runtime via componentRegistry adapter.
+   *  May overlap with componentDefs during migration. */
+  definitions?: Record<string, Record<string, unknown>>;
+
   // ── PID index ──
   pidIndex: Record<string, PidEntry>;
 
@@ -55,6 +59,9 @@ export interface PoiesisState {
   // ── Compilation ──
   compileErrors: Array<{ code: string; message: string; line: number }>;
   previewUrl: string | null;
+
+  // ── File explorer (runtime-only, not persisted) ──
+  files?: Array<{ name: string; path: string; type: "file" | "directory"; ext?: string }>;
 
   // ── Editor metadata (for project.json save/load) ──
   nodeMeta: Record<string, NodeMeta>;

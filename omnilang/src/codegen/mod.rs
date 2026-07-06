@@ -155,7 +155,7 @@ impl std::str::FromStr for Target {
 }
 
 /// Codegen trait -- implement for each target.
-pub trait Codegen {
+pub trait Codegen: Send + Sync {
     /// Generate output files for the given IR program and source files.
     fn generate(&self, ir: &IRProgram, source_files: &HashMap<String, String>) -> CompileOutput;
 }
@@ -165,6 +165,7 @@ pub trait Codegen {
 /// Rejects dangerous CSS value patterns that could execute JavaScript:
 /// `javascript:`, `expression(`, `-moz-binding`, `data:text/html`.
 /// Returns the original string if safe, or an empty string with a warning.
+#[must_use]
 pub fn sanitize_css_value(value: &str) -> String {
     let lower = value.to_lowercase();
     if lower.contains("javascript:")

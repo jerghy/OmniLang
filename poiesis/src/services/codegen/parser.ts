@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/parser.ts
+// poiesis/src/omni-gen/parser.ts
 // Recursive-descent Parser class for OmniLang sources.
 
 import type { Token } from "./omni-tokenizer";

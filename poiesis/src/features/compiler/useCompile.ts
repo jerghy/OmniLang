@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { usePoiesisStore } from "../../store";
-import { useCodeGraphStore } from "../../services/codegraph/store";
+import { serializeCodeTabs } from "../../services/codegraph/store";
 import { extractComponentName } from "../../core/utils";
 import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
@@ -20,8 +20,7 @@ export function useCompile(
 
   const handleCompile = useCallback(async () => {
     const store = usePoiesisStore.getState();
-    const cg = useCodeGraphStore.getState();
-    const codeTabs = cg.toSerializable().tabs;
+    const codeTabs = serializeCodeTabs().tabs;
     const componentName = extractComponentName(store.activeFileContent || "");
 
     const compileResult = await compileProject({
@@ -53,8 +52,8 @@ export function useCompile(
     const errs = compileResponse.errors || [];
     setCompileErrors(errs);
 
-    useCodeGraphStore.getState().switchTab("main");
-    useCodeGraphStore.getState().setElementsAndWires([], []);
+    usePoiesisStore.getState().switchTab("main");
+    usePoiesisStore.getState().setElementsAndWires([], []);
     try {
       // Parse code blocks via local TS parser (replaces Python /api/parse-*)
       const cbData = { success: true, blocks: parseCodeBlocks(content) };
@@ -124,7 +123,7 @@ export function useCompile(
       }
       setFnToNodeMap(newFnToNodeMap);
 
-      useCodeGraphStore.getState().setElementsAndWires(codeElements, []);
+      usePoiesisStore.getState().setElementsAndWires(codeElements, []);
       usePoiesisStore.getState().setActiveFileContent(content);
     } catch (err) {
       // Non-critical: code block parsing failure doesn't block compilation.
@@ -145,8 +144,7 @@ export function useCompile(
       }
       const s = usePoiesisStore.getState();
       if (s.elements.length > 0) {
-        const cg = useCodeGraphStore.getState();
-        const ct = cg.toSerializable().tabs;
+        const ct = serializeCodeTabs().tabs;
         const out = compilerCache.compileProject(
           {
             designElements: s.elements,

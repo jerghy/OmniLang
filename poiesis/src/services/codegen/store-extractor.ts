@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/store-extractor.ts
+// poiesis/src/omni-gen/store-extractor.ts
 // Two-phase store extraction from code blocks.
 // Phase 1: scan for tag==="store" -> StoreDef skeleton
 // Phase 2: group signal/computed/action into parent stores

@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/token-emitter.ts
+// poiesis/src/omni-gen/token-emitter.ts
 // Phase C: Emit theme/token blocks as OmniLang source.
 
 import type { ThemeDef } from "./types";

@@ -1,4 +1,3 @@
-// @ts-nocheck — Legacy driver code to be refactored for unified store
 /** ConnectionDriver — wire connection/disconnection and canvas validation.
  *  Extracted from OmniDriver god class.
  *  ALSO exports a standalone connect() function for ElementHandle to import. */

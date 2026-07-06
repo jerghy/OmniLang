@@ -69,6 +69,10 @@ export interface ComponentDef {
   props: Array<DefEntry>;
   events: Array<{ pid: string; name: string; payloadType: string }>;
   fns: Array<FnDef>;
+  /** Runtime-only canvas data (set by useSaveProject, not persisted to project.json). */
+  elements?: import("../types/element").ElementData[];
+  wires?: import("../types/wire").WireData[];
+  rootOrder?: string[];
 }
 
 export interface DefEntry {

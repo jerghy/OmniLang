@@ -39,6 +39,7 @@ pub struct CompileResult {
 }
 
 /// Compile .omni source -> IR. Core function shared by WASM and native.
+#[must_use]
 pub fn compile(source: &str) -> CompileResult {
     match run_pipeline(source) {
         Err(errors) => CompileResult {
@@ -112,6 +113,7 @@ pub struct OmniViewFiles {
 }
 
 /// Compile .omni → OmniView (JS + HTML + CSS + SourceMap). Core function.
+#[must_use]
 pub fn compile_omniview(source: &str, editor_mode: bool) -> OmniViewResult {
     match run_pipeline(source) {
         Err(errors) => OmniViewResult {

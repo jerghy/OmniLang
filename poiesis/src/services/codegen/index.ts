@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/index.ts
+// poiesis/src/omni-gen/index.ts
 export { parseOmniSource, parsePidAnnotations } from "./omni-parser";
 export { validate } from "./validator";
 export { generateOmniSource, generateOmniFiles } from "./pipeline";

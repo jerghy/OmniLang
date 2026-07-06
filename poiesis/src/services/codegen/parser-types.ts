@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/parser-types.ts
+// poiesis/src/omni-gen/parser-types.ts
 // Shared types and utilities for the OmniLang recursive-descent parser.
 
 import type { ElementData } from "../../core/types/element";

@@ -1,4 +1,4 @@
-// editor/client/src/canvas/edges/DataEdge.tsx
+// poiesis/src/canvas/edges/DataEdge.tsx
 
 import { getSmoothStepPath, type EdgeProps } from "@xyflow/react";
 

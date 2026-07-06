@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/expression-lowering.ts
+// poiesis/src/omni-gen/expression-lowering.ts
 // Recursive descent builder for code graph elements to OmniLang expressions.
 // Maps code graph node tags (literal, add, setVariable, etc.) to OmniLang expression strings.
 // Uses reverse wire adjacency to walk backward from consumer ports building expressions.

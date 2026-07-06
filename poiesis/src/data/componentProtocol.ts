@@ -26,6 +26,8 @@ export interface ComponentProtocolEntry {
   events: Record<string, EventMeta>;
   styleProperties: string[];
   children: boolean;
+  /** True for user-defined components (not built-in). */
+  isCustom?: boolean;
 }
 
 /**

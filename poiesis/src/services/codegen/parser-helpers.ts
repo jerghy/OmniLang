@@ -1,4 +1,4 @@
-// editor/client/src/services/codegen/parser-helpers.ts
+// poiesis/src/services/codegen/parser-helpers.ts
 // Pure utility functions extracted from the Parser class.
 
 import type { Token } from "./omni-tokenizer";

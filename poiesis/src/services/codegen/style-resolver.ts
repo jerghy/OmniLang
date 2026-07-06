@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/style-resolver.ts
+// poiesis/src/omni-gen/style-resolver.ts
 import type { ResolvedStyle, ViewNode } from "./types";
 
 interface TagMapping {

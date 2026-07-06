@@ -1,13 +1,27 @@
 // Connection validators — v2 stub.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function canConnect(_from: any, _to: any): boolean {
+
+export interface ValidationIssue {
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+}
+
+export function canConnect(_from: unknown, _to: unknown): boolean {
   return true;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function validateConnection(_from: any, _to: any): Array<{ valid: boolean; reason?: string }> {
-  return [{ valid: true }];
+
+export function validateConnection(
+  _fromEl: unknown,
+  _fromPort: unknown,
+  _toEl: unknown,
+  _toPort: unknown,
+  _wires: unknown[],
+  _fromPorts: unknown[],
+  _toPorts: unknown[],
+): ValidationIssue[] {
+  return [];
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getAllPorts(_element: any): any[] {
+
+export function getAllPorts(_element: unknown): unknown[] {
   return [];
 }

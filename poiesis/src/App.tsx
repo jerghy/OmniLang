@@ -81,10 +81,15 @@ async function loadOmniFiles(): Promise<void> {
   // and restores main's elements from tabData.
   if (parsed.length > 0) {
     const store = usePoiesisStore.getState();
-    const stateUpdate: Record<string, unknown> = {};
+    const stateUpdate: Partial<{
+      activeFileContent: string;
+      activeFilePath: string | null;
+      elements: import("./core/types/element").ElementData[];
+      wires: import("./core/types/wire").WireData[];
+      rootOrder: string[];
+    }> = {};
     const newTabData = { ...store.tabData };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const newComponentDefs: Record<string, any> = { ...store.componentDefs };
+    const newComponentDefs: Record<string, import("./core/types/project-json").ComponentDef> = { ...store.componentDefs };
 
     // Last parsed file = current active tab (last opened via openTab)
     const lastParsed = parsed[parsed.length - 1];
@@ -122,8 +127,7 @@ async function loadOmniFiles(): Promise<void> {
       ...stateUpdate,
       tabData: newTabData,
       componentDefs: newComponentDefs,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    });
 
     // Switch to main tab (unless it's already active)
     if (mainPath && mainPath !== lastParsed.filePath) {

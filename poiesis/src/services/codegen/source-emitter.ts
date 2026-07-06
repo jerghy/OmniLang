@@ -1,4 +1,4 @@
-// editor/client/src/omni-gen/source-emitter.ts
+// poiesis/src/omni-gen/source-emitter.ts
 // CodeWriter helper + SourceEmitter for view and style generation.
 
 import type { EmitInput, AnnotationStrategy, ChainBlock } from "./types";

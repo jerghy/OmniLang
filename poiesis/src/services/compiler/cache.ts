@@ -1,4 +1,4 @@
-// editor/client/src/services/compiler/cache.ts
+// poiesis/src/services/compiler/cache.ts
 // Caches compiled OmniView output by source content.
 // Wraps the omni-gen pipeline (elements -> .omni source) and the
 // Rust WASM compiler (.omni source -> JS/HTML/CSS) into a single cache.

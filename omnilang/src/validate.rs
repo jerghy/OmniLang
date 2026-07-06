@@ -339,6 +339,93 @@ fn validate_cross_file(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_sources(files: Vec<(&str, &str)>) -> HashMap<String, String> {
+        files
+            .into_iter()
+            .map(|(path, content)| (path.to_string(), content.to_string()))
+            .collect()
+    }
+
+    /// Helper: build sources and derive their path mapping, then validate.
+    fn validate_sources(sources: HashMap<String, String>) -> MultiFileResult {
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+        validate_multi(sources, path_mapping)
+    }
+
+    #[test]
+    fn validate_single_file_no_issues() {
+        let sources = make_sources(vec![(
+            "main.omni",
+            "fn main() -> i32 { return 42; }",
+        )]);
+        let result = validate_sources(sources);
+        assert!(result.success, "single function file should validate ok");
+        assert!(result.errors.is_empty(), "expected no errors, got: {:?}", result.errors);
+    }
+
+    #[test]
+    fn validate_cross_file_import_resolves() {
+        let sources = make_sources(vec![
+            (
+                "a.omni",
+                "pub fn helper() -> i32 { return 1; }",
+            ),
+            (
+                "b.omni",
+                "import { helper } from \"./a.omni\"; fn main() -> i32 { return helper(); }",
+            ),
+        ]);
+        let result = validate_sources(sources);
+        assert!(
+            result.success,
+            "cross-file import of pub symbol should succeed, got errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn validate_cross_file_private_symbol_fails() {
+        // helper is NOT pub — should produce visibility error
+        let sources = make_sources(vec![
+            ("a.omni", "fn helper() -> i32 { return 1; }"),
+            (
+                "b.omni",
+                "import { helper } from \"./a.omni\"; fn main() -> i32 { return helper(); }",
+            ),
+        ]);
+        let result = validate_sources(sources);
+        assert!(!result.success, "import of private symbol should fail");
+        let has_vis_error = result.errors.iter().any(|d| d.code == "E_VISIBILITY");
+        assert!(
+            has_vis_error,
+            "expected E_VISIBILITY error, got codes: {:?}",
+            result.errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn validate_unresolved_import_path_fails() {
+        let sources = make_sources(vec![(
+            "main.omni",
+            "import { stuff } from \"./missing.omni\"; fn main() {}",
+        )]);
+        let path_mapping = make_sources(vec![("main.omni", "main.omni")]);
+        // Don't include "./missing.omni" in the path mapping, so it can't be resolved
+        let result = validate_multi(sources, path_mapping);
+        assert!(!result.success, "unresolvable import should fail");
+        let has_import_error = result.errors.iter().any(|d| d.code == "E_IMPORT");
+        assert!(
+            has_import_error,
+            "expected E_IMPORT error, got codes: {:?}",
+            result.errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+    }
+}
+
 fn validate_named_import(
     importing_file: &str,
     names: &[String],

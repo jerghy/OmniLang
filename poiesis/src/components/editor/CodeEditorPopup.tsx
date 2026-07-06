@@ -50,9 +50,6 @@ function PortsBadge({ el }: { el?: ElementData | null }) {
 export function CodeEditorPopup({ visible, blockId, title, source, blockElement, onClose, onSave }: CodeEditorPopupProps) {
   const [draft, setDraft] = useState(source);
   const [modified, setModified] = useState(false);
-  // NOTE: setBlockValue and setElementPorts are not on PoiesisState yet — migration needed
-  const setBlockValue = (usePoiesisStore as any).getState().setBlockValue;
-  const setElementPorts = (usePoiesisStore as any).getState().setElementPorts;
 
   useEffect(() => {
     if (visible) {
@@ -69,13 +66,14 @@ export function CodeEditorPopup({ visible, blockId, title, source, blockElement,
 
   const handleSave = useCallback(() => {
     if (blockId && modified) {
-      setBlockValue(blockId, draft);
+      const store = usePoiesisStore.getState();
+      store.setElementSource(blockId, draft);
       if (blockElement?.ports) {
-        setElementPorts(blockId, blockElement.ports);
+        store.setProp(blockId, "ports", blockElement.ports);
       }
       onSave(draft);
     }
-  }, [blockId, draft, modified, blockElement, setBlockValue, setElementPorts, onSave]);
+  }, [blockId, draft, modified, blockElement, onSave]);
 
   if (!visible || !blockId) return null;
 

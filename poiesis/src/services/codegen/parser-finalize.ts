@@ -1,4 +1,4 @@
-// editor/client/src/services/codegen/parser-finalize.ts
+// poiesis/src/services/codegen/parser-finalize.ts
 // Finalization (post-processing) functions extracted from the Parser class.
 
 import type { ParserInternals } from "./parser";

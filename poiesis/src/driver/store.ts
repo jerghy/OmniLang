@@ -3,7 +3,7 @@
 
 import { Logger } from "../lib/utils/logger";
 import { usePoiesisStore } from "../store";
-import { useCodeGraphStore } from "../services/codegraph/store";
+
 import { getAllPorts } from "../components/canvas/shared/connectionValidators";
 import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
@@ -25,7 +25,7 @@ export function isCodeMode(): boolean {
 
 /** Access the code graph store for tab/graph operations. */
 export function getCodeGraphStore() {
-  return useCodeGraphStore.getState();
+  return usePoiesisStore.getState();
 }
 
 /** Access the undo store (via unified store). */
@@ -57,19 +57,18 @@ interface ActiveStore {
  *  Returns an object with .elements, .wires, .addElement(), .addWire(), .removeWire(). */
 export function getActiveStore(): ActiveStore {
   if (isCodeMode()) {
-    const cg = useCodeGraphStore.getState();
-    const graph = cg.getActiveGraph();
+    const state = usePoiesisStore.getState();
     return {
-      get elements() { return graph.elements; },
-      get wires() { return graph.wires; },
-      addElement: (el: ElementData) => cg.addElement(el),
-      removeElement: (id: string) => cg.removeElement(id),
-      setProp: (id: string, prop: string, value: unknown) => cg.setProp(id, prop, value),
-      getProp: (id: string, prop: string) => cg.getProp(id, prop),
-      addWire: (w: WireData) => cg.addWire(w),
-      removeWire: (id: string) => cg.removeWire(id),
-      setElementSource: (id: string, source: string) => cg.setElementSource(id, source),
-      setElementPorts: (id: string, ports: ElementData["ports"]) => cg.setElementPorts(id, ports),
+      get elements() { return state.elements; },
+      get wires() { return state.wires; },
+      addElement: (el: ElementData) => state.addElement(el),
+      removeElement: (id: string) => state.removeElement(id),
+      setProp: (id: string, prop: string, value: unknown) => state.setProp(id, prop, value),
+      getProp: (id: string, prop: string) => state.getProp(id, prop),
+      addWire: (w: WireData) => state.addWire(w),
+      removeWire: (id: string) => state.removeWire(id),
+      setElementSource: (id: string, source: string) => state.setElementSource(id, source),
+      setElementPorts: (_id: string, _ports: ElementData["ports"]) => {},
       selectElement: (_id: string | null, _multi?: boolean) => {},
       get selectedElementIds() { return []; },
       get previewUrl() { return null; },
