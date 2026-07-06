@@ -27,7 +27,7 @@ export function ArchitecturePreview() {
     if (selectedPid && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
         { type: "poiesis:highlight", pid: selectedPid },
-        "*"
+        window.location.origin
       );
     }
   }, [selectedPid]);

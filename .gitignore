@@ -29,3 +29,6 @@ poiesis/public/wasm/
 
 # Docs
 docs/screenshots/
+
+# Generated build output
+build/

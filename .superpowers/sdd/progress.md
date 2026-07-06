@@ -1,17 +1,29 @@
-# OmniLang Code Review Fix Progress
-> branch: worktree-code-review-fixes | start: 2026-07-06
+# OmniLang Code Review Fix Progress v2
+> branch: worktree-code-review-fixes-v2 | start: 2026-07-06
+> based on: main
 
-## Commits
-- a0bcf701: Phase 1-2: security + error handling (6 files)
-- 610d0202: Phase 4: #[must_use] + docs (3 files)
-- 73d75e2c: Phase 3: shared codegen utilities (18 files, ~400 lines saved)
-- cb0758fb: merge Phase 3
-- bc15e388: T4.2: unified diagnostic JSON serialization (-22 lines)
-- 40e277f1: T5.3: TemplateString + catch-all regression tests (+2 tests)
+## Setup
+- 6988f6e1: chore: fix duplicate [dev-dependencies] and move [profile.release] to workspace root
+
+## Tasks
+
+### Phase 1: Quick Wins
+- [ ] Task 1: Codegen P1 shared utility extraction
+- [ ] Task 2: CSP/Security hardening
+- [ ] Task 3: #[must_use] audit + annotation
+- [ ] Task 4: TS global type declarations
+
+### Phase 2A: Core Refactors
+- [ ] Task 5: format_json_value unification
+- [ ] Task 6: Parser infrastructure + Error AST nodes
+- [ ] Task 7: PoiesisState missing methods
+
+### Phase 2B: Deeper Changes
+- [ ] Task 8: binary_op_to_* cleanup + camel_to_separated
+- [ ] Task 9: Statement-level error recovery
+- [ ] Task 10: OmniDriver/ElementHandle window.__* migration
 
 ## Verification
-- cargo build: PASS | cargo test: 407/407 PASS | cargo clippy: PASS
+- cargo check: PASS | cargo test: PASS | cargo clippy: PASS
 
-## Remaining
-- T5.2: Split large files (agent dispatched)
-- Phase 5: insta snapshots, property tests (deferred)
+- [x] Task 1: ba401f2c refactor: extract shared codegen utilities (review: PASS/Approved)

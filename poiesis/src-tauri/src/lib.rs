@@ -140,6 +140,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
 
     if project_dir.is_dir() {
         for entry in walkdir::WalkDir::new(project_dir)
+            .follow_links(false)
             .into_iter()
             .filter_map(|e| match e {
                 Ok(entry) => Some(entry),
@@ -197,6 +198,7 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                 parent
             };
             for entry in walkdir::WalkDir::new(parent)
+                .follow_links(false)
                 .into_iter()
                 .filter_map(|e| match e {
                     Ok(entry) => Some(entry),
