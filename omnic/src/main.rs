@@ -197,7 +197,7 @@ fn cmd_analyse(files: Vec<String>, format: &str) -> anyhow::Result<()> {
         // Compact JSON — matches Python json.dumps(...) without indent
         let json = serde_json::to_string(&result)?;
         println!("{json}");
-        if !result["success"].as_bool().unwrap_or(true) {
+        if !result["success"].as_bool().unwrap_or(false) {
             std::process::exit(1);
         }
         return Ok(());
@@ -288,7 +288,13 @@ fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> an
 
     if let Some(files) = data["files"].as_object() {
         for (filename, content) in files {
-            let content = content.as_str().unwrap_or("");
+            let content = match content.as_str() {
+                Some(s) => s,
+                None => {
+                    eprintln!("Warning: null or non-string content for file '{}', skipping", filename);
+                    continue;
+                }
+            };
             let out_path = output_path.join(filename);
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -384,7 +390,13 @@ fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
 
     if let Some(files) = data["files"].as_object() {
         for (filename, content) in files {
-            let content = content.as_str().unwrap_or("");
+            let content = match content.as_str() {
+                Some(s) => s,
+                None => {
+                    eprintln!("Warning: null or non-string content for file '{}', skipping", filename);
+                    continue;
+                }
+            };
             let out_path = output_dir.join(filename);
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -665,9 +677,22 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
                 for (fname, content) in files {
                     let out_path = Path::new(output_dir).join(fname);
                     if let Some(parent) = out_path.parent() {
-                        let _ = std::fs::create_dir_all(parent);
+                        if let Err(e) = std::fs::create_dir_all(parent) {
+                            eprintln!("[{timestamp}] #{build_count} Create dir error: {e}");
+                            continue;
+                        }
                     }
-                    let _ = std::fs::write(&out_path, content.as_str().unwrap_or(""));
+                    let content_str = match content.as_str() {
+                        Some(s) => s,
+                        None => {
+                            eprintln!("[{timestamp}] #{build_count} Warning: null or non-string content for file '{fname}', skipping");
+                            continue;
+                        }
+                    };
+                    if let Err(e) = std::fs::write(&out_path, content_str) {
+                        eprintln!("[{timestamp}] #{build_count} Write error: {e}");
+                        continue;
+                    }
                 }
                 let file_count = files.len();
                 println!(
