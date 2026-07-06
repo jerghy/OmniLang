@@ -488,7 +488,10 @@ fn run_node(path: &Path) -> anyhow::Result<()> {
 
 /// Execute a Rust program by copying to a Cargo project and running `cargo run`.
 fn run_rust(path: &Path) -> anyhow::Result<()> {
-    let rust_dir = path.parent().unwrap().join("rust_proj");
+    let rust_dir = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("run_rust: path has no parent: {:?}", path))?
+        .join("rust_proj");
     let src_dir = rust_dir.join("src");
     std::fs::create_dir_all(&src_dir)?;
     std::fs::copy(path, src_dir.join("main.rs"))?;
