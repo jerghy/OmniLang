@@ -6,11 +6,12 @@ import { compileProject } from "../../services/compiler/compiler";
 import { compilerCache } from "../../services/compiler/cache";
 import { api } from "../../commands";
 import { parseCodeBlocks } from "../../services/parser/omni-regex-parser";
-import type { CommandContext } from "../../core/commands/types";
 import type { ElementData } from "../../core/types";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("useCompile");
 
 export function useCompile(
-  _ctx: CommandContext,
   target: string,
   runStatus: { running: boolean },
   setFnToNodeMap: (map: Record<string, string>) => void,
@@ -128,7 +129,7 @@ export function useCompile(
     } catch (err) {
       // Non-critical: code block parsing failure doesn't block compilation.
       // Still log so we can diagnose parser bugs in production.
-      console.warn('[useCompile] code block parsing failed:', err);
+      log.warn('code block parsing failed:', err);
     }
 
     const hasErrors = errs.some((e: { severity: string }) => e.severity === "error");
@@ -140,7 +141,7 @@ export function useCompile(
         isError: false,
       });
       if (runStatus.running && compileResponse.files) {
-        api.compile.writeRunFiles(compileResponse.files).catch((e) => console.warn("[compile] Failed to write run files:", e));
+        api.compile.writeRunFiles(compileResponse.files).catch((e) => log.warn("Failed to write run files:", e));
       }
       const s = usePoiesisStore.getState();
       if (s.elements.length > 0) {

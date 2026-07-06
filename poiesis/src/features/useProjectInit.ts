@@ -9,6 +9,9 @@ import { useComponentRegistry } from "../store/componentRegistry";
 import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
 import type { ElementData, WireData } from "../core/types";
 import type { ComponentDefinition } from "../core/state/componentRegistry";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("init");
 
 export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Initial load
@@ -29,7 +32,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        saveComponentDefinitionsToServer(state.definitions).catch((e) => console.warn("[init] Failed to save component defs:", e));
+        saveComponentDefinitionsToServer(state.definitions).catch((e) => log.warn("Failed to save component defs:", e));
       }, 2000);
     });
     return () => {
@@ -41,7 +44,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      api.compile.stopRun().catch((e) => console.warn("[init] Failed to stop run:", e));
+      api.compile.stopRun().catch((e) => log.warn("Failed to stop run:", e));
       api.disconnectDebug();
     };
   }, []);
@@ -156,7 +159,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             }
           }
         } catch (e) {
-          console.warn("[App] Failed to load main.omni:", e);
+          log.warn("Failed to load main.omni:", e);
         }
       })();
 
@@ -167,7 +170,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             useComponentRegistry.setState({ definitions: merged as Record<string, ComponentDefinition> });
           }
         } catch (e) {
-          console.warn("[App] Failed to load component definitions:", e);
+          log.warn("Failed to load component definitions:", e);
         }
       })();
 
@@ -178,7 +181,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
             usePoiesisStore.setState({ openTabs: tomlResult.state.open_files });
           }
         } catch (e) {
-          console.debug("[ProjectInit] Failed to restore editor state:", e);
+          log.debug("Failed to restore editor state:", e);
         }
       })();
 

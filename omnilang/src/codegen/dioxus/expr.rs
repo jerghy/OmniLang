@@ -1,7 +1,7 @@
 //! Expression formatting, helpers, and event data extraction for Dioxus codegen.
 
 use crate::codegen::shared::expr::FormatExpr;
-use crate::codegen::{JsonFormatConfig, JSON_DIOXUS};
+use crate::codegen::{JsonFormatConfig, Target, JSON_DIOXUS};
 use crate::ir::*;
 
 /// Dioxus-family expression formatter.
@@ -12,6 +12,10 @@ pub(crate) struct DioxusFormatExpr;
 impl FormatExpr for DioxusFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &JSON_DIOXUS
+    }
+
+    fn codegen_target(&self) -> Target {
+        Target::Dioxus
     }
 
     fn null_fallback(&self) -> &str {
@@ -42,7 +46,7 @@ impl FormatExpr for DioxusFormatExpr {
         }
     }
 
-    fn format_struct(&self, fields: &str) -> String {
+    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
         if fields.is_empty() {
             "{}".to_string()
         } else {

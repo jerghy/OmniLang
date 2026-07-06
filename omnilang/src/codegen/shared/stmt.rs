@@ -251,9 +251,93 @@ pub(crate) trait FormatStmt {
         w.emit_fmt(format_args!("continue{semi}"));
     }
 
-    /// Format a mutation statement (override per backend — each is unique).
-    fn format_mutation_stmt(&self, _w: &mut CodeWriter, _intent: &MutationIntent) {
-        // Default: no-op. Most backends override.
+    // ═══ Mutation statement support methods ═══
+
+    /// How to reference a mutation target variable in this language.
+    fn mutation_target_expr(&self, target: &str) -> String {
+        format!("this.{}", target)
+    }
+
+    /// Method name for array push in this language.
+    fn mutation_push_method(&self) -> &'static str {
+        "push"
+    }
+
+    /// Method name for array pop in this language.
+    fn mutation_pop_method(&self) -> &'static str {
+        "pop"
+    }
+
+    /// Optional prefix emitted before a mutation statement (e.g., `setState(() {`).
+    fn mutation_stmt_prefix(&self) -> Option<&str> {
+        None
+    }
+
+    /// Optional suffix emitted after a mutation statement (e.g., `});`).
+    fn mutation_stmt_suffix(&self) -> Option<&str> {
+        None
+    }
+
+    /// Format a DirectAssign mutation (override for backends needing special syntax like `.set()`).
+    fn format_direct_assign_mutation(&self, w: &mut CodeWriter, target: &str, amount: &str) {
+        let semi = if self.needs_semicolon() { ";" } else { "" };
+        w.emit_fmt(format_args!("{target} = {amount}{semi}"));
+    }
+
+    /// Format a mutation statement — default handles all 8 `MutationOp` variants.
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let target = &intent.target.name;
+        let ref_t = self.mutation_target_expr(target);
+        let amount = intent
+            .amount
+            .as_ref()
+            .map(|v| self.expr_fmt().format_expr(v))
+            .unwrap_or_else(|| "0".into());
+        let semi = if self.needs_semicolon() { ";" } else { "" };
+
+        if let Some(prefix) = self.mutation_stmt_prefix() {
+            w.emit(prefix);
+            w.indent();
+        }
+
+        match &intent.operation {
+            MutationOp::DirectAssign => {
+                self.format_direct_assign_mutation(w, &ref_t, &amount);
+            }
+            MutationOp::Increment => {
+                w.emit_fmt(format_args!("{ref_t} += {amount}{semi}"));
+            }
+            MutationOp::Decrement => {
+                w.emit_fmt(format_args!("{ref_t} -= {amount}{semi}"));
+            }
+            MutationOp::Multiply => {
+                w.emit_fmt(format_args!("{ref_t} *= {amount}{semi}"));
+            }
+            MutationOp::Divide => {
+                w.emit_fmt(format_args!("{ref_t} /= {amount}{semi}"));
+            }
+            MutationOp::Modulo => {
+                w.emit_fmt(format_args!("{ref_t} %= {amount}{semi}"));
+            }
+            MutationOp::Push => {
+                let item = intent
+                    .item
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "undefined".into());
+                let push_m = self.mutation_push_method();
+                w.emit_fmt(format_args!("{ref_t}.{push_m}({item}){semi}"));
+            }
+            MutationOp::Pop => {
+                let pop_m = self.mutation_pop_method();
+                w.emit_fmt(format_args!("{ref_t}.{pop_m}(){semi}"));
+            }
+        }
+
+        if let Some(suffix) = self.mutation_stmt_suffix() {
+            w.dedent();
+            w.emit(suffix);
+        }
     }
 
     /// Format an event emit statement.

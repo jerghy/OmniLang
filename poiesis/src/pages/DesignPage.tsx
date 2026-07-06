@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { useMemo, Component, type ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +19,6 @@ import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
-import { createCommandContext } from "../core/commands/createCommandContext";
 import { usePoiesisStore } from "../store";
 import { useSaveProject } from "../hooks/useSaveProject";
 import { useDragHandlers } from "../hooks/useDragHandlers";
@@ -47,7 +46,6 @@ class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }
 }
 
 export function DesignPage() {
-  const ctx = useMemo(() => createCommandContext(), []);
   const undo = usePoiesisStore((s) => s.undo);
   const isDirty = usePoiesisStore((s) => s.isDirty);
   const activeTabType = usePoiesisStore((s) => {
@@ -60,7 +58,7 @@ export function DesignPage() {
   const showSidePanels = activeTabType === "component" && !codeFlowVisible;
 
   const { saving, handleSave } = useSaveProject();
-  const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers(ctx);
+  const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers();
 
   // ── @dnd-kit sensors (unified context handles both palette and tree drags) ──
   const pointerSensor = useSensor(PointerSensor, {
@@ -168,7 +166,9 @@ export function DesignPage() {
             </PanelErrorBoundary>
           </div>
           <div style={{ flex: 1, borderTop: "1px solid #e2e8f0", overflow: "auto" }}>
-            <ComponentTree ctx={ctx} treeDropState={treeDropState} />
+            <PanelErrorBoundary name="组件树">
+              <ComponentTree treeDropState={treeDropState} />
+            </PanelErrorBoundary>
           </div>
         </div>
         )}

@@ -1,23 +1,10 @@
 //! Statement and function generation for Python codegen.
 
-use super::expr;
+use super::expr::{self, PythonFormatExpr};
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
-use crate::codegen::{format_block_as_expr, CodeWriter, JsonFormatConfig, JSON_PYTHON};
+use crate::codegen::CodeWriter;
 use crate::ir::*;
-
-/// Python expression formatter wrapper that delegates to the existing Python formatter.
-struct PythonFormatExpr;
-
-impl FormatExpr for PythonFormatExpr {
-    fn json_config(&self) -> &JsonFormatConfig {
-        &JSON_PYTHON
-    }
-
-    fn format_expr(&self, expr: &ExprIR) -> String {
-        expr::format_expr_ir(expr)
-    }
-}
 
 /// Python statement formatter — no semicolons, `elif` keyword, colon blocks.
 struct PythonStmtFormatter {
@@ -117,30 +104,12 @@ impl FormatStmt for PythonStmtFormatter {
         w.dedent();
     }
 
-    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|v| self.expr.format_expr(v))
-            .unwrap_or_else(|| "0".into());
-        match &intent.operation {
-            MutationOp::DirectAssign => {
-                w.emit_fmt(format_args!("{} = {}", target, amount));
-            }
-            MutationOp::Increment => {
-                w.emit_fmt(format_args!("{} += {}", target, amount));
-            }
-            MutationOp::Decrement => {
-                w.emit_fmt(format_args!("{} -= {}", target, amount));
-            }
-            other => {
-                w.emit_fmt(format_args!(
-                    "# TODO: mutation operation '{}' on {}",
-                    other, target
-                ));
-            }
-        }
+    fn mutation_target_expr(&self, target: &str) -> String {
+        target.to_string()
+    }
+
+    fn mutation_push_method(&self) -> &'static str {
+        "append"
     }
 }
 
@@ -198,11 +167,12 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
     if !comp.states.is_empty() || !comp.props.is_empty() {
         w.emit("def __init__(self):");
         w.indent();
+        let py_fmt = PythonFormatExpr;
         for prop in comp.props.keys() {
             w.emit_fmt(format_args!("self.{} = None  # prop", prop));
         }
         for state in &comp.states {
-            let py_init = expr::format_expr_ir(&state.initial_value);
+            let py_init = py_fmt.format_expr(&state.initial_value);
             w.emit_fmt(format_args!("self.{} = {}", state.name, py_init));
         }
         w.dedent();
@@ -211,7 +181,8 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
 
     // Computed properties as @property methods
     for computed in &comp.computeds {
-        let body = expr::format_expr_ir(&computed.body);
+        let py_fmt = PythonFormatExpr;
+        let body = py_fmt.format_expr(&computed.body);
         // Use @cached_property or simple @property for now
         w.emit("@property");
         w.emit_fmt(format_args!("def {}(self):", computed.name));
@@ -249,12 +220,13 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     w.dedent();
 
     // Getters as properties
+    let py_fmt = PythonFormatExpr;
     for (getter_name, getter_expr) in &store.getters {
         w.emit("");
         w.emit("@property");
         w.emit_fmt(format_args!("def {}(self):", getter_name));
         w.indent();
-        w.emit_fmt(format_args!("return {}", expr::format_expr_ir(getter_expr)));
+        w.emit_fmt(format_args!("return {}", py_fmt.format_expr(getter_expr)));
         w.dedent();
     }
 
@@ -268,9 +240,4 @@ pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
         expr: PythonFormatExpr,
     };
     fmt.format_stmt(w, stmt);
-}
-
-/// Format a block IR as a Python expression (tail-only).
-pub(super) fn format_block_as_python_expr(block: &BlockIR) -> String {
-    format_block_as_expr(block, &expr::format_expr_ir, "None")
 }

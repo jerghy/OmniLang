@@ -19,7 +19,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut children = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
             children.push(self.parse_view_node()?);
         }
 
@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::AtSlot => {
                 self.advance();
-                let name = if self.peek_kind() == TokenKind::LParen {
+                let name = if self.at(&TokenKind::LParen) {
                     self.advance();
                     let n = self.expect_ident("expected slot name")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
@@ -78,12 +78,10 @@ impl<'a> Parser<'a> {
                     None
                 };
                 // Parse optional default content body: @slot name { ... }
-                let default_content = if self.peek_kind() == TokenKind::LBrace {
+                let default_content = if self.at(&TokenKind::LBrace) {
                     self.advance(); // consume '{'
                     let mut children = Vec::new();
-                    while self.peek_kind() != TokenKind::RBrace
-                        && self.peek_kind() != TokenKind::Eof
-                    {
+                    while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
                         children.push(self.parse_view_node()?);
                     }
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -120,7 +118,7 @@ impl<'a> Parser<'a> {
             TokenKind::LBrace => {
                 // Interpolation: { expr } or empty braces {} (JSX comments stripped)
                 self.advance();
-                if self.peek_kind() == TokenKind::RBrace {
+                if self.at(&TokenKind::RBrace) {
                     self.advance(); // consume '}'
                     Ok(ViewNode::Text(String::new())) // Empty braces → empty text
                 } else {
@@ -130,7 +128,7 @@ impl<'a> Parser<'a> {
                     let saved_depth = self.depth;
                     let parse_result = self.parse_expr();
                     let is_valid_interpolation =
-                        parse_result.is_ok() && self.peek_kind() == TokenKind::RBrace;
+                        parse_result.is_ok() && self.at(&TokenKind::RBrace);
                     if is_valid_interpolation {
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
                         Ok(ViewNode::Interpolation(
@@ -141,9 +139,7 @@ impl<'a> Parser<'a> {
                         self.pos = saved_pos;
                         self.depth = saved_depth;
                         let mut text = String::from("{");
-                        while self.peek_kind() != TokenKind::RBrace
-                            && self.peek_kind() != TokenKind::Eof
-                        {
+                        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
                             match self.peek_kind() {
                                 TokenKind::StringLiteral(s) => {
                                     text.push_str(&s);
@@ -209,13 +205,13 @@ impl<'a> Parser<'a> {
                                     if let Some(name) = crate::parser::stmt::keyword_as_ident_name(
                                         &self.peek_kind(),
                                     ) {
-                                        text.push_str(&name);
+                                        text.push_str(name);
                                     }
                                     self.advance();
                                 }
                             }
                         }
-                        if self.peek_kind() == TokenKind::RBrace {
+                        if self.at(&TokenKind::RBrace) {
                             text.push('}');
                             self.advance();
                         }
@@ -317,15 +313,17 @@ impl<'a> Parser<'a> {
         let t = self.advance();
         let tag = match &t.kind {
             TokenKind::Ident(name) => name.clone(),
-            other => keyword_as_ident_name(other).unwrap_or_else(|| "unknown".into()),
+            other => keyword_as_ident_name(other)
+                .unwrap_or("unknown")
+                .to_string(),
         };
 
         let mut props = Vec::new();
 
         // Parse optional props: (name: value, ...)
-        if self.peek_kind() == TokenKind::LParen {
+        if self.at(&TokenKind::LParen) {
             self.advance(); // '('
-            while self.peek_kind() != TokenKind::RParen && self.peek_kind() != TokenKind::Eof {
+            while !self.at(&TokenKind::RParen) && !self.at(&TokenKind::Eof) {
                 let prop_name = self.expect_ident("expected prop name")?;
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
                 let prop_value = self.parse_expr()?;
@@ -333,7 +331,7 @@ impl<'a> Parser<'a> {
                     name: prop_name,
                     value: prop_value,
                 });
-                if self.peek_kind() == TokenKind::Comma {
+                if self.at(&TokenKind::Comma) {
                     self.advance();
                 }
             }
@@ -342,9 +340,9 @@ impl<'a> Parser<'a> {
 
         // Parse optional children block: { ... }
         let mut children = Vec::new();
-        let self_closing = if self.peek_kind() == TokenKind::LBrace {
+        let self_closing = if self.at(&TokenKind::LBrace) {
             self.advance();
-            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
                 children.push(self.parse_view_node()?);
             }
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -374,21 +372,21 @@ impl<'a> Parser<'a> {
         self.advance(); // '<'
 
         // Handle HTML comment: <!-- ... -->
-        if self.peek_kind() == TokenKind::Not {
+        if self.at(&TokenKind::Not) {
             self.advance(); // '!'
             self.expect_token(TokenKind::Minus, "expected '-' in HTML comment")?;
             self.expect_token(TokenKind::Minus, "expected '-' in HTML comment")?;
             // Skip until --> (tokenized as Minus + Arrow because lexer
             // merges `->` into a single Arrow token)
             loop {
-                if self.peek_kind() == TokenKind::Minus
+                if self.at(&TokenKind::Minus)
                     && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Arrow)
                 {
                     self.advance(); // '-'
                     self.advance(); // '->' (Arrow)
                     break;
                 }
-                if self.peek_kind() == TokenKind::Eof {
+                if self.at(&TokenKind::Eof) {
                     return Err(ParseError {
                         message: "unterminated HTML comment, expected '-->'".into(),
                         span: self.peek_span(),
@@ -513,7 +511,7 @@ impl<'a> Parser<'a> {
                 TokenKind::AtHoverReverse => {
                     self.advance();
                     self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let mode = if self.peek_kind() == TokenKind::LBrace {
+                    let mode = if self.at(&TokenKind::LBrace) {
                         self.advance();
                         let m = self.expect_ident("expected hover reverse mode")?;
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;

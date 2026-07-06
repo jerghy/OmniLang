@@ -22,6 +22,14 @@ impl FormatExpr for JavaScriptFormatExpr {
         &JSON_JS
     }
 
+    fn codegen_target(&self) -> Target {
+        if self.ts_mode {
+            Target::TypeScript
+        } else {
+            Target::JavaScript
+        }
+    }
+
     fn strict_eq(&self) -> bool {
         true
     }

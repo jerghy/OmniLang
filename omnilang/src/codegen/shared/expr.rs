@@ -9,7 +9,10 @@
 //! | `DartFormatExpr` | Dart (Dart, Flutter) | `==`, `.`, `null` fallback |
 //! | `RustFormatExpr` | Rust (Rust, Dioxus) | `if/else`, `vec![]`, `.await`, `None` fallback |
 
-use crate::codegen::{binary_op_to_str, format_block_as_expr, format_json_value, JsonFormatConfig};
+use crate::codegen::{
+    binary_op_to_str, format_block_as_expr, format_json_value, try_format_stdlib_call,
+    JsonFormatConfig, Target,
+};
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -24,6 +27,10 @@ use crate::ir::*;
 pub(crate) trait FormatExpr {
     /// JSON literal formatting config for this language (REQUIRED).
     fn json_config(&self) -> &JsonFormatConfig;
+
+    /// Code generation target for this backend (REQUIRED).
+    /// Used by `format_call` to route stdlib calls through the registry.
+    fn codegen_target(&self) -> Target;
 
     /// Use strict equality (`===`/`!==`) — true for JS family.
     fn strict_eq(&self) -> bool {
@@ -42,6 +49,11 @@ pub(crate) trait FormatExpr {
 
     /// Whether TypeScript-style type annotations should be emitted.
     fn ts_mode(&self) -> bool {
+        false
+    }
+
+    /// Use textual boolean operators (`and`/`or`) — true for Python.
+    fn textual_bool_ops(&self) -> bool {
         false
     }
 
@@ -77,7 +89,8 @@ pub(crate) trait FormatExpr {
     }
 
     /// Struct literal wrapper (braces + content).
-    fn format_struct(&self, fields: &str) -> String {
+    /// `type_name` is the struct type name (used by Python: `TypeName(fields)`).
+    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
         format!("{{ {fields} }}")
     }
 
@@ -88,6 +101,9 @@ pub(crate) trait FormatExpr {
 
     /// Function call expression.
     fn format_call(&self, name: &str, args: &[String]) -> String {
+        if let Some(native) = try_format_stdlib_call(name, args, self.codegen_target()) {
+            return native;
+        }
         format!("{}({})", name, args.join(", "))
     }
 
@@ -167,7 +183,7 @@ pub(crate) trait FormatExpr {
     fn format_expr(&self, expr: &ExprIR) -> String {
         match expr {
             ExprIR::LiteralExpr { value } => format_json_value(value, self.json_config()),
-            ExprIR::IdentifierExpr { name } => self.format_identifier(name),
+            ExprIR::IdentifierExpr { name, .. } => self.format_identifier(name),
             ExprIR::FieldAccessExpr { object, field } => {
                 format!("{}.{field}", self.format_expr(object))
             }
@@ -175,7 +191,7 @@ pub(crate) trait FormatExpr {
                 self.format_optional_chain(&self.format_expr(object), field)
             }
             ExprIR::BinaryOpExpr { op, left, right } => {
-                let op_str = binary_op_to_str(op, self.strict_eq(), false);
+                let op_str = binary_op_to_str(op, self.strict_eq(), self.textual_bool_ops());
                 format!(
                     "{} {op_str} {}",
                     self.format_expr(left),
@@ -214,12 +230,12 @@ pub(crate) trait FormatExpr {
                 let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();
                 self.format_array(&items.join(", "))
             }
-            ExprIR::StructExpr { fields, .. } => {
+            ExprIR::StructExpr { type_name, fields } => {
                 let f: Vec<String> = fields
                     .iter()
                     .map(|(k, v)| self.format_struct_field(k, &self.format_expr(v)))
                     .collect();
-                self.format_struct(&f.join(", "))
+                self.format_struct(type_name, &f.join(", "))
             }
             ExprIR::VariantLiteral {
                 union_type,
@@ -268,6 +284,10 @@ impl FormatExpr for JsFormatExpr {
         &crate::codegen::JSON_JS
     }
 
+    fn codegen_target(&self) -> Target {
+        Target::JavaScript
+    }
+
     fn strict_eq(&self) -> bool {
         true
     }
@@ -290,6 +310,10 @@ pub(crate) struct DartFormatExpr;
 impl FormatExpr for DartFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_DART
+    }
+
+    fn codegen_target(&self) -> Target {
+        Target::Dart
     }
 
     // Dart uses `UnionType.variant(unquotedKey: value)` syntax.
@@ -330,7 +354,7 @@ impl FormatExpr for DartFormatExpr {
     }
 
     // Dart uses `{key: value}` without spaces inside braces.
-    fn format_struct(&self, fields: &str) -> String {
+    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
         format!("{{{}}}", fields)
     }
 }
@@ -348,6 +372,10 @@ pub(crate) struct RustFormatExpr;
 impl FormatExpr for RustFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_RUST
+    }
+
+    fn codegen_target(&self) -> Target {
+        Target::Rust
     }
 
     fn null_fallback(&self) -> &str {
@@ -378,7 +406,7 @@ impl FormatExpr for RustFormatExpr {
         }
     }
 
-    fn format_struct(&self, fields: &str) -> String {
+    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
         if fields.is_empty() {
             "{}".to_string()
         } else {

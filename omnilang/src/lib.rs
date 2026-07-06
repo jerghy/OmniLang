@@ -73,12 +73,12 @@ struct PipelineOutput {
 fn run_pipeline(source: &str) -> Result<PipelineOutput, Vec<error::Diagnostic>> {
     let tokens = lexer::tokenize(source);
     let program = parser::parse(&tokens, source).map_err(|e| vec![e.into()])?;
-    let semantics = semantic::analyze(&program);
+    let mut semantics = semantic::analyze(&program);
     let has_errors = semantics
         .diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    let ir = ir::lower(&program, &semantics);
+    let ir = ir::lower(&program, &mut semantics);
     Ok(PipelineOutput {
         ir,
         diagnostics: semantics.diagnostics,

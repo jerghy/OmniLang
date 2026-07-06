@@ -4,6 +4,7 @@
 
 use crate::ir::types::*;
 use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
 use std::collections::HashMap;
 
 use super::stmt::lower_block;
@@ -16,6 +17,7 @@ pub(crate) fn lower_expr(
     expr: &Expr,
     variant_map: &HashMap<String, String>,
     mut event_fields: Option<&mut Vec<String>>,
+    semantics: &mut SemanticResult,
 ) -> ExprIR {
     match expr {
         Expr::Literal(lit, _) => {
@@ -37,7 +39,14 @@ pub(crate) fn lower_expr(
                     fields: vec![],
                 }
             } else {
-                ExprIR::IdentifierExpr { name: name.clone() }
+                let type_ann = semantics
+                    .symbols
+                    .resolve(name)
+                    .and_then(|s| s.type_ann.clone());
+                ExprIR::IdentifierExpr {
+                    name: name.clone(),
+                    type_ann,
+                }
             }
         }
         Expr::BinaryOp {
@@ -47,8 +56,18 @@ pub(crate) fn lower_expr(
                 BinaryOpKind::NullishCoalesce => "??".into(),
                 _ => format!("{:?}", op).to_lowercase(),
             },
-            left: Box::new(lower_expr(left, variant_map, event_fields.as_deref_mut())),
-            right: Box::new(lower_expr(right, variant_map, event_fields.as_deref_mut())),
+            left: Box::new(lower_expr(
+                left,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
+            right: Box::new(lower_expr(
+                right,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
         },
         Expr::UnaryOp { op, operand, .. } => ExprIR::UnaryOpExpr {
             op: match op {
@@ -60,6 +79,7 @@ pub(crate) fn lower_expr(
                 operand,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
         },
         Expr::FuncCall { func, args, .. } => {
@@ -69,17 +89,13 @@ pub(crate) fn lower_expr(
                     // Signal method calls
                     if field == "get" {
                         return ExprIR::FieldAccessExpr {
-                            object: Box::new(ExprIR::IdentifierExpr {
-                                name: obj_name.clone(),
-                            }),
+                            object: Box::new(ExprIR::ident(obj_name)),
                             field: "value".into(),
                         };
                     }
                     if field == "set" || field == "inc" || field == "dec" {
                         // Mutation — handled at statement level by try_lower_mutation
-                        return ExprIR::IdentifierExpr {
-                            name: obj_name.clone(),
-                        };
+                        return ExprIR::ident(obj_name);
                     }
                     // Store field access
                     return ExprIR::StoreFieldAccessExpr {
@@ -87,7 +103,9 @@ pub(crate) fn lower_expr(
                         field_name: field.clone(),
                         call_args: args
                             .iter()
-                            .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                            .map(|e| {
+                                lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics)
+                            })
                             .collect(),
                     };
                 }
@@ -98,17 +116,22 @@ pub(crate) fn lower_expr(
                     name: name.clone(),
                     args: args
                         .iter()
-                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics))
                         .collect(),
                 }
             } else if let Expr::OptionalChain { object, field, .. } = func.as_ref() {
                 // user?.len() — treat as optional method call
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                        semantics,
+                    )),
                     method: field.clone(),
                     args: args
                         .iter()
-                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics))
                         .collect(),
                     is_optional: true,
                 }
@@ -128,12 +151,17 @@ pub(crate) fn lower_expr(
                 }
             }
             ExprIR::FieldAccessExpr {
-                object: Box::new(lower_expr(object, variant_map, event_fields)),
+                object: Box::new(lower_expr(object, variant_map, event_fields, semantics)),
                 field: field.clone(),
             }
         }
         Expr::OptionalChain { object, field, .. } => ExprIR::OptionalChainExpr {
-            object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
+            object: Box::new(lower_expr(
+                object,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
             field: field.clone(),
         },
         Expr::MethodCall {
@@ -146,22 +174,30 @@ pub(crate) fn lower_expr(
             // get(i) with args → array/map index access
             if method == "get" && args.is_empty() {
                 ExprIR::FieldAccessExpr {
-                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                        semantics,
+                    )),
                     field: "value".into(),
                 }
             } else if method == "set" {
                 // signal.set(value) → handled at statement level by try_lower_mutation
-                ExprIR::IdentifierExpr {
-                    name: method.clone(),
-                }
+                ExprIR::ident("set")
             } else {
                 // General method call: to_string, len, get(i), push, pop, contains, insert, etc.
                 ExprIR::MethodCallExpr {
-                    object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
+                    object: Box::new(lower_expr(
+                        object,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                        semantics,
+                    )),
                     method: method.clone(),
                     args: args
                         .iter()
-                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                        .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics))
                         .collect(),
                     is_optional: false,
                 }
@@ -179,29 +215,28 @@ pub(crate) fn lower_expr(
         Expr::ArrayLiteral { elements, .. } => ExprIR::ArrayExpr {
             elements: elements
                 .iter()
-                .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut()))
+                .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics))
                 .collect(),
         },
         Expr::MapLiteral { entries, .. } => {
-            let map: serde_json::Map<String, serde_json::Value> = entries
-                .iter()
-                .map(|(k, v)| {
-                    let key = match lower_expr(k, variant_map, event_fields.as_deref_mut()) {
-                        ExprIR::LiteralExpr { value } => match value {
-                            serde_json::Value::String(s) => s,
-                            other => format!("{}", other),
-                        },
-                        other => {
-                            // For non-string literal keys, use the identifiers' name or Debug as fallback
-                            match other {
-                                ExprIR::IdentifierExpr { name } => name,
-                                _ => format!("{:?}", other),
-                            }
+            let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+            for (k, v) in entries {
+                let key = match lower_expr(k, variant_map, event_fields.as_deref_mut(), semantics) {
+                    ExprIR::LiteralExpr { value } => match value {
+                        serde_json::Value::String(s) => s,
+                        other => format!("{}", other),
+                    },
+                    other => {
+                        // For non-string literal keys, use the identifiers' name or Debug as fallback
+                        match other {
+                            ExprIR::IdentifierExpr { name, .. } => name,
+                            _ => format!("{:?}", other),
                         }
-                    };
-                    (key, lower_expr_to_json(v))
-                })
-                .collect();
+                    }
+                };
+                let val = lower_expr_to_json(v, semantics);
+                map.insert(key, val);
+            }
             ExprIR::LiteralExpr {
                 value: serde_json::Value::Object(map),
             }
@@ -214,7 +249,7 @@ pub(crate) fn lower_expr(
                 .map(|(name, val)| {
                     (
                         name.clone(),
-                        lower_expr(val, variant_map, event_fields.as_deref_mut()),
+                        lower_expr(val, variant_map, event_fields.as_deref_mut(), semantics),
                     )
                 })
                 .collect();
@@ -242,16 +277,19 @@ pub(crate) fn lower_expr(
                 condition,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
             then_expr: Box::new(lower_expr(
                 then_expr,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
             else_expr: Box::new(lower_expr(
                 else_expr,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
         },
         Expr::TernaryExpr {
@@ -264,23 +302,26 @@ pub(crate) fn lower_expr(
                 condition,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
             then_expr: Box::new(lower_expr(
                 then_expr,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
             else_expr: Box::new(lower_expr(
                 else_expr,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
         },
         Expr::Block { body, .. } => {
             // Block in expression position: preserve ALL statements.
             // The last expression statement provides the value; preceding
             // statements (e.g. print, let, mutations) are kept as-is.
-            let block_ir = lower_block(body, variant_map, event_fields.as_deref_mut());
+            let block_ir = lower_block(body, variant_map, event_fields.as_deref_mut(), semantics);
             if let Some(last) = block_ir.statements.last() {
                 match last {
                     StatementIR::ExprStmtIR { expr } => {
@@ -314,18 +355,34 @@ pub(crate) fn lower_expr(
             }
         }
         Expr::IndexGet { object, index, .. } => ExprIR::IndexExpr {
-            object: Box::new(lower_expr(object, variant_map, event_fields.as_deref_mut())),
-            index: Box::new(lower_expr(index, variant_map, event_fields.as_deref_mut())),
+            object: Box::new(lower_expr(
+                object,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
+            index: Box::new(lower_expr(
+                index,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
         },
         Expr::ClosureExpr { params, body, .. } => ExprIR::ClosureExpr {
             params: params.clone(),
-            body: Box::new(lower_expr(body, variant_map, event_fields.as_deref_mut())),
+            body: Box::new(lower_expr(
+                body,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            )),
         },
         Expr::AwaitExpr { operand, .. } => ExprIR::AwaitExpr {
             operand: Box::new(lower_expr(
                 operand,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             )),
         },
         Expr::MatchExpr { matched, arms, .. } => {
@@ -333,6 +390,7 @@ pub(crate) fn lower_expr(
                 matched,
                 variant_map,
                 event_fields.as_deref_mut(),
+                semantics,
             ));
             let mut ir_arms = Vec::with_capacity(arms.len());
             for arm in arms {
@@ -360,7 +418,12 @@ pub(crate) fn lower_expr(
                 };
                 ir_arms.push(MatchArmIR {
                     pattern,
-                    body: lower_block(&arm.body, variant_map, event_fields.as_deref_mut()),
+                    body: lower_block(
+                        &arm.body,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                        semantics,
+                    ),
                 });
             }
             ExprIR::MatchExpr {
@@ -376,7 +439,7 @@ pub(crate) fn lower_expr(
                 .map(|p| match p {
                     TemplatePart::Literal(s) => s.clone(),
                     TemplatePart::Expr(e) => {
-                        match lower_expr(e, variant_map, event_fields.as_deref_mut()) {
+                        match lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics) {
                             ExprIR::LiteralExpr { value } => match &value {
                                 serde_json::Value::String(s) => s.clone(),
                                 other => other.to_string(),
@@ -410,10 +473,10 @@ pub(crate) fn lower_expr(
 }
 
 /// Lower an expression to a serde_json::Value (for literal extraction).
-pub(super) fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
-    match lower_expr(expr, &HashMap::new(), None) {
+pub(super) fn lower_expr_to_json(expr: &Expr, semantics: &mut SemanticResult) -> serde_json::Value {
+    match lower_expr(expr, &HashMap::new(), None, semantics) {
         ExprIR::LiteralExpr { value } => value,
-        ExprIR::IdentifierExpr { name } => serde_json::Value::String(name),
+        ExprIR::IdentifierExpr { name, .. } => serde_json::Value::String(name),
         other => serde_json::Value::String(format!("{:?}", other)),
     }
 }
@@ -422,10 +485,10 @@ pub(super) fn lower_expr_to_json(expr: &Expr) -> serde_json::Value {
 pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
     match expr {
         ExprIR::LiteralExpr { value } => value.clone(),
-        ExprIR::IdentifierExpr { name } => serde_json::json!({"$signal": name}),
+        ExprIR::IdentifierExpr { name, .. } => serde_json::json!({"$signal": name}),
         ExprIR::FieldAccessExpr { object, field } => {
             // Resolve ThemeStore.currentBg → JS name ThemeStore.currentBg
-            if let ExprIR::IdentifierExpr { name: obj_name } = object.as_ref() {
+            if let ExprIR::IdentifierExpr { name: obj_name, .. } = object.as_ref() {
                 serde_json::json!({"$signal": format!("{}.{}", obj_name, field)})
             } else {
                 let obj = lower_expr_to_json_from_ir(object);

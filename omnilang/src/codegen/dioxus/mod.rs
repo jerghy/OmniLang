@@ -342,39 +342,12 @@ impl FormatStmt for DioxusStmtFormatter {
         w.emit("}");
     }
 
-    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|v| self.expr.format_expr(v))
-            .unwrap_or_else(|| "0".into());
-        match &intent.operation {
-            MutationOp::DirectAssign => {
-                w.emit_fmt(format_args!("{}.set({});", target, amount));
-            }
-            MutationOp::Increment => {
-                w.emit_fmt(format_args!("{} += {};", target, amount));
-            }
-            MutationOp::Decrement => {
-                w.emit_fmt(format_args!("{} -= {};", target, amount));
-            }
-            MutationOp::Multiply => {
-                w.emit_fmt(format_args!("{} *= {};", target, amount));
-            }
-            MutationOp::Divide => {
-                w.emit_fmt(format_args!("{} /= {};", target, amount));
-            }
-            MutationOp::Modulo => {
-                w.emit_fmt(format_args!("{} %= {};", target, amount));
-            }
-            other => {
-                w.emit_fmt(format_args!(
-                    "// TODO: mutation operation '{}' on '{}'",
-                    other, target
-                ));
-            }
-        }
+    fn mutation_target_expr(&self, target: &str) -> String {
+        target.to_string()
+    }
+
+    fn format_direct_assign_mutation(&self, w: &mut CodeWriter, target: &str, amount: &str) {
+        w.emit_fmt(format_args!("{}.set({});", target, amount));
     }
 }
 

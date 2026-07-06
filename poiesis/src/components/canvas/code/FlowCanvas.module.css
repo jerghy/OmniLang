@@ -1,0 +1,6 @@
+.deleteBtn {
+  background: transparent;
+}
+.deleteBtn:hover {
+  background: var(--color-danger-light);
+}

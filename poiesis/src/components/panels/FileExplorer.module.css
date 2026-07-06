@@ -1,0 +1,13 @@
+.fileItem {
+  background: transparent;
+}
+.fileItem:hover {
+  background: var(--color-surface-hover);
+}
+
+.fileItemActive {
+  background: var(--color-surface-active);
+}
+.fileItemActive:hover {
+  background: var(--color-surface-active);
+}

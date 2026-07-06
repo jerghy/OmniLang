@@ -300,46 +300,6 @@ impl FormatStmt for JsStmtFormatter {
             .unwrap_or_else(|| self.null_value().to_string());
         w.emit_fmt(format_args!("{kw} {safe_name}{ty} = {rhs};"));
     }
-
-    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|v| self.expr.format_expr(v))
-            .unwrap_or_else(|| "0".into());
-        match &intent.operation {
-            MutationOp::DirectAssign => {
-                w.emit_fmt(format_args!("this.{} = {};", target, amount));
-            }
-            MutationOp::Increment => {
-                w.emit_fmt(format_args!("this.{} += {};", target, amount));
-            }
-            MutationOp::Decrement => {
-                w.emit_fmt(format_args!("this.{} -= {};", target, amount));
-            }
-            MutationOp::Multiply => {
-                w.emit_fmt(format_args!("this.{} *= {};", target, amount));
-            }
-            MutationOp::Divide => {
-                w.emit_fmt(format_args!("this.{} /= {};", target, amount));
-            }
-            MutationOp::Modulo => {
-                w.emit_fmt(format_args!("this.{} %= {};", target, amount));
-            }
-            MutationOp::Push => {
-                let item = intent
-                    .item
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "undefined".into());
-                w.emit_fmt(format_args!("this.{}.push({});", target, item));
-            }
-            MutationOp::Pop => {
-                w.emit_fmt(format_args!("this.{}.pop();", target));
-            }
-        }
-    }
 }
 
 pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {

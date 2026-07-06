@@ -104,6 +104,21 @@ impl<'a> Parser<'a> {
         t
     }
 
+    /// Zero-clone variant check. Returns true if current token matches `kind`.
+    fn at(&self, kind: &TokenKind) -> bool {
+        self.tokens.get(self.pos).is_some_and(|t| &t.kind == kind)
+    }
+
+    /// Check-and-consume. Returns true and advances if current token matches `kind`.
+    fn advance_if(&mut self, kind: &TokenKind) -> bool {
+        if self.at(kind) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────
 
     /// Peek at the string value of the next identifier without consuming it.
@@ -112,20 +127,18 @@ impl<'a> Parser<'a> {
         let tok = self.peek();
         match &tok.kind {
             TokenKind::Ident(name) => Some(name.clone()),
-            other => keyword_as_ident_name(other),
+            other => keyword_as_ident_name(other).map(|s| s.to_string()),
         }
     }
 
     /// Check if the next token is a left brace `{`.
     pub fn peek_is_brace(&self) -> bool {
-        self.peek_kind() == TokenKind::LBrace
+        self.at(&TokenKind::LBrace)
     }
 
     /// Consume a semicolon if present (optional semicolon).
     pub fn consume_semicolon(&mut self) {
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
     }
 
     /// Expect and return a string literal token.

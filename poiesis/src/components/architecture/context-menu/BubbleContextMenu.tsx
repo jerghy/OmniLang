@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { usePoiesisStore } from "../../../store";
+import styles from "./BubbleContextMenu.module.css";
 
 interface MenuPosition {
   x: number;
@@ -112,15 +113,13 @@ function MenuItem({
   return (
     <div
       onClick={onClick}
+      className={styles.menuItem}
       style={{
         padding: "8px 16px",
         fontSize: 13,
         cursor: "pointer",
         color: "#374151",
-        transition: "background 0.15s",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
       {children}
     </div>

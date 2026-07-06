@@ -38,7 +38,7 @@ impl<'a> Parser<'a> {
     pub(super) fn peek_is_boolean_attr_keyword(&self) -> bool {
         let name: Option<String> = match self.peek_kind() {
             TokenKind::Ident(s) => Some(s.clone()),
-            ref kind => keyword_as_ident_name(kind),
+            ref kind => keyword_as_ident_name(kind).map(|s| s.to_string()),
         };
         matches!(
             name.as_deref(),
@@ -66,7 +66,7 @@ impl<'a> Parser<'a> {
         let mut name = self.expect_ident("expected prop name")?;
 
         // Handle hyphenated attribute names: margin-left, background-color, etc.
-        while self.peek_kind() == TokenKind::Minus {
+        while self.at(&TokenKind::Minus) {
             self.advance(); // consume '-'
             let next = self.expect_ident("expected identifier after '-'")?;
             name = format!("{}-{}", name, next);
@@ -121,9 +121,7 @@ impl<'a> Parser<'a> {
                     self.advance(); // consume ':'
                     self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
                     let mut states = Vec::new();
-                    while self.peek_kind() != TokenKind::RBrace
-                        && self.peek_kind() != TokenKind::Eof
-                    {
+                    while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
                         let state_name = self.expect_ident("expected state name")?;
                         self.expect_token(TokenKind::Colon, "expected ':' after state name")?;
                         let props = self.parse_property_block()?;
@@ -150,7 +148,7 @@ impl<'a> Parser<'a> {
                                 ease,
                             },
                         ));
-                        if self.peek_kind() == TokenKind::Comma {
+                        if self.at(&TokenKind::Comma) {
                             self.advance();
                         }
                     }
@@ -172,12 +170,12 @@ impl<'a> Parser<'a> {
                         // class: { key: expr, ... } — dynamic class map
                         self.advance(); // consume '{'
                         let mut entries = Vec::new();
-                        if self.peek_kind() != TokenKind::RBrace {
+                        if !self.at(&TokenKind::RBrace) {
                             let key = self.expect_ident("expected class key")?;
                             self.expect_token(TokenKind::Colon, "expected ':'")?;
                             let val = self.parse_expr()?;
                             entries.push((key, val));
-                            while self.peek_kind() == TokenKind::Comma {
+                            while self.at(&TokenKind::Comma) {
                                 self.advance();
                                 let key = self.expect_ident("expected class key")?;
                                 self.expect_token(TokenKind::Colon, "expected ':'")?;
@@ -193,12 +191,12 @@ impl<'a> Parser<'a> {
                     TokenKind::LBrace => {
                         self.advance();
                         let mut entries = Vec::new();
-                        if self.peek_kind() != TokenKind::RBrace {
+                        if !self.at(&TokenKind::RBrace) {
                             let key = self.parse_css_property_name("expected style key")?;
                             self.expect_token(TokenKind::Colon, "expected ':'")?;
                             let val = self.parse_expr()?;
                             entries.push((key, val));
-                            while self.peek_kind() == TokenKind::Comma {
+                            while self.at(&TokenKind::Comma) {
                                 self.advance();
                                 let key = self.parse_css_property_name("expected style key")?;
                                 self.expect_token(TokenKind::Colon, "expected ':'")?;
@@ -217,7 +215,7 @@ impl<'a> Parser<'a> {
                                 let mut class_name = s.clone();
                                 // Handle hyphenated class names: theme-bar, btn-add, demo1-r-0, etc.
                                 // Also accept IntLiteral after '-' (CSS allows numbers after hyphens: -0, -1, etc.)
-                                while self.peek_kind() == TokenKind::Minus {
+                                while self.at(&TokenKind::Minus) {
                                     self.advance(); // consume '-'
                                     let next: String = match self.peek_kind() {
                                         TokenKind::Ident(_) => self.expect_ident("")?,
@@ -229,7 +227,7 @@ impl<'a> Parser<'a> {
                                             // Accept keywords (view, style, theme, etc.) after '-'
                                             if let Some(name) = keyword_as_ident_name(k) {
                                                 self.advance();
-                                                name
+                                                name.to_string()
                                             } else {
                                                 return Err(ParseError {
                                                     message: "expected identifier or number after '-' in class name".into(),
@@ -245,8 +243,8 @@ impl<'a> Parser<'a> {
                             ref k => {
                                 // Accept keywords that can be used as identifiers (e.g., theme, view, style)
                                 if let Some(name) = keyword_as_ident_name(k) {
-                                    let mut class_name = name;
-                                    while self.peek_kind() == TokenKind::Minus {
+                                    let mut class_name = name.to_string();
+                                    while self.at(&TokenKind::Minus) {
                                         self.advance(); // consume '-'
                                         let next: String = match self.peek_kind() {
                                             TokenKind::Ident(_) => self.expect_ident("")?,
@@ -257,7 +255,7 @@ impl<'a> Parser<'a> {
                                             ref k => {
                                                 if let Some(name) = keyword_as_ident_name(k) {
                                                     self.advance();
-                                                    name
+                                                    name.to_string()
                                                 } else {
                                                     return Err(ParseError {
                                                         message: "expected identifier or number after '-' in class name".into(),
@@ -304,7 +302,7 @@ impl<'a> Parser<'a> {
                             match &next_t.kind {
                                 TokenKind::Ident(s) => {
                                     let mut cn = s.clone();
-                                    while self.peek_kind() == TokenKind::Minus {
+                                    while self.at(&TokenKind::Minus) {
                                         self.advance();
                                         let n = self.expect_ident(
                                             "expected identifier after '-' in class name",
@@ -315,8 +313,8 @@ impl<'a> Parser<'a> {
                                 }
                                 k => {
                                     if let Some(name) = keyword_as_ident_name(k) {
-                                        let mut cn = name;
-                                        while self.peek_kind() == TokenKind::Minus {
+                                        let mut cn = name.to_string();
+                                        while self.at(&TokenKind::Minus) {
                                             self.advance();
                                             let n = self.expect_ident(
                                                 "expected identifier after '-' in class name",
@@ -332,7 +330,7 @@ impl<'a> Parser<'a> {
                             }
                         }
                         // Check for dynamic class expression: class: name { expr }
-                        if self.peek_kind() == TokenKind::LBrace {
+                        if self.at(&TokenKind::LBrace) {
                             // Parse class: name(s) { conditional_expr }
                             // e.g., class: tab-btn {if activeDemo == "position" { "active" } else { "" }}
                             // Combine static names with dynamic expression result
@@ -386,14 +384,14 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected bind property name")?;
 
         // Parse ={signal_path}
-        let signal_path = if self.peek_kind() == TokenKind::Eq {
+        let signal_path = if self.at(&TokenKind::Eq) {
             self.advance(); // '='
             match self.peek_kind() {
                 TokenKind::LBrace => {
                     self.advance();
                     let path = self.expect_ident("expected signal path")?;
                     // Handle nested paths like "store.field"
-                    let path = if self.peek_kind() == TokenKind::Dot {
+                    let path = if self.at(&TokenKind::Dot) {
                         self.advance();
                         let field = self.expect_ident("expected field name")?;
                         format!("{}.{}", path, field)
@@ -466,7 +464,7 @@ impl<'a> Parser<'a> {
 
     /// Parse the ={handler} part of an event binding.
     pub(super) fn parse_event_handler_value(&mut self) -> Result<EventHandler, ParseError> {
-        if self.peek_kind() != TokenKind::Eq {
+        if !self.at(&TokenKind::Eq) {
             return Err(ParseError {
                 message: "Expected '=' after event name".into(),
                 span: self.peek_span(),
@@ -476,7 +474,7 @@ impl<'a> Parser<'a> {
         match self.peek_kind() {
             TokenKind::LBrace => {
                 self.advance();
-                let handler = if self.peek_kind() == TokenKind::LParen {
+                let handler = if self.at(&TokenKind::LParen) {
                     // Inline fn: (params) => { body }
                     self.advance();
                     let params = self.parse_params()?;

@@ -197,7 +197,7 @@ pub(super) fn expr_ir_contains_store_mutation(
                     return store_signals.contains_key(store_alias.as_str());
                 }
                 if let ExprIR::FieldAccessExpr { object: inner, .. } = object.as_ref() {
-                    if let ExprIR::IdentifierExpr { name } = inner.as_ref() {
+                    if let ExprIR::IdentifierExpr { name, .. } = inner.as_ref() {
                         return store_signals.contains_key(name.as_str());
                     }
                 }

@@ -7,6 +7,9 @@ import { Store } from "@tauri-apps/plugin-store";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { FsEntry, ProjectInfo } from "./types";
 import { usePoiesisStore } from "../store";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("project");
 
 const STORE_PATH = "project.json";
 const RECENT_KEY = "recentProjects";
@@ -31,7 +34,7 @@ async function resolveProjectDir(): Promise<string | null> {
     cachedProjectDir = val ?? null;
     return cachedProjectDir;
   } catch (e) {
-    console.warn("[project] Failed to resolve project dir:", e);
+    log.warn("Failed to resolve project dir:", e);
     return null;
   }
 }
@@ -186,7 +189,7 @@ export function createProjectApi() {
         });
         return selected ?? null;
       } catch (e) {
-        console.warn("[project] Failed to open folder dialog:", e);
+        log.warn("Failed to open folder dialog:", e);
         return null;
       }
     },
@@ -198,7 +201,7 @@ export function createProjectApi() {
         const val = await store.get<RecentProject[]>(RECENT_KEY);
         return val ?? [];
       } catch (e) {
-        console.warn("[project] Failed to get recent projects:", e);
+        log.warn("Failed to get recent projects:", e);
         return [];
       }
     },
@@ -216,7 +219,7 @@ export function createProjectApi() {
         await store.set(RECENT_KEY, trimmed);
         await store.save();
       } catch (e) {
-        console.warn("[project] Failed to add recent project:", e);
+        log.warn("Failed to add recent project:", e);
       }
     },
 
@@ -228,7 +231,7 @@ export function createProjectApi() {
         await store.set(RECENT_KEY, filtered);
         await store.save();
       } catch (e) {
-        console.warn("[project] Failed to remove recent project:", e);
+        log.warn("Failed to remove recent project:", e);
       }
     },
   };

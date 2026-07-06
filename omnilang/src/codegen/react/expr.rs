@@ -8,7 +8,9 @@ use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
-use crate::codegen::{capitalize_first, JsonFormatConfig, JSON_REACT};
+use crate::codegen::{
+    capitalize_first, try_format_stdlib_call, JsonFormatConfig, Target, JSON_REACT,
+};
 use crate::ir::*;
 
 /// React TSX expression formatter.
@@ -20,6 +22,10 @@ pub(crate) struct ReactFormatExpr;
 impl FormatExpr for ReactFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &JSON_REACT
+    }
+
+    fn codegen_target(&self) -> Target {
+        Target::React
     }
 
     fn strict_eq(&self) -> bool {
@@ -39,6 +45,9 @@ impl FormatExpr for ReactFormatExpr {
     }
 
     fn format_call(&self, name: &str, args: &[String]) -> String {
+        if let Some(native) = try_format_stdlib_call(name, args, Target::React) {
+            return native;
+        }
         translate_builtin_call(name, args)
     }
 
@@ -184,11 +193,12 @@ impl FormatStmt for ReactStmtFormatter {
                     w.emit_fmt(format_args!("{}.push({});", target, amount));
                 }
             }
-            other => {
-                w.emit_fmt(format_args!(
-                    "// TODO: mutation operation '{}' on {}",
-                    other, target
-                ));
+            MutationOp::Pop => {
+                if use_setter {
+                    w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
+                } else {
+                    w.emit_fmt(format_args!("{}.pop();", target));
+                }
             }
         }
     }
@@ -220,78 +230,17 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
 
 fn translate_builtin_call(name: &str, args: &[String]) -> String {
     match name {
-        // Console
-        "console_log" | "println" | "print" => format!("console.log({})", args.join(", ")),
-        "console_error" => format!("console.error({})", args.join(", ")),
-        "console_warn" => format!("console.warn({})", args.join(", ")),
-        // JSON
-        "json_parse" => format!("JSON.parse({})", args.join(", ")),
-        "json_stringify" => format!("JSON.stringify({})", args.join(", ")),
-        // Storage
-        "storage_get" => format!("localStorage.getItem({})", args.join(", ")),
-        "storage_set" => format!("localStorage.setItem({})", args.join(", ")),
+        // Console aliases (console_log itself is in stdlib, but println/print are not)
+        "println" | "print" => format!("console.log({})", args.join(", ")),
+        // Storage (storage_get/set are in stdlib; storage_remove is not)
         "storage_remove" => format!("localStorage.removeItem({})", args.join(", ")),
-        // Array
-        "array_is_empty" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("(!({}) || {}.length === 0)", a, a)
-        }
-        "array_length" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("{}.length", a)
-        }
-        "array_push" => {
-            let arr = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("[{}, {}]", arr, rest.join(", "))
-        }
-        "array_pop" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("{}.slice(0, -1)", a)
-        }
-        "array_filter" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let pred = args.get(1).map(|s| s.as_str()).unwrap_or("");
-            format!("{}.filter({})", a, pred)
-        }
-        "array_map" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let mapper = args.get(1).map(|s| s.as_str()).unwrap_or("");
-            format!("{}.map({})", a, mapper)
-        }
-        "array_find" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let pred = args.get(1).map(|s| s.as_str()).unwrap_or("");
-            format!("{}.find({})", a, pred)
-        }
-        "array_contains" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let item = args.get(1).map(|s| s.as_str()).unwrap_or("");
-            format!("{}.includes({})", a, item)
-        }
+        // Array (most array_* are in stdlib; array_join is not)
         "array_join" => {
             let a = args.first().map(|s| s.as_str()).unwrap_or("");
             let sep = args.get(1).map(|s| s.as_str()).unwrap_or(",");
             format!("{}.join({})", a, sep)
         }
-        "array_sort" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("{}.slice().sort()", a)
-        }
-        "array_remove" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let idx = args.get(1).map(|s| s.as_str()).unwrap_or("0");
-            format!("{}.filter((_, __i) => __i !== {})", a, idx)
-        }
-        // Math
-        "math_abs" => format!("Math.abs({})", args.join(", ")),
-        "math_min" => format!("Math.min({})", args.join(", ")),
-        "math_max" => format!("Math.max({})", args.join(", ")),
-        "math_floor" => format!("Math.floor({})", args.join(", ")),
-        "math_ceil" => format!("Math.ceil({})", args.join(", ")),
-        "math_round" => format!("Math.round({})", args.join(", ")),
-        "math_sqrt" => format!("Math.sqrt({})", args.join(", ")),
-        "math_random" => "Math.random()".to_string(),
+        // Math (most math_* are in stdlib; math_random_int and math_clamp are not)
         "math_random_int" => {
             let min = args.first().map(|s| s.as_str()).unwrap_or("0");
             let max = args.get(1).map(|s| s.as_str()).unwrap_or("100");
@@ -300,61 +249,11 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
                 max, min, min
             )
         }
-        "math_pow" => format!("Math.pow({})", args.join(", ")),
         "math_clamp" => {
             let val = args.first().map(|s| s.as_str()).unwrap_or("0");
             let lo = args.get(1).map(|s| s.as_str()).unwrap_or("0");
             let hi = args.get(2).map(|s| s.as_str()).unwrap_or("1");
             format!("Math.min(Math.max({}, {}), {})", val, lo, hi)
-        }
-        // String builtins (function style: string_substring(obj, start, end))
-        "string_length" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("({}).length", a)
-        }
-        "string_substring" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).substring({})", a, rest.join(", "))
-        }
-        "string_split" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).split({})", a, rest.join(", "))
-        }
-        "string_replace" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).replace({})", a, rest.join(", "))
-        }
-        "string_join" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).join({})", a, rest.join(", "))
-        }
-        "string_ends_with" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).endsWith({})", a, rest.join(", "))
-        }
-        "string_starts_with" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).startsWith({})", a, rest.join(", "))
-        }
-        "string_concat" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).concat({})", a, rest.join(", "))
-        }
-        "string_contains" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            let rest: Vec<&str> = args.iter().skip(1).map(|s| s.as_str()).collect();
-            format!("({}).includes({})", a, rest.join(", "))
-        }
-        "string_trim" => {
-            let a = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("({}).trim()", a)
         }
         // Date/time
         "datetime_now" => "new Date().toISOString()".to_string(),
@@ -409,16 +308,6 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
             let promise = args.first().map(|s| s.as_str()).unwrap_or("");
             let ms = args.get(1).map(|s| s.as_str()).unwrap_or("5000");
             format!("Promise.race([{}, new Promise((_, _rej) => setTimeout(() => _rej(new Error('timeout')), {}))])", promise, ms)
-        }
-        // HTTP
-        "http_get" => {
-            let url = args.first().map(|s| s.as_str()).unwrap_or("");
-            format!("fetch({})", url)
-        }
-        "http_post" => {
-            let url = args.first().map(|s| s.as_str()).unwrap_or("");
-            let body = args.get(1).map(|s| s.as_str()).unwrap_or("{}");
-            format!("fetch({}, {{ method: 'POST', body: {} }})", url, body)
         }
         // Encoding
         "encode_url_encode" => format!("encodeURIComponent({})", args.join(", ")),

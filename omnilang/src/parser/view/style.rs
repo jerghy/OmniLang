@@ -49,7 +49,7 @@ impl<'a> Parser<'a> {
                     }
                     ref kind => {
                         if let Some(kw) = keyword_as_ident_name(kind) {
-                            name.push_str(&kw);
+                            name.push_str(kw);
                             self.advance();
                         } else {
                             break;
@@ -662,6 +662,8 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::RBracket => "]".into(),
         TokenKind::TemplateString(s) => format!("`{}`", s),
         // Fallback: try keyword_as_ident_name for keyword tokens
-        other => crate::parser::stmt::keyword_as_ident_name(other).unwrap_or_default(),
+        other => crate::parser::stmt::keyword_as_ident_name(other)
+            .unwrap_or_default()
+            .to_string(),
     }
 }

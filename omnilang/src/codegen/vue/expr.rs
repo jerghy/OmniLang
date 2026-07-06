@@ -4,7 +4,7 @@ use super::CodeWriter;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
-use crate::codegen::{JsonFormatConfig, JSON_VUE};
+use crate::codegen::{JsonFormatConfig, Target, JSON_VUE};
 use crate::ir::*;
 
 /// Vue expression formatter.
@@ -15,6 +15,10 @@ pub(crate) struct VueFormatExpr;
 impl FormatExpr for VueFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &JSON_VUE
+    }
+
+    fn codegen_target(&self) -> Target {
+        Target::Vue
     }
 
     fn strict_eq(&self) -> bool {
@@ -81,39 +85,8 @@ impl FormatStmt for VueStmtFormatter {
             .unwrap_or_default()
     }
 
-    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|e| self.expr.format_expr(e))
-            .unwrap_or_else(|| "0".into());
-        match &intent.operation {
-            MutationOp::DirectAssign => {
-                w.emit_fmt(format_args!("{}.value = {};", target, amount));
-            }
-            MutationOp::Increment => {
-                w.emit_fmt(format_args!("{}.value += {};", target, amount));
-            }
-            MutationOp::Decrement => {
-                w.emit_fmt(format_args!("{}.value -= {};", target, amount));
-            }
-            MutationOp::Multiply => {
-                w.emit_fmt(format_args!("{}.value *= {};", target, amount));
-            }
-            MutationOp::Divide => {
-                w.emit_fmt(format_args!("{}.value /= {};", target, amount));
-            }
-            MutationOp::Modulo => {
-                w.emit_fmt(format_args!("{}.value %= {};", target, amount));
-            }
-            other => {
-                w.emit_fmt(format_args!(
-                    "// TODO: mutation operation '{}' on {}",
-                    other, target
-                ));
-            }
-        }
+    fn mutation_target_expr(&self, target: &str) -> String {
+        format!("{}.value", target)
     }
 }
 

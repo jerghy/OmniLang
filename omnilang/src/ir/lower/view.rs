@@ -6,6 +6,7 @@ use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::TriggerKind;
 use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
 use std::cell::Cell;
 use std::collections::HashMap;
 
@@ -20,10 +21,17 @@ pub(super) fn lower_view_block(
     view: &ViewBlock,
     string_signals: &[String],
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ViewTree {
     if let Some(first) = view.children.first() {
         let sig_idx = Cell::new(0usize);
-        lower_view_node(first, string_signals, Some(&sig_idx), variant_map)
+        lower_view_node(
+            first,
+            string_signals,
+            Some(&sig_idx),
+            variant_map,
+            semantics,
+        )
     } else {
         ViewTree::Text("".into())
     }
@@ -172,17 +180,20 @@ pub(super) fn lower_view_node(
     string_signals: &[String],
     sig_idx: Option<&Cell<usize>>,
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ViewTree {
     match node {
-        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map),
+        ViewNode::Element(el) => lower_element(el, string_signals, sig_idx, variant_map, semantics),
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
-            ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None)))
+            ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None, semantics)))
         }
-        ViewNode::IfDirective(if_dir) => lower_if_directive(if_dir, string_signals, variant_map),
+        ViewNode::IfDirective(if_dir) => {
+            lower_if_directive(if_dir, string_signals, variant_map, semantics)
+        }
         ViewNode::ForDirective(for_dir) => {
-            lower_for_directive(for_dir, string_signals, variant_map)
+            lower_for_directive(for_dir, string_signals, variant_map, semantics)
         }
         ViewNode::SlotDirective {
             name,
@@ -201,6 +212,7 @@ fn lower_element(
     string_signals: &[String],
     sig_idx: Option<&Cell<usize>>,
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ViewTree {
     let mut props: Option<HashMap<String, ExprIR>> = None;
     let mut bindings: Option<HashMap<String, SignalRefIR>> = None;
@@ -234,7 +246,7 @@ fn lower_element(
             ElementProp::Static { name, value } => {
                 props
                     .get_or_insert_with(HashMap::new)
-                    .insert(name.clone(), lower_expr(value, variant_map, None));
+                    .insert(name.clone(), lower_expr(value, variant_map, None, semantics));
             }
             ElementProp::Bind { name, signal_path } => {
                 if name == "value" {
@@ -263,7 +275,8 @@ fn lower_element(
                             // Collect event field names during lowering instead
                             // of a separate pre-walk.
                             let mut event_fields = Vec::new();
-                            let block_ir = lower_block(body, variant_map, Some(&mut event_fields));
+                            let block_ir =
+                                lower_block(body, variant_map, Some(&mut event_fields), semantics);
 
                             EventHandlerIR {
                                 kind: EventHandlerKind::InlineFn,
@@ -278,7 +291,7 @@ fn lower_element(
                         } else {
                             EventHandlerIR {
                                 kind: EventHandlerKind::InlineFn,
-                                body: Some(lower_block(body, variant_map, None)),
+                                body: Some(lower_block(body, variant_map, None, semantics)),
                                 r#ref: None,
                                 params: params.iter().map(|p| p.name.clone()).collect(),
                                 event_data: None,
@@ -345,7 +358,7 @@ fn lower_element(
                             // Collect dynamic bindings (non-literal values) for reactive JS toggling
                             if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
                                 class_map_bindings
-                                    .insert(key.clone(), lower_expr(val_expr, variant_map, None));
+                                    .insert(key.clone(), lower_expr(val_expr, variant_map, None, semantics));
                             }
                         }
                         static_classes.join(" ")
@@ -366,7 +379,7 @@ fn lower_element(
                 let style_map: serde_json::Map<String, serde_json::Value> = entries
                     .iter()
                     .map(|(key, expr)| {
-                        let ir_expr = lower_expr(expr, variant_map, None);
+                        let ir_expr = lower_expr(expr, variant_map, None, semantics);
                         let json_val = super::expr::lower_expr_to_json_from_ir(&ir_expr);
                         (key.clone(), json_val)
                     })
@@ -425,12 +438,12 @@ fn lower_element(
                     let properties: HashMap<String, ExprIR> = state_def
                         .properties
                         .iter()
-                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None)))
+                        .map(|(k, v)| (k.clone(), lower_expr(v, variant_map, None, semantics)))
                         .collect();
                     let over = state_def
                         .over
                         .as_ref()
-                        .map(|e| lower_expr(e, variant_map, None));
+                        .map(|e| lower_expr(e, variant_map, None, semantics));
                     let ease = state_def.ease.as_ref().map(super::motion::lower_easing);
                     states_hm.insert(
                         name.clone(),
@@ -445,11 +458,11 @@ fn lower_element(
             }
             // Animate signal: @state={signal}
             ElementProp::AnimateSignal(expr) => {
-                animate_signal = Some(lower_expr(expr, variant_map, None));
+                animate_signal = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Paused override: @paused={expr}
             ElementProp::PausedOverride(expr) => {
-                paused_override = Some(lower_expr(expr, variant_map, None));
+                paused_override = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Hover reverse animation name
             ElementProp::HoverReverse(s) => {
@@ -457,19 +470,19 @@ fn lower_element(
             }
             // Driven-by expression for external progress control
             ElementProp::DrivenBy(expr) => {
-                driven_by = Some(lower_expr(expr, variant_map, None));
+                driven_by = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // InView trigger: once
             ElementProp::InViewOnce(expr) => {
-                in_view_once = Some(lower_expr(expr, variant_map, None));
+                in_view_once = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // InView trigger: repeat
             ElementProp::InViewRepeat(expr) => {
-                in_view_repeat = Some(lower_expr(expr, variant_map, None));
+                in_view_repeat = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // InView trigger: threshold
             ElementProp::InViewThreshold(expr) => {
-                in_view_threshold = Some(lower_expr(expr, variant_map, None));
+                in_view_threshold = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Parent-child orchestration
             ElementProp::When(_)
@@ -485,33 +498,33 @@ fn lower_element(
                 scroll_end = Some(s.clone());
             }
             ElementProp::ScrollScrub(expr) => {
-                scroll_scrub = Some(lower_expr(expr, variant_map, None));
+                scroll_scrub = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Drag sub-attributes
             ElementProp::DragConstraints(s) => {
                 drag_constraints = Some(s.clone());
             }
             ElementProp::DragElastic(expr) => {
-                drag_elastic = Some(lower_expr(expr, variant_map, None));
+                drag_elastic = Some(lower_expr(expr, variant_map, None, semantics));
             }
             ElementProp::DragScrub(expr) => {
-                drag_scrub = Some(lower_expr(expr, variant_map, None));
+                drag_scrub = Some(lower_expr(expr, variant_map, None, semantics));
             }
             ElementProp::DragMomentum(expr) => {
-                drag_momentum = Some(lower_expr(expr, variant_map, None));
+                drag_momentum = Some(lower_expr(expr, variant_map, None, semantics));
             }
             ElementProp::DragThreshold(expr) => {
-                drag_threshold = Some(lower_expr(expr, variant_map, None));
+                drag_threshold = Some(lower_expr(expr, variant_map, None, semantics));
             }
             ElementProp::DragVelocityMax(expr) => {
-                drag_velocity_max = Some(lower_expr(expr, variant_map, None));
+                drag_velocity_max = Some(lower_expr(expr, variant_map, None, semantics));
             }
             // Hero attributes
             ElementProp::HeroTag(s) => {
                 hero_tag = Some(s.clone());
             }
             ElementProp::HeroTransition(expr) => {
-                hero_transition = Some(lower_expr(expr, variant_map, None));
+                hero_transition = Some(lower_expr(expr, variant_map, None, semantics));
             }
         }
     }
@@ -535,7 +548,7 @@ fn lower_element(
     let children: Vec<ViewTree> = el
         .children
         .iter()
-        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map))
+        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics))
         .collect();
 
     ViewTree::Element(ElementIR {
@@ -586,24 +599,25 @@ fn lower_if_directive(
     if_dir: &IfDirective,
     string_signals: &[String],
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ViewTree {
     let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
-        condition: lower_expr(&if_dir.condition, variant_map, None),
+        condition: lower_expr(&if_dir.condition, variant_map, None, semantics),
         body: Some(make_fragment_element(
             if_dir
                 .body
                 .iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map))
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
                 .collect(),
             ConstructionKind::Conditional,
         )),
     })
     .chain(if_dir.else_ifs.iter().map(|(cond, body)| {
         ConditionalBranch {
-            condition: lower_expr(cond, variant_map, None),
+            condition: lower_expr(cond, variant_map, None, semantics),
             body: Some(make_fragment_element(
                 body.iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map))
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
                     .collect(),
                 ConstructionKind::Conditional,
             )),
@@ -614,7 +628,7 @@ fn lower_if_directive(
     let fallback = if_dir.else_body.as_ref().map(|body| {
         make_fragment_element(
             body.iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map))
+                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics))
                 .collect(),
             ConstructionKind::Conditional,
         )
@@ -635,15 +649,16 @@ fn lower_for_directive(
     for_dir: &ForDirective,
     string_signals: &[String],
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ViewTree {
-    let lower_body = |nodes: &[ViewNode]| -> Option<ViewTree> {
+    let lower_body = |nodes: &[ViewNode], s: &mut SemanticResult| -> Option<ViewTree> {
         if nodes.is_empty() {
             None
         } else {
             Some(make_fragment_element(
                 nodes
                     .iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map))
+                    .map(|n| lower_view_node(n, string_signals, None, variant_map, s))
                     .collect(),
                 ConstructionKind::List,
             ))
@@ -651,20 +666,20 @@ fn lower_for_directive(
     };
 
     ViewTree::ListRendering(Box::new(ListRenderingIntent {
-        iterable: lower_expr(&for_dir.iterable, variant_map, None),
+        iterable: lower_expr(&for_dir.iterable, variant_map, None, semantics),
         item_binding: BindingIR {
             name: for_dir.item_name.clone(),
             r#type: None,
         },
-        body: lower_body(&for_dir.body),
+        body: lower_body(&for_dir.body, semantics),
         key_expr: for_dir
             .key_expr
             .as_ref()
-            .map(|e| lower_expr(e, variant_map, None)),
+            .map(|e| lower_expr(e, variant_map, None, semantics)),
         empty_body: for_dir
             .empty_body
             .as_ref()
-            .and_then(|nodes| lower_body(nodes.as_slice())),
+            .and_then(|nodes| lower_body(nodes.as_slice(), semantics)),
     }))
 }
 

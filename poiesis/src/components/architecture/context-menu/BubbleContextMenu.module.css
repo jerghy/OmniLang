@@ -1,0 +1,7 @@
+.menuItem {
+  background: transparent;
+  transition: background 0.15s;
+}
+.menuItem:hover {
+  background: var(--color-surface-hover);
+}

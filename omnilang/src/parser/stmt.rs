@@ -16,11 +16,11 @@ impl<'a> Parser<'a> {
         let mut stmts = Vec::new();
         let mut trailing_expr: Option<Expr> = None;
 
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
             match self.parse_stmt() {
                 Ok(stmt) => {
                     // Check if this statement is actually a trailing expression
-                    if self.peek_kind() == TokenKind::RBrace {
+                    if self.at(&TokenKind::RBrace) {
                         if let Stmt::ExprStmt { expr, .. } = &stmt {
                             trailing_expr = Some(expr.clone());
                             break;
@@ -31,7 +31,7 @@ impl<'a> Parser<'a> {
                 Err(e) => {
                     self.emit_error(e);
                     self.recover_from_error();
-                    if self.peek_kind() == TokenKind::RBrace {
+                    if self.at(&TokenKind::RBrace) {
                         break;
                     }
                 }
@@ -98,9 +98,7 @@ impl<'a> Parser<'a> {
                         let span = *span_of(&expr);
 
                         // Check for semicolon (optional)
-                        if self.peek_kind() == TokenKind::Semicolon {
-                            self.advance();
-                        }
+                        self.advance_if(&TokenKind::Semicolon);
 
                         Ok(Stmt::ExprStmt { expr, span })
                     }
@@ -108,9 +106,7 @@ impl<'a> Parser<'a> {
                         let span = e.span;
                         self.emit_error(e);
                         self.recover_from_error();
-                        if self.peek_kind() == TokenKind::Semicolon {
-                            self.advance();
-                        }
+                        self.advance_if(&TokenKind::Semicolon);
                         Ok(Stmt::Error {
                             message: "expression parse error".to_string(),
                             span,
@@ -126,29 +122,27 @@ impl<'a> Parser<'a> {
     fn parse_var_decl(&mut self) -> Result<Stmt, ParseError> {
         let start = self.peek_span();
         self.advance(); // 'let'
-        let mutable = self.peek_kind() == TokenKind::Mut;
+        let mutable = self.at(&TokenKind::Mut);
         if mutable {
             self.advance();
         }
 
         let name = self.expect_ident("expected variable name")?;
-        let type_ann = if self.peek_kind() == TokenKind::Colon {
+        let type_ann = if self.at(&TokenKind::Colon) {
             self.advance();
             Some(self.parse_type_annotation()?)
         } else {
             None
         };
 
-        let init = if self.peek_kind() == TokenKind::Eq {
+        let init = if self.at(&TokenKind::Eq) {
             self.advance();
             Some(self.parse_expr()?)
         } else {
             None
         };
 
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
 
         let end = self.peek_span();
         Ok(Stmt::VarDecl {
@@ -174,9 +168,9 @@ impl<'a> Parser<'a> {
         let mut else_ifs = Vec::new();
         let mut else_body = None;
 
-        while self.peek_kind() == TokenKind::Else {
+        while self.at(&TokenKind::Else) {
             self.advance();
-            if self.peek_kind() == TokenKind::If {
+            if self.at(&TokenKind::If) {
                 self.advance();
                 let cond = self.parse_expr()?;
                 let body = self.parse_block()?;
@@ -241,44 +235,35 @@ impl<'a> Parser<'a> {
     fn parse_return_stmt(&mut self) -> Result<Stmt, ParseError> {
         let span = self.peek_span();
         self.advance(); // 'return'
-        let value =
-            if self.peek_kind() != TokenKind::Semicolon && self.peek_kind() != TokenKind::RBrace {
-                Some(self.parse_expr()?)
-            } else {
-                None
-            };
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        let value = if !self.at(&TokenKind::Semicolon) && !self.at(&TokenKind::RBrace) {
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+        self.advance_if(&TokenKind::Semicolon);
         Ok(Stmt::Return { value, span })
     }
 
     fn parse_break_stmt(&mut self) -> Result<Stmt, ParseError> {
         let span = self.peek_span();
         self.advance();
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
         Ok(Stmt::Break(span))
     }
 
     fn parse_continue_stmt(&mut self) -> Result<Stmt, ParseError> {
         let span = self.peek_span();
         self.advance();
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
         Ok(Stmt::Continue(span))
     }
 
     fn parse_print_stmt(&mut self) -> Result<Stmt, ParseError> {
-        let newline = self.peek_kind() == TokenKind::Println;
+        let newline = self.at(&TokenKind::Println);
         let span = self.peek_span();
         self.advance(); // 'print' or 'println'
         let arg = self.parse_expr()?;
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
         Ok(Stmt::Print { newline, arg, span })
     }
 
@@ -289,10 +274,10 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected type name")?;
 
         // Check for generics: Array<String>, Map<String, i32>, etc.
-        let type_args = if self.peek_kind() == TokenKind::Lt {
+        let type_args = if self.at(&TokenKind::Lt) {
             self.advance();
             let mut args = vec![self.parse_type_annotation()?];
-            while self.peek_kind() == TokenKind::Comma {
+            while self.at(&TokenKind::Comma) {
                 self.advance();
                 args.push(self.parse_type_annotation()?);
             }
@@ -303,7 +288,7 @@ impl<'a> Parser<'a> {
         };
 
         // Check for optional: Type?
-        let is_optional = self.peek_kind() == TokenKind::QuestionMark;
+        let is_optional = self.at(&TokenKind::QuestionMark);
         if is_optional {
             self.advance();
         }
@@ -339,9 +324,7 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.advance(); // 'throw'
         let expr = self.parse_expr()?;
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
         let end = self.peek_span();
         Ok(Stmt::Throw {
             expr,
@@ -362,17 +345,17 @@ impl<'a> Parser<'a> {
         let mut catch_var = None;
         let mut catch_body = None;
 
-        if self.peek_kind() == TokenKind::Catch {
+        if self.at(&TokenKind::Catch) {
             self.advance(); // 'catch'
                             // Optional catch variable: catch err { ... } or catch { ... }
-            if self.peek_kind() != TokenKind::LBrace {
+            if !self.at(&TokenKind::LBrace) {
                 catch_var = Some(self.expect_ident("expected catch variable")?);
             }
             catch_body = Some(self.parse_block()?);
         }
 
         let mut finally_body = None;
-        if self.peek_kind() == TokenKind::Finally {
+        if self.at(&TokenKind::Finally) {
             self.advance(); // 'finally'
             finally_body = Some(self.parse_block()?);
         }
@@ -406,17 +389,15 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected event name after 'emit'")?;
         self.expect_token(TokenKind::LParen, "expected '(' after event name")?;
         let mut args = Vec::new();
-        if self.peek_kind() != TokenKind::RParen {
+        if !self.at(&TokenKind::RParen) {
             args.push(self.parse_expr()?);
-            while self.peek_kind() == TokenKind::Comma {
+            while self.at(&TokenKind::Comma) {
                 self.advance();
                 args.push(self.parse_expr()?);
             }
         }
         self.expect_token(TokenKind::RParen, "expected ')'")?;
-        if self.peek_kind() == TokenKind::Semicolon {
-            self.advance();
-        }
+        self.advance_if(&TokenKind::Semicolon);
         Ok(Stmt::EventEmit { name, args, span })
     }
 
@@ -451,7 +432,7 @@ impl<'a> Parser<'a> {
             _ => {
                 if let Some(name) = keyword_as_ident_name(&t.kind) {
                     self.advance();
-                    Some(name)
+                    Some(name.to_string())
                 } else {
                     None
                 }
@@ -466,7 +447,7 @@ impl<'a> Parser<'a> {
             _ => {
                 // Accept contextual keywords as identifiers
                 if let Some(name) = keyword_as_ident_name(&t.kind) {
-                    return Ok(name);
+                    return Ok(name.to_string());
                 }
                 Err(ParseError {
                     message: format!("{} — found {:?}", msg, t.kind),
@@ -489,63 +470,63 @@ impl<'a> Parser<'a> {
 /// Convert keyword tokens to their identifier name string when used in context
 /// where identifiers are expected (parameter names, variable names, etc.).
 /// Returns None for tokens that are not valid as identifiers.
-pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<String> {
+pub(crate) fn keyword_as_ident_name(kind: &TokenKind) -> Option<&'static str> {
     match kind {
         // OmniView keywords that can be used as variable/param names
-        TokenKind::Event => Some("event".into()),
-        TokenKind::Signal => Some("signal".into()),
-        TokenKind::Computed => Some("computed".into()),
-        TokenKind::Prop => Some("prop".into()),
-        TokenKind::Ref => Some("ref".into()),
-        TokenKind::Store => Some("store".into()),
-        TokenKind::Action => Some("action".into()),
-        TokenKind::Getter => Some("getter".into()),
-        TokenKind::View => Some("view".into()),
-        TokenKind::Style => Some("style".into()),
-        TokenKind::Theme => Some("theme".into()),
-        TokenKind::Component => Some("component".into()),
-        TokenKind::Bind => Some("bind".into()),
-        TokenKind::Emit => Some("emit".into()),
+        TokenKind::Event => Some("event"),
+        TokenKind::Signal => Some("signal"),
+        TokenKind::Computed => Some("computed"),
+        TokenKind::Prop => Some("prop"),
+        TokenKind::Ref => Some("ref"),
+        TokenKind::Store => Some("store"),
+        TokenKind::Action => Some("action"),
+        TokenKind::Getter => Some("getter"),
+        TokenKind::View => Some("view"),
+        TokenKind::Style => Some("style"),
+        TokenKind::Theme => Some("theme"),
+        TokenKind::Component => Some("component"),
+        TokenKind::Bind => Some("bind"),
+        TokenKind::Emit => Some("emit"),
         // om nilang keywords
-        TokenKind::Fn => Some("fn".into()),
-        TokenKind::Const => Some("const".into()),
-        TokenKind::Let => Some("let".into()),
-        TokenKind::Mut => Some("mut".into()),
-        TokenKind::If => Some("if".into()),
-        TokenKind::Else => Some("else".into()),
-        TokenKind::While => Some("while".into()),
-        TokenKind::For => Some("for".into()),
-        TokenKind::In => Some("in".into()),
-        TokenKind::Return => Some("return".into()),
-        TokenKind::Async => Some("async".into()),
-        TokenKind::Await => Some("await".into()),
-        TokenKind::Match => Some("match".into()),
-        TokenKind::Struct => Some("struct".into()),
-        TokenKind::Class => Some("class".into()),
-        TokenKind::Interface => Some("interface".into()),
-        TokenKind::Impl => Some("impl".into()),
-        TokenKind::Extends => Some("extends".into()),
-        TokenKind::Implements => Some("implements".into()),
-        TokenKind::Type => Some("type".into()),
-        TokenKind::Nominal => Some("nominal".into()),
-        TokenKind::Static => Some("static".into()),
-        TokenKind::Private => Some("private".into()),
-        TokenKind::Override => Some("override".into()),
-        TokenKind::Import => Some("import".into()),
-        TokenKind::From => Some("from".into()),
-        TokenKind::Export => Some("export".into()),
-        TokenKind::Print => Some("print".into()),
-        TokenKind::Println => Some("println".into()),
+        TokenKind::Fn => Some("fn"),
+        TokenKind::Const => Some("const"),
+        TokenKind::Let => Some("let"),
+        TokenKind::Mut => Some("mut"),
+        TokenKind::If => Some("if"),
+        TokenKind::Else => Some("else"),
+        TokenKind::While => Some("while"),
+        TokenKind::For => Some("for"),
+        TokenKind::In => Some("in"),
+        TokenKind::Return => Some("return"),
+        TokenKind::Async => Some("async"),
+        TokenKind::Await => Some("await"),
+        TokenKind::Match => Some("match"),
+        TokenKind::Struct => Some("struct"),
+        TokenKind::Class => Some("class"),
+        TokenKind::Interface => Some("interface"),
+        TokenKind::Impl => Some("impl"),
+        TokenKind::Extends => Some("extends"),
+        TokenKind::Implements => Some("implements"),
+        TokenKind::Type => Some("type"),
+        TokenKind::Nominal => Some("nominal"),
+        TokenKind::Static => Some("static"),
+        TokenKind::Private => Some("private"),
+        TokenKind::Override => Some("override"),
+        TokenKind::Import => Some("import"),
+        TokenKind::From => Some("from"),
+        TokenKind::Export => Some("export"),
+        TokenKind::Print => Some("print"),
+        TokenKind::Println => Some("println"),
         // Literal keywords
-        TokenKind::True => Some("true".into()),
-        TokenKind::False => Some("false".into()),
-        TokenKind::Null => Some("null".into()),
+        TokenKind::True => Some("true"),
+        TokenKind::False => Some("false"),
+        TokenKind::Null => Some("null"),
         // Control flow keywords that may appear in text context
-        TokenKind::Break => Some("break".into()),
-        TokenKind::Continue => Some("continue".into()),
-        TokenKind::As => Some("as".into()),
-        TokenKind::Pub => Some("pub".into()),
-        TokenKind::IfMode => Some("if_mode".into()),
+        TokenKind::Break => Some("break"),
+        TokenKind::Continue => Some("continue"),
+        TokenKind::As => Some("as"),
+        TokenKind::Pub => Some("pub"),
+        TokenKind::IfMode => Some("if_mode"),
         _ => None,
     }
 }

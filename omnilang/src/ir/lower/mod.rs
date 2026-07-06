@@ -23,7 +23,7 @@ use crate::semantic::SemanticResult;
 use std::collections::HashMap;
 
 /// Lower AST -> IR.
-pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
+pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
     let mut modules = HashMap::new();
 
     // Build variant → union name lookup for tagged union construction
@@ -47,17 +47,27 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
         let mut exports: Vec<ExportIR> = Vec::new();
 
         for comp in &module.components {
-            let ir = lower_component(comp, &variant_map);
+            semantics
+                .symbols
+                .push_scope(&format!("component:{}", comp.name));
+            let ir = lower_component(comp, &variant_map, semantics);
+            semantics.symbols.pop_scope();
             components.insert(comp.name.clone(), ir);
         }
 
         for store in &module.stores {
-            let ir = lower_store(store, &variant_map);
+            semantics
+                .symbols
+                .push_scope(&format!("store:{}", store.name));
+            let ir = lower_store(store, &variant_map, semantics);
+            semantics.symbols.pop_scope();
             stores.insert(store.name.clone(), ir);
         }
 
         for func in &module.functions {
-            let ir = super::lower_logic::lower_function(func, &variant_map);
+            semantics.symbols.push_scope(&format!("fn:{}", func.name));
+            let ir = super::lower_logic::lower_function(func, &variant_map, semantics);
+            semantics.symbols.pop_scope();
             functions.insert(func.name.clone(), ir);
         }
 
@@ -87,13 +97,13 @@ pub fn lower(program: &Program, _semantics: &SemanticResult) -> IRProgram {
         let motions: Vec<MotionIntent> = module
             .motions
             .iter()
-            .map(|m| lower_motion_def(m, &variant_map))
+            .map(|m| lower_motion_def(m, &variant_map, semantics))
             .collect();
 
         let timelines: Vec<TimelineIntent> = module
             .timelines
             .iter()
-            .map(|t| lower_timeline_def(t, &variant_map))
+            .map(|t| lower_timeline_def(t, &variant_map, semantics))
             .collect();
 
         let module_ir = ModuleIR {
@@ -151,8 +161,8 @@ mod tests {
     fn lower_source(source: &str) -> IRProgram {
         let tokens = tokenize(source);
         let program = parse(&tokens, source).expect("parse should succeed");
-        let semantics = analyze(&program);
-        lower(&program, &semantics)
+        let mut semantics = analyze(&program);
+        lower(&program, &mut semantics)
     }
 
     #[test]

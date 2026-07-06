@@ -5,14 +5,9 @@
  *  - file:// 协议下 DOM clipboard API 不可用
  *  - 同步操作，无需 async 权限请求 */
 
-import type { Command, CommandContext } from "./types";
-import type { ElementData, WireData } from "../types";
-import { AddElement } from "./AddElement";
-import { AddWire } from "./AddWire";
-import { RemoveElement } from "./RemoveElement";
-import { RemoveWire } from "./RemoveWire";
-import { CompositeCommand } from "./CompositeCommand";
-import { uid } from "../../lib/utils/id";
+import type { ElementData, WireData } from "./types";
+import { usePoiesisStore } from "../store";
+import { uid } from "../lib/utils/id";
 
 // ── Clipboard data types ────────────────────────────────────────────
 
@@ -41,18 +36,18 @@ export function hasClipboard(): boolean {
  * 对于 view 元素会递归收集子元素。
  */
 export function copySelection(
-  ctx: CommandContext,
   selectedIds: string[],
 ): ClipboardData | null {
   if (selectedIds.length === 0) return null;
 
   const idSet = new Set(selectedIds);
+  const { elements, wires } = usePoiesisStore.getState();
 
   // 递归收集子元素（仅 view 元素有 children 层级）
   const stack = [...selectedIds];
   while (stack.length > 0) {
     const id = stack.pop()!;
-    const el = ctx.elements.find((e) => e.id === id);
+    const el = elements.find((e) => e.id === id);
     if (el && el.children.length > 0) {
       for (const childId of el.children) {
         if (!idSet.has(childId)) {
@@ -64,14 +59,14 @@ export function copySelection(
   }
 
   // 收集元素
-  const elements = ctx.elements.filter((e) => idSet.has(e.id));
+  const clipboardElements = elements.filter((e) => idSet.has(e.id));
 
   // 收集连线：仅包含两端都在选中集合内的连线
-  const wires = ctx.wires.filter(
+  const clipboardWires = wires.filter(
     (w) => idSet.has(w.fromId) && idSet.has(w.toId),
   );
 
-  clipboardBuffer = { elements, wires, sourceMode: "code" };
+  clipboardBuffer = { elements: clipboardElements, wires: clipboardWires, sourceMode: "code" };
 
   return clipboardBuffer;
 }
@@ -84,7 +79,6 @@ export function copySelection(
  * 返回粘贴元素的 ID 列表。
  */
 export function pasteFromClipboard(
-  ctx: CommandContext,
   offsetX = 40,
   offsetY = 40,
 ): string[] | null {
@@ -133,19 +127,14 @@ export function pasteFromClipboard(
     })
     .filter((w): w is WireData => w !== null);
 
-  // 4. 构建 CompositeCommand
-  const commands: Command[] = [
-    ...newElements.map((el) => new AddElement(el)),
-    ...newWires.map((w) => new AddWire(w)),
-  ];
-
-  if (commands.length === 0) return [];
-
-  const composite = new CompositeCommand(
-    commands,
-    `粘贴 ${newElements.length} 个元素`,
-  );
-  composite.execute(ctx);
+  // 4. 直接通过 store 添加元素和连线
+  const store = usePoiesisStore.getState();
+  for (const el of newElements) {
+    store.addElement(el);
+  }
+  for (const w of newWires) {
+    store.addWire(w);
+  }
 
   return newElements.map((el) => el.id);
 }
@@ -156,36 +145,27 @@ export function pasteFromClipboard(
  * 剪切：复制选中元素到剪贴板，然后删除它们。
  */
 export function cutSelection(
-  ctx: CommandContext,
   selectedIds: string[],
 ): string[] | null {
-  const data = copySelection(ctx, selectedIds);
+  const data = copySelection(selectedIds);
   if (!data) return null;
 
   // 收集所有要删除的 ID（含子元素）
   const idSet = new Set(data.elements.map((e) => e.id));
-
-  // 构建删除命令：先删连线，再删元素
-  const commands: Command[] = [];
+  const store = usePoiesisStore.getState();
 
   // 删除与这些元素相关的所有连线
-  const affectedWires = ctx.wires.filter(
+  const affectedWires = store.wires.filter(
     (w) => idSet.has(w.fromId) || idSet.has(w.toId),
   );
   for (const w of affectedWires) {
-    commands.push(new RemoveWire(w.id));
+    store.removeWire(w.id);
   }
 
   // 删除元素
   for (const id of selectedIds) {
-    commands.push(new RemoveElement(id));
+    store.removeElement(id);
   }
-
-  const composite = new CompositeCommand(
-    commands,
-    `剪切 ${selectedIds.length} 个元素`,
-  );
-  composite.execute(ctx);
 
   return data.elements.map((e) => e.id);
 }
@@ -197,20 +177,19 @@ export function cutSelection(
  * 等价于 copy + paste，但不修改剪贴板内容。
  */
 export function duplicateSelection(
-  ctx: CommandContext,
   selectedIds: string[],
 ): string[] | null {
   if (selectedIds.length === 0) return null;
 
   // 临时保存剪贴板
   const saved = clipboardBuffer;
-  const data = copySelection(ctx, selectedIds);
+  const data = copySelection(selectedIds);
   if (!data) {
     clipboardBuffer = saved;
     return null;
   }
 
-  const pastedIds = pasteFromClipboard(ctx, 45, 45);
+  const pastedIds = pasteFromClipboard(45, 45);
 
   // 恢复剪贴板（复制不应该影响剪贴板）
   clipboardBuffer = saved;

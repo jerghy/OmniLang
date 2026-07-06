@@ -75,7 +75,7 @@ pub fn analyse_multi(
     };
 
     for (path, program) in &programs {
-        let semantics = crate::semantic::analyze(program);
+        let mut semantics = crate::semantic::analyze(program);
         for d in &semantics.diagnostics {
             let mut d = d.clone();
             if d.file.is_none() {
@@ -84,7 +84,7 @@ pub fn analyse_multi(
             diags.push(d);
         }
 
-        let ir_program = crate::ir::lower(program, &semantics);
+        let ir_program = crate::ir::lower(program, &mut semantics);
 
         // Stamp source file path onto IR nodes for multi-file codegen,
         // then merge modules — combine declarations from multiple files.

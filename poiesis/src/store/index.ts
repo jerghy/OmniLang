@@ -11,6 +11,9 @@ import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
 import type { UndoStack } from "./undo-slice";
 import { buildUndoUpdate, createUndoSlice } from "./undo-slice";
 import { createTabSlice } from "./tab-slice";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("store");
 
 // ── Store Interface ──
 
@@ -426,11 +429,21 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     isDirty: true,
   })),
 
-  setElementsAndWires: (elements, wires) => set({
-    elements,
-    wires,
-    rootOrder: elements.filter(e => !e.parentId).map(e => e.id),
-    selectedElementIds: [],
+  setElementsAndWires: (elements, wires) => set((s) => {
+    const prevElements = [...s.elements];
+    const prevWires = [...s.wires];
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "setElementsAndWires", prevElements, prevWires, newElements: elements, newWires: wires },
+    );
+    return {
+      ...undoUpdate,
+      elements,
+      wires,
+      rootOrder: elements.filter(e => !e.parentId).map(e => e.id),
+      selectedElementIds: [],
+    };
   }),
 
   moveElement: (elementId, newParentId, targetSiblingId, position) => set((s) => {
@@ -504,7 +517,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     const parentId = el.parentId;
     const parent = parentId ? s.elements.find(e => e.id === parentId) : undefined;
     if (parentId && !parent) {
-      console.warn('[store] reorderElement: parent not found for', elementId);
+      log.warn('reorderElement: parent not found for', elementId);
       return s;
     }
     const siblings = parent ? parent.children : s.rootOrder;
@@ -512,19 +525,26 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     if (idx === -1) return s;
     const targetIdx = siblings.indexOf(targetSiblingId);
     if (targetIdx === -1) return s;
+    const prevSiblingId = idx > 0 ? siblings[idx - 1] : null;
+    const undoUpdate = buildUndoUpdate(
+      s.undoStacks,
+      s.designPage.activeTabId,
+      { type: "reorderElement", elementId, parentId, prevSiblingId, targetSiblingId, position },
+    );
     const newSiblings = [...siblings];
     newSiblings.splice(idx, 1);
     const insertAt = position === "before" ? targetIdx : targetIdx + 1;
     newSiblings.splice(insertAt, 0, elementId);
     if (parentId) {
       return {
+        ...undoUpdate,
         elements: s.elements.map(e =>
           e.id === parentId ? { ...e, children: newSiblings } : e
         ),
         isDirty: true,
       };
     }
-    return { rootOrder: newSiblings, isDirty: true };
+    return { ...undoUpdate, rootOrder: newSiblings, isDirty: true };
   }),
 
   // ── Undo/redo ──

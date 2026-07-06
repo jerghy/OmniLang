@@ -7,6 +7,7 @@ use crate::ir::logic::*;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
 use std::collections::HashMap;
 
 use super::expr::lower_expr;
@@ -26,6 +27,7 @@ use crate::parser::ast::view::LifecycleKind as ParserLifecycleKind;
 pub(super) fn lower_component(
     comp: &ComponentDef,
     variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
 ) -> ComponentIR {
     let states: Vec<StateIntent> = comp
         .signals
@@ -33,7 +35,7 @@ pub(super) fn lower_component(
         .map(|s| StateIntent {
             name: s.name.clone(),
             r#type: lower_type(&s.type_ann),
-            initial_value: lower_expr(&s.init, variant_map, None),
+            initial_value: lower_expr(&s.init, variant_map, None, semantics),
             is_copy: false,
         })
         .collect();
@@ -44,7 +46,7 @@ pub(super) fn lower_component(
         .map(|c| ComputedIntent {
             name: c.name.clone(),
             r#type: lower_type(&c.type_ann),
-            body: lower_expr(&c.body, variant_map, None),
+            body: lower_expr(&c.body, variant_map, None, semantics),
             deps: vec![],
         })
         .collect();
@@ -54,7 +56,7 @@ pub(super) fn lower_component(
         computeds.push(ComputedIntent {
             name: g.name.clone(),
             r#type: lower_type(&g.type_ann),
-            body: lower_expr(&g.body, variant_map, None),
+            body: lower_expr(&g.body, variant_map, None, semantics),
             deps: vec![],
         });
     }
@@ -65,7 +67,7 @@ pub(super) fn lower_component(
         .filter(|lc| matches!(lc.kind, ParserLifecycleKind::Effect))
         .map(|lc| EffectIntent {
             deps: lc.deps.clone(),
-            body: lower_block(&lc.body, variant_map, None),
+            body: lower_block(&lc.body, variant_map, None, semantics),
         })
         .collect();
 
@@ -79,31 +81,37 @@ pub(super) fn lower_component(
                 ParserLifecycleKind::Unmount => IRLifecycleKind::Unmount,
                 ParserLifecycleKind::Effect => IRLifecycleKind::Effect,
             },
-            body: lower_block(&lc.body, variant_map, None),
+            body: lower_block(&lc.body, variant_map, None, semantics),
         })
         .collect();
 
     let mut fns: Vec<FunctionIR> = comp
         .fns
         .iter()
-        .map(|f| FunctionIR {
-            name: f.name.clone(),
-            visibility: IRVisibility::Private,
-            params: f
-                .params
-                .iter()
-                .map(|p| ParamIR {
-                    name: p.name.clone(),
-                    r#type: p.type_ann.as_ref().map(lower_type),
-                })
-                .collect(),
-            return_type: f.return_type.as_ref().map(lower_type),
-            body: lower_block(&f.body, variant_map, None),
-            is_async: f.is_async,
+        .map(|f| {
+            semantics.symbols.push_scope(&format!("fn:{}", f.name));
+            let result = FunctionIR {
+                name: f.name.clone(),
+                visibility: IRVisibility::Private,
+                params: f
+                    .params
+                    .iter()
+                    .map(|p| ParamIR {
+                        name: p.name.clone(),
+                        r#type: p.type_ann.as_ref().map(lower_type),
+                    })
+                    .collect(),
+                return_type: f.return_type.as_ref().map(lower_type),
+                body: lower_block(&f.body, variant_map, None, semantics),
+                is_async: f.is_async,
+            };
+            semantics.symbols.pop_scope();
+            result
         })
         .collect();
     // Also include component actions as regular functions
     for a in &comp.actions {
+        semantics.symbols.push_scope(&format!("fn:{}", a.name));
         fns.push(FunctionIR {
             name: a.name.clone(),
             visibility: IRVisibility::Private,
@@ -116,9 +124,10 @@ pub(super) fn lower_component(
                 })
                 .collect(),
             return_type: a.return_type.as_ref().map(lower_type),
-            body: lower_block(&a.body, variant_map, None),
+            body: lower_block(&a.body, variant_map, None, semantics),
             is_async: a.is_async,
         });
+        semantics.symbols.pop_scope();
     }
 
     let props: HashMap<String, TypeIR> = comp
@@ -133,7 +142,7 @@ pub(super) fn lower_component(
         .filter_map(|p| {
             p.default
                 .as_ref()
-                .map(|d| (p.name.clone(), lower_expr(d, variant_map, None)))
+                .map(|d| (p.name.clone(), lower_expr(d, variant_map, None, semantics)))
         })
         .collect();
 
@@ -161,7 +170,7 @@ pub(super) fn lower_component(
     let mut view = comp
         .view
         .as_ref()
-        .map(|v| lower_view_block(v, &input_signals, variant_map));
+        .map(|v| lower_view_block(v, &input_signals, variant_map, semantics));
 
     let styles: Vec<StyleRuleIR> = comp
         .styles
@@ -230,13 +239,13 @@ pub(super) fn lower_component(
     let motions: Vec<MotionIntent> = comp
         .motions
         .iter()
-        .map(|m| lower_motion_def(m, variant_map))
+        .map(|m| lower_motion_def(m, variant_map, semantics))
         .collect();
 
     let timelines: Vec<TimelineIntent> = comp
         .timelines
         .iter()
-        .map(|t| lower_timeline_def(t, variant_map))
+        .map(|t| lower_timeline_def(t, variant_map, semantics))
         .collect();
 
     let hero_defs: Vec<HeroIntent> = comp
@@ -244,7 +253,7 @@ pub(super) fn lower_component(
         .iter()
         .map(|h| HeroIntent {
             name: h.name.clone(),
-            over: lower_expr(&h.over, variant_map, None),
+            over: lower_expr(&h.over, variant_map, None, semantics),
             ease: h.ease.as_ref().map(lower_easing),
         })
         .collect();
@@ -426,7 +435,7 @@ pub(super) fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>)
 pub(super) fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
     match expr {
         ExprIR::FieldAccessExpr { object, field } => {
-            if let ExprIR::IdentifierExpr { name } = object.as_ref() {
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
                 if name == "e" && !fields.contains(field) {
                     fields.push(field.clone());
                 }
@@ -525,7 +534,11 @@ pub(super) fn walk_expr_event_fields(expr: &ExprIR, fields: &mut Vec<String>) {
 // Store lowering
 // ═══════════════════════════════════════════════════════
 
-pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String>) -> StoreIR {
+pub(super) fn lower_store(
+    store: &StoreDef,
+    variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> StoreIR {
     let signals: HashMap<String, TypeIR> = store
         .signals
         .iter()
@@ -560,26 +573,36 @@ pub(super) fn lower_store(store: &StoreDef, variant_map: &HashMap<String, String
     let getters: HashMap<String, ExprIR> = store
         .getters
         .iter()
-        .map(|g| (g.name.clone(), lower_expr(&g.body, variant_map, None)))
+        .map(|g| {
+            (
+                g.name.clone(),
+                lower_expr(&g.body, variant_map, None, semantics),
+            )
+        })
         .collect();
 
     let actions: Vec<FunctionIR> = store
         .actions
         .iter()
-        .map(|action| FunctionIR {
-            name: action.name.clone(),
-            visibility: IRVisibility::Public,
-            params: action
-                .params
-                .iter()
-                .map(|p| ParamIR {
-                    name: p.name.clone(),
-                    r#type: p.type_ann.as_ref().map(lower_type),
-                })
-                .collect(),
-            return_type: action.return_type.as_ref().map(lower_type),
-            body: lower_block(&action.body, variant_map, None),
-            is_async: action.is_async,
+        .map(|action| {
+            semantics.symbols.push_scope(&format!("fn:{}", action.name));
+            let result = FunctionIR {
+                name: action.name.clone(),
+                visibility: IRVisibility::Public,
+                params: action
+                    .params
+                    .iter()
+                    .map(|p| ParamIR {
+                        name: p.name.clone(),
+                        r#type: p.type_ann.as_ref().map(lower_type),
+                    })
+                    .collect(),
+                return_type: action.return_type.as_ref().map(lower_type),
+                body: lower_block(&action.body, variant_map, None, semantics),
+                is_async: action.is_async,
+            };
+            semantics.symbols.pop_scope();
+            result
         })
         .collect();
 

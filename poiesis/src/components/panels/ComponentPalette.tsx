@@ -9,6 +9,10 @@ import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/compo
 import { usePoiesisStore } from "../../store";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
 import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/constants";
+import { createLogger } from "../../lib/utils/logger";
+import styles from "./ComponentPalette.module.css";
+
+const log = createLogger("ComponentPalette");
 
 // Re-export for backward compatibility
 export { COMPONENT_PROTOCOL };
@@ -46,6 +50,7 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
         {...listeners}
         {...attributes}
         title={description || component}
+        className={isDragging ? undefined : styles.dragHandle}
         style={{
           flex: 1,
           padding: "3px 6px",
@@ -58,15 +63,6 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
           gap: 4,
           opacity: isDragging ? 0.4 : 1,
           touchAction: "none",
-        }}
-        onMouseEnter={(e) => {
-          if (isDragging) return;
-          e.currentTarget.style.borderColor = "#d1d5db";
-          e.currentTarget.style.background = "#F9FAFB";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "transparent";
-          e.currentTarget.style.background = "transparent";
         }}
       >
         {/* Icon */}
@@ -90,13 +86,12 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
             e.stopPropagation();
             onEdit();
           }}
+          className={styles.editBtn}
           style={{
             padding: "1px 6px", fontSize: 10, border: "none",
-            background: "transparent", cursor: "pointer", color: "#6B7280",
+            cursor: "pointer",
             borderRadius: 3,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#EEF2FF"; e.currentTarget.style.color = "#4F46E5"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6B7280"; }}
           title={`编辑 ${component}`}
         >
           ✎
@@ -108,13 +103,12 @@ function PaletteDraggableItem({ data }: { data: PaletteItemData }) {
             e.stopPropagation();
             onDelete();
           }}
+          className={styles.deleteBtn}
           style={{
             padding: "1px 6px", fontSize: 10, border: "none",
-            background: "transparent", cursor: "pointer", color: "#dc2626",
-            borderRadius: 3, opacity: 0.5,
+            cursor: "pointer", color: "#dc2626",
+            borderRadius: 3,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.opacity = "1"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.5"; }}
           title={`删除 ${component}`}
         >
           🗑
@@ -276,7 +270,7 @@ export function ComponentPalette() {
                             if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
                               removeComponent(m.component);
                               import("../../commands").then(({ api }) => {
-                                api.annotation.deleteComponentDefinitions([m.component]).catch((e) => { console.warn("[ComponentPalette] Failed to delete component:", e); });
+                                api.annotation.deleteComponentDefinitions([m.component]).catch((e) => { log.warn("Failed to delete component:", e); });
                               });
                             }
                           }

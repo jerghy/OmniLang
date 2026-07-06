@@ -1,5 +1,10 @@
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+/** Convenience factory — creates a Logger with the given prefix and default min level. */
+export function createLogger(prefix: string): Logger {
+  return new Logger({ prefix });
+}
+
 interface LoggerOptions {
   prefix: string;
   minLevel?: LogLevel;

@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
 
         // After Pratt: check for struct literal suffix — TypeName { field: val, ... }
         // NOT handled as infix to avoid stealing `{` from statement blocks (if/while/etc.)
-        if self.peek_kind() == TokenKind::LBrace {
+        if self.at(&TokenKind::LBrace) {
             if let Expr::VarRef(ref name, _) = expr {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
                     expr = self.parse_struct_literal_suffix(name.clone())?;
@@ -62,7 +62,7 @@ impl<'a> Parser<'a> {
         self.advance(); // consume '{'
 
         let mut fields: Vec<(String, Expr)> = Vec::new();
-        if self.peek_kind() != TokenKind::RBrace {
+        if !self.at(&TokenKind::RBrace) {
             loop {
                 let field_name = match self.advance().kind {
                     TokenKind::Ident(name) => name,
@@ -79,11 +79,11 @@ impl<'a> Parser<'a> {
                 self.expect_token(TokenKind::Colon, "expected ':' after field name")?;
                 let value = self.parse_expr()?;
                 fields.push((field_name, value));
-                if self.peek_kind() == TokenKind::RBrace {
+                if self.at(&TokenKind::RBrace) {
                     break;
                 }
                 self.expect_token(TokenKind::Comma, "expected ',' or '}' after field value")?;
-                if self.peek_kind() == TokenKind::RBrace {
+                if self.at(&TokenKind::RBrace) {
                     break; // allow trailing comma
                 }
             }
@@ -113,10 +113,10 @@ impl<'a> Parser<'a> {
             }),
             TokenKind::Ident(name) => {
                 // Check for variant with bindings: Ident { binding, ... }
-                if self.peek_kind() == TokenKind::LBrace {
+                if self.at(&TokenKind::LBrace) {
                     self.advance(); // consume '{'
                     let mut bindings: Vec<String> = Vec::new();
-                    if self.peek_kind() != TokenKind::RBrace {
+                    if !self.at(&TokenKind::RBrace) {
                         loop {
                             if let TokenKind::Ident(b) = self.advance().kind {
                                 bindings.push(b);
@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
                                     span: self.peek().span,
                                 });
                             }
-                            if self.peek_kind() == TokenKind::RBrace {
+                            if self.at(&TokenKind::RBrace) {
                                 break;
                             }
                             self.expect_token(TokenKind::Comma, "expected ',' or '}' in pattern")?;
@@ -181,7 +181,7 @@ impl<'a> Parser<'a> {
 
     /// Parse a match arm body: either a block `{ ... }` or a single expression
     fn parse_match_body(&mut self) -> Result<Block, ParseError> {
-        if self.peek_kind() == TokenKind::LBrace {
+        if self.at(&TokenKind::LBrace) {
             self.parse_block()
         } else {
             let expr = self.parse_expr()?;
@@ -245,7 +245,7 @@ impl<'a> Parser<'a> {
                 self.expect_close(TokenKind::RBrace, "expected '}'")?;
                 self.expect_close(TokenKind::Else, "expected 'else'")?;
                 // else branch: either else-if or else-block
-                let else_expr = if self.peek_kind() == TokenKind::If {
+                let else_expr = if self.at(&TokenKind::If) {
                     self.parse_expr()? // recursively parse else-if as if-expr
                 } else {
                     self.expect_close(TokenKind::LBrace, "expected '{' or 'if'")?;
@@ -266,16 +266,16 @@ impl<'a> Parser<'a> {
                 let matched = self.parse_expr()?;
                 self.expect_close(TokenKind::LBrace, "expected '{' after match expr")?;
                 let mut arms: Vec<MatchArm> = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace {
+                while !self.at(&TokenKind::RBrace) {
                     let pattern = self.parse_match_pattern()?;
                     self.expect_token(TokenKind::FatArrow, "expected '=>' in match arm")?;
                     let body = self.parse_match_body()?;
                     arms.push(MatchArm { pattern, body });
                     // Optional trailing comma
-                    if self.peek_kind() == TokenKind::Comma {
+                    if self.at(&TokenKind::Comma) {
                         self.advance();
                     }
-                    if self.peek_kind() == TokenKind::RBrace {
+                    if self.at(&TokenKind::RBrace) {
                         break;
                     }
                 }
@@ -296,7 +296,8 @@ impl<'a> Parser<'a> {
             // Contextual keywords as identifiers in expressions
             kind if keyword_as_ident_name(kind).is_some() => {
                 let name = keyword_as_ident_name(kind)
-                    .expect("keyword_as_ident_name returned Some as checked above");
+                    .expect("keyword_as_ident_name returned Some as checked above")
+                    .to_string();
                 self.parse_ident_expr(name, span)
             }
 
@@ -335,11 +336,11 @@ impl<'a> Parser<'a> {
 
             TokenKind::LBracket => {
                 let mut elements = Vec::new();
-                if self.peek_kind() != TokenKind::RBracket {
+                if !self.at(&TokenKind::RBracket) {
                     elements.push(self.parse_expr()?);
-                    while self.peek_kind() == TokenKind::Comma {
+                    while self.at(&TokenKind::Comma) {
                         self.advance();
-                        if self.peek_kind() == TokenKind::RBracket {
+                        if self.at(&TokenKind::RBracket) {
                             break;
                         }
                         elements.push(self.parse_expr()?);
@@ -379,11 +380,9 @@ impl<'a> Parser<'a> {
                         let start_span = self.peek_span();
                         let mut stmts = Vec::new();
                         let mut trailing_expr: Option<Expr> = None;
-                        while self.peek_kind() != TokenKind::RBrace
-                            && self.peek_kind() != TokenKind::Eof
-                        {
+                        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
                             let stmt = self.parse_stmt()?;
-                            if self.peek_kind() == TokenKind::RBrace {
+                            if self.at(&TokenKind::RBrace) {
                                 if let Stmt::ExprStmt { expr, .. } = &stmt {
                                     trailing_expr = Some(expr.clone());
                                     break;
@@ -547,11 +546,11 @@ impl<'a> Parser<'a> {
                 let next = self.advance();
                 let field_name = match &next.kind {
                     TokenKind::Ident(method) => Some(method.clone()),
-                    other => keyword_as_ident_name(other),
+                    other => keyword_as_ident_name(other).map(|s| s.to_string()),
                 };
                 match field_name {
                     Some(field) => {
-                        if self.peek_kind() == TokenKind::LParen {
+                        if self.at(&TokenKind::LParen) {
                             self.advance(); // consume '('
                             let args = self.parse_call_args()?;
                             Ok(Expr::MethodCall {
@@ -588,7 +587,7 @@ impl<'a> Parser<'a> {
                 let next = self.advance();
                 let field_name = match &next.kind {
                     TokenKind::Ident(field) => Some(field.clone()),
-                    other => keyword_as_ident_name(other),
+                    other => keyword_as_ident_name(other).map(|s| s.to_string()),
                 };
                 match field_name {
                     Some(field) => Ok(Expr::OptionalChain {
@@ -700,7 +699,7 @@ impl<'a> Parser<'a> {
     /// Handle an identifier (or contextual keyword) in expression context:
     /// VarRef, FuncCall, or MethodCall.
     fn parse_ident_expr(&mut self, name: String, span: Span) -> Result<Expr, ParseError> {
-        if self.peek_kind() == TokenKind::LParen {
+        if self.at(&TokenKind::LParen) {
             self.advance(); // consume '('
             let args = self.parse_call_args()?;
             Ok(Expr::FuncCall {
@@ -720,11 +719,11 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn parse_call_args(&mut self) -> Result<Vec<Expr>, ParseError> {
         let mut args = Vec::new();
-        if self.peek_kind() != TokenKind::RParen {
+        if !self.at(&TokenKind::RParen) {
             args.push(self.parse_expr()?);
-            while self.peek_kind() == TokenKind::Comma {
+            while self.at(&TokenKind::Comma) {
                 self.advance();
-                if self.peek_kind() == TokenKind::RParen {
+                if self.at(&TokenKind::RParen) {
                     break;
                 }
                 args.push(self.parse_expr()?);
@@ -736,14 +735,14 @@ impl<'a> Parser<'a> {
 
     fn parse_map_entries(&mut self) -> Result<Vec<(Expr, Expr)>, ParseError> {
         let mut entries = Vec::new();
-        if self.peek_kind() != TokenKind::RBrace {
+        if !self.at(&TokenKind::RBrace) {
             let key = self.parse_expr()?;
             self.expect_close(TokenKind::Colon, "expected ':'")?;
             let val = self.parse_expr()?;
             entries.push((key, val));
-            while self.peek_kind() == TokenKind::Comma {
+            while self.at(&TokenKind::Comma) {
                 self.advance();
-                if self.peek_kind() == TokenKind::RBrace {
+                if self.at(&TokenKind::RBrace) {
                     break;
                 }
                 let k = self.parse_expr()?;

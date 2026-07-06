@@ -13,6 +13,9 @@ pub mod expr;
 pub mod stmt;
 mod visitor;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};

@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { api } from "../../commands";
+import styles from "./FileExplorer.module.css";
 
 type FileEntry = { name: string; path: string; type: "file" | "directory"; ext?: string };
 
@@ -75,9 +76,8 @@ export function FileExplorer() {
           <div
             key={d.path}
             onClick={() => handleClick(d)}
+            className={styles.fileItem}
             style={{ padding: "3px 6px", cursor: "pointer", borderRadius: 4, color: "#374151", fontSize: 12 }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             📁 {d.name}
           </div>
@@ -92,14 +92,12 @@ export function FileExplorer() {
           <div
             key={f.path}
             onClick={() => handleClick(f)}
+            className={f.path === activePath ? styles.fileItemActive : styles.fileItem}
             style={{
               padding: "3px 6px", cursor: "pointer", borderRadius: 4, fontSize: 12,
-              background: f.path === activePath ? "#EEF2FF" : "transparent",
               color: f.path === activePath ? "#4F46E5" : "#374151",
               fontWeight: f.path === activePath ? 600 : 400,
             }}
-            onMouseEnter={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "#F3F4F6"; }}
-            onMouseLeave={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "transparent"; }}
           >
             📄 {f.name}
           </div>
@@ -114,12 +112,10 @@ export function FileExplorer() {
               <div
                 key={f.path}
                 onClick={() => handleClick(f)}
+                className={f.path === activePath ? styles.fileItemActive : styles.fileItem}
                 style={{
                   padding: "3px 6px", cursor: "pointer", borderRadius: 4, fontSize: 12,
-                  background: f.path === activePath ? "#EEF2FF" : "transparent",
                 }}
-                onMouseEnter={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "#F3F4F6"; }}
-                onMouseLeave={(e) => { if (f.path !== activePath) e.currentTarget.style.background = "transparent"; }}
               >
                 📄 {f.name}
               </div>

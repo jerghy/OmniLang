@@ -3,12 +3,17 @@
 
 use super::*;
 use crate::parser::ast::*;
+use crate::semantic::SemanticResult;
 
 // Disambiguate Visibility between parser AST and IR
 use crate::ir::logic::Visibility as IRVisibility;
 use crate::parser::ast::Visibility as ParserVisibility;
 
-pub fn lower_function(func: &FunctionDef, variant_map: &HashMap<String, String>) -> FunctionIR {
+pub fn lower_function(
+    func: &FunctionDef,
+    variant_map: &HashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> FunctionIR {
     FunctionIR {
         name: func.name.clone(),
         visibility: match func.visibility {
@@ -24,7 +29,7 @@ pub fn lower_function(func: &FunctionDef, variant_map: &HashMap<String, String>)
             })
             .collect(),
         return_type: func.return_type.as_ref().map(lower_type),
-        body: lower_block(&func.body, variant_map, None),
+        body: lower_block(&func.body, variant_map, None, semantics),
         is_async: func.is_async,
     }
 }
@@ -121,12 +126,12 @@ mod tests {
         let source = "fn main() { return 42; }";
         let tokens = tokenize(source);
         let program = parser::parse(&tokens, source).unwrap();
-        let semantics = crate::semantic::SemanticResult {
+        let mut semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: HashMap::new(),
             diagnostics: Vec::new(),
         };
-        let ir = crate::ir::lower(&program, &semantics);
+        let ir = crate::ir::lower(&program, &mut semantics);
         let main_module = ir.modules.get("input.omni").unwrap();
         assert!(main_module.functions.contains_key("main"));
         let main_fn = &main_module.functions["main"];
@@ -139,12 +144,12 @@ mod tests {
         let source = "struct Point { x: i32, y: i32 }";
         let tokens = tokenize(source);
         let program = parser::parse(&tokens, source).unwrap();
-        let semantics = crate::semantic::SemanticResult {
+        let mut semantics = crate::semantic::SemanticResult {
             symbols: crate::semantic::symbols::SymbolTable::new(),
             dependencies: HashMap::new(),
             diagnostics: Vec::new(),
         };
-        let ir = crate::ir::lower(&program, &semantics);
+        let ir = crate::ir::lower(&program, &mut semantics);
         let main_module = ir.modules.get("input.omni").unwrap();
         assert!(main_module.structs.contains_key("Point"));
     }

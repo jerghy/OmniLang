@@ -3,6 +3,7 @@
 
 import { useMemo } from "react";
 import { MENU_SECTIONS, MENU_WIDTH, ITEM_HEIGHT } from "./flowConstants";
+import styles from "./CanvasContextMenu.module.css";
 
 export interface ContextMenuProps {
   x: number;
@@ -129,6 +130,7 @@ export function ContextMenu({
                     key={item.label}
                     disabled={isDisabled}
                     onClick={() => { if (!isDisabled) { onSelectNode(item.tag, fnName); onClose(); } }}
+                    className={styles.menuBtn}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -144,8 +146,6 @@ export function ContextMenu({
                       textAlign: "left" as const,
                       fontFamily: "inherit",
                     }}
-                    onMouseEnter={(e) => { if (!isDisabled) e.currentTarget.style.background = "#f1f5f9"; }}
-                    onMouseLeave={(e) => { if (!isDisabled) e.currentTarget.style.background = "transparent"; }}
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (

@@ -5,6 +5,9 @@
 import { usePoiesisStore } from "../../store";
 import { deserializeProjectJson, createEmptyProjectJson } from "./project-json";
 import type { ProjectJson } from "../../core/types/project-json";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("persistence");
 
 /**
  * Load project from disk. Pipeline:
@@ -23,7 +26,7 @@ export async function loadProject(projectDir: string, omniFiles: string[]): Prom
       // For now, start with empty
       projectJson = createEmptyProjectJson();
     } catch (e) {
-      console.warn("[persistence] Failed to load project.json, using empty:", e);
+      log.warn("Failed to load project.json, using empty:", e);
       projectJson = createEmptyProjectJson();
     }
 

@@ -26,6 +26,8 @@ pub enum ExprIR {
     },
     IdentifierExpr {
         name: String,
+        #[serde(default)]
+        type_ann: Option<String>,
     },
     FieldAccessExpr {
         object: Box<ExprIR>,
@@ -103,6 +105,18 @@ pub enum ExprIR {
         matched: Box<ExprIR>,
         arms: Vec<MatchArmIR>,
     },
+}
+
+impl ExprIR {
+    /// Convenience constructor for IdentifierExpr with no type annotation.
+    /// Reduces boilerplate in tests and internal code.
+    #[must_use]
+    pub fn ident(name: &str) -> Self {
+        ExprIR::IdentifierExpr {
+            name: name.to_string(),
+            type_ann: None,
+        }
+    }
 }
 
 /// A single arm in a match expression IR.

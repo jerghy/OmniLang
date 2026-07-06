@@ -11,7 +11,9 @@ export type UndoAction =
   | { type: "setProp"; id: string; prop: string; oldValue: unknown }
   | { type: "addWire"; wire: WireData }
   | { type: "removeWire"; id: string }
-  | { type: "moveElement"; elementId: string; oldParentId: string | null };
+  | { type: "moveElement"; elementId: string; oldParentId: string | null }
+  | { type: "reorderElement"; elementId: string; parentId: string | null; prevSiblingId: string | null; targetSiblingId: string; position: "before" | "after" }
+  | { type: "setElementsAndWires"; prevElements: ElementData[]; prevWires: WireData[]; newElements: ElementData[]; newWires: WireData[] };
 
 export interface UndoStack {
   undo: UndoAction[];
@@ -121,6 +123,37 @@ export function createUndoSlice(set: SetFn, get: GetFn) {
               return { elements, rootOrder };
             });
             break;
+          case "reorderElement":
+            set((st) => {
+              const newSiblings = action.parentId
+                ? [...(st.elements.find(e => e.id === action.parentId)?.children ?? [])]
+                : [...st.rootOrder];
+              const currentIdx = newSiblings.indexOf(action.elementId);
+              if (currentIdx !== -1) newSiblings.splice(currentIdx, 1);
+              if (action.prevSiblingId !== null) {
+                const prevIdx = newSiblings.indexOf(action.prevSiblingId);
+                newSiblings.splice(prevIdx + 1, 0, action.elementId);
+              } else {
+                newSiblings.unshift(action.elementId);
+              }
+              if (action.parentId) {
+                return {
+                  elements: st.elements.map(e =>
+                    e.id === action.parentId ? { ...e, children: newSiblings } : e
+                  ),
+                };
+              }
+              return { rootOrder: newSiblings };
+            });
+            break;
+          case "setElementsAndWires":
+            set({
+              elements: action.prevElements,
+              wires: action.prevWires,
+              rootOrder: action.prevElements.filter(e => !e.parentId).map(e => e.id),
+              selectedElementIds: [],
+            });
+            break;
         }
       });
       // Update stacks (after the inverse execution modified the store)
@@ -183,6 +216,38 @@ export function createUndoSlice(set: SetFn, get: GetFn) {
                 rootOrder = [...rootOrder, action.elementId];
               }
               return { elements, rootOrder };
+            });
+            break;
+          case "reorderElement":
+            set((st) => {
+              const newSiblings = action.parentId
+                ? [...(st.elements.find(e => e.id === action.parentId)?.children ?? [])]
+                : [...st.rootOrder];
+              const currentIdx = newSiblings.indexOf(action.elementId);
+              if (currentIdx !== -1) newSiblings.splice(currentIdx, 1);
+              const targetIdx = newSiblings.indexOf(action.targetSiblingId);
+              if (targetIdx !== -1) {
+                const insertAt = action.position === "before" ? targetIdx : targetIdx + 1;
+                newSiblings.splice(insertAt, 0, action.elementId);
+              } else {
+                newSiblings.push(action.elementId);
+              }
+              if (action.parentId) {
+                return {
+                  elements: st.elements.map(e =>
+                    e.id === action.parentId ? { ...e, children: newSiblings } : e
+                  ),
+                };
+              }
+              return { rootOrder: newSiblings };
+            });
+            break;
+          case "setElementsAndWires":
+            set({
+              elements: action.newElements,
+              wires: action.newWires,
+              rootOrder: action.newElements.filter(e => !e.parentId).map(e => e.id),
+              selectedElementIds: [],
             });
             break;
         }

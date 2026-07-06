@@ -1,0 +1,6 @@
+.menuBtn {
+  background: transparent;
+}
+.menuBtn:not(:disabled):hover {
+  background: var(--color-surface-hover);
+}

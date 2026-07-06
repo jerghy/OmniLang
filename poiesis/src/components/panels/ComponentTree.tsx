@@ -6,40 +6,28 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { usePoiesisStore } from "../../store";
 import type { ElementData } from "../../core/types";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
-import type { CommandContext } from "../../core/commands/types";
+import styles from "./ComponentTree.module.css";
 import {
   getDefaultProps,
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   COMPONENT_ICONS,
 } from "../../core/constants";
-import { AddElement } from "../../core/commands/AddElement";
-import { RemoveElement } from "../../core/commands/RemoveElement";
-import { ReorderElement } from "../../core/commands/ReorderElement";
-import { copySelection, pasteFromClipboard } from "../../core/commands/CopyPaste";
+import { copySelection, pasteFromClipboard } from "../../core/clipboard";
 import { uid } from "../../lib/utils/id";
 import { resolveHtmlTag, getDisplayLabel, type TreeNode } from "./tree-utils";
 import { TreeNodeView, type TreeDropState } from "./TreeNodeRenderer";
 
 interface ComponentTreeProps {
-  ctx: CommandContext;
   treeDropState: TreeDropState | null;
 }
 
-export function ComponentTree({ ctx, treeDropState }: ComponentTreeProps) {
+export function ComponentTree({ treeDropState }: ComponentTreeProps) {
   const elements = usePoiesisStore((s) => s.elements);
   const rootOrder = usePoiesisStore((s) => s.rootOrder);
   const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
   const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
-
-  // Helper: execute a Command — store methods handle undo tracking internally
-  const exec = useCallback(
-    (cmd: import("../../core/commands/types").Command) => {
-      cmd.execute(ctx);
-    },
-    [ctx],
-  );
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -178,8 +166,6 @@ export function ComponentTree({ ctx, treeDropState }: ComponentTreeProps) {
             elementId={contextMenu.elementId}
             elements={elements}
             rootOrder={rootOrder}
-            exec={exec}
-            ctx={ctx}
             enterCanvas={enterCanvas}
             onClose={closeMenu}
           />
@@ -199,8 +185,6 @@ interface ContextMenuProps {
   elementId: string;
   elements: ElementData[];
   rootOrder: string[];
-  exec: (cmd: import("../../core/commands/types").Command) => void;
-  ctx: CommandContext;
   enterCanvas: (name: string) => void;
   onClose: () => void;
 }
@@ -211,8 +195,6 @@ function ContextMenu({
   elementId,
   elements,
   rootOrder,
-  exec,
-  ctx,
   enterCanvas,
   onClose,
 }: ContextMenuProps) {
@@ -256,32 +238,30 @@ function ContextMenu({
   const handleAddChild = useCallback(
     (parentId: string, tag: string) => {
       const isCustom = registryDefs[tag] !== undefined;
-      exec(
-        new AddElement({
-          id: uid(tag),
-          nodeType: "view",
-          tag,
-          props: getDefaultProps(tag),
-          children: [],
-          parentId,
-          ...(isCustom ? { componentRef: tag } : {}),
-        }),
-      );
+      usePoiesisStore.getState().addElement({
+        id: uid(tag),
+        nodeType: "view",
+        tag,
+        props: getDefaultProps(tag),
+        children: [],
+        parentId,
+        ...(isCustom ? { componentRef: tag } : {}),
+      });
       onClose();
     },
-    [exec, onClose, registryDefs],
+    [onClose, registryDefs],
   );
 
   const handleCopy = useCallback(() => {
-    copySelection(ctx, [elementId]);
+    copySelection([elementId]);
     onClose();
-  }, [ctx, elementId, onClose]);
+  }, [elementId, onClose]);
 
   const handlePaste = useCallback(() => {
-    const ids = pasteFromClipboard(ctx);
+    const ids = pasteFromClipboard();
     if (ids?.length) usePoiesisStore.setState({ selectedElementIds: ids });
     onClose();
-  }, [ctx, onClose]);
+  }, [onClose]);
 
   const handleMoveUp = useCallback(() => {
     const el = elements.find((e) => e.id === elementId);
@@ -291,9 +271,9 @@ function ContextMenu({
       : rootOrder;
     const idx = siblings.indexOf(elementId);
     if (idx <= 0) return;
-    exec(new ReorderElement(elementId, siblings[idx - 1], "before"));
+    usePoiesisStore.getState().reorderElement(elementId, siblings[idx - 1], "before");
     onClose();
-  }, [elements, elementId, rootOrder, exec, onClose]);
+  }, [elements, elementId, rootOrder, onClose]);
 
   const handleMoveDown = useCallback(() => {
     const el = elements.find((e) => e.id === elementId);
@@ -303,14 +283,14 @@ function ContextMenu({
       : rootOrder;
     const idx = siblings.indexOf(elementId);
     if (idx < 0 || idx >= siblings.length - 1) return;
-    exec(new ReorderElement(elementId, siblings[idx + 1], "after"));
+    usePoiesisStore.getState().reorderElement(elementId, siblings[idx + 1], "after");
     onClose();
-  }, [elements, elementId, rootOrder, exec, onClose]);
+  }, [elements, elementId, rootOrder, onClose]);
 
   const handleDelete = useCallback(() => {
-    exec(new RemoveElement(elementId));
+    usePoiesisStore.getState().removeElement(elementId);
     onClose();
-  }, [elementId, exec, onClose]);
+  }, [elementId, onClose]);
 
   const handleEditComponent = useCallback(() => {
     if (contextElement?.componentRef) enterCanvas(contextElement.componentRef);
@@ -393,14 +373,9 @@ function ContextMenu({
                     {items.map((comp) => (
                       <div
                         key={comp.component}
+                        className={styles.subMenuItem}
                         style={{ ...ST.itemBase, whiteSpace: "nowrap" }}
                         onClick={() => handleAddChild(elementId, comp.component)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "#F5F3FF";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "transparent";
-                        }}
                       >
                         <span>
                           <span style={{ marginRight: 4, fontSize: 11 }}>
@@ -451,6 +426,7 @@ function MenuRow({
   return (
     <div
       onClick={onClick}
+      className={styles.menuRow}
       style={{
         padding: "6px 16px",
         cursor: "pointer",
@@ -459,12 +435,6 @@ function MenuRow({
         justifyContent: "space-between",
         fontSize: 12,
         color: "#374151",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "#F5F3FF";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
       }}
     >
       <span>{label}</span>

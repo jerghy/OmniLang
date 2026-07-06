@@ -6,6 +6,9 @@ import { TokenStream } from "./token-stream";
 import { Parser } from "./parser";
 import type { ParseResult } from "./types";
 import type { PidMap, PidEntry } from "../../core/types/pid";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("parser");
 
 // ── Public API ──
 
@@ -56,7 +59,7 @@ export function parsePidAnnotations(source: string): PidMap {
     pidMap.entries[entry.pid] = entry;
     for (let line = entry.startLine; line <= entry.endLine; line++) {
       if (pidMap.lineToPid[line] && pidMap.lineToPid[line] !== entry.pid) {
-        console.warn(`[parser] Line ${line} has conflicting PID annotations: ${pidMap.lineToPid[line]} vs ${entry.pid}`);
+        log.warn(`Line ${line} has conflicting PID annotations: ${pidMap.lineToPid[line]} vs ${entry.pid}`);
       }
       pidMap.lineToPid[line] = entry.pid;
     }

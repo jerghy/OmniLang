@@ -9,6 +9,11 @@ import { parseOmniSource } from "./services/codegen";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";
 import { useEffect, useRef } from "react";
+import { ErrorBoundary } from "./components/error/ErrorBoundary";
+import { createLogger } from "./lib/utils/logger";
+import "../styles/tokens.css";
+
+const log = createLogger("App");
 
 /** Load .omni files from disk: open tabs, populate canvas/main, store component defs. */
 async function loadOmniFiles(): Promise<void> {
@@ -22,7 +27,7 @@ async function loadOmniFiles(): Promise<void> {
       for (const entry of result.entries) {
         if (entry.ext === "omni") omniPaths.push(entry.path);
       }
-    } catch (e) { console.warn("[App] Failed to read project directory:", e); }
+    } catch (e) { log.warn("Failed to read project directory:", e); }
   }
 
   let mainPath: string | null = null;
@@ -71,7 +76,7 @@ async function loadOmniFiles(): Promise<void> {
         rootOrder,
       });
     } catch (e) {
-      console.warn("[App] Failed to parse .omni file:", filePath, e);
+      log.warn("Failed to parse .omni file:", filePath, e);
     }
   }
 
@@ -161,7 +166,7 @@ export default function App() {
   useEffect(() => {
     if (!projectDir || loadedRef.current) return;
     loadedRef.current = true;
-    loadOmniFiles().catch((e) => console.warn("[App] Failed to load .omni:", e));
+    loadOmniFiles().catch((e) => log.warn("Failed to load .omni:", e));
   }, [projectDir]);
 
   // ── Open project: set dir (useEffect handles loading) ──
@@ -172,70 +177,68 @@ export default function App() {
     setProjectDir(path);
   };
 
-  // ── No project open → show welcome page ──
-  if (!projectDir) {
-    return (
-      <div style={{ height: "100vh", overflow: "hidden" }}>
-        <WelcomePage onProjectOpened={handleProjectOpened} />
-      </div>
-    );
-  }
-
-  // ── Project is open → show editor ──
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
-      {/* Page content */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage />}
-      </div>
-
-      {/* Page-switch toggle — top-right floating */}
-      <div
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 12,
-          zIndex: 100,
-          display: "flex",
-          gap: 0,
-          background: "rgba(255,255,255,0.92)",
-          backdropFilter: "blur(8px)",
-          borderRadius: 8,
-          padding: 3,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)",
-        }}
-      >
-        <PageToggleButton
-          active={currentPage === "design"}
-          onClick={() => navigateTo("design")}
+    <ErrorBoundary>
+      {!projectDir ? (
+        <div style={{ height: "100vh", overflow: "hidden" }}>
+          <WelcomePage onProjectOpened={handleProjectOpened} />
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            height: "100vh",
+            overflow: "hidden",
+            position: "relative",
+          }}
         >
-          📐 设计
-        </PageToggleButton>
-        <PageToggleButton
-          active={currentPage === "architecture"}
-          onClick={() => navigateTo("architecture")}
-        >
-          🔗 架构
-        </PageToggleButton>
-      </div>
+          {/* Page content */}
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage />}
+          </div>
 
-      {/* Status bar at bottom */}
-      <StatusBar
-        status={{ text: statusText, isError: compileErrors.length > 0 }}
-        isDirty={isDirty}
-        projectName={projectName || DEFAULT_PROJECT_NAME}
-        projectDir={projectDir}
-        compileErrors={compileErrors}
-      />
-    </div>
+          {/* Page-switch toggle — top-right floating */}
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 12,
+              zIndex: 100,
+              display: "flex",
+              gap: 0,
+              background: "rgba(255,255,255,0.92)",
+              backdropFilter: "blur(8px)",
+              borderRadius: 8,
+              padding: 3,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)",
+            }}
+          >
+            <PageToggleButton
+              active={currentPage === "design"}
+              onClick={() => navigateTo("design")}
+            >
+              📐 设计
+            </PageToggleButton>
+            <PageToggleButton
+              active={currentPage === "architecture"}
+              onClick={() => navigateTo("architecture")}
+            >
+              🔗 架构
+            </PageToggleButton>
+          </div>
+
+          {/* Status bar at bottom */}
+          <StatusBar
+            status={{ text: statusText, isError: compileErrors.length > 0 }}
+            isDirty={isDirty}
+            projectName={projectName || DEFAULT_PROJECT_NAME}
+            projectDir={projectDir}
+            compileErrors={compileErrors}
+          />
+        </div>
+      )}
+    </ErrorBoundary>
   );
 }
 

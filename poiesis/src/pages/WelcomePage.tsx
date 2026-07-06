@@ -5,6 +5,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../commands";
 import type { RecentProject } from "../commands/project-api";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("WelcomePage");
 
 interface WelcomePageProps {
   onProjectOpened: (projectPath: string, projectName: string) => void;
@@ -35,7 +38,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
       await api.project.addRecentProject(name, folder);
       onProjectOpened(folder, name);
     } catch (e) {
-      console.warn("[WelcomePage] Operation failed:", e);
+      log.warn("Operation failed:", e);
       setError("操作失败，请重试");
     }
   };
@@ -67,7 +70,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
       setShowNewDialog(false);
       onProjectOpened(result.dir, newProjectName.trim());
     } catch (e) {
-      console.warn("[WelcomePage] Operation failed:", e);
+      log.warn("Operation failed:", e);
       setError("操作失败，请重试");
     }
   };
@@ -78,7 +81,7 @@ export function WelcomePage({ onProjectOpened }: WelcomePageProps) {
       await api.project.addRecentProject(proj.name, proj.path);
       onProjectOpened(proj.path, proj.name);
     } catch (e) {
-      console.warn("[WelcomePage] Operation failed:", e);
+      log.warn("Operation failed:", e);
       setError("操作失败，请重试");
     }
   };

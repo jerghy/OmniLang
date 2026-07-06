@@ -1,32 +1,24 @@
 // hooks/useDragHandlers.ts
 // Hook that provides drag-and-drop handlers for the DesignPage: palette-to-canvas and tree-node reordering.
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import type {
   DragStartEvent,
   DragMoveEvent,
   DragEndEvent,
 } from "@dnd-kit/core";
 import { usePoiesisStore } from "../store";
-import { createCommandContext } from "../core/commands/createCommandContext";
 import { uid } from "../core/utils/id";
 import { getDefaultProps } from "../core/constants/defaults";
 import type { ElementData } from "../core/types/element";
-import { MoveElement } from "../core/commands/MoveElement";
-import { ReorderElement } from "../core/commands/ReorderElement";
 import type { TreeDropState } from "../components/panels/TreeNodeRenderer";
 
-export function useDragHandlers(ctx: ReturnType<typeof createCommandContext>) {
+export function useDragHandlers() {
   const addElement = usePoiesisStore((s) => s.addElement);
   const [activeComponent, setActiveComponent] = useState<string | null>(null);
   const [treeDropState, setTreeDropState] = useState<TreeDropState | null>(null);
   const treeDropRef = useRef<TreeDropState | null>(null);
   const [activeTreeId, setActiveTreeId] = useState<string | null>(null);
-
-  const exec = useCallback(
-    (cmd: import("../core/commands/types").Command) => cmd.execute(ctx),
-    [ctx],
-  );
 
   // ── Unified drag start (palette + tree) ──
   const handleDragStart = (event: DragStartEvent) => {
@@ -110,15 +102,16 @@ export function useDragHandlers(ctx: ReturnType<typeof createCommandContext>) {
       if (!draggedId || !targetId || draggedId === targetId) return;
 
       if (position === "inside") {
-        exec(new MoveElement(draggedId, targetId, null, "after"));
+        usePoiesisStore.getState().moveElement(draggedId, targetId, null, "after");
       } else {
-        const draggedEl = ctx.getElement(draggedId);
-        const targetEl = ctx.getElement(targetId);
+        const elements = usePoiesisStore.getState().elements;
+        const draggedEl = elements.find(e => e.id === draggedId);
+        const targetEl = elements.find(e => e.id === targetId);
 
         if (draggedEl && targetEl && draggedEl.parentId === targetEl.parentId) {
-          exec(new ReorderElement(draggedId, targetId, position));
+          usePoiesisStore.getState().reorderElement(draggedId, targetId, position);
         } else if (targetEl) {
-          exec(new MoveElement(draggedId, targetEl.parentId ?? (null as unknown as string), targetId, position));
+          usePoiesisStore.getState().moveElement(draggedId, targetEl.parentId ?? (null as unknown as string), targetId, position);
         }
       }
       return;

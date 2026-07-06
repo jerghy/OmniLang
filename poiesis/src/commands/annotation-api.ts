@@ -8,6 +8,9 @@ import { Store } from "@tauri-apps/plugin-store";
 import type { EditorTomlState } from "../core/types/annotation";
 import type { PidMap, PidEntry } from "../core/types/pid";
 import { buildProjectJsonFromStore, loadProjectFromJson } from "../services/persistence";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("annotation");
 
 const STORE_PATH = "project.json";
 const COMPONENT_DEFS_FILE = ".poiesis/components.json";
@@ -19,7 +22,7 @@ async function resolveProjectDir(): Promise<string | null> {
     const val = await store.get<string>("projectDir");
     return val ?? null;
   } catch (e) {
-    console.warn("[annotation] Failed to resolve project dir:", e);
+    log.warn("Failed to resolve project dir:", e);
     return null;
   }
 }
@@ -35,7 +38,7 @@ async function ensurePoiesisDir(projectDir: string): Promise<string> {
   try {
     await mkdir(dir, { recursive: true });
   } catch (e) {
-    console.warn("[annotation] Failed to create .poiesis dir:", e);
+    log.warn("Failed to create .poiesis dir:", e);
   }
   return dir;
 }
@@ -104,7 +107,7 @@ export function createAnnotationApi() {
         const content = await readTextFile(path);
         return { definitions: JSON.parse(content) };
       } catch (e) {
-        console.warn("[annotation] Failed to load component definitions:", e);
+        log.warn("Failed to load component definitions:", e);
         return { definitions: {}, error: String(e) };
       }
     },
@@ -145,7 +148,7 @@ export function createAnnotationApi() {
         const source = await readTextFile(fullPath);
         return parsePidComments(source);
       } catch (e) {
-        console.warn("[annotation] Failed to read PID map:", e);
+        log.warn("Failed to read PID map:", e);
         return { entries: {}, lineToPid: {}, error: String(e) };
       }
     },
@@ -204,7 +207,7 @@ export function createAnnotationApi() {
         const content = await readTextFile(path);
         return { state: JSON.parse(content) };
       } catch (e) {
-        console.warn("[annotation] Failed to load editor.toml:", e);
+        log.warn("Failed to load editor.toml:", e);
         return { state: null, error: String(e) };
       }
     },

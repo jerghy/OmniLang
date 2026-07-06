@@ -17,6 +17,7 @@ import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
+import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
   "function-header": FunctionHeaderNode,
@@ -339,6 +340,7 @@ function FlowCanvasInner() {
         >
           <button
             onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
+            className={styles.deleteBtn}
             style={{
               display: "flex",
               alignItems: "center",
@@ -346,15 +348,12 @@ function FlowCanvasInner() {
               width: "100%",
               padding: "6px 12px",
               border: "none",
-              background: "transparent",
               cursor: "pointer",
               fontSize: 12,
               color: "#dc2626",
               textAlign: "left" as const,
               fontFamily: "inherit",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             🗑 删除节点
           </button>

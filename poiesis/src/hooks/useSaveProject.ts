@@ -6,6 +6,9 @@ import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 import { generateOmniFiles } from "../services/codegen/pipeline";
 import type { CodeTab } from "../core/types/codegraph";
+import { createLogger } from "../lib/utils/logger";
+
+const log = createLogger("save");
 
 export function useSaveProject() {
   const markClean = usePoiesisStore((s) => s.markClean);
@@ -50,7 +53,7 @@ export function useSaveProject() {
           await api.project.writeFile(filePath, source);
         }
       } else if (genResult.errors.some((e) => e.severity === "fatal")) {
-        console.error("[save] codegen errors:", genResult.errors);
+        log.error("codegen errors:", genResult.errors);
         return;
       }
 
@@ -77,7 +80,7 @@ export function useSaveProject() {
         });
       }
     } catch (e) {
-      console.error("[save] failed:", e);
+      log.error("failed:", e);
     } finally {
       setSaving(false);
     }
