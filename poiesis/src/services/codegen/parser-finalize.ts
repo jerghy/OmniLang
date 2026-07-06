@@ -4,7 +4,7 @@
 import type { ParserInternals } from "./parser";
 import type { ElementData } from "../../core/types/element";
 import type { ParseResult } from "./types";
-import { parseStylesFromAST } from "./pipeline";
+import { parseStylesFromAST } from "./style-parser";
 import { flushChain } from "./parser-helpers";
 
 // ── Finalization (post-processing) ──

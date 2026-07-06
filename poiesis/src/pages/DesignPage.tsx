@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { useMemo, useState, useCallback, useRef, Component, type ReactNode } from "react";
+import { useMemo, Component, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -11,9 +11,6 @@ import {
   useSensor,
   useSensors,
   closestCenter,
-  type DragStartEvent,
-  type DragMoveEvent,
-  type DragEndEvent,
 } from "@dnd-kit/core";
 import { DesignTabBar } from "../components/design/DesignTabBar";
 import { DesignCanvas } from "../components/design/DesignCanvas";
@@ -24,15 +21,8 @@ import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
 import { createCommandContext } from "../core/commands/createCommandContext";
 import { usePoiesisStore } from "../store";
-import { api } from "../commands";
-import { generateOmniFiles } from "../services/codegen/pipeline";
-import { uid } from "../core/utils/id";
-import { getDefaultProps } from "../core/constants/defaults";
-import type { ElementData } from "../core/types/element";
-import type { CodeTab } from "../core/types/codegraph";
-import { MoveElement } from "../core/commands/MoveElement";
-import { ReorderElement } from "../core/commands/ReorderElement";
-import type { TreeDropState } from "../components/panels/TreeNodeRenderer";
+import { useSaveProject } from "../hooks/useSaveProject";
+import { useDragHandlers } from "../hooks/useDragHandlers";
 
 // Lightweight error boundary to prevent one panel crash from blanking the entire page
 class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }, { error: Error | null }> {
@@ -58,10 +48,8 @@ class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }
 
 export function DesignPage() {
   const ctx = useMemo(() => createCommandContext(), []);
-  const addElement = usePoiesisStore((s) => s.addElement);
   const undo = usePoiesisStore((s) => s.undo);
   const isDirty = usePoiesisStore((s) => s.isDirty);
-  const markClean = usePoiesisStore((s) => s.markClean);
   const activeTabType = usePoiesisStore((s) => {
     const activeId = s.designPage.activeTabId;
     if (!activeId) return "component" as const;
@@ -70,8 +58,9 @@ export function DesignPage() {
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
   // Side panels are visible only for component tabs NOT in code-flow mode
   const showSidePanels = activeTabType === "component" && !codeFlowVisible;
-  const [saving, setSaving] = useState(false);
-  const [activeComponent, setActiveComponent] = useState<string | null>(null);
+
+  const { saving, handleSave } = useSaveProject();
+  const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers(ctx);
 
   // ── @dnd-kit sensors (unified context handles both palette and tree drags) ──
   const pointerSensor = useSensor(PointerSensor, {
@@ -79,212 +68,6 @@ export function DesignPage() {
   });
   const keyboardSensor = useSensor(KeyboardSensor);
   const sensors = useSensors(pointerSensor, keyboardSensor);
-
-  // ── Tree drag state (handled in unified DndContext) ──
-  const [treeDropState, setTreeDropState] = useState<TreeDropState | null>(null);
-  const treeDropRef = useRef<TreeDropState | null>(null);
-  const [activeTreeId, setActiveTreeId] = useState<string | null>(null);
-
-  // ── Command executor ──
-  const exec = useCallback(
-    (cmd: import("../core/commands/types").Command) => cmd.execute(ctx),
-    [ctx],
-  );
-
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      const store = usePoiesisStore.getState();
-      const activeTabId = store.designPage.activeTabId;
-      const activeTab = activeTabId
-        ? store.designPage.openTabs.find((t) => t.id === activeTabId)
-        : null;
-
-      // ── 1. Build codeTabs from current elements+wires ──
-      const codeTabs: CodeTab[] = [
-        {
-          id: "main",
-          type: "logic",
-          label: "Main",
-          icon: "📄",
-          graph: { elements: store.elements, wires: store.wires },
-          variables: [],
-        },
-      ];
-
-      // ── 2. Generate .omni source via codegen pipeline ──
-      const componentName = activeTab?.componentName ?? "main";
-      const genResult = generateOmniFiles({
-        designElements: store.elements,
-        designWires: store.wires,
-        codeTabs,
-        componentName,
-        rootOrder: store.rootOrder,
-        forSave: true,
-        filePath: activeTab?.filePath,
-      });
-
-      if (genResult.value) {
-        // ── 3. Write each generated .omni file to disk ──
-        for (const [filePath, source] of Object.entries(genResult.value)) {
-          await api.project.writeFile(filePath, source);
-        }
-      } else if (genResult.errors.some((e) => e.severity === "fatal")) {
-        console.error("[save] codegen errors:", genResult.errors);
-        return;
-      }
-
-      // ── 4. Save project.json (editor metadata) ──
-      const result = await api.annotation.saveProject();
-      if (result.ok) {
-        markClean();
-      }
-
-      // ── 5. Update custom component def with designed elements ──
-      // This ensures expandCustomComponents() can inline the component's
-      // content when it's used as a custom component instance on another canvas.
-      if (componentName !== "main") {
-        const currentDef = store.componentDefs[componentName] || {};
-        // setComponentDef expects ComponentDef but stores arbitrary shapes;
-        // elements/wires/rootOrder are needed for expandCustomComponents()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (store.setComponentDef as any)(componentName, {
-          ...currentDef,
-          elements: store.elements,
-          wires: store.wires,
-          rootOrder: store.rootOrder,
-        });
-      }
-    } catch (e) {
-      console.error("[save] failed:", e);
-    } finally {
-      setSaving(false);
-    }
-  }, [markClean]);
-
-  // ── Unified drag start (palette + tree) ──
-  const handleDragStart = (event: DragStartEvent) => {
-    const data = event.active.data.current;
-    if (data?.type === "tree-node") {
-      setActiveTreeId(data.elementId as string);
-      return;
-    }
-    const tag = data?.tag as string | undefined;
-    setActiveComponent(tag ?? null);
-  };
-
-  // ── Unified drag move (tree reorder position calculation) ──
-  const handleDragMove = (event: DragMoveEvent) => {
-    const data = event.active.data.current;
-    if (data?.type !== "tree-node") return;
-
-    const over = event.over;
-    if (!over || typeof over.id !== "string" || !over.id.startsWith("tree-")) {
-      setTreeDropState(null);
-      treeDropRef.current = null;
-      return;
-    }
-
-    const targetId = over.id.replace("tree-", "");
-    const activeRect = event.active.rect.current.translated;
-    const overRect = over.rect;
-
-    if (!activeRect || !overRect) {
-      setTreeDropState(null);
-      treeDropRef.current = null;
-      return;
-    }
-
-    // top 25% → before, bottom 25% → after, middle 50% → inside
-    const dragCenterY = activeRect.top + activeRect.height / 2;
-    const overTop = overRect.top;
-    const overHeight = overRect.height;
-
-    let position: "before" | "after" | "inside";
-    if (dragCenterY < overTop + overHeight * 0.25) {
-      position = "before";
-    } else if (dragCenterY > overTop + overHeight * 0.75) {
-      position = "after";
-    } else {
-      position = "inside";
-    }
-
-    if (targetId === data.elementId) {
-      setTreeDropState(null);
-      treeDropRef.current = null;
-      return;
-    }
-
-    setTreeDropState({ targetId, position });
-    treeDropRef.current = { targetId, position };
-  };
-
-  // ── Unified drag end (palette drop + tree reorder/nest) ──
-  const handleDragEnd = (event: DragEndEvent) => {
-    const data = event.active.data.current;
-
-    // ── Tree-node drop ──
-    if (data?.type === "tree-node") {
-      setActiveTreeId(null);
-      const draggedId = data.elementId as string | undefined;
-      const dropInfo = treeDropRef.current;
-      setTreeDropState(null);
-      treeDropRef.current = null;
-
-      // Resolve target from dropInfo (pointer drag) or event.over (keyboard / no-move drags)
-      let targetId: string | undefined;
-      let position: "before" | "after" | "inside" = "after";
-      if (dropInfo && dropInfo.targetId !== draggedId) {
-        targetId = dropInfo.targetId;
-        position = dropInfo.position;
-      } else if (event.over && typeof event.over.id === "string" && event.over.id.startsWith("tree-")) {
-        targetId = event.over.id.replace("tree-", "");
-      }
-
-      if (!draggedId || !targetId || draggedId === targetId) return;
-
-      if (position === "inside") {
-        exec(new MoveElement(draggedId, targetId, null, "after"));
-      } else {
-        const draggedEl = ctx.getElement(draggedId);
-        const targetEl = ctx.getElement(targetId);
-
-        if (draggedEl && targetEl && draggedEl.parentId === targetEl.parentId) {
-          exec(new ReorderElement(draggedId, targetId, position));
-        } else if (targetEl) {
-          exec(new MoveElement(draggedId, targetEl.parentId ?? (null as unknown as string), targetId, position));
-        }
-      }
-      return;
-    }
-
-    // ── Palette drop on canvas ──
-    setActiveComponent(null);
-
-    if (event.over?.id !== "design-canvas") return;
-
-    const tag = data?.tag as string | undefined;
-    if (!tag) return;
-
-    const id = uid(tag.toLowerCase());
-    const props = getDefaultProps(tag);
-
-    // Only PascalCase tags are custom component references; built-in HTML
-    // tags (div, p, button, etc.) should not carry a componentRef.
-    const isPascal = /^[A-Z]/.test(tag);
-
-    const newEl: ElementData = {
-      id,
-      nodeType: "view",
-      tag,
-      props,
-      children: [],
-      parentId: null,
-      ...(isPascal ? { componentRef: tag } : {}),
-    };
-
-    addElement(newEl);
-  };
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>

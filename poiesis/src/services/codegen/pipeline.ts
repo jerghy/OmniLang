@@ -14,9 +14,7 @@ import { buildPidAnnotations, createAnnotationStrategy } from "./annotation-data
 import { SourceEmitter, CodeWriter } from "./source-emitter";
 import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
-import { uid } from "../../core/utils";
-import { classNameToVariable, variableToClassName } from "../../core/types";
-import type { StyleProperty, ElementData, WireData, CodeTab } from "../../core/types";
+import type { ElementData, WireData, CodeTab } from "../../core/types";
 import type { PidMap } from "../../core/types/pid";
 import { getComponentDefinitions } from "../../core/state/componentRegistry";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
@@ -29,10 +27,12 @@ import type {
   ChainBlock,
   BindingResult,
   LoweredCode,
-  ComponentPart,
-  ComponentMeta,
   AnnotationStrategy,
 } from "./types";
+import type { GenerateOmniSourceOptions } from "./pipeline-types";
+import { parseStylesFromAST } from "./style-parser";
+import type { PhaseAContext, PhaseBContext, PhaseCContext, StyleCollection } from "./component-builder";
+import { buildComponentPart, buildComponentMeta, computeViewWrapperId } from "./component-builder";
 
 // ── runPhase helper ─────────────────────────────────────────────────
 
@@ -59,187 +59,6 @@ function runPhase<T>(
     return { value: null, errors: [error] };
   }
 }
-
-// ── parseStylesFromAST ─────────────────────────────────────────────
-// Reconstruct ElementStyle (class refs + inline properties) from a component AST node (view tree + style blocks).
-// Called when loading .omni files to populate element styles before storing.
-
-function generateId(): string {
-  return uid("s");
-}
-
-function findViewNode(view: ViewNode | null | undefined, elId: string): ViewNode | null {
-  if (!view) return null;
-  if (view.id === elId) return view;
-  for (const child of view.children || []) {
-    const found = findViewNode(child, elId);
-    if (found) return found;
-  }
-  return null;
-}
-
-function exprToString(expr: unknown): string {
-  if (!expr) return "";
-  if (typeof expr === "string") return expr;
-  if (typeof expr === "number") return String(expr);
-  if (typeof expr === "object" && expr !== null) {
-    const e = expr as Record<string, unknown>;
-    if (e.value !== undefined) return String(e.value);
-    if (e.literal !== undefined) return String(e.literal);
-  }
-  return String(expr);
-}
-
-/**
- * Parse style { } blocks from a component AST and populate ElementStyle
- * (classRefs + inlineProperties) on the given view elements via el.style.
- *
- * Also populates the StyleRegistry (useStyleRegistryStore) from style { } blocks.
- *
- * Handles:
- *   - class: attributes on view nodes → classRefs
- *   - inline_style on view nodes → inlineProperties
- *   - Backward compatibility: old files without style { } blocks
- *     → extracts known style property keys from element props as inlineProperties
- */
-interface StyleRule {
-  class_name: string;
-  properties: Record<string, string>;
-}
-
-interface ComponentAST {
-  name?: string;
-  style?: StyleRule[];
-  view?: ViewNode;
-}
-
-export function parseStylesFromAST(
-  componentNode: ComponentAST | undefined | null,
-  viewElements: Map<string, ElementData>,
-): void {
-  const componentName = componentNode?.name ?? "App";
-  const store = useStyleRegistryStore.getState();
-
-  // 1. Parse style { } blocks → populate StyleRegistry
-  const styleBlock = componentNode?.style;
-  const hasStyleBlock = Array.isArray(styleBlock);
-  if (hasStyleBlock) {
-    for (const rule of styleBlock) {
-      const className: string = rule.class_name;
-      const properties: StyleProperty[] = Object.entries(rule.properties).map(
-        ([name, valueExpr]: [string, string]) => ({
-          id: generateId(),
-          name,
-          segments: [{ type: "text" as const, value: exprToString(valueExpr) }],
-        })
-      );
-
-      const varName = classNameToVariable(className);
-      if (varName) {
-        store.addVariable(componentName, {
-          id: generateId(),
-          name: varName,
-          segments: properties[0]?.segments ?? [],
-        });
-      } else {
-        store.addClass(componentName, {
-          id: generateId(),
-          name: className,
-          properties,
-        });
-      }
-    }
-  }
-
-  // 2. Walk view elements → map class: and style: to ElementStyle
-  for (const [elId, el] of viewElements) {
-    const classRefs: string[] = [];
-    const inlineProperties: StyleProperty[] = [];
-    const viewNode = findViewNode(componentNode?.view, elId);
-
-    if (viewNode) {
-      // Parse class: attribute → classRefs
-      // The class: attribute includes BOTH auto-generated path classes (e.g. "demo1_h1_0")
-      // from the style resolver AND user-defined classes from the registry.
-      // Only recover user-defined classes (they match the registry) and discard
-      // auto-generated path classes that would appear as garbled names in the UI.
-      const classAttr = viewNode.props?.["class"];
-      if (classAttr && typeof classAttr === "string") {
-        const allClasses = classAttr.split(/\s+/);
-        if (hasStyleBlock && store.getRegistry(componentName).classes.length > 0) {
-          // Recover classRefs from the class: attribute.  The attribute includes
-          // BOTH auto-generated path classes (e.g. "Test_div_0") from the style
-          // resolver AND user-defined classes from the registry.
-          const registry = store.getRegistry(componentName);
-          const registryNames = new Set((registry.classes as Array<{ name: string }>).map((c) => c.name));
-          for (const v of registry.variables) {
-            registryNames.add(variableToClassName(v.name));
-          }
-          const compEscaped = componentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const autoGenRe = new RegExp(`^${compEscaped}_[a-z]+(_\\d+)?$`);
-          for (const c of allClasses) {
-            // Keep classes that are in the registry (user-defined) OR are
-            // auto-generated path classes needed for round-trip fidelity.
-            if (registryNames.has(c) || autoGenRe.test(c)) classRefs.push(c);
-          }
-        } else {
-          // No style block or empty registry — keep all classes (backward compat)
-          classRefs.push(...allClasses);
-        }
-      }
-
-      // Parse inline_style → inlineProperties
-      const inlineStyle = viewNode.inline_style;
-      if (inlineStyle && typeof inlineStyle === "object") {
-        for (const [name, value] of Object.entries(inlineStyle)) {
-          inlineProperties.push({
-            id: generateId(),
-            name,
-            segments: [{ type: "text" as const, value: String(value) }],
-          });
-        }
-      }
-    }
-
-    // 3. Backward compatibility: no style { } block and no class:/style: attributes
-    //    → extract known style keys from el.props and create inline properties
-    if (classRefs.length === 0 && inlineProperties.length === 0 && !hasStyleBlock) {
-      for (const key of Object.keys(el.props)) {
-        // Common CSS property names that might appear as element props in old files
-        if (/^(background|color|padding|margin|border|radius|width|height|display|flex|gap|font|text|align|justify)/i.test(key)) {
-          inlineProperties.push({
-            id: generateId(),
-            name: key,
-            segments: [{ type: "text" as const, value: String(el.props[key]) }],
-          });
-        }
-      }
-    }
-
-    el.style = { classRefs, inlineProperties };
-
-    // Cleanup: remove old props.style and props.className when style
-    // has been set, to avoid duplicate style/class attributes in emitted source
-    if ((classRefs.length > 0 || inlineProperties.length > 0) && (el.props?.style || el.props?.className)) {
-      const { style: _oldStyle, className: _oldClass, ...restProps } = el.props;
-      el.props = restProps;
-    }
-  }
-}
-
-// ── Options type ────────────────────────────────────────────────────
-
-type GenerateOmniSourceOptions = {
-  designElements: ElementData[];
-  designWires: WireData[];
-  codeTabs: CodeTab[];
-  componentName: string;
-  rootOrder?: string[];
-  forSave?: boolean;
-  componentMeta?: ComponentMeta;
-  /** Existing PID map to reuse PIDs across regenerations for stability. */
-  existingPidMap?: PidMap;
-};
 
 // ── Default Factory Functions ───────────────────────────────────────
 
@@ -275,36 +94,8 @@ function defaultLoweredCode(): LoweredCode {
   };
 }
 
-interface StyleCollection {
-  componentStyle: Record<string, Record<string, string>>;
-  elementClassMap: Map<string, string[]>;
-  elementInlineMap: Map<string, Record<string, string>>;
-}
-
 function defaultStyleCollection(): StyleCollection {
   return { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() };
-}
-
-// ── Phase Context Types ─────────────────────────────────────────────
-
-interface PhaseAContext {
-  roots: ViewNode[];
-  pascalCaseTags: string[];
-  bindings: BindingResult;
-  imports: string[];
-}
-
-interface PhaseBContext {
-  stores: StoreDef[];
-  standaloneSignals: Array<{ name: string; type: string; defaultValue?: unknown }>;
-  standaloneComputeds: Array<{ name: string; type: string; body: string }>;
-  lowered: LoweredCode;
-  allChains: Map<string, ChainBlock>;
-}
-
-interface PhaseCContext {
-  annotationStrategy: AnnotationStrategy | null;
-  styleCollection: StyleCollection;
 }
 
 // ── Phase Functions ─────────────────────────────────────────────────
@@ -402,9 +193,6 @@ function runPhaseC(
   errors.push(...c1.errors);
 
   // ── Plumb signal bindings from wire analysis into ViewNode trees ──
-  // Invert signalBindings (signalName → [{elementId, propName}]) to
-  // elementId → {propName: signalName} so the SourceEmitter can emit
-  // `bind:prop={signalName}` on each view node.
   if (c1.errors.length === 0) {
     const elBindings = new Map<string, Record<string, string>>();
     for (const [sigName, targets] of phaseA.bindings.signalBindings) {
@@ -421,9 +209,6 @@ function runPhaseC(
     }
   }
 
-  // If applyStyles failed, roots may be partially modified (some nodes got
-  // resolvedStyle, others didn't).  Skip style collection and let the fatal
-  // error check below short-circuit the pipeline with null value.
   const registry = useStyleRegistryStore.getRegistry(options.componentName);
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
@@ -435,8 +220,8 @@ function runPhaseC(
     const annData = buildPidAnnotations(
       phaseA.roots,
       (mainTab.type as "logic" | "event") ?? "logic",
-      1, // componentIndex — hardcoded for single-component files
-      options.existingPidMap, // pass through for PID stability
+      1,
+      options.existingPidMap,
     );
     return createAnnotationStrategy(annData);
   });
@@ -453,10 +238,6 @@ function runPhaseC(
 
 /**
  * Walk a ViewNode tree and merge signal bindings into resolvedStyle.bindings.
- *
- * NOTE: This intentionally mutates `node.resolvedStyle.bindings` in place.
- * The ViewNode tree is freshly built for each `generateOmniSource` call,
- * so mutation is safe and avoids an expensive full-tree copy.
  */
 function walkAndApplyBindings(
   node: ViewNode,
@@ -471,116 +252,6 @@ function walkAndApplyBindings(
   for (const child of node.children) {
     walkAndApplyBindings(child, elBindings);
   }
-}
-
-// ── Helper: View Wrapper ID ─────────────────────────────────────────
-
-function computeViewWrapperId(options: GenerateOmniSourceOptions): string {
-  let viewWrapperId = `${options.componentName}.view`;
-  if (options.designElements.some((el) => el.id === viewWrapperId)) {
-    viewWrapperId = `${options.componentName}.view-wrapper`;
-  }
-  return viewWrapperId;
-}
-
-// ── Helper: Build ComponentPart ─────────────────────────────────────
-
-function buildComponentPart(
-  options: GenerateOmniSourceOptions,
-  phaseA: PhaseAContext,
-  phaseB: PhaseBContext,
-  viewWrapperId: string,
-  phaseC: PhaseCContext,
-): ComponentPart {
-  // Build component-level signals from standaloneSignals (signals not in a store)
-  const componentSignals: Record<string, { type: string; defaultValue?: unknown }> = {};
-  for (const s of phaseB.standaloneSignals) {
-    componentSignals[s.name] = { type: s.type, defaultValue: s.defaultValue };
-  }
-
-  // Build component-level computeds from standaloneComputeds
-  const componentComputeds: Record<string, { type: string; body: string }> = {};
-  for (const c of phaseB.standaloneComputeds) {
-    componentComputeds[c.name] = { type: c.type, body: c.body };
-  }
-
-  // Read props/events from the component registry so they appear
-  // as `prop name: Type = default;` and `event name;` in the output.
-  const registryDef: unknown = getComponentDefinitions()[options.componentName];
-  const registryRecord = registryDef && typeof registryDef === "object"
-    ? (registryDef as Record<string, unknown>)
-    : null;
-  const registryProps: Record<string, unknown> = registryRecord && "props" in registryRecord
-    ? (registryRecord.props as Record<string, unknown>)
-    : {};
-  const registryEvents: Record<string, unknown> = registryRecord && "events" in registryRecord
-    ? (registryRecord.events as Record<string, unknown>)
-    : {};
-  const componentProps: ComponentPart["props"] = Object.keys(registryProps).length > 0
-    ? Object.entries(registryProps).map(([name, schema]) => ({
-        name,
-        type: (schema as { type: string }).type,
-        default: (schema as { default?: unknown }).default,
-      }))
-    : undefined;
-  const componentEvents: ComponentPart["events"] = Object.keys(registryEvents).length > 0
-    ? Object.entries(registryEvents).map(([name]) => ({
-        name,
-      }))
-    : undefined;
-
-  // Extract `const` declarations from codeblock elements with tag === "const"
-  const consts: ComponentPart["consts"] = [];
-  for (const el of options.designElements) {
-    if (el.nodeType === "codeblock" && el.tag === "const") {
-      const name = el.props.name as string | undefined;
-      if (name) {
-        consts.push({ name, value: el.props.value });
-      }
-    }
-  }
-
-  return {
-    name: options.componentName,
-    signals: componentSignals,
-    computeds: componentComputeds,
-    props: componentProps,
-    events: componentEvents,
-    consts: consts.length > 0 ? consts : undefined,
-    storeRefs: [...phaseA.bindings.storeRefs.keys()],
-    fns: phaseB.lowered.functions,
-    // When there's exactly one root, use it directly — don't wrap it in an extra div.
-    // When there are multiple roots, wrap them in a container div for single-root view block.
-    view: phaseA.roots.length === 1
-      ? phaseA.roots[0]
-      : phaseA.roots.length > 0
-        ? {
-            id: viewWrapperId,
-            path: viewWrapperId,
-            tag: "div",
-            props: {},
-            children: phaseA.roots,
-            kind: "element" as const,
-            resolvedStyle: {
-              htmlTag: "div",
-              cssClassName: `${options.componentName.toLowerCase()}_view`,
-              contentText: undefined,
-              htmlAttrs: {},
-              eventBindings: {},
-              bindings: {},
-              cssRules: {},
-              usedClassNames: [],
-            },
-          }
-        : null,
-    style: phaseC.styleCollection.componentStyle,
-  };
-}
-
-// ── Helper: Build ComponentMeta ─────────────────────────────────────
-
-function buildComponentMeta(options: GenerateOmniSourceOptions): ComponentMeta | undefined {
-  return options.componentMeta;
 }
 
 // ── generateOmniSource ──────────────────────────────────────────────
@@ -644,8 +315,8 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
  * Generate multi-file OmniLang output.
  *
  * Runs the full pipeline then maps the result to:
- *   - src/main.omni            — component body (stores + component + view + style)
- *   - src/stores/<Name>.omni   — each store as a standalone file
+ *   - <targetPath>                — component body (stores + component + view + style)
+ *   - src/stores/<Name>.omni      — each store as a standalone file
  *   - src/components/<Name>.omni  — each custom component (future)
  */
 export function generateOmniFiles(options: {
@@ -695,10 +366,6 @@ export function generateOmniFiles(options: {
  * then runs the full pipeline on the filtered set.
  *
  * Used for incremental compilation — only re-generates the changed component's source.
- *
- * NOTE: This is a simplified approach for Phase 1. In a future phase, this will
- * use a true sub-pipeline that only processes one component without the overhead
- * of the full pipeline entry point.
  */
 export function generateOmniFragment(options: {
   componentName: string;
@@ -763,4 +430,3 @@ function emitStoreBlock(store: StoreDef): string {
   w.emit(`}`);
   return w.toString();
 }
-
