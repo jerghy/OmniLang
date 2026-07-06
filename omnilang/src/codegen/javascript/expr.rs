@@ -3,7 +3,7 @@
 //! Formats IR expressions, statements (as expressions), JSON values,
 //! and binary operators into JavaScript/TypeScript source strings.
 
-use crate::codegen::{try_format_stdlib_call, Target};
+use crate::codegen::{format_block_as_expr, try_format_stdlib_call, Target};
 use crate::ir::*;
 
 /// Format an IR expression node as a JS/TS expression string.
@@ -170,18 +170,8 @@ pub(super) fn format_expr_ir(expr: &ExprIR, _ts_mode: bool) -> String {
 
 /// Format a block's trailing expression as a JS value (for match arm bodies).
 pub(super) fn format_block_as_js_expr(block: &BlockIR, ts_mode: bool) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr, ts_mode),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(|e| format_expr_ir(e, ts_mode))
-                .unwrap_or_else(|| "undefined".into()),
-            _ => "undefined".into(),
-        }
-    } else {
-        "undefined".into()
-    }
+    let fmt = |e: &ExprIR| format_expr_ir(e, ts_mode);
+    format_block_as_expr(block, &fmt, "undefined")
 }
 
 /// Format a single statement IR node as a JS expression string (for block exprs).
@@ -235,26 +225,5 @@ pub(super) fn format_json_value(value: &serde_json::Value) -> String {
 
 /// Map OMNI binary operator name to JavaScript operator.
 pub(super) fn binary_op_to_js(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "===",
-        "neq" => "!==",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    crate::codegen::binary_op_to_str(op, true, false)
 }

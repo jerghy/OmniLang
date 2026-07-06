@@ -9,8 +9,9 @@ use super::expr::format_expr_ir_flutter;
 use super::motion::{wrap_flutter_states, wrap_with_motion_widgets};
 use super::motion_widgets::emit_event_object_flutter;
 use super::stmt::generate_statement_flutter;
+use super::capitalize_first;
 use super::utils::{
-    binding_to_flutter_param, capitalize_first, event_to_flutter_callback,
+    binding_to_flutter_param, event_to_flutter_callback,
     prop_to_flutter_param_name, tag_to_flutter_widget,
 };
 

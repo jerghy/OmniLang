@@ -7,7 +7,8 @@ use std::collections::HashSet;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
-use super::utils::{binary_op_to_tsx, capitalize_first, format_json_value_tsx};
+use super::super::{binary_op_to_str, capitalize_first, format_block_as_expr};
+use super::utils::format_json_value_tsx;
 
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
@@ -243,18 +244,7 @@ pub(super) fn generate_statement_tsx(
 }
 
 fn format_block_as_tsx_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir_tsx(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_ir_tsx)
-                .unwrap_or_else(|| "undefined".into()),
-            _ => "undefined".into(),
-        }
-    } else {
-        "undefined".into()
-    }
+    format_block_as_expr(block, &format_expr_ir_tsx, "undefined")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -272,7 +262,7 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR) -> String {
             format!("{}.{}", format_expr_ir_tsx(object), field)
         }
         ExprIR::BinaryOpExpr { op, left, right } => {
-            let js_op = binary_op_to_tsx(op);
+            let js_op = binary_op_to_str(op, true, false);
             let lhs = format_expr_ir_tsx(left);
             let rhs = format_expr_ir_tsx(right);
             format!("{} {} {}", lhs, js_op, rhs)

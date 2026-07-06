@@ -7,18 +7,7 @@ use crate::ir::*;
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn format_block_as_dioxus_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir_dioxus(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_ir_dioxus)
-                .unwrap_or_else(|| "None".into()),
-            _ => "None".into(),
-        }
-    } else {
-        "None".into()
-    }
+    super::super::format_block_as_expr(block, &format_expr_ir_dioxus, "None")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -186,30 +175,9 @@ pub(super) fn format_json_value_dioxus(value: &serde_json::Value) -> String {
     }
 }
 
-/// Map OMNI binary operator name to Rust operator.
+/// Map OMNI binary operator name to Dioxus/Rust operator.
 pub(super) fn binary_op_to_dioxus(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "==",
-        "neq" => "!=",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    super::super::binary_op_to_str(op, false, false)
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -161,18 +161,7 @@ pub(super) fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
 }
 
 pub(super) fn format_block_as_vue_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_vue(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_vue)
-                .unwrap_or_else(|| "undefined".into()),
-            _ => "undefined".into(),
-        }
-    } else {
-        "undefined".into()
-    }
+    super::super::format_block_as_expr(block, &format_expr_vue, "undefined")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -313,11 +302,7 @@ pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
 
 #[allow(dead_code)]
 pub(super) fn capitalize_first(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
+    super::super::capitalize_first(s)
 }
 
 pub(super) fn format_json_value_vue(value: &serde_json::Value) -> String {
@@ -349,28 +334,7 @@ pub(super) fn format_json_value_vue(value: &serde_json::Value) -> String {
 }
 
 pub(super) fn binary_op_to_vue(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "===",
-        "neq" => "!==",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "&&",
-        "or" => "||",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    super::super::binary_op_to_str(op, true, false)
 }
 
 pub(super) fn format_css_value(value: &ExprIR) -> String {

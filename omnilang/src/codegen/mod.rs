@@ -354,6 +354,101 @@ pub fn validate_stdlib_imports(
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// Shared codegen utilities
+// ═══════════════════════════════════════════════════════════
+
+/// Map an OMNI binary operator name to the target language's operator symbol.
+/// - `strict_eq`: if true, uses `===`/`!==` (JS-style); otherwise `==`/`!=`
+/// - `textual_bool`: if true, uses `and`/`or` (Python-style); otherwise `&&`/`||`
+pub fn binary_op_to_str(op: &str, strict_eq: bool, textual_bool: bool) -> &str {
+    match op {
+        "add" => "+",
+        "sub" => "-",
+        "mul" => "*",
+        "div" => "/",
+        "mod" => "%",
+        "eq" => {
+            if strict_eq {
+                "==="
+            } else {
+                "=="
+            }
+        }
+        "neq" => {
+            if strict_eq {
+                "!=="
+            } else {
+                "!="
+            }
+        }
+        "lt" => "<",
+        "gt" => ">",
+        "lteq" => "<=",
+        "gteq" => ">=",
+        "and" => {
+            if textual_bool {
+                "and"
+            } else {
+                "&&"
+            }
+        }
+        "or" => {
+            if textual_bool {
+                "or"
+            } else {
+                "||"
+            }
+        }
+        "assign" => "=",
+        "addassign" => "+=",
+        "subassign" => "-=",
+        "mulassign" => "*=",
+        "divassign" => "/=",
+        "modassign" => "%=",
+        _ => op,
+    }
+}
+
+/// Escape a string value for use as a string literal in generated code.
+/// Handles backslash, the target quote character, and common whitespace escapes.
+pub fn escape_literal_str(s: &str, quote: char) -> String {
+    s.replace('\\', "\\\\")
+        .replace(quote, &format!("\\{}", quote))
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+/// Format a block IR node as a single expression by taking the last statement's value.
+/// Calls `fmt` for expression/return statements, returns `fallback` for empty/non-value blocks.
+pub fn format_block_as_expr<F>(block: &crate::ir::BlockIR, fmt: &F, fallback: &str) -> String
+where
+    F: Fn(&crate::ir::ExprIR) -> String,
+{
+    if let Some(last) = block.statements.last() {
+        match last {
+            crate::ir::StatementIR::ExprStmtIR { expr } => fmt(expr),
+            crate::ir::StatementIR::ReturnStmtIR { value } => value
+                .as_ref()
+                .map(fmt)
+                .unwrap_or_else(|| fallback.into()),
+            _ => fallback.into(),
+        }
+    } else {
+        fallback.into()
+    }
+}
+
+/// Capitalize the first character of a string.
+pub fn capitalize_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

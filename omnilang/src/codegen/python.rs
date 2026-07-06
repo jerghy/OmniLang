@@ -414,18 +414,7 @@ fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
 }
 
 fn format_block_as_python_expr(block: &BlockIR) -> String {
-    if let Some(last) = block.statements.last() {
-        match last {
-            StatementIR::ExprStmtIR { expr } => format_expr_ir(expr),
-            StatementIR::ReturnStmtIR { value } => value
-                .as_ref()
-                .map(format_expr_ir)
-                .unwrap_or_else(|| "None".into()),
-            _ => "None".into(),
-        }
-    } else {
-        "None".into()
-    }
+    crate::codegen::format_block_as_expr(block, &format_expr_ir, "None")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -598,28 +587,7 @@ fn format_json_value(value: &serde_json::Value) -> String {
 
 /// Map OMNI binary operator name to Python operator.
 fn binary_op_to_python(op: &str) -> &str {
-    match op {
-        "add" => "+",
-        "sub" => "-",
-        "mul" => "*",
-        "div" => "/",
-        "mod" => "%",
-        "eq" => "==",
-        "neq" => "!=",
-        "lt" => "<",
-        "gt" => ">",
-        "lteq" => "<=",
-        "gteq" => ">=",
-        "and" => "and",
-        "or" => "or",
-        "assign" => "=",
-        "addassign" => "+=",
-        "subassign" => "-=",
-        "mulassign" => "*=",
-        "divassign" => "/=",
-        "modassign" => "%=",
-        _ => op,
-    }
+    crate::codegen::binary_op_to_str(op, false, true)
 }
 
 /// Format a TypeIR as a Python type annotation string.

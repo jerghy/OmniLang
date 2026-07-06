@@ -8,8 +8,9 @@ use crate::codegen::CodeWriter;
 use crate::ir::*;
 
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
+use super::super::capitalize_first;
 use super::utils::{
-    capitalize_first, emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag,
+    emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag,
 };
 
 pub(super) fn gen_view_node_tsx(
