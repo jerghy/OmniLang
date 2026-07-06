@@ -29,3 +29,6 @@
 - [x] Task 1: ba401f2c refactor: extract shared codegen utilities (review: PASS/Approved)
 
 - [x] Task 2: 93600150 fix: security hardening (review: PASS/Approved)
+
+- [x] Task 3: 5d0c6a24 refactor: add #[must_use] (31 annotations, 9 modules, review pending)
+- [x] Task 4: 9995732e fix: restore type checking (review: PASS/Approved))
