@@ -575,6 +575,20 @@ pub struct ListRenderingIntent {
 }
 
 // ═══════════════════════════════════════════════════════
+// ConstructionKind
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConstructionKind {
+    TagMapping,
+    Conditional,
+    List,
+    Normal,
+    Static,
+}
+
+// ═══════════════════════════════════════════════════════
 // Element IR
 // ═══════════════════════════════════════════════════════
 
@@ -589,7 +603,7 @@ pub struct ElementIR {
     pub children: Vec<ViewTree>,
     pub test_id: Option<String>,
     pub ref_name: Option<String>,
-    pub construction_kind: String,
+    pub construction_kind: ConstructionKind,
     /// Dynamic class map bindings: class_name → signal expression
     /// e.g. "visible" → IR for `isOpen` signal. Codegen emits
     /// __omni_effect(() => el.classList.toggle(name, signal.value))
@@ -932,4 +946,50 @@ mod tests {
         let back: MutationOp = serde_json::from_str(&json).unwrap();
         assert_eq!(back, MutationOp::Pop);
     }
+
+    #[test]
+    fn serde_roundtrip_construction_kind_tag_mapping() {
+        let v = ConstructionKind::TagMapping;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"tag_mapping\"");
+        let back: ConstructionKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ConstructionKind::TagMapping);
+    }
+
+    #[test]
+    fn serde_roundtrip_construction_kind_conditional() {
+        let v = ConstructionKind::Conditional;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"conditional\"");
+        let back: ConstructionKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ConstructionKind::Conditional);
+    }
+
+    #[test]
+    fn serde_roundtrip_construction_kind_list() {
+        let v = ConstructionKind::List;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"list\"");
+        let back: ConstructionKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ConstructionKind::List);
+    }
+
+    #[test]
+    fn serde_roundtrip_construction_kind_normal() {
+        let v = ConstructionKind::Normal;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"normal\"");
+        let back: ConstructionKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ConstructionKind::Normal);
+    }
+
+    #[test]
+    fn serde_roundtrip_construction_kind_static() {
+        let v = ConstructionKind::Static;
+        let json = serde_json::to_string(&v).unwrap();
+        assert_eq!(json, "\"static\"");
+        let back: ConstructionKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ConstructionKind::Static);
+    }
+
 }

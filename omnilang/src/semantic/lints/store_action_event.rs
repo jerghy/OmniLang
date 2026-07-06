@@ -75,8 +75,8 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::{
-        ComponentIR, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind, IRProgram,
-        ModuleIR, ViewTree,
+        ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind,
+        IRProgram, ModuleIR, ViewTree,
     };
 
     use super::*;
@@ -151,7 +151,7 @@ mod tests {
             children: vec![],
             test_id: None,
             ref_name: None,
-            construction_kind: "normal".into(),
+            construction_kind: ConstructionKind::Normal,
             class_map_bindings: HashMap::new(),
             source_line: 5,
             source_col: 3,
@@ -217,7 +217,7 @@ mod tests {
             children: vec![],
             test_id: None,
             ref_name: None,
-            construction_kind: "normal".into(),
+            construction_kind: ConstructionKind::Normal,
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,
@@ -276,7 +276,7 @@ mod tests {
             children: vec![],
             test_id: None,
             ref_name: None,
-            construction_kind: "normal".into(),
+            construction_kind: ConstructionKind::Normal,
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,

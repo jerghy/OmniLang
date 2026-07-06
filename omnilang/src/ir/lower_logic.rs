@@ -80,25 +80,25 @@ pub fn lower_import(imp: &ImportStmt) -> ImportIR {
             path: n.path.clone(),
             names: n.names.clone(),
             alias: None,
-            kind: "named".into(),
+            kind: ImportKind::Named,
         },
         ImportStmt::Namespace(ns) => ImportIR {
             path: ns.path.clone(),
             names: vec![],
             alias: Some(ns.alias.clone()),
-            kind: "namespace".into(),
+            kind: ImportKind::Namespace,
         },
         ImportStmt::TypeOnly(t) => ImportIR {
             path: t.path.clone(),
             names: t.names.clone(),
             alias: None,
-            kind: "type_only".into(),
+            kind: ImportKind::TypeOnly,
         },
         ImportStmt::Lib(name) => ImportIR {
             path: name.clone(),
             names: vec![],
             alias: None,
-            kind: "lib".into(),
+            kind: ImportKind::Lib,
         },
     }
 }

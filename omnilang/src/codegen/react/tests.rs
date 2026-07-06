@@ -12,7 +12,7 @@ use crate::codegen::{
     binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen,
     JSON_REACT,
 };
-use crate::ir::ModuleIR;
+use crate::ir::{ConstructionKind, ModuleIR};
 use crate::ir::*;
 
 // ── Helper tests ─────────────────────────────────────────
@@ -471,7 +471,7 @@ fn test_tsx_interpolation_renders_expr() {
             test_id: None,
             ref_name: None,
             states: None,
-            construction_kind: "static".into(),
+            construction_kind: ConstructionKind::Static,
             source_line: 0,
             source_col: 0,
             motion_triggers: vec![],
