@@ -80,10 +80,10 @@ impl OmniViewGenerator {
         self.js.push_str("      if (expr) {\n");
         self.js.push_str("        try {\n");
         self.js.push_str(
-            "          // eval() runs in the enclosing IIFE scope — all signals are accessible\n",
+            "          // new Function() runs in global scope — only globally accessible signals work\n",
         );
         self.js
-            .push_str("          el.textContent = String(eval(expr));\n");
+            .push_str("          el.textContent = String(new Function('return (' + expr + ')')());\n");
         self.js
             .push_str("        } catch(e) { el.textContent = ''; }\n");
         self.js.push_str("      }\n");
@@ -128,7 +128,7 @@ impl OmniViewGenerator {
         self.js
             .push_str("          for (const cls in classMap) {\n");
         self.js.push_str(
-            "            try { el.classList.toggle(cls, !!eval(classMap[cls])); } catch(e) {}\n",
+            "            try { el.classList.toggle(cls, !!new Function('return (' + classMap[cls] + ')')()); } catch(e) {}\n",
         );
         self.js.push_str("          }\n");
         self.js.push_str("        } catch(e) {}\n");
@@ -148,7 +148,7 @@ impl OmniViewGenerator {
             "            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n",
         );
         self.js
-            .push_str("            const resolved = eval('`' + jsTemplate + '`');\n");
+            .push_str("            const resolved = new Function('return `' + jsTemplate + '`')();\n");
         self.js
             .push_str("            el.setAttribute(attr.name, resolved);\n");
         self.js
@@ -299,7 +299,7 @@ impl OmniViewGenerator {
             self.js.push_str(
                 "          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n",
             );
-            self.js.push_str("            try { el.textContent = String(eval(el.getAttribute('data-bind-text'))); } catch(e) {}\n");
+            self.js.push_str("            try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) {}\n");
             self.js.push_str("          });\n");
             self.js.push_str("        }\n");
             self.js

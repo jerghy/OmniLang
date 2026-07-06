@@ -40,11 +40,12 @@ document.addEventListener('click', function(e) {
   var el = e.target.closest('[data-nid]');
   if (el) {
     e.stopPropagation();
-    parent.postMessage({ type: 'omni-select', nid: el.dataset.nid }, '*');
+    parent.postMessage({ type: 'omni-select', nid: el.dataset.nid }, window.location.origin);
   }
 });
 
 window.addEventListener('message', function(e) {
+  if (e.origin !== window.location.origin) return;
   switch (e.data.type) {
     case 'omni-replace-component':
       __omni_replaceComponent(e.data.name, e.data.js);
@@ -86,10 +87,10 @@ function __omni_replaceComponent(name, factoryCode) {
       if (newComp.signals[k]) newComp.signals[k].set(savedSignals[k]);
     });
   }
-  parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*');
+  parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, window.location.origin);
 }
 
-parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, '*');
+parent.postMessage({ type: 'omni-rendered', nidMap: __omni_buildNidMap() }, window.location.origin);
 "#,
         );
     }
