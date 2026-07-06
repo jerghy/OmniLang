@@ -7,7 +7,7 @@ use crate::ir::*;
 /// Dioxus-family expression formatter.
 ///
 /// Identical to `RustFormatExpr` except closures use `move` (required by Dioxus).
-struct DioxusFormatExpr;
+pub(crate) struct DioxusFormatExpr;
 
 impl FormatExpr for DioxusFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {

@@ -17,6 +17,7 @@ use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_JS};
 use crate::ir::*;
 
@@ -284,167 +285,108 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
 // Statement generation
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
-    let fmt = JavaScriptFormatExpr { ts_mode };
-    match stmt {
-        StatementIR::LetStmtIR {
-            name,
-            value,
-            r#type,
-        } => {
-            let safe_name = fmt.format_identifier(name);
-            let rhs = value
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "null".into());
-            let kw = "let";
-            let ts_mode = fmt.ts_mode();
-            let type_hint = if ts_mode {
-                r#type
-                    .as_ref()
-                    .map(|t| {
-                        let ann = js_type(&t.kind, &t.type_args, true);
-                        if ann.is_empty() {
-                            String::new()
-                        } else {
-                            format!(": {}", ann)
-                        }
-                    })
-                    .unwrap_or_default()
-            } else {
-                String::new()
-            };
-            w.emit(&format!("{} {}{} = {};", kw, safe_name, type_hint, rhs));
-        }
-        StatementIR::IfStmtIR {
-            condition,
-            then_body,
-            else_ifs,
-            else_body,
-        } => {
-            let cond = fmt.format_expr(condition);
-            w.emit(&format!("if ({}) {{", cond));
-            w.indent();
-            for s in &then_body.statements {
-                generate_statement(w, s, ts_mode);
-            }
-            w.dedent();
-            for (elif_cond, elif_body) in else_ifs {
-                let elif_js = fmt.format_expr(elif_cond);
-                w.emit(&format!("}} else if ({}) {{", elif_js));
-                w.indent();
-                for s in &elif_body.statements {
-                    generate_statement(w, s, ts_mode);
-                }
-                w.dedent();
-            }
-            if let Some(else_blk) = else_body {
-                if !else_blk.statements.is_empty() {
-                    w.emit("} else {");
-                    w.indent();
-                    for s in &else_blk.statements {
-                        generate_statement(w, s, ts_mode);
-                    }
-                    w.dedent();
-                }
-            }
-            w.emit("}");
-        }
-        StatementIR::ReturnStmtIR { value } => {
-            let rhs = value
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "null".into());
-            w.emit(&format!("return {};", rhs));
-        }
-        StatementIR::MutationStmt { intent: None } => {}
-        StatementIR::MutationStmt {
-            intent: Some(mut_intent),
-        } => {
-            let target = &mut_intent.target.name;
-            let amount = mut_intent
-                .amount
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "0".into());
-            match &mut_intent.operation {
-                MutationOp::DirectAssign => {
-                    w.emit(&format!("this.{} = {};", target, amount));
-                }
-                MutationOp::Increment => {
-                    w.emit(&format!("this.{} += {};", target, amount));
-                }
-                MutationOp::Decrement => {
-                    w.emit(&format!("this.{} -= {};", target, amount));
-                }
-                MutationOp::Multiply => {
-                    w.emit(&format!("this.{} *= {};", target, amount));
-                }
-                MutationOp::Divide => {
-                    w.emit(&format!("this.{} /= {};", target, amount));
-                }
-                MutationOp::Modulo => {
-                    w.emit(&format!("this.{} %= {};", target, amount));
-                }
-                MutationOp::Push => {
-                    let item = mut_intent
-                        .item
-                        .as_ref()
-                        .map(|v| fmt.format_expr(v))
-                        .unwrap_or_else(|| "undefined".into());
-                    w.emit(&format!("this.{}.push({});", target, item));
-                }
-                MutationOp::Pop => {
-                    w.emit(&format!("this.{}.pop();", target));
-                }
-            }
-        }
-        StatementIR::ExprStmtIR { expr } => {
-            let line = fmt.format_expr(expr);
-            // Skip null expressions
-            if line != "null" {
-                w.emit(&format!("{};", line));
-            }
-        }
-        StatementIR::EventEmitStmtIR { event_name, args } => {
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                let formatted: Vec<String> = args.iter().map(|a| fmt.format_expr(a)).collect();
-                format!("({})", formatted.join(", "))
-            };
-            w.emit(&format!("// emit event: {}{}", event_name, arg_str));
-        }
-        StatementIR::WhileStmtIR { condition, body } => {
-            let cond = fmt.format_expr(condition);
-            w.emit(&format!("while ({}) {{", cond));
-            w.indent();
-            for s in &body.statements {
-                generate_statement(w, s, ts_mode);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::ForInStmtIR {
-            var_name,
-            iterable,
-            body,
-        } => {
-            let iter = fmt.format_expr(iterable);
-            w.emit(&format!("for (const {} of {}) {{", var_name, iter));
-            w.indent();
-            for s in &body.statements {
-                generate_statement(w, s, ts_mode);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::BreakStmtIR => {
-            w.emit("break;");
-        }
-        StatementIR::ContinueStmtIR => {
-            w.emit("continue;");
-        }
-        _ => {}
+/// JavaScript/TypeScript statement formatter.
+pub(super) struct JsStmtFormatter {
+    pub expr: JavaScriptFormatExpr,
+}
+
+impl FormatStmt for JsStmtFormatter {
+    type ExprFormatter = JavaScriptFormatExpr;
+
+    fn expr_fmt(&self) -> &Self::ExprFormatter {
+        &self.expr
     }
+
+    fn null_value(&self) -> &str {
+        "null"
+    }
+
+    fn for_in_keyword(&self) -> &str {
+        "const"
+    }
+
+    fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
+        if self.expr.ts_mode() {
+            ty.as_ref()
+                .map(|t| {
+                    let ann = js_type(&t.kind, &t.type_args, true);
+                    if ann.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {}", ann)
+                    }
+                })
+                .unwrap_or_default()
+        } else {
+            String::new()
+        }
+    }
+
+    fn format_let_stmt(
+        &self,
+        w: &mut CodeWriter,
+        name: &str,
+        value: &Option<ExprIR>,
+        type_ann: &Option<TypeIR>,
+    ) {
+        let safe_name = self.expr.format_identifier(name);
+        let kw = if self.use_const_for_immutable() {
+            "const"
+        } else {
+            self.let_keyword()
+        };
+        let ty = self.format_let_type_ann(type_ann);
+        let rhs = value
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| self.null_value().to_string());
+        w.emit(&format!("{kw} {safe_name}{ty} = {rhs};"));
+    }
+
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let target = &intent.target.name;
+        let amount = intent
+            .amount
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "0".into());
+        match &intent.operation {
+            MutationOp::DirectAssign => {
+                w.emit(&format!("this.{} = {};", target, amount));
+            }
+            MutationOp::Increment => {
+                w.emit(&format!("this.{} += {};", target, amount));
+            }
+            MutationOp::Decrement => {
+                w.emit(&format!("this.{} -= {};", target, amount));
+            }
+            MutationOp::Multiply => {
+                w.emit(&format!("this.{} *= {};", target, amount));
+            }
+            MutationOp::Divide => {
+                w.emit(&format!("this.{} /= {};", target, amount));
+            }
+            MutationOp::Modulo => {
+                w.emit(&format!("this.{} %= {};", target, amount));
+            }
+            MutationOp::Push => {
+                let item = intent
+                    .item
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "undefined".into());
+                w.emit(&format!("this.{}.push({});", target, item));
+            }
+            MutationOp::Pop => {
+                w.emit(&format!("this.{}.pop();", target));
+            }
+        }
+    }
+}
+
+pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR, ts_mode: bool) {
+    let fmt = JsStmtFormatter {
+        expr: JavaScriptFormatExpr { ts_mode },
+    };
+    fmt.format_stmt(w, stmt);
 }

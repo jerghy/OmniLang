@@ -13,6 +13,8 @@ pub(crate) use expr::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::shared::expr::{FormatExpr, DartFormatExpr};
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
 
@@ -267,148 +269,88 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
 // Statement generation
 // ═══════════════════════════════════════════════════════════
 
-fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
-    match stmt {
-        StatementIR::LetStmtIR {
-            name,
-            value,
-            r#type,
-        } => {
-            let rhs = value
-                .as_ref()
-                .map(format_expr_ir)
-                .unwrap_or_else(|| "null".into());
-            if let Some(ref ty) = r#type {
-                let ann = dart_type(&ty.kind, &ty.type_args);
-                w.emit(&format!("{} {} = {};", ann, name, rhs));
-            } else {
-                w.emit(&format!("var {} = {};", name, rhs));
-            }
-        }
-        StatementIR::IfStmtIR {
-            condition,
-            then_body,
-            else_ifs,
-            else_body,
-        } => {
-            let cond = format_expr_ir(condition);
-            w.emit(&format!("if ({}) {{", cond));
-            w.indent();
-            for s in &then_body.statements {
-                generate_statement(w, s);
-            }
-            w.dedent();
-            for (elif_cond, elif_body) in else_ifs {
-                let elif_js = format_expr_ir(elif_cond);
-                w.emit(&format!("}} else if ({}) {{", elif_js));
-                w.indent();
-                for s in &elif_body.statements {
-                    generate_statement(w, s);
-                }
-                w.dedent();
-            }
-            if let Some(else_blk) = else_body {
-                if !else_blk.statements.is_empty() {
-                    w.emit("} else {");
-                    w.indent();
-                    for s in &else_blk.statements {
-                        generate_statement(w, s);
-                    }
-                    w.dedent();
-                }
-            }
-            w.emit("}");
-        }
-        StatementIR::ReturnStmtIR { value } => {
-            let rhs = value
-                .as_ref()
-                .map(format_expr_ir)
-                .unwrap_or_else(|| "null".into());
-            w.emit(&format!("return {};", rhs));
-        }
-        StatementIR::MutationStmt { intent: None } => {}
-        StatementIR::MutationStmt {
-            intent: Some(mut_intent),
-        } => {
-            let target = &mut_intent.target.name;
-            let amount = mut_intent
-                .amount
-                .as_ref()
-                .map(format_expr_ir)
-                .unwrap_or_else(|| "0".into());
-            match &mut_intent.operation {
-                MutationOp::DirectAssign => {
-                    w.emit(&format!("this.{} = {};", target, amount));
-                }
-                MutationOp::Increment => {
-                    w.emit(&format!("this.{} += {};", target, amount));
-                }
-                MutationOp::Decrement => {
-                    w.emit(&format!("this.{} -= {};", target, amount));
-                }
-                MutationOp::Multiply => {
-                    w.emit(&format!("this.{} *= {};", target, amount));
-                }
-                MutationOp::Divide => {
-                    w.emit(&format!("this.{} /= {};", target, amount));
-                }
-                MutationOp::Modulo => {
-                    w.emit(&format!("this.{} %= {};", target, amount));
-                }
-                other => {
-                    w.emit(&format!(
-                        "// TODO: mutation operation '{}' on '{}'",
-                        other, target
-                    ));
-                }
-            }
-        }
-        StatementIR::ExprStmtIR { expr } => {
-            let line = format_expr_ir(expr);
-            // Skip null expressions
-            if line != "null" {
-                w.emit(&format!("{};", line));
-            }
-        }
-        StatementIR::EventEmitStmtIR { event_name, args } => {
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                let formatted: Vec<String> = args.iter().map(format_expr_ir).collect();
-                format!("({})", formatted.join(", "))
-            };
-            w.emit(&format!("// emit event: {}{}", event_name, arg_str));
-        }
-        StatementIR::WhileStmtIR { condition, body } => {
-            let cond = format_expr_ir(condition);
-            w.emit(&format!("while ({}) {{", cond));
-            w.indent();
-            for s in &body.statements {
-                generate_statement(w, s);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::ForInStmtIR {
-            var_name,
-            iterable,
-            body,
-        } => {
-            let iter = format_expr_ir(iterable);
-            w.emit(&format!("for (var {} in {}) {{", var_name, iter));
-            w.indent();
-            for s in &body.statements {
-                generate_statement(w, s);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::BreakStmtIR => {
-            w.emit("break;");
-        }
-        StatementIR::ContinueStmtIR => {
-            w.emit("continue;");
-        }
-        _ => {}
+/// Dart statement formatter.
+struct DartStmtFormatter {
+    expr: DartFormatExpr,
+}
+
+impl FormatStmt for DartStmtFormatter {
+    type ExprFormatter = DartFormatExpr;
+
+    fn expr_fmt(&self) -> &Self::ExprFormatter {
+        &self.expr
     }
+
+    fn null_value(&self) -> &str {
+        "null"
+    }
+
+    fn for_in_keyword(&self) -> &str {
+        "var"
+    }
+
+    fn for_in_uses_of(&self) -> bool {
+        false // Dart uses `in`
+    }
+
+    fn format_let_stmt(
+        &self,
+        w: &mut CodeWriter,
+        name: &str,
+        value: &Option<ExprIR>,
+        type_ann: &Option<TypeIR>,
+    ) {
+        let rhs = value
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "null".into());
+        if let Some(ref ty) = type_ann {
+            let ann = dart_type(&ty.kind, &ty.type_args);
+            w.emit(&format!("{ann} {name} = {rhs};"));
+        } else {
+            w.emit(&format!("var {name} = {rhs};"));
+        }
+    }
+
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let target = &intent.target.name;
+        let amount = intent
+            .amount
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "0".into());
+        match &intent.operation {
+            MutationOp::DirectAssign => {
+                w.emit(&format!("this.{} = {};", target, amount));
+            }
+            MutationOp::Increment => {
+                w.emit(&format!("this.{} += {};", target, amount));
+            }
+            MutationOp::Decrement => {
+                w.emit(&format!("this.{} -= {};", target, amount));
+            }
+            MutationOp::Multiply => {
+                w.emit(&format!("this.{} *= {};", target, amount));
+            }
+            MutationOp::Divide => {
+                w.emit(&format!("this.{} /= {};", target, amount));
+            }
+            MutationOp::Modulo => {
+                w.emit(&format!("this.{} %= {};", target, amount));
+            }
+            other => {
+                w.emit(&format!(
+                    "// TODO: mutation operation '{}' on '{}'",
+                    other, target
+                ));
+            }
+        }
+    }
+}
+
+fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
+    let fmt = DartStmtFormatter {
+        expr: DartFormatExpr,
+    };
+    fmt.format_stmt(w, stmt);
 }

@@ -13,7 +13,7 @@ use crate::ir::*;
 ///
 /// Uses `===` strict equality, `?.` optional chaining, `undefined` fallback.
 /// In TS mode, stdlib calls use `Target::TypeScript` (for type-aware codegen).
-pub(super) struct JavaScriptFormatExpr {
+pub(crate) struct JavaScriptFormatExpr {
     pub ts_mode: bool,
 }
 

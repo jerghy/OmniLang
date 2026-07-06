@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::codegen::{capitalize_first, JsonFormatConfig, JSON_REACT};
 use crate::ir::*;
@@ -13,7 +14,7 @@ use crate::ir::*;
 ///
 /// Uses JS-family syntax with `translate_builtin_call` for stdlib calls
 /// and `translate_method_call` for method dispatch.
-struct ReactFormatExpr;
+pub(crate) struct ReactFormatExpr;
 
 impl FormatExpr for ReactFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
@@ -75,238 +76,133 @@ impl FormatExpr for ReactFormatExpr {
     }
 }
 
+/// React TSX statement formatter.
+///
+/// Uses `signal_names` to determine mutation strategy (setter calls vs direct assignment).
+pub(super) struct ReactStmtFormatter {
+    pub expr: ReactFormatExpr,
+    pub signal_names: HashSet<String>,
+}
+
+impl FormatStmt for ReactStmtFormatter {
+    type ExprFormatter = ReactFormatExpr;
+
+    fn expr_fmt(&self) -> &Self::ExprFormatter {
+        &self.expr
+    }
+
+    fn null_value(&self) -> &str {
+        "null"
+    }
+
+    fn for_in_keyword(&self) -> &str {
+        "const"
+    }
+
+    fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
+        ty.as_ref()
+            .map(|t| {
+                let ann = super::super::javascript::js_type(&t.kind, &t.type_args, true);
+                if ann.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", ann)
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    fn format_event_emit_stmt(&self, w: &mut CodeWriter, event_name: &str, args: &[ExprIR]) {
+        let arg_str = if args.is_empty() {
+            String::new()
+        } else {
+            let formatted: Vec<String> = args.iter().map(|a| self.expr.format_expr(a)).collect();
+            format!("({})", formatted.join(", "))
+        };
+        w.emit(&format!("{}{};", event_name, arg_str));
+    }
+
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let target = &intent.target.name;
+        let amount = intent
+            .amount
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "0".into());
+        let is_store_signal = intent.target.owner.is_some();
+        let is_component_state = !is_store_signal && self.signal_names.contains(target.as_str());
+        let use_setter = is_store_signal || is_component_state;
+        let setter = format!("set{}", capitalize_first(target));
+        match &intent.operation {
+            MutationOp::DirectAssign => {
+                if use_setter {
+                    w.emit(&format!("{}({});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {};", target, amount));
+                }
+            }
+            MutationOp::Increment => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => prev + {});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {} + {};", target, target, amount));
+                }
+            }
+            MutationOp::Decrement => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => prev - {});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {} - {};", target, target, amount));
+                }
+            }
+            MutationOp::Multiply => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => prev * {});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {} * {};", target, target, amount));
+                }
+            }
+            MutationOp::Divide => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => prev / {});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {} / {};", target, target, amount));
+                }
+            }
+            MutationOp::Modulo => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => prev % {});", setter, amount));
+                } else {
+                    w.emit(&format!("{} = {} % {};", target, target, amount));
+                }
+            }
+            MutationOp::Push => {
+                if use_setter {
+                    w.emit(&format!("{}(prev => [...prev, {}]);", setter, amount));
+                } else {
+                    w.emit(&format!("{}.push({});", target, amount));
+                }
+            }
+            other => {
+                w.emit(&format!(
+                    "// TODO: mutation operation '{}' on {}",
+                    other, target
+                ));
+            }
+        }
+    }
+}
+
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     signal_names: &HashSet<String>,
 ) {
-    let fmt = ReactFormatExpr;
-    match stmt {
-        StatementIR::LetStmtIR {
-            name,
-            value,
-            r#type,
-        } => {
-            let rhs = value
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "null".into());
-            let type_hint = r#type
-                .as_ref()
-                .map(|t| {
-                    let ann = super::super::javascript::js_type(&t.kind, &t.type_args, true);
-                    if ann.is_empty() {
-                        String::new()
-                    } else {
-                        format!(": {}", ann)
-                    }
-                })
-                .unwrap_or_default();
-            w.emit(&format!("let {}{} = {};", name, type_hint, rhs));
-        }
-        StatementIR::IfStmtIR {
-            condition,
-            then_body,
-            else_ifs,
-            else_body,
-        } => {
-            let cond = fmt.format_expr(condition);
-            w.emit(&format!("if ({}) {{", cond));
-            w.indent();
-            for s in &then_body.statements {
-                generate_statement_tsx(w, s, signal_names);
-            }
-            w.dedent();
-            for (elif_cond, elif_body) in else_ifs {
-                let elif_js = fmt.format_expr(elif_cond);
-                w.emit(&format!("}} else if ({}) {{", elif_js));
-                w.indent();
-                for s in &elif_body.statements {
-                    generate_statement_tsx(w, s, signal_names);
-                }
-                w.dedent();
-            }
-            if let Some(else_blk) = else_body {
-                if !else_blk.statements.is_empty() {
-                    w.emit("} else {");
-                    w.indent();
-                    for s in &else_blk.statements {
-                        generate_statement_tsx(w, s, signal_names);
-                    }
-                    w.dedent();
-                }
-            }
-            w.emit("}");
-        }
-        StatementIR::ReturnStmtIR { value } => {
-            let rhs = value
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "null".into());
-            w.emit(&format!("return {};", rhs));
-        }
-        StatementIR::MutationStmt { intent: None } => {}
-        StatementIR::MutationStmt {
-            intent: Some(mut_intent),
-        } => {
-            let target = &mut_intent.target.name;
-            let amount = mut_intent
-                .amount
-                .as_ref()
-                .map(|v| fmt.format_expr(v))
-                .unwrap_or_else(|| "0".into());
-            let is_store_signal = mut_intent.target.owner.is_some();
-            let is_component_state = !is_store_signal && signal_names.contains(target.as_str());
-            let use_setter = is_store_signal || is_component_state;
-            let setter = format!("set{}", capitalize_first(target));
-            match &mut_intent.operation {
-                MutationOp::DirectAssign => {
-                    if use_setter {
-                        w.emit(&format!("{}({});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {};", target, amount));
-                    }
-                }
-                MutationOp::Increment => {
-                    if use_setter {
-                        w.emit(&format!("{}(prev => prev + {});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {} + {};", target, target, amount));
-                    }
-                }
-                MutationOp::Decrement => {
-                    if use_setter {
-                        w.emit(&format!("{}(prev => prev - {});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {} - {};", target, target, amount));
-                    }
-                }
-                MutationOp::Multiply => {
-                    if use_setter {
-                        w.emit(&format!("{}(prev => prev * {});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {} * {};", target, target, amount));
-                    }
-                }
-                MutationOp::Divide => {
-                    if use_setter {
-                        w.emit(&format!("{}(prev => prev / {});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {} / {};", target, target, amount));
-                    }
-                }
-                MutationOp::Modulo => {
-                    if use_setter {
-                        w.emit(&format!("{}(prev => prev % {});", setter, amount));
-                    } else {
-                        w.emit(&format!("{} = {} % {};", target, target, amount));
-                    }
-                }
-                MutationOp::Push => {
-                    // Array push
-                    if use_setter {
-                        w.emit(&format!("{}(prev => [...prev, {}]);", setter, amount));
-                    } else {
-                        w.emit(&format!("{}.push({});", target, amount));
-                    }
-                }
-                other => {
-                    w.emit(&format!(
-                        "// TODO: mutation operation '{}' on {}",
-                        other, target
-                    ));
-                }
-            }
-        }
-        StatementIR::ExprStmtIR { expr } => {
-            let line = fmt.format_expr(expr);
-            if line != "null" {
-                w.emit(&format!("{};", line));
-            }
-        }
-        StatementIR::EventEmitStmtIR { event_name, args } => {
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                let formatted: Vec<String> = args.iter().map(|a| fmt.format_expr(a)).collect();
-                format!("({})", formatted.join(", "))
-            };
-            w.emit(&format!("{}{};", event_name, arg_str));
-        }
-        StatementIR::WhileStmtIR { condition, body } => {
-            let cond = fmt.format_expr(condition);
-            w.emit(&format!("while ({}) {{", cond));
-            w.indent();
-            for s in &body.statements {
-                generate_statement_tsx(w, s, signal_names);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::ForInStmtIR {
-            var_name,
-            iterable,
-            body,
-        } => {
-            let iter = fmt.format_expr(iterable);
-            w.emit(&format!("for (const {} of {}) {{", var_name, iter));
-            w.indent();
-            for s in &body.statements {
-                generate_statement_tsx(w, s, signal_names);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::BreakStmtIR => {
-            w.emit("break;");
-        }
-        StatementIR::ContinueStmtIR => {
-            w.emit("continue;");
-        }
-        StatementIR::ThrowStmtIR { expr } => {
-            let e = fmt.format_expr(expr);
-            w.emit(&format!("throw {};", e));
-        }
-        StatementIR::TryCatchStmtIR {
-            try_body,
-            catch_var,
-            catch_body,
-            finally_body,
-        } => {
-            w.emit("try {");
-            w.indent();
-            for s in &try_body.statements {
-                generate_statement_tsx(w, s, signal_names);
-            }
-            w.dedent();
-            if let Some(ref cv) = catch_var {
-                w.emit(&format!("}} catch ({}) {{", cv));
-            } else if catch_body.is_some() {
-                w.emit("} catch (_) {");
-            }
-            if let Some(ref cb) = catch_body {
-                w.indent();
-                for s in &cb.statements {
-                    generate_statement_tsx(w, s, signal_names);
-                }
-                w.dedent();
-            }
-            if let Some(ref fb) = finally_body {
-                w.emit("} finally {");
-                w.indent();
-                for s in &fb.statements {
-                    generate_statement_tsx(w, s, signal_names);
-                }
-                w.dedent();
-            }
-            w.emit("}");
-        }
-        StatementIR::BlockStmtIR { body } => {
-            for s in &body.statements {
-                generate_statement_tsx(w, s, signal_names);
-            }
-        }
-    }
+    let fmt = ReactStmtFormatter {
+        expr: ReactFormatExpr,
+        signal_names: signal_names.clone(),
+    };
+    fmt.format_stmt(w, stmt);
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -15,6 +15,8 @@ use view::*;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 
@@ -243,149 +245,139 @@ impl DioxusCodegen {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Statement generation (Rust)
+// Statement generation (Dioxus/Rust)
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) {
-    match stmt {
-        StatementIR::LetStmtIR {
-            name,
-            value,
-            r#type,
-        } => {
-            let rhs = value
-                .as_ref()
-                .map(format_expr_ir_dioxus)
-                .unwrap_or_else(|| "Default::default()".into());
-            let type_ann = r#type
-                .as_ref()
-                .map(|t| format!(": {}", super::rust::rs_type(&t.kind, &t.type_args)))
-                .unwrap_or_default();
-            w.emit(&format!("let {}{} = {};", name, type_ann, rhs));
-        }
-        StatementIR::IfStmtIR {
-            condition,
-            then_body,
-            else_ifs,
-            else_body,
-        } => {
-            let cond = format_expr_ir_dioxus(condition);
-            w.emit(&format!("if {} {{", cond));
+/// Dioxus statement formatter.
+struct DioxusStmtFormatter {
+    expr: DioxusFormatExpr,
+}
+
+impl FormatStmt for DioxusStmtFormatter {
+    type ExprFormatter = DioxusFormatExpr;
+
+    fn expr_fmt(&self) -> &Self::ExprFormatter {
+        &self.expr
+    }
+
+    fn null_value(&self) -> &str {
+        "None"
+    }
+
+    fn return_null_value(&self) -> &str {
+        "()"
+    }
+
+    fn for_in_keyword(&self) -> &str {
+        "" // Dioxus uses `for x in y`
+    }
+
+    fn for_in_uses_of(&self) -> bool {
+        false
+    }
+
+    fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
+        ty.as_ref()
+            .map(|t| format!(": {}", super::rust::rs_type(&t.kind, &t.type_args)))
+            .unwrap_or_default()
+    }
+
+    fn format_let_stmt(
+        &self,
+        w: &mut CodeWriter,
+        name: &str,
+        value: &Option<ExprIR>,
+        type_ann: &Option<TypeIR>,
+    ) {
+        let ty = self.format_let_type_ann(type_ann);
+        let rhs = value
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "Default::default()".to_string());
+        w.emit(&format!("let {name}{ty} = {rhs};"));
+    }
+
+    // Dioxus uses `if cond {` without parentheses
+    fn format_if_stmt(
+        &self,
+        w: &mut CodeWriter,
+        condition: &ExprIR,
+        then_body: &BlockIR,
+        else_ifs: &[(ExprIR, BlockIR)],
+        else_body: &Option<BlockIR>,
+    ) {
+        let cond = self.expr.format_expr(condition);
+        w.emit(&format!("if {cond} {{"));
+        w.indent();
+        self.format_block(w, then_body);
+        w.dedent();
+        for (elif_cond, elif_body) in else_ifs {
+            let elif = self.expr.format_expr(elif_cond);
+            w.emit(&format!("}} else if {elif} {{"));
             w.indent();
-            for s in &then_body.statements {
-                generate_statement_dioxus(w, s);
-            }
+            self.format_block(w, elif_body);
             w.dedent();
-            for (elif_cond, elif_body) in else_ifs {
-                let elif_js = format_expr_ir_dioxus(elif_cond);
-                w.emit(&format!("}} else if ({}) {{", elif_js));
+        }
+        if let Some(ref eb) = else_body {
+            if !eb.statements.is_empty() {
+                w.emit("} else {");
                 w.indent();
-                for s in &elif_body.statements {
-                    generate_statement_dioxus(w, s);
-                }
+                self.format_block(w, eb);
                 w.dedent();
             }
-            if let Some(else_blk) = else_body {
-                if !else_blk.statements.is_empty() {
-                    w.emit("} else {");
-                    w.indent();
-                    for s in &else_blk.statements {
-                        generate_statement_dioxus(w, s);
-                    }
-                    w.dedent();
-                }
-            }
-            w.emit("}");
         }
-        StatementIR::ReturnStmtIR { value } => {
-            let rhs = value
-                .as_ref()
-                .map(format_expr_ir_dioxus)
-                .unwrap_or_else(|| "()".into());
-            w.emit(&format!("return {};", rhs));
-        }
-        StatementIR::MutationStmt { intent: None } => {}
-        StatementIR::MutationStmt {
-            intent: Some(mut_intent),
-        } => {
-            let target = &mut_intent.target.name;
-            let amount = mut_intent
-                .amount
-                .as_ref()
-                .map(format_expr_ir_dioxus)
-                .unwrap_or_else(|| "0".into());
-            match &mut_intent.operation {
-                MutationOp::DirectAssign => {
-                    w.emit(&format!("{}.set({});", target, amount));
-                }
-                MutationOp::Increment => {
-                    w.emit(&format!("{} += {};", target, amount));
-                }
-                MutationOp::Decrement => {
-                    w.emit(&format!("{} -= {};", target, amount));
-                }
-                MutationOp::Multiply => {
-                    w.emit(&format!("{} *= {};", target, amount));
-                }
-                MutationOp::Divide => {
-                    w.emit(&format!("{} /= {};", target, amount));
-                }
-                MutationOp::Modulo => {
-                    w.emit(&format!("{} %= {};", target, amount));
-                }
-                other => {
-                    w.emit(&format!(
-                        "// TODO: mutation operation '{}' on '{}'",
-                        other, target
-                    ));
-                }
-            }
-        }
-        StatementIR::ExprStmtIR { expr } => {
-            let line = format_expr_ir_dioxus(expr);
-            if line != "None" {
-                w.emit(&format!("{};", line));
-            }
-        }
-        StatementIR::EventEmitStmtIR { event_name, args } => {
-            let arg_str = if args.is_empty() {
-                String::new()
-            } else {
-                let formatted: Vec<String> = args.iter().map(format_expr_ir_dioxus).collect();
-                format!("({})", formatted.join(", "))
-            };
-            w.emit(&format!("// emit event: {}{}", event_name, arg_str));
-        }
-        StatementIR::WhileStmtIR { condition, body } => {
-            let cond = format_expr_ir_dioxus(condition);
-            w.emit(&format!("while {} {{", cond));
-            w.indent();
-            for s in &body.statements {
-                generate_statement_dioxus(w, s);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::ForInStmtIR {
-            var_name,
-            iterable,
-            body,
-        } => {
-            let iter = format_expr_ir_dioxus(iterable);
-            w.emit(&format!("for {} in {} {{", var_name, iter));
-            w.indent();
-            for s in &body.statements {
-                generate_statement_dioxus(w, s);
-            }
-            w.dedent();
-            w.emit("}");
-        }
-        StatementIR::BreakStmtIR => {
-            w.emit("break;");
-        }
-        StatementIR::ContinueStmtIR => {
-            w.emit("continue;");
-        }
-        _ => {}
+        w.emit("}");
     }
+
+    // Dioxus uses `while cond {` without parentheses
+    fn format_while_stmt(&self, w: &mut CodeWriter, condition: &ExprIR, body: &BlockIR) {
+        let cond = self.expr.format_expr(condition);
+        w.emit(&format!("while {cond} {{"));
+        w.indent();
+        self.format_block(w, body);
+        w.dedent();
+        w.emit("}");
+    }
+
+    fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        let target = &intent.target.name;
+        let amount = intent
+            .amount
+            .as_ref()
+            .map(|v| self.expr.format_expr(v))
+            .unwrap_or_else(|| "0".into());
+        match &intent.operation {
+            MutationOp::DirectAssign => {
+                w.emit(&format!("{}.set({});", target, amount));
+            }
+            MutationOp::Increment => {
+                w.emit(&format!("{} += {};", target, amount));
+            }
+            MutationOp::Decrement => {
+                w.emit(&format!("{} -= {};", target, amount));
+            }
+            MutationOp::Multiply => {
+                w.emit(&format!("{} *= {};", target, amount));
+            }
+            MutationOp::Divide => {
+                w.emit(&format!("{} /= {};", target, amount));
+            }
+            MutationOp::Modulo => {
+                w.emit(&format!("{} %= {};", target, amount));
+            }
+            other => {
+                w.emit(&format!(
+                    "// TODO: mutation operation '{}' on '{}'",
+                    other, target
+                ));
+            }
+        }
+    }
+}
+
+pub(super) fn generate_statement_dioxus(w: &mut CodeWriter, stmt: &StatementIR) {
+    let fmt = DioxusStmtFormatter {
+        expr: DioxusFormatExpr,
+    };
+    fmt.format_stmt(w, stmt);
 }
