@@ -183,7 +183,10 @@ impl OmniCompiler {
                 .to_string()
             })
         } else {
-            // Multi-file: use compile_multi_to_target (returns JSON string)
+            // Multi-file: use compile_multi_to_target (returns JSON string).
+            // NOTE: editor_mode is not yet supported for multi-file compilation
+            // because compile_multi_to_target does not accept an editor_mode flag.
+            // TODO(wasm): extend compile_multi_to_target to support editor_mode.
             crate::compile_multi_to_target(
                 self.sources.clone(),
                 crate::codegen::Target::OmniView,

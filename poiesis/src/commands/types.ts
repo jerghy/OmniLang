@@ -4,6 +4,8 @@ export interface CompileError {
   file: string;
   line: number;
   col: number;
+  endLine?: number;
+  endCol?: number;
   severity: "error" | "warning";
   code: string;
   message: string;

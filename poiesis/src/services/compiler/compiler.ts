@@ -81,15 +81,19 @@ export async function compileProject(
           'index.css': fullResult.files.css,
         },
         diff: {},
-        errors: (fullResult.errors || []).map(e => ({
-          file: '',
-          line: e.line,
-          col: e.col,
-          severity: (e.severity as 'error' | 'warning'),
-          code: e.code,
-          message: e.message,
-          suggestion: e.suggestion || null,
-        })),
+        errors: (fullResult.errors || [])
+          .filter(e => e.severity === 'error' || e.severity === 'warning')
+          .map(e => ({
+            file: '',
+            line: e.line,
+            col: e.col,
+            endLine: e.end_line,
+            endCol: e.end_col,
+            severity: e.severity as 'error' | 'warning',
+            code: e.code,
+            message: e.message,
+            suggestion: e.suggestion || null,
+          })),
       };
     }
   } else {
