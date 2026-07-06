@@ -7,6 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use super::walk_view::walk_view_nodes;
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
@@ -284,64 +285,35 @@ impl SemanticAnalyzer {
     fn validate_bind_targets(&mut self, comp: &ComponentDef) {
         let signal_names: HashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
 
-        fn walk_elements(
-            nodes: &[ViewNode],
-            signal_names: &HashSet<&str>,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for node in nodes {
-                match node {
-                    ViewNode::Element(el) => {
-                        for prop in &el.props {
-                            if let ElementProp::Bind {
-                                name: _,
-                                signal_path,
-                            } = prop
-                            {
-                                // signal_path is e.g. "name" or "store.field"
-                                let root = signal_path.split('.').next().unwrap_or(signal_path);
-                                if !signal_names.contains(root) && !signal_path.contains('.') {
-                                    // Only flag if it doesn't look like a store reference
-                                    diagnostics.push(Diagnostic::warning(
-                                        DiagnosticKind::E0005,
-                                        &format!(
-                                            "bind target '{}' is not a signal in this component",
-                                            signal_path
-                                        ),
-                                        &Span {
-                                            start: 0,
-                                            end: 0,
-                                            line: 0,
-                                            col: 0,
-                                        },
-                                    ));
-                                }
-                            }
-                        }
-                        walk_elements(&el.children, signal_names, diagnostics);
-                    }
-                    ViewNode::IfDirective(if_dir) => {
-                        walk_elements(&if_dir.body, signal_names, diagnostics);
-                        for elif in &if_dir.else_ifs {
-                            walk_elements(&elif.1, signal_names, diagnostics);
-                        }
-                        if let Some(ref else_body) = if_dir.else_body {
-                            walk_elements(else_body, signal_names, diagnostics);
-                        }
-                    }
-                    ViewNode::ForDirective(for_dir) => {
-                        walk_elements(&for_dir.body, signal_names, diagnostics);
-                        if let Some(ref empty_body) = for_dir.empty_body {
-                            walk_elements(empty_body, signal_names, diagnostics);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         if let Some(ref view) = comp.view {
-            walk_elements(&view.children, &signal_names, &mut self.diagnostics);
+            walk_view_nodes(&view.children, &mut |el| {
+                for prop in &el.props {
+                    if let ElementProp::Bind {
+                        name: _,
+                        signal_path,
+                    } = prop
+                    {
+                        // signal_path is e.g. "name" or "store.field"
+                        let root = signal_path.split('.').next().unwrap_or(signal_path);
+                        if !signal_names.contains(root) && !signal_path.contains('.') {
+                            // Only flag if it doesn't look like a store reference
+                            self.diagnostics.push(Diagnostic::warning(
+                                DiagnosticKind::E0005,
+                                &format!(
+                                    "bind target '{}' is not a signal in this component",
+                                    signal_path
+                                ),
+                                &Span {
+                                    start: 0,
+                                    end: 0,
+                                    line: 0,
+                                    col: 0,
+                                },
+                            ));
+                        }
+                    }
+                }
+            });
         }
     }
 }
@@ -361,84 +333,46 @@ impl SemanticAnalyzer {
 
         let store_refs: HashSet<&str> = comp.store_refs.iter().map(|s| s.as_str()).collect();
 
-        fn walk_nodes(
-            nodes: &[ViewNode],
-            store_actions: &HashMap<&str, HashSet<&str>>,
-            store_refs: &HashSet<&str>,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for node in nodes {
-                match node {
-                    ViewNode::Element(el) => {
-                        for prop in &el.props {
-                            if let ElementProp::Event {
-                                handler: EventHandler::StoreAction { store, action },
-                                ..
-                            } = prop
-                            {
-                                // Check @store declaration
-                                if !store_refs.contains(store.as_str()) {
-                                    diagnostics.push(Diagnostic::error(
-                                            DiagnosticKind::E0007,
-                                            &format!(
-                                                "Store '{}' is not declared with @store in this \
-                                                 component — add '@store {};' to the component body",
-                                                store, store
-                                            ),
-                                            &el.span,
-                                        ));
-                                }
-                                // Check action exists
-                                if let Some(actions) = store_actions.get(store.as_str()) {
-                                    if !actions.contains(action.as_str()) {
-                                        diagnostics.push(Diagnostic::error(
-                                            DiagnosticKind::E0007,
-                                            &format!(
-                                                "Store '{}' has no action '{}'",
-                                                store, action
-                                            ),
-                                            &el.span,
-                                        ));
-                                    }
-                                } else {
-                                    // Store not found at all
-                                    diagnostics.push(Diagnostic::error(
-                                        DiagnosticKind::E0007,
-                                        &format!("Store '{}' not found", store),
-                                        &el.span,
-                                    ));
-                                }
-                            }
-                        }
-                        walk_nodes(&el.children, store_actions, store_refs, diagnostics);
-                    }
-                    ViewNode::IfDirective(if_dir) => {
-                        walk_nodes(&if_dir.body, store_actions, store_refs, diagnostics);
-                        for (_, body) in &if_dir.else_ifs {
-                            walk_nodes(body, store_actions, store_refs, diagnostics);
-                        }
-                        if let Some(ref else_body) = if_dir.else_body {
-                            walk_nodes(else_body, store_actions, store_refs, diagnostics);
-                        }
-                    }
-                    ViewNode::ForDirective(for_dir) => {
-                        walk_nodes(&for_dir.body, store_actions, store_refs, diagnostics);
-                        if let Some(ref empty_body) = for_dir.empty_body {
-                            walk_nodes(empty_body, store_actions, store_refs, diagnostics);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         if let Some(ref view) = comp.view {
-            walk_nodes(
-                &view.children,
-                &store_actions,
-                &store_refs,
-                &mut self.diagnostics,
-            );
+            walk_view_nodes(&view.children, &mut |el| {
+                for prop in &el.props {
+                    if let ElementProp::Event {
+                        handler: EventHandler::StoreAction { store, action },
+                        ..
+                    } = prop
+                    {
+                        // Check @store declaration
+                        if !store_refs.contains(store.as_str()) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0007,
+                                &format!(
+                                    "Store '{}' is not declared with @store in this \
+                                         component — add '@store {};' to the component body",
+                                    store, store
+                                ),
+                                &el.span,
+                            ));
+                        }
+                        // Check action exists
+                        if let Some(actions) = store_actions.get(store.as_str()) {
+                            if !actions.contains(action.as_str()) {
+                                self.diagnostics.push(Diagnostic::error(
+                                    DiagnosticKind::E0007,
+                                    &format!("Store '{}' has no action '{}'", store, action),
+                                    &el.span,
+                                ));
+                            }
+                        } else {
+                            // Store not found at all
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0007,
+                                &format!("Store '{}' not found", store),
+                                &el.span,
+                            ));
+                        }
+                    }
+                }
+            });
         }
     }
 }
@@ -527,45 +461,17 @@ impl SemanticAnalyzer {
         }
         // Also check view inline event handlers
         if let Some(ref view) = comp.view {
-            fn check_view_nodes(
-                nodes: &[ViewNode],
-                prop_names: &HashSet<&str>,
-                diagnostics: &mut Vec<Diagnostic>,
-            ) {
-                for node in nodes {
-                    match node {
-                        ViewNode::Element(el) => {
-                            for prop in &el.props {
-                                if let ElementProp::Event {
-                                    handler: EventHandler::InlineFn { body, .. },
-                                    ..
-                                } = prop
-                                {
-                                    check_block(body, prop_names, diagnostics);
-                                }
-                            }
-                            check_view_nodes(&el.children, prop_names, diagnostics);
-                        }
-                        ViewNode::IfDirective(if_dir) => {
-                            check_view_nodes(&if_dir.body, prop_names, diagnostics);
-                            for (_, body) in &if_dir.else_ifs {
-                                check_view_nodes(body, prop_names, diagnostics);
-                            }
-                            if let Some(ref else_body) = if_dir.else_body {
-                                check_view_nodes(else_body, prop_names, diagnostics);
-                            }
-                        }
-                        ViewNode::ForDirective(for_dir) => {
-                            check_view_nodes(&for_dir.body, prop_names, diagnostics);
-                            if let Some(ref empty_body) = for_dir.empty_body {
-                                check_view_nodes(empty_body, prop_names, diagnostics);
-                            }
-                        }
-                        _ => {}
+            walk_view_nodes(&view.children, &mut |el| {
+                for prop in &el.props {
+                    if let ElementProp::Event {
+                        handler: EventHandler::InlineFn { body, .. },
+                        ..
+                    } = prop
+                    {
+                        check_block(body, &prop_names, &mut self.diagnostics);
                     }
                 }
-            }
-            check_view_nodes(&view.children, &prop_names, &mut self.diagnostics);
+            });
         }
     }
 
