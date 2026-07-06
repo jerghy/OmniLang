@@ -427,6 +427,7 @@ pub fn escape_literal_str(s: &str, quote: char) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+        .replace('\0', "\\0")
 }
 
 /// Format a block IR node as a single expression by taking the last statement's value.

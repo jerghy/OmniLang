@@ -33,6 +33,8 @@ pub struct Parser<'a> {
     pos: usize,
     depth: usize,
     source: &'a str,
+    /// Collected parse errors — parser continues past recoverable errors.
+    errors: Vec<ParseError>,
 }
 
 impl<'a> Parser<'a> {
@@ -42,6 +44,7 @@ impl<'a> Parser<'a> {
             pos: 0,
             depth: 0,
             source,
+            errors: Vec::new(),
         }
     }
 
