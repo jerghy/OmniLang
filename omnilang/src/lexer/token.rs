@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// All token kinds produced by the lexer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TokenKind {
     // Keywords (omnilang)
     Fn,
@@ -165,6 +166,7 @@ pub enum TokenKind {
     Error(String),
 
     // Internal parser use only — cheap placeholder for consumed tokens
+    #[doc(hidden)]
     PlaceholderDummy,
 }
 
@@ -193,6 +195,21 @@ impl Token {
                 end,
                 line,
                 col,
+            },
+        }
+    }
+
+    /// Create a cheap placeholder token for parser internal use.
+    /// Used to replace consumed tokens in the token stream.
+    #[doc(hidden)]
+    pub fn placeholder() -> Self {
+        Token {
+            kind: TokenKind::PlaceholderDummy,
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
             },
         }
     }

@@ -120,7 +120,7 @@ mod tests {
             .collect();
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
         // Should have collected at least: global scope, function:main
-        assert!(!result.symbols.scopes.is_empty(), "should have scopes");
+        assert!(!result.symbols.scopes().is_empty(), "should have scopes");
     }
 
     #[test]

@@ -40,9 +40,9 @@ pub struct Scope {
 /// Hierarchical symbol table with nested scopes.
 #[derive(Debug)]
 pub struct SymbolTable {
-    pub scopes: Vec<Scope>,
-    pub current_scope: usize, // index into scopes
-    pub scope_by_name: FxHashMap<String, usize>,
+    scopes: Vec<Scope>,
+    current_scope: usize, // index into scopes
+    scope_by_name: FxHashMap<String, usize>,
 }
 
 impl SymbolTable {
@@ -122,6 +122,37 @@ impl SymbolTable {
     /// Find a scope by name using hash lookup (O(1) average).
     pub fn find_scope_by_name(&self, name: &str) -> Option<usize> {
         self.scope_by_name.get(name).copied()
+    }
+
+    // ── Read-only accessors ────────────────────────────
+
+    /// Return the current scope index.
+    #[must_use]
+    pub fn current_scope_index(&self) -> usize {
+        self.current_scope
+    }
+
+    /// Return a reference to the current scope.
+    #[must_use]
+    pub fn current_scope(&self) -> &Scope {
+        &self.scopes[self.current_scope]
+    }
+
+    /// Set the current scope index.
+    pub fn set_current_scope(&mut self, index: usize) {
+        self.current_scope = index;
+    }
+
+    /// Get a scope by index, if it exists.
+    #[must_use]
+    pub fn get_scope(&self, index: usize) -> Option<&Scope> {
+        self.scopes.get(index)
+    }
+
+    /// Return a slice of all scopes.
+    #[must_use]
+    pub fn scopes(&self) -> &[Scope] {
+        &self.scopes
     }
 }
 

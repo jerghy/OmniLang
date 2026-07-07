@@ -3,7 +3,7 @@
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use super::LintDiagnostic;
-use crate::ir::{BlockIR, EventHandlerIR, ExprIR, StatementIR, ViewTree};
+use crate::ir::{BlockIR, EventHandlerIR, ExprIR, MutationIntent, SignalRefIR, StatementIR, ViewTree};
 use crate::parser::ast::{
     AssignTarget, BinaryOpKind, Block, ElementProp, EventHandler, Expr, ImportStmt, Stmt,
     TemplatePart, ViewNode,
@@ -99,16 +99,26 @@ pub(super) fn check_block_ir_for_store_mutations(
             StatementIR::MutationStmt {
                 intent: Some(ref mutation),
             } => {
-                if let Some(ref owner) = mutation.target.owner {
+                let target = match mutation {
+                    MutationIntent::DirectAssign { target, .. }
+                    | MutationIntent::Increment { target, .. }
+                    | MutationIntent::Decrement { target, .. }
+                    | MutationIntent::Multiply { target, .. }
+                    | MutationIntent::Divide { target, .. }
+                    | MutationIntent::Modulo { target, .. }
+                    | MutationIntent::Push { target, .. }
+                    | MutationIntent::Pop { target } => target,
+                };
+                if let Some(ref owner) = target.owner {
                     if let Some(signals) = store_signals.get(owner.as_str()) {
-                        if signals.contains(mutation.target.name.as_str()) {
+                        if signals.contains(target.name.as_str()) {
                             diags.push(LintDiagnostic {
                                 rule: "store-field-direct-mutation".into(),
                                 severity: super::LintSeverity::Error,
                                 message: format!(
                                     "Store signal '{}.{}' modified in '{}' — \
                                          store data must only be changed through store actions",
-                                    owner, mutation.target.name, context_name
+                                    owner, target.name, context_name
                                 ),
                                 file: file_path.to_string(),
                                 line: 0,
@@ -304,7 +314,8 @@ pub(super) fn expr_ir_contains_store_mutation(
                     intent: Some(ref m),
                 } = s
                 {
-                    if let Some(ref owner) = m.target.owner {
+                    let target = mutation_intent_target(m);
+                    if let Some(ref owner) = target.owner {
                         return store_signals.contains_key(owner.as_str());
                     }
                 }
@@ -319,7 +330,8 @@ pub(super) fn expr_ir_contains_store_mutation(
                             intent: Some(ref m),
                         } = s
                         {
-                            if let Some(ref owner) = m.target.owner {
+                            let target = mutation_intent_target(m);
+                            if let Some(ref owner) = target.owner {
                                 return store_signals.contains_key(owner.as_str());
                             }
                         }
@@ -756,6 +768,20 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &FxHashSet<&s
         Expr::SpreadExpr { operand, .. } => expr_contains_side_effect(operand, signal_names),
         Expr::Literal(..) | Expr::VarRef(..) => false,
         Expr::Error { .. } => false,
+    }
+}
+
+/// Extract the target from any MutationIntent enum variant.
+fn mutation_intent_target(intent: &MutationIntent) -> &SignalRefIR {
+    match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => target,
     }
 }
 

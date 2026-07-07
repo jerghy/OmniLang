@@ -88,6 +88,38 @@ impl std::fmt::Display for BinaryOpIR {
 }
 
 // ═══════════════════════════════════════════════════════
+// UnaryOpIR — strongly-typed unary operator
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum UnaryOpIR {
+    #[serde(rename = "!")]
+    Not,
+    #[serde(rename = "-")]
+    Neg,
+    #[serde(rename = "await")]
+    Await,
+}
+
+impl UnaryOpIR {
+    /// Return the string representation of this unary operator.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Not => "!",
+            Self::Neg => "-",
+            Self::Await => "await ",
+        }
+    }
+}
+
+impl std::fmt::Display for UnaryOpIR {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // Expression IR
 // ═══════════════════════════════════════════════════════
 
@@ -116,7 +148,7 @@ pub enum ExprIR {
         right: Box<ExprIR>,
     },
     UnaryOpExpr {
-        op: String,
+        op: UnaryOpIR,
         operand: Box<ExprIR>,
     },
     TernaryIR {
@@ -458,107 +490,141 @@ pub enum EventDataKind {
     TransitionEvent,
 }
 
+/// Typed event field type — replaces the old freeform string.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum EventFieldType {
+    Float,
+    Int,
+    Bool,
+    String,
+    TouchArray,
+    StringArray,
+    StringMap,
+}
+
+impl EventFieldType {
+    /// Return the string representation of this field type,
+    /// matching the old freeform string format.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Float => "float",
+            Self::Int => "int",
+            Self::Bool => "bool",
+            Self::String => "string",
+            Self::TouchArray => "{x,y,id}[]",
+            Self::StringArray => "string[]",
+            Self::StringMap => "{string: string}",
+        }
+    }
+}
+
+impl std::fmt::Display for EventFieldType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A single field within an event data payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventFieldDef {
     pub name: String,
-    /// "float" | "string" | "bool" | "int" | "{x,y,id}[]" | "string[]"
-    pub field_type: String,
+    pub field_type: EventFieldType,
 }
 
 /// Full schema: kind -> ordered field definitions.
 /// Used by both lowering (field validation) and codegen (extraction).
 #[must_use]
 pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
-    let f = |name: &str, field_type: &str| EventFieldDef {
+    let f = |name: &str, field_type: EventFieldType| EventFieldDef {
         name: name.to_string(),
-        field_type: field_type.to_string(),
+        field_type,
     };
     match kind {
         EventDataKind::PointerEvent => vec![
-            f("x", "float"),
-            f("y", "float"),
-            f("button", "int"),
-            f("pressure", "float"),
-            f("tiltX", "float"),
-            f("tiltY", "float"),
-            f("pointerType", "string"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("button", EventFieldType::Int),
+            f("pressure", EventFieldType::Float),
+            f("tiltX", EventFieldType::Float),
+            f("tiltY", EventFieldType::Float),
+            f("pointerType", EventFieldType::String),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
         EventDataKind::TouchEvent => vec![
-            f("touches", "{x,y,id}[]"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("touches", EventFieldType::TouchArray),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
         EventDataKind::WheelEvent => vec![
-            f("x", "float"),
-            f("y", "float"),
-            f("deltaX", "float"),
-            f("deltaY", "float"),
-            f("deltaZ", "float"),
-            f("deltaMode", "int"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("deltaX", EventFieldType::Float),
+            f("deltaY", EventFieldType::Float),
+            f("deltaZ", EventFieldType::Float),
+            f("deltaMode", EventFieldType::Int),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
         EventDataKind::KeyEvent => vec![
-            f("key", "string"),
-            f("code", "string"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("key", EventFieldType::String),
+            f("code", EventFieldType::String),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
-        EventDataKind::ScrollEvent => vec![f("x", "float"), f("y", "float")],
-        EventDataKind::InputEvent => vec![f("value", "string"), f("checked", "bool")],
-        EventDataKind::ToggleEvent => vec![f("checked", "bool")],
-        EventDataKind::SubmitEvent => vec![f("values", "{string: string}")],
-        EventDataKind::FocusEvent => vec![f("value", "string")],
-        EventDataKind::ClipboardEvent => vec![f("text", "string")],
+        EventDataKind::ScrollEvent => vec![f("x", EventFieldType::Float), f("y", EventFieldType::Float)],
+        EventDataKind::InputEvent => vec![f("value", EventFieldType::String), f("checked", EventFieldType::Bool)],
+        EventDataKind::ToggleEvent => vec![f("checked", EventFieldType::Bool)],
+        EventDataKind::SubmitEvent => vec![f("values", EventFieldType::StringMap)],
+        EventDataKind::FocusEvent => vec![f("value", EventFieldType::String)],
+        EventDataKind::ClipboardEvent => vec![f("text", EventFieldType::String)],
         EventDataKind::DragEvent => vec![
-            f("x", "float"),
-            f("y", "float"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
         EventDataKind::DropEvent => vec![
-            f("x", "float"),
-            f("y", "float"),
-            f("files", "string[]"),
-            f("text", "string"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("files", EventFieldType::StringArray),
+            f("text", EventFieldType::String),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
         EventDataKind::ContextMenuEvent => vec![
-            f("x", "float"),
-            f("y", "float"),
-            f("alt", "bool"),
-            f("ctrl", "bool"),
-            f("shift", "bool"),
-            f("meta", "bool"),
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("alt", EventFieldType::Bool),
+            f("ctrl", EventFieldType::Bool),
+            f("shift", EventFieldType::Bool),
+            f("meta", EventFieldType::Bool),
         ],
-        EventDataKind::SelectEvent => vec![f("start", "int"), f("end", "int"), f("text", "string")],
-        EventDataKind::ResizeEvent => vec![f("width", "float"), f("height", "float")],
-        EventDataKind::MediaEvent => vec![f("currentTime", "float"), f("duration", "float")],
+        EventDataKind::SelectEvent => vec![f("start", EventFieldType::Int), f("end", EventFieldType::Int), f("text", EventFieldType::String)],
+        EventDataKind::ResizeEvent => vec![f("width", EventFieldType::Float), f("height", EventFieldType::Float)],
+        EventDataKind::MediaEvent => vec![f("currentTime", EventFieldType::Float), f("duration", EventFieldType::Float)],
         EventDataKind::MediaLoadEvent => {
-            vec![f("naturalWidth", "float"), f("naturalHeight", "float")]
+            vec![f("naturalWidth", EventFieldType::Float), f("naturalHeight", EventFieldType::Float)]
         }
-        EventDataKind::MediaErrorEvent => vec![f("message", "string")],
+        EventDataKind::MediaErrorEvent => vec![f("message", EventFieldType::String)],
         EventDataKind::AnimationEvent => {
-            vec![f("animationName", "string"), f("elapsedTime", "float")]
+            vec![f("animationName", EventFieldType::String), f("elapsedTime", EventFieldType::Float)]
         }
         EventDataKind::TransitionEvent => {
-            vec![f("propertyName", "string"), f("elapsedTime", "float")]
+            vec![f("propertyName", EventFieldType::String), f("elapsedTime", EventFieldType::Float)]
         }
     }
 }
@@ -727,11 +793,48 @@ impl std::fmt::Display for MutationOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MutationIntent {
-    pub target: SignalRefIR,
-    pub operation: MutationOp,
-    pub amount: Option<ExprIR>,
-    pub item: Option<ExprIR>,
+#[serde(tag = "operation")]
+pub enum MutationIntent {
+    #[serde(rename = "direct_assign")]
+    DirectAssign {
+        target: SignalRefIR,
+        #[serde(default)]
+        value: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "increment")]
+    Increment {
+        target: SignalRefIR,
+        amount: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "decrement")]
+    Decrement {
+        target: SignalRefIR,
+        amount: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "multiply")]
+    Multiply {
+        target: SignalRefIR,
+        amount: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "divide")]
+    Divide {
+        target: SignalRefIR,
+        amount: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "modulo")]
+    Modulo {
+        target: SignalRefIR,
+        amount: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "push")]
+    Push {
+        target: SignalRefIR,
+        item: Option<Box<ExprIR>>,
+    },
+    #[serde(rename = "pop")]
+    Pop {
+        target: SignalRefIR,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

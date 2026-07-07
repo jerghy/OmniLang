@@ -166,10 +166,10 @@ fn test_store_getters() {
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
-                    }),
+                    })),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
-                    }),
+                    })),
                 },
             )]),
             actions: vec![],
@@ -283,12 +283,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
-            }),
+            })),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None
             })
-        }),
+        })),
         "a + b"
     );
     assert_eq!(
@@ -297,12 +297,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
-            }),
+            })),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "y".into(),
                 type_ann: None
             })
-        }),
+        })),
         "x === y"
     );
     assert_eq!(
@@ -311,12 +311,12 @@ fn test_expr_binary() {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None
-            }),
+            })),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None
             })
-        }),
+        })),
         "a && b"
     );
 }
@@ -326,22 +326,22 @@ fn test_expr_unary() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
-            op: "!".into(),
+            op: UnaryOpIR::Not,
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "flag".into(),
                 type_ann: None,
             })
-        }),
+        })),
         "!flag"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
-            op: "-".into(),
+            op: UnaryOpIR::Neg,
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
             })
-        }),
+        })),
         "-x"
     );
 }
@@ -354,14 +354,14 @@ fn test_expr_ternary() {
             cond: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None
-            }),
+            })),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1)
-            }),
+            })),
             else_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(0)
-            }),
-        }),
+            })),
+        })),
         "x ? 1 : 0"
     );
 }
@@ -374,9 +374,9 @@ fn test_expr_field_access() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "obj".into(),
                 type_ann: None
-            }),
+            })),
             field: "prop".into()
-        }),
+        })),
         "obj.prop"
     );
 }
@@ -389,11 +389,11 @@ fn test_expr_method_call() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "arr".into(),
                 type_ann: None
-            }),
+            })),
             method: "len".into(),
             args: vec![],
             is_optional: false
-        }),
+        })),
         "(arr || []).length"
     );
     assert_eq!(
@@ -401,11 +401,11 @@ fn test_expr_method_call() {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "val".into(),
                 type_ann: None
-            }),
+            })),
             method: "to_string".into(),
             args: vec![],
             is_optional: false
-        }),
+        })),
         "String(val)"
     );
 }
@@ -421,12 +421,12 @@ fn test_expr_closure() {
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "x".into(),
                     type_ann: None
-                }),
+                })),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2)
-                }),
-            }),
-        }),
+                })),
+            })),
+        })),
         "((x) => x * 2)"
     );
 }
@@ -470,15 +470,15 @@ fn test_expr_block() {
     let js = gen.expr_to_js(&ExprIR::BlockExpr {
         statements: vec![StatementIR::LetStmtIR {
             name: "x".into(),
-            value: Some(ExprIR::LiteralExpr {
+            value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            }),
+            })),
             r#type: None,
         }],
         tail: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,
-        }),
+        })),
     });
     assert!(js.contains("function"));
     assert!(js.contains("let x = 42"));
@@ -509,9 +509,9 @@ fn test_stmt_let() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::LetStmtIR {
         name: "x".into(),
-        value: Some(ExprIR::LiteralExpr {
+        value: Some(Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(42),
-        }),
+        })),
         r#type: None,
     });
     assert!(gen.js.contains("let x = 42"));
@@ -524,7 +524,7 @@ fn test_stmt_return() {
         value: Some(ExprIR::IdentifierExpr {
             name: "result".into(),
             type_ann: None,
-        }),
+        })),
     });
     assert!(gen.js.contains("return result"));
 }
@@ -540,9 +540,9 @@ fn test_stmt_if_else() {
         then_body: BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "x".into(),
-                value: Some(ExprIR::LiteralExpr {
+                value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                }),
+                })),
                 r#type: None,
             }],
         },
@@ -550,12 +550,12 @@ fn test_stmt_if_else() {
         else_body: Some(BlockIR {
             statements: vec![StatementIR::LetStmtIR {
                 name: "y".into(),
-                value: Some(ExprIR::LiteralExpr {
+                value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                }),
+                })),
                 r#type: None,
             }],
-        }),
+        })),
     });
     assert!(gen.js.contains("if (cond)"));
     assert!(gen.js.contains("let x = 1"));
@@ -608,17 +608,17 @@ fn test_stmt_for_in() {
 fn test_stmt_mutation_assign() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::MutationStmt {
-        intent: Some(MutationIntent {
+        intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
                 owner: None,
                 name: "count".into(),
             },
-            operation: MutationOp::DirectAssign,
-            amount: Some(ExprIR::LiteralExpr {
+            
+            value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            }),
+            })),
             item: None,
-        }),
+        })),
     });
     assert!(gen.js.contains("count = 42"));
 }
@@ -627,17 +627,17 @@ fn test_stmt_mutation_assign() {
 fn test_stmt_mutation_increment() {
     let mut gen = OmniViewGenerator::test_new();
     gen.emit_statement(&StatementIR::MutationStmt {
-        intent: Some(MutationIntent {
+        intent: Some(MutationIntent::Increment {
             target: SignalRefIR {
                 owner: None,
                 name: "count".into(),
             },
-            operation: MutationOp::Increment,
-            amount: Some(ExprIR::LiteralExpr {
+            
+            amount: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
-            }),
+            })),
             item: None,
-        }),
+        })),
     });
     assert!(gen.js.contains("count += 1"));
 }
@@ -648,17 +648,17 @@ fn test_stmt_mutation_signal_set() {
     gen.signal_names.insert("App_count".into());
     gen.name_renames.insert("count".into(), "App_count".into());
     gen.emit_statement(&StatementIR::MutationStmt {
-        intent: Some(MutationIntent {
+        intent: Some(MutationIntent::DirectAssign {
             target: SignalRefIR {
                 owner: None,
                 name: "count".into(),
             },
-            operation: MutationOp::DirectAssign,
-            amount: Some(ExprIR::LiteralExpr {
+            
+            value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(99),
-            }),
+            })),
             item: None,
-        }),
+        })),
     });
     assert!(gen.js.contains(".set(99)"));
 }
@@ -773,10 +773,10 @@ fn test_component_with_computed() {
                     left: Box::new(ExprIR::IdentifierExpr {
                         name: "x".into(),
                         type_ann: None,
-                    }),
+                    })),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
-                    }),
+                    })),
                 },
                 deps: vec!["x".into()],
             }],
@@ -811,11 +811,11 @@ fn test_component_with_functions() {
                                 op: BinaryOpIR::Add,
                                 left: Box::new(ExprIR::LiteralExpr {
                                     value: serde_json::json!("Hello "),
-                                }),
+                                })),
                                 right: Box::new(ExprIR::IdentifierExpr {
                                     name: "name".into(),
                                     type_ann: None,
-                                }),
+                                })),
                             }],
                         },
                     }],

@@ -132,71 +132,129 @@ impl FormatStmt for ReactStmtFormatter {
     }
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|v| self.expr.format_expr(v))
-            .unwrap_or_else(|| "0".into());
-        let is_store_signal = intent.target.owner.is_some();
-        let is_component_state = !is_store_signal && self.signal_names.contains(target.as_str());
-        let use_setter = is_store_signal || is_component_state;
-        let setter = format!("set{}", capitalize_first(target));
-        match &intent.operation {
-            MutationOp::DirectAssign => {
+        match intent {
+            MutationIntent::DirectAssign { target, value } => {
+                let target_str = &target.name;
+                let amount = value
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
                     w.emit_fmt(format_args!("{}({});", setter, amount));
                 } else {
-                    w.emit_fmt(format_args!("{} = {};", target, amount));
+                    w.emit_fmt(format_args!("{} = {};", target_str, amount));
                 }
             }
-            MutationOp::Increment => {
+            MutationIntent::Increment { target, amount } => {
+                let target_str = &target.name;
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev + {});", setter, amt));
                 } else {
-                    w.emit_fmt(format_args!("{} = {} + {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} + {};", target_str, target_str, amt));
                 }
             }
-            MutationOp::Decrement => {
+            MutationIntent::Decrement { target, amount } => {
+                let target_str = &target.name;
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev - {});", setter, amt));
                 } else {
-                    w.emit_fmt(format_args!("{} = {} - {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} - {};", target_str, target_str, amt));
                 }
             }
-            MutationOp::Multiply => {
+            MutationIntent::Multiply { target, amount } => {
+                let target_str = &target.name;
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev * {});", setter, amt));
                 } else {
-                    w.emit_fmt(format_args!("{} = {} * {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} * {};", target_str, target_str, amt));
                 }
             }
-            MutationOp::Divide => {
+            MutationIntent::Divide { target, amount } => {
+                let target_str = &target.name;
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev / {});", setter, amt));
                 } else {
-                    w.emit_fmt(format_args!("{} = {} / {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} / {};", target_str, target_str, amt));
                 }
             }
-            MutationOp::Modulo => {
+            MutationIntent::Modulo { target, amount } => {
+                let target_str = &target.name;
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => prev % {});", setter, amt));
                 } else {
-                    w.emit_fmt(format_args!("{} = {} % {};", target, target, amount));
+                    w.emit_fmt(format_args!("{} = {} % {};", target_str, target_str, amt));
                 }
             }
-            MutationOp::Push => {
+            MutationIntent::Push { target, item } => {
+                let target_str = &target.name;
+                let it = item
+                    .as_ref()
+                    .map(|v| self.expr.format_expr(v))
+                    .unwrap_or_else(|| "undefined".into());
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
-                    w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, amount));
+                    w.emit_fmt(format_args!("{}(prev => [...prev, {}]);", setter, it));
                 } else {
-                    w.emit_fmt(format_args!("{}.push({});", target, amount));
+                    w.emit_fmt(format_args!("{}.push({});", target_str, it));
                 }
             }
-            MutationOp::Pop => {
+            MutationIntent::Pop { target } => {
+                let target_str = &target.name;
+                let is_store_signal = target.owner.is_some();
+                let is_component_state = !is_store_signal && self.signal_names.contains(target_str.as_str());
+                let use_setter = is_store_signal || is_component_state;
+                let setter = format!("set{}", capitalize_first(target_str));
                 if use_setter {
                     w.emit_fmt(format_args!("{}(prev => prev.slice(0, -1));", setter));
                 } else {
-                    w.emit_fmt(format_args!("{}.pop();", target));
+                    w.emit_fmt(format_args!("{}.pop();", target_str));
                 }
             }
         }

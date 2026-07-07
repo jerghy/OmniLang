@@ -100,7 +100,7 @@ impl<'a> Parser<'a> {
         }
         // Move the real token out, leave a cheap placeholder in its place.
         // The placeholder is never accessed because positions < pos are retired.
-        let placeholder = Token::new(TokenKind::PlaceholderDummy, 0, 0, 0, 0);
+        let placeholder = Token::placeholder();
         let token = std::mem::replace(&mut self.tokens[self.pos], placeholder);
         self.pos += 1;
         token

@@ -31,7 +31,7 @@ impl SemanticAnalyzer {
             // Find the component scope by name
             let comp_scope_name = format!("component:{}", comp.name);
             if let Some(scope_idx) = self.find_scope(&comp_scope_name) {
-                self.symbols.current_scope = scope_idx;
+                self.symbols.set_current_scope(scope_idx);
             }
 
             let mut vctx = ValidationContext::new();
@@ -56,29 +56,29 @@ impl SemanticAnalyzer {
             for f in &comp.fns {
                 let fn_scope_name = format!("fn:{}", f.name);
                 if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
-                    self.symbols.current_scope = fn_idx;
+                    self.symbols.set_current_scope(fn_idx);
                 }
                 let mut fn_vctx = ValidationContext {
                     is_async: f.is_async,
                     loop_depth: 0,
                 };
                 self.resolve_block_refs(&f.body, &mut fn_vctx);
-                self.symbols.current_scope = self.symbols.scopes[self.symbols.current_scope]
-                    .parent
-                    .unwrap_or(0);
+                self.symbols.set_current_scope(
+                    self.symbols.current_scope().parent.unwrap_or(0),
+                );
             }
             for a in &comp.actions {
                 let action_scope_name = format!("action:{}", a.name);
                 if let Some(a_idx) = self.find_scope(&action_scope_name) {
-                    self.symbols.current_scope = a_idx;
+                    self.symbols.set_current_scope(a_idx);
                 }
                 let mut fn_vctx = ValidationContext {
                     is_async: a.is_async,
                     loop_depth: 0,
                 };
                 self.resolve_block_refs(&a.body, &mut fn_vctx);
-                if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
-                    self.symbols.current_scope = parent;
+                if let Some(parent) = self.symbols.current_scope().parent {
+                    self.symbols.set_current_scope(parent);
                 }
             }
 
@@ -96,7 +96,7 @@ impl SemanticAnalyzer {
                 }
             }
 
-            self.symbols.current_scope = 0; // back to global
+            self.symbols.set_current_scope(0); // back to global
 
             // Remaining validations (view-tree walks / block-scoped checks)
             self.validate_bind_targets(comp);
@@ -107,21 +107,21 @@ impl SemanticAnalyzer {
         for f in &module.functions {
             let fn_scope_name = format!("fn:{}", f.name);
             if let Some(fn_idx) = self.find_scope(&fn_scope_name) {
-                self.symbols.current_scope = fn_idx;
+                self.symbols.set_current_scope(fn_idx);
             }
             let mut fn_vctx = ValidationContext {
                 is_async: f.is_async,
                 loop_depth: 0,
             };
             self.resolve_block_refs(&f.body, &mut fn_vctx);
-            self.symbols.current_scope = 0;
+            self.symbols.set_current_scope(0);
         }
 
         // Resolve store expressions (signal inits, getter bodies, action bodies)
         for store in &module.stores {
             let store_scope_name = format!("store:{}", store.name);
             if let Some(scope_idx) = self.find_scope(&store_scope_name) {
-                self.symbols.current_scope = scope_idx;
+                self.symbols.set_current_scope(scope_idx);
             }
 
             let mut vctx = ValidationContext::new();
@@ -137,19 +137,19 @@ impl SemanticAnalyzer {
             for a in &store.actions {
                 let action_scope_name = format!("action:{}", a.name);
                 if let Some(a_idx) = self.find_scope(&action_scope_name) {
-                    self.symbols.current_scope = a_idx;
+                    self.symbols.set_current_scope(a_idx);
                 }
                 let mut fn_vctx = ValidationContext {
                     is_async: a.is_async,
                     loop_depth: 0,
                 };
                 self.resolve_block_refs(&a.body, &mut fn_vctx);
-                if let Some(parent) = self.symbols.scopes[self.symbols.current_scope].parent {
-                    self.symbols.current_scope = parent;
+                if let Some(parent) = self.symbols.current_scope().parent {
+                    self.symbols.set_current_scope(parent);
                 }
             }
 
-            self.symbols.current_scope = 0;
+            self.symbols.set_current_scope(0);
         }
 
         // Motion validation (still a standalone call, not inlined)

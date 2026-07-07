@@ -42,16 +42,21 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
         StatementIR::MutationStmt {
             intent: Some(intent),
             ..
-        } => {
-            intent.target.name == *ident
-                || intent
-                    .amount
-                    .as_ref()
-                    .is_some_and(|a| getter_expr_contains_ident(a, ident))
-                || intent
-                    .item
-                    .as_ref()
-                    .is_some_and(|i| getter_expr_contains_ident(i, ident))
+        } => match intent {
+            MutationIntent::DirectAssign { value, .. } => value
+                .as_ref()
+                .is_some_and(|v| getter_expr_contains_ident(v, ident)),
+            MutationIntent::Increment { amount, .. }
+            | MutationIntent::Decrement { amount, .. }
+            | MutationIntent::Multiply { amount, .. }
+            | MutationIntent::Divide { amount, .. }
+            | MutationIntent::Modulo { amount, .. } => amount
+                .as_ref()
+                .is_some_and(|a| getter_expr_contains_ident(a, ident)),
+            MutationIntent::Push { item, .. } => item
+                .as_ref()
+                .is_some_and(|i| getter_expr_contains_ident(i, ident)),
+            MutationIntent::Pop { .. } => false,
         }
         StatementIR::BlockStmtIR { body } => body
             .statements

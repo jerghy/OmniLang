@@ -121,11 +121,11 @@ mod tests {
             left: Box::new(ExprIR::IdentifierExpr {
                 name: "a".into(),
                 type_ann: None,
-            }),
+            })),
             right: Box::new(ExprIR::IdentifierExpr {
                 name: "b".into(),
                 type_ann: None,
-            }),
+            })),
         };
         assert_eq!(format_expr_vue(&expr), "a + b");
     }
@@ -136,13 +136,13 @@ mod tests {
             cond: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),
                 type_ann: None,
-            }),
+            })),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
-            }),
+            })),
             else_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
-            }),
+            })),
         };
         assert_eq!(format_expr_vue(&expr), "x ? 1 : 0");
     }
@@ -153,7 +153,7 @@ mod tests {
             object: Box::new(ExprIR::IdentifierExpr {
                 name: "obj".into(),
                 type_ann: None,
-            }),
+            })),
             field: "prop".into(),
         };
         assert_eq!(format_expr_vue(&expr), "obj.prop");
@@ -162,11 +162,11 @@ mod tests {
     #[test]
     fn test_format_expr_unary_not() {
         let expr = ExprIR::UnaryOpExpr {
-            op: "not".into(),
+            op: UnaryOpIR::Not,
             operand: Box::new(ExprIR::IdentifierExpr {
                 name: "flag".into(),
                 type_ann: None,
-            }),
+            })),
         };
         assert_eq!(format_expr_vue(&expr), "!flag");
     }
@@ -188,9 +188,9 @@ mod tests {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::LetStmtIR {
             name: "x".into(),
-            value: Some(ExprIR::LiteralExpr {
+            value: Some(Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(42),
-            }),
+            })),
             r#type: None,
         };
         generate_statement_vue(&mut w, &stmt);
@@ -204,7 +204,7 @@ mod tests {
             value: Some(ExprIR::IdentifierExpr {
                 name: "result".into(),
                 type_ann: None,
-            }),
+            })),
         };
         generate_statement_vue(&mut w, &stmt);
         assert_eq!(w.into_string(), "return result;\n");
@@ -214,17 +214,17 @@ mod tests {
     fn test_vue_stmt_mutation_increment() {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::MutationStmt {
-            intent: Some(MutationIntent {
+            intent: Some(MutationIntent::Increment {
                 target: SignalRefIR {
                     owner: None,
                     name: "count".into(),
                 },
-                operation: MutationOp::Increment,
-                amount: Some(ExprIR::LiteralExpr {
+                
+                amount: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(1),
-                }),
+                })),
                 item: None,
-            }),
+            })),
         };
         generate_statement_vue(&mut w, &stmt);
         assert_eq!(w.into_string(), "count.value += 1;\n");
@@ -234,17 +234,17 @@ mod tests {
     fn test_vue_stmt_mutation_assign() {
         let mut w = CodeWriter::new();
         let stmt = StatementIR::MutationStmt {
-            intent: Some(MutationIntent {
+            intent: Some(MutationIntent::DirectAssign {
                 target: SignalRefIR {
                     owner: None,
                     name: "name".into(),
                 },
-                operation: MutationOp::DirectAssign,
-                amount: Some(ExprIR::LiteralExpr {
+                
+                value: Some(Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!("alice"),
-                }),
+                })),
                 item: None,
-            }),
+            })),
         };
         generate_statement_vue(&mut w, &stmt);
         assert_eq!(w.into_string(), "name.value = \"alice\";\n");
@@ -261,9 +261,9 @@ mod tests {
             then_body: BlockIR {
                 statements: vec![StatementIR::LetStmtIR {
                     name: "x".into(),
-                    value: Some(ExprIR::LiteralExpr {
+                    value: Some(Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(1),
-                    }),
+                    })),
                     r#type: None,
                 }],
             },
@@ -625,10 +625,10 @@ mod tests {
                 left: Box::new(ExprIR::IdentifierExpr {
                     name: "count".into(),
                     type_ann: None,
-                }),
+                })),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2),
-                }),
+                })),
             },
         );
         let mut signals = HashMap::new();

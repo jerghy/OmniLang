@@ -94,9 +94,9 @@ pub(crate) fn lower_expr(
         },
         Expr::UnaryOp { op, operand, .. } => ExprIR::UnaryOpExpr {
             op: match op {
-                UnaryOpKind::Not => "!".into(),
-                UnaryOpKind::Neg => "-".into(),
-                UnaryOpKind::Await => "await ".into(),
+                UnaryOpKind::Not => UnaryOpIR::Not,
+                UnaryOpKind::Neg => UnaryOpIR::Neg,
+                UnaryOpKind::Await => UnaryOpIR::Await,
             },
             operand: Box::new(lower_expr(
                 operand,

@@ -35,7 +35,7 @@ fn lint_to_diag(d: &crate::semantic::lints::LintDiagnostic) -> Diagnostic {
             crate::semantic::lints::LintSeverity::Info => crate::error::Severity::Info,
             _ => crate::error::Severity::Warning,
         },
-        kind: DiagnosticKind::ELint(d.rule.clone()),
+        kind: DiagnosticKind::ELint(crate::error::LintRuleId::from(d.rule.as_str())),
         message: d.message.clone(),
         file: Some(d.file.clone()),
         line: d.line,

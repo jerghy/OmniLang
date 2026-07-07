@@ -414,14 +414,28 @@ pub(super) fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>)
             }
             StatementIR::MutationStmt {
                 intent: Some(intent),
-            } => {
-                if let Some(amount) = &intent.amount {
-                    walk_expr_event_fields(amount, fields);
+            } => match intent {
+                MutationIntent::DirectAssign { value, .. } => {
+                    if let Some(value) = value {
+                        walk_expr_event_fields(value, fields);
+                    }
                 }
-                if let Some(item) = &intent.item {
-                    walk_expr_event_fields(item, fields);
+                MutationIntent::Increment { amount, .. }
+                | MutationIntent::Decrement { amount, .. }
+                | MutationIntent::Multiply { amount, .. }
+                | MutationIntent::Divide { amount, .. }
+                | MutationIntent::Modulo { amount, .. } => {
+                    if let Some(amount) = amount {
+                        walk_expr_event_fields(amount, fields);
+                    }
                 }
-            }
+                MutationIntent::Push { item, .. } => {
+                    if let Some(item) = item {
+                        walk_expr_event_fields(item, fields);
+                    }
+                }
+                MutationIntent::Pop { .. } => {}
+            },
             _ => {}
         }
     }

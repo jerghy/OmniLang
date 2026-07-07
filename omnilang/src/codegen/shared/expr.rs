@@ -228,7 +228,7 @@ pub(crate) trait FormatExpr {
                 )
             }
             ExprIR::UnaryOpExpr { op, operand } => {
-                self.format_unary_op(op, &self.format_expr(operand))
+                self.format_unary_op(op.as_str(), &self.format_expr(operand))
             }
             ExprIR::TernaryIR {
                 cond,

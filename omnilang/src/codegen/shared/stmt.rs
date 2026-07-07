@@ -323,15 +323,8 @@ pub(crate) trait FormatStmt {
         w.emit_fmt(format_args!("{target} = {amount}{semi}"));
     }
 
-    /// Format a mutation statement — default handles all 8 `MutationOp` variants.
+    /// Format a mutation statement — handles all variants via tagged enum dispatch.
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
-        let target = &intent.target.name;
-        let ref_t = self.mutation_target_expr(target);
-        let amount = intent
-            .amount
-            .as_ref()
-            .map(|v| self.expr_fmt().format_expr(v))
-            .unwrap_or_else(|| "0".into());
         let semi = if self.needs_semicolon() { ";" } else { "" };
 
         if let Some(prefix) = self.mutation_stmt_prefix() {
@@ -339,35 +332,66 @@ pub(crate) trait FormatStmt {
             w.indent();
         }
 
-        match &intent.operation {
-            MutationOp::DirectAssign => {
+        match intent {
+            MutationIntent::DirectAssign { target, value } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amount = value
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
                 self.format_direct_assign_mutation(w, &ref_t, &amount);
             }
-            MutationOp::Increment => {
-                w.emit_fmt(format_args!("{ref_t} += {amount}{semi}"));
+            MutationIntent::Increment { target, amount } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                w.emit_fmt(format_args!("{ref_t} += {amt}{semi}"));
             }
-            MutationOp::Decrement => {
-                w.emit_fmt(format_args!("{ref_t} -= {amount}{semi}"));
+            MutationIntent::Decrement { target, amount } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                w.emit_fmt(format_args!("{ref_t} -= {amt}{semi}"));
             }
-            MutationOp::Multiply => {
-                w.emit_fmt(format_args!("{ref_t} *= {amount}{semi}"));
+            MutationIntent::Multiply { target, amount } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                w.emit_fmt(format_args!("{ref_t} *= {amt}{semi}"));
             }
-            MutationOp::Divide => {
-                w.emit_fmt(format_args!("{ref_t} /= {amount}{semi}"));
+            MutationIntent::Divide { target, amount } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                w.emit_fmt(format_args!("{ref_t} /= {amt}{semi}"));
             }
-            MutationOp::Modulo => {
-                w.emit_fmt(format_args!("{ref_t} %= {amount}{semi}"));
+            MutationIntent::Modulo { target, amount } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let amt = amount
+                    .as_ref()
+                    .map(|v| self.expr_fmt().format_expr(v))
+                    .unwrap_or_else(|| "0".into());
+                w.emit_fmt(format_args!("{ref_t} %= {amt}{semi}"));
             }
-            MutationOp::Push => {
-                let item = intent
-                    .item
+            MutationIntent::Push { target, item } => {
+                let ref_t = self.mutation_target_expr(&target.name);
+                let it = item
                     .as_ref()
                     .map(|v| self.expr_fmt().format_expr(v))
                     .unwrap_or_else(|| "undefined".into());
                 let push_m = self.mutation_push_method();
-                w.emit_fmt(format_args!("{ref_t}.{push_m}({item}){semi}"));
+                w.emit_fmt(format_args!("{ref_t}.{push_m}({it}){semi}"));
             }
-            MutationOp::Pop => {
+            MutationIntent::Pop { target } => {
+                let ref_t = self.mutation_target_expr(&target.name);
                 let pop_m = self.mutation_pop_method();
                 w.emit_fmt(format_args!("{ref_t}.{pop_m}(){semi}"));
             }

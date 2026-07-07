@@ -8,6 +8,75 @@ use std::fmt;
 use crate::lexer::Span;
 
 // ═══════════════════════════════════════════════════════════
+// LintRuleId
+// ═══════════════════════════════════════════════════════════
+
+/// Typed lint rule identifier, replacing raw string rule names.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum LintRuleId {
+    #[error("undefined-ref")]
+    UndefinedRef,
+    #[error("type-mismatch")]
+    TypeMismatch,
+    #[error("store-field-direct-mutation")]
+    StoreFieldDirectMutation,
+    #[error("prop-immutability")]
+    PropImmutability,
+    #[error("computed-purity")]
+    ComputedPurity,
+    #[error("missing-return")]
+    MissingReturn,
+    #[error("dead-code")]
+    DeadCode,
+    #[error("unused-import")]
+    UnusedImport,
+    #[error("invalid-event-field")]
+    InvalidEventField,
+    #[error("store-action-no-event-data")]
+    StoreActionNoEventData,
+    /// Unknown/unrecognized lint rule (fallback for forward compatibility).
+    #[error("{0}")]
+    Unknown(String),
+}
+
+impl From<&str> for LintRuleId {
+    fn from(s: &str) -> Self {
+        match s {
+            "undefined-ref" => Self::UndefinedRef,
+            "type-mismatch" => Self::TypeMismatch,
+            "store-field-direct-mutation" => Self::StoreFieldDirectMutation,
+            "prop-immutability" => Self::PropImmutability,
+            "computed-purity" => Self::ComputedPurity,
+            "missing-return" => Self::MissingReturn,
+            "dead-code" => Self::DeadCode,
+            "unused-import" => Self::UnusedImport,
+            "invalid-event-field" => Self::InvalidEventField,
+            "store-action-no-event-data" => Self::StoreActionNoEventData,
+            _ => Self::Unknown(s.to_string()),
+        }
+    }
+}
+
+impl From<String> for LintRuleId {
+    fn from(s: String) -> Self {
+        Self::from(s.as_str())
+    }
+}
+
+impl Serialize for LintRuleId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintRuleId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(Self::from(s))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // DiagnosticKind
 // ═══════════════════════════════════════════════════════════
 
@@ -52,7 +121,7 @@ pub enum DiagnosticKind {
     #[error("motion warning")]
     WMotion,
     #[error("lint rule error")]
-    ELint(String),
+    ELint(LintRuleId),
 }
 
 impl DiagnosticKind {

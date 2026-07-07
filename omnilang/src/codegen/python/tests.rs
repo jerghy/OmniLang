@@ -106,7 +106,7 @@ fn snapshot_binary_or() {
 #[test]
 fn snapshot_unary_not() {
     let expr = ExprIR::UnaryOpExpr {
-        op: "not".into(),
+        op: UnaryOpIR::Not,
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "flag".into(),
             type_ann: None,
@@ -120,7 +120,7 @@ fn snapshot_unary_not() {
 #[test]
 fn snapshot_unary_neg() {
     let expr = ExprIR::UnaryOpExpr {
-        op: "neg".into(),
+        op: UnaryOpIR::Neg,
         operand: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
             type_ann: None,

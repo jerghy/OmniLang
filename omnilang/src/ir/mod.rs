@@ -20,7 +20,7 @@ pub use types::{
     EffectIntent, ElementIR, EventDataKind, EventFieldDef, EventHandlerIR, ExprIR, IRProgram,
     LifecycleIntent, LifecycleKind, ListRenderingIntent, MatchArmIR, MatchPatternIR,
     MatchPatternKindIR, MutationIntent, MutationOp, ParamIR, SignalRefIR, StateIntent, StatementIR,
-    StoreIR, StyleRuleIR, TypeIR, TypeKind, ViewTree,
+    StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
 };
 
 // ── Explicit re-exports from logic.rs ──

@@ -158,16 +158,14 @@ mod tests {
                     return_type: None,
                     body: BlockIR {
                         statements: vec![StatementIR::MutationStmt {
-                            intent: Some(crate::ir::MutationIntent {
+                            intent: Some(crate::ir::MutationIntent::DirectAssign {
                                 target: crate::ir::SignalRefIR {
                                     owner: Some("MyStore".into()),
                                     name: "count".into(),
                                 },
-                                operation: crate::ir::MutationOp::DirectAssign,
-                                amount: Some(crate::ir::ExprIR::LiteralExpr {
+                                value: Some(Box::new(crate::ir::ExprIR::LiteralExpr {
                                     value: serde_json::Value::Number(99.into()),
-                                }),
-                                item: None,
+                                })),
                             }),
                         }],
                     },
@@ -232,16 +230,14 @@ mod tests {
                     return_type: None,
                     body: BlockIR {
                         statements: vec![StatementIR::MutationStmt {
-                            intent: Some(crate::ir::MutationIntent {
+                            intent: Some(crate::ir::MutationIntent::Increment {
                                 target: crate::ir::SignalRefIR {
                                     owner: None,
                                     name: "count".into(),
                                 },
-                                operation: crate::ir::MutationOp::Increment,
-                                amount: Some(crate::ir::ExprIR::LiteralExpr {
+                                amount: Some(Box::new(crate::ir::ExprIR::LiteralExpr {
                                     value: serde_json::Value::Number(1.into()),
-                                }),
-                                item: None,
+                                })),
                             }),
                         }],
                     },
