@@ -6,12 +6,11 @@ import type { PoiesisState } from "./index";
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
 
-let _tabIdCounter = 0;
-function generateTabId(): string {
-  return `tab_${Date.now()}_${_tabIdCounter++}`;
-}
-
-export function createTabSlice(set: SetFn, _get: GetFn) {
+export function createTabSlice(set: SetFn, _get?: GetFn) {
+  let _tabIdCounter = 0;
+  function generateTabId(): string {
+    return `tab_${Date.now()}_${_tabIdCounter++}`;
+  }
   return {
     openTab: (filePath: string, componentName: string, tabType: import("../core/types/design-page").TabType = "component") => set((s) => {
       const existing = s.designPage.openTabs.find(t => t.filePath === filePath);

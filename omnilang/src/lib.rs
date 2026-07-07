@@ -240,7 +240,7 @@ pub fn compile_to_target_json(
 
 /// Extract the inner HTML between `<body>` and `</body>` tags.
 /// Works on both multi-line and minified/single-line HTML.
-#[allow(dead_code)]
+#[cfg(feature = "codegen-omniview")]
 fn extract_body_html(html: &str) -> String {
     // Find <body> tag (with optional attributes)
     let body_start = html

@@ -276,9 +276,19 @@ pub(crate) trait FormatExpr {
 /// JS-family expression formatter.
 ///
 /// Defaults: `===`, `?.`, `undefined` fallback.
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue"
+))]
 #[allow(dead_code)]
 pub(crate) struct JsFormatExpr;
 
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue"
+))]
 impl FormatExpr for JsFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_JS
@@ -304,9 +314,10 @@ impl FormatExpr for JsFormatExpr {
 /// Dart-family expression formatter.
 ///
 /// Defaults: `==`, `.`, `null` fallback, Dart string/number config.
-#[allow(dead_code)]
+#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 pub(crate) struct DartFormatExpr;
 
+#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 impl FormatExpr for DartFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_DART
@@ -366,9 +377,10 @@ impl FormatExpr for DartFormatExpr {
 /// Rust-family expression formatter.
 ///
 /// Defaults: `if/else` ternary, `vec![]` arrays, `.await`, `None` fallback.
-#[allow(dead_code)]
+#[cfg(feature = "codegen-rust")]
 pub(crate) struct RustFormatExpr;
 
+#[cfg(feature = "codegen-rust")]
 impl FormatExpr for RustFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_RUST

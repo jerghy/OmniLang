@@ -73,7 +73,7 @@ export function SignalForm({
 
       {signals.map((sig, i) => (
         <div
-          key={i}
+          key={sig.name ?? i}
           style={{
             display: "flex",
             alignItems: "center",

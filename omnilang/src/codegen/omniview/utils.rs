@@ -130,6 +130,7 @@ pub(super) fn escape_html(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
 }
 
 // ══════════════════════════════════════════════════════════

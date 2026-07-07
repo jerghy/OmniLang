@@ -112,16 +112,7 @@ pub fn camel_to_separated(s: &str, sep: char) -> String {
 /// "backgroundColor" → "background-color", "--customProp" → "--custom-prop"
 #[must_use]
 pub fn camel_to_kebab(s: &str) -> String {
-    let mut result = String::new();
-    for c in s.chars() {
-        if c.is_uppercase() {
-            result.push('-');
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
+    camel_to_separated(s, '-')
 }
 
 /// Extract a CSS value string from an IR expression node.
@@ -140,7 +131,7 @@ pub fn format_css_value(value: &crate::ir::ExprIR) -> String {
 
 /// Generate a CSS style block for component styles.
 /// Handles both empty (generates default `.container {}`) and populated style lists.
-#[allow(dead_code)]
+#[cfg(any(feature = "codegen-react", feature = "codegen-vue"))]
 pub(crate) fn generate_css_style_block(w: &mut CodeWriter, styles: &[crate::ir::StyleRuleIR]) {
     if styles.is_empty() {
         w.emit(".container {");

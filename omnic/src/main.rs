@@ -245,30 +245,9 @@ fn cmd_build(files: Vec<String>, target: Option<String>, output_dir: &str) -> an
     let output_path = Path::new(output_dir);
     std::fs::create_dir_all(output_path)?;
 
-    if let Some(files) = data["files"].as_object() {
-        for (filename, content) in files {
-            validate_output_filename(filename)?;
-            let content = match content.as_str() {
-                Some(s) => s,
-                None => {
-                    eprintln!(
-                        "Warning: null or non-string content for file '{}', skipping",
-                        filename
-                    );
-                    continue;
-                }
-            };
-            let out_path = output_path.join(filename);
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&out_path, content)?;
-            println!("  -> {}", out_path.display());
-        }
-        println!(
-            "Compiled {} file(s) to {target_str} successfully.",
-            files.len()
-        );
+    let count = write_output_files(output_path, data["files"].as_object())?;
+    if count > 0 {
+        println!("Compiled {count} file(s) to {target_str} successfully.");
     }
 
     Ok(())
@@ -291,6 +270,39 @@ fn extract_error_messages(errors: &serde_json::Value) -> String {
                 .join("\n")
         })
         .unwrap_or_else(|| "Compilation failed.".to_string())
+}
+
+/// Write compiled output files to disk.
+/// Validates filenames, creates parent directories, and writes content.
+/// Returns the number of files successfully written.
+fn write_output_files(
+    output_dir: &Path,
+    files_opt: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> anyhow::Result<usize> {
+    let Some(files) = files_opt else {
+        return Ok(0);
+    };
+    let mut count = 0;
+    for (filename, content) in files {
+        validate_output_filename(filename)?;
+        let content = match content.as_str() {
+            Some(s) => s,
+            None => {
+                eprintln!(
+                    "Warning: null or non-string content for file '{}', skipping",
+                    filename
+                );
+                continue;
+            }
+        };
+        let out_path = output_dir.join(filename);
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&out_path, content)?;
+        count += 1;
+    }
+    Ok(count)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -387,26 +399,7 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
     let output_dir = Path::new("build/debug");
     std::fs::create_dir_all(output_dir)?;
 
-    if let Some(files) = data["files"].as_object() {
-        for (filename, content) in files {
-            validate_output_filename(filename)?;
-            let content = match content.as_str() {
-                Some(s) => s,
-                None => {
-                    eprintln!(
-                        "Warning: null or non-string content for file '{}', skipping",
-                        filename
-                    );
-                    continue;
-                }
-            };
-            let out_path = output_dir.join(filename);
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&out_path, content)?;
-        }
-    }
+    write_output_files(output_dir, data["files"].as_object())?;
 
     // Locate first output file — mirrors Python cli.py:352-357
     let first_name = data["files"]

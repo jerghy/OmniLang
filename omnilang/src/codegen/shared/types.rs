@@ -28,9 +28,18 @@ pub(crate) trait FormatType {
 // ═══════════════════════════════════════════════════════════
 
 /// JS-family type formatter.
-#[allow(dead_code)]
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue"
+))]
 pub(crate) struct JsTypeFormatter;
 
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue"
+))]
 impl FormatType for JsTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -80,9 +89,10 @@ impl FormatType for JsTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Dart-family type formatter.
-#[allow(dead_code)]
+#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 pub(crate) struct DartTypeFormatter;
 
+#[cfg(any(feature = "codegen-dart", feature = "codegen-flutter"))]
 impl FormatType for DartTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -133,9 +143,10 @@ impl FormatType for DartTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Rust-family type formatter.
-#[allow(dead_code)]
+#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
 pub(crate) struct RustTypeFormatter;
 
+#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
 impl FormatType for RustTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {
@@ -193,9 +204,10 @@ impl FormatType for RustTypeFormatter {
 // ═══════════════════════════════════════════════════════════
 
 /// Python type formatter.
-#[allow(dead_code)]
+#[cfg(feature = "codegen-python")]
 pub(crate) struct PythonTypeFormatter;
 
+#[cfg(feature = "codegen-python")]
 impl FormatType for PythonTypeFormatter {
     fn format_type(&self, kind: &str, type_args: &[TypeIR]) -> String {
         match kind {

@@ -212,11 +212,13 @@ export function ArchitectureGraph() {
         onNodeContextMenu={handleNodeContextMenu}
         onPaneClick={handlePaneClick}
       />
-      <BubbleContextMenu
-        position={contextMenu?.position ?? null}
-        bubbleId={contextMenu?.bubbleId ?? null}
-        onClose={handleContextMenuClose}
-      />
+      {contextMenu && (
+        <BubbleContextMenu
+          position={contextMenu.position}
+          bubbleId={contextMenu.bubbleId}
+          onClose={handleContextMenuClose}
+        />
+      )}
     </div>
   );
 }
