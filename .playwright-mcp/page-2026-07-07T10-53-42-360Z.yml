@@ -1,0 +1,52 @@
+- generic [ref=f4e4]:
+  - banner [ref=f4e6]:
+    - heading "OmniView 教学项目" [level=1] [ref=f4e7]
+    - paragraph [ref=f4e8]: 涵盖 Store、Signal、Computed、Prop、Event、bind:value 等核心特性
+  - generic [ref=f4e9]:
+    - generic [ref=f4e10]:
+      - button "首页" [ref=f4e11] [cursor=pointer]
+      - button "待办" [ref=f4e12] [cursor=pointer]
+      - button "基础交互" [ref=f4e13] [cursor=pointer]
+      - button "编译器特性" [ref=f4e14] [cursor=pointer]
+      - button "运动动画" [ref=f4e15] [cursor=pointer]
+      - button "CSS 特性" [ref=f4e16] [cursor=pointer]
+      - button "事件/表单" [ref=f4e17] [cursor=pointer]
+      - button "语言特性" [ref=f4e18] [cursor=pointer]
+      - button "设置" [ref=f4e19] [cursor=pointer]
+      - button "补充" [ref=f4e20] [cursor=pointer]
+    - generic [ref=f4e124]:
+      - generic [ref=f4e125]:
+        - heading "Todo List" [level=2] [ref=f4e126]
+        - paragraph [ref=f4e127]: "2 tasks · Filter: all"
+        - generic [ref=f4e128]: Loaded × 1
+      - generic [ref=f4e131]:
+        - generic [ref=f4e132]:
+          - textbox "Filter todos..." [ref=f4e133]
+          - button "X" [ref=f4e134] [cursor=pointer]
+        - generic [ref=f4e135]:
+          - paragraph [ref=f4e136]: Showing all 2 items
+          - button "Sort ASC" [ref=f4e137] [cursor=pointer]
+          - button "Sync" [ref=f4e138] [cursor=pointer]
+        - generic [ref=f4e139]:
+          - paragraph [ref=f4e140]: "Store: 2 items | Filter: all | Changes: 0"
+          - paragraph [ref=f4e141]: "Last: added"
+          - paragraph [ref=f4e142]: "Filtered frameworks: 5 / 5"
+      - generic [ref=f4e145]:
+        - heading "待办列表 2" [level=2] [ref=f4e163]:
+          - text: 待办列表
+          - generic [ref=f4e147]: "2"
+        - generic [ref=f4e149]:
+          - generic [ref=f4e150]:
+            - textbox "输入待办事项" [ref=f4e164]
+            - button "添加" [active] [ref=f4e152] [cursor=pointer]
+            - button "清空" [ref=f4e153] [cursor=pointer]
+          - paragraph [ref=f4e154]: 已输入 0 字符
+        - generic [ref=f4e155]:
+          - generic [ref=f4e166]: Todo
+          - generic [ref=f4e168]: Todo
+      - generic [ref=f4e158]:
+        - button "Clear All" [ref=f4e159] [cursor=pointer]
+        - button "Sync Reminders" [ref=f4e160] [cursor=pointer]
+        - generic [ref=f4e161]: "Last: added"
+    - contentinfo [ref=f4e117]:
+      - paragraph [ref=f4e118]: OmniView 教学项目 · 74+ 源文件 · omnic run

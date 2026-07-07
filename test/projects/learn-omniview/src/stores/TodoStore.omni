@@ -1,7 +1,16 @@
 import omniview;
+import { array_filter } from "std/array";
 // @pid:s1
 store TodoStore {
   signal items: Todo[] = [];
-  action add(text: String) { items = [...items, { id: items.length, text, done: false }]; }
-  action remove(id: i32) { items = items.filter(item => item.id != id); }
+  signal filterStatus: String = "all";
+  signal lastAction: String = "none";
+
+  getter totalCount: i32 = items.len();
+
+  action add(text: String) { items = [...items, { id: items.length, text, done: false }]; lastAction = "added"; }
+  action remove(id: i32) { items = array_filter(items, |item| item.id != id); lastAction = "removed"; }
+  action clear() { items = []; filterStatus = "all"; lastAction = "cleared"; }
+  action setFilter(status: String) { filterStatus = status; lastAction = "filter: " + status; }
+  action fetchReminders() { lastAction = "fetching..."; }
 }

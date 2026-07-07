@@ -3,12 +3,15 @@
 // "+" button opens a hierarchical file tree panel of .omni files.
 // Includes "New File" button for creating store or code files.
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { usePoiesisStore } from "../../store";
 import { detectTabType } from "../../core/types/design-page";
 import type { TabType } from "../../core/types/design-page";
 import { FileTreePanel } from "./FileTreePanel";
 import { NewFileModal } from "./NewFileModal";
+import { api } from "../../commands";
+import { emitDesignSource } from "../../services/codegen/design-emitter";
+import { EMPTY_DESIGN } from "../../core/types/design";
 
 export function DesignTabBar() {
   const tabs = usePoiesisStore((s) => s.designPage.openTabs);
@@ -25,12 +28,39 @@ export function DesignTabBar() {
   // Confirm dialog for dirty tabs
   const [confirmClose, setConfirmClose] = useState<string | null>(null);
 
+  // "+" menu
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [plusMenuPos, setPlusMenuPos] = useState({ top: 0, left: 0 });
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+  const plusBtnRef = useRef<HTMLButtonElement>(null);
+
   // "+" file tree panel
   const [showFilePanel, setShowFilePanel] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // New file sub-panel
   const [showNewFilePanel, setShowNewFilePanel] = useState(false);
+
+  // Check if design.omni tab already exists
+  const hasDesignTab = tabs.some((t) => t.filePath === "design.omni" || t.filePath.endsWith("/design.omni"));
+
+  // Close "+" menu on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (plusMenuRef.current && !plusMenuRef.current.contains(target) &&
+          plusBtnRef.current && !plusBtnRef.current.contains(target)) {
+        setShowPlusMenu(false);
+      }
+    };
+    // Delay to avoid immediately closing on the same click that opened it
+    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handler);
+    };
+  }, [showPlusMenu]);
 
   const handleOpenFile = useCallback(
     (filePath: string, fileName: string) => {
@@ -55,6 +85,22 @@ export function DesignTabBar() {
     },
     [openTab]
   );
+
+  const handleDesignOmni = useCallback(async () => {
+    setShowPlusMenu(false);
+    if (hasDesignTab) {
+      // Switch to existing design.omni tab
+      const tab = tabs.find((t) => t.filePath === "design.omni" || t.filePath.endsWith("/design.omni"));
+      if (tab) switchTab(tab.id);
+    } else {
+      // Create design.omni on disk then open it
+      const source = emitDesignSource({ ...EMPTY_DESIGN, name: "AppDesign" });
+      const result = await api.project.writeFile("design.omni", source);
+      if (result.ok) {
+        openTab("design.omni", "design", "design");
+      }
+    }
+  }, [hasDesignTab, tabs, switchTab, openTab]);
 
   const handleClose = useCallback(
     (e: React.MouseEvent, tabId: string) => {
@@ -107,6 +153,21 @@ export function DesignTabBar() {
     dragIdRef.current = null;
     setDragOverTabId(null);
   }, []);
+
+  const menuItemStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "8px 14px",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 12,
+    color: "#374151",
+    textAlign: "left" as const,
+    fontFamily: "inherit",
+  };
 
   const orderedTabs = tabOrder
     .map((id) => tabs.find((t) => t.id === id))
@@ -188,17 +249,20 @@ export function DesignTabBar() {
           </div>
         )}
 
-        {/* "+" button to open file picker */}
-        <div style={{ display: "flex", alignItems: "center", padding: "0 2px" }}>
+        {/* "+" button with dropdown menu */}
+        <div style={{ display: "flex", alignItems: "center", padding: "0 2px", position: "relative" }}>
           <button
+            ref={plusBtnRef}
             onClick={(e) => {
               e.stopPropagation();
-              setShowFilePanel(!showFilePanel);
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setPlusMenuPos({ top: rect.bottom + 2, left: rect.left });
+              setShowPlusMenu(!showPlusMenu);
             }}
-            title="打开 .omni 文件"
+            title="添加文件"
             style={{
               border: "none",
-              background: showFilePanel ? "#e2e8f0" : "transparent",
+              background: showPlusMenu ? "#e2e8f0" : "transparent",
               cursor: "pointer",
               fontSize: 16,
               color: "#6366F1",
@@ -211,6 +275,43 @@ export function DesignTabBar() {
           >
             +
           </button>
+
+          {/* "+" dropdown menu */}
+          {showPlusMenu && (
+              <div
+                ref={plusMenuRef}
+                style={{
+                  position: "fixed",
+                  top: plusMenuPos.top,
+                  left: plusMenuPos.left,
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                  zIndex: 9999,
+                  minWidth: 200,
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  onClick={() => { setShowPlusMenu(false); setShowFilePanel(true); }}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                >
+                  <span>📁 打开 .omni 文件...</span>
+                </button>
+                <div style={{ borderTop: "1px solid #f1f5f9" }} />
+                <button
+                  onClick={handleDesignOmni}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                >
+                  <span>🎨 {hasDesignTab ? "打开 design.omni" : "创建 design.omni"}</span>
+                </button>
+              </div>
+          )}
         </div>
       </div>
 

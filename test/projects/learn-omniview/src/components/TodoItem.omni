@@ -1,5 +1,14 @@
 // @pid:c5
-// externally modified for test
 component TodoItem {
-  view { <div>Todo</div> }
+  prop text: String = "";
+
+  view {
+    <div class: todo-item>
+      <span class: todo-text>{text}</span>
+    </div>
+  }
+  style {
+    .todo-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
+    .todo-text { font-size: 15px; color: #1f2937; }
+  }
 }

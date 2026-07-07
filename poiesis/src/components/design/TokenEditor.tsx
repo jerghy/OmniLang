@@ -17,6 +17,21 @@ const CATEGORY_LABELS: Record<string, string> = {
   radii: "Radii",
 };
 
+/** Singular form for "+ Add {singular}" button. */
+const ADD_BTN_SINGULAR: Record<string, string> = {
+  colors: "color",
+  spacing: "spacing",
+  typography: "typography",
+  radii: "radius",
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  colors: "🎨",
+  spacing: "📏",
+  typography: "🔤",
+  radii: "⬜",
+};
+
 const CATEGORY_CONFIG: Record<
   string,
   { tokenType: DesignToken["tokenType"]; defaultName: string; defaultValue: string }
@@ -29,32 +44,46 @@ const CATEGORY_CONFIG: Record<
 
 const TOKEN_TYPE_OPTIONS: DesignToken["tokenType"][] = ["color", "size", "font", "shadow"];
 
+// ── Shared styles ──
+
+const CARD_STYLE: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "16px 20px",
+  marginBottom: 16,
+};
+
 const SECTION_HEADER: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
-  color: "#6b7280",
+  color: "#475569",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
-  marginBottom: 8,
+  marginBottom: 12,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
 };
 
 const ROW_STYLE: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  gap: 8,
   padding: "4px 0",
 };
 
 const INPUT_STYLE: React.CSSProperties = {
-  padding: "3px 6px",
-  fontSize: 11,
-  fontFamily: "monospace",
-  border: "1px solid #e2e8f0",
-  borderRadius: 4,
+  padding: "4px 8px",
+  fontSize: 13,
+  fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+  border: "1px solid #d1d5db",
+  borderRadius: 6,
   outline: "none",
   background: "#fff",
   color: "#374151",
   boxSizing: "border-box",
+  transition: "border-color 150ms",
 };
 
 const REMOVE_BTN: React.CSSProperties = {
@@ -62,21 +91,36 @@ const REMOVE_BTN: React.CSSProperties = {
   background: "none",
   cursor: "pointer",
   color: "#ef4444",
-  fontSize: 14,
-  padding: "2px 4px",
+  fontSize: 16,
+  padding: "2px 6px",
   lineHeight: 1,
   flexShrink: 0,
+  borderRadius: 4,
 };
 
 const SELECT_STYLE: React.CSSProperties = {
-  padding: "3px 4px",
-  fontSize: 10,
-  border: "1px solid #e2e8f0",
-  borderRadius: 4,
+  padding: "4px 6px",
+  fontSize: 12,
+  border: "1px solid #d1d5db",
+  borderRadius: 6,
   outline: "none",
   background: "#fff",
   color: "#374151",
   cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const ADD_BTN_STYLE: React.CSSProperties = {
+  border: "1px dashed #cbd5e1",
+  borderRadius: 8,
+  background: "transparent",
+  color: "#6366f1",
+  fontSize: 12,
+  fontWeight: 500,
+  padding: "6px 14px",
+  cursor: "pointer",
+  width: "100%",
+  fontFamily: "inherit",
 };
 
 // ── Drag-scrub helpers ──
@@ -128,7 +172,6 @@ export function TokenEditor() {
 
   const grouped = useMemo(() => {
     const groups: Record<string, DesignToken[]> = {};
-    // Ensure all known categories appear even when empty
     for (const cat of CATEGORY_ORDER) {
       groups[cat] = [];
     }
@@ -139,7 +182,6 @@ export function TokenEditor() {
     return groups;
   }, [filteredTokens]);
 
-  // Ratio bar max (computed from all spacing tokens, not just filtered)
   const spacingMax = useMemo(() => {
     const nums = tokens
       .filter((t) => t.category === "spacing")
@@ -235,7 +277,6 @@ export function TokenEditor() {
       const rect = bar.getBoundingClientRect();
       const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const newVal = Math.round(fraction * max);
-      // Determine unit from existing value
       const token = tokens.find((t) => t.id === tokenId);
       const { unit } = parseNumberUnit(token?.value ?? "");
       updateToken(tokenId, { value: `${newVal}${unit}` });
@@ -249,7 +290,7 @@ export function TokenEditor() {
     (catTokens: DesignToken[]) => {
       if (paletteView) {
         return (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8, marginBottom: 8 }}>
             {catTokens.map((t) => (
               <div key={t.id} style={{ textAlign: "center" }}>
                 <div
@@ -257,7 +298,7 @@ export function TokenEditor() {
                   style={{
                     width: "100%",
                     aspectRatio: "1",
-                    borderRadius: 6,
+                    borderRadius: 8,
                     background: t.value || "#ccc",
                     border: "2px solid #e2e8f0",
                     cursor: "pointer",
@@ -265,16 +306,7 @@ export function TokenEditor() {
                   }}
                   title={t.name}
                 />
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "#64748b",
-                    marginTop: 2,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.name}
                 </div>
               </div>
@@ -284,16 +316,16 @@ export function TokenEditor() {
       }
 
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
           {catTokens.map((t) => (
             <div key={t.id} style={ROW_STYLE}>
               {/* Color swatch */}
               <div
                 onClick={(e) => handleOpenColorPicker(t.id, e)}
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 4,
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
                   background: t.value || "#ccc",
                   border: "1px solid #cbd5e1",
                   cursor: "pointer",
@@ -304,7 +336,7 @@ export function TokenEditor() {
               <input
                 value={t.name}
                 onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                style={{ ...INPUT_STYLE, width: 80, flexShrink: 0 }}
+                style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                 placeholder="name"
               />
               {/* Value (hex) */}
@@ -318,12 +350,10 @@ export function TokenEditor() {
               <select
                 value={t.tokenType}
                 onChange={(e) => updateToken(t.id, { tokenType: e.target.value as DesignToken["tokenType"] })}
-                style={{ ...SELECT_STYLE, width: 56 }}
+                style={{ ...SELECT_STYLE, width: 64 }}
               >
                 {TOKEN_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
+                  <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
               {/* Remove */}
@@ -341,7 +371,7 @@ export function TokenEditor() {
   const renderSpacingTokens = useCallback(
     (catTokens: DesignToken[]) => {
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
           {catTokens.map((t) => {
             const { num, unit } = parseNumberUnit(t.value);
             const ratio = isNaN(num) || spacingMax === 0 ? 0 : Math.min(num / spacingMax, 1);
@@ -351,7 +381,7 @@ export function TokenEditor() {
                 <input
                   value={t.name}
                   onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                  style={{ ...INPUT_STYLE, width: 80, flexShrink: 0 }}
+                  style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                   placeholder="name"
                 />
                 {/* Value with drag-scrub */}
@@ -370,19 +400,41 @@ export function TokenEditor() {
                   }}
                   title="Drag to scrub value"
                 >
-                  <span style={{ fontSize: 10, color: "#64748b", marginRight: 2 }}>&#8596;</span>
-                  <span style={{ fontSize: 11, fontFamily: "monospace", color: "#374151" }}>
-                    {t.value}
+                  <span style={{ fontSize: 11, color: "#64748b", marginRight: 2 }}>&#8596;</span>
+                  <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
+                    {num}{unit}
                   </span>
                 </div>
+                {/* Unit selector */}
+                <select
+                  value={unit}
+                  onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
+                  style={{
+                    padding: "4px 4px",
+                    fontSize: 11,
+                    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 6,
+                    outline: "none",
+                    background: "#fff",
+                    color: "#374151",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    width: 56,
+                  }}
+                >
+                  <option value="px">px</option>
+                  <option value="rem">rem</option>
+                  <option value="em">em</option>
+                </select>
                 {/* Ratio bar (clickable) */}
                 <div
                   onClick={(e) => handleRatioBarClick(t.id, spacingMax, e)}
                   style={{
                     flexShrink: 0,
-                    width: 48,
-                    height: 8,
-                    borderRadius: 4,
+                    width: 56,
+                    height: 10,
+                    borderRadius: 5,
                     background: "#e2e8f0",
                     position: "relative",
                     cursor: "pointer",
@@ -395,7 +447,7 @@ export function TokenEditor() {
                       width: `${ratio * 100}%`,
                       height: "100%",
                       background: "#6366f1",
-                      borderRadius: 4,
+                      borderRadius: 5,
                       transition: "width 0.05s",
                     }}
                   />
@@ -416,13 +468,13 @@ export function TokenEditor() {
   const renderTypographyTokens = useCallback(
     (catTokens: DesignToken[]) => {
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
           {catTokens.map((t) => (
             <div key={t.id} style={ROW_STYLE}>
               <input
                 value={t.name}
                 onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                style={{ ...INPUT_STYLE, width: 80, flexShrink: 0 }}
+                style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                 placeholder="name"
               />
               <input
@@ -445,15 +497,15 @@ export function TokenEditor() {
   const renderRadiiTokens = useCallback(
     (catTokens: DesignToken[]) => {
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
           {catTokens.map((t) => {
-            const { num } = parseNumberUnit(t.value);
+            const { num, unit } = parseNumberUnit(t.value);
             return (
               <div key={t.id} style={ROW_STYLE}>
                 <input
                   value={t.name}
                   onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                  style={{ ...INPUT_STYLE, width: 80, flexShrink: 0 }}
+                  style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                   placeholder="name"
                 />
                 <div
@@ -472,12 +524,34 @@ export function TokenEditor() {
                   title="Drag to scrub value"
                 >
                   {!isNaN(num) && (
-                    <span style={{ fontSize: 10, color: "#64748b", marginRight: 2 }}>&#8596;</span>
+                    <span style={{ fontSize: 11, color: "#64748b", marginRight: 2 }}>&#8596;</span>
                   )}
-                  <span style={{ fontSize: 11, fontFamily: "monospace", color: "#374151" }}>
-                    {t.value}
+                  <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', monospace", color: "#374151" }}>
+                    {num}{unit}
                   </span>
                 </div>
+                {/* Unit selector for radii */}
+                <select
+                  value={unit}
+                  onChange={(e) => updateToken(t.id, { value: `${num}${e.target.value}` })}
+                  style={{
+                    padding: "4px 4px",
+                    fontSize: 11,
+                    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 6,
+                    outline: "none",
+                    background: "#fff",
+                    color: "#374151",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    width: 56,
+                  }}
+                >
+                  <option value="px">px</option>
+                  <option value="rem">rem</option>
+                  <option value="em">em</option>
+                </select>
                 <button onClick={() => removeToken(t.id)} style={REMOVE_BTN} title="Remove token">
                   &times;
                 </button>
@@ -503,32 +577,28 @@ export function TokenEditor() {
       const renderFn = renderMap[category];
       if (!renderFn) return null;
 
+      const icon = CATEGORY_ICONS[category] || "";
+      const label = CATEGORY_LABELS[category] || category;
+
       return (
-        <div key={category} style={{ marginBottom: 16 }}>
+        <div key={category} style={CARD_STYLE}>
           {/* Category header */}
-          <div
-            style={{
-              ...SECTION_HEADER,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>
-              {CATEGORY_LABELS[category] || category} ({catTokens.length})
-            </span>
+          <div style={SECTION_HEADER}>
+            <span>{icon} {label} ({catTokens.length})</span>
             {/* Palette toggle (colors only) */}
             {category === "colors" && catTokens.length > 0 && (
               <button
                 onClick={() => setPaletteView((v) => !v)}
                 style={{
                   border: "1px solid #e2e8f0",
-                  borderRadius: 4,
+                  borderRadius: 6,
                   background: paletteView ? "#6366f1" : "#f8fafc",
                   color: paletteView ? "#fff" : "#64748b",
-                  fontSize: 9,
-                  padding: "2px 6px",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  padding: "3px 10px",
                   cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
               >
                 {paletteView ? "List" : "Palette"}
@@ -538,75 +608,10 @@ export function TokenEditor() {
 
           {renderFn(catTokens)}
 
-          {/* Add button for this category */}
-          {category === "colors" && (
-            <button
-              onClick={() => handleAddToken(category)}
-              style={{
-                border: "1px dashed #cbd5e1",
-                borderRadius: 4,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 10,
-                padding: "4px 10px",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              + Add color
-            </button>
-          )}
-          {category === "spacing" && (
-            <button
-              onClick={() => handleAddToken(category)}
-              style={{
-                border: "1px dashed #cbd5e1",
-                borderRadius: 4,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 10,
-                padding: "4px 10px",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              + Add spacing
-            </button>
-          )}
-          {category === "typography" && (
-            <button
-              onClick={() => handleAddToken(category)}
-              style={{
-                border: "1px dashed #cbd5e1",
-                borderRadius: 4,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 10,
-                padding: "4px 10px",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              + Add font
-            </button>
-          )}
-          {category === "radii" && (
-            <button
-              onClick={() => handleAddToken(category)}
-              style={{
-                border: "1px dashed #cbd5e1",
-                borderRadius: 4,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 10,
-                padding: "4px 10px",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              + Add radius
-            </button>
-          )}
+          {/* Add button */}
+          <button onClick={() => handleAddToken(category)} style={ADD_BTN_STYLE}>
+            + Add {ADD_BTN_SINGULAR[category] || label.toLowerCase().slice(0, -1)}
+          </button>
         </div>
       );
     },
@@ -623,78 +628,107 @@ export function TokenEditor() {
   // ── Main render ──
 
   return (
-    <div style={{ padding: 12, fontSize: 12, color: "#374151", position: "relative" }}>
+    <div style={{ fontSize: 13, color: "#374151", position: "relative" }}>
       {/* Toolbar: search + new button */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-        <input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search tokens..."
-          style={{
-            ...INPUT_STYLE,
-            flex: 1,
-            minWidth: 0,
-            padding: "5px 8px",
-            fontSize: 12,
-          }}
-        />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tokens..."
+            style={{
+              ...INPUT_STYLE,
+              width: "100%",
+              padding: "8px 32px 8px 12px",
+              fontSize: 13,
+              borderColor: "#cbd5e1",
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                color: "#94a3b8",
+                fontSize: 16,
+                padding: 0,
+                lineHeight: 1,
+              }}
+            >
+              &times;
+            </button>
+          )}
+        </div>
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setShowNewMenu((v) => !v)}
             style={{
-              padding: "5px 10px",
-              fontSize: 11,
+              padding: "8px 16px",
+              fontSize: 13,
               border: "none",
-              borderRadius: 6,
+              borderRadius: 8,
               background: "#6366f1",
               color: "#fff",
               cursor: "pointer",
               fontWeight: 600,
               whiteSpace: "nowrap",
+              fontFamily: "inherit",
             }}
           >
-            + New
+            + New token
           </button>
           {showNewMenu && (
             <div
-              ref={newMenuRef}
+              ref={(el) => {
+                (newMenuRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                if (el) {
+                  const btn = el.previousSibling as HTMLElement;
+                  if (btn) {
+                    const r = btn.getBoundingClientRect();
+                    el.style.top = `${r.bottom + 4}px`;
+                    el.style.left = `${r.right - 160}px`;
+                  }
+                }
+              }}
               style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: 4,
+                position: "fixed",
                 background: "#fff",
                 border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                zIndex: 1000,
-                minWidth: 140,
+                borderRadius: 10,
+                boxShadow: "0 6px 24px rgba(0,0,0,0.14)",
+                zIndex: 10000,
+                minWidth: 160,
                 overflow: "hidden",
               }}
-            >
-              {CATEGORY_ORDER.map((cat) => (
+            >{CATEGORY_ORDER.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => handleAddToken(cat)}
                   style={{
-                    display: "block",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                     width: "100%",
-                    padding: "8px 14px",
-                    fontSize: 12,
+                    padding: "9px 16px",
+                    fontSize: 13,
                     border: "none",
                     background: "transparent",
                     color: "#374151",
                     cursor: "pointer",
                     textAlign: "left",
+                    fontFamily: "inherit",
                   }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f1f5f9"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
-                  {CATEGORY_LABELS[cat] || cat}
+                  <span>{CATEGORY_ICONS[cat]}</span>
+                  <span>{CATEGORY_LABELS[cat]}</span>
                 </button>
               ))}
             </div>
@@ -709,17 +743,15 @@ export function TokenEditor() {
       {Object.keys(grouped)
         .filter((cat) => !CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number]))
         .map((cat) => (
-          <div key={cat} style={{ marginBottom: 16 }}>
-            <div style={SECTION_HEADER}>
-              {cat} ({grouped[cat].length})
-            </div>
+          <div key={cat} style={{ ...CARD_STYLE }}>
+            <div style={SECTION_HEADER}>{cat} ({grouped[cat].length})</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 }}>
               {grouped[cat].map((t) => (
                 <div key={t.id} style={ROW_STYLE}>
                   <input
                     value={t.name}
                     onChange={(e) => updateToken(t.id, { name: e.target.value })}
-                    style={{ ...INPUT_STYLE, width: 80, flexShrink: 0 }}
+                    style={{ ...INPUT_STYLE, width: 100, flexShrink: 0 }}
                     placeholder="name"
                   />
                   <input
@@ -754,14 +786,16 @@ export function TokenEditor() {
 
       {/* Empty state */}
       {tokens.length === 0 && !searchQuery && (
-        <div style={{ textAlign: "center", padding: 24, color: "#94a3b8", fontSize: 12 }}>
-          No design tokens yet. Click <strong>+ New</strong> to add your first token.
+        <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 14 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🎨</div>
+          <div>No design tokens yet.</div>
+          <div style={{ marginTop: 4 }}>Click <strong>+ New token</strong> to add colors, spacing, fonts, or radii.</div>
         </div>
       )}
 
       {/* No results */}
       {tokens.length > 0 && filteredTokens.length === 0 && (
-        <div style={{ textAlign: "center", padding: 24, color: "#94a3b8", fontSize: 12 }}>
+        <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 14 }}>
           No tokens match "{searchQuery}"
         </div>
       )}

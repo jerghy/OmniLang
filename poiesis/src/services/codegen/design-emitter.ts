@@ -1,13 +1,40 @@
 // poiesis/src/services/codegen/design-emitter.ts
 // Emit design.omni source code from a DesignDefinition object.
 
-import { compileSegments } from "./collect-styles";
 import type {
   DesignDefinition,
   DesignToken,
   DesignClass,
   VariantDefinition,
 } from "../../core/types/design";
+import type { StyleValueSegment } from "../../core/types/style";
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Compile StyleValueSegment[] into an OmniLang expression string for design.omni emission.
+ *
+ * Unlike compileSegments (which emits CSS syntax like `var(--name)`), this emits
+ * omni-native syntax:
+ *   - text segments → quoted string
+ *   - var-ref segments → `token(name)` (omni compile-time resolution)
+ */
+function compileDesignSegments(segments: StyleValueSegment[]): string {
+  if (segments.length === 0) return "";
+  if (segments.length === 1) {
+    const s = segments[0];
+    if (s.type === "text") return `"${s.value}"`;
+    if (s.type === "var-ref") return `token(${s.name})`;
+    return "";
+  }
+  return segments
+    .map((s) => {
+      if (s.type === "text") return `"${s.value}"`;
+      if (s.type === "var-ref") return `token(${s.name})`;
+      return "";
+    })
+    .join(" + ");
+}
 
 // ── emitDesignSource ──────────────────────────────────────────────────────
 
@@ -91,14 +118,14 @@ function emitClass(lines: string[], cls: DesignClass): void {
   lines.push(`    class ${cls.name} {`);
 
   for (const prop of cls.properties) {
-    const val = compileSegments(prop.segments);
+    const val = compileDesignSegments(prop.segments);
     lines.push(`        ${prop.name}: ${val};`);
   }
 
   for (const ps of cls.pseudoStates) {
-    lines.push(`        &${ps.pseudo} {`);
+    lines.push(`        &:${ps.pseudo} {`);
     for (const prop of ps.properties) {
-      const val = compileSegments(prop.segments);
+      const val = compileDesignSegments(prop.segments);
       lines.push(`            ${prop.name}: ${val};`);
     }
     lines.push(`        }`);
@@ -130,7 +157,7 @@ function emitVariant(lines: string[], variant: VariantDefinition): void {
   if (variant.baseProperties.length > 0) {
     lines.push(`        base {`);
     for (const prop of variant.baseProperties) {
-      const val = compileSegments(prop.segments);
+      const val = compileDesignSegments(prop.segments);
       lines.push(`            ${prop.name}: ${val};`);
     }
     lines.push(`        }`);
@@ -140,7 +167,7 @@ function emitVariant(lines: string[], variant: VariantDefinition): void {
   for (const branch of variant.branches) {
     lines.push(`        ${branch.dimension}.${branch.value} {`);
     for (const prop of branch.properties) {
-      const val = compileSegments(prop.segments);
+      const val = compileDesignSegments(prop.segments);
       lines.push(`            ${prop.name}: ${val};`);
     }
     lines.push(`        }`);

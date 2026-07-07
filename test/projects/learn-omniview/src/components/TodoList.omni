@@ -38,7 +38,7 @@ component TodoList {
 
             <div class: items>
                 @for item in items {
-                    <TodoItem text={item} @onDelete={handleDelete} />
+                    <TodoItem text={item.text} @onDelete={handleDelete} />
                 }
                 @empty {
                     <div class: empty-state>

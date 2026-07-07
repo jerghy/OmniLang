@@ -9,6 +9,7 @@ import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } fr
 import type { ElementData, ViewElementData } from "../../core/types/element";
 import type { StyleValueSegment } from "../../core/types/style";
 import type { ComponentDef } from "../../core/types/project-json";
+import type { DesignToken } from "../../core/types/design";
 
 function isTextSegment(
   s: StyleValueSegment
@@ -56,6 +57,21 @@ function getDefaultInlineStyles(el: ElementData): Record<string, string> {
   return styles;
 }
 
+/** Resolve a style value from segments, following var-ref through tokens. */
+function resolveSegmentsValue(
+  segments: StyleValueSegment[],
+  tokens: DesignToken[],
+): string | null {
+  for (const seg of segments) {
+    if (seg.type === "text") return seg.value;
+    if (seg.type === "var-ref") {
+      const token = tokens.find((t) => t.name === seg.name);
+      if (token) return token.value;
+    }
+  }
+  return null;
+}
+
 export function OmniViewRenderer() {
   const elements = useElements();
   const rootOrder = useRootOrder();
@@ -66,6 +82,8 @@ export function OmniViewRenderer() {
   // Subscribe to componentDefs so the renderer re-expands when a custom
   // component's definition changes (e.g. after editing and saving MyCard.omni).
   const componentDefs = useComponentDefs();
+  // Subscribe to activeDesign so class/style changes reflect on canvas immediately.
+  const activeDesign = usePoiesisStore((s) => s.activeDesign);
 
   // Build expanded element map + track IDs that are inside custom components
   const { expandedElements, customChildIds } = useMemo(() => {
@@ -108,6 +126,9 @@ export function OmniViewRenderer() {
             tag: defEl.tag || "div",
             props: defEl.props || {},
             children: (defEl.children || []).map((cid) => idMap.get(cid) || cid),
+            // Copy style (classRefs + inlineProperties) so canvas preview reflects
+            // design-system class bindings and inline styles applied to the component.
+            style: defEl.style ? { ...defEl.style, classRefs: [...(defEl.style.classRefs ?? [])], inlineProperties: [...(defEl.style.inlineProperties ?? [])] } : undefined,
           };
           map.set(newId, cloned);
           if (isRoot) newChildIds.push(newId);
@@ -146,6 +167,22 @@ export function OmniViewRenderer() {
       for (const prop of el.style.inlineProperties) {
         const textSeg = prop.segments.find(isTextSegment);
         if (textSeg) inlineStyles[prop.name] = textSeg.value;
+      }
+    }
+
+    // Resolve class bindings: merge base class properties into inlineStyles
+    if (el.style?.classRefs && activeDesign) {
+      for (const ref of el.style.classRefs) {
+        // Strip namespace prefix (e.g. "AppDesign.Card" → "Card")
+        const className = ref.includes(".") ? ref.split(".").slice(1).join(".") : ref;
+        const classDef = activeDesign.classes.find((c) => c.name === className);
+        if (!classDef) continue;
+        for (const prop of classDef.properties) {
+          const resolved = resolveSegmentsValue(prop.segments, activeDesign.tokens);
+          if (resolved != null) {
+            inlineStyles[prop.name] = resolved;
+          }
+        }
       }
     }
 

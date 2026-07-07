@@ -147,7 +147,7 @@ component App {
     @store ThemeStore;
     @store NotificationStore;
 
-    signal completionRate: Percentage = 42.0;
+    signal completionRate: f64 = 42.0;
     signal activeTab: String = "home";
 
     fn switchTab(tab: String) { activeTab = tab; }
