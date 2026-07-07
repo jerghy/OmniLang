@@ -16,7 +16,7 @@ fn err(msg: &str) -> String {
 /// Parse the body content inside `design Name { ... }`
 pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
     let mut tokens = Vec::new();
-    let classes = Vec::new();
+    let mut classes = Vec::new();
     let variants = Vec::new();
     let mut remaining = input.trim();
 
@@ -28,7 +28,9 @@ pub fn parse_design_body(input: &str) -> ParseResult<DesignDef> {
             tokens.push(token);
             remaining = rest;
         } else if remaining.starts_with("class ") {
-            break; // Task A3
+            let (cls, rest) = parse_class(remaining)?;
+            classes.push(cls);
+            remaining = rest;
         } else if remaining.starts_with("variant ") {
             break; // Task A4
         } else if remaining.starts_with("}") {
@@ -129,6 +131,134 @@ fn skip_ws_and_comments(input: &str) -> &str {
     s
 }
 
+fn parse_class(input: &str) -> ParseResult<(DesignClassDef, &str)> {
+    let rest = input
+        .strip_prefix("class ")
+        .ok_or_else(|| err("expected 'class'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+
+    let mut properties = Vec::new();
+    let mut pseudo_states = Vec::new();
+    let mut remaining = rest;
+
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        if remaining.starts_with("&:") {
+            let (pseudo, rest) = parse_pseudo_state(remaining)?;
+            pseudo_states.push(pseudo);
+            remaining = rest;
+        } else if remaining.is_empty() {
+            break;
+        } else {
+            let (prop, rest) = parse_design_property(remaining)?;
+            properties.push(prop);
+            remaining = rest;
+        }
+    }
+
+    Ok((
+        DesignClassDef {
+            name,
+            properties,
+            pseudo_states,
+        },
+        remaining,
+    ))
+}
+
+fn parse_pseudo_state(input: &str) -> ParseResult<(PseudoState, &str)> {
+    let rest = input
+        .strip_prefix("&:")
+        .ok_or_else(|| err("expected '&:'"))?;
+    let (pseudo, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix("{")
+        .ok_or_else(|| err("expected '{'"))?
+        .trim_start();
+
+    let mut properties = Vec::new();
+    let mut remaining = rest;
+    loop {
+        remaining = skip_ws_and_comments(remaining);
+        if remaining.starts_with("}") {
+            remaining = &remaining[1..];
+            break;
+        }
+        let (prop, rest) = parse_design_property(remaining)?;
+        properties.push(prop);
+        remaining = rest;
+    }
+
+    Ok((PseudoState { pseudo, properties }, remaining))
+}
+
+fn parse_css_property_name(input: &str) -> ParseResult<(String, &str)> {
+    let input = input.trim_start();
+    let end = input
+        .find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
+        .unwrap_or(input.len());
+    if end == 0 {
+        return Err(err("expected property name"));
+    }
+    Ok((input[..end].to_string(), &input[end..]))
+}
+
+fn parse_design_property(input: &str) -> ParseResult<(DesignProperty, &str)> {
+    let (name, rest) = parse_css_property_name(input)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix(":")
+        .ok_or_else(|| err("expected ':'"))?
+        .trim_start();
+    let (value, rest) = parse_design_value(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix(";")
+        .ok_or_else(|| err("expected ';'"))?
+        .trim_start();
+    Ok((DesignProperty { name, value }, rest))
+}
+
+fn parse_design_value(input: &str) -> ParseResult<(DesignValue, &str)> {
+    let input = input.trim_start();
+    if input.starts_with("token(") {
+        let rest = &input[6..];
+        let end = rest
+            .find(')')
+            .ok_or_else(|| err("expected ')'"))?;
+        let name = rest[..end].trim().to_string();
+        Ok((DesignValue::TokenRef(name), &rest[end + 1..]))
+    } else if input.starts_with('"') {
+        let end = input[1..]
+            .find('"')
+            .map(|i| i + 2)
+            .ok_or_else(|| err("expected closing '\"'"))?;
+        Ok((
+            DesignValue::Literal(input[1..end - 1].to_string()),
+            &input[end..],
+        ))
+    } else {
+        // Unquoted literal until ; or }
+        let end = input
+            .find(|c: char| c == ';' || c == '}')
+            .unwrap_or(input.len());
+        Ok((
+            DesignValue::Literal(input[..end].trim().to_string()),
+            &input[end..],
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +290,41 @@ mod tests {
         "##;
         let result = parse_design_body(src).unwrap();
         assert_eq!(result.tokens.len(), 3);
+    }
+
+    #[test]
+    fn parse_class_with_properties() {
+        let src = r#"
+            class Card {
+                background: token(surface);
+                border-radius: token(radiusMd);
+                &:hover {
+                    box-shadow: "0 4px 12px rgba(0,0,0,0.08)";
+                }
+            }
+        "#;
+        let result = parse_design_body(src).unwrap();
+        assert_eq!(result.classes.len(), 1);
+        let cls = &result.classes[0];
+        assert_eq!(cls.name, "Card");
+        assert_eq!(cls.properties.len(), 2);
+        assert_eq!(cls.pseudo_states.len(), 1);
+        assert_eq!(cls.pseudo_states[0].pseudo, "hover");
+    }
+
+    #[test]
+    fn parse_token_ref_value() {
+        let src = r#"class Test { background: token(surface); }"#;
+        let result = parse_design_body(src).unwrap();
+        let prop = &result.classes[0].properties[0];
+        assert!(matches!(prop.value, DesignValue::TokenRef(ref name) if name == "surface"));
+    }
+
+    #[test]
+    fn parse_literal_value() {
+        let src = r#"class Test { color: white; font-size: "14px"; }"#;
+        let result = parse_design_body(src).unwrap();
+        let cls = &result.classes[0];
+        assert_eq!(cls.properties.len(), 2);
     }
 }
