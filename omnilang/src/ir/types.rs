@@ -124,6 +124,10 @@ impl ExprIR {
 pub struct MatchArmIR {
     pub pattern: MatchPatternIR,
     pub body: BlockIR,
+    /// Tagged union type name (e.g. "HttpResult"), populated from variant_map during lowering.
+    /// Used by codegen to emit the correct type prefix instead of hardcoded "UnionType".
+    #[serde(default)]
+    pub union_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

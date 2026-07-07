@@ -82,7 +82,8 @@ impl FormatExpr for DioxusFormatExpr {
                 let body = self.format_block_as_expr(&arm.body);
                 match &arm.pattern.kind {
                     MatchPatternKindIR::Variant { name, .. } => {
-                        format!("    UnionType::{name} {{ .. }} => {body},")
+                        let type_prefix = arm.union_type.as_deref().unwrap_or("UnionType");
+                        format!("    {type_prefix}::{name} {{ .. }} => {body},")
                     }
                     MatchPatternKindIR::Wildcard => {
                         format!("    _ => {body},")

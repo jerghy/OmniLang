@@ -1104,6 +1104,7 @@ fn test_match_expr_single_variant() {
                     }),
                 }],
             },
+            union_type: None,
         }],
     };
     let out = format_expr_ir(&expr, false);
@@ -1147,6 +1148,7 @@ fn test_match_expr_with_wildcard() {
                         }),
                     }],
                 },
+                union_type: None,
             },
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1159,6 +1161,7 @@ fn test_match_expr_with_wildcard() {
                         }),
                     }],
                 },
+                union_type: None,
             },
         ],
     };
@@ -1199,6 +1202,7 @@ fn test_match_expr_multiple_variants() {
                         }),
                     }],
                 },
+                union_type: None,
             },
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1214,6 +1218,7 @@ fn test_match_expr_multiple_variants() {
                         }),
                     }],
                 },
+                union_type: None,
             },
         ],
     };

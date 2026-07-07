@@ -188,6 +188,33 @@ pub enum BinaryOpKind {
     ModAssign,
 }
 
+impl BinaryOpKind {
+    pub fn as_ir_str(&self) -> &'static str {
+        match self {
+            BinaryOpKind::Add => "add",
+            BinaryOpKind::Sub => "sub",
+            BinaryOpKind::Mul => "mul",
+            BinaryOpKind::Div => "div",
+            BinaryOpKind::Mod => "mod",
+            BinaryOpKind::Eq => "eq",
+            BinaryOpKind::Neq => "neq",
+            BinaryOpKind::Lt => "lt",
+            BinaryOpKind::Gt => "gt",
+            BinaryOpKind::LtEq => "lteq",
+            BinaryOpKind::GtEq => "gteq",
+            BinaryOpKind::And => "and",
+            BinaryOpKind::Or => "or",
+            BinaryOpKind::NullishCoalesce => "??",
+            BinaryOpKind::Assign => "assign",
+            BinaryOpKind::AddAssign => "addassign",
+            BinaryOpKind::SubAssign => "subassign",
+            BinaryOpKind::MulAssign => "mulassign",
+            BinaryOpKind::DivAssign => "divassign",
+            BinaryOpKind::ModAssign => "modassign",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum UnaryOpKind {
     Not,

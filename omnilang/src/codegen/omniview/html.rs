@@ -24,15 +24,11 @@ impl OmniViewGenerator {
             }
             ViewTree::Interpolation(expr) => {
                 if self.in_for_template {
-                    // Inside @for template: use data-bind-text marker
+                    // Inside @for template: collect pre-compiled binding
                     let nid = self.next_nid("interp");
                     let js_expr = self.expr_to_js(expr);
-                    format!(
-                        "{}<span data-nid=\"{}\" data-bind-text=\"{}\"></span>\n",
-                        pad,
-                        nid,
-                        escape_html(&js_expr)
-                    )
+                    self.for_text_bindings.push((nid.clone(), js_expr));
+                    format!("{}<span data-nid=\"{}\"></span>\n", pad, nid)
                 } else {
                     // Emit placeholder span + deferred _effect() binding
                     let nid = self.next_nid("interp");
@@ -151,7 +147,20 @@ impl OmniViewGenerator {
                     if val_str.is_empty() {
                         continue;
                     }
-                    if name.starts_with("aria-") || name.starts_with("data-") {
+                    if self.in_for_template
+                        && (val_str.contains('{') && val_str.contains('}'))
+                    {
+                        // Pre-compiled attribute binding for @for templates
+                        let attr_name = if name.starts_with("aria-") || name.starts_with("data-")
+                        {
+                            name.clone()
+                        } else {
+                            format!("data-{}", name)
+                        };
+                        let parts = super::utils::parse_attr_template(&val_str);
+                        self.for_attr_bindings
+                            .push((nid.clone(), attr_name, parts));
+                    } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
                         attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
                     } else {
@@ -625,20 +634,12 @@ impl OmniViewGenerator {
             self.emit_states_js(&nid, states_ir);
         }
 
-        // Class map dynamic bindings for @for templates: add data-class-expr attr
+        // Class map dynamic bindings for @for templates: collect pre-compiled bindings
         if self.in_for_template && !el.class_map_bindings.is_empty() {
-            let mut class_map = serde_json::Map::new();
             for (class_name, expr) in &el.class_map_bindings {
                 let js_expr = self.expr_to_js(expr);
-                class_map.insert(class_name.clone(), serde_json::Value::String(js_expr));
-            }
-            match serde_json::to_string(&class_map) {
-                Ok(json) => {
-                    attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
-                }
-                Err(e) => {
-                    eprintln!("warning: failed to serialize class_map: {}", e);
-                }
+                self.for_class_bindings
+                    .push((nid.clone(), class_name.clone(), js_expr));
             }
         }
 
@@ -654,24 +655,9 @@ impl OmniViewGenerator {
                 self.js.push_str(effect);
             }
             // Class map dynamic bindings
-            if !el.class_map_bindings.is_empty() {
-                if self.in_for_template {
-                    // Inside @for template: store class expressions as JSON data attribute
-                    // so the runtime can eval them per-item in the forEach scope.
-                    let mut class_map = serde_json::Map::new();
-                    for (class_name, expr) in &el.class_map_bindings {
-                        let js_expr = self.expr_to_js(expr);
-                        class_map.insert(class_name.clone(), serde_json::Value::String(js_expr));
-                    }
-                    match serde_json::to_string(&class_map) {
-                        Ok(json) => {
-                            attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
-                        }
-                        Err(e) => {
-                            eprintln!("warning: failed to serialize class_map: {}", e);
-                        }
-                    }
-                } else {
+            // Note: for @for templates, bindings are already collected in for_class_bindings
+            // at the class map section above — no need to emit data-class-expr.
+            if !self.in_for_template && !el.class_map_bindings.is_empty() {
                     for (class_name, expr) in &el.class_map_bindings {
                         let js_expr = self.expr_to_js(expr);
                         let js_access = if self.signal_names.contains(&js_expr) {

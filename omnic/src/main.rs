@@ -122,6 +122,19 @@ fn main() {
 /// Note: `sanitize_module_name` in `codegen/mod.rs` is a sanitizer (replaces bad chars);
 /// this function is a validator (rejects outright). They serve different purposes.
 fn validate_output_filename(name: &str) -> anyhow::Result<()> {
+    // Reject empty filenames
+    if name.is_empty() {
+        anyhow::bail!("Output filename must not be empty");
+    }
+    // Reject null bytes (path injection)
+    if name.contains('\0') {
+        anyhow::bail!("Output filename must not contain null bytes: {name:?}");
+    }
+    // Reject absolute paths (starts with '/' or '\')
+    if name.starts_with('/') || name.starts_with('\\') {
+        anyhow::bail!("Output filename must not be absolute: {name}");
+    }
+    // Reject parent directory traversal
     if name.contains("..") {
         anyhow::bail!("Output filename must not contain '..': {name}");
     }
@@ -742,6 +755,36 @@ mod tests {
         assert!(validate_output_filename("file?bad.ts").is_err());
         assert!(validate_output_filename("file*bad.ts").is_err());
         assert!(validate_output_filename("\"quote\".ts").is_err());
+    }
+
+    #[test]
+    fn validate_output_filename_empty() {
+        assert!(validate_output_filename("").is_err());
+    }
+
+    #[test]
+    fn validate_output_filename_null_byte() {
+        assert!(validate_output_filename("bad\0file.js").is_err());
+        assert!(validate_output_filename("sub\0dir/file.js").is_err());
+    }
+
+    #[test]
+    fn validate_output_filename_absolute_unix() {
+        assert!(validate_output_filename("/etc/passwd").is_err());
+        assert!(validate_output_filename("/tmp/output.js").is_err());
+    }
+
+    #[test]
+    fn validate_output_filename_absolute_windows() {
+        assert!(validate_output_filename("\\windows\\system32").is_err());
+        assert!(validate_output_filename("\\absolute\\path.js").is_err());
+    }
+
+    #[test]
+    fn validate_output_filename_traversal_valid() {
+        // Relative paths with subdirectories are fine
+        assert!(validate_output_filename("src/output.js").is_ok());
+        assert!(validate_output_filename("build/js/app.js").is_ok());
     }
 
     #[test]

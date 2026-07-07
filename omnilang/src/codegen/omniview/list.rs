@@ -40,6 +40,13 @@ impl OmniViewGenerator {
 
         // Generate template for one item (with in_for_template flag)
         let item_html = if let Some(ref body) = list.body {
+            // Clear per-@for-loop binding vectors so each loop gets its own fresh bindings
+            self.for_text_bindings.clear();
+            self.for_class_bindings.clear();
+            self.for_attr_bindings.clear();
+            // Set rebind function name for this @for loop
+            let rebind_name = format!("__omni_rebind_{}_{}", self.current_component, item_var);
+            self.for_rebind_fn = Some(rebind_name);
             self.in_for_template = true;
             let html = self.view_to_html(body, indent + 1);
             self.in_for_template = false;

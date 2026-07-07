@@ -104,16 +104,14 @@ function __omni_bindText(nid) {
 	  if (!comp.__omniState) return defaultVal;
 	  return name in comp.__omniState ? comp.__omniState[name] : defaultVal;
 	}
-	function __omni_forSetState(comp, name, val) {
+	function __omni_forSetState(comp, name, val, rebindFn) {
 	  if (!comp) return;
 	  if (!comp.__omniState) comp.__omniState = {};
 	  comp.__omniState[name] = val;
-	  comp.querySelectorAll('[data-bind-text]').forEach(function(el) {
-	    try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) { console.warn('OmniView: text bind eval failed', e); }
-	  });
+	  if (typeof rebindFn === 'function') rebindFn(comp);
 	}
-	function __omni_forToggleState(comp, name) {
-	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false));
+	function __omni_forToggleState(comp, name, rebindFn) {
+	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false), rebindFn);
 	}
 /// ─── End Signal Runtime ────────────────────────────
 

@@ -26,6 +26,30 @@ pub struct AnalyseOutput {
     pub programs: HashMap<String, Program>,
 }
 
+/// Convert a lint diagnostic to a standard Diagnostic.
+fn lint_to_diag(d: &crate::semantic::lints::LintDiagnostic) -> Diagnostic {
+    Diagnostic {
+        severity: match d.severity {
+            crate::semantic::lints::LintSeverity::Warning => crate::error::Severity::Warning,
+            crate::semantic::lints::LintSeverity::Info => crate::error::Severity::Info,
+            _ => crate::error::Severity::Warning,
+        },
+        kind: DiagnosticKind::ELint(d.rule.clone()),
+        message: d.message.clone(),
+        file: Some(d.file.clone()),
+        line: d.line,
+        col: d.col,
+        end_line: None,
+        end_col: None,
+        suggestion: None,
+    }
+}
+
+/// Check whether a lint diagnostic has Error severity.
+fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool {
+    d.severity == crate::semantic::lints::LintSeverity::Error
+}
+
 /// Fast non-cryptographic hash for content comparison.
 fn fast_hash(content: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -259,45 +283,17 @@ pub fn analyse_multi(
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let warnings: Vec<Diagnostic> = lint_diags
         .iter()
-        .filter(|d| {
-            matches!(
-                d.severity,
-                crate::semantic::lints::LintSeverity::Warning
-                    | crate::semantic::lints::LintSeverity::Info
-            )
-        })
-        .map(|d| Diagnostic {
-            severity: match d.severity {
-                crate::semantic::lints::LintSeverity::Warning => crate::error::Severity::Warning,
-                crate::semantic::lints::LintSeverity::Info => crate::error::Severity::Info,
-                _ => crate::error::Severity::Warning,
-            },
-            kind: DiagnosticKind::ELint(d.rule.clone()),
-            message: d.message.clone(),
-            file: Some(d.file.clone()),
-            line: d.line,
-            col: d.col,
-            end_line: None,
-            end_col: None,
-            suggestion: None,
-        })
+        .filter(|d| !is_lint_error(d))
+        .map(lint_to_diag)
         .collect();
 
     // Lint errors are also included in diagnostics so that all callers
     // (compile_multi_to_target, omni_analyse, analyse_direct) see them.
     for d in &lint_diags {
-        if d.severity == crate::semantic::lints::LintSeverity::Error {
-            diags.push(Diagnostic {
-                severity: crate::error::Severity::Error,
-                kind: DiagnosticKind::ELint(d.rule.clone()),
-                message: d.message.clone(),
-                file: Some(d.file.clone()),
-                line: d.line,
-                col: d.col,
-                end_line: None,
-                end_col: None,
-                suggestion: None,
-            });
+        if is_lint_error(d) {
+            let mut diag = lint_to_diag(d);
+            diag.severity = crate::error::Severity::Error;
+            diags.push(diag);
         }
     }
 
@@ -514,43 +510,15 @@ pub fn analyse_multi_cached(
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let warnings: Vec<Diagnostic> = lint_diags
         .iter()
-        .filter(|d| {
-            matches!(
-                d.severity,
-                crate::semantic::lints::LintSeverity::Warning
-                    | crate::semantic::lints::LintSeverity::Info
-            )
-        })
-        .map(|d| Diagnostic {
-            severity: match d.severity {
-                crate::semantic::lints::LintSeverity::Warning => crate::error::Severity::Warning,
-                crate::semantic::lints::LintSeverity::Info => crate::error::Severity::Info,
-                _ => crate::error::Severity::Warning,
-            },
-            kind: DiagnosticKind::ELint(d.rule.clone()),
-            message: d.message.clone(),
-            file: Some(d.file.clone()),
-            line: d.line,
-            col: d.col,
-            end_line: None,
-            end_col: None,
-            suggestion: None,
-        })
+        .filter(|d| !is_lint_error(d))
+        .map(lint_to_diag)
         .collect();
 
     for d in &lint_diags {
-        if d.severity == crate::semantic::lints::LintSeverity::Error {
-            diags.push(Diagnostic {
-                severity: crate::error::Severity::Error,
-                kind: DiagnosticKind::ELint(d.rule.clone()),
-                message: d.message.clone(),
-                file: Some(d.file.clone()),
-                line: d.line,
-                col: d.col,
-                end_line: None,
-                end_col: None,
-                suggestion: None,
-            });
+        if is_lint_error(d) {
+            let mut diag = lint_to_diag(d);
+            diag.severity = crate::error::Severity::Error;
+            diags.push(diag);
         }
     }
 

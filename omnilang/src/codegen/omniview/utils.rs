@@ -124,6 +124,33 @@ pub(super) fn to_kebab(s: &str) -> String {
     crate::codegen::camel_to_separated(s, '-')
 }
 
+/// Parse an attribute template value containing {word} placeholders into parts.
+/// E.g., "Item {name} (id: {id})" → [Static("Item "), Dynamic("name"), Static(" (id: "), Dynamic("id"), Static(")")]
+pub(super) fn parse_attr_template(template: &str) -> Vec<super::AttrPart> {
+    let mut parts = Vec::new();
+    let mut remaining = template;
+    while let Some(start) = remaining.find('{') {
+        if start > 0 {
+            parts.push(super::AttrPart::Static(remaining[..start].to_string()));
+        }
+        let inner_start = start + 1;
+        if let Some(end) = remaining[inner_start..].find('}') {
+            let expr = remaining[inner_start..inner_start + end].to_string();
+            parts.push(super::AttrPart::Dynamic(expr));
+            remaining = &remaining[inner_start + end + 1..];
+        } else {
+            // Unterminated { — treat as static
+            parts.push(super::AttrPart::Static(remaining.to_string()));
+            remaining = "";
+            break;
+        }
+    }
+    if !remaining.is_empty() {
+        parts.push(super::AttrPart::Static(remaining.to_string()));
+    }
+    parts
+}
+
 /// Escape HTML special characters.
 pub(super) fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")

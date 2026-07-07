@@ -625,6 +625,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                                         },
                                     }],
                                 },
+                                union_type: None,
                             },
                             MatchArmIR {
                                 pattern: MatchPatternIR {
@@ -637,6 +638,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                                         },
                                     }],
                                 },
+                                union_type: None,
                             },
                         ],
                     }),

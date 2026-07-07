@@ -72,24 +72,22 @@ impl OmniViewGenerator {
         self.js
             .push_str("    else { clone.setAttribute('data-for-item', _idx); }\n");
 
-        // Bind text interpolation markers
-        self.js.push_str("    // Bind text interpolation markers\n");
-        self.js
-            .push_str("    clone.querySelectorAll('[data-bind-text]').forEach(el => {\n");
-        self.js
-            .push_str("      const expr = el.getAttribute('data-bind-text');\n");
-        self.js.push_str("      if (expr) {\n");
-        self.js.push_str("        try {\n");
-        self.js.push_str(
-            "          // new Function() runs in global scope — only globally accessible signals work\n",
-        );
-        self.js.push_str(
-            "          el.textContent = String(new Function('return (' + expr + ')')());\n",
-        );
-        self.js
-            .push_str("        } catch(e) { el.textContent = ''; }\n");
-        self.js.push_str("      }\n");
-        self.js.push_str("    });\n");
+        // Pre-compiled text bindings (no new Function)
+        if !self.for_text_bindings.is_empty() {
+            self.js.push_str("    // Pre-compiled text bindings\n");
+            self.js.push_str("    (function() {\n");
+            for (nid, js_expr) in &self.for_text_bindings {
+                self.js.push_str(&format!(
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');\n",
+                    nid
+                ));
+                self.js.push_str(&format!(
+                    "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{}}\n",
+                    js_expr
+                ));
+            }
+            self.js.push_str("    })();\n");
+        }
 
         // Initialize per-instance state for @for component instances
         self.js
@@ -117,50 +115,52 @@ impl OmniViewGenerator {
         self.js.push_str("      }\n");
         self.js.push_str("    });\n");
 
-        // Bind class expressions (data-class-* attributes set when in_for_template)
-        self.js.push_str("    // Bind dynamic class expressions\n");
-        self.js
-            .push_str("    clone.querySelectorAll('[data-class-expr]').forEach(el => {\n");
-        self.js
-            .push_str("      const expr = el.getAttribute('data-class-expr');\n");
-        self.js.push_str("      if (expr) {\n");
-        self.js.push_str("        try {\n");
-        self.js
-            .push_str("          const classMap = JSON.parse(expr);\n");
-        self.js
-            .push_str("          for (const cls in classMap) {\n");
-        self.js.push_str(
-            "            try { el.classList.toggle(cls, !!new Function('return (' + classMap[cls] + ')')()); } catch(e) { console.warn('OmniView: class expression eval failed for', cls, e); }\n",
-        );
-        self.js.push_str("          }\n");
-        self.js.push_str(
-            "        } catch(e) { console.warn('OmniView: class-expr JSON parse failed', e); }\n",
-        );
-        self.js.push_str("      }\n");
-        self.js.push_str("    });\n");
+        // Pre-compiled class bindings (no new Function)
+        if !self.for_class_bindings.is_empty() {
+            self.js.push_str("    // Pre-compiled class bindings\n");
+            self.js.push_str("    (function() {\n");
+            for (nid, class_name, js_expr) in &self.for_class_bindings {
+                self.js.push_str(&format!(
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]');\n",
+                    nid
+                ));
+                self.js.push_str(&format!(
+                    "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{}}\n",
+                    class_name, js_expr
+                ));
+            }
+            self.js.push_str("    })();\n");
+        }
 
-        // Bind data-* attribute interpolation
-        self.js
-            .push_str("    // Bind data-* attribute interpolation\n");
-        self.js.push_str("    clone.querySelectorAll('[data-text],[data-value],[data-label],[data-key]').forEach(el => {\n");
-        self.js
-            .push_str("      Array.from(el.attributes).forEach(attr => {\n");
-        self.js
-            .push_str("        if (attr.name.startsWith('data-') && attr.value.includes('{')) {\n");
-        self.js.push_str("          try {\n");
-        self.js.push_str(
-            "            const jsTemplate = attr.value.replace(/\\{(\\w+)\\}/g, '${$1}');\n",
-        );
-        self.js.push_str(
-            "            const resolved = new Function('return `' + jsTemplate + '`')();\n",
-        );
-        self.js
-            .push_str("            el.setAttribute(attr.name, resolved);\n");
-        self.js
-            .push_str("          } catch(e) { console.warn('OmniView: attr interpolation failed for', attr.name, e); }\n");
-        self.js.push_str("        }\n");
-        self.js.push_str("      });\n");
-        self.js.push_str("    });\n");
+        // Pre-compiled attribute bindings (no new Function)
+        if !self.for_attr_bindings.is_empty() {
+            use super::AttrPart;
+            self.js.push_str("    // Pre-compiled attribute bindings\n");
+            self.js.push_str("    (function() {\n");
+            for (nid, attr_name, parts) in &self.for_attr_bindings {
+                let mut val_parts: Vec<String> = Vec::new();
+                for part in parts {
+                    match part {
+                        AttrPart::Static(s) => {
+                            val_parts.push(format!("\"{}\"", s));
+                        }
+                        AttrPart::Dynamic(expr) => {
+                            val_parts.push(format!("String({})", expr));
+                        }
+                    }
+                }
+                let resolved = if val_parts.len() == 1 {
+                    val_parts[0].clone()
+                } else {
+                    format!("({})", val_parts.join(" + "))
+                };
+                self.js.push_str(&format!(
+                    "      var _el = clone.querySelector('[data-nid=\"{}\"]'); if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{}}\n",
+                    nid, attr_name, resolved
+                ));
+            }
+            self.js.push_str("    })();\n");
+        }
 
         if has_key {
             self.js
@@ -300,12 +300,13 @@ impl OmniViewGenerator {
             self.js.push_str("            });\n");
             self.js.push_str("          }\n");
             self.js
-                .push_str("          // Re-evaluate text bindings from element-scoped state\n");
-            self.js.push_str(
-                "          _forComp.querySelectorAll('[data-bind-text]').forEach(function(el) {\n",
-            );
-            self.js.push_str("            try { el.textContent = String(new Function('return (' + el.getAttribute('data-bind-text') + ')')()); } catch(e) { console.warn('OmniView: for-state text bind eval failed', e); }\n");
-            self.js.push_str("          });\n");
+                .push_str("          // Re-evaluate text bindings from element-scoped state (pre-compiled)\n");
+            if let Some(ref rebind_fn) = self.for_rebind_fn {
+                self.js.push_str(&format!(
+                    "          if (typeof {} === 'function') {}(_forComp);\n",
+                    rebind_fn, rebind_fn
+                ));
+            }
             self.js.push_str("        }\n");
             self.js
                 .push_str("      } else if (attr.startsWith('store:')) {\n");
@@ -330,6 +331,31 @@ impl OmniViewGenerator {
             self.js.push_str("    });\n");
 
             self.js.push_str("  }\n");
+        }
+
+        // Emit pre-compiled rebind function for text bindings (no new Function)
+        if !self.for_text_bindings.is_empty() {
+            if let Some(ref rebind_fn) = self.for_rebind_fn {
+                self.js.push_str(&format!(
+                    "  // Pre-compiled rebind function: {}\n",
+                    rebind_fn
+                ));
+                self.js.push_str(&format!(
+                    "  function {}(comp) {{\n",
+                    rebind_fn
+                ));
+                for (nid, js_expr) in &self.for_text_bindings {
+                    self.js.push_str(&format!(
+                        "    var _el = comp.querySelector('[data-nid=\"{}\"]');\n",
+                        nid
+                    ));
+                    self.js.push_str(&format!(
+                        "    if (_el) try {{ _el.textContent = String({}); }} catch(e) {{}}\n",
+                        js_expr
+                    ));
+                }
+                self.js.push_str("  }\n");
+            }
         }
 
         self.js.push_str("});\n");

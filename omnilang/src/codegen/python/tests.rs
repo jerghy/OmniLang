@@ -279,6 +279,7 @@ fn snapshot_match_expr() {
                         }),
                     }],
                 },
+                union_type: None,
             },
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -291,6 +292,7 @@ fn snapshot_match_expr() {
                         }),
                     }],
                 },
+                union_type: None,
             },
         ],
     };

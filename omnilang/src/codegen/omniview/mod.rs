@@ -88,6 +88,10 @@ pub fn generate(ir: &IRProgram, editor_mode: bool) -> OmniViewOutput {
         for_state_names: std::collections::HashMap::new(),
         motion_names: std::collections::HashSet::new(),
         warnings: Vec::new(),
+        for_text_bindings: Vec::new(),
+        for_class_bindings: Vec::new(),
+        for_attr_bindings: Vec::new(),
+        for_rebind_fn: None,
     };
 
     gen.emit_js_header();
@@ -269,6 +273,23 @@ struct OmniViewGenerator {
     for_state_names: std::collections::HashMap<String, (String, String)>,
     /// Diagnostic warnings collected during codegen (e.g., missing animation params).
     warnings: Vec<String>,
+    /// Pre-compiled text bindings for @for templates: (nid, js_expression)
+    for_text_bindings: Vec<(String, String)>,
+    /// Pre-compiled class bindings for @for templates: (nid, class_name, js_expression)
+    for_class_bindings: Vec<(String, String, String)>,
+    /// Pre-compiled attribute bindings for @for templates: (nid, attr_name, parts)
+    for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
+    /// Optional name of the rebind function for this @for loop
+    for_rebind_fn: Option<String>,
+}
+
+/// A parsed part of an attribute template value with {word} placeholders.
+#[derive(Debug, Clone)]
+pub(super) enum AttrPart {
+    /// Literal text segment
+    Static(String),
+    /// Dynamic expression from {word} placeholder
+    Dynamic(String),
 }
 
 impl OmniViewGenerator {
@@ -304,6 +325,10 @@ impl OmniViewGenerator {
             for_state_names: std::collections::HashMap::new(),
             motion_names: std::collections::HashSet::new(),
             warnings: Vec::new(),
+            for_text_bindings: Vec::new(),
+            for_class_bindings: Vec::new(),
+            for_attr_bindings: Vec::new(),
+            for_rebind_fn: None,
         }
     }
 

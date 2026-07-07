@@ -127,14 +127,12 @@ impl<'a> Parser<'a> {
                     let saved_pos = self.pos;
                     let saved_depth = self.depth;
                     let parse_result = self.parse_expr();
-                    let is_valid_interpolation =
-                        parse_result.is_ok() && self.at(&TokenKind::RBrace);
-                    if is_valid_interpolation {
-                        self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                        Ok(ViewNode::Interpolation(
-                            parse_result.unwrap(), /* safe: is_valid_interpolation checks is_ok */
-                        ))
-                    } else {
+                    match parse_result {
+                        Ok(expr) if self.at(&TokenKind::RBrace) => {
+                            self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                            Ok(ViewNode::Interpolation(expr))
+                        }
+                        _ => {
                         // Not a valid/complete interpolation — treat as literal text
                         self.pos = saved_pos;
                         self.depth = saved_depth;
@@ -216,6 +214,7 @@ impl<'a> Parser<'a> {
                             self.advance();
                         }
                         Ok(ViewNode::Text(text))
+                        }
                     }
                 }
             }

@@ -52,10 +52,7 @@ pub(crate) fn lower_expr(
         Expr::BinaryOp {
             left, op, right, ..
         } => ExprIR::BinaryOpExpr {
-            op: match op {
-                BinaryOpKind::NullishCoalesce => "??".into(),
-                _ => format!("{:?}", op).to_lowercase(),
-            },
+            op: op.as_ir_str().into(),
             left: Box::new(lower_expr(
                 left,
                 variant_map,
@@ -416,6 +413,10 @@ pub(crate) fn lower_expr(
                         }
                     }
                 };
+                let union_type = match &arm.pattern.kind {
+                    MatchPatternKind::Variant { name, .. } => variant_map.get(name).cloned(),
+                    _ => None,
+                };
                 ir_arms.push(MatchArmIR {
                     pattern,
                     body: lower_block(
@@ -424,6 +425,7 @@ pub(crate) fn lower_expr(
                         event_fields.as_deref_mut(),
                         semantics,
                     ),
+                    union_type,
                 });
             }
             ExprIR::MatchExpr {
