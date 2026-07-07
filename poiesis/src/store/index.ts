@@ -13,13 +13,15 @@ import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
 import type { UndoStack } from "./undo-slice";
 import { buildUndoUpdate, createUndoSlice } from "./undo-slice";
 import { createTabSlice } from "./tab-slice";
+import type { DesignSlice } from "./design-slice";
+import { createDesignSlice } from "./design-slice";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("store");
 
 // ── Store Interface ──
 
-export interface PoiesisState {
+export interface PoiesisState extends DesignSlice {
   // ── Page routing ──
   currentPage: "architecture" | "design";
 
@@ -275,6 +277,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 
   // ── Design page actions ──
   ...createTabSlice(set, get),
+
+  // ── Design slice (design.omni editor) ──
+  ...createDesignSlice(set),
 
   toggleCodeFlow: (elementId) => set((s) => {
     const visible = elementId !== null;

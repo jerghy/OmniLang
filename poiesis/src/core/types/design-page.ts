@@ -9,11 +9,12 @@ export interface Breadcrumb {
   filePath?: string;   // .omni file path
 }
 
-export type TabType = "component" | "store" | "code";
+export type TabType = "component" | "store" | "code" | "design";
 
 /** Detect editor tab type from file path. */
 export function detectTabType(filePath: string): TabType {
   const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.endsWith("design.omni") || normalized.includes("/design.omni")) return "design";
   if (normalized.includes("/stores/") || normalized.startsWith("stores/")) return "store";
   if (normalized.includes("/lib/") || normalized.startsWith("lib/")) return "code";
   return "component";
