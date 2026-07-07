@@ -229,4 +229,10 @@ export interface ParseResult {
   events?: Array<{ name: string }>;
   /** PID map parsed from `// @pid:xxx` comments in the source. */
   pidMap?: PidMap;
+
+  // ── Design block result (Phase H) ──
+  designName?: string;
+  designTokens?: Array<{ id: string; name: string; tokenType: string; value: string }>;
+  designClasses?: Array<{ id: string; name: string; body: string }>;
+  designVariants?: Array<{ id: string; name: string; body: string }>;
 }

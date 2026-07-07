@@ -23,6 +23,16 @@ export function useSaveProject() {
         ? store.designPage.openTabs.find((t) => t.id === activeTabId)
         : null;
 
+      // ── 0. Design tab save path: write design.omni directly ──
+      if (activeTab?.tabType === "design") {
+        const { emitDesignSource } = await import("../services/codegen/design-emitter");
+        const source = emitDesignSource(store.activeDesign);
+        await api.project.writeFile(activeTab.filePath || "src/design.omni", source);
+        const result = await api.annotation.saveProject(); // still save project.json for editor metadata
+        if (result.ok) markClean();
+        return;
+      }
+
       // ── 1. Build codeTabs from current elements+wires ──
       const codeTabs: CodeTab[] = [
         {

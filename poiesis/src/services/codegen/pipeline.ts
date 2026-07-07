@@ -17,7 +17,7 @@ import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import { emitDesignSource } from "./design-emitter";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
-import { getComponentDefinitions } from "../../store";
+import { getComponentDefinitions, usePoiesisStore } from "../../store";
 import type {
   StageResult,
   PipelineError,
@@ -92,8 +92,6 @@ function defaultLoweredCode(): LoweredCode {
     getters: [],
   };
 }
-
-const EMPTY_REGISTRY = { variables: [], classes: [] };
 
 function defaultStyleCollection(): StyleCollection {
   return { componentStyle: {}, elementClassMap: new Map(), elementInlineMap: new Map() };
@@ -210,7 +208,19 @@ function runPhaseC(
     }
   }
 
-  const registry = EMPTY_REGISTRY;
+  const designState = usePoiesisStore.getState().activeDesign;
+  const registry = {
+    variables: designState.tokens.map((t) => ({
+      id: t.id,
+      name: `--${t.name}`,
+      segments: [{ type: "text" as const, value: t.value }],
+    })),
+    classes: designState.classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      properties: c.properties,
+    })),
+  };
   const styleCollection = c1.errors.length > 0
     ? defaultStyleCollection()
     : collectStylesFromEntries(expandedElements, registry, phaseA.roots);

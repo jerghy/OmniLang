@@ -96,5 +96,9 @@ export function buildParseResult(ctx: ParserInternals["ctx"]): ParseResult {
     componentMeta: ctx.componentMeta,
     props: ctx.props.length > 0 ? ctx.props : undefined,
     events: ctx.events.length > 0 ? ctx.events : undefined,
+    designName: ctx.designName || undefined,
+    designTokens: ctx.designTokens.length > 0 ? ctx.designTokens : undefined,
+    designClasses: ctx.designClasses.length > 0 ? ctx.designClasses : undefined,
+    designVariants: ctx.designVariants.length > 0 ? ctx.designVariants : undefined,
   };
 }

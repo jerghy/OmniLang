@@ -6,6 +6,7 @@ import { validate, parseOmniSource } from "../codegen";
 import { usePoiesisStore } from "../../store";
 import { loadCodeTabs } from "../../services/codegraph/store";
 import type { ElementData, WireData } from "../../core/types";
+import type { DesignDefinition, TokenType } from "../../core/types/design";
 
 export interface ParseResult {
   elements: ElementData[];
@@ -43,6 +44,39 @@ export function parseAndPopulate(
       wires: parseResult.designWires,
     });
     loadCodeTabs(parseResult.codeTabs);
+
+    // ── If the parsed source contains design items, populate the design store ──
+    if (parseResult.designTokens && parseResult.designTokens.length > 0) {
+      const design: DesignDefinition = {
+        name: parseResult.designName || "AppDesign",
+        tokens: parseResult.designTokens.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: "custom",
+          tokenType: t.tokenType as TokenType,
+          value: t.value,
+        })),
+        classes: parseResult.designClasses
+          ? parseResult.designClasses.map((c) => ({
+              id: c.id,
+              name: c.name,
+              properties: [],
+              pseudoStates: [],
+            }))
+          : [],
+        variants: parseResult.designVariants
+          ? parseResult.designVariants.map((v) => ({
+              id: v.id,
+              name: v.name,
+              dimensions: [],
+              defaults: {},
+              baseProperties: [],
+              branches: [],
+            }))
+          : [],
+      };
+      usePoiesisStore.getState().loadDesign(design);
+    }
 
     return {
       elements: parseResult.designElements,

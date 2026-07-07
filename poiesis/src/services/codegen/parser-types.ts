@@ -16,7 +16,8 @@ export type ParserState =
   | "IN_VIEW"
   | "IN_CHAIN"
   | "IN_FN"
-  | "IN_STYLE";
+  | "IN_STYLE"
+  | "IN_DESIGN";
 
 // ── Parse context ──
 
@@ -43,6 +44,12 @@ export interface ParseContext {
   props: Array<{ name: string; type: string; defaultValue?: unknown }>;
   events: Array<{ name: string }>;
   componentMeta: Record<string, unknown> | null;
+
+  // ── Design block state (Phase H) ──
+  designName: string;
+  designTokens: Array<{ id: string; name: string; tokenType: string; value: string }>;
+  designClasses: Array<{ id: string; name: string; body: string }>;
+  designVariants: Array<{ id: string; name: string; body: string }>;
 }
 
 // ── Parsed attribute shape ──

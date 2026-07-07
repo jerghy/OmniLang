@@ -6,6 +6,8 @@ import { TokenStream } from "./token-stream";
 import type { ParseResult } from "./types";
 import type { ParserState, ParseContext } from "./parser-types";
 import { parseKeyValueAttrs } from "./parser-types";
+import { parseDesignAnnotation } from "../../core/types/design";
+import { uid } from "../../core/utils/id";
 import * as ParserHelpers from "./parser-helpers";
 import * as ParserView from "./parser-view";
 import * as ParserFinalize from "./parser-finalize";
@@ -59,6 +61,10 @@ export class Parser {
       events: [],
       componentMeta: null,
       hasStyleBlock: false,
+      designName: "",
+      designTokens: [],
+      designClasses: [],
+      designVariants: [],
     };
   }
 
@@ -236,6 +242,19 @@ export class Parser {
       this.ctx.currentStore = nameTok.text;
       this.stream.expect("BRACE_OPEN");
       this.pushState("IN_STORE");
+      return;
+    }
+
+    if (kw === "design") {
+      this.stream.consume(); // "design"
+      const nameTok = this.stream.expect("IDENTIFIER");
+      if (nameTok.kind === "EOF") {
+        this.pushError("error", "P004", "Invalid design declaration: missing name", nameTok);
+        return;
+      }
+      this.ctx.designName = nameTok.text;
+      this.stream.expect("BRACE_OPEN");
+      this.pushState("IN_DESIGN");
       return;
     }
 
@@ -601,6 +620,141 @@ export class Parser {
     }
   }
 
+  // ── Design block ──
+
+  private parseDesignBody(): void {
+    let lastAnnotation: { type: "token" | "class" | "variant"; id: string } | null = null;
+
+    while (!this.stream.isEof()) {
+      this.stream.skipNewlines();
+
+      if (this.stream.isEof()) break;
+
+      const tok = this.stream.peek();
+
+      // Close design block
+      if (tok.kind === "BRACE_CLOSE") {
+        this.stream.consume();
+        this.popState();
+        return;
+      }
+
+      // Annotation comments giving stable IDs
+      if (tok.kind === "COMMENT_LINE") {
+        this.stream.consume();
+        const text = tok.text.trim();
+        const ann = parseDesignAnnotation(text);
+        if (ann) {
+          lastAnnotation = ann;
+        }
+        continue;
+      }
+
+      if (tok.kind === "IDENTIFIER") {
+        const kw = tok.text;
+
+        if (kw === "token") {
+          this.parseDesignToken(lastAnnotation);
+          lastAnnotation = null;
+        } else if (kw === "class") {
+          this.parseDesignClass(lastAnnotation);
+          lastAnnotation = null;
+        } else if (kw === "variant") {
+          this.parseDesignVariant(lastAnnotation);
+          lastAnnotation = null;
+        } else {
+          // Unknown keyword inside design block — skip
+          this.stream.consume();
+        }
+      } else {
+        // Skip unexpected tokens
+        this.stream.consume();
+      }
+    }
+  }
+
+  private parseDesignToken(
+    annotation: { type: "token" | "class" | "variant"; id: string } | null,
+  ): void {
+    this.stream.consume(); // "token"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    if (nameTok.kind === "EOF") return;
+    this.stream.expect("COLON");
+    const typeTok = this.stream.expect("IDENTIFIER");
+    if (typeTok.kind === "EOF") return;
+    // Optional "=" value
+    let value = "";
+    if (this.stream.peek().kind === "EQUALS") {
+      this.stream.consume();
+      const valueTok = this.stream.consume();
+      value = valueTok.kind === "STRING" ? valueTok.text.slice(1, -1) : valueTok.text;
+    }
+    // Expect semicolon
+    if (this.stream.peek().kind === "SEMICOLON") {
+      this.stream.consume();
+    }
+
+    const id = annotation?.id || uid("tk");
+    this.ctx.designTokens.push({
+      id,
+      name: nameTok.text,
+      tokenType: typeTok.text,
+      value,
+    });
+  }
+
+  private parseDesignClass(
+    annotation: { type: "token" | "class" | "variant"; id: string } | null,
+  ): void {
+    this.stream.consume(); // "class"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    if (nameTok.kind === "EOF") return;
+    this.stream.expect("BRACE_OPEN");
+
+    // Collect raw body text by brace counting
+    let depth = 1;
+    let body = "";
+    while (depth > 0 && !this.stream.isEof()) {
+      const t = this.stream.consume();
+      if (t.kind === "BRACE_OPEN") depth++;
+      else if (t.kind === "BRACE_CLOSE") depth--;
+      if (depth > 0) body += t.text;
+    }
+
+    const id = annotation?.id || uid("cls");
+    this.ctx.designClasses.push({
+      id,
+      name: nameTok.text,
+      body,
+    });
+  }
+
+  private parseDesignVariant(
+    annotation: { type: "token" | "class" | "variant"; id: string } | null,
+  ): void {
+    this.stream.consume(); // "variant"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    if (nameTok.kind === "EOF") return;
+    this.stream.expect("BRACE_OPEN");
+
+    // Collect raw body text by brace counting
+    let depth = 1;
+    let body = "";
+    while (depth > 0 && !this.stream.isEof()) {
+      const t = this.stream.consume();
+      if (t.kind === "BRACE_OPEN") depth++;
+      else if (t.kind === "BRACE_CLOSE") depth--;
+      if (depth > 0) body += t.text;
+    }
+
+    const id = annotation?.id || uid("var");
+    this.ctx.designVariants.push({
+      id,
+      name: nameTok.text,
+      body,
+    });
+  }
+
   // ── State machine helpers ──
 
   private pushState(state: ParserState): void {
@@ -629,6 +783,9 @@ export class Parser {
         break;
       case "IN_CHAIN":
         this.parseChainBody();
+        break;
+      case "IN_DESIGN":
+        this.parseDesignBody();
         break;
     }
   }
