@@ -28,7 +28,7 @@ impl<'a> Parser<'a> {
     /// For `--` prefixed names, consumes the `--` prefix then reads ident parts
     /// separated by hyphens. For regular names, uses expect_ident.
     pub(crate) fn parse_css_property_name(&mut self, msg: &str) -> Result<String, ParseError> {
-        if self.peek_kind() == TokenKind::Minus
+        if *self.peek_kind() == TokenKind::Minus
             && self
                 .tokens
                 .get(self.pos + 1)
@@ -40,14 +40,14 @@ impl<'a> Parser<'a> {
             loop {
                 match self.peek_kind() {
                     TokenKind::Ident(s) => {
-                        name.push_str(&s);
+                        name.push_str(s);
                         self.advance();
                     }
                     TokenKind::Minus => {
                         name.push('-');
                         self.advance();
                     }
-                    ref kind => {
+                    kind => {
                         if let Some(kw) = keyword_as_ident_name(kind) {
                             name.push_str(kw);
                             self.advance();
@@ -62,7 +62,7 @@ impl<'a> Parser<'a> {
             let key = self.expect_ident(msg)?;
             let mut result = key;
             // Handle hyphenated CSS property names: font-family, min-height, etc.
-            while self.peek_kind() == TokenKind::Minus {
+            while *self.peek_kind() == TokenKind::Minus {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 result = format!("{}-{}", result, next);
@@ -79,39 +79,39 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{' after 'style'")?;
 
         let mut rules = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             // Each rule: .className { prop: value; ... }
             // or: tag { prop: value; ... }
-            let is_tag_selector = self.peek_kind() != TokenKind::Dot;
-            if self.peek_kind() == TokenKind::Dot {
+            let is_tag_selector = *self.peek_kind() != TokenKind::Dot;
+            if *self.peek_kind() == TokenKind::Dot {
                 self.advance(); // consume '.'
             }
             let mut class_name = self.expect_ident("expected class name")?;
             // Handle hyphenated class names: .app-shell, .btn-add, etc.
-            while self.peek_kind() == TokenKind::Minus {
+            while *self.peek_kind() == TokenKind::Minus {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 class_name = format!("{}-{}", class_name, next);
             }
             // Handle pseudo-classes: .className:hover, .className:focus, etc.
-            while self.peek_kind() == TokenKind::Colon {
+            while *self.peek_kind() == TokenKind::Colon {
                 self.advance(); // consume ':'
                 let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
                 class_name = format!("{}:{}", class_name, pseudo);
             }
             // Handle compound class selectors: .var-card.alt, .btn.active.dark, etc.
-            while self.peek_kind() == TokenKind::Dot {
+            while *self.peek_kind() == TokenKind::Dot {
                 self.advance(); // consume '.'
                 let extra = self.expect_ident("expected class name after '.'")?;
                 class_name = format!("{}.{}", class_name, extra);
                 // Handle hyphenated names in compound part: .var-card.deep-dark
-                while self.peek_kind() == TokenKind::Minus {
+                while *self.peek_kind() == TokenKind::Minus {
                     self.advance(); // consume '-'
                     let next = self.expect_ident("expected identifier after '-'")?;
                     class_name = format!("{}-{}", class_name, next);
                 }
                 // Handle pseudo-classes on compound part: .var-card.alt:hover
-                while self.peek_kind() == TokenKind::Colon {
+                while *self.peek_kind() == TokenKind::Colon {
                     self.advance(); // consume ':'
                     let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
                     class_name = format!("{}:{}", class_name, pseudo);
@@ -119,16 +119,16 @@ impl<'a> Parser<'a> {
             }
             // Skip unsupported remaining selector parts (e.g., "input:checked + span")
             // until we find the opening brace
-            while self.peek_kind() != TokenKind::LBrace
-                && self.peek_kind() != TokenKind::RBrace
-                && self.peek_kind() != TokenKind::Eof
+            while *self.peek_kind() != TokenKind::LBrace
+                && *self.peek_kind() != TokenKind::RBrace
+                && *self.peek_kind() != TokenKind::Eof
             {
                 self.advance();
             }
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
             let mut properties = Vec::new();
-            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                 // Parse property name — supports CSS custom properties (--name)
                 let key = self.parse_css_property_name("expected property name")?;
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
@@ -195,13 +195,13 @@ impl<'a> Parser<'a> {
                         TokenKind::Ident(s) => {
                             let mut ident = s.clone();
                             // Handle hyphenated idents: space-between, nowrap, etc.
-                            while self.peek_kind() == TokenKind::Minus {
+                            while *self.peek_kind() == TokenKind::Minus {
                                 self.advance(); // consume '-'
                                 let next = self.expect_ident("expected identifier after '-'")?;
                                 ident = format!("{}-{}", ident, next);
                             }
                             // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
-                            if self.peek_kind() == TokenKind::LParen {
+                            if *self.peek_kind() == TokenKind::LParen {
                                 ident = consume_css_function_args(self, &ident);
                             }
                             // Check for dimension: 16px, 1.5rem
@@ -230,7 +230,7 @@ impl<'a> Parser<'a> {
                     // Check if next token could be another value part
                     match self.peek_kind() {
                         TokenKind::Semicolon | TokenKind::RBrace => break,
-                        ref k
+                        k
                             if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() =>
                         {
                             break
@@ -248,13 +248,13 @@ impl<'a> Parser<'a> {
                             TokenKind::FloatLiteral(n) => try_consume_dimension_part(self, *n),
                             TokenKind::Ident(s) => {
                                 let mut ident = s.clone();
-                                while self.peek_kind() == TokenKind::Minus {
+                                while *self.peek_kind() == TokenKind::Minus {
                                     self.advance();
                                     let next =
                                         self.expect_ident("expected identifier after '-'")?;
                                     ident = format!("{}-{}", ident, next);
                                 }
-                                if self.peek_kind() == TokenKind::LParen {
+                                if *self.peek_kind() == TokenKind::LParen {
                                     ident = consume_css_function_args(self, &ident);
                                 }
                                 if let Some(unit) = try_parse_dimension(&ident) {
@@ -311,7 +311,7 @@ impl<'a> Parser<'a> {
                 };
 
                 properties.push((key, value));
-                if self.peek_kind() == TokenKind::Semicolon {
+                if *self.peek_kind() == TokenKind::Semicolon {
                     self.advance();
                 }
             }
@@ -333,18 +333,18 @@ impl<'a> Parser<'a> {
     pub fn parse_style_rule(&mut self) -> Result<StyleRule, ParseError> {
         self.enter_recursion()?;
         self.advance(); // 'style'
-        let is_tag_selector = self.peek_kind() != TokenKind::Dot;
-        if self.peek_kind() == TokenKind::Dot {
+        let is_tag_selector = *self.peek_kind() != TokenKind::Dot;
+        if *self.peek_kind() == TokenKind::Dot {
             self.advance(); // consume '.'
         }
         let class_name = self.expect_ident("expected class name")?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut properties = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let mut key = self.expect_ident("expected property name")?;
             // Handle hyphenated CSS property names: font-family, min-height, etc.
-            while self.peek_kind() == TokenKind::Minus {
+            while *self.peek_kind() == TokenKind::Minus {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 key = format!("{}-{}", key, next);
@@ -400,13 +400,13 @@ impl<'a> Parser<'a> {
                     TokenKind::Ident(s) => {
                         let mut ident = s.clone();
                         // Handle hyphenated idents: space-between, nowrap, etc.
-                        while self.peek_kind() == TokenKind::Minus {
+                        while *self.peek_kind() == TokenKind::Minus {
                             self.advance(); // consume '-'
                             let next = self.expect_ident("expected identifier after '-'")?;
                             ident = format!("{}-{}", ident, next);
                         }
                         // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
-                        if self.peek_kind() == TokenKind::LParen {
+                        if *self.peek_kind() == TokenKind::LParen {
                             ident = consume_css_function_args(self, &ident);
                         }
                         // Check for dimension: 16px, 1.5rem
@@ -428,7 +428,7 @@ impl<'a> Parser<'a> {
             };
 
             properties.push((key, value));
-            if self.peek_kind() == TokenKind::Semicolon {
+            if *self.peek_kind() == TokenKind::Semicolon {
                 self.advance();
             }
         }
@@ -471,7 +471,7 @@ pub(super) fn consume_css_function_args(parser: &mut Parser, func_name: &str) ->
     parser.advance(); // consume '('
     let mut depth: i32 = 1;
     let mut args = String::new();
-    while depth > 0 && parser.peek_kind() != TokenKind::Eof {
+    while depth > 0 && *parser.peek_kind() != TokenKind::Eof {
         match parser.peek_kind() {
             TokenKind::LParen => {
                 depth += 1;
@@ -499,7 +499,8 @@ pub(super) fn consume_css_function_args(parser: &mut Parser, func_name: &str) ->
 /// consume it and return StyleValue::Dimension. Otherwise return StyleValue::Number.
 pub(super) fn try_consume_dimension(parser: &mut Parser, val: f64) -> StyleValue {
     // Handle ident-based units: px, rem, fr, etc.
-    if let TokenKind::Ident(ref next_ident) = parser.peek_kind() {
+    let kind = parser.peek_kind().clone();
+    if let TokenKind::Ident(ref next_ident) = kind {
         let combined = format!("{}{}", val, next_ident);
         if try_parse_dimension(&combined).is_some() {
             parser.advance(); // consume the unit ident
@@ -507,7 +508,7 @@ pub(super) fn try_consume_dimension(parser: &mut Parser, val: f64) -> StyleValue
         }
     }
     // Handle % symbol (tokenized as Percent, not Ident)
-    if parser.peek_kind() == TokenKind::Percent {
+    if *parser.peek_kind() == TokenKind::Percent {
         parser.advance();
         return StyleValue::Dimension(val, "%".to_string());
     }
@@ -517,7 +518,8 @@ pub(super) fn try_consume_dimension(parser: &mut Parser, val: f64) -> StyleValue
 /// Same as try_consume_dimension but returns StyleValuePart.
 pub(super) fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> StyleValuePart {
     // Handle ident-based units: px, rem, fr, etc.
-    if let TokenKind::Ident(ref next_ident) = parser.peek_kind() {
+    let kind = parser.peek_kind().clone();
+    if let TokenKind::Ident(ref next_ident) = kind {
         let combined = format!("{}{}", val, next_ident);
         if try_parse_dimension(&combined).is_some() {
             parser.advance();
@@ -525,7 +527,7 @@ pub(super) fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> Style
         }
     }
     // Handle % symbol (tokenized as Percent, not Ident)
-    if parser.peek_kind() == TokenKind::Percent {
+    if *parser.peek_kind() == TokenKind::Percent {
         parser.advance();
         return StyleValuePart::Dimension(val, "%".to_string());
     }

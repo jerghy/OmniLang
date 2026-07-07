@@ -217,7 +217,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => break,
             }
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -249,7 +249,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => break,
             }
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -286,19 +286,19 @@ impl<'a> Parser<'a> {
                 // Also accept IntLiteral/FloatLiteral for percentage (e.g., "0%", "50%")
                 match self.peek_kind() {
                     TokenKind::IntLiteral(n) => {
-                        let val = n as f64;
+                        let val = *n as f64;
                         self.advance();
                         // Consume optional % token after number (e.g., "0%")
-                        while self.peek_kind() == TokenKind::Percent {
+                        while *self.peek_kind() == TokenKind::Percent {
                             self.advance();
                         }
                         StopPosition::Percent(val)
                     }
                     TokenKind::FloatLiteral(f) => {
-                        let val = f;
+                        let val = *f;
                         self.advance();
                         // Consume optional % token after number
-                        while self.peek_kind() == TokenKind::Percent {
+                        while *self.peek_kind() == TokenKind::Percent {
                             self.advance();
                         }
                         StopPosition::Percent(val)
@@ -310,12 +310,12 @@ impl<'a> Parser<'a> {
 
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let mut properties = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let key = self.parse_css_property_name("expected property name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let value = self.parse_expr()?;
             properties.push((key, value));
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -324,7 +324,7 @@ impl<'a> Parser<'a> {
         // Optional per-stop ease
         let ease = if self.peek_ident_value().is_some_and(|s| s == "ease") {
             self.advance();
-            if self.peek_kind() == TokenKind::Colon {
+            if *self.peek_kind() == TokenKind::Colon {
                 self.advance();
             }
             Some(self.parse_easing()?)
@@ -350,21 +350,21 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "color_space" || s == "colorSpace" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *color_space = Some(self.expect_ident("expected color space")?);
@@ -372,7 +372,7 @@ impl<'a> Parser<'a> {
                 _ => break,
             }
             // Optional comma between timing props
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }

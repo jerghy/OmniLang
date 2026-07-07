@@ -1,14 +1,15 @@
 //! Expression formatting, helpers, and event data extraction for Dioxus codegen.
 
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
-use crate::codegen::{JsonFormatConfig, Target, JSON_DIOXUS};
 use crate::ir::*;
 
 /// Dioxus-family expression formatter.
 ///
 /// Uses the shared `RustFormatExpr` with `move_closures: true` (required by Dioxus).
 fn dioxus_format_expr() -> RustFormatExpr {
-    RustFormatExpr { move_closures: true }
+    RustFormatExpr {
+        move_closures: true,
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

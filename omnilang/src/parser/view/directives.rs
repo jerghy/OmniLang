@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             body.push(self.parse_view_node()?);
         }
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -32,25 +32,25 @@ impl<'a> Parser<'a> {
         let mut else_ifs = Vec::new();
         let mut else_body = None;
 
-        while self.peek_kind() == TokenKind::AtElse {
+        while *self.peek_kind() == TokenKind::AtElse {
             self.advance();
             // Handle both `@else @if` and `@else if` patterns
-            if self.peek_kind() == TokenKind::AtIf {
+            if *self.peek_kind() == TokenKind::AtIf {
                 self.advance(); // '@if' after '@else'
                 let cond = self.parse_expr()?;
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut b = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                     b.push(self.parse_view_node()?);
                 }
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 else_ifs.push((cond, b));
-            } else if self.peek_kind() == TokenKind::If {
+            } else if *self.peek_kind() == TokenKind::If {
                 self.advance(); // 'if' after '@else' (without @ prefix)
                 let cond = self.parse_expr()?;
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut b = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                     b.push(self.parse_view_node()?);
                 }
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -58,7 +58,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut b = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                     b.push(self.parse_view_node()?);
                 }
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -99,17 +99,17 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut body = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             body.push(self.parse_view_node()?);
         }
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         let mut empty_body = None;
-        if self.peek_kind() == TokenKind::AtEmpty {
+        if *self.peek_kind() == TokenKind::AtEmpty {
             self.advance();
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
             let mut b = Vec::new();
-            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                 b.push(self.parse_view_node()?);
             }
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
@@ -149,12 +149,12 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_property_block(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
         self.expect_token(TokenKind::LBrace, "expected '{' for property block")?;
         let mut properties = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let key = self.expect_ident("expected property name")?;
             self.expect_token(TokenKind::Colon, "expected ':' after property name")?;
             let value = self.parse_expr()?;
             properties.push((key, value));
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -179,9 +179,9 @@ impl<'a> Parser<'a> {
                     text.push('}');
                     self.advance();
                 }
-                _ if is_text_token(&kind) => {
+                _ if is_text_token(kind) => {
                     // Insert space if there's a gap indicating whitespace
-                    text.push_str(&token_text(&kind));
+                    text.push_str(&token_text(kind));
                     self.advance();
                 }
                 _ => break,

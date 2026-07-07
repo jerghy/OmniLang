@@ -1,0 +1,6 @@
+---
+source: omnilang/src/codegen/python/tests.rs
+assertion_line: 53
+expression: fmt(&expr)
+---
+lambda x, y: x + y

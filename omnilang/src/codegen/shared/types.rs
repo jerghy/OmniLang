@@ -49,7 +49,10 @@ impl FormatType for JsTypeFormatter {
             "void" | "()" => "void".into(),
             "Vec" | "Array" | "List" => {
                 if let Some(inner) = type_args.first() {
-                    format!("{}[]", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "{}[]",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "any[]".into()
                 }
@@ -67,7 +70,10 @@ impl FormatType for JsTypeFormatter {
             }
             "Option" => {
                 if let Some(inner) = type_args.first() {
-                    format!("{} | null", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "{} | null",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "any | null".into()
                 }
@@ -103,7 +109,10 @@ impl FormatType for DartTypeFormatter {
             "void" | "()" => "void".into(),
             "Vec" | "Array" | "List" => {
                 if let Some(inner) = type_args.first() {
-                    format!("List<{}>", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "List<{}>",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "List".into()
                 }
@@ -121,7 +130,10 @@ impl FormatType for DartTypeFormatter {
             }
             "Option" => {
                 if let Some(inner) = type_args.first() {
-                    format!("{}?", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "{}?",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "Object?".into()
                 }
@@ -161,7 +173,10 @@ impl FormatType for RustTypeFormatter {
             "void" | "()" => "()".into(),
             "Vec" | "Array" | "List" => {
                 if let Some(inner) = type_args.first() {
-                    format!("Vec<{}>", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "Vec<{}>",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "Vec<()>".into()
                 }
@@ -218,7 +233,10 @@ impl FormatType for PythonTypeFormatter {
             "void" | "()" => "None".into(),
             "Vec" | "Array" | "List" => {
                 if let Some(inner) = type_args.first() {
-                    format!("list[{}]", self.format_type(inner.kind.as_str(), &inner.type_args))
+                    format!(
+                        "list[{}]",
+                        self.format_type(inner.kind.as_str(), &inner.type_args)
+                    )
                 } else {
                     "list".into()
                 }

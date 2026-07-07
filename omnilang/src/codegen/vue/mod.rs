@@ -149,7 +149,8 @@ impl VueCodegen {
             w.emit("const props = defineProps<{");
             w.indent();
             for (prop_name, prop_type) in &comp.props {
-                let ts_type = JsTypeFormatter.format_type(&prop_type.kind.as_str(), &prop_type.type_args);
+                let ts_type =
+                    JsTypeFormatter.format_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("  {}: {};", prop_name, ts_type));
             }
             w.dedent();
@@ -168,7 +169,8 @@ impl VueCodegen {
         // State (ref declarations)
         for state in &comp.states {
             let init_val = fmt.format_expr(&state.initial_value);
-            let ts_type = JsTypeFormatter.format_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
+            let ts_type =
+                JsTypeFormatter.format_type(state.r#type.kind.as_str(), &state.r#type.type_args);
             if ts_type.is_empty() {
                 w.emit_fmt(format_args!("const {} = ref({});", state.name, init_val));
             } else {
@@ -292,7 +294,7 @@ impl VueCodegen {
                 .get(sig_name)
                 .map(|v| format_json_value(v, &JSON_VUE))
                 .unwrap_or_else(|| "null".into());
-            let ts_type = JsTypeFormatter.format_type(&sig_type.kind.as_str(), &sig_type.type_args);
+            let ts_type = JsTypeFormatter.format_type(sig_type.kind.as_str(), &sig_type.type_args);
             if ts_type.is_empty() {
                 w.emit_fmt(format_args!("const {} = ref({});", sig_name, init));
             } else {
@@ -318,7 +320,7 @@ impl VueCodegen {
             for p in &action.params {
                 let mut s = p.name.clone();
                 if let Some(ref ty) = p.r#type {
-                    let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
+                    let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
                     if !ann.is_empty() {
                         s.push_str(&format!(": {}", ann));
                     }

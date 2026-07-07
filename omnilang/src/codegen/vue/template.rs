@@ -43,13 +43,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             for (event_name, handler) in &el.events {
                 let vue_event = to_vue_event(event_name);
                 match handler {
-                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         if event_data.is_some() {
-                            let event_obj = emit_event_object_js(
-                                event_data,
-                                used_fields,
-                                "e",
-                            );
+                            let event_obj = emit_event_object_js(event_data, used_fields, "e");
                             attrs.push(format!(
                                 "@{}=\"(e) => {{ {}({}) }}\"",
                                 vue_event, r#ref, event_obj
@@ -58,13 +59,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                             attrs.push(format!("@{}=\"{}\"", vue_event, r#ref));
                         }
                     }
-                    EventHandlerIR::InlineFn { body, event_data, used_fields, .. } => {
+                    EventHandlerIR::InlineFn {
+                        body,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         if event_data.is_some() {
-                            let _event_obj = emit_event_object_js(
-                                event_data,
-                                used_fields,
-                                "e",
-                            );
+                            let _event_obj = emit_event_object_js(event_data, used_fields, "e");
                             let mut hw = CodeWriter::new();
                             for stmt in &body.statements {
                                 generate_statement_vue(&mut hw, stmt);
@@ -248,7 +250,7 @@ pub(super) fn format_inline_handler_vue(body: &BlockIR) -> String {
         indent: "        ",
         use_writer: false,
     };
-    build_inline_handler(body, &config, |w, s| generate_statement_vue(w, s))
+    build_inline_handler(body, &config, generate_statement_vue)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -260,7 +262,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
     for p in &func.params {
         let mut s = p.name.clone();
         if let Some(ref ty) = p.r#type {
-            let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
+            let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
             if !ann.is_empty() {
                 s.push_str(&format!(": {}", ann));
             }
@@ -272,7 +274,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
         .return_type
         .as_ref()
         .map(|rt| {
-            let ann = JsTypeFormatter.format_type(&rt.kind.as_str(), &rt.type_args);
+            let ann = JsTypeFormatter.format_type(rt.kind.as_str(), &rt.type_args);
             if ann.is_empty() {
                 String::new()
             } else {

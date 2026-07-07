@@ -19,7 +19,7 @@ impl<'a> Parser<'a> {
         let params = self.parse_params()?;
         self.expect_token(TokenKind::RParen, "expected ')'")?;
 
-        let return_type = if self.peek_kind() == TokenKind::Arrow {
+        let return_type = if *self.peek_kind() == TokenKind::Arrow {
             self.advance();
             Some(self.parse_type_annotation()?)
         } else {
@@ -55,14 +55,14 @@ impl<'a> Parser<'a> {
         let params = self.parse_params()?;
         self.expect_token(TokenKind::RParen, "expected ')'")?;
 
-        let return_type = if self.peek_kind() == TokenKind::Arrow {
+        let return_type = if *self.peek_kind() == TokenKind::Arrow {
             self.advance();
             Some(self.parse_type_annotation()?)
         } else {
             None
         };
 
-        let is_async = if self.peek_kind() == TokenKind::Async {
+        let is_async = if *self.peek_kind() == TokenKind::Async {
             self.advance();
             true
         } else {
@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
         self.advance(); // 'action'
         let name = self.expect_ident("expected action name")?;
         // Parentheses are optional for actions with no parameters
-        let params = if self.peek_kind() == TokenKind::LParen {
+        let params = if *self.peek_kind() == TokenKind::LParen {
             self.advance();
             let p = self.parse_params()?;
             self.expect_token(TokenKind::RParen, "expected ')'")?;
@@ -101,14 +101,14 @@ impl<'a> Parser<'a> {
             Vec::new()
         };
 
-        let return_type = if self.peek_kind() == TokenKind::Colon {
+        let return_type = if *self.peek_kind() == TokenKind::Colon {
             self.advance();
             Some(self.parse_type_annotation()?)
         } else {
             None
         };
 
-        let is_async = if self.peek_kind() == TokenKind::Async {
+        let is_async = if *self.peek_kind() == TokenKind::Async {
             self.advance();
             true
         } else {
@@ -134,9 +134,9 @@ impl<'a> Parser<'a> {
 
     pub fn parse_params(&mut self) -> Result<Vec<Param>, ParseError> {
         let mut params = Vec::new();
-        if self.peek_kind() != TokenKind::RParen {
+        if *self.peek_kind() != TokenKind::RParen {
             let name = self.expect_ident("expected param name")?;
-            let type_ann = if self.peek_kind() == TokenKind::Colon {
+            let type_ann = if *self.peek_kind() == TokenKind::Colon {
                 self.advance();
                 Some(self.parse_type_annotation()?)
             } else {
@@ -144,13 +144,13 @@ impl<'a> Parser<'a> {
             };
             params.push(Param { name, type_ann });
 
-            while self.peek_kind() == TokenKind::Comma {
+            while *self.peek_kind() == TokenKind::Comma {
                 self.advance();
-                if self.peek_kind() == TokenKind::RParen {
+                if *self.peek_kind() == TokenKind::RParen {
                     break;
                 }
                 let name = self.expect_ident("expected param name")?;
-                let type_ann = if self.peek_kind() == TokenKind::Colon {
+                let type_ann = if *self.peek_kind() == TokenKind::Colon {
                     self.advance();
                     Some(self.parse_type_annotation()?)
                 } else {
@@ -203,13 +203,13 @@ impl<'a> Parser<'a> {
     fn parse_effect_deps(&mut self) -> Result<Vec<String>, ParseError> {
         let mut deps = Vec::new();
         // Parse: (dep1, dep2) — deps can be dot-paths like "TodoStore.items"
-        if self.peek_kind() == TokenKind::LParen {
+        if *self.peek_kind() == TokenKind::LParen {
             self.advance();
-            if self.peek_kind() != TokenKind::RParen {
+            if *self.peek_kind() != TokenKind::RParen {
                 deps.push(self.parse_effect_dep_name()?);
-                while self.peek_kind() == TokenKind::Comma {
+                while *self.peek_kind() == TokenKind::Comma {
                     self.advance();
-                    if self.peek_kind() == TokenKind::RParen {
+                    if *self.peek_kind() == TokenKind::RParen {
                         break;
                     }
                     deps.push(self.parse_effect_dep_name()?);
@@ -223,7 +223,7 @@ impl<'a> Parser<'a> {
     /// Parse a single effect dependency name, which may be a dot-path like `TodoStore.items`.
     fn parse_effect_dep_name(&mut self) -> Result<String, ParseError> {
         let path = self.expect_ident("expected dep name")?;
-        if self.peek_kind() == TokenKind::Dot {
+        if *self.peek_kind() == TokenKind::Dot {
             self.advance();
             let field = self.expect_ident("expected field name")?;
             Ok(format!("{}.{}", path, field))

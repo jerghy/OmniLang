@@ -147,19 +147,15 @@ impl OmniViewGenerator {
                     if val_str.is_empty() {
                         continue;
                     }
-                    if self.in_for_template
-                        && (val_str.contains('{') && val_str.contains('}'))
-                    {
+                    if self.in_for_template && (val_str.contains('{') && val_str.contains('}')) {
                         // Pre-compiled attribute binding for @for templates
-                        let attr_name = if name.starts_with("aria-") || name.starts_with("data-")
-                        {
+                        let attr_name = if name.starts_with("aria-") || name.starts_with("data-") {
                             name.clone()
                         } else {
                             format!("data-{}", name)
                         };
                         let parts = super::utils::parse_attr_template(&val_str);
-                        self.for_attr_bindings
-                            .push((nid.clone(), attr_name, parts));
+                        self.for_attr_bindings.push((nid.clone(), attr_name, parts));
                     } else if name.starts_with("aria-") || name.starts_with("data-") {
                         // Real HTML aria/data attributes — emit as-is
                         attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&val_str)));
@@ -334,9 +330,7 @@ impl OmniViewGenerator {
                     EventHandlerIR::FnRef { r#ref, .. } => {
                         Some(format!("{}_{}", self.current_component, r#ref))
                     }
-                    EventHandlerIR::StoreAction { r#ref, .. } => {
-                        Some(r#ref.replace('.', "_"))
-                    }
+                    EventHandlerIR::StoreAction { r#ref, .. } => Some(r#ref.replace('.', "_")),
                     EventHandlerIR::InlineFn { .. } => {
                         Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))
                     }
@@ -349,7 +343,7 @@ impl OmniViewGenerator {
                 // ResizeEvent binds to window, not el.addEventListener
                 if let Some(EventDataKind::ResizeEvent) = handler.event_data() {
                     let event_obj =
-                        emit_event_object(&handler.event_data(), &handler.used_fields(), "_e");
+                        emit_event_object(handler.event_data(), handler.used_fields(), "_e");
                     let handler_call = match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
@@ -403,8 +397,8 @@ impl OmniViewGenerator {
                         } else {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
                             let event_obj = emit_event_object(
-                                &handler.event_data(),
-                                &handler.used_fields(),
+                                handler.event_data(),
+                                handler.used_fields(),
                                 "e",
                             );
                             self.js.push_str(&format!(
@@ -430,7 +424,7 @@ impl OmniViewGenerator {
                         }
                         self.js.push_str("}\n");
                         let event_obj =
-                            emit_event_object(&handler.event_data(), &handler.used_fields(), "e");
+                            emit_event_object(handler.event_data(), handler.used_fields(), "e");
                         self.js.push_str(&format!(
                             "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
@@ -505,9 +499,15 @@ impl OmniViewGenerator {
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         // IMPORTANT: MUST be before the void element return below, otherwise void
         // elements like <input> never get their motion triggers emitted!
-        if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty()) {
+        if el
+            .motion_behavior()
+            .is_some_and(|m| !m.triggers.is_empty())
+        {
             // Also emit HTML data attributes for each trigger so runtime can discover them
-            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
                 let data_attr = match trigger.kind {
                     TriggerKind::Enter => "data-enter",
                     TriggerKind::Leave => "data-leave",
@@ -538,7 +538,10 @@ impl OmniViewGenerator {
                     escape_html(&js_val)
                 ));
             }
-            if let Some(threshold) = el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
+            if let Some(threshold) = el
+                .motion_behavior()
+                .and_then(|m| m.in_view_threshold.as_ref())
+            {
                 let js_val = self.expr_to_js(threshold);
                 attrs.push_str(&format!(
                     " data-in-view-threshold=\"{}\"",
@@ -612,7 +615,10 @@ impl OmniViewGenerator {
         }
 
         // @paused override — per-element pause override for all animations
-        if let Some(paused) = el.motion_behavior().and_then(|m| m.paused_override.as_ref()) {
+        if let Some(paused) = el
+            .motion_behavior()
+            .and_then(|m| m.paused_override.as_ref())
+        {
             let paused_js = self.expr_to_js(paused);
             self.mount_js.push_str(&format!(
                 "// @paused override\n\
@@ -658,19 +664,19 @@ impl OmniViewGenerator {
             // Note: for @for templates, bindings are already collected in for_class_bindings
             // at the class map section above — no need to emit data-class-expr.
             if !self.in_for_template && !el.class_map_bindings.is_empty() {
-                    for (class_name, expr) in &el.class_map_bindings {
-                        let js_expr = self.expr_to_js(expr);
-                        let js_access = if self.signal_names.contains(&js_expr) {
-                            format!("{}.value", js_expr)
-                        } else {
-                            js_expr
-                        };
-                        self.js.push_str(&format!(
+                for (class_name, expr) in &el.class_map_bindings {
+                    let js_expr = self.expr_to_js(expr);
+                    let js_access = if self.signal_names.contains(&js_expr) {
+                        format!("{}.value", js_expr)
+                    } else {
+                        js_expr
+                    };
+                    self.js.push_str(&format!(
                             "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) el.classList.toggle(\"{}\", !!({})); }});\n",
                             nid, class_name, js_access
                         ));
-                    }
                 }
+            }
             return out;
         }
 

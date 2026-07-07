@@ -105,7 +105,7 @@ impl FlutterCodegen {
             // Field declarations for props
             w.emit("");
             for (prop_name, prop_type) in &comp.props {
-                let ann = super::dart::dart_type(&prop_type.kind.as_str(), &prop_type.type_args);
+                let ann = super::dart::dart_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("final {} {};", ann, prop_name));
             }
         }
@@ -135,7 +135,7 @@ impl FlutterCodegen {
 
         // State variables as class fields
         for state in &comp.states {
-            let ann = super::dart::dart_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
+            let ann = super::dart::dart_type(state.r#type.kind.as_str(), &state.r#type.type_args);
             let init = format_expr_ir_flutter(&state.initial_value);
             w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
         }
@@ -168,7 +168,7 @@ impl FlutterCodegen {
         // Computed properties as getters
         for computed in &comp.computeds {
             let ret_type =
-                super::dart::dart_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
+                super::dart::dart_type(computed.r#type.kind.as_str(), &computed.r#type.type_args);
             w.emit_fmt(format_args!("{} get {} {{", ret_type, computed.name));
             w.indent();
             w.emit_fmt(format_args!(
@@ -381,7 +381,7 @@ impl FlutterCodegen {
 
         // Fields (signals)
         for (sig_name, sig_type) in &store.signals {
-            let ann = super::dart::dart_type(&sig_type.kind.as_str(), &sig_type.type_args);
+            let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
             let default_val = store
                 .signal_defaults
                 .get(sig_name)
@@ -428,7 +428,7 @@ impl FlutterCodegen {
                     let ty = p
                         .r#type
                         .as_ref()
-                        .map(|t| super::dart::dart_type(&t.kind.as_str(), &t.type_args))
+                        .map(|t| super::dart::dart_type(t.kind.as_str(), &t.type_args))
                         .unwrap_or_else(|| "dynamic".into());
                     format!("{} {}", ty, p.name)
                 })
@@ -457,7 +457,7 @@ impl FlutterCodegen {
         for (sig_name, sig_type) in &store.signals {
             w.emit("");
             let setter_name = format!("set{}", capitalize_first(sig_name));
-            let ann = super::dart::dart_type(&sig_type.kind.as_str(), &sig_type.type_args);
+            let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!("void {}({} value) {{", setter_name, ann));
             w.indent();
             w.emit_fmt(format_args!("this.{} = value;", sig_name));

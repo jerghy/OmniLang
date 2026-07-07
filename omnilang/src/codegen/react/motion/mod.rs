@@ -108,7 +108,10 @@ fn collect_enter_motion_refs(node: &ViewTree) -> HashSet<String> {
 fn collect_enter_motion_refs_inner(node: &ViewTree, refs: &mut HashSet<String>) {
     match node {
         ViewTree::Element(el) => {
-            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
                 if matches!(trigger.kind, TriggerKind::Enter) {
                     if let Some(ref name) = trigger.motion_ref {
                         refs.insert(name.clone());

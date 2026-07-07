@@ -19,7 +19,7 @@ impl<'a> Parser<'a> {
             Some(ref s) if s == "label" => {
                 self.advance();
                 // Support label(name), label name, and label "name"
-                if self.peek_kind() == TokenKind::LParen {
+                if *self.peek_kind() == TokenKind::LParen {
                     // label(name) — parens form
                     self.advance();
                     let label_name = if matches!(self.peek_kind(), TokenKind::StringLiteral(_)) {
@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
                     } else {
                         self.expect_ident("expected label name")?
                     };
-                    let position = if self.peek_kind() == TokenKind::Comma {
+                    let position = if *self.peek_kind() == TokenKind::Comma {
                         self.advance();
                         Some(self.parse_expr()?)
                     } else {
@@ -58,12 +58,12 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut properties = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                     let key = self.parse_css_property_name("expected property name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let value = self.parse_expr()?;
                     properties.push((key, value));
-                    if self.peek_kind() == TokenKind::Comma {
+                    if *self.peek_kind() == TokenKind::Comma {
                         self.advance();
                     }
                 }
@@ -133,12 +133,12 @@ impl<'a> Parser<'a> {
 
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let mut properties = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let key = self.expect_ident("expected property name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let value = self.parse_expr()?;
             properties.push((key, value));
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -200,49 +200,49 @@ impl<'a> Parser<'a> {
             match self.peek_ident_value() {
                 Some(ref s) if s == "over" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *over = self.parse_expr()?;
                 }
                 Some(ref s) if s == "ease" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *ease = Some(self.parse_easing()?);
                 }
                 Some(ref s) if s == "delay" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *delay = Some(self.parse_expr()?);
                 }
                 Some(ref s) if s == "color_space" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *color_space = Some(self.expect_ident("expected color space")?);
                 }
                 Some(ref s) if s == "start" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *start = Some(self.parse_position_value()?);
                 }
                 Some(ref s) if s == "path" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *path = Some(self.expect_string("expected path string")?);
                 }
                 Some(ref s) if s == "pathRotate" => {
                     self.advance();
-                    if self.peek_kind() == TokenKind::Colon {
+                    if *self.peek_kind() == TokenKind::Colon {
                         self.advance();
                     }
                     *path_rotate = Some(match self.peek_kind() {
@@ -259,7 +259,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => break,
             }
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -283,7 +283,7 @@ impl<'a> Parser<'a> {
             Some("after") => {
                 self.advance();
                 // Check for afterPrev syntax: after(id)
-                if self.peek_kind() == TokenKind::LParen {
+                if *self.peek_kind() == TokenKind::LParen {
                     self.advance();
                     let id_str = self.expect_ident("expected element id")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
@@ -295,7 +295,7 @@ impl<'a> Parser<'a> {
             Some("with") => {
                 self.advance();
                 // Check for with(prev) syntax
-                if self.peek_kind() == TokenKind::LParen {
+                if *self.peek_kind() == TokenKind::LParen {
                     self.advance();
                     let _id = self.expect_ident("expected element id")?;
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
@@ -317,13 +317,13 @@ impl<'a> Parser<'a> {
     ) -> Result<Vec<TimelineItem>, ParseError> {
         let mut items = Vec::new();
         let mut connector = Connector::None;
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let kind = self.parse_timeline_item()?;
 
             // Handle: ident { from { ... } to { ... } over ... }
             // Expand into multiple timeline items; parse_direction_item handles its own timing.
             if matches!(kind, TimelineItemKind::MotionRef(_))
-                && self.peek_kind() == TokenKind::LBrace
+                && *self.peek_kind() == TokenKind::LBrace
             {
                 self.advance(); // consume '{'
                                 // Parse from { ... } direction item (handles its own timing internally)
@@ -354,7 +354,7 @@ impl<'a> Parser<'a> {
             }
 
             // Parse connector between items (only if we're not at end of block)
-            if self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            if *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                 connector = self.parse_connector()?;
             }
         }

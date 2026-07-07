@@ -10,7 +10,7 @@
 /// Backends that need different handling for custom tags (kebab-case for
 /// OmniView, lowercase-first-letter for React/JSX) should call this function
 /// and then post-process the result.
-pub fn to_html_tag(tag: &str) -> String {
+pub(crate) fn to_html_tag(tag: &str) -> String {
     match tag {
         "Text" => "span".into(),
         "Button" => "button".into(),
@@ -35,7 +35,7 @@ pub fn to_html_tag(tag: &str) -> String {
 ///
 /// Handles React-specific casing (`className` -> `class`, `htmlFor` -> `for`)
 /// as well as Omni-to-HTML attribute renames.
-pub fn to_html_attr(prop_name: &str) -> &str {
+pub(crate) fn to_html_attr(prop_name: &str) -> &str {
     match prop_name {
         "className" | "class" => "class",
         "htmlFor" | "for" => "for",

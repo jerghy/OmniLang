@@ -8,7 +8,10 @@ use crate::codegen::shared::types::{FormatType, RustTypeFormatter};
 use crate::ir::*;
 
 pub(crate) fn format_expr_ir(expr: &ExprIR) -> String {
-    RustFormatExpr { move_closures: false }.format_expr(expr)
+    RustFormatExpr {
+        move_closures: false,
+    }
+    .format_expr(expr)
 }
 
 /// Map OMNI type to Rust type annotation string.

@@ -112,7 +112,7 @@ impl FormatStmt for ReactStmtFormatter {
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| {
-                let ann = JsTypeFormatter.format_type(&t.kind.as_str(), &t.type_args);
+                let ann = JsTypeFormatter.format_type(t.kind.as_str(), &t.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {

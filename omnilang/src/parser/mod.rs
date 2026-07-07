@@ -90,8 +90,8 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn peek_kind(&self) -> TokenKind {
-        self.peek().kind.clone()
+    fn peek_kind(&self) -> &TokenKind {
+        &self.peek().kind
     }
 
     fn advance(&mut self) -> Token {
@@ -173,7 +173,7 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         loop {
             let kind = self.peek_kind();
-            if expected.contains(&kind) || kind == TokenKind::Eof {
+            if expected.contains(kind) || *kind == TokenKind::Eof {
                 break;
             }
             self.advance();

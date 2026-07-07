@@ -584,10 +584,7 @@ fn lower_element(
             }
         },
         scroll: {
-            if scroll_start.is_some()
-                || scroll_end.is_some()
-                || scroll_scrub.is_some()
-            {
+            if scroll_start.is_some() || scroll_end.is_some() || scroll_scrub.is_some() {
                 Some(Box::new(ScrollBehavior {
                     start: scroll_start,
                     end: scroll_end,

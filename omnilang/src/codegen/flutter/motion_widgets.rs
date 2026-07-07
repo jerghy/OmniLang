@@ -11,10 +11,11 @@ use crate::ir::*;
 pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el
-                .motion_behavior()
-                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)))
-            {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers
+                    .iter()
+                    .any(|t| matches!(t.kind, TriggerKind::InView))
+            }) {
                 return true;
             }
             el.children.iter().any(has_trigger_kind_in_view)
@@ -47,10 +48,11 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
 pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el
-                .motion_behavior()
-                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)))
-            {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers
+                    .iter()
+                    .any(|t| matches!(t.kind, TriggerKind::Scroll))
+            }) {
                 return true;
             }
             el.children.iter().any(has_trigger_kind_scroll)
@@ -321,12 +323,14 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
 pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
-                matches!(
-                    t.kind,
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
-                )
-            })) {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers.iter().any(|t| {
+                    matches!(
+                        t.kind,
+                        TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                    )
+                })
+            }) {
                 return true;
             }
             el.children.iter().any(has_trigger_kind_drag)

@@ -84,7 +84,7 @@ impl ReactCodegen {
                 .unwrap_or_else(|| "null".into());
             let setter = format!("set{}", super::capitalize_first(sig_name));
             let ts_type = crate::codegen::shared::types::JsTypeFormatter
-                .format_type(&sig_type.kind.as_str(), &sig_type.type_args);
+                .format_type(sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!(
                 "const [{}, {}] = useState<{}>({});",
                 sig_name, setter, ts_type, init

@@ -49,7 +49,7 @@ impl<'a> Parser<'a> {
             self.advance(); // ident
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             amplitude = self.parse_number_literal()?;
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -80,7 +80,7 @@ impl<'a> Parser<'a> {
                 EasingExpr::Named(name.clone())
             }
             "backIn" | "backOut" | "backInOut" => {
-                let intensity = if self.peek_kind() == TokenKind::LParen {
+                let intensity = if *self.peek_kind() == TokenKind::LParen {
                     self.advance(); // '('
                     self.expect_ident_eq("intensity")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
@@ -102,7 +102,7 @@ impl<'a> Parser<'a> {
                 }
             }
             "elasticIn" | "elasticOut" | "elasticInOut" => {
-                if self.peek_kind() == TokenKind::LParen {
+                if *self.peek_kind() == TokenKind::LParen {
                     self.parse_elastic_params()?
                 } else {
                     EasingExpr::Elastic {
@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
                 self.expect_ident_eq("friction")?;
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
                 let friction = self.parse_number_literal()?;
-                let velocity = if self.peek_kind() == TokenKind::Comma {
+                let velocity = if *self.peek_kind() == TokenKind::Comma {
                     self.advance();
                     self.expect_ident_eq("velocity")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
@@ -182,7 +182,7 @@ impl<'a> Parser<'a> {
         let motion = self.parse_motion_expr()?;
 
         // Support shorthand: stagger(0.05) — single numeric arg means amount
-        if self.peek_kind() == TokenKind::RParen {
+        if *self.peek_kind() == TokenKind::RParen {
             let timing = StaggerTiming::Amount(motion);
             self.advance(); // consume ')'
             return Ok(StaggerCall {
@@ -212,7 +212,7 @@ impl<'a> Parser<'a> {
             }
             n => return Err(self.error(format!("expected 'each' or 'amount', got '{}'", n))),
         };
-        let from = if self.peek_kind() == TokenKind::Comma {
+        let from = if *self.peek_kind() == TokenKind::Comma {
             self.advance();
             self.expect_ident_eq("from")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;

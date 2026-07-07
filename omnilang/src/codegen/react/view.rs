@@ -46,16 +46,13 @@ pub(super) fn gen_view_node_tsx(
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
-                            let handler_str =
-                                format_inline_handler(body, signal_names, params);
+                            let handler_str = format_inline_handler(body, signal_names, params);
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
                             let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
-                            comp_attrs.push(format!(
-                                "{}={{() => {{ {}(); }}}}",
-                                jsx_event, action_fn
-                            ));
+                            comp_attrs
+                                .push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_fn));
                         }
                     }
                 }
@@ -156,7 +153,10 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
-            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
                 match trigger.kind {
                     TriggerKind::Enter => {
                         attrs.push("data-motion-enter=\"true\"".into());
@@ -177,7 +177,10 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push("onBlur={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }, { boxShadow: '0 0 0 0 rgba(59,130,246,0)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
                     }
                     TriggerKind::InView => {
-                        let threshold_val = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
+                        let threshold_val = match el
+                            .motion_behavior()
+                            .and_then(|m| m.in_view_threshold.as_ref())
+                        {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
@@ -185,8 +188,14 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("data-inview-threshold=\"{}\"", threshold_val));
                     }
                     TriggerKind::Scroll => {
-                        let scroll_start_str = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
-                        let scroll_end_str = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+                        let scroll_start_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.start.as_deref())
+                            .unwrap_or("top 80%");
+                        let scroll_end_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.end.as_deref())
+                            .unwrap_or("bottom 20%");
                         let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
@@ -199,19 +208,25 @@ pub(super) fn gen_view_node_tsx(
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
                         let axis_str = if is_horizontal { "x" } else { "y" };
-                        let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
-                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
+                        let constraints_str = el
+                            .drag_behavior()
+                            .and_then(|d| d.constraints.as_deref())
+                            .unwrap_or("");
+                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref())
+                        {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
-                        let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => format_expr_ir_tsx(expr),
-                            None => "0".to_string(),
-                        };
-                        let velocity_max_val = match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => format_expr_ir_tsx(expr),
-                            None => "2000".to_string(),
-                        };
+                        let threshold_val =
+                            match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
+                                Some(expr) => format_expr_ir_tsx(expr),
+                                None => "0".to_string(),
+                            };
+                        let velocity_max_val =
+                            match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
+                                Some(expr) => format_expr_ir_tsx(expr),
+                                None => "2000".to_string(),
+                            };
                         attrs.push(format!("data-motion-drag=\"{}\"", axis_str));
                         attrs.push(format!("data-drag-constraints=\"{}\"", constraints_str));
                         attrs.push(format!("data-drag-elastic=\"{}\"", elastic_val));
@@ -232,18 +247,20 @@ pub(super) fn gen_view_node_tsx(
             for (event_name, handler) in &el.events {
                 let react_event = to_react_event(event_name);
                 match handler {
-                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         // Skip motion names — they're animation references, not functions
                         if motion_names.contains(r#ref.as_str()) {
                             continue;
                         }
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             if event_data.is_some() {
-                                let event_obj = emit_event_object_react(
-                                    event_data,
-                                    used_fields,
-                                    "e",
-                                );
+                                let event_obj =
+                                    emit_event_object_react(event_data, used_fields, "e");
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}; {}({}); }}}}",
                                     react_event, setter_call, r#ref, event_obj
@@ -255,11 +272,7 @@ pub(super) fn gen_view_node_tsx(
                                 ));
                             }
                         } else if event_data.is_some() {
-                            let event_obj = emit_event_object_react(
-                                event_data,
-                                used_fields,
-                                "e",
-                            );
+                            let event_obj = emit_event_object_react(event_data, used_fields, "e");
                             attrs.push(format!(
                                 "{}={{(e) => {{ {}({}) }}}}",
                                 react_event, r#ref, event_obj
@@ -289,8 +302,7 @@ pub(super) fn gen_view_node_tsx(
                             result.push_str("      }");
                             attrs.push(format!("{}={{{}}}", react_event, result));
                         } else {
-                            let handler_str =
-                                format_inline_handler(body, signal_names, params);
+                            let handler_str = format_inline_handler(body, signal_names, params);
                             attrs.push(format!("{}={{{}}}", react_event, handler_str));
                         }
                     }
@@ -700,7 +712,7 @@ fn format_inline_handler(
     };
     let config = InlineHandlerConfig {
         opener: format!("({}) => {{\n", param_str),
-        closer: format!("\n      }}"),
+        closer: "\n      }".to_string(),
         empty_handler: format!("({}) => {{}}", param_str),
         indent: "        ",
         use_writer: false,

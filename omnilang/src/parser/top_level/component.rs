@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
         let mut view: Option<ViewBlock> = None;
         let mut styles = Vec::new();
 
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             match self.peek_kind() {
                 TokenKind::Prop => props.push(self.parse_prop_decl()?),
                 TokenKind::Signal => signals.push(self.parse_signal_decl()?),
@@ -41,7 +41,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                     let store_name = self.expect_ident("expected store name")?;
                     store_refs.push(store_name);
-                    if self.peek_kind() == TokenKind::Semicolon {
+                    if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
                 }
@@ -49,11 +49,11 @@ impl<'a> Parser<'a> {
                     // "store SomeStore" or "store SomeStore { ... }" (inline definition)
                     self.advance();
                     let store_name = self.expect_ident("expected store name")?;
-                    if self.peek_kind() == TokenKind::LBrace {
+                    if *self.peek_kind() == TokenKind::LBrace {
                         // Inline store definition — parse and extract signals/actions
                         self.advance(); // '{'
-                        while self.peek_kind() != TokenKind::RBrace
-                            && self.peek_kind() != TokenKind::Eof
+                        while *self.peek_kind() != TokenKind::RBrace
+                            && *self.peek_kind() != TokenKind::Eof
                         {
                             match self.peek_kind() {
                                 TokenKind::Signal => {
@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     }
                     store_refs.push(store_name);
-                    if self.peek_kind() == TokenKind::Semicolon {
+                    if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
                 }
@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                     self.expect_token(TokenKind::Colon, "expected ':' after if_mode")?;
                     let mode = self.expect_string("expected string value for if_mode")?;
-                    if self.peek_kind() == TokenKind::Semicolon {
+                    if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
                     if_mode_default = Some(mode);
@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
                             }
                             _ => break,
                         }
-                        if self.peek_kind() == TokenKind::Comma {
+                        if *self.peek_kind() == TokenKind::Comma {
                             self.advance();
                         }
                     }
@@ -140,7 +140,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Const => {
                     self.advance(); // 'const'
                                     // Handle $prefixed identifiers: $logoUrl
-                    let name = if self.peek_kind() == TokenKind::Dollar {
+                    let name = if *self.peek_kind() == TokenKind::Dollar {
                         self.advance();
                         let id = self.expect_ident("expected identifier after $")?;
                         format!("${}", id)
@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
                         self.expect_ident("expected constant name")?
                     };
                     self.expect_token(TokenKind::Eq, "expected '='")?;
-                    let value = if self.peek_kind() == TokenKind::LBracket {
+                    let value = if *self.peek_kind() == TokenKind::LBracket {
                         // Array literal: [expr, expr, ...]
                         self.parse_expr()?
                     } else {
@@ -173,7 +173,7 @@ impl<'a> Parser<'a> {
                             }
                         }
                     };
-                    if self.peek_kind() == TokenKind::Semicolon {
+                    if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
                     // Store as a signal-like declaration for now
@@ -267,13 +267,13 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected prop name")?;
         self.expect_token(TokenKind::Colon, "expected ':'")?;
         let type_ann = self.parse_type_annotation()?;
-        let default = if self.peek_kind() == TokenKind::Eq {
+        let default = if *self.peek_kind() == TokenKind::Eq {
             self.advance();
             Some(self.parse_expr()?)
         } else {
             None
         };
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(PropDecl {
@@ -290,7 +290,7 @@ impl<'a> Parser<'a> {
         let type_ann = self.parse_type_annotation()?;
         self.expect_token(TokenKind::Eq, "expected '='")?;
         let init = self.parse_expr()?;
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(SignalDecl {
@@ -305,10 +305,10 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected computed name")?;
 
         // Handle function-like computed: computed name() -> Type { body }
-        if self.peek_kind() == TokenKind::LParen {
+        if *self.peek_kind() == TokenKind::LParen {
             self.advance(); // '('
             self.expect_token(TokenKind::RParen, "expected ')'")?;
-            let type_ann = if self.peek_kind() == TokenKind::Arrow {
+            let type_ann = if *self.peek_kind() == TokenKind::Arrow {
                 self.advance(); // '->'
                 self.parse_type_annotation()?
             } else {
@@ -347,7 +347,7 @@ impl<'a> Parser<'a> {
         let type_ann = self.parse_type_annotation()?;
         self.expect_token(TokenKind::Eq, "expected '='")?;
         let body = self.parse_expr()?;
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(ComputedDecl {
@@ -362,13 +362,13 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected event name")?;
         self.expect_token(TokenKind::Colon, "expected ':'")?;
         let type_ann = self.parse_type_annotation()?;
-        let is_optional = if self.peek_kind() == TokenKind::QuestionMark {
+        let is_optional = if *self.peek_kind() == TokenKind::QuestionMark {
             self.advance();
             true
         } else {
             false
         };
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(EventDecl {
@@ -383,7 +383,7 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected ref name")?;
         self.expect_token(TokenKind::Colon, "expected ':'")?;
         let type_ann = self.parse_type_annotation()?;
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(RefDecl { name, type_ann })

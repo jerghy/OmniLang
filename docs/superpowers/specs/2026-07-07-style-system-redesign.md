@@ -79,14 +79,13 @@ theme AppTheme {
 **命名约定：** `{category}-{key}` → `--color-primary`, `--spacing-md`, `--radius-lg`
 嵌套 token (`gray.50`) → `--color-gray-50`
 
-### 3.2 Layer 2: Style Recipes (`recipes/*.omni`)
+### 3.2 Layer 2: Style Recipes（Poiesis 内部概念）
 
-**语法：**
+Recipe 是 Poiesis 编辑器内部设计工具，存储在 Poiesis 元数据中。**不生成 .omni 文件，不进入 omnic 编译。**
 
-```omni
-// recipes/Button.omni
-import omniview;
+**Poiesis 编辑视图（用户设计时看到和操作的）：**
 
+```
 recipe Button {
     base {
         display: inline-flex;
@@ -108,44 +107,30 @@ recipe Button {
 }
 ```
 
-**编译器输出（全局 atomic CSS，去重一次生成）：**
+在组件编辑器中，用户给元素绑定 recipe：`recipe: {Button color="primary" size="sm"}`
 
-```css
-.btn-base { display: inline-flex; border-radius: var(--radius-md); cursor: pointer; font-weight: 600; }
-.btn-color-primary { background: var(--color-primary); color: white; }
-.btn-color-danger { background: var(--color-danger); color: white; }
-.btn-color-ghost { background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
-.btn-size-sm { padding: 4px 8px; font-size: 12px; }
-.btn-size-md { padding: 8px 16px; font-size: 14px; }
-.btn-size-lg { padding: 12px 24px; font-size: 16px; }
+**保存时展开为 .omni：**
+
+```
+Poiesis 内部                         生成的 .omni（合法现有语法）
+─────────────────────────────────    ──────────────────────────────
+recipe: {Button color="primary"}  →  class: btn-base btn-color-primary btn-size-md
+                                       ↑ 多类名，omnic 照常处理
+
+Recipe 的 base + variant 样式       →  style {
+                                         .btn-base { display: inline-flex; ... }
+                                         .btn-color-primary { background: var(--color-primary); ... }
+                                         .btn-size-sm { padding: 4px 8px; ... }
+                                       }
+                                       ↑ 展开进组件 style {} 块
+
+多个组件使用同一 recipe              → 每个组件保存时都展开一份
+                                       omnic 的 [data-component] 作用域自动隔离
 ```
 
-**命名约定：** 内置常量映射 `{ "Button": "btn", "Badge": "badge", "Link": "lnk", ... }`，其余用 `camel_to_kebab`。检测类名冲突，生成编译错误。
+**命名约定：** Recipe 名称 → CSS 类名前缀：内置映射表 `{ "Button": "btn", "Badge": "badge", ... }` + kebab-case fallback。Poiesis 保存时检测类名冲突。
 
-**组件中使用（用 `recipe:` 属性消除歧义）：**
-
-```omni
-import { Button } from "../recipes/Button";
-
-component FeatureCard {
-    view {
-        <button recipe: {Button color="primary" size="sm"}>Click</button>
-        <!-- 不传 size → @default 填充 → md -->
-        <button recipe: {Button color="danger"}>Delete</button>
-    }
-}
-```
-
-**v1 限制：** `recipe:` 的 variant 值只支持静态字符串。动态值（`variant={signal}`）用 `@if`：
-
-```omni
-@if status == "focused" {
-    <span recipe: {Badge variant="focused"}>Focused</span>
-}
-@else {
-    <span recipe: {Badge variant="muted"}>Muted</span>
-}
-```
+**v1 限制：** Recipe 绑定只支持静态 variant 值。动态值（`variant={signal}`）用 `@if` 在每个分支内绑不同的静态 recipe。
 
 ### 3.3 Layer 3: Style Utilities（可选）
 
@@ -175,16 +160,7 @@ component FeatureCard {
 }
 ```
 
-**CSS 级联规则：**
-
-| 来源 | 选择器 | 特异性 |
-|------|--------|--------|
-| Theme 变量 | `:root { --color-primary }` | — (继承) |
-| Recipe 类 | `.btn-base` | (0,1,0) |
-| 组件 style | `[data-component="X"] .card` | (0,2,0) |
-| 内联 style | `style="padding: 20px"` | (1,0,0,0) |
-
-组件 scoped style 覆盖 recipe 类（有意为之）。内联覆盖所有（标准 CSS）。
+**CSS 级联规则：** 所有样式都在组件的 scoped style 块内，共享 `[data-component="X"]` 作用域。recipe 展开的类和组件自有类在同一作用域内，CSS 源代码顺序决定优先级（后出现的覆盖前面的）。内联 `style:` 始终最高特异性。
 
 ## 4. 注释指令设计
 
@@ -215,15 +191,15 @@ component FeatureCard {
 
 **往返验证：** 加载时 `recompile-and-compare`——若 `compileSegments(annotation.segments) !== actualValue`，注释被判定为过时，回退到 text-only。
 
-### 4.4 不需要注释的数据
+### 4.4 不需要注释的数据（从 Omni 语法直接解析）
 
 | 数据 | 解析来源 |
 |------|---------|
 | Token 定义 | `theme AppTheme { }` 语法 |
-| Recipe 定义 | `recipe Button { }` 语法 |
-| Recipe 调用 | `recipe: {Button ...}` 属性 |
 | 元素→类绑定 | `class: className` 属性 |
 | Token 引用 | `var(--token-name)` 字符串 |
+| 伪类 | `.card:hover { }` 在 style 块内 |
+| 内联样式 | `style: { key: value }` 元素属性 |
 
 ## 5. Poiesis 编辑器设计
 
@@ -322,50 +298,47 @@ setElementRecipe(elementId, recipeName, variants)
 setPreviewTheme(mode)
 ```
 
-## 6. 编译器改造
+## 6. Poiesis → .omni 代码生成
 
-### 6.1 优先级
+omnic 编译器**零改动**。Poiesis 负责在保存时把所有内部设计概念展开为合法的 .omni 语法。
 
-| 优先级 | 内容 | 文件数 | 复杂度 |
-|--------|------|--------|--------|
-| P0 | Lexer: `Recipe`, `AtVariant`, `AtDefault`, `AtMode` tokens | 3 Rust | 低 |
-| P0 | AST: `RecipeDef`, `RecipeCall`, `ThemeMode`, 修复 `ThemeDef` | 3 Rust | 中 |
-| P0 | Parser: `parse_recipe_def()`, `recipe:` 属性解析, `@mode` | 4 Rust | 中 |
-| P1 | IR: `RecipeIR`, `ThemeIR`, `RecipeCallIR`, 修复 lowering | 3 Rust | 中 |
-| P1 | Codegen: `emit_theme_css()`, `emit_recipe_css()`, `expand_recipe_call()` | 2 Rust | 中 |
-| P1 | Poiesis: `recipe:` 解析/发射 round-trip | 5 TS | 中 |
-| P1 | Poiesis: `@style-prop` 注释 round-trip | 9 TS | 中 |
-| P2 | Poiesis: StyleRegistry Store + ContextInspector 升级 | 8 TS | 高 |
-| P3 | Poiesis: Preview 修复 + dark mode toggle | 3 TS | 中 |
-| P4 | Poiesis: TabType 扩展 + Token/Recipe 编辑器 | 6 TS | 高 |
-| P5 | Dynamic recipe variant (`variant={signal}`) | 5 Rust + 3 TS | 高 |
+### 6.1 生成映射表
 
-### 6.2 CSS 输出顺序
+| Poiesis 内部概念 | 生成的 .omni 代码 | omnic 如何处理 |
+|-----------------|------------------|---------------|
+| Token 值（如 `primary="#6366f1"`） | `var(--color-primary)` | 原样透传到 CSS |
+| Recipe 调用 `{Button color="primary" size="sm"}` | `class: btn-base btn-color-primary btn-size-sm` | 多类名，照常处理 |
+| Recipe 样式（base + variant） | `style { .btn-base { ... } .btn-color-primary { ... } }` | `[data-component]` 作用域 |
+| Theme `@mode dark` | ThemeStore `getter` + `style: { --var: signal }` + `setProperty()` | 已有运行时模式 |
+| 组件 class（如 `.card`） | `class: card` + `style { .card { ... } }` | 现有语法，不变 |
+| 伪类（如 `.card:hover`） | `style { .card:hover { ... } }` | 现有语法，不变 |
 
-```
-1. :root { --color-* }                ← theme 变量
-2. [data-theme="dark"] { --color-* }  ← mode 覆盖
-3. .btn-base, .btn-color-*, ...       ← recipe 类（全局，去重）
-4. [data-component="X"] .card { }    ← 组件 scoped 样式（现有）
-```
+### 6.2 关键约束
 
-必须保证此顺序（使用 `IndexMap` 替代 `HashMap`）。
+- **Recipe 是 Poiesis 内部概念**——不出现在生成的 .omni 中
+- **`recipes/Button.omni` 文件**——Poiesis 设计时使用，单独保存为 Poiesis 元数据（project.json），不作为 .omni 源文件被 omnic 编译
+- **`theme.omni`**——Poiesis 数据文件，`theme AppTheme { }` 块可写可不写（omnic 即使看到也会忽略），token 值靠 Poiesis 写入组件 `.omni` 的 style 块
+- **每个组件 .omni 独立可编译**——所有依赖（token 值、recipe 样式）都在保存时展开进组件自己的 style 块，omnic 按现有流程编译
 
-### 6.3 关键设计决策
+### 6.3 Poiesis 实现优先级
 
-- **Recipe 类名前缀：** 内置常量映射 + kebab-case fallback。冲突检测 → 编译错误
-- **`@default` 缺失：** 编译错误——提示"请指定 variant 或添加 @default"
-- **`var()` 验证：** 编译时收集所有 token 名，检查 `var()` 引用是否存在 → warning
-- **`@mode` 覆盖不完整：** Warning——"token X 缺少 dark mode 覆盖"
-- **ThemeStore 演化：** 保留为 mode toggle（`signal mode + action toggle + data-theme`），删除颜色 getter
-- **动态 variant：** v1 不支持，用 `@if` + 静态 recipe 替代
+| 优先级 | 内容 | 涉及 |
+|--------|------|------|
+| P0 | StyleRegistry Store：class/variable CRUD | `store/index.ts`, `core/types/style.ts` |
+| P0 | 代码生成：recipe 展开 + token 展开 → 写入 .omni | `source-emitter.ts`, `collect-styles.ts` |
+| P1 | `@style-prop` 注释 round-trip（segment 结构保存） | `source-emitter.ts`, `parser.ts`, `style-parser.ts` |
+| P1 | ContextInspector 升级：Class 选择器 + Token Picker | `ContextInspector.tsx`, `StylesSection.tsx`, `TokenPicker.tsx` |
+| P2 | Preview 修复：注入 style 标签 + classRefs + dark mode | `OmniViewRenderer.tsx` |
+| P2 | TabType 扩展 + Token 编辑器 Tab | `design-page.ts`, `DesignPage.tsx`, `TokenEditor.tsx` |
+| P3 | Recipe 编辑器 Tab + Variant 矩阵 | `RecipeEditor.tsx`, `VariantMatrix.tsx` |
+| P4 | Dynamic recipe variant (`variant={signal}` → `@if` 展开) | `source-emitter.ts`, `collect-styles.ts` |
 
 ## 7. 已知风险
 
 | 风险 | 缓解 |
 |------|------|
-| CSS 特异性陷阱：组件 scoped 覆盖 recipe 类 | 文档说明；未来考虑 `@layer` |
-| `@media(prefers-color-scheme)` 与 `data-theme` 冲突 | 用 `:not([data-theme])` 守卫 |
+| Recipe 展开后类名与组件自有类名冲突 | Poiesis 保存时检测类名冲突，提示用户 |
 | 手动编辑 .omni 导致 `@style-prop` 不同步 | load-time recompile-and-compare 验证 |
 | `compileSegments()` 单段引号 bug | 用 `@style-prop` 绕过；单独修复 |
-| Recipe 类名冲突（两 recipe → 同前缀） | 内置映射表 + 检测 + 编译错误 |
+| Recipe 修改后需重新保存所有引用组件 | Poiesis 追踪 recipe→component 依赖，提示批量重新保存 |
+| 多组件使用同一 recipe，展开后代码量膨胀 | 单个组件 style 块通常 <100 行，可接受 |

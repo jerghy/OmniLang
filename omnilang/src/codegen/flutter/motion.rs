@@ -373,7 +373,10 @@ pub(crate) fn find_enter_motions(node: &ViewTree) -> Vec<String> {
 fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
     match node {
         ViewTree::Element(el) => {
-            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
                 if matches!(trigger.kind, TriggerKind::Enter) {
                     if let Some(ref name) = trigger.motion_ref {
                         if !result.contains(name) {

@@ -103,10 +103,22 @@ fn test_format_json_value() {
 
 #[test]
 fn test_binary_ops() {
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false), "+");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false), "===");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false), "&&");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false), "||");
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false),
+        "+"
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false),
+        "==="
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false),
+        "&&"
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false),
+        "||"
+    );
 }
 
 // ── format_expr_ir tests ─────────────────────────────

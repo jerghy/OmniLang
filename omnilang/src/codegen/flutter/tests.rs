@@ -52,11 +52,26 @@ fn test_prop_to_flutter_param_name() {
 
 #[test]
 fn test_binary_op_to_flutter() {
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false), "+");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false), "&&");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false), "||");
-    assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false), "!=");
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false),
+        "+"
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false),
+        "=="
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false),
+        "&&"
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false),
+        "||"
+    );
+    assert_eq!(
+        crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false),
+        "!="
+    );
 }
 
 #[test]

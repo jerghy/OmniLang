@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
             ..Default::default()
         };
 
-        while self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::Eof {
             let result = (|| -> Result<(), ParseError> {
                 match self.peek_kind() {
                     TokenKind::Component => {
@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
                         // Parse and discard module-level const declarations.
                         // const values (e.g., theme constants) are handled via imports.
                         self.advance();
-                        if self.peek_kind() == TokenKind::Dollar {
+                        if *self.peek_kind() == TokenKind::Dollar {
                             self.advance();
                             self.expect_ident("expected identifier after $")?;
                         } else {
@@ -157,12 +157,12 @@ impl<'a> Parser<'a> {
                         }
                         self.expect_token(TokenKind::Eq, "expected '='")?;
                         // Consume the value expression (literal or array)
-                        if self.peek_kind() == TokenKind::LBracket {
+                        if *self.peek_kind() == TokenKind::LBracket {
                             self.parse_expr()?;
                         } else {
                             self.advance();
                         }
-                        if self.peek_kind() == TokenKind::Semicolon {
+                        if *self.peek_kind() == TokenKind::Semicolon {
                             self.advance();
                         }
                     }

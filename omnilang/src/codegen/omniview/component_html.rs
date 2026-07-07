@@ -164,11 +164,10 @@ impl OmniViewGenerator {
                                         motion = r#ref,
                                     ));
                                 } else {
-                                    let prefixed =
-                                        format!("{}_{}", self.current_component, r#ref);
+                                    let prefixed = format!("{}_{}", self.current_component, r#ref);
                                     let event_obj = emit_event_object(
-                                        &handler.event_data(),
-                                        &handler.used_fields(),
+                                        handler.event_data(),
+                                        handler.used_fields(),
                                         "e",
                                     );
                                     self.js.push_str(&format!(
@@ -197,8 +196,8 @@ impl OmniViewGenerator {
                                 }
                                 self.js.push_str("}\n");
                                 let event_obj = emit_event_object(
-                                    &handler.event_data(),
-                                    &handler.used_fields(),
+                                    handler.event_data(),
+                                    handler.used_fields(),
                                     "e",
                                 );
                                 self.js.push_str(&format!(

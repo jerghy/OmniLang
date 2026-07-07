@@ -128,7 +128,9 @@ fn do_compile(
 
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let output = match cache {
-        Some(c) => omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, c),
+        Some(c) => {
+            omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, c)
+        }
         None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false),
     };
     CompileResult {
@@ -228,8 +230,15 @@ fn compile_project(
         if let Ok(cache) = state.file_list_cache.lock() {
             if let Some(ref cached) = *cache {
                 if cached.root_mtime == root_mtime {
-                    let mut compile_cache = state.compile_cache.lock().unwrap_or_else(|e| e.into_inner());
-                    return do_compile(cached.sources.clone(), codegen_target, Some(&mut *compile_cache));
+                    let mut compile_cache = state
+                        .compile_cache
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    return do_compile(
+                        cached.sources.clone(),
+                        codegen_target,
+                        Some(&mut *compile_cache),
+                    );
                 }
             }
         }
@@ -337,7 +346,10 @@ fn compile_project(
         return CompileResult::from_errors(all_errors, "E_IO");
     }
 
-    let mut compile_cache = state.compile_cache.lock().unwrap_or_else(|e| e.into_inner());
+    let mut compile_cache = state
+        .compile_cache
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     do_compile(sources, codegen_target, Some(&mut *compile_cache))
 }
 
@@ -460,22 +472,67 @@ fn project_export(
         };
     }
 
-    // Write compiled files to output directory
-    let out_path = std::path::Path::new(&output_dir);
-    if let Err(e) = std::fs::create_dir_all(out_path) {
+    // ── Path traversal protection ──
+    // Canonicalize the project directory (compile succeeded, so it exists)
+    let project_canonical = match std::path::Path::new(&project_path).canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            return ExportResult {
+                success: false,
+                output_dir: output_dir.clone(),
+                file_count: 0,
+                errors: vec![format!("Cannot resolve project path: {}", e)],
+            };
+        }
+    };
+
+    // The output directory is relative to the project directory
+    let out_absolute = project_canonical.join(&output_dir);
+
+    // Create the output directory before canonicalizing it
+    if let Err(e) = std::fs::create_dir_all(&out_absolute) {
         return ExportResult {
             success: false,
-            output_dir,
+            output_dir: output_dir.clone(),
             file_count: 0,
             errors: vec![format!("Cannot create output directory: {}", e)],
         };
     }
 
+    // Canonicalize to resolve any symlinks or path components
+    let out_canonical = match out_absolute.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            return ExportResult {
+                success: false,
+                output_dir: output_dir.clone(),
+                file_count: 0,
+                errors: vec![format!("Cannot resolve output directory: {}", e)],
+            };
+        }
+    };
+
+    // Verify the output directory stays within the project directory
+    if !out_canonical.starts_with(&project_canonical) {
+        return ExportResult {
+            success: false,
+            output_dir: output_dir.clone(),
+            file_count: 0,
+            errors: vec!["Output directory is outside the project directory".into()],
+        };
+    }
+
+    // Write compiled files to output directory
     let mut written = 0u32;
     let mut write_errors: Vec<String> = Vec::new();
 
     for (filename, content) in &compile_result.files {
-        let file_path = out_path.join(filename);
+        // Validate each filename for path traversal
+        if filename.contains("..") || std::path::Path::new(filename).is_absolute() {
+            write_errors.push(format!("Invalid filename in compile result: {}", filename));
+            continue;
+        }
+        let file_path = out_canonical.join(filename);
         if let Some(parent) = file_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 write_errors.push(format!("Cannot create directory {:?}: {}", parent, e));
@@ -581,7 +638,11 @@ fn save_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, 
 fn close_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
     *state.project_dir.lock().map_err(|e| e.to_string())? = None;
     *state.file_list_cache.lock().map_err(|e| e.to_string())? = None;
-    state.compile_cache.lock().map_err(|e| e.to_string())?.clear();
+    state
+        .compile_cache
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clear();
     *state.store_snapshot.lock().map_err(|e| e.to_string())? = String::new();
     *state.pid_index.lock().map_err(|e| e.to_string())? = "{}".to_string();
     Ok(serde_json::json!({"success": true}))

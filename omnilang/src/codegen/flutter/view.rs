@@ -76,9 +76,7 @@ fn format_element(
                 EventHandlerIR::FnRef { r#ref, .. } => {
                     format!("() {{ {}(); }}", r#ref)
                 }
-                EventHandlerIR::InlineFn { body, .. } => {
-                    format_inline_handler_flutter(body)
-                }
+                EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body),
                 EventHandlerIR::StoreAction { r#ref, .. } => {
                     let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
                     format!("() {{ {}(); }}", action_fn)
@@ -158,11 +156,13 @@ fn format_element(
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
         let body = match handler {
-            EventHandlerIR::FnRef { r#ref, event_data, .. } => {
+            EventHandlerIR::FnRef {
+                r#ref, event_data, ..
+            } => {
                 if event_data.is_some() {
                     let event_obj = emit_event_object_flutter(
-                        &handler.event_data(),
-                        &handler.used_fields(),
+                        handler.event_data(),
+                        handler.used_fields(),
                         "event",
                     );
                     format!("(event) {{ {}({}); }}", r#ref, event_obj)
@@ -170,11 +170,13 @@ fn format_element(
                     format!("() {{ {}(); }}", r#ref)
                 }
             }
-            EventHandlerIR::InlineFn { body, event_data, .. } => {
+            EventHandlerIR::InlineFn {
+                body, event_data, ..
+            } => {
                 if event_data.is_some() {
                     let _event_obj = emit_event_object_flutter(
-                        &handler.event_data(),
-                        &handler.used_fields(),
+                        handler.event_data(),
+                        handler.used_fields(),
                         "e",
                     );
                     let mut hw = CodeWriter::new();
@@ -231,11 +233,22 @@ fn format_element(
     };
 
     // Wrap with motion animation widgets if the element has triggers
-    let has_inview = el.motion_behavior().and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref())).is_some();
+    let has_inview = el
+        .motion_behavior()
+        .and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref()))
+        .is_some();
     let has_scroll = el.scroll_behavior().is_some();
-    let mut result = if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty())
-        || el.motion_behavior().and_then(|m| m.driven_by.as_ref()).is_some()
-        || el.motion_behavior().and_then(|m| m.states.as_ref()).is_some()
+    let mut result = if el
+        .motion_behavior()
+        .is_some_and(|m| !m.triggers.is_empty())
+        || el
+            .motion_behavior()
+            .and_then(|m| m.driven_by.as_ref())
+            .is_some()
+        || el
+            .motion_behavior()
+            .and_then(|m| m.states.as_ref())
+            .is_some()
         || has_inview
         || has_scroll
     {
@@ -257,24 +270,43 @@ fn format_element(
         }
 
         // Standard motion triggers (enter, hover, press, etc.)
-        if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty()) {
-            result = wrap_with_motion_widgets(result, el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers), motions);
+        if el
+            .motion_behavior()
+            .is_some_and(|m| !m.triggers.is_empty())
+        {
+            result = wrap_with_motion_widgets(
+                result,
+                el.motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers),
+                motions,
+            );
         }
 
         // Handle @in-view trigger: wrap with _OmniInViewWidget
         if has_inview {
-            let threshold = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
+            let threshold = match el
+                .motion_behavior()
+                .and_then(|m| m.in_view_threshold.as_ref())
+            {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
-            let once = if el.motion_behavior().and_then(|m| m.in_view_once.as_ref()).is_some() {
+            let once = if el
+                .motion_behavior()
+                .and_then(|m| m.in_view_once.as_ref())
+                .is_some()
+            {
                 "true"
             } else {
                 "false"
             };
             let motion_ref = el
                 .motion_behavior()
-                .and_then(|m| m.triggers.iter().find(|t| matches!(t.kind, TriggerKind::InView)))
+                .and_then(|m| {
+                    m.triggers
+                        .iter()
+                        .find(|t| matches!(t.kind, TriggerKind::InView))
+                })
                 .and_then(|t| t.motion_ref.as_ref());
 
             if let Some(motion_name) = motion_ref {
@@ -288,15 +320,25 @@ fn format_element(
 
         // Handle @scroll trigger: wrap with _OmniScrollDrivenWidget
         if has_scroll {
-            let scroll_start = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
-            let scroll_end = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+            let scroll_start = el
+                .scroll_behavior()
+                .and_then(|s| s.start.as_deref())
+                .unwrap_or("top 80%");
+            let scroll_end = el
+                .scroll_behavior()
+                .and_then(|s| s.end.as_deref())
+                .unwrap_or("bottom 20%");
             let scrub = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
             let motion_ref = el
                 .motion_behavior()
-                .and_then(|m| m.triggers.iter().find(|t| matches!(t.kind, TriggerKind::Scroll)))
+                .and_then(|m| {
+                    m.triggers
+                        .iter()
+                        .find(|t| matches!(t.kind, TriggerKind::Scroll))
+                })
                 .and_then(|t| t.motion_ref.as_ref());
 
             if let Some(motion_name) = motion_ref {
@@ -309,14 +351,19 @@ fn format_element(
         }
 
         // Handle @drag-horizontal / @drag-vertical trigger: wrap with _OmniDragWidget
-        let has_drag = el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
-            matches!(
-                t.kind,
-                TriggerKind::DragHorizontal | TriggerKind::DragVertical
-            )
-        }));
+        let has_drag = el.motion_behavior().is_some_and(|m| {
+            m.triggers.iter().any(|t| {
+                matches!(
+                    t.kind,
+                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                )
+            })
+        });
         if has_drag {
-            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
                 match trigger.kind {
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         if let Some(motion_name) = trigger.motion_ref.as_ref() {
@@ -327,15 +374,20 @@ fn format_element(
                                 "Axis.vertical"
                             };
                             let ctrl_name = format!("_{}Controller", motion_name);
-                            let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
-                            let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                                Some(expr) => format_expr_ir_flutter(expr),
-                                None => "0.0".to_string(),
-                            };
-                            let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                                Some(expr) => format_expr_ir_flutter(expr),
-                                None => "0.0".to_string(),
-                            };
+                            let constraints_str = el
+                                .drag_behavior()
+                                .and_then(|d| d.constraints.as_deref())
+                                .unwrap_or("");
+                            let elastic_val =
+                                match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
+                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    None => "0.0".to_string(),
+                                };
+                            let threshold_val =
+                                match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
+                                    Some(expr) => format_expr_ir_flutter(expr),
+                                    None => "0.0".to_string(),
+                                };
                             result = format!(
                                 "_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  onDragStart: () {{ }},\n  onDragProgress: (p) {{ {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse(); }} }},\n  child: {},\n)",
                                 axis_type, constraints_str, elastic_val, threshold_val, ctrl_name, ctrl_name, ctrl_name, result
@@ -467,5 +519,5 @@ fn format_inline_handler_flutter(body: &BlockIR) -> String {
         indent: "    ",
         use_writer: true,
     };
-    build_inline_handler(body, &config, |w, s| generate_statement_flutter(w, s))
+    build_inline_handler(body, &config, generate_statement_flutter)
 }

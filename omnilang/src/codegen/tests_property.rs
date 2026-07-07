@@ -10,27 +10,61 @@ fn binary_op_to_str_all_variants_non_empty() {
     // Verify every BinaryOpIR variant produces a non-empty string
     use BinaryOpIR::*;
     for op in &[
-        Add, Sub, Mul, Div, Mod, Eq, Neq, Lt, Gt, LtEq, GtEq, And, Or, NullishCoalesce,
-        Assign, AddAssign, SubAssign, MulAssign, DivAssign, ModAssign,
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Mod,
+        Eq,
+        Neq,
+        Lt,
+        Gt,
+        LtEq,
+        GtEq,
+        And,
+        Or,
+        NullishCoalesce,
+        Assign,
+        AddAssign,
+        SubAssign,
+        MulAssign,
+        DivAssign,
+        ModAssign,
     ] {
         let result = binary_op_to_str(op, false, false);
         assert!(!result.is_empty(), "{op:?} produced empty string");
         let result_strict = binary_op_to_str(op, true, false);
-        assert!(!result_strict.is_empty(), "{op:?} (strict) produced empty string");
+        assert!(
+            !result_strict.is_empty(),
+            "{op:?} (strict) produced empty string"
+        );
         let result_textual = binary_op_to_str(op, false, true);
-        assert!(!result_textual.is_empty(), "{op:?} (textual) produced empty string");
+        assert!(
+            !result_textual.is_empty(),
+            "{op:?} (textual) produced empty string"
+        );
     }
 }
 
 #[test]
 fn binary_op_to_str_arithmetic() {
     use BinaryOpIR::*;
-    for (op, expected) in &[
-        (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
-    ] {
-        assert_eq!(binary_op_to_str(op, false, false), *expected, "arithmetic op {op:?}");
-        assert_eq!(binary_op_to_str(op, true, false), *expected, "arithmetic op {op:?} (strict)");
-        assert_eq!(binary_op_to_str(op, false, true), *expected, "arithmetic op {op:?} (textual)");
+    for (op, expected) in &[(Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%")] {
+        assert_eq!(
+            binary_op_to_str(op, false, false),
+            *expected,
+            "arithmetic op {op:?}"
+        );
+        assert_eq!(
+            binary_op_to_str(op, true, false),
+            *expected,
+            "arithmetic op {op:?} (strict)"
+        );
+        assert_eq!(
+            binary_op_to_str(op, false, true),
+            *expected,
+            "arithmetic op {op:?} (textual)"
+        );
     }
 }
 

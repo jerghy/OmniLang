@@ -38,7 +38,7 @@ impl<'a> Parser<'a> {
     pub(super) fn peek_is_boolean_attr_keyword(&self) -> bool {
         let name: Option<String> = match self.peek_kind() {
             TokenKind::Ident(s) => Some(s.clone()),
-            ref kind => keyword_as_ident_name(kind).map(|s| s.to_string()),
+            kind => keyword_as_ident_name(kind).map(|s| s.to_string()),
         };
         matches!(
             name.as_deref(),
@@ -72,10 +72,12 @@ impl<'a> Parser<'a> {
             name = format!("{}-{}", name, next);
         }
 
-        match self.peek_kind() {
+        let kind = self.peek_kind().clone();
+        match kind {
             TokenKind::Eq => {
                 self.advance();
-                match self.peek_kind() {
+                let kind = self.peek_kind().clone();
+                match kind {
                     TokenKind::StringLiteral(_) => {
                         let t = self.advance();
                         if let TokenKind::StringLiteral(s) = &t.kind {
@@ -217,7 +219,7 @@ impl<'a> Parser<'a> {
                                 // Also accept IntLiteral after '-' (CSS allows numbers after hyphens: -0, -1, etc.)
                                 while self.at(&TokenKind::Minus) {
                                     self.advance(); // consume '-'
-                                    let next: String = match self.peek_kind() {
+                                    let next: String = match self.peek_kind().clone() {
                                         TokenKind::Ident(_) => self.expect_ident("")?,
                                         TokenKind::IntLiteral(n) => {
                                             self.advance();
@@ -246,7 +248,8 @@ impl<'a> Parser<'a> {
                                     let mut class_name = name.to_string();
                                     while self.at(&TokenKind::Minus) {
                                         self.advance(); // consume '-'
-                                        let next: String = match self.peek_kind() {
+                                        let kind = self.peek_kind().clone();
+                                        let next: String = match kind {
                                             TokenKind::Ident(_) => self.expect_ident("")?,
                                             TokenKind::IntLiteral(n) => {
                                                 self.advance();
@@ -283,7 +286,7 @@ impl<'a> Parser<'a> {
                             // Peek — is the next token another class name?
                             let next_is_class = match self.peek_kind() {
                                 TokenKind::Ident(_) => true,
-                                ref kind => keyword_as_ident_name(kind).is_some(),
+                                kind => keyword_as_ident_name(kind).is_some(),
                             };
                             if !next_is_class {
                                 break;
@@ -386,7 +389,8 @@ impl<'a> Parser<'a> {
         // Parse ={signal_path}
         let signal_path = if self.at(&TokenKind::Eq) {
             self.advance(); // '='
-            match self.peek_kind() {
+            let kind = self.peek_kind().clone();
+            match kind {
                 TokenKind::LBrace => {
                     self.advance();
                     let path = self.expect_ident("expected signal path")?;

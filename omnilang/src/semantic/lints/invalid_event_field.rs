@@ -47,9 +47,7 @@ fn check_view_invalid_fields(
     match tree {
         ViewTree::Element(el) => {
             for handler in el.events.values() {
-                if let (Some(kind), Some(used)) =
-                    (handler.event_data(), handler.used_fields())
-                {
+                if let (Some(kind), Some(used)) = (handler.event_data(), handler.used_fields()) {
                     let schema = event_data_schema(kind);
                     let valid: HashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
                     for field in used {

@@ -299,8 +299,9 @@ impl OmniViewGenerator {
             self.js.push_str("              }\n");
             self.js.push_str("            });\n");
             self.js.push_str("          }\n");
-            self.js
-                .push_str("          // Re-evaluate text bindings from element-scoped state (pre-compiled)\n");
+            self.js.push_str(
+                "          // Re-evaluate text bindings from element-scoped state (pre-compiled)\n",
+            );
             if let Some(ref rebind_fn) = self.for_rebind_fn {
                 self.js.push_str(&format!(
                     "          if (typeof {} === 'function') {}(_forComp);\n",
@@ -340,10 +341,8 @@ impl OmniViewGenerator {
                     "  // Pre-compiled rebind function: {}\n",
                     rebind_fn
                 ));
-                self.js.push_str(&format!(
-                    "  function {}(comp) {{\n",
-                    rebind_fn
-                ));
+                self.js
+                    .push_str(&format!("  function {}(comp) {{\n", rebind_fn));
                 for (nid, js_expr) in &self.for_text_bindings {
                     self.js.push_str(&format!(
                         "    var _el = comp.querySelector('[data-nid=\"{}\"]');\n",

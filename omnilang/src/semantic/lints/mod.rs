@@ -24,8 +24,8 @@ mod unused_import;
 use std::collections::HashMap;
 
 use crate::ir::IRProgram;
-use std::sync::Arc;
 use crate::parser::ast::Program;
+use std::sync::Arc;
 
 /// Severity of a lint diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,8 +115,8 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::IRProgram;
-use std::sync::Arc;
     use crate::parser::ast::Program;
+    use std::sync::Arc;
 
     use super::*;
 

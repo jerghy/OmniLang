@@ -16,7 +16,7 @@ impl<'a> Parser<'a> {
         let mut getters = Vec::new();
         let mut actions = Vec::new();
 
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             match self.peek_kind() {
                 TokenKind::Signal => signals.push(self.parse_signal_decl()?),
                 TokenKind::Getter => getters.push(self.parse_getter_decl()?),
@@ -54,7 +54,7 @@ impl<'a> Parser<'a> {
         let type_ann = self.parse_type_annotation()?;
         self.expect_token(TokenKind::Eq, "expected '='")?;
         let body = self.parse_expr()?;
-        if self.peek_kind() == TokenKind::Semicolon {
+        if *self.peek_kind() == TokenKind::Semicolon {
             self.advance();
         }
         Ok(GetterDecl {
@@ -72,11 +72,11 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut categories = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let cat_name = self.expect_ident("expected category name")?;
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
             let mut values = Vec::new();
-            while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                 let key = self.expect_ident("expected key")?;
                 self.expect_token(TokenKind::Colon, "expected ':'")?;
                 let val_t = self.advance();
@@ -91,7 +91,7 @@ impl<'a> Parser<'a> {
                     }
                 };
                 values.push((key, val));
-                if self.peek_kind() == TokenKind::Comma {
+                if *self.peek_kind() == TokenKind::Comma {
                     self.advance();
                 }
             }

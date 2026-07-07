@@ -33,11 +33,26 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_dioxus() {
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false), "+");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false), "==");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false), "&&");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false), "||");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false), "!=");
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Add, false, false),
+            "+"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, false, false),
+            "=="
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::And, false, false),
+            "&&"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Or, false, false),
+            "||"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, false, false),
+            "!="
+        );
     }
 
     #[test]

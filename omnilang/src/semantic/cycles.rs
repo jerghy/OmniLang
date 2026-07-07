@@ -3,7 +3,7 @@
 //! Detects circular imports across files. Cycles are a compile error.
 
 use crate::parser::ast::{ImportStmt, Program};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Detect circular imports using Tarjan's strongly connected components algorithm.
@@ -63,7 +63,7 @@ pub fn detect_cycles(
     struct TarjanState {
         index: usize,
         stack: Vec<usize>,
-        on_stack: HashSet<usize>,
+        on_stack: Vec<bool>,
         indices: Vec<Option<usize>>,
         lowlinks: Vec<usize>,
         cycles: Vec<Vec<String>>,
@@ -72,7 +72,7 @@ pub fn detect_cycles(
     let mut state = TarjanState {
         index: 0,
         stack: Vec::new(),
-        on_stack: HashSet::new(),
+        on_stack: vec![false; n],
         indices: vec![None; n],
         lowlinks: vec![0; n],
         cycles: Vec::new(),
@@ -88,13 +88,13 @@ pub fn detect_cycles(
         state.lowlinks[v] = state.index;
         state.index += 1;
         state.stack.push(v);
-        state.on_stack.insert(v);
+        state.on_stack[v] = true;
 
         for &w in &graph[v] {
             if state.indices[w].is_none() {
                 strongconnect(w, graph, file_paths, state);
                 state.lowlinks[v] = state.lowlinks[v].min(state.lowlinks[w]);
-            } else if state.on_stack.contains(&w) {
+            } else if state.on_stack[w] {
                 let w_idx = match state.indices[w] {
                     Some(idx) => idx,
                     None => continue,
@@ -109,12 +109,8 @@ pub fn detect_cycles(
         };
         if state.lowlinks[v] == v_idx {
             let mut scc = Vec::new();
-            loop {
-                let w = match state.stack.pop() {
-                    Some(w) => w,
-                    None => break,
-                };
-                state.on_stack.remove(&w);
+            while let Some(w) = state.stack.pop() {
+                state.on_stack[w] = false;
                 scc.push(file_paths[w].to_string());
                 if w == v {
                     break;
@@ -176,8 +172,8 @@ mod tests {
         let b = make_program(vec![]);
 
         let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
-programs.insert("/proj/a.omni".into(), Arc::new(a));
-programs.insert("/proj/b.omni".into(), Arc::new(b));
+        programs.insert("/proj/a.omni".into(), Arc::new(a));
+        programs.insert("/proj/b.omni".into(), Arc::new(b));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
@@ -200,8 +196,8 @@ programs.insert("/proj/b.omni".into(), Arc::new(b));
         })]);
 
         let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
-programs.insert("/proj/a.omni".into(), Arc::new(a));
-programs.insert("/proj/b.omni".into(), Arc::new(b));
+        programs.insert("/proj/a.omni".into(), Arc::new(a));
+        programs.insert("/proj/b.omni".into(), Arc::new(b));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
@@ -231,9 +227,9 @@ programs.insert("/proj/b.omni".into(), Arc::new(b));
         })]);
 
         let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
-programs.insert("/proj/a.omni".into(), Arc::new(a));
-programs.insert("/proj/b.omni".into(), Arc::new(b));
-programs.insert("/proj/c.omni".into(), Arc::new(c));
+        programs.insert("/proj/a.omni".into(), Arc::new(a));
+        programs.insert("/proj/b.omni".into(), Arc::new(b));
+        programs.insert("/proj/c.omni".into(), Arc::new(c));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());

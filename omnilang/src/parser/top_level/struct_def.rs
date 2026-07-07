@@ -9,7 +9,7 @@ impl<'a> Parser<'a> {
     pub fn parse_struct_def(&mut self, visibility: Visibility) -> Result<StructDef, ParseError> {
         let start = self.peek_span();
         self.advance(); // 'struct'
-        let is_nominal = if self.peek_kind() == TokenKind::Nominal {
+        let is_nominal = if *self.peek_kind() == TokenKind::Nominal {
             self.advance();
             true
         } else {
@@ -19,7 +19,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
         let mut fields = Vec::new();
-        while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             let field_name = self.expect_ident("expected field name")?;
             self.expect_token(TokenKind::Colon, "expected ':'")?;
             let type_ann = self.parse_type_annotation()?;
@@ -27,7 +27,7 @@ impl<'a> Parser<'a> {
                 name: field_name,
                 type_ann,
             });
-            if self.peek_kind() == TokenKind::Comma {
+            if *self.peek_kind() == TokenKind::Comma {
                 self.advance();
             }
         }
@@ -59,10 +59,10 @@ impl<'a> Parser<'a> {
         // Variant list: Variant1 { fields } | Variant2 { fields }
         loop {
             let variant_name = self.expect_ident("expected variant name")?;
-            let fields = if self.peek_kind() == TokenKind::LBrace {
+            let fields = if *self.peek_kind() == TokenKind::LBrace {
                 self.advance();
                 let mut f = Vec::new();
-                while self.peek_kind() != TokenKind::RBrace && self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
                     let fname = self.expect_ident("expected field name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let ft = self.parse_type_annotation()?;
@@ -70,7 +70,7 @@ impl<'a> Parser<'a> {
                         name: fname,
                         type_ann: ft,
                     });
-                    if self.peek_kind() == TokenKind::Comma {
+                    if *self.peek_kind() == TokenKind::Comma {
                         self.advance();
                     }
                 }
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
                 name: variant_name,
                 fields,
             });
-            if self.peek_kind() != TokenKind::Pipe {
+            if *self.peek_kind() != TokenKind::Pipe {
                 break;
             }
             self.advance(); // '|'

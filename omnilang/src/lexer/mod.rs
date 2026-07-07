@@ -124,13 +124,7 @@ impl<'a> Lexer<'a> {
     /// Advance without checking bounds. Only safe when `peek_byte()` has confirmed
     /// a byte is available.
     fn advance_unchecked(&mut self) -> u8 {
-        match self.advance() {
-            Some(b) => b,
-            None => {
-                // This path should never be reached when peek confirmed availability
-                b'\0'
-            }
-        }
+        self.advance().unwrap_or(b'\0')
     }
 
     /// Advance by one full character (may be multiple bytes for non-ASCII).
@@ -146,10 +140,7 @@ impl<'a> Lexer<'a> {
 
     /// Advance by one full character, unbounded.
     fn advance_char_unchecked(&mut self) -> char {
-        match self.advance_char() {
-            Some(c) => c,
-            None => '\0',
-        }
+        self.advance_char().unwrap_or('\0')
     }
 
     // ── Token dispatch ─────────────────────────────────────────────────────
@@ -651,7 +642,8 @@ impl<'a> Lexer<'a> {
         while self.peek_byte().is_some_and(|b| b.is_ascii_digit()) {
             num.push(self.advance_unchecked() as char);
         }
-        if self.peek_byte() == Some(b'.') && self.peek_n_byte(1).is_some_and(|b| b.is_ascii_digit()) {
+        if self.peek_byte() == Some(b'.') && self.peek_n_byte(1).is_some_and(|b| b.is_ascii_digit())
+        {
             is_float = true;
             num.push(self.advance_unchecked() as char);
             while self.peek_byte().is_some_and(|b| b.is_ascii_digit()) {
@@ -767,7 +759,11 @@ mod tests {
         let kinds = tokenize_all(source);
         // Strip trailing Eof
         let kinds: Vec<&TokenKind> = kinds.iter().filter(|k| **k != TokenKind::Eof).collect();
-        assert_eq!(kinds.len(), expected.len(), "token count mismatch for {source:?}\ngot:      {kinds:?}\nexpected: {expected:?}");
+        assert_eq!(
+            kinds.len(),
+            expected.len(),
+            "token count mismatch for {source:?}\ngot:      {kinds:?}\nexpected: {expected:?}"
+        );
         for (i, (got, exp)) in kinds.iter().zip(expected.iter()).enumerate() {
             assert_eq!(*got, exp, "token {i} mismatch for {source:?}");
         }
@@ -776,276 +772,538 @@ mod tests {
     // ── Operators & Punctuation ──────────────────────────
 
     #[test]
-    fn test_op_plus() { assert_token("+", TokenKind::Plus); }
+    fn test_op_plus() {
+        assert_token("+", TokenKind::Plus);
+    }
     #[test]
-    fn test_op_minus() { assert_token("-", TokenKind::Minus); }
+    fn test_op_minus() {
+        assert_token("-", TokenKind::Minus);
+    }
     #[test]
-    fn test_op_star() { assert_token("*", TokenKind::Star); }
+    fn test_op_star() {
+        assert_token("*", TokenKind::Star);
+    }
     #[test]
-    fn test_op_slash() { assert_token("/", TokenKind::Slash); }
+    fn test_op_slash() {
+        assert_token("/", TokenKind::Slash);
+    }
     #[test]
-    fn test_op_percent() { assert_token("%", TokenKind::Percent); }
+    fn test_op_percent() {
+        assert_token("%", TokenKind::Percent);
+    }
     #[test]
-    fn test_op_eq() { assert_token("=", TokenKind::Eq); }
+    fn test_op_eq() {
+        assert_token("=", TokenKind::Eq);
+    }
     #[test]
-    fn test_op_eq_eq() { assert_token("==", TokenKind::EqEq); }
+    fn test_op_eq_eq() {
+        assert_token("==", TokenKind::EqEq);
+    }
     #[test]
-    fn test_op_not_eq() { assert_token("!=", TokenKind::NotEq); }
+    fn test_op_not_eq() {
+        assert_token("!=", TokenKind::NotEq);
+    }
     #[test]
-    fn test_op_lt() { assert_token("<", TokenKind::Lt); }
+    fn test_op_lt() {
+        assert_token("<", TokenKind::Lt);
+    }
     #[test]
-    fn test_op_gt() { assert_token(">", TokenKind::Gt); }
+    fn test_op_gt() {
+        assert_token(">", TokenKind::Gt);
+    }
     #[test]
-    fn test_op_lteq() { assert_token("<=", TokenKind::LtEq); }
+    fn test_op_lteq() {
+        assert_token("<=", TokenKind::LtEq);
+    }
     #[test]
-    fn test_op_gteq() { assert_token(">=", TokenKind::GtEq); }
+    fn test_op_gteq() {
+        assert_token(">=", TokenKind::GtEq);
+    }
     #[test]
-    fn test_op_andand() { assert_token("&&", TokenKind::AndAnd); }
+    fn test_op_andand() {
+        assert_token("&&", TokenKind::AndAnd);
+    }
     #[test]
-    fn test_op_oror() { assert_token("||", TokenKind::OrOr); }
+    fn test_op_oror() {
+        assert_token("||", TokenKind::OrOr);
+    }
     #[test]
-    fn test_op_not() { assert_token("!", TokenKind::Not); }
+    fn test_op_not() {
+        assert_token("!", TokenKind::Not);
+    }
     #[test]
-    fn test_op_arrow() { assert_token("->", TokenKind::Arrow); }
+    fn test_op_arrow() {
+        assert_token("->", TokenKind::Arrow);
+    }
     #[test]
-    fn test_op_fat_arrow() { assert_token("=>", TokenKind::FatArrow); }
+    fn test_op_fat_arrow() {
+        assert_token("=>", TokenKind::FatArrow);
+    }
     #[test]
-    fn test_op_dot() { assert_token(".", TokenKind::Dot); }
+    fn test_op_dot() {
+        assert_token(".", TokenKind::Dot);
+    }
     #[test]
-    fn test_op_dotdotdot() { assert_token("...", TokenKind::DotDotDot); }
+    fn test_op_dotdotdot() {
+        assert_token("...", TokenKind::DotDotDot);
+    }
     #[test]
-    fn test_op_question_mark() { assert_token("?", TokenKind::QuestionMark); }
+    fn test_op_question_mark() {
+        assert_token("?", TokenKind::QuestionMark);
+    }
     #[test]
-    fn test_op_question_question() { assert_token("??", TokenKind::QuestionQuestion); }
+    fn test_op_question_question() {
+        assert_token("??", TokenKind::QuestionQuestion);
+    }
     #[test]
-    fn test_op_question_dot() { assert_token("?.", TokenKind::QuestionDot); }
+    fn test_op_question_dot() {
+        assert_token("?.", TokenKind::QuestionDot);
+    }
     #[test]
-    fn test_op_plus_eq() { assert_token("+=", TokenKind::PlusEq); }
+    fn test_op_plus_eq() {
+        assert_token("+=", TokenKind::PlusEq);
+    }
     #[test]
-    fn test_op_minus_eq() { assert_token("-=", TokenKind::MinusEq); }
+    fn test_op_minus_eq() {
+        assert_token("-=", TokenKind::MinusEq);
+    }
     #[test]
-    fn test_op_star_eq() { assert_token("*=", TokenKind::StarEq); }
+    fn test_op_star_eq() {
+        assert_token("*=", TokenKind::StarEq);
+    }
     #[test]
-    fn test_op_slash_eq() { assert_token("/=", TokenKind::SlashEq); }
+    fn test_op_slash_eq() {
+        assert_token("/=", TokenKind::SlashEq);
+    }
     #[test]
-    fn test_op_percent_eq() { assert_token("%=", TokenKind::PercentEq); }
+    fn test_op_percent_eq() {
+        assert_token("%=", TokenKind::PercentEq);
+    }
     #[test]
-    fn test_op_pipe() { assert_token("|", TokenKind::Pipe); }
+    fn test_op_pipe() {
+        assert_token("|", TokenKind::Pipe);
+    }
     #[test]
-    fn test_op_dollar() { assert_token("$", TokenKind::Dollar); }
+    fn test_op_dollar() {
+        assert_token("$", TokenKind::Dollar);
+    }
     #[test]
-    fn test_op_hash() { assert_token("#", TokenKind::Hash); }
+    fn test_op_hash() {
+        assert_token("#", TokenKind::Hash);
+    }
     #[test]
-    fn test_op_lparen() { assert_token("(", TokenKind::LParen); }
+    fn test_op_lparen() {
+        assert_token("(", TokenKind::LParen);
+    }
     #[test]
-    fn test_op_rparen() { assert_token(")", TokenKind::RParen); }
+    fn test_op_rparen() {
+        assert_token(")", TokenKind::RParen);
+    }
     #[test]
-    fn test_op_lbrace() { assert_token("{", TokenKind::LBrace); }
+    fn test_op_lbrace() {
+        assert_token("{", TokenKind::LBrace);
+    }
     #[test]
-    fn test_op_rbrace() { assert_token("}", TokenKind::RBrace); }
+    fn test_op_rbrace() {
+        assert_token("}", TokenKind::RBrace);
+    }
     #[test]
-    fn test_op_lbracket() { assert_token("[", TokenKind::LBracket); }
+    fn test_op_lbracket() {
+        assert_token("[", TokenKind::LBracket);
+    }
     #[test]
-    fn test_op_rbracket() { assert_token("]", TokenKind::RBracket); }
+    fn test_op_rbracket() {
+        assert_token("]", TokenKind::RBracket);
+    }
     #[test]
-    fn test_op_semicolon() { assert_token(";", TokenKind::Semicolon); }
+    fn test_op_semicolon() {
+        assert_token(";", TokenKind::Semicolon);
+    }
     #[test]
-    fn test_op_comma() { assert_token(",", TokenKind::Comma); }
+    fn test_op_comma() {
+        assert_token(",", TokenKind::Comma);
+    }
     #[test]
-    fn test_op_colon() { assert_token(":", TokenKind::Colon); }
+    fn test_op_colon() {
+        assert_token(":", TokenKind::Colon);
+    }
     #[test]
-    fn test_op_at() { assert_token("@", TokenKind::Ident("@".into())); }
+    fn test_op_at() {
+        assert_token("@", TokenKind::Ident("@".into()));
+    }
 
     // ── Keywords (omnilang) ──────────────────────────────
 
     #[test]
-    fn test_keyword_fn() { assert_token("fn", TokenKind::Fn); }
+    fn test_keyword_fn() {
+        assert_token("fn", TokenKind::Fn);
+    }
     #[test]
-    fn test_keyword_const() { assert_token("const", TokenKind::Const); }
+    fn test_keyword_const() {
+        assert_token("const", TokenKind::Const);
+    }
     #[test]
-    fn test_keyword_let() { assert_token("let", TokenKind::Let); }
+    fn test_keyword_let() {
+        assert_token("let", TokenKind::Let);
+    }
     #[test]
-    fn test_keyword_mut() { assert_token("mut", TokenKind::Mut); }
+    fn test_keyword_mut() {
+        assert_token("mut", TokenKind::Mut);
+    }
     #[test]
-    fn test_keyword_if() { assert_token("if", TokenKind::If); }
+    fn test_keyword_if() {
+        assert_token("if", TokenKind::If);
+    }
     #[test]
-    fn test_keyword_else() { assert_token("else", TokenKind::Else); }
+    fn test_keyword_else() {
+        assert_token("else", TokenKind::Else);
+    }
     #[test]
-    fn test_keyword_while() { assert_token("while", TokenKind::While); }
+    fn test_keyword_while() {
+        assert_token("while", TokenKind::While);
+    }
     #[test]
-    fn test_keyword_for() { assert_token("for", TokenKind::For); }
+    fn test_keyword_for() {
+        assert_token("for", TokenKind::For);
+    }
     #[test]
-    fn test_keyword_in() { assert_token("in", TokenKind::In); }
+    fn test_keyword_in() {
+        assert_token("in", TokenKind::In);
+    }
     #[test]
-    fn test_keyword_return() { assert_token("return", TokenKind::Return); }
+    fn test_keyword_return() {
+        assert_token("return", TokenKind::Return);
+    }
     #[test]
-    fn test_keyword_break() { assert_token("break", TokenKind::Break); }
+    fn test_keyword_break() {
+        assert_token("break", TokenKind::Break);
+    }
     #[test]
-    fn test_keyword_continue() { assert_token("continue", TokenKind::Continue); }
+    fn test_keyword_continue() {
+        assert_token("continue", TokenKind::Continue);
+    }
     #[test]
-    fn test_keyword_print() { assert_token("print", TokenKind::Print); }
+    fn test_keyword_print() {
+        assert_token("print", TokenKind::Print);
+    }
     #[test]
-    fn test_keyword_println() { assert_token("println", TokenKind::Println); }
+    fn test_keyword_println() {
+        assert_token("println", TokenKind::Println);
+    }
     #[test]
-    fn test_keyword_async() { assert_token("async", TokenKind::Async); }
+    fn test_keyword_async() {
+        assert_token("async", TokenKind::Async);
+    }
     #[test]
-    fn test_keyword_await() { assert_token("await", TokenKind::Await); }
+    fn test_keyword_await() {
+        assert_token("await", TokenKind::Await);
+    }
     #[test]
-    fn test_keyword_as() { assert_token("as", TokenKind::As); }
+    fn test_keyword_as() {
+        assert_token("as", TokenKind::As);
+    }
     #[test]
-    fn test_keyword_throw() { assert_token("throw", TokenKind::Throw); }
+    fn test_keyword_throw() {
+        assert_token("throw", TokenKind::Throw);
+    }
     #[test]
-    fn test_keyword_try() { assert_token("try", TokenKind::Try); }
+    fn test_keyword_try() {
+        assert_token("try", TokenKind::Try);
+    }
     #[test]
-    fn test_keyword_catch() { assert_token("catch", TokenKind::Catch); }
+    fn test_keyword_catch() {
+        assert_token("catch", TokenKind::Catch);
+    }
     #[test]
-    fn test_keyword_finally() { assert_token("finally", TokenKind::Finally); }
+    fn test_keyword_finally() {
+        assert_token("finally", TokenKind::Finally);
+    }
     #[test]
-    fn test_keyword_match() { assert_token("match", TokenKind::Match); }
+    fn test_keyword_match() {
+        assert_token("match", TokenKind::Match);
+    }
     #[test]
-    fn test_keyword_struct() { assert_token("struct", TokenKind::Struct); }
+    fn test_keyword_struct() {
+        assert_token("struct", TokenKind::Struct);
+    }
     #[test]
-    fn test_keyword_class() { assert_token("class", TokenKind::Class); }
+    fn test_keyword_class() {
+        assert_token("class", TokenKind::Class);
+    }
     #[test]
-    fn test_keyword_interface() { assert_token("interface", TokenKind::Interface); }
+    fn test_keyword_interface() {
+        assert_token("interface", TokenKind::Interface);
+    }
     #[test]
-    fn test_keyword_impl() { assert_token("impl", TokenKind::Impl); }
+    fn test_keyword_impl() {
+        assert_token("impl", TokenKind::Impl);
+    }
     #[test]
-    fn test_keyword_extends() { assert_token("extends", TokenKind::Extends); }
+    fn test_keyword_extends() {
+        assert_token("extends", TokenKind::Extends);
+    }
     #[test]
-    fn test_keyword_implements() { assert_token("implements", TokenKind::Implements); }
+    fn test_keyword_implements() {
+        assert_token("implements", TokenKind::Implements);
+    }
     #[test]
-    fn test_keyword_type() { assert_token("type", TokenKind::Type); }
+    fn test_keyword_type() {
+        assert_token("type", TokenKind::Type);
+    }
     #[test]
-    fn test_keyword_nominal() { assert_token("nominal", TokenKind::Nominal); }
+    fn test_keyword_nominal() {
+        assert_token("nominal", TokenKind::Nominal);
+    }
     #[test]
-    fn test_keyword_static() { assert_token("static", TokenKind::Static); }
+    fn test_keyword_static() {
+        assert_token("static", TokenKind::Static);
+    }
     #[test]
-    fn test_keyword_private() { assert_token("private", TokenKind::Private); }
+    fn test_keyword_private() {
+        assert_token("private", TokenKind::Private);
+    }
     #[test]
-    fn test_keyword_pub() { assert_token("pub", TokenKind::Pub); }
+    fn test_keyword_pub() {
+        assert_token("pub", TokenKind::Pub);
+    }
     #[test]
-    fn test_keyword_override() { assert_token("override", TokenKind::Override); }
+    fn test_keyword_override() {
+        assert_token("override", TokenKind::Override);
+    }
     #[test]
-    fn test_keyword_import() { assert_token("import", TokenKind::Import); }
+    fn test_keyword_import() {
+        assert_token("import", TokenKind::Import);
+    }
     #[test]
-    fn test_keyword_from() { assert_token("from", TokenKind::From); }
+    fn test_keyword_from() {
+        assert_token("from", TokenKind::From);
+    }
     #[test]
-    fn test_keyword_export() { assert_token("export", TokenKind::Export); }
+    fn test_keyword_export() {
+        assert_token("export", TokenKind::Export);
+    }
     #[test]
-    fn test_keyword_true() { assert_token("true", TokenKind::True); }
+    fn test_keyword_true() {
+        assert_token("true", TokenKind::True);
+    }
     #[test]
-    fn test_keyword_false() { assert_token("false", TokenKind::False); }
+    fn test_keyword_false() {
+        assert_token("false", TokenKind::False);
+    }
     #[test]
-    fn test_keyword_null() { assert_token("null", TokenKind::Null); }
+    fn test_keyword_null() {
+        assert_token("null", TokenKind::Null);
+    }
 
     // ── Keywords (omniview) ──────────────────────────────
 
     #[test]
-    fn test_keyword_emit() { assert_token("emit", TokenKind::Emit); }
+    fn test_keyword_emit() {
+        assert_token("emit", TokenKind::Emit);
+    }
     #[test]
-    fn test_keyword_component() { assert_token("component", TokenKind::Component); }
+    fn test_keyword_component() {
+        assert_token("component", TokenKind::Component);
+    }
     #[test]
-    fn test_keyword_signal() { assert_token("signal", TokenKind::Signal); }
+    fn test_keyword_signal() {
+        assert_token("signal", TokenKind::Signal);
+    }
     #[test]
-    fn test_keyword_computed() { assert_token("computed", TokenKind::Computed); }
+    fn test_keyword_computed() {
+        assert_token("computed", TokenKind::Computed);
+    }
     #[test]
-    fn test_keyword_prop() { assert_token("prop", TokenKind::Prop); }
+    fn test_keyword_prop() {
+        assert_token("prop", TokenKind::Prop);
+    }
     #[test]
-    fn test_keyword_event() { assert_token("event", TokenKind::Event); }
+    fn test_keyword_event() {
+        assert_token("event", TokenKind::Event);
+    }
     #[test]
-    fn test_keyword_ref() { assert_token("ref", TokenKind::Ref); }
+    fn test_keyword_ref() {
+        assert_token("ref", TokenKind::Ref);
+    }
     #[test]
-    fn test_keyword_store() { assert_token("store", TokenKind::Store); }
+    fn test_keyword_store() {
+        assert_token("store", TokenKind::Store);
+    }
     #[test]
-    fn test_keyword_view() { assert_token("view", TokenKind::View); }
+    fn test_keyword_view() {
+        assert_token("view", TokenKind::View);
+    }
     #[test]
-    fn test_keyword_style() { assert_token("style", TokenKind::Style); }
+    fn test_keyword_style() {
+        assert_token("style", TokenKind::Style);
+    }
     #[test]
-    fn test_keyword_action() { assert_token("action", TokenKind::Action); }
+    fn test_keyword_action() {
+        assert_token("action", TokenKind::Action);
+    }
     #[test]
-    fn test_keyword_getter() { assert_token("getter", TokenKind::Getter); }
+    fn test_keyword_getter() {
+        assert_token("getter", TokenKind::Getter);
+    }
     #[test]
-    fn test_keyword_theme() { assert_token("theme", TokenKind::Theme); }
+    fn test_keyword_theme() {
+        assert_token("theme", TokenKind::Theme);
+    }
 
     // ── @-keywords ───────────────────────────────────────
 
     #[test]
-    fn test_at_store() { assert_token("@store", TokenKind::AtStore); }
+    fn test_at_store() {
+        assert_token("@store", TokenKind::AtStore);
+    }
     #[test]
-    fn test_at_if() { assert_token("@if", TokenKind::AtIf); }
+    fn test_at_if() {
+        assert_token("@if", TokenKind::AtIf);
+    }
     #[test]
-    fn test_at_else() { assert_token("@else", TokenKind::AtElse); }
+    fn test_at_else() {
+        assert_token("@else", TokenKind::AtElse);
+    }
     #[test]
-    fn test_at_for() { assert_token("@for", TokenKind::AtFor); }
+    fn test_at_for() {
+        assert_token("@for", TokenKind::AtFor);
+    }
     #[test]
-    fn test_at_empty() { assert_token("@empty", TokenKind::AtEmpty); }
+    fn test_at_empty() {
+        assert_token("@empty", TokenKind::AtEmpty);
+    }
     #[test]
-    fn test_at_slot() { assert_token("@slot", TokenKind::AtSlot); }
+    fn test_at_slot() {
+        assert_token("@slot", TokenKind::AtSlot);
+    }
     #[test]
-    fn test_at_native() { assert_token("@native", TokenKind::AtNative); }
+    fn test_at_native() {
+        assert_token("@native", TokenKind::AtNative);
+    }
     #[test]
-    fn test_at_fallback() { assert_token("@fallback", TokenKind::AtFallback); }
+    fn test_at_fallback() {
+        assert_token("@fallback", TokenKind::AtFallback);
+    }
     #[test]
-    fn test_at_error() { assert_token("@error", TokenKind::AtError); }
+    fn test_at_error() {
+        assert_token("@error", TokenKind::AtError);
+    }
     #[test]
-    fn test_at_mount() { assert_token("@mount", TokenKind::AtMount); }
+    fn test_at_mount() {
+        assert_token("@mount", TokenKind::AtMount);
+    }
     #[test]
-    fn test_at_unmount() { assert_token("@unmount", TokenKind::AtUnmount); }
+    fn test_at_unmount() {
+        assert_token("@unmount", TokenKind::AtUnmount);
+    }
     #[test]
-    fn test_at_effect() { assert_token("@effect", TokenKind::AtEffect); }
+    fn test_at_effect() {
+        assert_token("@effect", TokenKind::AtEffect);
+    }
     #[test]
-    fn test_at_motion() { assert_token("@motion", TokenKind::AtMotion); }
+    fn test_at_motion() {
+        assert_token("@motion", TokenKind::AtMotion);
+    }
     #[test]
-    fn test_at_timeline() { assert_token("@timeline", TokenKind::AtTimeline); }
+    fn test_at_timeline() {
+        assert_token("@timeline", TokenKind::AtTimeline);
+    }
     #[test]
-    fn test_at_enter() { assert_token("@enter", TokenKind::AtEnter); }
+    fn test_at_enter() {
+        assert_token("@enter", TokenKind::AtEnter);
+    }
     #[test]
-    fn test_at_leave() { assert_token("@leave", TokenKind::AtLeave); }
+    fn test_at_leave() {
+        assert_token("@leave", TokenKind::AtLeave);
+    }
     #[test]
-    fn test_at_hover() { assert_token("@hover", TokenKind::AtHover); }
+    fn test_at_hover() {
+        assert_token("@hover", TokenKind::AtHover);
+    }
     #[test]
-    fn test_at_unhover() { assert_token("@unhover", TokenKind::AtUnhover); }
+    fn test_at_unhover() {
+        assert_token("@unhover", TokenKind::AtUnhover);
+    }
     #[test]
-    fn test_at_press() { assert_token("@press", TokenKind::AtPress); }
+    fn test_at_press() {
+        assert_token("@press", TokenKind::AtPress);
+    }
     #[test]
-    fn test_at_focus() { assert_token("@focus", TokenKind::AtFocus); }
+    fn test_at_focus() {
+        assert_token("@focus", TokenKind::AtFocus);
+    }
     #[test]
-    fn test_at_animate() { assert_token("@animate", TokenKind::AtAnimate); }
+    fn test_at_animate() {
+        assert_token("@animate", TokenKind::AtAnimate);
+    }
     #[test]
-    fn test_at_inview() { assert_token("@inView", TokenKind::AtInView); }
+    fn test_at_inview() {
+        assert_token("@inView", TokenKind::AtInView);
+    }
     #[test]
-    fn test_at_scroll() { assert_token("@scroll", TokenKind::AtScroll); }
+    fn test_at_scroll() {
+        assert_token("@scroll", TokenKind::AtScroll);
+    }
     #[test]
-    fn test_at_drag_horizontal() { assert_token("@dragHorizontal", TokenKind::AtDragHorizontal); }
+    fn test_at_drag_horizontal() {
+        assert_token("@dragHorizontal", TokenKind::AtDragHorizontal);
+    }
     #[test]
-    fn test_at_drag_vertical() { assert_token("@dragVertical", TokenKind::AtDragVertical); }
+    fn test_at_drag_vertical() {
+        assert_token("@dragVertical", TokenKind::AtDragVertical);
+    }
     #[test]
-    fn test_at_driven_by() { assert_token("@driven-by", TokenKind::AtDrivenBy); }
+    fn test_at_driven_by() {
+        assert_token("@driven-by", TokenKind::AtDrivenBy);
+    }
     #[test]
-    fn test_at_paused() { assert_token("@paused", TokenKind::AtPaused); }
+    fn test_at_paused() {
+        assert_token("@paused", TokenKind::AtPaused);
+    }
     #[test]
-    fn test_at_hover_reverse() { assert_token("@hover-reverse", TokenKind::AtHoverReverse); }
+    fn test_at_hover_reverse() {
+        assert_token("@hover-reverse", TokenKind::AtHoverReverse);
+    }
     #[test]
-    fn test_at_inview_once() { assert_token("@in-view-once", TokenKind::AtInViewOnce); }
+    fn test_at_inview_once() {
+        assert_token("@in-view-once", TokenKind::AtInViewOnce);
+    }
     #[test]
-    fn test_at_inview_repeat() { assert_token("@in-view-repeat", TokenKind::AtInViewRepeat); }
+    fn test_at_inview_repeat() {
+        assert_token("@in-view-repeat", TokenKind::AtInViewRepeat);
+    }
     #[test]
-    fn test_at_inview_threshold() { assert_token("@in-view-threshold", TokenKind::AtInViewThreshold); }
+    fn test_at_inview_threshold() {
+        assert_token("@in-view-threshold", TokenKind::AtInViewThreshold);
+    }
     #[test]
-    fn test_at_scroll_start() { assert_token("@scroll-start", TokenKind::AtScrollStart); }
+    fn test_at_scroll_start() {
+        assert_token("@scroll-start", TokenKind::AtScrollStart);
+    }
     #[test]
-    fn test_at_scroll_end() { assert_token("@scroll-end", TokenKind::AtScrollEnd); }
+    fn test_at_scroll_end() {
+        assert_token("@scroll-end", TokenKind::AtScrollEnd);
+    }
     #[test]
-    fn test_at_scroll_scrub() { assert_token("@scroll-scrub", TokenKind::AtScrollScrub); }
+    fn test_at_scroll_scrub() {
+        assert_token("@scroll-scrub", TokenKind::AtScrollScrub);
+    }
     #[test]
-    fn test_at_hero() { assert_token("@hero", TokenKind::AtHero); }
+    fn test_at_hero() {
+        assert_token("@hero", TokenKind::AtHero);
+    }
     #[test]
-    fn test_at_hero_transition() { assert_token("@hero-transition", TokenKind::AtHeroTransition); }
+    fn test_at_hero_transition() {
+        assert_token("@hero-transition", TokenKind::AtHeroTransition);
+    }
     #[test]
-    fn test_keyword_if_mode() { assert_token("if_mode", TokenKind::IfMode); }
+    fn test_keyword_if_mode() {
+        assert_token("if_mode", TokenKind::IfMode);
+    }
     #[test]
-    fn test_keyword_bind() { assert_token("bind", TokenKind::Bind); }
+    fn test_keyword_bind() {
+        assert_token("bind", TokenKind::Bind);
+    }
 
     // ── String literals ──────────────────────────────────
 
@@ -1055,10 +1313,7 @@ mod tests {
     }
     #[test]
     fn test_string_double_hello() {
-        assert_token(
-            r#""hello""#,
-            TokenKind::StringLiteral("hello".into()),
-        );
+        assert_token(r#""hello""#, TokenKind::StringLiteral("hello".into()));
     }
     #[test]
     fn test_string_double_escape_quote() {
@@ -1070,10 +1325,7 @@ mod tests {
     }
     #[test]
     fn test_string_double_escape_backslash() {
-        assert_token(
-            r#""a\\b""#,
-            TokenKind::StringLiteral("a\\b".into()),
-        );
+        assert_token(r#""a\\b""#, TokenKind::StringLiteral("a\\b".into()));
     }
     #[test]
     fn test_string_double_escape_newline() {
@@ -1091,17 +1343,11 @@ mod tests {
     }
     #[test]
     fn test_string_double_escape_carriage_return() {
-        assert_token(
-            r#""abc\rdef""#,
-            TokenKind::StringLiteral("abc\rdef".into()),
-        );
+        assert_token(r#""abc\rdef""#, TokenKind::StringLiteral("abc\rdef".into()));
     }
     #[test]
     fn test_string_double_escape_unicode() {
-        assert_token(
-            r#""\u{263A}""#,
-            TokenKind::StringLiteral("☺".into()),
-        );
+        assert_token(r#""\u{263A}""#, TokenKind::StringLiteral("☺".into()));
     }
     #[test]
     fn test_string_double_unicode_direct() {
@@ -1121,17 +1367,11 @@ mod tests {
     }
     #[test]
     fn test_string_single_escape_quote() {
-        assert_token(
-            r#"'it\'s'"#,
-            TokenKind::StringLiteral("it's".into()),
-        );
+        assert_token(r#"'it\'s'"#, TokenKind::StringLiteral("it's".into()));
     }
     #[test]
     fn test_string_single_escape_backslash() {
-        assert_token(
-            r#"'a\\b'"#,
-            TokenKind::StringLiteral("a\\b".into()),
-        );
+        assert_token(r#"'a\\b'"#, TokenKind::StringLiteral("a\\b".into()));
     }
     #[test]
     fn test_template_string() {
@@ -1151,38 +1391,66 @@ mod tests {
     // ── Number literals ──────────────────────────────────
 
     #[test]
-    fn test_int_zero() { assert_token("0", TokenKind::IntLiteral(0)); }
+    fn test_int_zero() {
+        assert_token("0", TokenKind::IntLiteral(0));
+    }
     #[test]
-    fn test_int_simple() { assert_token("42", TokenKind::IntLiteral(42)); }
+    fn test_int_simple() {
+        assert_token("42", TokenKind::IntLiteral(42));
+    }
     #[test]
-    fn test_int_large() { assert_token("999999", TokenKind::IntLiteral(999999)); }
+    fn test_int_large() {
+        assert_token("999999", TokenKind::IntLiteral(999999));
+    }
     #[test]
-    fn test_float_simple() { assert_token("3.14", TokenKind::FloatLiteral(3.14)); }
+    fn test_float_simple() {
+        assert_token("3.14", TokenKind::FloatLiteral(3.14));
+    }
     #[test]
     fn test_float_no_fraction() {
         // 42. is not a float — the lexer requires a digit after '.'
         assert_tokens("42.", &[TokenKind::IntLiteral(42), TokenKind::Dot]);
     }
     #[test]
-    fn test_float_exponent() { assert_token("1.5e3", TokenKind::FloatLiteral(1500.0)); }
+    fn test_float_exponent() {
+        assert_token("1.5e3", TokenKind::FloatLiteral(1500.0));
+    }
     #[test]
-    fn test_float_exponent_positive() { assert_token("1e+2", TokenKind::FloatLiteral(100.0)); }
+    fn test_float_exponent_positive() {
+        assert_token("1e+2", TokenKind::FloatLiteral(100.0));
+    }
     #[test]
-    fn test_float_exponent_negative() { assert_token("1e-2", TokenKind::FloatLiteral(0.01)); }
+    fn test_float_exponent_negative() {
+        assert_token("1e-2", TokenKind::FloatLiteral(0.01));
+    }
     #[test]
-    fn test_float_exponent_uppercase() { assert_token("2E10", TokenKind::FloatLiteral(20000000000.0)); }
+    fn test_float_exponent_uppercase() {
+        assert_token("2E10", TokenKind::FloatLiteral(20000000000.0));
+    }
     #[test]
-    fn test_hex_literal() { assert_token("0xFF", TokenKind::IntLiteral(255)); }
+    fn test_hex_literal() {
+        assert_token("0xFF", TokenKind::IntLiteral(255));
+    }
     #[test]
-    fn test_hex_literal_lowercase_x() { assert_token("0x1a", TokenKind::IntLiteral(26)); }
+    fn test_hex_literal_lowercase_x() {
+        assert_token("0x1a", TokenKind::IntLiteral(26));
+    }
     #[test]
-    fn test_octal_literal() { assert_token("0o77", TokenKind::IntLiteral(63)); }
+    fn test_octal_literal() {
+        assert_token("0o77", TokenKind::IntLiteral(63));
+    }
     #[test]
-    fn test_octal_literal_uppercase() { assert_token("0O10", TokenKind::IntLiteral(8)); }
+    fn test_octal_literal_uppercase() {
+        assert_token("0O10", TokenKind::IntLiteral(8));
+    }
     #[test]
-    fn test_binary_literal() { assert_token("0b1010", TokenKind::IntLiteral(10)); }
+    fn test_binary_literal() {
+        assert_token("0b1010", TokenKind::IntLiteral(10));
+    }
     #[test]
-    fn test_binary_literal_uppercase() { assert_token("0B1100", TokenKind::IntLiteral(12)); }
+    fn test_binary_literal_uppercase() {
+        assert_token("0B1100", TokenKind::IntLiteral(12));
+    }
 
     // ── Comments ─────────────────────────────────────────
 
@@ -1212,106 +1480,136 @@ mod tests {
 
     #[test]
     fn test_simple_addition() {
-        assert_tokens("1 + 2", &[
-            TokenKind::IntLiteral(1),
-            TokenKind::Plus,
-            TokenKind::IntLiteral(2),
-        ]);
+        assert_tokens(
+            "1 + 2",
+            &[
+                TokenKind::IntLiteral(1),
+                TokenKind::Plus,
+                TokenKind::IntLiteral(2),
+            ],
+        );
     }
     #[test]
     fn test_if_else_expression() {
-        assert_tokens("if a == b { x } else { y }", &[
-            TokenKind::If,
-            TokenKind::Ident("a".into()),
-            TokenKind::EqEq,
-            TokenKind::Ident("b".into()),
-            TokenKind::LBrace,
-            TokenKind::Ident("x".into()),
-            TokenKind::RBrace,
-            TokenKind::Else,
-            TokenKind::LBrace,
-            TokenKind::Ident("y".into()),
-            TokenKind::RBrace,
-        ]);
+        assert_tokens(
+            "if a == b { x } else { y }",
+            &[
+                TokenKind::If,
+                TokenKind::Ident("a".into()),
+                TokenKind::EqEq,
+                TokenKind::Ident("b".into()),
+                TokenKind::LBrace,
+                TokenKind::Ident("x".into()),
+                TokenKind::RBrace,
+                TokenKind::Else,
+                TokenKind::LBrace,
+                TokenKind::Ident("y".into()),
+                TokenKind::RBrace,
+            ],
+        );
     }
     #[test]
     fn test_function_call() {
-        assert_tokens("foo(bar, baz)", &[
-            TokenKind::Ident("foo".into()),
-            TokenKind::LParen,
-            TokenKind::Ident("bar".into()),
-            TokenKind::Comma,
-            TokenKind::Ident("baz".into()),
-            TokenKind::RParen,
-        ]);
+        assert_tokens(
+            "foo(bar, baz)",
+            &[
+                TokenKind::Ident("foo".into()),
+                TokenKind::LParen,
+                TokenKind::Ident("bar".into()),
+                TokenKind::Comma,
+                TokenKind::Ident("baz".into()),
+                TokenKind::RParen,
+            ],
+        );
     }
     #[test]
     fn test_array_index() {
-        assert_tokens("arr[0]", &[
-            TokenKind::Ident("arr".into()),
-            TokenKind::LBracket,
-            TokenKind::IntLiteral(0),
-            TokenKind::RBracket,
-        ]);
+        assert_tokens(
+            "arr[0]",
+            &[
+                TokenKind::Ident("arr".into()),
+                TokenKind::LBracket,
+                TokenKind::IntLiteral(0),
+                TokenKind::RBracket,
+            ],
+        );
     }
     #[test]
     fn test_struct_literal() {
-        assert_tokens("Point { x: 1, y: 2 }", &[
-            TokenKind::Ident("Point".into()),
-            TokenKind::LBrace,
-            TokenKind::Ident("x".into()),
-            TokenKind::Colon,
-            TokenKind::IntLiteral(1),
-            TokenKind::Comma,
-            TokenKind::Ident("y".into()),
-            TokenKind::Colon,
-            TokenKind::IntLiteral(2),
-            TokenKind::RBrace,
-        ]);
+        assert_tokens(
+            "Point { x: 1, y: 2 }",
+            &[
+                TokenKind::Ident("Point".into()),
+                TokenKind::LBrace,
+                TokenKind::Ident("x".into()),
+                TokenKind::Colon,
+                TokenKind::IntLiteral(1),
+                TokenKind::Comma,
+                TokenKind::Ident("y".into()),
+                TokenKind::Colon,
+                TokenKind::IntLiteral(2),
+                TokenKind::RBrace,
+            ],
+        );
     }
     #[test]
     fn test_dot_access() {
-        assert_tokens("obj.field", &[
-            TokenKind::Ident("obj".into()),
-            TokenKind::Dot,
-            TokenKind::Ident("field".into()),
-        ]);
+        assert_tokens(
+            "obj.field",
+            &[
+                TokenKind::Ident("obj".into()),
+                TokenKind::Dot,
+                TokenKind::Ident("field".into()),
+            ],
+        );
     }
     #[test]
     fn test_optional_chain() {
-        assert_tokens("obj?.field", &[
-            TokenKind::Ident("obj".into()),
-            TokenKind::QuestionDot,
-            TokenKind::Ident("field".into()),
-        ]);
+        assert_tokens(
+            "obj?.field",
+            &[
+                TokenKind::Ident("obj".into()),
+                TokenKind::QuestionDot,
+                TokenKind::Ident("field".into()),
+            ],
+        );
     }
     #[test]
     fn test_nullish_coalescing() {
-        assert_tokens("a ?? b", &[
-            TokenKind::Ident("a".into()),
-            TokenKind::QuestionQuestion,
-            TokenKind::Ident("b".into()),
-        ]);
+        assert_tokens(
+            "a ?? b",
+            &[
+                TokenKind::Ident("a".into()),
+                TokenKind::QuestionQuestion,
+                TokenKind::Ident("b".into()),
+            ],
+        );
     }
     #[test]
     fn test_arrow_function() {
-        assert_tokens("x => x + 1", &[
-            TokenKind::Ident("x".into()),
-            TokenKind::FatArrow,
-            TokenKind::Ident("x".into()),
-            TokenKind::Plus,
-            TokenKind::IntLiteral(1),
-        ]);
+        assert_tokens(
+            "x => x + 1",
+            &[
+                TokenKind::Ident("x".into()),
+                TokenKind::FatArrow,
+                TokenKind::Ident("x".into()),
+                TokenKind::Plus,
+                TokenKind::IntLiteral(1),
+            ],
+        );
     }
     #[test]
     fn test_let_statement() {
-        assert_tokens("let x = 42;", &[
-            TokenKind::Let,
-            TokenKind::Ident("x".into()),
-            TokenKind::Eq,
-            TokenKind::IntLiteral(42),
-            TokenKind::Semicolon,
-        ]);
+        assert_tokens(
+            "let x = 42;",
+            &[
+                TokenKind::Let,
+                TokenKind::Ident("x".into()),
+                TokenKind::Eq,
+                TokenKind::IntLiteral(42),
+                TokenKind::Semicolon,
+            ],
+        );
     }
 
     // ── Edge cases ───────────────────────────────────────
@@ -1344,44 +1642,76 @@ mod tests {
     }
     #[test]
     fn test_multiple_statements() {
-        assert_tokens("a; b; c;", &[
-            TokenKind::Ident("a".into()), TokenKind::Semicolon,
-            TokenKind::Ident("b".into()), TokenKind::Semicolon,
-            TokenKind::Ident("c".into()), TokenKind::Semicolon,
-        ]);
+        assert_tokens(
+            "a; b; c;",
+            &[
+                TokenKind::Ident("a".into()),
+                TokenKind::Semicolon,
+                TokenKind::Ident("b".into()),
+                TokenKind::Semicolon,
+                TokenKind::Ident("c".into()),
+                TokenKind::Semicolon,
+            ],
+        );
     }
     #[test]
     fn test_nested_braces() {
-        assert_tokens("{ { { } } }", &[
-            TokenKind::LBrace, TokenKind::LBrace, TokenKind::LBrace,
-            TokenKind::RBrace, TokenKind::RBrace, TokenKind::RBrace,
-        ]);
+        assert_tokens(
+            "{ { { } } }",
+            &[
+                TokenKind::LBrace,
+                TokenKind::LBrace,
+                TokenKind::LBrace,
+                TokenKind::RBrace,
+                TokenKind::RBrace,
+                TokenKind::RBrace,
+            ],
+        );
     }
     #[test]
     fn test_logical_operators_in_expression() {
-        assert_tokens("a && b || !c", &[
-            TokenKind::Ident("a".into()), TokenKind::AndAnd,
-            TokenKind::Ident("b".into()), TokenKind::OrOr,
-            TokenKind::Not, TokenKind::Ident("c".into()),
-        ]);
+        assert_tokens(
+            "a && b || !c",
+            &[
+                TokenKind::Ident("a".into()),
+                TokenKind::AndAnd,
+                TokenKind::Ident("b".into()),
+                TokenKind::OrOr,
+                TokenKind::Not,
+                TokenKind::Ident("c".into()),
+            ],
+        );
     }
     #[test]
     fn test_comparison_chain() {
-        assert_tokens("a < b && c >= d", &[
-            TokenKind::Ident("a".into()), TokenKind::Lt,
-            TokenKind::Ident("b".into()), TokenKind::AndAnd,
-            TokenKind::Ident("c".into()), TokenKind::GtEq,
-            TokenKind::Ident("d".into()),
-        ]);
+        assert_tokens(
+            "a < b && c >= d",
+            &[
+                TokenKind::Ident("a".into()),
+                TokenKind::Lt,
+                TokenKind::Ident("b".into()),
+                TokenKind::AndAnd,
+                TokenKind::Ident("c".into()),
+                TokenKind::GtEq,
+                TokenKind::Ident("d".into()),
+            ],
+        );
     }
     #[test]
     fn test_math_expression() {
-        assert_tokens("1 + 2 * 3 - 4 / 5", &[
-            TokenKind::IntLiteral(1), TokenKind::Plus,
-            TokenKind::IntLiteral(2), TokenKind::Star,
-            TokenKind::IntLiteral(3), TokenKind::Minus,
-            TokenKind::IntLiteral(4), TokenKind::Slash,
-            TokenKind::IntLiteral(5),
-        ]);
+        assert_tokens(
+            "1 + 2 * 3 - 4 / 5",
+            &[
+                TokenKind::IntLiteral(1),
+                TokenKind::Plus,
+                TokenKind::IntLiteral(2),
+                TokenKind::Star,
+                TokenKind::IntLiteral(3),
+                TokenKind::Minus,
+                TokenKind::IntLiteral(4),
+                TokenKind::Slash,
+                TokenKind::IntLiteral(5),
+            ],
+        );
     }
 }

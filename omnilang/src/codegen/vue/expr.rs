@@ -69,7 +69,7 @@ impl FormatStmt for VueStmtFormatter {
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| {
-                let ann = JsTypeFormatter.format_type(&t.kind.as_str(), &t.type_args);
+                let ann = JsTypeFormatter.format_type(t.kind.as_str(), &t.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -122,4 +122,10 @@ pub(super) fn to_vue_attr(prop_name: &str) -> String {
 /// Vue uses @click, @change, etc. — same names as OmniView.
 pub(super) fn to_vue_event(event_name: &str) -> &str {
     event_name
+}
+
+/// Format a single expression IR node as a Vue expression string (test helper).
+#[allow(dead_code)]
+pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
+    VueFormatExpr.format_expr(expr)
 }

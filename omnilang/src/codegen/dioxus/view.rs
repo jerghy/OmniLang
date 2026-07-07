@@ -45,13 +45,14 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             for (event_name, handler) in &el.events {
                 let dioxus_event = to_dioxus_event(event_name);
                 match handler {
-                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                    EventHandlerIR::FnRef {
+                        r#ref,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         if event_data.is_some() {
-                            let event_obj = emit_event_object_dioxus(
-                                event_data,
-                                used_fields,
-                                "e",
-                            );
+                            let event_obj = emit_event_object_dioxus(event_data, used_fields, "e");
                             attrs.push(format!(
                                 "{}: move |e| {{ {}({}); }},",
                                 dioxus_event, r#ref, event_obj
@@ -60,13 +61,14 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                             attrs.push(format!("{}: {},", dioxus_event, r#ref));
                         }
                     }
-                    EventHandlerIR::InlineFn { body, event_data, used_fields, .. } => {
+                    EventHandlerIR::InlineFn {
+                        body,
+                        event_data,
+                        used_fields,
+                        ..
+                    } => {
                         if event_data.is_some() {
-                            let _event_obj = emit_event_object_dioxus(
-                                event_data,
-                                used_fields,
-                                "e",
-                            );
+                            let _event_obj = emit_event_object_dioxus(event_data, used_fields, "e");
                             let mut hw = CodeWriter::new();
                             for stmt in &body.statements {
                                 generate_statement_dioxus(&mut hw, stmt);
@@ -215,5 +217,5 @@ pub(super) fn format_inline_handler_dioxus(body: &BlockIR) -> String {
         indent: "            ",
         use_writer: false,
     };
-    build_inline_handler(body, &config, |w, s| generate_statement_dioxus(w, s))
+    build_inline_handler(body, &config, generate_statement_dioxus)
 }

@@ -44,7 +44,11 @@ pub(crate) fn emit_driven_by_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 fn has_driven_by(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_behavior().and_then(|m| m.driven_by.as_ref()).is_some() {
+            if el
+                .motion_behavior()
+                .and_then(|m| m.driven_by.as_ref())
+                .is_some()
+            {
                 return true;
             }
             el.children.iter().any(has_driven_by)
@@ -108,10 +112,11 @@ pub(crate) fn emit_inview_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 fn has_inview_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el
-                .motion_behavior()
-                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)))
-            {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers
+                    .iter()
+                    .any(|t| matches!(t.kind, TriggerKind::InView))
+            }) {
                 return true;
             }
             el.children.iter().any(has_inview_trigger)
@@ -227,10 +232,11 @@ pub(crate) fn emit_scroll_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 fn has_scroll_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el
-                .motion_behavior()
-                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)))
-            {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers
+                    .iter()
+                    .any(|t| matches!(t.kind, TriggerKind::Scroll))
+            }) {
                 return true;
             }
             el.children.iter().any(has_scroll_trigger)
@@ -257,12 +263,14 @@ fn has_scroll_trigger(node: &ViewTree) -> bool {
 fn has_drag_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
-                matches!(
-                    t.kind,
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
-                )
-            })) {
+            if el.motion_behavior().is_some_and(|m| {
+                m.triggers.iter().any(|t| {
+                    matches!(
+                        t.kind,
+                        TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                    )
+                })
+            }) {
                 return true;
             }
             el.children.iter().any(has_drag_trigger)

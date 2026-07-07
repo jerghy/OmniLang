@@ -306,8 +306,7 @@ pub(super) fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionI
                         continue;
                     }
                     let schema = event_data_schema(kind);
-                    let valid_names: Vec<&str> =
-                        schema.iter().map(|f| f.name.as_str()).collect();
+                    let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
 
                     let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
                         fns.iter().find(|f| {

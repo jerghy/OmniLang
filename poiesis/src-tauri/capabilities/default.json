@@ -8,9 +8,7 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$APPDATA/**" },
-        { "path": "$TEMP/**" }
+        { "path": "$APPDATA/com.omnilang.poiesis/**" }
       ]
     },
     "fs:allow-read-text-file",

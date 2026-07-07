@@ -227,9 +227,7 @@ impl SemanticAnalyzer {
                 self.resolve_block_refs(body, vctx);
                 vctx.exit_loop();
             }
-            Stmt::ForIn {
-                iterable, body, ..
-            } => {
+            Stmt::ForIn { iterable, body, .. } => {
                 vctx.enter_loop();
                 self.resolve_expr_refs(iterable, vctx);
                 self.resolve_block_refs(body, vctx);

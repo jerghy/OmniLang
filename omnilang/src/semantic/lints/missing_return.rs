@@ -8,8 +8,8 @@ use std::collections::HashMap;
 
 use super::helpers::statements_contain_return;
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::TypeKind;
 use crate::ir::IRProgram;
+use crate::ir::TypeKind;
 
 pub struct MissingReturn;
 
@@ -43,7 +43,9 @@ impl LintRule for MissingReturn {
                                 message: format!(
                                     "Function '{}' in component '{}' \
                                      has return type '{}' but no return statement",
-                                    func.name, comp_name, ret_type.kind.as_str()
+                                    func.name,
+                                    comp_name,
+                                    ret_type.kind.as_str()
                                 ),
                                 file: comp_file.to_string(),
                                 line: 0,

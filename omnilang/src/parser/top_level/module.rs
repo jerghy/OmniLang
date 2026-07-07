@@ -79,11 +79,11 @@ impl<'a> Parser<'a> {
     fn parse_import_name_list(&mut self) -> Result<Vec<String>, ParseError> {
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let mut names = Vec::new();
-        if self.peek_kind() != TokenKind::RBrace {
+        if *self.peek_kind() != TokenKind::RBrace {
             names.push(self.expect_ident("expected import name")?);
-            while self.peek_kind() == TokenKind::Comma {
+            while *self.peek_kind() == TokenKind::Comma {
                 self.advance();
-                if self.peek_kind() == TokenKind::RBrace {
+                if *self.peek_kind() == TokenKind::RBrace {
                     break; // trailing comma
                 }
                 names.push(self.expect_ident("expected import name")?);

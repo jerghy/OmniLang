@@ -85,7 +85,7 @@ pub(crate) fn emit_store_constructor_init(
         let default = store
             .signal_defaults
             .get(signal_name)
-            .map(|v| format_default(v))
+            .map(&format_default)
             .unwrap_or_else(|| "null".into());
         w.emit_fmt(format_args!("this.{} = {};", signal_name, default));
     }

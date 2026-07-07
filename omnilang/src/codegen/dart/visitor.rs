@@ -63,7 +63,7 @@ impl CodegenVisitor for DartVisitor {
         for p in &f.params {
             let mut s = String::new();
             if let Some(ref ty) = p.r#type {
-                let ann = super::expr::dart_type(&ty.kind.as_str(), &ty.type_args);
+                let ann = super::expr::dart_type(ty.kind.as_str(), &ty.type_args);
                 s.push_str(&format!("{} ", ann));
             }
             s.push_str(&p.name);

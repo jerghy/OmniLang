@@ -70,7 +70,7 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::RParen, "expected ')'")?;
                     Some(n)
                 } else if matches!(self.peek_kind(), TokenKind::Ident(_))
-                    || keyword_as_ident_name(&self.peek_kind()).is_some()
+                    || keyword_as_ident_name(self.peek_kind()).is_some()
                 {
                     let n = self.expect_ident("expected slot name")?;
                     Some(n)
@@ -133,87 +133,89 @@ impl<'a> Parser<'a> {
                             Ok(ViewNode::Interpolation(expr))
                         }
                         _ => {
-                        // Not a valid/complete interpolation — treat as literal text
-                        self.pos = saved_pos;
-                        self.depth = saved_depth;
-                        let mut text = String::from("{");
-                        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                            match self.peek_kind() {
-                                TokenKind::StringLiteral(s) => {
-                                    text.push_str(&s);
-                                    self.advance();
-                                }
-                                TokenKind::IntLiteral(n) => {
-                                    text.push_str(&n.to_string());
-                                    self.advance();
-                                }
-                                TokenKind::FloatLiteral(n) => {
-                                    text.push_str(&n.to_string());
-                                    self.advance();
-                                }
-                                TokenKind::Semicolon => {
-                                    text.push(';');
-                                    self.advance();
-                                }
-                                TokenKind::Comma => {
-                                    text.push(',');
-                                    self.advance();
-                                }
-                                TokenKind::Dot => {
-                                    text.push('.');
-                                    self.advance();
-                                }
-                                TokenKind::LParen => {
-                                    text.push('(');
-                                    self.advance();
-                                }
-                                TokenKind::RParen => {
-                                    text.push(')');
-                                    self.advance();
-                                }
-                                TokenKind::LBrace => {
-                                    text.push('{');
-                                    self.advance();
-                                }
-                                TokenKind::Eq => {
-                                    text.push('=');
-                                    self.advance();
-                                }
-                                TokenKind::Colon => {
-                                    text.push(':');
-                                    self.advance();
-                                }
-                                TokenKind::Plus => {
-                                    text.push('+');
-                                    self.advance();
-                                }
-                                TokenKind::Minus => {
-                                    text.push('-');
-                                    self.advance();
-                                }
-                                TokenKind::Star => {
-                                    text.push('*');
-                                    self.advance();
-                                }
-                                TokenKind::Slash => {
-                                    text.push('/');
-                                    self.advance();
-                                }
-                                _ => {
-                                    if let Some(name) = crate::parser::stmt::keyword_as_ident_name(
-                                        &self.peek_kind(),
-                                    ) {
-                                        text.push_str(name);
+                            // Not a valid/complete interpolation — treat as literal text
+                            self.pos = saved_pos;
+                            self.depth = saved_depth;
+                            let mut text = String::from("{");
+                            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+                                match self.peek_kind().clone() {
+                                    TokenKind::StringLiteral(s) => {
+                                        text.push_str(&s);
+                                        self.advance();
                                     }
-                                    self.advance();
+                                    TokenKind::IntLiteral(n) => {
+                                        text.push_str(&n.to_string());
+                                        self.advance();
+                                    }
+                                    TokenKind::FloatLiteral(n) => {
+                                        text.push_str(&n.to_string());
+                                        self.advance();
+                                    }
+                                    TokenKind::Semicolon => {
+                                        text.push(';');
+                                        self.advance();
+                                    }
+                                    TokenKind::Comma => {
+                                        text.push(',');
+                                        self.advance();
+                                    }
+                                    TokenKind::Dot => {
+                                        text.push('.');
+                                        self.advance();
+                                    }
+                                    TokenKind::LParen => {
+                                        text.push('(');
+                                        self.advance();
+                                    }
+                                    TokenKind::RParen => {
+                                        text.push(')');
+                                        self.advance();
+                                    }
+                                    TokenKind::LBrace => {
+                                        text.push('{');
+                                        self.advance();
+                                    }
+                                    TokenKind::Eq => {
+                                        text.push('=');
+                                        self.advance();
+                                    }
+                                    TokenKind::Colon => {
+                                        text.push(':');
+                                        self.advance();
+                                    }
+                                    TokenKind::Plus => {
+                                        text.push('+');
+                                        self.advance();
+                                    }
+                                    TokenKind::Minus => {
+                                        text.push('-');
+                                        self.advance();
+                                    }
+                                    TokenKind::Star => {
+                                        text.push('*');
+                                        self.advance();
+                                    }
+                                    TokenKind::Slash => {
+                                        text.push('/');
+                                        self.advance();
+                                    }
+                                    _ => {
+                                        if let Some(name) =
+                                            crate::parser::stmt::keyword_as_ident_name(
+                                                self.peek_kind(),
+                                            )
+                                        {
+                                            text.push_str(name);
+                                        }
+                                        self.advance();
+                                    }
                                 }
                             }
-                        }
-                        if self.at(&TokenKind::RBrace) {
-                            text.push('}');
-                            self.advance();
-                        }
-                        Ok(ViewNode::Text(text))
+                            if self.at(&TokenKind::RBrace) {
+                                text.push('}');
+                                self.advance();
+                            }
+                            Ok(ViewNode::Text(text))
                         }
                     }
                 }
@@ -291,9 +293,9 @@ impl<'a> Parser<'a> {
     fn is_component_call_start(&self) -> bool {
         let kind = self.peek_kind();
         // Extract the identifier name, checking for PascalCase
-        let name: Option<String> = match &kind {
+        let name: Option<String> = match kind {
             TokenKind::Ident(s) => Some(s.clone()),
-            _ => keyword_as_ident_name(&kind).map(|s| s.to_string()),
+            _ => keyword_as_ident_name(kind).map(|s| s.to_string()),
         };
         let Some(name) = name else { return false };
         // Only PascalCase starts a component call (e.g., Card, Button, Flex)
@@ -404,7 +406,8 @@ impl<'a> Parser<'a> {
         let mut self_closing = false;
 
         loop {
-            match self.peek_kind() {
+            let kind = self.peek_kind().clone();
+            match kind {
                 TokenKind::Gt => {
                     self.advance();
                     break;
@@ -630,7 +633,7 @@ impl<'a> Parser<'a> {
         let mut children = Vec::new();
         if !self_closing {
             loop {
-                match self.peek_kind() {
+                match self.peek_kind().clone() {
                     TokenKind::Lt => {
                         // Check if it's a closing tag
                         if self.check_closing_tag(&tag) {
@@ -651,10 +654,10 @@ impl<'a> Parser<'a> {
                     // Collect consecutive text tokens (Idents, colons, etc.) into one Text node.
                     // Reconstruct whitespace between tokens by checking span byte gaps: if token
                     // N+1 starts after token N ends, the lexer skipped whitespace — insert a space.
-                    _ if is_text_token(&self.peek_kind()) => {
+                    _ if is_text_token(self.peek_kind()) => {
                         let mut text = String::new();
                         let mut prev_end: Option<usize> = None;
-                        while is_text_token(&self.peek_kind()) {
+                        while is_text_token(self.peek_kind()) {
                             let t = self.advance();
                             if let Some(prev) = prev_end {
                                 if t.span.start > prev {

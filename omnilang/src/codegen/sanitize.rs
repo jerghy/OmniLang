@@ -15,6 +15,11 @@ pub fn sanitize_css_value(value: &str) -> String {
         || lower.contains("expression(")
         || lower.contains("-moz-binding")
         || lower.contains("data:text/html")
+        || lower.contains("url(")
+        || lower.contains("vbscript:")
+        || lower.contains("@import")
+        || lower.contains("document.")
+        || lower.contains("window.")
     {
         // Return a safe fallback — the dangerous value is suppressed
         return String::new();

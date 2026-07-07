@@ -17,7 +17,18 @@ impl CodeWriter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            lines: vec![],
+            lines: Vec::with_capacity(128),
+            indent_level: 0,
+            indent_str: "    ",
+            cached_indent: String::new(),
+        }
+    }
+
+    /// Create a new `CodeWriter` with pre-allocated capacity for `lines` lines.
+    #[must_use]
+    pub fn with_capacity(lines: usize) -> Self {
+        Self {
+            lines: Vec::with_capacity(lines),
             indent_level: 0,
             indent_str: "    ",
             cached_indent: String::new(),
@@ -29,8 +40,13 @@ impl CodeWriter {
     pub fn emit(&mut self, line: &str) {
         if line.is_empty() {
             self.lines.push(String::new());
+        } else if self.cached_indent.is_empty() {
+            self.lines.push(line.to_string());
         } else {
-            self.lines.push(format!("{}{}", self.cached_indent, line));
+            let mut s = String::with_capacity(self.cached_indent.len() + line.len());
+            s.push_str(&self.cached_indent);
+            s.push_str(line);
+            self.lines.push(s);
         }
     }
 

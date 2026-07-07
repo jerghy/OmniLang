@@ -73,11 +73,26 @@ mod tests {
 
     #[test]
     fn test_binary_op_to_vue() {
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false), "+");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false), "===");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false), "&&");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false), "||");
-        assert_eq!(crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, true, false), "!==");
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Add, true, false),
+            "+"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Eq, true, false),
+            "==="
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::And, true, false),
+            "&&"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Or, true, false),
+            "||"
+        );
+        assert_eq!(
+            crate::codegen::binary_op_to_str(&BinaryOpIR::Neq, true, false),
+            "!=="
+        );
     }
 
     // ── format_expr_vue tests ───────────────────────────────

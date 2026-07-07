@@ -6,7 +6,10 @@ impl OmniViewGenerator {
     /// Emit motion trigger JS for element triggers (@enter, @hover, etc.).
     /// Runs in the deferred/mount JS context where DOM elements exist.
     pub(super) fn emit_motion_triggers_for_element(&mut self, nid: &str, el: &ElementIR) {
-        for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
+        for trigger in el
+            .motion_behavior()
+            .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+        {
             let trigger_str = match trigger.kind {
                 TriggerKind::Enter => "enter",
                 TriggerKind::Leave => "leave",
@@ -125,15 +128,19 @@ impl OmniViewGenerator {
                         ));
                     }
                     TriggerKind::InView => {
-                        let repeat_val = match el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
-                            Some(expr) => {
-                                let js = self.expr_to_js(expr);
-                                js == "true"
-                            }
-                            None => false,
-                        };
+                        let repeat_val =
+                            match el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
+                                Some(expr) => {
+                                    let js = self.expr_to_js(expr);
+                                    js == "true"
+                                }
+                                None => false,
+                            };
                         let should_disconnect = if repeat_val { "false" } else { "true" };
-                        let threshold_val = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
+                        let threshold_val = match el
+                            .motion_behavior()
+                            .and_then(|m| m.in_view_threshold.as_ref())
+                        {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
                         };
@@ -168,8 +175,14 @@ impl OmniViewGenerator {
                         ));
                     }
                     TriggerKind::Scroll => {
-                        let scroll_start_str = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
-                        let scroll_end_str = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+                        let scroll_start_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.start.as_deref())
+                            .unwrap_or("top 80%");
+                        let scroll_end_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.end.as_deref())
+                            .unwrap_or("bottom 20%");
                         let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
@@ -221,19 +234,25 @@ impl OmniViewGenerator {
                         let edge_min = if is_horizontal { "left" } else { "top" };
                         let edge_max = if is_horizontal { "right" } else { "bottom" };
                         let rect_size = if is_horizontal { "width" } else { "height" };
-                        let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
-                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
+                        let constraints_str = el
+                            .drag_behavior()
+                            .and_then(|d| d.constraints.as_deref())
+                            .unwrap_or("");
+                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref())
+                        {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
                         };
-                        let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => self.expr_to_js(expr),
-                            None => "0".to_string(),
-                        };
-                        let velocity_max_val = match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => self.expr_to_js(expr),
-                            None => "2000".to_string(),
-                        };
+                        let threshold_val =
+                            match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
+                                Some(expr) => self.expr_to_js(expr),
+                                None => "0".to_string(),
+                            };
+                        let velocity_max_val =
+                            match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
+                                Some(expr) => self.expr_to_js(expr),
+                                None => "2000".to_string(),
+                            };
                         self.js.push_str(&format!(
                             "// @drag-{axis} trigger\n\
                              (function() {{\n\
@@ -428,11 +447,15 @@ impl OmniViewGenerator {
                         ));
                     }
                     TriggerKind::InView => {
-                        let once_val = match el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
-                            Some(expr) => self.expr_to_js(expr),
-                            None => "true".to_string(),
-                        };
-                        let threshold_val = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
+                        let once_val =
+                            match el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
+                                Some(expr) => self.expr_to_js(expr),
+                                None => "true".to_string(),
+                            };
+                        let threshold_val = match el
+                            .motion_behavior()
+                            .and_then(|m| m.in_view_threshold.as_ref())
+                        {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
                         };
@@ -467,8 +490,14 @@ impl OmniViewGenerator {
                         ));
                     }
                     TriggerKind::Scroll => {
-                        let scroll_start_str = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
-                        let scroll_end_str = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+                        let scroll_start_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.start.as_deref())
+                            .unwrap_or("top 80%");
+                        let scroll_end_str = el
+                            .scroll_behavior()
+                            .and_then(|s| s.end.as_deref())
+                            .unwrap_or("bottom 20%");
                         let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
@@ -521,19 +550,25 @@ impl OmniViewGenerator {
                         let edge_max = if is_horizontal { "right" } else { "bottom" };
                         let rect_size = if is_horizontal { "width" } else { "height" };
                         let axis_label = if is_horizontal { "x" } else { "y" };
-                        let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
-                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
+                        let constraints_str = el
+                            .drag_behavior()
+                            .and_then(|d| d.constraints.as_deref())
+                            .unwrap_or("");
+                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref())
+                        {
                             Some(expr) => self.expr_to_js(expr),
                             None => "0".to_string(),
                         };
-                        let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                            Some(expr) => self.expr_to_js(expr),
-                            None => "0".to_string(),
-                        };
-                        let velocity_max_val = match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-                            Some(expr) => self.expr_to_js(expr),
-                            None => "2000".to_string(),
-                        };
+                        let threshold_val =
+                            match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
+                                Some(expr) => self.expr_to_js(expr),
+                                None => "0".to_string(),
+                            };
+                        let velocity_max_val =
+                            match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
+                                Some(expr) => self.expr_to_js(expr),
+                                None => "2000".to_string(),
+                            };
                         self.js.push_str(&format!(
                             "// @drag-{axis} (inline)\n\
                              (function() {{\n\

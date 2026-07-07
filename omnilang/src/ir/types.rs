@@ -3,6 +3,7 @@
 
 use crate::sourcemap::SourceMapEntry;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use strum::IntoStaticStr;
 use std::collections::HashMap;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
@@ -18,7 +19,8 @@ fn is_false(b: &bool) -> bool {
 // BinaryOpIR — strongly-typed binary operator
 // ═══════════════════════════════════════════════════════
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
 pub enum BinaryOpIR {
     #[serde(rename = "add")]
     Add,
@@ -39,26 +41,34 @@ pub enum BinaryOpIR {
     #[serde(rename = "gt")]
     Gt,
     #[serde(rename = "lteq")]
+    #[strum(serialize = "lteq")]
     LtEq,
     #[serde(rename = "gteq")]
+    #[strum(serialize = "gteq")]
     GtEq,
     #[serde(rename = "and")]
     And,
     #[serde(rename = "or")]
     Or,
     #[serde(rename = "??")]
+    #[strum(serialize = "??")]
     NullishCoalesce,
     #[serde(rename = "assign")]
     Assign,
     #[serde(rename = "addassign")]
+    #[strum(serialize = "addassign")]
     AddAssign,
     #[serde(rename = "subassign")]
+    #[strum(serialize = "subassign")]
     SubAssign,
     #[serde(rename = "mulassign")]
+    #[strum(serialize = "mulassign")]
     MulAssign,
     #[serde(rename = "divassign")]
+    #[strum(serialize = "divassign")]
     DivAssign,
     #[serde(rename = "modassign")]
+    #[strum(serialize = "modassign")]
     ModAssign,
 }
 
@@ -67,28 +77,7 @@ impl BinaryOpIR {
     /// matching `BinaryOpKind::as_ir_str()` from the AST.
     #[must_use]
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Add => "add",
-            Self::Sub => "sub",
-            Self::Mul => "mul",
-            Self::Div => "div",
-            Self::Mod => "mod",
-            Self::Eq => "eq",
-            Self::Neq => "neq",
-            Self::Lt => "lt",
-            Self::Gt => "gt",
-            Self::LtEq => "lteq",
-            Self::GtEq => "gteq",
-            Self::And => "and",
-            Self::Or => "or",
-            Self::NullishCoalesce => "??",
-            Self::Assign => "assign",
-            Self::AddAssign => "addassign",
-            Self::SubAssign => "subassign",
-            Self::MulAssign => "mulassign",
-            Self::DivAssign => "divassign",
-            Self::ModAssign => "modassign",
-        }
+        self.into()
     }
 }
 
@@ -265,7 +254,9 @@ impl From<&str> for TypeKind {
             "bool" => Self::Bool,
             "void" => Self::Void,
             "any" => Self::Any,
-            _ => Self::Named { name: s.to_string() },
+            _ => Self::Named {
+                name: s.to_string(),
+            },
         }
     }
 }
@@ -400,8 +391,14 @@ impl EventHandlerIR {
     /// Returns the needs_prevent_default flag for FnRef and InlineFn variants.
     pub fn needs_prevent_default(&self) -> bool {
         match self {
-            Self::FnRef { needs_prevent_default, .. } => *needs_prevent_default,
-            Self::InlineFn { needs_prevent_default, .. } => *needs_prevent_default,
+            Self::FnRef {
+                needs_prevent_default,
+                ..
+            } => *needs_prevent_default,
+            Self::InlineFn {
+                needs_prevent_default,
+                ..
+            } => *needs_prevent_default,
             Self::StoreAction { .. } => false,
         }
     }
@@ -409,8 +406,14 @@ impl EventHandlerIR {
     /// Returns the needs_stop_propagation flag for FnRef and InlineFn variants.
     pub fn needs_stop_propagation(&self) -> bool {
         match self {
-            Self::FnRef { needs_stop_propagation, .. } => *needs_stop_propagation,
-            Self::InlineFn { needs_stop_propagation, .. } => *needs_stop_propagation,
+            Self::FnRef {
+                needs_stop_propagation,
+                ..
+            } => *needs_stop_propagation,
+            Self::InlineFn {
+                needs_stop_propagation,
+                ..
+            } => *needs_stop_propagation,
             Self::StoreAction { .. } => false,
         }
     }

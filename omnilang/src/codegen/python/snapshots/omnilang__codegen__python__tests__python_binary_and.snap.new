@@ -1,0 +1,6 @@
+---
+source: omnilang/src/codegen/python/tests.rs
+assertion_line: 84
+expression: fmt(&expr)
+---
+a and b

@@ -77,11 +77,13 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         // TS: emit field declarations before constructor
         if fmt.ts_mode() {
             for (prop_name, prop_type) in &comp.props {
-                let ann = JsTypeFormatter.format_type(&prop_type.kind.as_str(), &prop_type.type_args);
+                let ann =
+                    JsTypeFormatter.format_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("{}: {};", prop_name, ann));
             }
             for state in &comp.states {
-                let ann = JsTypeFormatter.format_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
+                let ann = JsTypeFormatter
+                    .format_type(state.r#type.kind.as_str(), &state.r#type.type_args);
                 w.emit_fmt(format_args!("{}: {};", state.name, ann));
             }
         }
@@ -93,8 +95,8 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
     for computed in &comp.computeds {
         let body = fmt.format_expr(&computed.body);
         let ret_ann = if fmt.ts_mode() {
-            let ann =
-                JsTypeFormatter.format_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
+            let ann = JsTypeFormatter
+                .format_type(computed.r#type.kind.as_str(), &computed.r#type.type_args);
             if ann.is_empty() {
                 String::new()
             } else {
@@ -131,7 +133,8 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
     // TS: field declarations
     if fmt.ts_mode() {
         for (signal_name, signal_type) in &store.signals {
-            let ann = JsTypeFormatter.format_type(&signal_type.kind.as_str(), &signal_type.type_args);
+            let ann =
+                JsTypeFormatter.format_type(signal_type.kind.as_str(), &signal_type.type_args);
             w.emit_fmt(format_args!("{}: {};", signal_name, ann));
         }
         for getter_name in store.getters.keys() {
@@ -173,7 +176,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         let mut s = safe_name;
         if ts_mode {
             if let Some(ref ty) = p.r#type {
-                let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
+                let ann = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
                 if !ann.is_empty() {
                     s.push_str(&format!(": {}", ann));
                 }
@@ -187,7 +190,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         func.return_type
             .as_ref()
             .map(|rt| {
-                let ann = JsTypeFormatter.format_type(&rt.kind.as_str(), &rt.type_args);
+                let ann = JsTypeFormatter.format_type(rt.kind.as_str(), &rt.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -247,7 +250,7 @@ impl FormatStmt for JsStmtFormatter {
         if self.expr.ts_mode() {
             ty.as_ref()
                 .map(|t| {
-                    let ann = JsTypeFormatter.format_type(&t.kind.as_str(), &t.type_args);
+                    let ann = JsTypeFormatter.format_type(t.kind.as_str(), &t.type_args);
                     if ann.is_empty() {
                         String::new()
                     } else {
