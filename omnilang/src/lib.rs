@@ -262,6 +262,7 @@ fn extract_body_html(html: &str) -> String {
 }
 
 /// Internal compile result struct (avoids JSON round-trip for native consumers).
+#[derive(Debug, Serialize)]
 pub struct InternalCompileResult {
     pub success: bool,
     pub files: FxHashMap<String, String>,

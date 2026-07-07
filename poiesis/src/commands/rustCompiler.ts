@@ -95,12 +95,12 @@ type MultiCompileResult = {
 
 class RustCompiler {
   private wasm: {
-    compile_to_ir: (source: string) => string;
-    compile_to_omniview: (source: string, options_json: string) => string;
-    compile_omniview_component?: (source: string, component_name: string, options_json: string) => string;
+    compile_to_ir: (source: string) => any;
+    compile_to_omniview: (source: string, editor_mode: boolean) => any;
+    compile_omniview_component?: (source: string, component_name: string, editor_mode: boolean) => any;
     version: () => string;
-    compile_to_omniview_full?: (source: string, options_json: string) => string;
-    compile_multi_to_omniview?: (sourcesJson: string, optionsJson: string) => string;
+    compile_to_omniview_full?: (source: string, editor_mode: boolean) => any;
+    compile_multi_to_omniview?: (sources: Record<string, string>, editor_mode: boolean) => any;
   } | null = null;
   private ready = false;
 
@@ -145,17 +145,17 @@ class RustCompiler {
       }
 
       this.wasm = {
-        compile_to_ir: wasmModule.compile_to_ir,
-        compile_to_omniview: wasmModule.compile_to_omniview,
-        compile_omniview_component: wasmModule.compile_omniview_component,
-        version: wasmModule.version,
-        compile_to_omniview_full: wasmModule.compile_to_omniview_full,
-        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview,
+        compile_to_ir: wasmModule.compile_to_ir as unknown as (source: string) => any,
+        compile_to_omniview: wasmModule.compile_to_omniview as unknown as (source: string, editor_mode: boolean) => any,
+        compile_omniview_component: wasmModule.compile_omniview_component as unknown as (source: string, component_name: string, editor_mode: boolean) => any,
+        version: wasmModule.version as unknown as () => string,
+        compile_to_omniview_full: wasmModule.compile_to_omniview_full as unknown as (source: string, editor_mode: boolean) => any,
+        compile_multi_to_omniview: wasmModule.compile_multi_to_omniview as unknown as (sources: Record<string, string>, editor_mode: boolean) => any,
       };
       this.ready = true;
 
       log.info(
-        `Loaded omni-compiler v${this.wasm.version()}`,
+        `Loaded omni-compiler v${this.wasm!.version()}`,
       );
     } catch (err) {
       log.warn('WASM not available, compilation will be unavailable:', err);
@@ -175,8 +175,7 @@ class RustCompiler {
       };
     }
     try {
-      const json = this.wasm.compile_to_ir(source);
-      return JSON.parse(json);
+      return this.wasm.compile_to_ir(source) as CompileResult;
     } catch (e) {
       log.error('compileToIR failed:', e);
       return {
@@ -194,9 +193,7 @@ class RustCompiler {
       };
     }
     try {
-      const options = JSON.stringify({ editor_mode: editorMode });
-      const json = this.wasm.compile_to_omniview(source, options);
-      return JSON.parse(json);
+      return this.wasm.compile_to_omniview(source, editorMode) as OmniViewResult;
     } catch (e) {
       log.error('compileToOmniView failed:', e);
       return {
@@ -223,9 +220,7 @@ class RustCompiler {
       };
     }
     try {
-      const options = JSON.stringify({ editor_mode: editorMode });
-      const json = this.wasm.compile_omniview_component(source, componentName, options);
-      return JSON.parse(json) as ComponentCompileResult;
+      return this.wasm.compile_omniview_component(source, componentName, editorMode) as ComponentCompileResult;
     } catch (e) {
       log.error('compileOmniViewComponent failed:', e);
       return {
@@ -259,9 +254,7 @@ class RustCompiler {
       };
     }
     try {
-      const options = JSON.stringify({ editor_mode: editorMode });
-      const json = this.wasm.compile_to_omniview_full(source, options);
-      return JSON.parse(json) as OmniViewFullResult;
+      return this.wasm.compile_to_omniview_full(source, editorMode) as OmniViewFullResult;
     } catch (e) {
       log.error('compileToOmniViewFull failed:', e);
       return {
@@ -280,9 +273,7 @@ class RustCompiler {
       };
     }
     try {
-      const options = JSON.stringify({ editor_mode: editorMode });
-      const json = this.wasm.compile_multi_to_omniview(JSON.stringify(sources), options);
-      return JSON.parse(json) as MultiCompileResult;
+      return this.wasm.compile_multi_to_omniview(sources, editorMode) as MultiCompileResult;
     } catch (e) {
       log.error('compileMultiToOmniView failed:', e);
       return {

@@ -33,3 +33,12 @@ Task S1-B: complete (commit 684e552e5, review: Approved/Minor — scope creep in
 Task S1-C: complete (commit a7c24866f, review: Approved/Minor — Fix 3 expect→unwrap_or_else noted)
 Task S1-D: complete (commit a0526c389, review: Approved)
 Sprint 1 Final: APPROVE — 4 commits, 15 files, 0 blocking issues
+
+### Sprint 2 Execution (2026-07-07)
+Task S2-A: complete (commit fce16b362, review: FULLY COMPLIANT/HIGH — FxHasher + O(N²)→O(N) clones)
+Task S2-B: complete (commit e40a0eaeb, review: PASS/PASS — 200ms debounce on setProp/setStyle)
+Task S2-C: complete (commit 2a9e4fa01 — removed dead monaco-editor deps, ~2MB saved)
+Task S2-D: complete (commit e12d2af53, review: PASS/PASS — createCleanState() helper, scope creep noted)
+Task S2-E: complete (commit 66af980be, review: PASS/PASS — split omnic commands, extract tests, 376+11 tests pass)
+Task S2-F: complete (commit e61b7a631 — CI: add ubuntu-latest to Rust test matrix)
+Sprint 2 Final: 6 commits, ~3.5MB diff (mostly file moves), all reviews clean

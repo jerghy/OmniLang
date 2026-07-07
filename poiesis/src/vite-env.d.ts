@@ -9,9 +9,9 @@ declare module '*.css' {
 declare module '*/omni_compiler.js' {
   const init: (module?: WebAssembly.Module) => Promise<void>;
   export function initSync(buffer: ArrayBuffer): void;
-  export function compile_to_ir(source: string): string;
-  export function compile_to_omniview(source: string, options_json: string): string;
-  export function compile_omniview_component(source: string, component_name: string, options_json: string): string;
+  export function compile_to_ir(source: string): any;
+  export function compile_to_omniview(source: string, editor_mode: boolean): any;
+  export function compile_omniview_component(source: string, component_name: string, editor_mode: boolean): any;
   export function version(): string;
   export default init;
 }

@@ -1,91 +1,76 @@
 //! WASM bindings for OmniLang compiler.
 //! Compiled only when the `wasm` feature is enabled.
+//!
+//! Uses `serde_wasm_bindgen` to serialize/deserialize directly to/from `JsValue`,
+//! eliminating JSON double-serialization in every compilation call.
 
 use rustc_hash::FxHashMap;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
-use crate::{compile, compile_omniview};
+use crate::compile;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct CompileOptions {
-    #[serde(default)]
-    editor_mode: bool,
+#[cfg(feature = "codegen-omniview")]
+use crate::compile_omniview;
+
+/// Build a JsValue error response for consistent error reporting.
+fn js_error_value(message: &str) -> JsValue {
+    let err = serde_json::json!({
+        "success": false,
+        "errors": [{
+            "severity": "error",
+            "code": "E_WASM",
+            "message": message,
+            "file": null,
+            "line": 0,
+            "col": 0,
+            "end_line": 0,
+            "end_col": 0,
+            "suggestion": null
+        }]
+    });
+    serde_wasm_bindgen::to_value(&err).unwrap_or(JsValue::NULL)
 }
 
-/// Parse options JSON, returning a structured error JSON string on failure.
-fn parse_options_or_error(options_json: &str) -> Result<CompileOptions, String> {
-    serde_json::from_str::<CompileOptions>(options_json).map_err(|e| {
-        serde_json::json!({
-            "success": false,
-            "files": null,
-            "errors": [{
-                "severity": "error",
-                "code": "E_INVALID_OPTIONS",
-                "message": format!("Failed to parse options JSON: {}", e),
-                "line": 0, "col": 0, "end_line": 0, "end_col": 0, "suggestion": null
-            }]
-        })
-        .to_string()
+/// Serialize any Serialize-able value to JsValue, falling back to an error JsValue.
+fn to_js_value<T: Serialize + ?Sized>(value: &T) -> JsValue {
+    serde_wasm_bindgen::to_value(value).unwrap_or_else(|e| {
+        js_error_value(&format!("serialization error: {}", e))
     })
 }
 
-/// Compile .omni source to OmniView (JS + HTML + CSS). Returns JSON string.
-/// options_json: {"editor_mode": true}
+/// Compile .omni source to OmniView (JS + HTML + CSS). Returns JsValue.
+/// editor_mode: enable debug wrappers for editor preview.
+#[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
-pub fn compile_to_omniview(source: &str, options_json: &str) -> String {
-    let opts = match parse_options_or_error(options_json) {
-        Ok(o) => o,
-        Err(error_json) => return error_json,
-    };
-    let result = compile_omniview(source, opts.editor_mode);
-    serde_json::to_string(&result).unwrap_or_else(|e| {
-        serde_json::json!({
-            "success": false,
-            "files": null,
-            "components": null,
-            "sourceMap": null,
-            "errors": [{
-                "severity": "error",
-                "code": "E_SERIALIZE",
-                "message": e.to_string(),
-                "line": 0,
-                "col": 0,
-                "end_line": 0,
-                "end_col": 0,
-                "suggestion": null
-            }]
-        })
-        .to_string()
-    })
+pub fn compile_to_omniview(source: &str, editor_mode: bool) -> JsValue {
+    to_js_value(&compile_omniview(source, editor_mode))
 }
 
-/// Compile a single .omni component to OmniView output. Returns JSON string.
+/// Compile a single .omni component to OmniView output. Returns JsValue.
 /// The source should contain the full .omni file; component_name selects which component to extract.
-/// options_json: {"editor_mode": true}
+/// editor_mode: enable debug wrappers for editor preview.
+#[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
 pub fn compile_omniview_component(
     source: &str,
     component_name: &str,
-    options_json: &str,
-) -> String {
-    let opts = match parse_options_or_error(options_json) {
-        Ok(o) => o,
-        Err(error_json) => return error_json,
-    };
-    let result = compile_omniview(source, opts.editor_mode);
-
+    editor_mode: bool,
+) -> JsValue {
+    let result = compile_omniview(source, editor_mode);
     let component = result
         .components
         .as_ref()
         .and_then(|comps| comps.get(component_name).cloned());
 
-    serde_json::json!({
+    let output = serde_json::json!({
         "success": result.success && component.is_some(),
         "component": component,
         "errors": result.errors,
+    });
+    serde_wasm_bindgen::to_value(&output).unwrap_or_else(|e| {
+        js_error_value(&format!("serialization error: {}", e))
     })
-    .to_string()
 }
 
 /// Return compiler version.
@@ -94,95 +79,62 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-/// Compile .omni source to IR JSON. Returns JSON string.
+/// Compile .omni source to IR JSON. Returns JsValue.
 #[wasm_bindgen]
-pub fn compile_to_ir(source: &str) -> String {
-    let result = compile(source);
-    serde_json::to_string(&result).unwrap_or_else(|e| {
-        serde_json::json!({
-            "success": false,
-            "ir": null,
-            "errors": [{
-                "severity": "error",
-                "code": "E_SERIALIZE",
-                "message": e.to_string(),
-                "line": 0,
-                "col": 0,
-                "end_line": 0,
-                "end_col": 0,
-                "suggestion": null
-            }]
-        })
-        .to_string()
-    })
+pub fn compile_to_ir(source: &str) -> JsValue {
+    to_js_value(&compile(source))
 }
 
 /// Compile .omni source to OmniView output in a single pass (IR + codegen).
-/// Returns JSON with `ir`, `files`, `components`, `source_map`, and `errors`.
-/// options_json: {"editor_mode": true}
+/// Returns JsValue with `ir`, `files`, `components`, `source_map`, and `errors`.
+/// editor_mode: enable debug wrappers for editor preview.
+#[cfg(feature = "codegen-omniview")]
 #[wasm_bindgen]
-pub fn compile_to_omniview_full(source: &str, options_json: &str) -> String {
-    let opts = match parse_options_or_error(options_json) {
-        Ok(o) => o,
-        Err(error_json) => return error_json,
-    };
-    let result = crate::compile_omniview_full(source, opts.editor_mode);
-    serde_json::to_string(&result).unwrap_or_else(|e| {
-        serde_json::json!({
-            "success": false,
-            "ir": null,
-            "files": null,
-            "components": null,
-            "sourceMap": null,
-            "errors": [{
-                "severity": "error",
-                "code": "E_SERIALIZE",
-                "message": e.to_string(),
-                "line": 0,
-                "col": 0,
-                "end_line": 0,
-                "end_col": 0,
-                "suggestion": null
-            }]
-        })
-        .to_string()
-    })
+pub fn compile_to_omniview_full(source: &str, editor_mode: bool) -> JsValue {
+    to_js_value(&crate::compile_omniview_full(source, editor_mode))
 }
 
 /// Compile multiple .omni source files to OmniView.
-/// sources_json: {"path": "source content", ...}
-/// Returns JSON with `success`, `files`, and `errors`.
+/// sources: JS object mapping file path to source content, e.g. {"path": "source content", ...}
+/// editor_mode: enable debug wrappers for editor preview.
+/// Returns JsValue with `success`, `files`, `errors`, and `warnings`.
 #[wasm_bindgen]
-pub fn compile_multi_to_omniview(sources_json: &str, options_json: &str) -> String {
-    let opts = match parse_options_or_error(options_json) {
-        Ok(o) => o,
-        Err(error_json) => return error_json,
-    };
-    let sources: FxHashMap<String, String> = match serde_json::from_str(sources_json) {
+pub fn compile_multi_to_omniview(sources: JsValue, editor_mode: bool) -> JsValue {
+    let sources_map: FxHashMap<String, String> = match serde_wasm_bindgen::from_value(sources) {
         Ok(s) => s,
         Err(e) => {
-            return serde_json::json!({
+            return serde_wasm_bindgen::to_value(&serde_json::json!({
                 "success": false,
                 "files": {},
-                "errors": [format!("Failed to parse sources JSON: {}", e)]
-            })
-            .to_string();
+                "errors": [{
+                    "severity": "error",
+                    "code": "E_INVALID_SOURCES",
+                    "message": format!("Failed to parse sources: {}", e),
+                    "file": null,
+                    "line": 0,
+                    "col": 0,
+                    "end_line": 0,
+                    "end_col": 0,
+                    "suggestion": null
+                }]
+            })).unwrap_or(JsValue::NULL);
         }
     };
-    crate::compile_multi_to_target(
-        sources,
+    let result = crate::compile_multi_internal(
+        sources_map,
         crate::codegen::Target::OmniView,
         FxHashMap::default(),
-        opts.editor_mode,
-    )
+        editor_mode,
+    );
+    to_js_value(&result)
 }
 
 /// Stateful compiler instance that caches sources and compilation results across calls.
 #[wasm_bindgen]
 pub struct OmniCompiler {
     sources: FxHashMap<String, String>,
-    cached_compile_result: Option<(String, String)>, // (options_json, result)
-    cached_diags_result: Option<String>,
+    cached_compile_result: Option<(bool, JsValue)>, // (editor_mode, result JsValue)
+    cached_diags_result: Option<JsValue>,
 }
 
 #[wasm_bindgen]
@@ -212,72 +164,75 @@ impl OmniCompiler {
     }
 
     /// Compile all registered sources to OmniView. Uses cached result when available.
-    /// options_json: {"editor_mode": true}
-    pub fn compile_to_omniview(&mut self, options_json: &str) -> String {
+    /// editor_mode: enable debug wrappers for editor preview.
+    #[cfg(feature = "codegen-omniview")]
+    pub fn compile_to_omniview(&mut self, editor_mode: bool) -> JsValue {
         if self.sources.is_empty() {
-            return serde_json::json!({
+            return serde_wasm_bindgen::to_value(&serde_json::json!({
                 "success": false,
                 "files": null,
                 "components": null,
                 "source_map": null,
-                "errors": [{"message": "no source files added to compiler"}]
-            })
-            .to_string();
+                "errors": [{
+                    "severity": "error",
+                    "code": "E_NO_SOURCES",
+                    "message": "no source files added to compiler",
+                    "line": 0,
+                    "col": 0,
+                    "end_line": 0,
+                    "end_col": 0,
+                    "suggestion": null
+                }]
+            })).unwrap_or(JsValue::NULL);
         }
         if let Some((ref cached_opts, ref cached)) = self.cached_compile_result {
-            if cached_opts == options_json {
+            if *cached_opts == editor_mode {
                 return cached.clone();
             }
         }
-        let result = if self.sources.len() == 1 {
+        let result_js = if self.sources.len() == 1 {
             // Single file: use compile_omniview_full for full result with IR
             let source = match self.sources.values().next() {
                 Some(s) => s,
                 None => {
-                    return serde_json::json!({
+                    return serde_wasm_bindgen::to_value(&serde_json::json!({
                         "success": false,
                         "files": null,
                         "components": null,
                         "source_map": null,
-                        "errors": [{"message": "no source files in compiler"}]
-                    })
-                    .to_string()
+                        "errors": [{
+                            "severity": "error",
+                            "code": "E_NO_SOURCES",
+                            "message": "no source files in compiler",
+                            "line": 0,
+                            "col": 0,
+                            "end_line": 0,
+                            "end_col": 0,
+                            "suggestion": null
+                        }]
+                    })).unwrap_or(JsValue::NULL);
                 }
             };
-            let opts = match parse_options_or_error(options_json) {
-                Ok(o) => o,
-                Err(error_json) => return error_json,
-            };
-            let full = crate::compile_omniview_full(source, opts.editor_mode);
-            serde_json::to_string(&full).unwrap_or_else(|e| {
-                serde_json::json!({
-                    "success": false,
-                    "files": null,
-                    "errors": [{"message": e.to_string()}]
-                })
-                .to_string()
-            })
+            let full = crate::compile_omniview_full(source, editor_mode);
+            to_js_value(&full)
         } else {
-            // Multi-file: use compile_multi_to_target with editor_mode support.
-            let opts = match parse_options_or_error(options_json) {
-                Ok(o) => o,
-                Err(error_json) => return error_json,
-            };
-            crate::compile_multi_to_target(
+            // Multi-file: use compile_multi_internal with structured result
+            let result = crate::compile_multi_internal(
                 self.sources.clone(),
                 crate::codegen::Target::OmniView,
                 FxHashMap::default(),
-                opts.editor_mode,
-            )
+                editor_mode,
+            );
+            to_js_value(&result)
         };
-        self.cached_compile_result = Some((options_json.to_string(), result.clone()));
+        self.cached_compile_result = Some((editor_mode, result_js.clone()));
         self.cached_diags_result = None;
-        result
+        result_js
     }
 
     /// Run diagnostics on all registered sources without compiling to output.
-    /// Returns JSON with `success` and `errors` arrays.
-    pub fn diagnostics(&mut self) -> String {
+    /// Returns JsValue with `success` and `errors` arrays.
+    pub fn diagnostics(&mut self) -> JsValue {
         if let Some(ref cached) = self.cached_diags_result {
             return cached.clone();
         }
@@ -292,13 +247,13 @@ impl OmniCompiler {
                 all_errors.push(err.to_json_value());
             }
         }
-        let result = serde_json::json!({
+        let result_value = serde_wasm_bindgen::to_value(&serde_json::json!({
             "success": all_success,
             "errors": all_errors,
-        })
-        .to_string();
-        self.cached_diags_result = Some(result.clone());
-        result
+        }))
+        .unwrap_or(JsValue::NULL);
+        self.cached_diags_result = Some(result_value.clone());
+        result_value
     }
 
     /// Return the compiler version string.
@@ -311,11 +266,12 @@ impl OmniCompiler {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_success() {
         let result =
-            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", "{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+            compile_to_omniview_full("component App { view { Text { \"hello\" } } }", false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
         assert!(parsed["files"]["html"].as_str().unwrap().len() > 0);
@@ -323,25 +279,25 @@ mod tests {
         assert!(parsed["ir"].is_object());
     }
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_parse_error() {
-        let result = compile_to_omniview_full("this is invalid @@@", "{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result = compile_to_omniview_full("this is invalid @@@", false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
         assert!(parsed["ir"].is_null());
         assert!(parsed["files"].is_null());
         assert!(parsed["errors"].as_array().unwrap().len() > 0);
     }
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_compile_to_omniview_full_editor_mode() {
-        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", "{}");
-        let result2 = compile_to_omniview_full(
-            "component App { view { Text { \"hi\" } } }",
-            "{\"editor_mode\": true}",
-        );
-        let p1: serde_json::Value = serde_json::from_str(&result1).unwrap();
-        let p2: serde_json::Value = serde_json::from_str(&result2).unwrap();
+        let result1 = compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false);
+        let result2 =
+            compile_to_omniview_full("component App { view { Text { \"hi\" } } }", true);
+        let p1: serde_json::Value = serde_wasm_bindgen::from_value(result1).unwrap();
+        let p2: serde_json::Value = serde_wasm_bindgen::from_value(result2).unwrap();
         // Both should compile successfully
         assert!(p1["success"].as_bool().unwrap());
         assert!(p2["success"].as_bool().unwrap());
@@ -354,12 +310,12 @@ mod tests {
 
     #[test]
     fn test_compile_multi_to_omniview_single_file() {
-        let sources = serde_json::json!({
+        let sources = serde_wasm_bindgen::to_value(&serde_json::json!({
             "main.omni": "component App { view { Text { \"multi\" } } }"
-        })
-        .to_string();
-        let result = compile_multi_to_omniview(&sources, "{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        }))
+        .unwrap();
+        let result = compile_multi_to_omniview(sources, false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         // Multi-file compile succeeds or has diagnostic errors (both valid outcomes)
         let has_output = parsed["files"]
             .as_object()
@@ -376,9 +332,10 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_multi_to_omniview_invalid_json() {
-        let result = compile_multi_to_omniview("not json", "{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+    fn test_compile_multi_to_omniview_invalid_sources() {
+        let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
+        let result = compile_multi_to_omniview(sources, false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
     }
 
@@ -388,11 +345,12 @@ mod tests {
         assert_eq!(c.version(), env!("CARGO_PKG_VERSION"));
     }
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_omni_compiler_empty_sources() {
         let mut c = OmniCompiler::new();
-        let result = c.compile_to_omniview("{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result = c.compile_to_omniview(false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
         assert!(parsed["errors"]
             .as_array()
@@ -401,6 +359,7 @@ mod tests {
             .any(|e| e["message"].as_str().unwrap().contains("no source")));
     }
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_omni_compiler_single_file_compile() {
         let mut c = OmniCompiler::new();
@@ -408,12 +367,13 @@ mod tests {
             "app.omni".into(),
             "component App { view { Text { \"hello\" } } }".into(),
         );
-        let result = c.compile_to_omniview("{}");
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result = c.compile_to_omniview(false);
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["files"]["js"].as_str().unwrap().len() > 0);
     }
 
+    #[cfg(feature = "codegen-omniview")]
     #[test]
     fn test_omni_compiler_cache_invalidation() {
         let mut c = OmniCompiler::new();
@@ -421,17 +381,22 @@ mod tests {
             "app.omni".into(),
             "component App { view { Text { \"v1\" } } }".into(),
         );
-        let r1 = c.compile_to_omniview("{}");
+        let r1 = c.compile_to_omniview(false);
+        let p1: serde_json::Value = serde_wasm_bindgen::from_value(r1).unwrap();
+
         // Same source, same options — should hit cache
-        let r2 = c.compile_to_omniview("{}");
-        assert_eq!(r1, r2);
+        let r2 = c.compile_to_omniview(false);
+        let p2: serde_json::Value = serde_wasm_bindgen::from_value(r2).unwrap();
+        assert_eq!(p1, p2);
+
         // Change source — should invalidate
         c.upsert_source(
             "app.omni".into(),
             "component App { view { Text { \"v2\" } } }".into(),
         );
-        let r3 = c.compile_to_omniview("{}");
-        assert_ne!(r1, r3);
+        let r3 = c.compile_to_omniview(false);
+        let p3: serde_json::Value = serde_wasm_bindgen::from_value(r3).unwrap();
+        assert_ne!(p1, p3);
     }
 
     #[test]
@@ -442,7 +407,7 @@ mod tests {
             "component App { view { Text { \"ok\" } } }".into(),
         );
         let d = c.diagnostics();
-        let parsed: serde_json::Value = serde_json::from_str(&d).unwrap();
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(d).unwrap();
         assert!(parsed["success"].as_bool().unwrap());
         assert!(parsed["errors"].is_array());
     }
