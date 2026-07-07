@@ -13,6 +13,7 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 import { DesignTabBar } from "../components/design/DesignTabBar";
+import { DesignTabContent } from "../components/design/DesignTabContent";
 import { DesignCanvas } from "../components/design/DesignCanvas";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
@@ -183,7 +184,9 @@ export function DesignPage() {
             background: "#f1f5f9",
           }}
         >
-          {activeTabType === "component" ? (
+          {activeTabType === "design" ? (
+            <DesignTabContent />
+          ) : activeTabType === "component" ? (
             <DesignCanvas />
           ) : (
             <CodeFlowCanvas />
