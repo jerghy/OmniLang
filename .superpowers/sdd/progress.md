@@ -1,46 +1,19 @@
-# OmniLang Code Review Fix Progress v2
-> branch: worktree-code-review-fixes-v2 | start: 2026-07-06
-> based on: main
+# Poiesis Style Panel Progress
+> branch: main | start: 2026-07-07
+> plan: docs/superpowers/plans/2026-07-07-poiesis-style-panel.md
 
-## Setup
-- 6988f6e1: chore: fix duplicate [dev-dependencies] and move [profile.release] to workspace root
-
-## Tasks
-
-### Phase 1: Quick Wins
-- [ ] Task 1: Codegen P1 shared utility extraction
-- [ ] Task 2: CSP/Security hardening
-- [ ] Task 3: #[must_use] audit + annotation
-- [ ] Task 4: TS global type declarations
-
-### Phase 2A: Core Refactors
-- [ ] Task 5: format_json_value unification
-- [x] Task 6: Parser infrastructure + Error AST nodes
-- [ ] Task 7: PoiesisState missing methods
-
-### Phase 2B: Deeper Changes
-- [ ] Task 8: binary_op_to_* cleanup + camel_to_separated
-- [ ] Task 9: Statement-level error recovery
-- [ ] Task 10: OmniDriver/ElementHandle window.__* migration
-
-## Verification
-- cargo check: PASS | cargo test: PASS | cargo clippy: PASS
-
-- [x] Task 1: ba401f2c refactor: extract shared codegen utilities (review: PASS/Approved)
-
-- [x] Task 2: 93600150 fix: security hardening (review: PASS/Approved)
-
-- [x] Task 3: 5d0c6a24 refactor: add #[must_use] (31 annotations, 9 modules, review pending)
-- [x] Task 4: 9995732e fix: restore type checking (review: PASS/Approved))
-
-- [x] Task 5: 3dce5243 refactor: unify format_json_value (review: PASS/Approved with fix a28ffe78)
-
-- [x] Task 6: Parser infrastructure + Error AST nodes
-
-- [x] Task 6: 998441f2 refactor: parser error recovery infrastructure (review: PASS/Approved)
-
-- [x] Task 7: ef6c1086 fix: PoiesisState method declarations (review: PASS/Approved)
-
-- [x] Task 8: 7c173c11 refactor: inline binary_op wrappers, merge camel_to_separated
-
-- [x] Task 9: 7ee5ec83 feat: statement-level parser error recovery — 417 tests, 2 new recovery tests
+Task A1: complete (commit ee49b4910, review: Approved/Minor)
+Task A2: complete (commit e76fe994b, review: Approved/Minor)
+Task A3: complete (commit a868ad5bf, review: COMPLIANT/HIGH)
+Task A4: complete (commit e9e4cb7a7, review: PASS)
+Task A5: complete (commit 7438a7ae7, review: PASS, 367 tests)
+Task B1: complete (review: PASS, tsc clean)
+Task B2: complete (review: PASS)
+Task B3: complete (review: PASS)
+Task C1: complete (commit 0d0ce063f, review: PASS)
+Task C2: complete (commit b9d50b386, review: PASS, 1 HIGH color-precision note)
+Task D1: complete (commit 8d84a39ab, review: PASS, HIGH: 1216-line monolith, needs refactor+test)
+Task E1: complete (commit bb55668bc, review: PASS, MEDIUM: 987-line, i18n)
+Task F1+F2: complete (commit 8bf2ecba2, review: PASS, 6 files)
+Task G1+G2+G3: complete (commit 79f5d7da2, review: PASS, 13 tests, 3 MEDIUM notes)
+Task H0-H4: complete (commit 8c40bdce2, fix a8bee23, review: PASS, 1 HIGH bug fixed)

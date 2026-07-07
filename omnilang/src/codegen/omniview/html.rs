@@ -396,11 +396,8 @@ impl OmniViewGenerator {
                             ));
                         } else {
                             let prefixed = format!("{}_{}", self.current_component, r#ref);
-                            let event_obj = emit_event_object(
-                                handler.event_data(),
-                                handler.used_fields(),
-                                "e",
-                            );
+                            let event_obj =
+                                emit_event_object(handler.event_data(), handler.used_fields(), "e");
                             self.js.push_str(&format!(
                                 "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
                                 nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
@@ -499,10 +496,7 @@ impl OmniViewGenerator {
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         // IMPORTANT: MUST be before the void element return below, otherwise void
         // elements like <input> never get their motion triggers emitted!
-        if el
-            .motion_behavior()
-            .is_some_and(|m| !m.triggers.is_empty())
-        {
+        if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
             // Also emit HTML data attributes for each trigger so runtime can discover them
             for trigger in el
                 .motion_behavior()

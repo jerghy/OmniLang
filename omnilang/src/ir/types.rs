@@ -3,8 +3,8 @@
 
 use crate::sourcemap::SourceMapEntry;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use strum::IntoStaticStr;
 use std::collections::HashMap;
+use strum::IntoStaticStr;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
 use super::logic::*;

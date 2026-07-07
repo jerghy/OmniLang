@@ -230,9 +230,7 @@ impl<'a> Parser<'a> {
                     // Check if next token could be another value part
                     match self.peek_kind() {
                         TokenKind::Semicolon | TokenKind::RBrace => break,
-                        k
-                            if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() =>
-                        {
+                        k if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() => {
                             break
                         }
                         _ => {}

@@ -174,11 +174,8 @@ fn format_element(
                 body, event_data, ..
             } => {
                 if event_data.is_some() {
-                    let _event_obj = emit_event_object_flutter(
-                        handler.event_data(),
-                        handler.used_fields(),
-                        "e",
-                    );
+                    let _event_obj =
+                        emit_event_object_flutter(handler.event_data(), handler.used_fields(), "e");
                     let mut hw = CodeWriter::new();
                     hw.emit("(e) {");
                     hw.indent();
@@ -238,9 +235,7 @@ fn format_element(
         .and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref()))
         .is_some();
     let has_scroll = el.scroll_behavior().is_some();
-    let mut result = if el
-        .motion_behavior()
-        .is_some_and(|m| !m.triggers.is_empty())
+    let mut result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
         || el
             .motion_behavior()
             .and_then(|m| m.driven_by.as_ref())
@@ -270,10 +265,7 @@ fn format_element(
         }
 
         // Standard motion triggers (enter, hover, press, etc.)
-        if el
-            .motion_behavior()
-            .is_some_and(|m| !m.triggers.is_empty())
-        {
+        if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
             result = wrap_with_motion_widgets(
                 result,
                 el.motion_behavior()

@@ -81,7 +81,7 @@ export function emitDesignSource(design: DesignDefinition): string {
 
 function emitToken(lines: string[], token: DesignToken): void {
   lines.push(`    // @token id=${token.id}`);
-  const value = token.tokenType === "color" ? token.value : `"${token.value}"`;
+  const value = `"${token.value}"`;
   lines.push(`    token ${token.name}: ${token.tokenType} = ${value};`);
   lines.push("");
 }

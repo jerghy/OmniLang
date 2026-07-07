@@ -51,7 +51,7 @@ export function parseAndPopulate(
         || (parseResult.designVariants?.length ?? 0) > 0) {
       const design: DesignDefinition = {
         name: parseResult.designName || "AppDesign",
-        tokens: parseResult.designTokens.map((t) => ({
+        tokens: (parseResult.designTokens ?? []).map((t) => ({
           id: t.id,
           name: t.name,
           category: "custom",

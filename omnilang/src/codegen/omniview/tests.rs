@@ -45,6 +45,7 @@ fn make_module(name: &str) -> ModuleIR {
         exports: vec![],
         motions: vec![],
         timelines: vec![],
+        designs: vec![],
     }
 }
 

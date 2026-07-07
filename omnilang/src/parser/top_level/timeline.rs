@@ -58,7 +58,8 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
                 let mut properties = Vec::new();
-                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof
+                {
                     let key = self.parse_css_property_name("expected property name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let value = self.parse_expr()?;

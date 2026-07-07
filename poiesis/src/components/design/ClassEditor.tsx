@@ -263,6 +263,28 @@ const REMOVE_BTN: React.CSSProperties = {
   flexShrink: 0,
 };
 
+// ── Hook: outside click ──
+
+function useOutsideClick(
+  ref: React.RefObject<HTMLElement | null>,
+  enabled: boolean,
+  onOutside: () => void,
+) {
+  useEffect(() => {
+    if (!enabled) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onOutside();
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handler);
+    };
+  }, [enabled, ref, onOutside]);
+}
+
 // ── Component ──
 
 export function ClassEditor() {
@@ -304,48 +326,12 @@ export function ClassEditor() {
 
   // ── Close popups on outside click ──
 
-  useEffect(() => {
-    if (!showPseudoMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (pseudoMenuRef.current && !pseudoMenuRef.current.contains(e.target as Node)) {
-        setShowPseudoMenu(false);
-      }
-    };
-    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handler);
-    };
-  }, [showPseudoMenu]);
-
-  useEffect(() => {
-    if (!showAddProp) return;
-    const handler = (e: MouseEvent) => {
-      if (addPropRef.current && !addPropRef.current.contains(e.target as Node)) {
-        setShowAddProp(false);
-        setAddPropSearch("");
-      }
-    };
-    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handler);
-    };
-  }, [showAddProp]);
-
-  useEffect(() => {
-    if (!tokenPickerProp) return;
-    const handler = (e: MouseEvent) => {
-      if (tokenPickerRef.current && !tokenPickerRef.current.contains(e.target as Node)) {
-        setTokenPickerProp(null);
-      }
-    };
-    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handler);
-    };
-  }, [tokenPickerProp]);
+  useOutsideClick(pseudoMenuRef, showPseudoMenu, () => setShowPseudoMenu(false));
+  useOutsideClick(addPropRef, showAddProp, () => {
+    setShowAddProp(false);
+    setAddPropSearch("");
+  });
+  useOutsideClick(tokenPickerRef, !!tokenPickerProp, () => setTokenPickerProp(null));
 
   // ── Handlers ──
 
@@ -935,7 +921,7 @@ export function ClassEditor() {
 
   const renderAddProperty = () => {
     const filtered = ALL_PROPERTY_NAMES.filter(
-      (n) => !n || n.toLowerCase().includes(addPropSearch.toLowerCase()),
+      (n) => n.toLowerCase().includes(addPropSearch.toLowerCase()),
     );
 
     return (

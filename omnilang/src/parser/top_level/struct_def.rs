@@ -62,7 +62,8 @@ impl<'a> Parser<'a> {
             let fields = if *self.peek_kind() == TokenKind::LBrace {
                 self.advance();
                 let mut f = Vec::new();
-                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
+                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof
+                {
                     let fname = self.expect_ident("expected field name")?;
                     self.expect_token(TokenKind::Colon, "expected ':'")?;
                     let ft = self.parse_type_annotation()?;
