@@ -16,7 +16,18 @@ import { createLogger } from "../../lib/utils/logger";
 
 const log = createLogger("ArchitectureGraph");
 
-// @xyflow/react v12 uses broad Node/Edge types; cast to our specific component types
+import type { BubbleNode as ArchBubbleNode, BubbleEdge as ArchBubbleEdge } from "../../core/types/architecture";
+
+// Module-level cache: re-mounts within CACHE_TTL don't re-scan the project
+interface CacheData {
+  bubbles: ArchBubbleNode[];
+  edges: ArchBubbleEdge[];
+  projectDir: string;
+  timestamp: number;
+}
+let cache: CacheData | null = null;
+const CACHE_TTL = 60000; // 1 minute
+
 const nodeTypes = {
   bubble: BubbleNode as unknown as ComponentType<NodeProps>,
   childBubble: ChildBubbleNode as unknown as ComponentType<NodeProps>,
@@ -38,13 +49,11 @@ export function ArchitectureGraph() {
   const expandBubble = usePoiesisStore((s) => s.expandBubble);
   const openTab = usePoiesisStore((s) => s.openTab);
 
-  // Context menu state
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
     bubbleId: string;
   } | null>(null);
 
-  // Load bubble data by scanning project .omni files
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -57,12 +66,19 @@ export function ArchitectureGraph() {
         return;
       }
 
-      // Scan project for .omni files
+      // Check cache: if same projectDir and within TTL, skip scan
+      if (cache && cache.projectDir === projectDir && Date.now() - cache.timestamp < CACHE_TTL) {
+        if (!cancelled) {
+          setBubblesAndEdges(cache.bubbles, cache.edges);
+          setLoading(false);
+        }
+        return;
+      }
+
       const omniFiles: OmniFileInfo[] = [];
       try {
         const result = await api.project.listDir(".");
         if (result.entries) {
-          // Also scan src/ subdirectory
           const scans = [result];
           const srcResult = await api.project.listDir("src");
           if (srcResult.entries) scans.push(srcResult);
@@ -84,6 +100,13 @@ export function ArchitectureGraph() {
 
       const data = await buildBubbleGraph(projectDir, omniFiles);
       if (!cancelled) {
+        // Cache the result
+        cache = {
+          bubbles: data.bubbles,
+          edges: data.edges,
+          projectDir,
+          timestamp: Date.now(),
+        };
         setBubblesAndEdges(data.bubbles, data.edges);
         setLoading(false);
       }
@@ -92,10 +115,8 @@ export function ArchitectureGraph() {
     return () => { cancelled = true; };
   }, [setBubblesAndEdges]);
 
-  // Compute positions via layout hook
   const positions = useBubbleLayout(bubbles, expandedIds);
 
-  // Filter visible bubbles and map to ReactFlow nodes
   const rfNodes = useMemo(() => {
     const expanded = new Set(expandedIds);
     const visible = bubbles.filter(
@@ -124,7 +145,6 @@ export function ArchitectureGraph() {
     });
   }, [bubbles, expandedIds, positions]);
 
-  // Filter visible edges
   const rfEdges = useMemo(() => {
     const expanded = new Set(expandedIds);
     return edges
@@ -142,7 +162,6 @@ export function ArchitectureGraph() {
       }));
   }, [edges, expandedIds, bubbles]);
 
-  // Double-click: expand bubble or navigate to design page
   const handleNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: { id: string }) => {
       const bubble = bubbles.find((b) => b.id === node.id);
@@ -160,7 +179,6 @@ export function ArchitectureGraph() {
     [bubbles, expandBubble, openTab]
   );
 
-  // Context menu
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: { id: string }) => {
       event.preventDefault();
@@ -176,7 +194,6 @@ export function ArchitectureGraph() {
     setContextMenu(null);
   }, []);
 
-  // Handle pane click to close context menu
   const handlePaneClick = useCallback(() => {
     setContextMenu(null);
   }, []);
@@ -212,13 +229,11 @@ export function ArchitectureGraph() {
         onNodeContextMenu={handleNodeContextMenu}
         onPaneClick={handlePaneClick}
       />
-      {contextMenu && (
-        <BubbleContextMenu
-          position={contextMenu.position}
-          bubbleId={contextMenu.bubbleId}
-          onClose={handleContextMenuClose}
-        />
-      )}
+      <BubbleContextMenu
+        position={contextMenu?.position ?? null}
+        bubbleId={contextMenu?.bubbleId ?? null}
+        onClose={handleContextMenuClose}
+      />
     </div>
   );
 }

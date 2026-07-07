@@ -7,9 +7,9 @@ use std::path::Path;
 /// Derive import path mapping from source file paths.
 ///
 /// Maps relative import paths to actual file paths for cross-file import resolution.
-/// For each pair of source files, computes relative-path keys (e.g. `"./Component.omni"`,
-/// `"Component.omni"`, `"./Component"`) so that import statements can be resolved
-/// regardless of how the importer refers to the target.
+/// Builds mapping in O(n * depth) instead of O(n^2) by walking each file's parent
+/// directory chain to enumerate relative-path variants directly, avoiding pairwise
+/// comparison between every pair of files.
 #[must_use]
 pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String, String> {
     let mut mapping = HashMap::new();
@@ -33,31 +33,37 @@ pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String,
         }
     }
 
-    // For every pair of files, compute relative-path keys
-    let paths: Vec<&String> = sources.keys().collect();
-    for import_path in &paths {
-        let importer_dir = Path::new(import_path).parent().unwrap_or(Path::new("."));
-        for target_path in &paths {
-            if *import_path == *target_path {
-                continue;
-            }
+    // O(n * depth) relative-path resolution: walk each file's parent directory
+    // chain to generate all relative-path variants. This replaces the O(n^2)
+    // pairwise comparison by exploiting that any valid import target can be
+    // expressed as a relative path from one of its ancestor directories.
+    //
+    // For a file at "src/components/Button.omni", this generates:
+    //   ./Button.omni              (from "src/components/")
+    //   ./components/Button.omni   (from "src/")
+    //   ./src/components/Button.omni (from ".")
+    for filepath in sources.keys() {
+        let normalized = filepath.replace('\\', "/");
+        let path = Path::new(&normalized);
 
-            // Compute relative path
-            if let Some(rel_simple) = pathdiff::diff_paths(Path::new(target_path), importer_dir) {
-                let rel_path = rel_simple.to_string_lossy().replace('\\', "/");
-
-                // Map "./Component.omni" → full path
-                mapping.insert(format!("./{rel_path}"), (*target_path).clone());
-                // Map "Component.omni" (without ./ prefix)
-                mapping.insert(rel_path.clone(), (*target_path).clone());
-
-                // Map "./Component" (without .omni extension) → full path
-                if rel_path.ends_with(".omni") {
-                    let no_ext = &rel_path[..rel_path.len() - 5];
-                    mapping.insert(format!("./{no_ext}"), (*target_path).clone());
-                    mapping.insert(no_ext.to_string(), (*target_path).clone());
+        // Start from the parent of the file, walk up to root
+        // For each ancestor, compute relative path from ancestor to the file.
+        let mut current = path.parent();
+        while let Some(parent) = current {
+            if let Ok(rel) = path.strip_prefix(parent) {
+                let rel_str = rel.to_string_lossy().replace('\\', "/");
+                mapping.insert(format!("./{rel_str}"), filepath.clone());
+                mapping.entry(rel_str.clone()).or_insert_with(|| filepath.clone());
+                if rel_str.ends_with(".omni") {
+                    let no_ext = &rel_str[..rel_str.len() - 5];
+                    mapping.entry(format!("./{no_ext}")).or_insert_with(|| filepath.clone());
+                    mapping.entry(no_ext.to_string()).or_insert_with(|| filepath.clone());
                 }
             }
+            if parent.as_os_str().is_empty() || parent == Path::new(".") || parent == Path::new("/") {
+                break;
+            }
+            current = parent.parent();
         }
     }
 

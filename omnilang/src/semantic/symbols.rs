@@ -43,6 +43,7 @@ pub struct Scope {
 pub struct SymbolTable {
     pub scopes: Vec<Scope>,
     pub current_scope: usize, // index into scopes
+    pub scope_by_name: HashMap<String, usize>,
 }
 
 impl SymbolTable {
@@ -53,9 +54,12 @@ impl SymbolTable {
             symbols: HashMap::new(),
             children: vec![],
         };
+        let mut scope_by_name = HashMap::new();
+        scope_by_name.insert("global".to_string(), 0);
         SymbolTable {
             scopes: vec![global],
             current_scope: 0,
+            scope_by_name,
         }
     }
 
@@ -71,6 +75,8 @@ impl SymbolTable {
         });
         self.scopes[parent].children.push(idx);
         self.current_scope = idx;
+        // Map scope name to index (use first occurrence; duplicate names use latest)
+        self.scope_by_name.insert(name.to_string(), idx);
         idx
     }
 
@@ -112,6 +118,11 @@ impl SymbolTable {
     /// Check if a symbol exists in any visible scope.
     pub fn contains(&self, name: &str) -> bool {
         self.resolve(name).is_some()
+    }
+
+    /// Find a scope by name using hash lookup (O(1) average).
+    pub fn find_scope_by_name(&self, name: &str) -> Option<usize> {
+        self.scope_by_name.get(name).copied()
     }
 }
 

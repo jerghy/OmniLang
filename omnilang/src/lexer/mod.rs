@@ -662,7 +662,7 @@ impl Lexer {
         let col = self.col;
         let mut ident = String::new();
         while self.peek().is_some_and(|c| {
-            c.is_alphanumeric()
+            c.is_ascii_alphanumeric()
                 || c == '_'
                 || (!c.is_ascii() && !c.is_whitespace() && !c.is_control())
         }) {
@@ -680,7 +680,7 @@ impl Lexer {
         let mut kw = String::from("@");
         while self
             .peek()
-            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-')
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         {
             kw.push(self.advance_unchecked());
         }
