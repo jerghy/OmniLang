@@ -162,11 +162,11 @@ impl OmniViewGenerator {
         }
 
         // Hero shared element transition tag — emit as data attribute
-        if let Some(ref hero) = el.hero_tag {
+        if let Some(hero) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
             attrs.push_str(&format!(" data-hero=\"{}\"", escape_html(hero)));
         }
         // Optional custom transition motion name
-        if let Some(ref transition) = el.hero_transition {
+        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
             let trans_str = self.expr_to_static_str(transition);
             if !trans_str.is_empty() {
                 attrs.push_str(&format!(
@@ -296,32 +296,22 @@ impl OmniViewGenerator {
             if self.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
-                let val = match handler.kind {
-                    EventHandlerKind::FnRef => {
-                        if let Some(ref fn_name) = handler.r#ref {
-                            let prefixed = format!("{}_{}", self.current_component, fn_name);
-                            format!("fn:{}", escape_html(&prefixed))
-                        } else {
-                            continue;
-                        }
+                let val = match handler {
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        let prefixed = format!("{}_{}", self.current_component, r#ref);
+                        format!("fn:{}", escape_html(&prefixed))
                     }
-                    EventHandlerKind::StoreAction => {
-                        if let Some(ref action_path) = handler.r#ref {
-                            let var_name = action_path.replace('.', "_");
-                            format!("store:{}", escape_html(&var_name))
-                        } else {
-                            continue;
-                        }
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        let var_name = r#ref.replace('.', "_");
+                        format!("store:{}", escape_html(&var_name))
                     }
-                    EventHandlerKind::InlineFn => {
+                    EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                        let params_str = handler.params.join(", ");
+                        let params_str = params.join(", ");
                         self.js
                             .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
-                        if let Some(ref body) = handler.body {
-                            for stmt in &body.statements {
-                                self.emit_statement(stmt);
-                            }
+                        for stmt in &body.statements {
+                            self.emit_statement(stmt);
                         }
                         self.js.push_str("}\n");
                         format!("fn:{}", escape_html(&wrapper_name))
@@ -331,15 +321,14 @@ impl OmniViewGenerator {
                 // Register handler in the global lookup so the delegated
                 // listener can find it (functions are IIFE-local, not on
                 // window).
-                let handler_name = match handler.kind {
-                    EventHandlerKind::FnRef => handler
-                        .r#ref
-                        .as_ref()
-                        .map(|n| format!("{}_{}", self.current_component, n)),
-                    EventHandlerKind::StoreAction => {
-                        handler.r#ref.as_ref().map(|p| p.replace('.', "_"))
+                let handler_name = match handler {
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        Some(format!("{}_{}", self.current_component, r#ref))
                     }
-                    EventHandlerKind::InlineFn => {
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        Some(r#ref.replace('.', "_"))
+                    }
+                    EventHandlerIR::InlineFn { .. } => {
                         Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))
                     }
                 };
@@ -349,38 +338,28 @@ impl OmniViewGenerator {
                 }
             } else {
                 // ResizeEvent binds to window, not el.addEventListener
-                if let Some(EventDataKind::ResizeEvent) = handler.event_data {
+                if let Some(EventDataKind::ResizeEvent) = handler.event_data() {
                     let event_obj =
-                        emit_event_object(&handler.event_data, &handler.used_fields, "_e");
-                    let handler_call = match handler.kind {
-                        EventHandlerKind::FnRef => {
-                            if let Some(ref fn_name) = handler.r#ref {
-                                let prefixed = format!("{}_{}", self.current_component, fn_name);
-                                format!("{}({})", prefixed, event_obj)
-                            } else {
-                                continue;
-                            }
+                        emit_event_object(&handler.event_data(), &handler.used_fields(), "_e");
+                    let handler_call = match handler {
+                        EventHandlerIR::FnRef { r#ref, .. } => {
+                            let prefixed = format!("{}_{}", self.current_component, r#ref);
+                            format!("{}({})", prefixed, event_obj)
                         }
-                        EventHandlerKind::StoreAction => {
-                            if let Some(ref action_path) = handler.r#ref {
-                                let var_name = action_path.replace('.', "_");
-                                format!("{}()", var_name)
-                            } else {
-                                continue;
-                            }
+                        EventHandlerIR::StoreAction { r#ref, .. } => {
+                            let var_name = r#ref.replace('.', "_");
+                            format!("{}()", var_name)
                         }
-                        EventHandlerKind::InlineFn => {
+                        EventHandlerIR::InlineFn { body, params, .. } => {
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                            let params_str = handler.params.join(", ");
+                            let params_str = params.join(", ");
                             self.js.push_str(&format!(
                                 "function {}({}) {{\n",
                                 wrapper_name, params_str
                             ));
-                            if let Some(ref body) = handler.body {
-                                for stmt in &body.statements {
-                                    self.emit_statement(stmt);
-                                }
+                            for stmt in &body.statements {
+                                self.emit_statement(stmt);
                             }
                             self.js.push_str("}\n");
                             format!("{}({})", wrapper_name, event_obj)
@@ -392,63 +371,57 @@ impl OmniViewGenerator {
                     ));
                     continue;
                 }
-                let pd = if handler.needs_prevent_default || js_event == "submit" {
+                let pd = if handler.needs_prevent_default() || js_event == "submit" {
                     " e.preventDefault();"
                 } else {
                     ""
                 };
-                let sp = if handler.needs_stop_propagation {
+                let sp = if handler.needs_stop_propagation() {
                     " e.stopPropagation();"
                 } else {
                     ""
                 };
-                match handler.kind {
-                    EventHandlerKind::FnRef => {
-                        if let Some(ref fn_name) = handler.r#ref {
-                            if self.motion_names.contains(fn_name.as_str()) {
-                                // Motion reference: create AnimationPlayer and play on event
-                                self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
-                                    nid = nid,
-                                    js_event = js_event,
-                                    motion = fn_name,
-                                ));
-                            } else {
-                                let prefixed = format!("{}_{}", self.current_component, fn_name);
-                                let event_obj = emit_event_object(
-                                    &handler.event_data,
-                                    &handler.used_fields,
-                                    "e",
-                                );
-                                self.js.push_str(&format!(
-                                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
-                                    nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
-                                ));
-                            }
-                        }
-                    }
-                    EventHandlerKind::StoreAction => {
-                        if let Some(ref action_path) = handler.r#ref {
-                            let var_name = action_path.replace('.', "_");
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, .. } => {
+                        if self.motion_names.contains(r#ref.as_str()) {
+                            // Motion reference: create AnimationPlayer and play on event
                             self.js.push_str(&format!(
-                                "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
-                                nid, js_event, sp, pd, var_name
+                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                                nid = nid,
+                                js_event = js_event,
+                                motion = r#ref,
+                            ));
+                        } else {
+                            let prefixed = format!("{}_{}", self.current_component, r#ref);
+                            let event_obj = emit_event_object(
+                                &handler.event_data(),
+                                &handler.used_fields(),
+                                "e",
+                            );
+                            self.js.push_str(&format!(
+                                "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                                nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                             ));
                         }
                     }
-                    EventHandlerKind::InlineFn => {
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        let var_name = r#ref.replace('.', "_");
+                        self.js.push_str(&format!(
+                            "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
+                            nid, js_event, sp, pd, var_name
+                        ));
+                    }
+                    EventHandlerIR::InlineFn { body, params, .. } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                        let params_str = handler.params.join(", ");
+                        let params_str = params.join(", ");
                         self.js
                             .push_str(&format!("function {}({}) {{\n", wrapper_name, params_str));
-                        if let Some(ref body) = handler.body {
-                            for stmt in &body.statements {
-                                self.emit_statement(stmt);
-                            }
+                        for stmt in &body.statements {
+                            self.emit_statement(stmt);
                         }
                         self.js.push_str("}\n");
                         let event_obj =
-                            emit_event_object(&handler.event_data, &handler.used_fields, "e");
+                            emit_event_object(&handler.event_data(), &handler.used_fields(), "e");
                         self.js.push_str(&format!(
                             "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {wrapper_name}({event_obj}); }}); }}\n",
                             nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
@@ -523,9 +496,9 @@ impl OmniViewGenerator {
         // Motion triggers — emit animation setup for @enter, @hover, @press, @focus, @leave
         // IMPORTANT: MUST be before the void element return below, otherwise void
         // elements like <input> never get their motion triggers emitted!
-        if !el.motion_triggers.is_empty() {
+        if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty()) {
             // Also emit HTML data attributes for each trigger so runtime can discover them
-            for trigger in &el.motion_triggers {
+            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
                 let data_attr = match trigger.kind {
                     TriggerKind::Enter => "data-enter",
                     TriggerKind::Leave => "data-leave",
@@ -545,18 +518,18 @@ impl OmniViewGenerator {
                 }
             }
             // Sub-attributes for in-view
-            if let Some(ref once) = el.in_view_once {
+            if let Some(once) = el.motion_behavior().and_then(|m| m.in_view_once.as_ref()) {
                 let js_val = self.expr_to_js(once);
                 attrs.push_str(&format!(" data-in-view-once=\"{}\"", escape_html(&js_val)));
             }
-            if let Some(ref repeat) = el.in_view_repeat {
+            if let Some(repeat) = el.motion_behavior().and_then(|m| m.in_view_repeat.as_ref()) {
                 let js_val = self.expr_to_js(repeat);
                 attrs.push_str(&format!(
                     " data-in-view-repeat=\"{}\"",
                     escape_html(&js_val)
                 ));
             }
-            if let Some(ref threshold) = el.in_view_threshold {
+            if let Some(threshold) = el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
                 let js_val = self.expr_to_js(threshold);
                 attrs.push_str(&format!(
                     " data-in-view-threshold=\"{}\"",
@@ -564,40 +537,40 @@ impl OmniViewGenerator {
                 ));
             }
             // Sub-attributes for scroll
-            if let Some(ref s) = el.scroll_start {
+            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.start.as_ref()) {
                 attrs.push_str(&format!(" data-scroll-start=\"{}\"", escape_html(s)));
             }
-            if let Some(ref s) = el.scroll_end {
+            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.end.as_ref()) {
                 attrs.push_str(&format!(" data-scroll-end=\"{}\"", escape_html(s)));
             }
-            if let Some(ref scrub) = el.scroll_scrub {
+            if let Some(scrub) = el.scroll_behavior().and_then(|sb| sb.scrub.as_ref()) {
                 let js_val = self.expr_to_js(scrub);
                 attrs.push_str(&format!(" data-scroll-scrub=\"{}\"", escape_html(&js_val)));
             }
             // Sub-attributes for drag
-            if let Some(ref s) = el.drag_constraints {
+            if let Some(s) = el.drag_behavior().and_then(|db| db.constraints.as_ref()) {
                 attrs.push_str(&format!(" data-drag-constraints=\"{}\"", escape_html(s)));
             }
-            if let Some(ref elastic) = el.drag_elastic {
+            if let Some(elastic) = el.drag_behavior().and_then(|db| db.elastic.as_ref()) {
                 let js_val = self.expr_to_js(elastic);
                 attrs.push_str(&format!(" data-drag-elastic=\"{}\"", escape_html(&js_val)));
             }
-            if let Some(ref scrub) = el.drag_scrub {
+            if let Some(scrub) = el.drag_behavior().and_then(|db| db.scrub.as_ref()) {
                 let js_val = self.expr_to_js(scrub);
                 attrs.push_str(&format!(" data-drag-scrub=\"{}\"", escape_html(&js_val)));
             }
-            if let Some(ref momentum) = el.drag_momentum {
+            if let Some(momentum) = el.drag_behavior().and_then(|db| db.momentum.as_ref()) {
                 let js_val = self.expr_to_js(momentum);
                 attrs.push_str(&format!(" data-drag-momentum=\"{}\"", escape_html(&js_val)));
             }
-            if let Some(ref threshold) = el.drag_threshold {
+            if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
                 let js_val = self.expr_to_js(threshold);
                 attrs.push_str(&format!(
                     " data-drag-threshold=\"{}\"",
                     escape_html(&js_val)
                 ));
             }
-            if let Some(ref vel) = el.drag_velocity_max {
+            if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
                 let js_val = self.expr_to_js(vel);
                 attrs.push_str(&format!(
                     " data-drag-velocity-max=\"{}\"",
@@ -609,7 +582,7 @@ impl OmniViewGenerator {
         }
 
         // @driven-by — external progress control for animations on this element
-        if let Some(ref driven_by_expr) = el.driven_by {
+        if let Some(driven_by_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
             let driven_js = self.expr_to_js(driven_by_expr);
             // When driven-by is set, the animation progress is bound to the signal value.
             // We seek ALL animations on this element whenever the signal changes.
@@ -630,7 +603,7 @@ impl OmniViewGenerator {
         }
 
         // @paused override — per-element pause override for all animations
-        if let Some(paused) = &el.paused_override {
+        if let Some(paused) = el.motion_behavior().and_then(|m| m.paused_override.as_ref()) {
             let paused_js = self.expr_to_js(paused);
             self.mount_js.push_str(&format!(
                 "// @paused override\n\
@@ -648,7 +621,7 @@ impl OmniViewGenerator {
         }
 
         // states: — multi-state animation map (reserved or custom signal-driven)
-        if let Some(ref states_ir) = el.states {
+        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
             self.emit_states_js(&nid, states_ir);
         }
 

@@ -48,7 +48,7 @@ export function copySelection(
   while (stack.length > 0) {
     const id = stack.pop()!;
     const el = elements.find((e) => e.id === id);
-    if (el && el.children.length > 0) {
+    if (el && "children" in el && el.children.length > 0) {
       for (const childId of el.children) {
         if (!idSet.has(childId)) {
           idSet.add(childId);
@@ -89,17 +89,17 @@ export function pasteFromClipboard(
   // 1. 生成新 ID 映射
   const idMap = new Map<string, string>();
   for (const el of srcElements) {
-    idMap.set(el.id, uid(el.tag));
+    idMap.set(el.id, uid("tag" in el ? el.tag : "node"));
   }
 
   // 2. 映射元素
   const newElements: ElementData[] = srcElements.map((el) => {
     const newId = idMap.get(el.id)!;
     const newParentId = el.parentId ? (idMap.get(el.parentId) ?? null) : null;
-    const newChildren = el.children
-      .map((c) => idMap.get(c))
-      .filter((c): c is string => c !== undefined);
-    const newPosition = el.position
+    const newChildren = "children" in el
+      ? el.children.map((c) => idMap.get(c)).filter((c): c is string => c !== undefined)
+      : [];
+    const newPosition = "position" in el && el.position
       ? { x: el.position.x + offsetX, y: el.position.y + offsetY }
       : undefined;
 

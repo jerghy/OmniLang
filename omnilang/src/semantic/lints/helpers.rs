@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::LintDiagnostic;
-use crate::ir::{BlockIR, ExprIR, StatementIR, ViewTree};
+use crate::ir::{BlockIR, EventHandlerIR, ExprIR, StatementIR, ViewTree};
 use crate::parser::ast::{
     AssignTarget, BinaryOpKind, Block, ElementProp, EventHandler, Expr, ImportStmt, Stmt,
     TemplatePart, ViewNode,
@@ -124,19 +124,49 @@ pub(super) fn check_block_ir_for_store_mutations(
                 else_body,
                 ..
             } => {
-                check_block_ir_for_store_mutations(then_body, store_signals, context_name, file_path, diags);
+                check_block_ir_for_store_mutations(
+                    then_body,
+                    store_signals,
+                    context_name,
+                    file_path,
+                    diags,
+                );
                 for (_, body) in else_ifs {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                    check_block_ir_for_store_mutations(
+                        body,
+                        store_signals,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
                 if let Some(ref body) = else_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                    check_block_ir_for_store_mutations(
+                        body,
+                        store_signals,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
             }
             StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
-                check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                check_block_ir_for_store_mutations(
+                    body,
+                    store_signals,
+                    context_name,
+                    file_path,
+                    diags,
+                );
             }
             StatementIR::BlockStmtIR { body } => {
-                check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                check_block_ir_for_store_mutations(
+                    body,
+                    store_signals,
+                    context_name,
+                    file_path,
+                    diags,
+                );
             }
             StatementIR::TryCatchStmtIR {
                 try_body,
@@ -144,12 +174,30 @@ pub(super) fn check_block_ir_for_store_mutations(
                 finally_body,
                 ..
             } => {
-                check_block_ir_for_store_mutations(try_body, store_signals, context_name, file_path, diags);
+                check_block_ir_for_store_mutations(
+                    try_body,
+                    store_signals,
+                    context_name,
+                    file_path,
+                    diags,
+                );
                 if let Some(ref body) = catch_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                    check_block_ir_for_store_mutations(
+                        body,
+                        store_signals,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
                 if let Some(ref body) = finally_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
+                    check_block_ir_for_store_mutations(
+                        body,
+                        store_signals,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
             }
             StatementIR::ExprStmtIR { expr }
@@ -296,7 +344,7 @@ pub(super) fn check_view_tree_events_for_store_mutations(
     match tree {
         ViewTree::Element(el) => {
             for handler in el.events.values() {
-                if let Some(ref body) = handler.body {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
                     check_block_ir_for_store_mutations(
                         body,
                         store_signals,
@@ -313,11 +361,21 @@ pub(super) fn check_view_tree_events_for_store_mutations(
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(ref body) = branch.body {
-                    check_view_tree_events_for_store_mutations(body, store_signals, file_path, diags);
+                    check_view_tree_events_for_store_mutations(
+                        body,
+                        store_signals,
+                        file_path,
+                        diags,
+                    );
                 }
             }
             if let Some(ref fallback) = cond.fallback {
-                check_view_tree_events_for_store_mutations(fallback, store_signals, file_path, diags);
+                check_view_tree_events_for_store_mutations(
+                    fallback,
+                    store_signals,
+                    file_path,
+                    diags,
+                );
             }
         }
         ViewTree::ListRendering(list) => {
@@ -368,16 +426,44 @@ pub(super) fn check_block_for_prop_assign(
                 else_body,
                 ..
             } => {
-                check_block_for_prop_assign(then_body, prop_names, comp_name, context_name, file_path, diags);
+                check_block_for_prop_assign(
+                    then_body,
+                    prop_names,
+                    comp_name,
+                    context_name,
+                    file_path,
+                    diags,
+                );
                 for (_, body) in else_ifs {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
+                    check_block_for_prop_assign(
+                        body,
+                        prop_names,
+                        comp_name,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
                 if let Some(ref body) = else_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
+                    check_block_for_prop_assign(
+                        body,
+                        prop_names,
+                        comp_name,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
             }
             Stmt::While { body, .. } | Stmt::ForIn { body, .. } => {
-                check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
+                check_block_for_prop_assign(
+                    body,
+                    prop_names,
+                    comp_name,
+                    context_name,
+                    file_path,
+                    diags,
+                );
             }
             Stmt::TryCatch {
                 try_body,
@@ -385,12 +471,33 @@ pub(super) fn check_block_for_prop_assign(
                 finally_body,
                 ..
             } => {
-                check_block_for_prop_assign(try_body, prop_names, comp_name, context_name, file_path, diags);
+                check_block_for_prop_assign(
+                    try_body,
+                    prop_names,
+                    comp_name,
+                    context_name,
+                    file_path,
+                    diags,
+                );
                 if let Some(ref body) = catch_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
+                    check_block_for_prop_assign(
+                        body,
+                        prop_names,
+                        comp_name,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
                 if let Some(ref body) = finally_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
+                    check_block_for_prop_assign(
+                        body,
+                        prop_names,
+                        comp_name,
+                        context_name,
+                        file_path,
+                        diags,
+                    );
                 }
             }
             _ => {}

@@ -16,33 +16,36 @@ use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 
 pub struct DioxusCodegen;
 
+impl PerComponentCodegen for DioxusCodegen {
+    fn gen_component_file(
+        &self,
+        name: &str,
+        comp: &ComponentIR,
+        ir: &IRProgram,
+    ) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("{}.rs", name),
+            content: self.gen_component_rs(name, comp, ir),
+        }]
+    }
+    fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("{}.rs", to_snake_case(name)),
+            content: self.gen_store_module(name, store),
+        }]
+    }
+}
+
 impl Codegen for DioxusCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-        let mut files = Vec::new();
-
-        for (name, comp) in ir.all_components() {
-            let rs = self.gen_component_rs(name, comp, ir);
-            files.push(CompiledFile {
-                path: format!("{}.rs", name),
-                content: rs,
-            });
-        }
-
-        for (name, store) in ir.all_stores() {
-            let store_mod = self.gen_store_module(name, store);
-            files.push(CompiledFile {
-                path: format!("{}.rs", to_snake_case(name)),
-                content: store_mod,
-            });
-        }
-
-        CompileOutput::success(files)
+        generate_per_component(self, ir)
     }
 }
 
@@ -63,7 +66,7 @@ impl DioxusCodegen {
             w.emit_fmt(format_args!("struct {}Props {{", name));
             w.indent();
             for (prop_name, prop_type) in &comp.props {
-                let rs_ty = super::rust::rs_type(&prop_type.kind, &prop_type.type_args);
+                let rs_ty = super::rust::rs_type(&prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("{}: {},", prop_name, rs_ty));
             }
             w.dedent();
@@ -220,7 +223,7 @@ impl DioxusCodegen {
         w.emit_fmt(format_args!("pub struct {} {{", name));
         w.indent();
         for (sig_name, sig_type) in &store.signals {
-            let rs_ty = super::rust::rs_type(&sig_type.kind, &sig_type.type_args);
+            let rs_ty = super::rust::rs_type(&sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!("pub {}: Signal<{}>,", sig_name, rs_ty));
         }
         w.dedent();
@@ -290,7 +293,7 @@ impl FormatStmt for DioxusStmtFormatter {
 
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
-            .map(|t| format!(": {}", super::rust::rs_type(&t.kind, &t.type_args)))
+            .map(|t| format!(": {}", super::rust::rs_type(&t.kind.as_str(), &t.type_args)))
             .unwrap_or_default()
     }
 

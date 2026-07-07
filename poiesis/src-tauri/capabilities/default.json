@@ -10,11 +10,7 @@
       "allow": [
         { "path": "$HOME/**" },
         { "path": "$APPDATA/**" },
-        { "path": "$TEMP/**" },
-        { "path": "C:/**" },
-        { "path": "D:/**" },
-        { "path": "E:/**" },
-        { "path": "F:/**" }
+        { "path": "$TEMP/**" }
       ]
     },
     "fs:allow-read-text-file",
@@ -26,7 +22,6 @@
     "fs:allow-remove",
     "fs:allow-stat",
     "store:default",
-    "dialog:default",
-    "shell:allow-open"
+    "dialog:default"
   ]
 }

@@ -22,7 +22,7 @@ export function useDebugBridge({ iframeRef, onElementClick }: UseDebugBridgeOpti
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       // Only accept messages from same origin (or the iframe's origin in dev)
-      if (e.origin !== window.location.origin && e.origin !== "null") return;
+      if (e.origin !== window.location.origin) return;
       if (e.data?.type === "poiesis:element-click" && e.data.pid) {
         handlerRef.current?.(e.data.pid);
       }

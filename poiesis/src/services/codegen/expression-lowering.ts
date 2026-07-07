@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/expression-lowering.ts
+// poiesis/src/services/codegen/expression-lowering.ts
 // Recursive descent builder for code graph elements to OmniLang expressions.
 // Maps code graph node tags (literal, add, setVariable, etc.) to OmniLang expression strings.
 // Uses reverse wire adjacency to walk backward from consumer ports building expressions.
@@ -93,6 +93,8 @@ export function lowerCode(
 
     const el = elMap.get(nodeId);
     if (!el) return "";
+    // Must be a codeblock or view element to have tag/props
+    if (!("tag" in el)) return "";
 
     // Copy the visiting set so siblings don't interfere with each other's cycle detection
     visiting = new Set(visiting);
@@ -139,7 +141,7 @@ export function lowerCode(
       // ── Comparison ─────────────────────────────────────────────
 
       case "compare": {
-        const op = (el.props.op as string) || (el.config ? (el.config as Record<string, unknown>).op as string : undefined) || "==";
+        const op = (el.props.op as string) || ("config" in el && el.config ? (el.config as Record<string, unknown>).op as string : undefined) || "==";
         result = `${resolvePort(nodeId, "a", "left", visiting)} ${op} ${resolvePort(nodeId, "b", "right", visiting)}`;
         break;
       }
@@ -214,6 +216,7 @@ export function lowerCode(
 
     const el = elMap.get(nodeId);
     if (!el) return;
+    if (!("tag" in el)) return;
 
     // Collect this node if it's a statement
     if (el.tag === "setVariable" || el.tag === "return") {
@@ -234,6 +237,7 @@ export function lowerCode(
    * its body statements.
    */
   function buildFnBody(fnEl: ElementData): void {
+    if (!("props" in fnEl)) return;
     const fnName = (fnEl.props.name as string) || "fn";
     const params = (fnEl.props.params as Array<{ name: string; type: string }>) || [];
     const returnType = (fnEl.props.returnType as string) || "void";

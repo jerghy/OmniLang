@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
+use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::{format_json_value, JSON_DART};
 use crate::ir::*;
@@ -73,13 +74,13 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
 
     // Field declarations for props (initialized to null)
     for (prop_name, prop_type) in &comp.props {
-        let ann = dart_type(&prop_type.kind, &prop_type.type_args);
+        let ann = dart_type(&prop_type.kind.as_str(), &prop_type.type_args);
         w.emit_fmt(format_args!("{} {};", ann, prop_name));
     }
 
     // Field declarations + initialization for states
     for state in &comp.states {
-        let ann = dart_type(&state.r#type.kind, &state.r#type.type_args);
+        let ann = dart_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
         let init = format_expr_ir(&state.initial_value);
         // Use `late` for fields initialized in constructor
         w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
@@ -88,25 +89,14 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     // Constructor with state/prop initialization
     if !comp.states.is_empty() || !comp.props.is_empty() {
         w.emit("");
-        w.emit_fmt(format_args!("{}() {{", name));
-        w.indent();
-        for prop in comp.props.keys() {
-            w.emit_fmt(format_args!("this.{} = null;  // prop", prop));
-        }
-        // States are already initialized inline, but include as comments for clarity
-        for state in &comp.states {
-            let init = format_expr_ir(&state.initial_value);
-            w.emit_fmt(format_args!("this.{} = {};", state.name, init));
-        }
-        w.dedent();
-        w.emit("}");
+        emit_constructor_init(w, name, comp, |e| format_expr_ir(e));
     }
 
     // Computed properties as methods
     for computed in &comp.computeds {
         w.emit("");
         let body = format_expr_ir(&computed.body);
-        let ret_type = dart_type(&computed.r#type.kind, &computed.r#type.type_args);
+        let ret_type = dart_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
         w.emit_fmt(format_args!("{} {}() {{", ret_type, computed.name));
         w.indent();
         w.emit_fmt(format_args!("return {};", body));
@@ -141,7 +131,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
 
     // Field declarations with defaults for signals
     for (signal_name, signal_type) in &store.signals {
-        let ann = dart_type(&signal_type.kind, &signal_type.type_args);
+        let ann = dart_type(&signal_type.kind.as_str(), &signal_type.type_args);
         let default = store
             .signal_defaults
             .get(signal_name)
@@ -153,18 +143,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     // Default constructor
     if !store.signals.is_empty() {
         w.emit("");
-        w.emit_fmt(format_args!("{}() {{", name));
-        w.indent();
-        for signal_name in store.signals.keys() {
-            let default = store
-                .signal_defaults
-                .get(signal_name)
-                .map(|v| format_json_value(v, &JSON_DART))
-                .unwrap_or_else(|| "null".into());
-            w.emit_fmt(format_args!("this.{} = {};", signal_name, default));
-        }
-        w.dedent();
-        w.emit("}");
+        emit_store_constructor_init(w, name, store, |v| format_json_value(v, &JSON_DART));
     }
 
     // Getters
@@ -191,7 +170,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
     for p in &func.params {
         let mut s = String::new();
         if let Some(ref ty) = p.r#type {
-            let ann = dart_type(&ty.kind, &ty.type_args);
+            let ann = dart_type(&ty.kind.as_str(), &ty.type_args);
             s.push_str(&format!("{} ", ann));
         }
         s.push_str(&p.name);
@@ -202,16 +181,16 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
     // Wrap in Future<T> for async functions
     let return_prefix = if func.is_async {
         match func.return_type {
-            Some(ref rt) if rt.kind != "void" && rt.kind != "()" => {
-                format!("Future<{}> ", dart_type(&rt.kind, &rt.type_args))
+            Some(ref rt) if !matches!(rt.kind, TypeKind::Void) => {
+                format!("Future<{}> ", dart_type(&rt.kind.as_str(), &rt.type_args))
             }
             _ => "Future<void> ".to_string(),
         }
     } else {
         func.return_type
             .as_ref()
-            .filter(|rt| rt.kind != "void" && rt.kind != "()")
-            .map(|rt| format!("{} ", dart_type(&rt.kind, &rt.type_args)))
+            .filter(|rt| !matches!(rt.kind, TypeKind::Void))
+            .map(|rt| format!("{} ", dart_type(&rt.kind.as_str(), &rt.type_args)))
             .unwrap_or_default()
     };
 
@@ -275,7 +254,7 @@ impl FormatStmt for DartStmtFormatter {
             .map(|v| self.expr.format_expr(v))
             .unwrap_or_else(|| "null".into());
         if let Some(ref ty) = type_ann {
-            let ann = dart_type(&ty.kind, &ty.type_args);
+            let ann = dart_type(&ty.kind.as_str(), &ty.type_args);
             w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
         } else {
             w.emit_fmt(format_args!("var {name} = {rhs};"));

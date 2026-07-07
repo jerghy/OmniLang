@@ -7,6 +7,7 @@ mod lower;
 pub mod lower_logic;
 mod types;
 mod types_motion;
+pub mod visibility;
 
 pub use logic::*;
 pub use lower::lower;

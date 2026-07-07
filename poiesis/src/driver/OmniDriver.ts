@@ -30,6 +30,7 @@ import { CodeDriver } from "./CodeDriver";
 import { FileDriver } from "./FileDriver";
 import { VisualService } from "./VisualService";
 import { SnippetService } from "./SnippetService";
+import type { CodeblockElementData } from "../core/types/element";
 import type {
   ElementData,
   WireData,
@@ -373,7 +374,8 @@ class OmniDriver {
           const t = typeAnnotation?.trim() || "";
           const vt = t.length > 0 ? t : "i32";
           const cfg = getNodeConfig(blockType);
-          return cfg.defaultPorts.map((p: PortDescriptor) => {
+          const defaultPorts = cfg?.defaultPorts ?? [];
+          return defaultPorts.map((p: PortDescriptor) => {
             const shouldMapType =
               p.type === "any" &&
               p.name !== "deps";
@@ -391,20 +393,19 @@ class OmniDriver {
           seenIds.add(b.id);
           elements.push({
             id: b.id,
-            nodeType: "codeblock",
+            nodeType: "codeblock" as const,
             tag: b.blockType,
             props: {
               name: b.name,
               parentStore: b.parentStore || "",
               typeAnnotation: b.typeAnnotation || "",
             },
-            children: [],
             parentId: b.parentStore
               ? `cb-store-${b.parentStore}`
               : null,
             ports: buildPorts(b.blockType, b.typeAnnotation),
-            isFolded: false,
-          });
+            source: "",
+          } as CodeblockElementData);
         }
       }
 

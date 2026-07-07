@@ -2,7 +2,7 @@
 //! Mirrors Python omniview/ir_types.py. Serializes to/from JSON via serde.
 
 use crate::sourcemap::SourceMapEntry;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 
 // Cross-reference: ComponentIR, StoreIR, Enums need logic types
@@ -144,20 +144,87 @@ pub enum MatchPatternKindIR {
 }
 
 // ═══════════════════════════════════════════════════════
+// Type Kind Enum
+// ═══════════════════════════════════════════════════════
+
+/// Typed representation of a type kind, replacing the old `String` field.
+///
+/// Serde round-trips as a flat string for backward compatibility
+/// (e.g. `"kind": "int"` or `"kind": "MyCustomType"`).
+#[derive(Debug, Clone)]
+pub enum TypeKind {
+    String,
+    Int,
+    Float,
+    Bool,
+    Void,
+    Any,
+    Named { name: String },
+}
+
+impl From<String> for TypeKind {
+    fn from(s: String) -> Self {
+        Self::from(s.as_str())
+    }
+}
+
+impl From<&str> for TypeKind {
+    fn from(s: &str) -> Self {
+        match s {
+            "string" => Self::String,
+            "int" => Self::Int,
+            "float" => Self::Float,
+            "bool" => Self::Bool,
+            "void" => Self::Void,
+            "any" => Self::Any,
+            _ => Self::Named { name: s.to_string() },
+        }
+    }
+}
+
+impl TypeKind {
+    /// Return the string representation of this type kind.
+    /// For `Named` variants, returns the inner name directly.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::String => "string",
+            Self::Int => "int",
+            Self::Float => "float",
+            Self::Bool => "bool",
+            Self::Void => "void",
+            Self::Any => "any",
+            Self::Named { name } => name.as_str(),
+        }
+    }
+}
+
+// Custom Serialize: write as a flat string  (e.g. `"int"`, `"MyType"`)
+impl Serialize for TypeKind {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+// Custom Deserialize: read a flat string and convert via From<String>
+impl<'de> Deserialize<'de> for TypeKind {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(TypeKind::from(s))
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // Type IR
 // ═══════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeIR {
-    pub kind: String,
+    pub kind: TypeKind,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub type_args: Vec<TypeIR>,
     #[serde(skip_serializing_if = "is_false", default)]
     pub is_nullable: bool,
-    #[serde(skip_serializing_if = "is_false", default)]
-    pub needs_clone: bool,
-    #[serde(skip_serializing_if = "is_false", default)]
-    pub needs_partial_eq: bool,
 }
 
 // ═══════════════════════════════════════════════════════
@@ -181,39 +248,84 @@ pub struct BindingIR {
 // Event Handler IR
 // ═══════════════════════════════════════════════════════
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EventHandlerKind {
-    FnRef,
-    InlineFn,
-    StoreAction,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EventHandlerIR {
+    FnRef {
+        r#ref: String,
+        #[serde(default)]
+        params: Vec<String>,
+        #[serde(default)]
+        event_data: Option<EventDataKind>,
+        /// Fields of `e` actually referenced in the handler body.
+        /// None = all fields (conservative, for unresolved fn_ref).
+        /// Some(vec) = exact set; empty vec = no fields used (pass `{}`).
+        #[serde(default)]
+        used_fields: Option<Vec<String>>,
+        #[serde(default)]
+        needs_prevent_default: bool,
+        #[serde(default)]
+        needs_stop_propagation: bool,
+    },
+    InlineFn {
+        body: BlockIR,
+        #[serde(default)]
+        params: Vec<String>,
+        #[serde(default)]
+        event_data: Option<EventDataKind>,
+        /// Fields of `e` actually referenced in the handler body.
+        /// None = all fields (conservative, for unresolved fn_ref).
+        /// Some(vec) = exact set; empty vec = no fields used (pass `{}`).
+        #[serde(default)]
+        used_fields: Option<Vec<String>>,
+        #[serde(default)]
+        needs_prevent_default: bool,
+        #[serde(default)]
+        needs_stop_propagation: bool,
+    },
+    StoreAction {
+        r#ref: String,
+        #[serde(default)]
+        event_data: Option<EventDataKind>,
+    },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventHandlerIR {
-    pub kind: EventHandlerKind,
-    /// Inline handler body (None for fn_ref, store_action)
-    pub body: Option<BlockIR>,
-    /// Function name (fn_ref) or action path (store_action)
-    pub r#ref: Option<String>,
-    /// Inline handler declared parameter names
-    #[serde(default)]
-    pub params: Vec<String>,
-    // ── Event data fields (new) ──
-    /// Event payload category. None for store_action handlers.
-    #[serde(default)]
-    pub event_data: Option<EventDataKind>,
-    /// Fields of `e` actually referenced in the handler body.
-    /// None = all fields (conservative, for unresolved fn_ref).
-    /// Some(vec) = exact set; empty vec = no fields used (pass `{}`).
-    #[serde(default)]
-    pub used_fields: Option<Vec<String>>,
-    /// Handler explicitly calls e.preventDefault()
-    #[serde(default)]
-    pub needs_prevent_default: bool,
-    /// Handler explicitly calls e.stopPropagation()
-    #[serde(default)]
-    pub needs_stop_propagation: bool,
+impl EventHandlerIR {
+    /// Returns the event_data field across all variants that have it.
+    pub fn event_data(&self) -> &Option<EventDataKind> {
+        match self {
+            Self::FnRef { event_data, .. } => event_data,
+            Self::InlineFn { event_data, .. } => event_data,
+            Self::StoreAction { event_data, .. } => event_data,
+        }
+    }
+
+    /// Returns the used_fields field for FnRef and InlineFn variants.
+    pub fn used_fields(&self) -> &Option<Vec<String>> {
+        match self {
+            Self::FnRef { used_fields, .. } => used_fields,
+            Self::InlineFn { used_fields, .. } => used_fields,
+            Self::StoreAction { .. } => &None,
+        }
+    }
+
+    /// Returns the needs_prevent_default flag for FnRef and InlineFn variants.
+    pub fn needs_prevent_default(&self) -> bool {
+        match self {
+            Self::FnRef { needs_prevent_default, .. } => *needs_prevent_default,
+            Self::InlineFn { needs_prevent_default, .. } => *needs_prevent_default,
+            Self::StoreAction { .. } => false,
+        }
+    }
+
+    /// Returns the needs_stop_propagation flag for FnRef and InlineFn variants.
+    pub fn needs_stop_propagation(&self) -> bool {
+        match self {
+            Self::FnRef { needs_stop_propagation, .. } => *needs_stop_propagation,
+            Self::InlineFn { needs_stop_propagation, .. } => *needs_stop_propagation,
+            Self::StoreAction { .. } => false,
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -624,55 +736,29 @@ pub struct ElementIR {
     pub source_line: u32,
     #[serde(default)]
     pub source_col: u32,
-    /// Motion animation triggers: on: hover, on: click, etc.
-    #[serde(default)]
-    pub motion_triggers: Vec<TriggerIntent>,
-    /// States map: states: { visible: { ... }, hidden: { ... } }
-    #[serde(default)]
-    pub states: Option<StatesIR>,
-    /// Paused override for animations (runtime expression)
-    #[serde(default)]
-    pub paused_override: Option<ExprIR>,
-    /// Driven-by expression for animation
-    #[serde(default)]
-    pub driven_by: Option<ExprIR>,
-    /// Hover reverse animation name
-    #[serde(default)]
-    pub hover_reverse: Option<String>,
-    /// InView trigger: once expression
-    #[serde(default)]
-    pub in_view_once: Option<ExprIR>,
-    /// InView trigger: repeat expression
-    #[serde(default)]
-    pub in_view_repeat: Option<ExprIR>,
-    /// InView trigger: threshold expression
-    #[serde(default)]
-    pub in_view_threshold: Option<ExprIR>,
-    /// Scroll sub-attributes
-    #[serde(default)]
-    pub scroll_start: Option<String>,
-    #[serde(default)]
-    pub scroll_end: Option<String>,
-    #[serde(default)]
-    pub scroll_scrub: Option<ExprIR>,
-    /// Drag sub-attributes
-    #[serde(default)]
-    pub drag_constraints: Option<String>,
-    #[serde(default)]
-    pub drag_elastic: Option<ExprIR>,
-    #[serde(default)]
-    pub drag_scrub: Option<ExprIR>,
-    #[serde(default)]
-    pub drag_momentum: Option<ExprIR>,
-    #[serde(default)]
-    pub drag_threshold: Option<ExprIR>,
-    #[serde(default)]
-    pub drag_velocity_max: Option<ExprIR>,
-    /// Hero tag and transition
-    #[serde(default)]
-    pub hero_tag: Option<String>,
-    #[serde(default)]
-    pub hero_transition: Option<ExprIR>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motion: Option<Box<MotionBehavior>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scroll: Option<Box<ScrollBehavior>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drag: Option<Box<DragBehavior>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hero: Option<Box<HeroBehavior>>,
+}
+
+impl ElementIR {
+    pub fn motion_behavior(&self) -> Option<&MotionBehavior> {
+        self.motion.as_deref()
+    }
+    pub fn scroll_behavior(&self) -> Option<&ScrollBehavior> {
+        self.scroll.as_deref()
+    }
+    pub fn drag_behavior(&self) -> Option<&DragBehavior> {
+        self.drag.as_deref()
+    }
+    pub fn hero_behavior(&self) -> Option<&HeroBehavior> {
+        self.hero.as_deref()
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -857,30 +943,56 @@ mod tests {
     }
 
     #[test]
-    fn serde_roundtrip_event_handler_kind_fn_ref() {
-        let v = EventHandlerKind::FnRef;
+    fn serde_roundtrip_event_handler_fn_ref() {
+        let v = EventHandlerIR::FnRef {
+            r#ref: "myFn".into(),
+            params: vec!["e".into()],
+            event_data: Some(EventDataKind::PointerEvent),
+            used_fields: Some(vec!["x".into()]),
+            needs_prevent_default: false,
+            needs_stop_propagation: true,
+        };
         let json = serde_json::to_string(&v).unwrap();
-        assert_eq!(json, "\"fn_ref\"");
-        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, EventHandlerKind::FnRef);
+        let back: EventHandlerIR = serde_json::from_str(&json).unwrap();
+        assert_eq!(json.contains("\"kind\":\"fn_ref\""), true);
+        match back {
+            EventHandlerIR::FnRef { r#ref, .. } => assert_eq!(r#ref, "myFn"),
+            _ => panic!("Expected FnRef"),
+        }
     }
 
     #[test]
-    fn serde_roundtrip_event_handler_kind_inline_fn() {
-        let v = EventHandlerKind::InlineFn;
+    fn serde_roundtrip_event_handler_inline_fn() {
+        let v = EventHandlerIR::InlineFn {
+            body: BlockIR { statements: vec![] },
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        };
         let json = serde_json::to_string(&v).unwrap();
-        assert_eq!(json, "\"inline_fn\"");
-        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, EventHandlerKind::InlineFn);
+        let back: EventHandlerIR = serde_json::from_str(&json).unwrap();
+        assert!(json.contains("\"kind\":\"inline_fn\""));
+        match back {
+            EventHandlerIR::InlineFn { .. } => {} // ok
+            _ => panic!("Expected InlineFn"),
+        }
     }
 
     #[test]
-    fn serde_roundtrip_event_handler_kind_store_action() {
-        let v = EventHandlerKind::StoreAction;
+    fn serde_roundtrip_event_handler_store_action() {
+        let v = EventHandlerIR::StoreAction {
+            r#ref: "MyStore.action".into(),
+            event_data: None,
+        };
         let json = serde_json::to_string(&v).unwrap();
-        assert_eq!(json, "\"store_action\"");
-        let back: EventHandlerKind = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, EventHandlerKind::StoreAction);
+        let back: EventHandlerIR = serde_json::from_str(&json).unwrap();
+        assert!(json.contains("\"kind\":\"store_action\""));
+        match back {
+            EventHandlerIR::StoreAction { r#ref, .. } => assert_eq!(r#ref, "MyStore.action"),
+            _ => panic!("Expected StoreAction"),
+        }
     }
 
     // ── MutationOp serde round-trip tests ──

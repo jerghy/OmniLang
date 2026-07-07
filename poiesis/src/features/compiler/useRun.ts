@@ -2,6 +2,9 @@
 import { useState, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { handleRun as runService, handleStop as stopService } from "../../services/runtime/run-service";
+import { createLogger } from "../../lib/utils/logger";
+
+const log = createLogger("useRun");
 
 export interface DebugState {
   debugConnected: boolean;
@@ -86,23 +89,25 @@ export function useRun(target: string, setStatus: (s: { text: string; isError: b
         next.delete(signalId);
         import("../../commands").then(({ api }) =>
           api.sendDebugCommand({ type: "remove-breakpoint", signalId }),
-        );
+        ).catch((e) => log.error("Failed to send debug command:", e));
       } else {
         next.add(signalId);
         import("../../commands").then(({ api }) =>
           api.sendDebugCommand({ type: "set-breakpoint", signalId }),
-        );
+        ).catch((e) => log.error("Failed to send debug command:", e));
       }
       return { ...prev, debugBreakpoints: next };
     });
   }, []);
 
   const handleStep = useCallback(() => {
-    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "step" }));
+    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "step" }))
+      .catch((e) => log.error("Failed to send debug command:", e));
   }, []);
 
   const handleResume = useCallback(() => {
-    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "resume" }));
+    import("../../commands").then(({ api }) => api.sendDebugCommand({ type: "resume" }))
+      .catch((e) => log.error("Failed to send debug command:", e));
   }, []);
 
   return {

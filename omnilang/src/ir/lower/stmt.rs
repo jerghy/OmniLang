@@ -66,8 +66,18 @@ pub(super) fn lower_stmt(
                 ));
             }
             StatementIR::IfStmtIR {
-                condition: lower_expr(condition, variant_map, event_fields.as_deref_mut(), semantics),
-                then_body: lower_block(then_body, variant_map, event_fields.as_deref_mut(), semantics),
+                condition: lower_expr(
+                    condition,
+                    variant_map,
+                    event_fields.as_deref_mut(),
+                    semantics,
+                ),
+                then_body: lower_block(
+                    then_body,
+                    variant_map,
+                    event_fields.as_deref_mut(),
+                    semantics,
+                ),
                 else_ifs: ir_else_ifs,
                 else_body: else_body
                     .as_ref()
@@ -77,13 +87,23 @@ pub(super) fn lower_stmt(
         Stmt::Print { newline, arg, .. } => StatementIR::ExprStmtIR {
             expr: ExprIR::CallExpr {
                 name: if *newline { "println" } else { "print" }.into(),
-                args: vec![lower_expr(arg, variant_map, event_fields.as_deref_mut(), semantics)],
+                args: vec![lower_expr(
+                    arg,
+                    variant_map,
+                    event_fields.as_deref_mut(),
+                    semantics,
+                )],
             },
         },
         Stmt::While {
             condition, body, ..
         } => StatementIR::WhileStmtIR {
-            condition: lower_expr(condition, variant_map, event_fields.as_deref_mut(), semantics),
+            condition: lower_expr(
+                condition,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            ),
             body: lower_block(body, variant_map, event_fields.as_deref_mut(), semantics),
         },
         Stmt::ForIn {
@@ -93,7 +113,12 @@ pub(super) fn lower_stmt(
             ..
         } => StatementIR::ForInStmtIR {
             var_name: var_name.clone(),
-            iterable: lower_expr(iterable, variant_map, event_fields.as_deref_mut(), semantics),
+            iterable: lower_expr(
+                iterable,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            ),
             body: lower_block(body, variant_map, event_fields.as_deref_mut(), semantics),
         },
         Stmt::Assign { target, value, .. } => {
@@ -106,7 +131,12 @@ pub(super) fn lower_stmt(
                 intent: Some(MutationIntent {
                     target: SignalRefIR { owner, name },
                     operation: MutationOp::DirectAssign,
-                    amount: Some(lower_expr(value, variant_map, event_fields.as_deref_mut(), semantics)),
+                    amount: Some(lower_expr(
+                        value,
+                        variant_map,
+                        event_fields.as_deref_mut(),
+                        semantics,
+                    )),
                     item: None,
                 }),
             }
@@ -123,7 +153,12 @@ pub(super) fn lower_stmt(
             finally_body,
             ..
         } => StatementIR::TryCatchStmtIR {
-            try_body: lower_block(try_body, variant_map, event_fields.as_deref_mut(), semantics),
+            try_body: lower_block(
+                try_body,
+                variant_map,
+                event_fields.as_deref_mut(),
+                semantics,
+            ),
             catch_var: catch_var.clone(),
             catch_body: catch_body
                 .as_ref()
@@ -196,7 +231,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::DirectAssign,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }
@@ -207,7 +247,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Increment,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }
@@ -218,7 +263,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Decrement,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }
@@ -229,7 +279,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Multiply,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }
@@ -240,7 +295,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Divide,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }
@@ -251,7 +311,12 @@ pub(super) fn try_lower_mutation(
                             name: target_name.clone(),
                         },
                         operation: MutationOp::Modulo,
-                        amount: Some(lower_expr(right, variant_map, event_fields.as_deref_mut(), semantics)),
+                        amount: Some(lower_expr(
+                            right,
+                            variant_map,
+                            event_fields.as_deref_mut(),
+                            semantics,
+                        )),
                         item: None,
                     });
                 }

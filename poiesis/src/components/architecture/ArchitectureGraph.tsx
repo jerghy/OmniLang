@@ -48,6 +48,7 @@ export function ArchitectureGraph() {
   const setBubblesAndEdges = usePoiesisStore((s) => s.setBubblesAndEdges);
   const expandBubble = usePoiesisStore((s) => s.expandBubble);
   const openTab = usePoiesisStore((s) => s.openTab);
+  const projectDir = usePoiesisStore((s) => s.projectDir);
 
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
@@ -57,7 +58,6 @@ export function ArchitectureGraph() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const projectDir = usePoiesisStore.getState().projectDir;
       if (!projectDir) {
         if (!cancelled) {
           setBubblesAndEdges([], []);

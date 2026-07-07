@@ -22,7 +22,7 @@ pub fn dart_type(kind: &str, type_args: &[TypeIR]) -> String {
 
 /// Format a TypeIR into a Dart type string via the existing `dart_type()`.
 pub(crate) fn format_type_ir_dart(ty: &TypeIR) -> String {
-    DartTypeFormatter.format_type(&ty.kind, &ty.type_args)
+    DartTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }
 
 // ═══════════════════════════════════════════════════════════

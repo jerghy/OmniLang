@@ -21,5 +21,5 @@ pub fn rs_type(kind: &str, type_args: &[TypeIR]) -> String {
 // ═══════════════════════════════════════════════════════════
 
 pub(crate) fn format_type_ir_rust(ty: &TypeIR) -> String {
-    RustTypeFormatter.format_type(&ty.kind, &ty.type_args)
+    RustTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }

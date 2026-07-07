@@ -16,7 +16,6 @@ use super::stmt::lower_block;
 use super::view::lower_view_block;
 
 // Disambiguate conflicting names between parser AST and IR
-use crate::ir::logic::Visibility as IRVisibility;
 use crate::ir::types::LifecycleKind as IRLifecycleKind;
 use crate::parser::ast::view::LifecycleKind as ParserLifecycleKind;
 
@@ -92,7 +91,7 @@ pub(super) fn lower_component(
             semantics.symbols.push_scope(&format!("fn:{}", f.name));
             let result = FunctionIR {
                 name: f.name.clone(),
-                visibility: IRVisibility::Private,
+                visibility: Visibility::Private,
                 params: f
                     .params
                     .iter()
@@ -114,7 +113,7 @@ pub(super) fn lower_component(
         semantics.symbols.push_scope(&format!("fn:{}", a.name));
         fns.push(FunctionIR {
             name: a.name.clone(),
-            visibility: IRVisibility::Private,
+            visibility: Visibility::Private,
             params: a
                 .params
                 .iter()
@@ -296,26 +295,25 @@ pub(super) fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionI
     match view {
         ViewTree::Element(ref mut el) => {
             for (_event_name, handler) in el.events.iter_mut() {
-                if handler.used_fields.is_some()
-                    || handler.event_data.is_none()
-                    || handler.kind != EventHandlerKind::FnRef
+                if let EventHandlerIR::FnRef {
+                    ref mut used_fields,
+                    r#ref: fn_name,
+                    event_data: Some(kind),
+                    ..
+                } = handler
                 {
-                    continue;
-                }
-                let kind = handler
-                    .event_data
-                    .as_ref()
-                    .expect("event_data is Some because is_none() check failed above");
-                let schema = event_data_schema(kind);
-                let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+                    if used_fields.is_some() {
+                        continue;
+                    }
+                    let schema = event_data_schema(kind);
+                    let valid_names: Vec<&str> =
+                        schema.iter().map(|f| f.name.as_str()).collect();
 
-                if let Some(ref fn_name) = handler.r#ref {
                     let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
                         fns.iter().find(|f| {
                             f.name == *fn_name || f.name.ends_with(&format!("_{}", fn_name))
                         })
                     });
-
                     if let Some(func) = func_ir {
                         let mut used = Vec::new();
                         collect_ir_event_fields(&func.body, &mut used);
@@ -323,7 +321,7 @@ pub(super) fn backfill_fn_ref_event_fields(view: &mut ViewTree, fns: &[FunctionI
                             .into_iter()
                             .filter(|f| valid_names.contains(&f.as_str()))
                             .collect();
-                        handler.used_fields = Some(used);
+                        *used_fields = Some(used);
                     }
                 }
             }
@@ -588,7 +586,7 @@ pub(super) fn lower_store(
             semantics.symbols.push_scope(&format!("fn:{}", action.name));
             let result = FunctionIR {
                 name: action.name.clone(),
-                visibility: IRVisibility::Public,
+                visibility: Visibility::Public,
                 params: action
                     .params
                     .iter()
@@ -640,14 +638,11 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
         TypeAnnotation::Named {
             name, type_args, ..
         } => {
-            let kind = name.clone();
             let args: Vec<TypeIR> = type_args.iter().map(lower_type).collect();
             TypeIR {
-                kind,
+                kind: TypeKind::from(name.clone()),
                 type_args: args,
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }
         }
         TypeAnnotation::Optional { base, .. } => {
@@ -657,27 +652,27 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
         }
         TypeAnnotation::Union { types, .. } => {
             // Preserve all union variants by joining kind strings
-            let kinds: Vec<String> = types
+            let kind_strs: Vec<String> = types
                 .iter()
                 .map(|t| {
                     let lowered = lower_type(t);
-                    lowered.kind
+                    lowered.kind.as_str().to_string()
                 })
                 .collect();
             TypeIR {
-                kind: kinds.join(" | "),
+                kind: TypeKind::Named {
+                    name: kind_strs.join(" | "),
+                },
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }
         }
         TypeAnnotation::Fn { .. } => TypeIR {
-            kind: "function".into(),
+            kind: TypeKind::Named {
+                name: "function".into(),
+            },
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     }
 }

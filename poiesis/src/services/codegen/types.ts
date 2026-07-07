@@ -8,7 +8,7 @@ import type { PidMap, PidBlockType } from "../../core/types/pid";
 // ── Error types ──
 
 export interface Diagnostic {
-  severity: string;
+  severity: "error" | "warning" | "info";
   code: string;
   message: string;
   line: number;
@@ -119,9 +119,7 @@ export interface AnnotationStrategy {
   beforeFile(): string;
 }
 
-// ── ViewNode ──
-
-export type ViewNodeKind = "element" | "text" | "interpolation" | "if" | "for" | "slot";
+// ── ViewNode (discriminated union) ──
 
 export interface ResolvedStyle {
   htmlTag: string;
@@ -134,28 +132,64 @@ export interface ResolvedStyle {
   usedClassNames: string[];
 }
 
-export interface ViewNode {
+interface ViewNodeBase {
   id: string;
-  path: string;         // "{compName}.{path}" for round-trip stability
+  path: string; // "{compName}.{path}" for round-trip stability
+}
+
+export interface ElementViewNode extends ViewNodeBase {
+  kind: "element";
   tag: string;
   props: Record<string, unknown>;
   children: ViewNode[];
-  kind: ViewNodeKind;
   resolvedStyle?: ResolvedStyle;
   inline_style?: Record<string, string> | null;
   isFolded?: boolean;
   renderMode?: "dom" | "canvas";
-  condition?: string;
-  branches?: { condition: string; body: ViewNode[] }[];
+}
+
+export interface IfViewNode extends ViewNodeBase {
+  kind: "if";
+  condition: string;
+  branches: { condition: string; body: ViewNode[] }[];
   fallback?: ViewNode[] | null;
-  iterable?: string;
-  itemBinding?: string;
+  children: ViewNode[];
+}
+
+export interface ForViewNode extends ViewNodeBase {
+  kind: "for";
+  iterable: string;
+  itemBinding: string;
   keyExpr?: string;
   emptyBody?: ViewNode[] | null;
-  text?: string;
-  expression?: string;
-  slotName?: string;
+  children: ViewNode[];
 }
+
+export interface TextViewNode extends ViewNodeBase {
+  kind: "text";
+  text: string;
+}
+
+export interface InterpolationViewNode extends ViewNodeBase {
+  kind: "interpolation";
+  expression: string;
+}
+
+export interface SlotViewNode extends ViewNodeBase {
+  kind: "slot";
+  slotName: string;
+  children: ViewNode[];
+}
+
+export type ViewNode =
+  | ElementViewNode
+  | IfViewNode
+  | ForViewNode
+  | TextViewNode
+  | InterpolationViewNode
+  | SlotViewNode;
+
+export type ViewNodeKind = ViewNode["kind"];
 
 // ── Intermediate types ──
 

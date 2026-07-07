@@ -130,11 +130,11 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
         for imp in &module.imports {
             if let ImportStmt::Named(ni) = imp {
                 if ni.path.starts_with("std/") {
-                    let module_name = ni
-                        .path
-                        .strip_prefix("std/")
-                        .expect("path starts with \"std/\" as checked above")
-                        .to_string();
+                    let module_name = match ni.path.strip_prefix("std/") {
+                        Some(p) => p,
+                        None => continue,
+                    }
+                    .to_string();
                     if !stdlib_imports.contains(&module_name) {
                         stdlib_imports.push(module_name);
                     }

@@ -10,10 +10,22 @@ function generateId(): string {
   return uid("s");
 }
 
+/** Extract children from a ViewNode for tree walking — handles all union variants. */
+function getViewNodeChildren(node: ViewNode): ViewNode[] {
+  switch (node.kind) {
+    case "element":
+    case "for":
+    case "slot":
+      return node.children;
+    default:
+      return [];
+  }
+}
+
 function findViewNode(view: ViewNode | null | undefined, elId: string): ViewNode | null {
   if (!view) return null;
   if (view.id === elId) return view;
-  for (const child of view.children || []) {
+  for (const child of getViewNodeChildren(view)) {
     const found = findViewNode(child, elId);
     if (found) return found;
   }
@@ -52,11 +64,14 @@ export function parseStylesFromAST(
 
   // Walk view elements → map class: and style: to ElementStyle
   for (const [elId, el] of viewElements) {
+    // Must be a ViewElementData or CodeblockElementData to have props/style
+    if (!("tag" in el)) continue;
+
     const classRefs: string[] = [];
     const inlineProperties: StyleProperty[] = [];
     const viewNode = findViewNode(componentNode?.view, elId);
 
-    if (viewNode) {
+    if (viewNode && viewNode.kind === "element") {
       // Parse class: attribute → classRefs
       const classAttr = viewNode.props?.["class"];
       if (classAttr && typeof classAttr === "string") {
@@ -91,12 +106,15 @@ export function parseStylesFromAST(
       }
     }
 
+    if (!("style" in el)) continue;
     el.style = { classRefs, inlineProperties };
 
     // Cleanup: remove old props.style and props.className when style
     // has been set, to avoid duplicate style/class attributes in emitted source
-    if ((classRefs.length > 0 || inlineProperties.length > 0) && (el.props?.style || el.props?.className)) {
-      const { style: _oldStyle, className: _oldClass, ...restProps } = el.props;
+    if ((classRefs.length > 0 || inlineProperties.length > 0) && el.props) {
+      const restProps = { ...el.props };
+      delete restProps.style;
+      delete restProps.className;
       el.props = restProps;
     }
   }

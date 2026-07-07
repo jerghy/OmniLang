@@ -94,22 +94,25 @@ pub fn detect_cycles(
                 strongconnect(w, graph, file_paths, state);
                 state.lowlinks[v] = state.lowlinks[v].min(state.lowlinks[w]);
             } else if state.on_stack.contains(&w) {
-                state.lowlinks[v] = state.lowlinks[v].min(
-                    state.indices[w]
-                        .expect("indices[w] is Some because is_none() check failed above"),
-                );
+                let w_idx = match state.indices[w] {
+                    Some(idx) => idx,
+                    None => continue,
+                };
+                state.lowlinks[v] = state.lowlinks[v].min(w_idx);
             }
         }
 
-        if state.lowlinks[v]
-            == state.indices[v].expect("indices[v] is Some because is_none() check failed above")
-        {
+        let v_idx = match state.indices[v] {
+            Some(idx) => idx,
+            None => return,
+        };
+        if state.lowlinks[v] == v_idx {
             let mut scc = Vec::new();
             loop {
-                let w = state
-                    .stack
-                    .pop()
-                    .expect("stack is non-empty inside SCC loop");
+                let w = match state.stack.pop() {
+                    Some(w) => w,
+                    None => break,
+                };
                 state.on_stack.remove(&w);
                 scc.push(file_paths[w].to_string());
                 if w == v {

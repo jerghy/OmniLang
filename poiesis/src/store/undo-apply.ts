@@ -3,6 +3,7 @@
 
 import type { PoiesisState } from "./index";
 import type { UndoAction } from "./undo-slice";
+import type { ElementData } from "../core/types/element";
 
 /**
  * Compute the state changes needed to apply (or reverse) an undo/redo action.
@@ -32,7 +33,11 @@ export function computeInverse(
       let elements = state.elements.filter((e) => !removedIds.has(e.id));
       if (el?.parentId) {
         elements = elements.map((e) =>
-          e.id === el.parentId ? { ...e, children: e.children.filter((cid) => !removedIds.has(cid)) } : e,
+          e.id === el.parentId
+            ? "children" in e
+              ? { ...e, children: e.children.filter((cid) => !removedIds.has(cid)) }
+              : e
+            : e,
         );
       }
       return {
@@ -45,12 +50,16 @@ export function computeInverse(
 
     case "addElement": {
       // Add the element back (undoing a removeElement)
-      const normalized = { ...action.element, props: action.element.props || {} };
+      const normalized = { ...action.element, props: "props" in action.element ? action.element.props || {} : {} };
       const elements = [...state.elements, normalized];
       if (normalized.parentId) {
         return {
           elements: elements.map((e) =>
-            e.id === normalized.parentId ? { ...e, children: [...e.children, normalized.id] } : e,
+            e.id === normalized.parentId
+              ? "children" in e
+                ? { ...e, children: [...e.children, normalized.id] }
+                : e
+              : e,
           ),
           rootOrder: state.rootOrder,
           isDirty: true,
@@ -66,7 +75,11 @@ export function computeInverse(
     case "setProp": {
       return {
         elements: state.elements.map((e) =>
-          e.id === action.id ? { ...e, props: { ...e.props, [action.prop]: action.oldValue } } : e,
+          e.id === action.id
+            ? "props" in e
+              ? { ...e, props: { ...e.props, [action.prop]: action.oldValue } }
+              : e
+            : e,
         ),
         isDirty: true,
       };
@@ -90,13 +103,21 @@ export function computeInverse(
       );
       if (currentParent) {
         elements = elements.map((e) =>
-          e.id === currentParent ? { ...e, children: e.children.filter((c) => c !== action.elementId) } : e,
+          e.id === currentParent
+            ? "children" in e
+              ? { ...e, children: e.children.filter((c) => c !== action.elementId) }
+              : e
+            : e,
         );
       }
       let rootOrder = state.rootOrder.filter((rid) => rid !== action.elementId);
       if (action.oldParentId) {
         elements = elements.map((e) =>
-          e.id === action.oldParentId ? { ...e, children: [...e.children, action.elementId] } : e,
+          e.id === action.oldParentId
+            ? "children" in e
+              ? { ...e, children: [...e.children, action.elementId] }
+              : e
+            : e,
         );
       } else {
         rootOrder = [...rootOrder, action.elementId];
@@ -107,9 +128,11 @@ export function computeInverse(
     case "reorderElement": {
       if (isRedo) {
         // Redo: move to targetSibling (re-apply original reorder)
-        const newSiblings = action.parentId
-          ? [...(state.elements.find((e) => e.id === action.parentId)?.children ?? [])]
-          : [...state.rootOrder];
+        const parentEl = action.parentId ? state.elements.find((e) => e.id === action.parentId) : undefined;
+        const newSiblings = parentEl && "children" in parentEl
+          ? [...parentEl.children]
+          : action.parentId ? []
+            : [...state.rootOrder];
         const currentIdx = newSiblings.indexOf(action.elementId);
         if (currentIdx !== -1) newSiblings.splice(currentIdx, 1);
         const targetIdx = newSiblings.indexOf(action.targetSiblingId);
@@ -122,7 +145,7 @@ export function computeInverse(
         if (action.parentId) {
           return {
             elements: state.elements.map((e) =>
-              e.id === action.parentId ? { ...e, children: newSiblings } : e,
+              e.id === action.parentId ? { ...e, children: newSiblings } as ElementData : e,
             ),
             isDirty: true,
           };
@@ -130,9 +153,11 @@ export function computeInverse(
         return { rootOrder: newSiblings, isDirty: true };
       } else {
         // Undo: move back to prevSibling
-        const newSiblings = action.parentId
-          ? [...(state.elements.find((e) => e.id === action.parentId)?.children ?? [])]
-          : [...state.rootOrder];
+        const parentEl = action.parentId ? state.elements.find((e) => e.id === action.parentId) : undefined;
+        const newSiblings = parentEl && "children" in parentEl
+          ? [...parentEl.children]
+          : action.parentId ? []
+            : [...state.rootOrder];
         const currentIdx = newSiblings.indexOf(action.elementId);
         if (currentIdx !== -1) newSiblings.splice(currentIdx, 1);
         if (action.prevSiblingId !== null) {
@@ -144,7 +169,7 @@ export function computeInverse(
         if (action.parentId) {
           return {
             elements: state.elements.map((e) =>
-              e.id === action.parentId ? { ...e, children: newSiblings } : e,
+              e.id === action.parentId ? { ...e, children: newSiblings } as ElementData : e,
             ),
             isDirty: true,
           };

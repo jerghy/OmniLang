@@ -254,8 +254,8 @@ function TreeDragPreview({ elementId }: { elementId: string }) {
         cursor: "grabbing",
       }}
     >
-      {el.tag}
-      {el.props?.label ? ` "${String(el.props.label).slice(0, 20)}"` : ""}
+      {"tag" in el ? el.tag : ""}
+      {"props" in el && el.props?.label ? ` "${String(el.props.label).slice(0, 20)}"` : ""}
     </div>
   );
 }

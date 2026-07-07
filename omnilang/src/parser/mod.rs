@@ -83,13 +83,11 @@ impl<'a> Parser<'a> {
     }
 
     fn peek(&self) -> &Token {
-        self.tokens
-            .get(self.pos)
-            .unwrap_or_else(|| {
-                // Static fallback — initialized once
-                static EOF: std::sync::OnceLock<Token> = std::sync::OnceLock::new();
-                EOF.get_or_init(|| Token::new(TokenKind::Eof, 0, 0, 0, 0))
-            })
+        self.tokens.get(self.pos).unwrap_or_else(|| {
+            // Static fallback — initialized once
+            static EOF: std::sync::OnceLock<Token> = std::sync::OnceLock::new();
+            EOF.get_or_init(|| Token::new(TokenKind::Eof, 0, 0, 0, 0))
+        })
     }
 
     fn peek_kind(&self) -> TokenKind {

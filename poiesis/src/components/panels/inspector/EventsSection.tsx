@@ -32,12 +32,14 @@ export function EventsSection({ element }: EventsSectionProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Find bound events from props
-  const boundEvents = Object.entries(element.props)
-    .filter(
-      ([key, val]) =>
-        key.startsWith("on") && typeof val === "string" && val.trim().length > 0
-    )
-    .map(([key, val]) => ({ name: key, handler: String(val) }));
+  const boundEvents = "props" in element
+    ? Object.entries(element.props)
+        .filter(
+          ([key, val]) =>
+            key.startsWith("on") && typeof val === "string" && val.trim().length > 0
+        )
+        .map(([key, val]) => ({ name: key, handler: String(val) }))
+    : [];
 
   const availableEvents = STANDARD_EVENTS.filter(
     (ev) => !boundEvents.some((b) => b.name === ev)

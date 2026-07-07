@@ -69,7 +69,13 @@ impl LintRule for PropImmutability {
                 }
 
                 if let Some(ref view) = comp.view {
-                    check_view_for_prop_assign(&view.children, &prop_names, &comp.name, file_path, &mut diags);
+                    check_view_for_prop_assign(
+                        &view.children,
+                        &prop_names,
+                        &comp.name,
+                        file_path,
+                        &mut diags,
+                    );
                 }
             }
         }

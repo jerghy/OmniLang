@@ -25,6 +25,10 @@ export function finalizeParse(internals: ParserInternals): void {
       el: ElementData,
       elements: ElementData[],
     ): ViewTreeNode {
+      // Only view elements have the structure we need for tree building
+      if (el.nodeType !== "view") {
+        return { id: el.id, props: {}, inline_style: null, children: [] };
+      }
       let inline_style: Record<string, string> | null = null;
       const styleStr = el.props.style as string | undefined;
       if (styleStr && typeof styleStr === "string") {

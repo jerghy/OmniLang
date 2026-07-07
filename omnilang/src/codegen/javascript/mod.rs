@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::generator::{emit_constructor_init, emit_store_constructor_init};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::shared::visitor::CodegenVisitor;
@@ -76,26 +77,16 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         // TS: emit field declarations before constructor
         if fmt.ts_mode() {
             for (prop_name, prop_type) in &comp.props {
-                let ann = JsTypeFormatter.format_type(&prop_type.kind, &prop_type.type_args);
+                let ann = JsTypeFormatter.format_type(&prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("{}: {};", prop_name, ann));
             }
             for state in &comp.states {
-                let ann = JsTypeFormatter.format_type(&state.r#type.kind, &state.r#type.type_args);
+                let ann = JsTypeFormatter.format_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
                 w.emit_fmt(format_args!("{}: {};", state.name, ann));
             }
         }
 
-        w.emit("constructor() {");
-        w.indent();
-        for prop in comp.props.keys() {
-            w.emit_fmt(format_args!("this.{} = null;  // prop", prop));
-        }
-        for state in &comp.states {
-            let js_init = fmt.format_expr(&state.initial_value);
-            w.emit_fmt(format_args!("this.{} = {};", state.name, js_init));
-        }
-        w.dedent();
-        w.emit("}");
+        emit_constructor_init(w, "constructor", comp, |e| fmt.format_expr(e));
     }
 
     // Computed properties as getters
@@ -103,7 +94,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR, ts_mod
         let body = fmt.format_expr(&computed.body);
         let ret_ann = if fmt.ts_mode() {
             let ann =
-                JsTypeFormatter.format_type(&computed.r#type.kind, &computed.r#type.type_args);
+                JsTypeFormatter.format_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
             if ann.is_empty() {
                 String::new()
             } else {
@@ -140,7 +131,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
     // TS: field declarations
     if fmt.ts_mode() {
         for (signal_name, signal_type) in &store.signals {
-            let ann = JsTypeFormatter.format_type(&signal_type.kind, &signal_type.type_args);
+            let ann = JsTypeFormatter.format_type(&signal_type.kind.as_str(), &signal_type.type_args);
             w.emit_fmt(format_args!("{}: {};", signal_name, ann));
         }
         for getter_name in store.getters.keys() {
@@ -149,18 +140,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR, ts_mode: bool
     }
 
     // Constructor with signal defaults
-    w.emit("constructor() {");
-    w.indent();
-    for signal_name in store.signals.keys() {
-        let default = store
-            .signal_defaults
-            .get(signal_name)
-            .map(|v| format_json_value(v, &JSON_JS))
-            .unwrap_or_else(|| "null".into());
-        w.emit_fmt(format_args!("this.{} = {};", signal_name, default));
-    }
-    w.dedent();
-    w.emit("}");
+    emit_store_constructor_init(w, "constructor", store, |v| format_json_value(v, &JSON_JS));
 
     // Getters as get accessors
     for (getter_name, getter_expr) in &store.getters {
@@ -193,7 +173,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         let mut s = safe_name;
         if ts_mode {
             if let Some(ref ty) = p.r#type {
-                let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
+                let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
                 if !ann.is_empty() {
                     s.push_str(&format!(": {}", ann));
                 }
@@ -207,7 +187,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR, ts_mode: bool) {
         func.return_type
             .as_ref()
             .map(|rt| {
-                let ann = JsTypeFormatter.format_type(&rt.kind, &rt.type_args);
+                let ann = JsTypeFormatter.format_type(&rt.kind.as_str(), &rt.type_args);
                 if ann.is_empty() {
                     String::new()
                 } else {
@@ -267,7 +247,7 @@ impl FormatStmt for JsStmtFormatter {
         if self.expr.ts_mode() {
             ty.as_ref()
                 .map(|t| {
-                    let ann = JsTypeFormatter.format_type(&t.kind, &t.type_args);
+                    let ann = JsTypeFormatter.format_type(&t.kind.as_str(), &t.type_args);
                     if ann.is_empty() {
                         String::new()
                     } else {

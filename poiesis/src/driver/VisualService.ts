@@ -5,6 +5,7 @@ import { Logger } from "../lib/utils/logger";
 import { getDesignStore } from "./store";
 import { ElementHandle } from "./ElementHandle";
 import { WireHandle } from "./WireHandle";
+import type { ViewElementData, CodeblockElementData } from "../core/types/element";
 
 const log = new Logger({ prefix: "OmniDriver" });
 
@@ -40,7 +41,7 @@ export class VisualService {
   /** Highlight all elements with the given tag on the canvas. */
   highlightAll(tag: string): void {
     const ids = getDesignStore()
-      .elements.filter((e) => e.tag === tag)
+      .elements.filter((e): e is ViewElementData | CodeblockElementData => "tag" in e && e.tag === tag)
       .map((e) => e.id);
     if (ids.length === 0) {
       log.warn(`highlightAll: no elements with tag "${tag}" found`);
@@ -71,7 +72,7 @@ export class VisualService {
   ): Promise<ElementHandle> {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const found = getDesignStore().elements.find((e) => e.tag === tag);
+      const found = getDesignStore().elements.find((e): e is ViewElementData | CodeblockElementData => "tag" in e && e.tag === tag);
       if (found) return new ElementHandle(found.id);
       await new Promise((r) => setTimeout(r, 100));
     }

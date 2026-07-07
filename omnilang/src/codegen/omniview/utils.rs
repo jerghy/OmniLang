@@ -67,7 +67,7 @@ pub(super) fn collect_for_events(
                 let js_event = map_event(event_name);
                 if !event_types.contains(&js_event) {
                     event_types.push(js_event.clone());
-                    if let Some(ref kind) = handler.event_data {
+                    if let Some(kind) = handler.event_data() {
                         event_kinds.push((js_event.clone(), kind.clone()));
                     }
                 }

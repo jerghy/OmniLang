@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/vue.rs
-assertion_line: 44
 expression: "&format_output(&output)"
 ---
 === CounterWithStore.vue ===
@@ -8,10 +7,10 @@ expression: "&format_output(&output)"
 
 <template>
     <div
-        @onClick="/* TODO: action AppStore.increment */"
+        @onClick="AppStore.increment()"
     >
         Count: 
-        {{ }}
+        {{ AppStore.count }}
     </div>
 </template>
 
@@ -34,5 +33,8 @@ import { ref, computed } from 'vue';
 
 export function useAppStore() {
     const count = ref<number>(0);
-    return { count };
+    function increment() {
+        count.value += 1;
+    }
+    return { count, increment };
 }

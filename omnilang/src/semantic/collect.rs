@@ -100,6 +100,10 @@ impl SemanticAnalyzer {
             }
 
             self.symbols.pop_scope(); // component scope
+
+            // Collect computed dependencies (merged from former Pass 3)
+            let deps: Vec<String> = comp.computeds.iter().map(|c| c.name.clone()).collect();
+            self.dependencies.insert(comp.name.clone(), deps);
         }
 
         // Stores

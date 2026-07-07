@@ -1,9 +1,8 @@
-//! Pass 3 (dependencies) and Pass 4 (type validation) for semantic analysis.
+//! Remaining standalone validations (bind targets, store actions, prop assignment).
 //!
-//! Validates control flow correctness (`break`/`continue`/`await` scoping),
-//! bind targets, store action references, store field access, and prop
-//! assignment prohibition.  Motion-specific validation lives in the sibling
-//! [`validate_motion`] module.
+//! Control-flow validation (`break`/`continue`/`await`) was merged inline into the
+//! resolve pass (see `validate_inline.rs` and `resolve.rs`).  Motion validation
+//! lives in the sibling [`validate_motion`] module.
 
 use std::collections::{HashMap, HashSet};
 
@@ -13,276 +12,11 @@ use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
 
-impl SemanticAnalyzer {
-    // ── Pass 3: Collect dependencies ──────
-
-    /// Collect per-component dependency lists (currently just computed names).
-    pub(super) fn collect_module_dependencies(&mut self, module: &Module) {
-        for comp in &module.components {
-            let mut deps = Vec::new();
-            for c in &comp.computeds {
-                deps.push(c.name.clone());
-            }
-            self.dependencies.insert(comp.name.clone(), deps);
-        }
-    }
-
-    // ── Pass 4: Validate ───────────────────────────────
-
-    /// Run all validation rules for a module.
-    pub(super) fn validate_module(&mut self, module: &Module) {
-        for comp in &module.components {
-            self.validate_control_flow_in_component(comp);
-            self.validate_bind_targets(comp);
-            self.validate_store_action_refs(comp, module);
-            self.validate_store_field_access(comp);
-            self.validate_prop_assignment_in_component(comp);
-        }
-        for func in &module.functions {
-            self.validate_function_body(&func.body, func.is_async);
-        }
-        for store in &module.stores {
-            self.validate_store(store);
-        }
-        self.validate_motions_in_module(module);
-    }
-
-    /// break/continue must be inside while/for loops; await must be in async fn
-    fn validate_control_flow_in_component(&mut self, comp: &ComponentDef) {
-        for action in &comp.actions {
-            self.validate_function_body(&action.body, action.is_async);
-        }
-        for func in &comp.fns {
-            self.validate_function_body(&func.body, func.is_async);
-        }
-        for computed in &comp.computeds {
-            self.validate_expr_await(&computed.body, false);
-        }
-        for lifecycle in &comp.lifecycles {
-            let mut depth = 0u32;
-            self.validate_block(&lifecycle.body, false, &mut depth);
-        }
-    }
-
-    fn validate_function_body(&mut self, body: &Block, is_async: bool) {
-        let mut loop_depth = 0u32;
-        self.validate_block(body, is_async, &mut loop_depth);
-    }
-
-    fn validate_block(&mut self, block: &Block, is_async: bool, loop_depth: &mut u32) {
-        for stmt in &block.stmts {
-            match stmt {
-                Stmt::Break(span) => {
-                    if *loop_depth == 0 {
-                        self.diagnostics.push(Diagnostic::error(
-                            DiagnosticKind::E0003,
-                            "break used outside of a loop",
-                            span,
-                        ));
-                    }
-                }
-                Stmt::Continue(span) => {
-                    if *loop_depth == 0 {
-                        self.diagnostics.push(Diagnostic::error(
-                            DiagnosticKind::E0003,
-                            "continue used outside of a loop",
-                            span,
-                        ));
-                    }
-                }
-                Stmt::While {
-                    condition, body, ..
-                } => {
-                    self.validate_expr_await(condition, is_async);
-                    *loop_depth += 1;
-                    self.validate_block(body, is_async, loop_depth);
-                    *loop_depth -= 1;
-                }
-                Stmt::ForIn { iterable, body, .. } => {
-                    self.validate_expr_await(iterable, is_async);
-                    *loop_depth += 1;
-                    self.validate_block(body, is_async, loop_depth);
-                    *loop_depth -= 1;
-                }
-                Stmt::If {
-                    condition,
-                    then_body,
-                    else_ifs,
-                    else_body,
-                    ..
-                } => {
-                    self.validate_expr_await(condition, is_async);
-                    self.validate_block(then_body, is_async, loop_depth);
-                    for (elif_cond, elif_body) in else_ifs {
-                        self.validate_expr_await(elif_cond, is_async);
-                        self.validate_block(elif_body, is_async, loop_depth);
-                    }
-                    if let Some(else_b) = else_body {
-                        self.validate_block(else_b, is_async, loop_depth);
-                    }
-                }
-                // Check await in all other statement types
-                Stmt::VarDecl { init, .. } => {
-                    if let Some(e) = init {
-                        self.validate_expr_await(e, is_async);
-                    }
-                }
-                Stmt::ExprStmt { expr, .. } => {
-                    self.validate_expr_await(expr, is_async);
-                }
-                Stmt::Return { value, .. } => {
-                    if let Some(e) = value {
-                        self.validate_expr_await(e, is_async);
-                    }
-                }
-                Stmt::Assign { value, .. } => {
-                    self.validate_expr_await(value, is_async);
-                }
-                Stmt::Print { arg, .. } => {
-                    self.validate_expr_await(arg, is_async);
-                }
-                Stmt::EventEmit { args, .. } => {
-                    for arg in args {
-                        self.validate_expr_await(arg, is_async);
-                    }
-                }
-                Stmt::Throw { expr, .. } => {
-                    self.validate_expr_await(expr, is_async);
-                }
-                Stmt::TryCatch {
-                    try_body,
-                    catch_body,
-                    finally_body,
-                    ..
-                } => {
-                    self.validate_block(try_body, is_async, loop_depth);
-                    if let Some(ref b) = catch_body {
-                        self.validate_block(b, is_async, loop_depth);
-                    }
-                    if let Some(ref b) = finally_body {
-                        self.validate_block(b, is_async, loop_depth);
-                    }
-                }
-                Stmt::Error { .. } => {}
-            }
-        }
-        // Check trailing expression for await-in-non-async
-        if let Some(ref expr) = block.trailing_expr {
-            self.validate_expr_await(expr, is_async);
-        }
-    }
-
-    /// Recursively check for await in non-async context within expressions.
-    fn validate_expr_await(&mut self, expr: &Expr, is_async: bool) {
-        match expr {
-            Expr::AwaitExpr { span, .. } if !is_async => {
-                self.diagnostics.push(Diagnostic::error(
-                    DiagnosticKind::E0004,
-                    "await used outside async function",
-                    span,
-                ));
-            }
-            Expr::BinaryOp { left, right, .. } => {
-                self.validate_expr_await(left, is_async);
-                self.validate_expr_await(right, is_async);
-            }
-            Expr::UnaryOp { operand, .. } => {
-                self.validate_expr_await(operand, is_async);
-            }
-            Expr::FuncCall { func, args, .. } => {
-                self.validate_expr_await(func, is_async);
-                for arg in args {
-                    self.validate_expr_await(arg, is_async);
-                }
-            }
-            Expr::MethodCall { object, args, .. } => {
-                self.validate_expr_await(object, is_async);
-                for arg in args {
-                    self.validate_expr_await(arg, is_async);
-                }
-            }
-            Expr::FieldAccess { object, .. } => {
-                self.validate_expr_await(object, is_async);
-            }
-            Expr::IndexGet { object, index, .. } => {
-                self.validate_expr_await(object, is_async);
-                self.validate_expr_await(index, is_async);
-            }
-            Expr::ArrayLiteral { elements, .. } => {
-                for e in elements {
-                    self.validate_expr_await(e, is_async);
-                }
-            }
-            Expr::MapLiteral { entries, .. } => {
-                for (k, v) in entries {
-                    self.validate_expr_await(k, is_async);
-                    self.validate_expr_await(v, is_async);
-                }
-            }
-            Expr::StructLiteral { fields, .. } => {
-                for (_, val) in fields {
-                    self.validate_expr_await(val, is_async);
-                }
-            }
-            Expr::TemplateString { parts, .. } => {
-                for part in parts {
-                    if let TemplatePart::Expr(e) = part {
-                        self.validate_expr_await(e, is_async);
-                    }
-                }
-            }
-            Expr::IfExpr {
-                condition,
-                then_expr,
-                else_expr,
-                ..
-            } => {
-                self.validate_expr_await(condition, is_async);
-                self.validate_expr_await(then_expr, is_async);
-                self.validate_expr_await(else_expr, is_async);
-            }
-            Expr::TernaryExpr {
-                condition,
-                then_expr,
-                else_expr,
-                ..
-            } => {
-                self.validate_expr_await(condition, is_async);
-                self.validate_expr_await(then_expr, is_async);
-                self.validate_expr_await(else_expr, is_async);
-            }
-            Expr::Block { body, .. } => {
-                let mut depth = 0u32;
-                self.validate_block(body, is_async, &mut depth);
-            }
-            Expr::MatchExpr { matched, arms, .. } => {
-                self.validate_expr_await(matched, is_async);
-                for arm in arms {
-                    let mut depth = 0u32;
-                    self.validate_block(&arm.body, is_async, &mut depth);
-                }
-            }
-            Expr::AwaitExpr { operand, .. } => {
-                // Check nested awaits (only the outer one is caught by the top rule)
-                self.validate_expr_await(operand, is_async);
-            }
-            Expr::ClosureExpr {
-                params: _, body, ..
-            } => {
-                // Closures inherit the async context from their enclosing scope
-                self.validate_expr_await(body, is_async);
-            }
-            // Literal, VarRef, StoreFieldAccess, NotYetImplemented have no sub-expressions
-            _ => {}
-        }
-    }
-}
-
 // ── Bind target validation ──────────────────────────
 
 impl SemanticAnalyzer {
     /// bind: must target a signal, not a store action or fn
-    fn validate_bind_targets(&mut self, comp: &ComponentDef) {
+    pub(super) fn validate_bind_targets(&mut self, comp: &ComponentDef) {
         let signal_names: HashSet<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
 
         if let Some(ref view) = comp.view {
@@ -323,7 +57,7 @@ impl SemanticAnalyzer {
 impl SemanticAnalyzer {
     /// Validate that EventHandler::StoreAction references point to real stores and actions.
     /// Triggers: E0007
-    fn validate_store_action_refs(&mut self, comp: &ComponentDef, module: &Module) {
+    pub(super) fn validate_store_action_refs(&mut self, comp: &ComponentDef, module: &Module) {
         // Build a map: store_name -> set of action names
         let mut store_actions: HashMap<&str, HashSet<&str>> = HashMap::new();
         for store in &module.stores {
@@ -381,7 +115,7 @@ impl SemanticAnalyzer {
 
 impl SemanticAnalyzer {
     /// Validate that component props are not assigned to within the component.
-    fn validate_prop_assignment_in_component(&mut self, comp: &ComponentDef) {
+    pub(super) fn validate_prop_assignment_in_component(&mut self, comp: &ComponentDef) {
         let prop_names: HashSet<&str> = comp.props.iter().map(|p| p.name.as_str()).collect();
 
         if prop_names.is_empty() {
@@ -475,13 +209,4 @@ impl SemanticAnalyzer {
         }
     }
 
-    /// Validate store actions/getters for await and control flow
-    fn validate_store(&mut self, store: &StoreDef) {
-        for action in &store.actions {
-            self.validate_function_body(&action.body, action.is_async);
-        }
-        for getter in &store.getters {
-            self.validate_expr_await(&getter.body, false);
-        }
-    }
 }

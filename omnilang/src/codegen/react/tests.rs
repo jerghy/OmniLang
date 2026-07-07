@@ -120,8 +120,14 @@ fn test_format_expr_identifier() {
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
         op: "add".into(),
-        left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
-        right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
+        left: Box::new(ExprIR::IdentifierExpr {
+            name: "a".into(),
+            type_ann: None,
+        }),
+        right: Box::new(ExprIR::IdentifierExpr {
+            name: "b".into(),
+            type_ann: None,
+        }),
     };
     assert_eq!(format_expr_ir_tsx(&expr), "a + b");
 }
@@ -129,7 +135,10 @@ fn test_format_expr_binary() {
 #[test]
 fn test_format_expr_ternary() {
     let expr = ExprIR::TernaryIR {
-        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+        cond: Box::new(ExprIR::IdentifierExpr {
+            name: "x".into(),
+            type_ann: None,
+        }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
         }),
@@ -143,7 +152,10 @@ fn test_format_expr_ternary() {
 #[test]
 fn test_format_expr_field_access() {
     let expr = ExprIR::FieldAccessExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
+        object: Box::new(ExprIR::IdentifierExpr {
+            name: "obj".into(),
+            type_ann: None,
+        }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir_tsx(&expr), "obj.prop");
@@ -455,30 +467,15 @@ fn test_tsx_interpolation_renders_expr() {
                 type_ann: None,
             }))],
             class_map_bindings: HashMap::new(),
-            driven_by: None,
-            in_view_threshold: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            hover_reverse: None,
-            paused_override: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
             test_id: None,
             ref_name: None,
-            states: None,
             construction_kind: ConstructionKind::Static,
             source_line: 0,
             source_col: 0,
-            motion_triggers: vec![],
         }),
     );
     let ir = make_ir(HashMap::from([("Test".into(), comp)]));
@@ -555,8 +552,6 @@ fn test_tsx_component_with_state() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
         initial_value: ExprIR::LiteralExpr {
             value: serde_json::json!(0),
@@ -611,8 +606,6 @@ fn test_tsx_component_with_props() {
             kind: "string".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     );
     props.insert(
@@ -621,8 +614,6 @@ fn test_tsx_component_with_props() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     );
     let mut components = HashMap::new();
@@ -791,8 +782,6 @@ fn test_store_hook_with_signals() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     );
     signals.insert(
@@ -801,8 +790,6 @@ fn test_store_hook_with_signals() {
             kind: "string".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     );
     let mut defaults = HashMap::new();
@@ -848,8 +835,6 @@ fn test_store_hook_with_getters() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     );
     let mut defaults = HashMap::new();
@@ -907,8 +892,6 @@ fn test_full_pipeline_component() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
@@ -971,8 +954,6 @@ fn test_full_pipeline_with_store() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         )]),
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
@@ -1016,8 +997,6 @@ fn test_full_pipeline_component_with_store_ref() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         )]),
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),

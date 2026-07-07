@@ -274,6 +274,45 @@ pub struct StaggerTimingIR {
     pub from: Option<StaggerDirection>,
 }
 
+// ═══════════════════════════════════════════════════════
+// ElementIR behavior sub-structs
+// ═══════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MotionBehavior {
+    pub triggers: Vec<TriggerIntent>,
+    pub states: Option<StatesIR>,
+    pub paused_override: Option<ExprIR>,
+    pub driven_by: Option<ExprIR>,
+    pub hover_reverse: Option<String>,
+    pub in_view_once: Option<ExprIR>,
+    pub in_view_repeat: Option<ExprIR>,
+    pub in_view_threshold: Option<ExprIR>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ScrollBehavior {
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub scrub: Option<ExprIR>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DragBehavior {
+    pub constraints: Option<String>,
+    pub elastic: Option<ExprIR>,
+    pub scrub: Option<ExprIR>,
+    pub momentum: Option<ExprIR>,
+    pub threshold: Option<ExprIR>,
+    pub velocity_max: Option<ExprIR>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HeroBehavior {
+    pub tag: Option<String>,
+    pub transition: Option<ExprIR>,
+}
+
 #[cfg(test)]
 mod event_data_tests {
     use super::types::*;

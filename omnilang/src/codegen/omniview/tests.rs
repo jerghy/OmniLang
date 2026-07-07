@@ -24,25 +24,10 @@ fn make_element(tag: &str) -> ElementIR {
         class_map_bindings: HashMap::new(),
         source_line: 0,
         source_col: 0,
-        motion_triggers: vec![],
-        states: None,
-        paused_override: None,
-        driven_by: None,
-        hover_reverse: None,
-        in_view_once: None,
-        in_view_repeat: None,
-        in_view_threshold: None,
-        scroll_start: None,
-        scroll_end: None,
-        scroll_scrub: None,
-        drag_constraints: None,
-        drag_elastic: None,
-        drag_scrub: None,
-        drag_momentum: None,
-        drag_threshold: None,
-        drag_velocity_max: None,
-        hero_tag: None,
-        hero_transition: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
     }
 }
 
@@ -129,8 +114,6 @@ fn test_store_signals_with_defaults() {
                         kind: "i32".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     },
                 ),
                 (
@@ -139,8 +122,6 @@ fn test_store_signals_with_defaults() {
                         kind: "string".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     },
                 ),
             ]),
@@ -174,8 +155,6 @@ fn test_store_getters() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("x".into(), serde_json::json!(10))]),
@@ -183,7 +162,10 @@ fn test_store_getters() {
                 "doubled".into(),
                 ExprIR::BinaryOpExpr {
                     op: "mul".into(),
-                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+                    left: Box::new(ExprIR::IdentifierExpr {
+                        name: "x".into(),
+                        type_ann: None,
+                    }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
                     }),
@@ -213,8 +195,6 @@ fn test_store_actions() {
                     kind: "Vec".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("items".into(), serde_json::json!([]))]),
@@ -299,24 +279,42 @@ fn test_expr_binary() {
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None })
+            left: Box::new(ExprIR::IdentifierExpr {
+                name: "a".into(),
+                type_ann: None
+            }),
+            right: Box::new(ExprIR::IdentifierExpr {
+                name: "b".into(),
+                type_ann: None
+            })
         }),
         "a + b"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "eq".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "y".into(), type_ann: None })
+            left: Box::new(ExprIR::IdentifierExpr {
+                name: "x".into(),
+                type_ann: None
+            }),
+            right: Box::new(ExprIR::IdentifierExpr {
+                name: "y".into(),
+                type_ann: None
+            })
         }),
         "x === y"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::BinaryOpExpr {
             op: "and".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None })
+            left: Box::new(ExprIR::IdentifierExpr {
+                name: "a".into(),
+                type_ann: None
+            }),
+            right: Box::new(ExprIR::IdentifierExpr {
+                name: "b".into(),
+                type_ann: None
+            })
         }),
         "a && b"
     );
@@ -338,7 +336,10 @@ fn test_expr_unary() {
     assert_eq!(
         gen.expr_to_js(&ExprIR::UnaryOpExpr {
             op: "-".into(),
-            operand: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None })
+            operand: Box::new(ExprIR::IdentifierExpr {
+                name: "x".into(),
+                type_ann: None
+            })
         }),
         "-x"
     );
@@ -349,7 +350,10 @@ fn test_expr_ternary() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+            cond: Box::new(ExprIR::IdentifierExpr {
+                name: "x".into(),
+                type_ann: None
+            }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1)
             }),
@@ -366,7 +370,10 @@ fn test_expr_field_access() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "obj".into(),
+                type_ann: None
+            }),
             field: "prop".into()
         }),
         "obj.prop"
@@ -378,7 +385,10 @@ fn test_expr_method_call() {
     let gen = OmniViewGenerator::test_new();
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "arr".into(), type_ann: None }),
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "arr".into(),
+                type_ann: None
+            }),
             method: "len".into(),
             args: vec![],
             is_optional: false
@@ -387,7 +397,10 @@ fn test_expr_method_call() {
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "val".into(), type_ann: None }),
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "val".into(),
+                type_ann: None
+            }),
             method: "to_string".into(),
             args: vec![],
             is_optional: false
@@ -404,7 +417,10 @@ fn test_expr_closure() {
             params: vec!["x".into()],
             body: Box::new(ExprIR::BinaryOpExpr {
                 op: "mul".into(),
-                left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+                left: Box::new(ExprIR::IdentifierExpr {
+                    name: "x".into(),
+                    type_ann: None
+                }),
                 right: Box::new(ExprIR::LiteralExpr {
                     value: serde_json::json!(2)
                 }),
@@ -458,7 +474,10 @@ fn test_expr_block() {
             }),
             r#type: None,
         }],
-        tail: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+        tail: Box::new(ExprIR::IdentifierExpr {
+            name: "x".into(),
+            type_ann: None,
+        }),
     });
     assert!(js.contains("function"));
     assert!(js.contains("let x = 42"));
@@ -660,7 +679,10 @@ fn test_stmt_try_catch() {
             statements: vec![StatementIR::ExprStmtIR {
                 expr: ExprIR::CallExpr {
                     name: "println".into(),
-                    args: vec![ExprIR::IdentifierExpr { name: "err".into(), type_ann: None }],
+                    args: vec![ExprIR::IdentifierExpr {
+                        name: "err".into(),
+                        type_ann: None,
+                    }],
                 },
             }],
         }),
@@ -705,8 +727,6 @@ fn test_component_with_states() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
@@ -734,8 +754,6 @@ fn test_component_with_computed() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(10),
@@ -748,12 +766,13 @@ fn test_component_with_computed() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 body: ExprIR::BinaryOpExpr {
                     op: "mul".into(),
-                    left: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+                    left: Box::new(ExprIR::IdentifierExpr {
+                        name: "x".into(),
+                        type_ann: None,
+                    }),
                     right: Box::new(ExprIR::LiteralExpr {
                         value: serde_json::json!(2),
                     }),
@@ -824,8 +843,6 @@ fn test_component_with_lifecycle_mount() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
@@ -868,8 +885,6 @@ fn test_component_with_store_ref() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
@@ -902,8 +917,6 @@ fn test_component_with_effect() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
@@ -998,8 +1011,6 @@ fn test_html_interpolation() {
                     kind: "string".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!("World"),
@@ -1070,8 +1081,6 @@ fn test_full_pipeline_component_only() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
@@ -1102,8 +1111,6 @@ fn test_full_pipeline_store_only() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("value".into(), serde_json::json!(5))]),
@@ -1131,8 +1138,6 @@ fn test_full_pipeline_component_with_store() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
@@ -1162,10 +1167,8 @@ fn test_event_binding_click() {
     let mut el = make_element("button");
     el.events.insert(
         "onClick".into(),
-        EventHandlerIR {
-            kind: EventHandlerKind::FnRef,
-            body: None,
-            r#ref: Some("handleClick".into()),
+        EventHandlerIR::FnRef {
+            r#ref: "handleClick".into(),
             params: vec![],
             event_data: None,
             used_fields: None,

@@ -53,14 +53,21 @@ pub fn derive_path_mapping(sources: &HashMap<String, String>) -> HashMap<String,
             if let Ok(rel) = path.strip_prefix(parent) {
                 let rel_str = rel.to_string_lossy().replace('\\', "/");
                 mapping.insert(format!("./{rel_str}"), filepath.clone());
-                mapping.entry(rel_str.clone()).or_insert_with(|| filepath.clone());
+                mapping
+                    .entry(rel_str.clone())
+                    .or_insert_with(|| filepath.clone());
                 if rel_str.ends_with(".omni") {
                     let no_ext = &rel_str[..rel_str.len() - 5];
-                    mapping.entry(format!("./{no_ext}")).or_insert_with(|| filepath.clone());
-                    mapping.entry(no_ext.to_string()).or_insert_with(|| filepath.clone());
+                    mapping
+                        .entry(format!("./{no_ext}"))
+                        .or_insert_with(|| filepath.clone());
+                    mapping
+                        .entry(no_ext.to_string())
+                        .or_insert_with(|| filepath.clone());
                 }
             }
-            if parent.as_os_str().is_empty() || parent == Path::new(".") || parent == Path::new("/") {
+            if parent.as_os_str().is_empty() || parent == Path::new(".") || parent == Path::new("/")
+            {
                 break;
             }
             current = parent.parent();

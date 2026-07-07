@@ -99,8 +99,14 @@ mod tests {
     fn test_format_expr_binary() {
         let expr = ExprIR::BinaryOpExpr {
             op: "add".into(),
-            left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
-            right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
+            left: Box::new(ExprIR::IdentifierExpr {
+                name: "a".into(),
+                type_ann: None,
+            }),
+            right: Box::new(ExprIR::IdentifierExpr {
+                name: "b".into(),
+                type_ann: None,
+            }),
         };
         assert_eq!(format_expr_ir_dioxus(&expr), "a + b");
     }
@@ -108,7 +114,10 @@ mod tests {
     #[test]
     fn test_format_expr_ternary() {
         let expr = ExprIR::TernaryIR {
-            cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+            cond: Box::new(ExprIR::IdentifierExpr {
+                name: "x".into(),
+                type_ann: None,
+            }),
             then_expr: Box::new(ExprIR::LiteralExpr {
                 value: serde_json::json!(1),
             }),
@@ -122,7 +131,10 @@ mod tests {
     #[test]
     fn test_format_expr_field_access() {
         let expr = ExprIR::FieldAccessExpr {
-            object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: "obj".into(),
+                type_ann: None,
+            }),
             field: "prop".into(),
         };
         assert_eq!(format_expr_ir_dioxus(&expr), "obj.prop");
@@ -178,8 +190,6 @@ mod tests {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }),
         };
         generate_statement_dioxus(&mut w, &stmt);
@@ -361,8 +371,6 @@ mod tests {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
@@ -417,8 +425,6 @@ mod tests {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         );
         props.insert(
@@ -427,8 +433,6 @@ mod tests {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         );
         let mut components = HashMap::new();
@@ -532,8 +536,6 @@ mod tests {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
             body: ExprIR::BinaryOpExpr {
                 op: "mul".into(),
@@ -613,8 +615,6 @@ mod tests {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         );
         signals.insert(
@@ -623,8 +623,6 @@ mod tests {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         );
         let mut defaults = HashMap::new();
@@ -686,8 +684,6 @@ mod tests {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 initial_value: ExprIR::LiteralExpr {
                     value: serde_json::json!(0),
@@ -745,8 +741,6 @@ mod tests {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
@@ -790,8 +784,6 @@ mod tests {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             )]),
             signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),

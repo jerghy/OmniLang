@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use super::helpers::statements_contain_return;
 use super::{LintDiagnostic, LintRule, LintSeverity};
+use crate::ir::TypeKind;
 use crate::ir::IRProgram;
 
 pub struct MissingReturn;
@@ -33,8 +34,7 @@ impl LintRule for MissingReturn {
                 .unwrap_or(comp_name);
             for func in &comp.fns {
                 if let Some(ref ret_type) = func.return_type {
-                    let kind = ret_type.kind.as_str();
-                    if kind != "void" && kind != "()" && kind != "Unit" {
+                    if !matches!(ret_type.kind, TypeKind::Void) {
                         let has_return = statements_contain_return(&func.body.statements, false);
                         if !has_return {
                             diags.push(LintDiagnostic {
@@ -43,7 +43,7 @@ impl LintRule for MissingReturn {
                                 message: format!(
                                     "Function '{}' in component '{}' \
                                      has return type '{}' but no return statement",
-                                    func.name, comp_name, ret_type.kind
+                                    func.name, comp_name, ret_type.kind.as_str()
                                 ),
                                 file: comp_file.to_string(),
                                 line: 0,
@@ -89,8 +89,6 @@ mod tests {
                         kind: "Int".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     }),
                     body: BlockIR {
                         statements: vec![StatementIR::LetStmtIR {
@@ -146,8 +144,6 @@ mod tests {
                         kind: "void".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     }),
                     body: BlockIR { statements: vec![] },
                     is_async: false,
@@ -196,8 +192,6 @@ mod tests {
                         kind: "Int".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     }),
                     body: BlockIR {
                         statements: vec![StatementIR::ReturnStmtIR {

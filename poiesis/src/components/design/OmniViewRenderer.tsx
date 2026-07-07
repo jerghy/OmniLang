@@ -6,8 +6,9 @@
 import React, { useMemo } from "react";
 import { usePoiesisStore } from "../../store";
 import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
-import type { ElementData } from "../../core/types/element";
+import type { ElementData, ViewElementData } from "../../core/types/element";
 import type { StyleValueSegment } from "../../core/types/style";
+import type { ComponentDef } from "../../core/types/project-json";
 
 function isTextSegment(
   s: StyleValueSegment
@@ -39,10 +40,11 @@ function resolveTag(tag: string): string {
 
 function getDefaultInlineStyles(el: ElementData): Record<string, string> {
   const styles: Record<string, string> = {};
+  if (!("tag" in el)) return styles;
   const htmlTag = resolveTag(el.tag);
   if (blockTags.has(htmlTag)) {
     styles.display = "block";
-    if (!el.props?.label && (!el.children || el.children.length === 0)) {
+    if (!el.props?.label && (!("children" in el) || !el.children || el.children.length === 0)) {
       styles.minHeight = "32px";
     }
   }
@@ -67,8 +69,7 @@ export function OmniViewRenderer() {
 
   // Build expanded element map + track IDs that are inside custom components
   const { expandedElements, customChildIds } = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const registry = componentDefs as Record<string, any> || {};
+    const registry: Record<string, ComponentDef> = componentDefs ?? {};
     const map = new Map<string, ElementData>(elements.map((e) => [e.id, e]));
     const innerIds = new Set<string>();
 
@@ -77,12 +78,13 @@ export function OmniViewRenderer() {
     while (foundNew) {
       foundNew = false;
       for (const [id, el] of [...map]) {
-        const compRef: string | undefined = el.componentRef || (registry[el.tag] ? el.tag : undefined);
+        if (!("tag" in el)) continue; // skip group elements
+        const compRef: string | undefined = "componentRef" in el ? (el.componentRef || (registry[el.tag] ? el.tag : undefined)) : (registry[el.tag] ? el.tag : undefined);
         if (!compRef || expanded.has(id)) continue;
         expanded.add(id);
         const def = registry[compRef];
-        const defElements = def && Array.isArray((def as Record<string, unknown>).elements)
-          ? (def as Record<string, unknown>).elements as ElementData[]
+        const defElements = def && Array.isArray((def as unknown as Record<string, unknown>).elements)
+          ? (def as unknown as Record<string, unknown>).elements as ElementData[]
           : null;
         if (!defElements || defElements.length === 0) continue;
 
@@ -94,17 +96,17 @@ export function OmniViewRenderer() {
 
         const newChildIds: string[] = [];
         for (const defEl of defElements) {
+          if (!("children" in defEl && "tag" in defEl)) continue;
           const newId = idMap.get(defEl.id)!;
           // Mark as inside custom component (non-selectable)
           innerIds.add(newId);
           const isRoot = !defEl.parentId || !defElements.some((d) => d.id === defEl.parentId);
-          const cloned: ElementData = {
-            ...defEl,
+          const cloned: ViewElementData = {
             id: newId,
+            parentId: isRoot ? id : (idMap.get(defEl.parentId || "") || defEl.parentId),
             nodeType: "view",
             tag: defEl.tag || "div",
             props: defEl.props || {},
-            parentId: isRoot ? id : (idMap.get(defEl.parentId || "") || defEl.parentId),
             children: (defEl.children || []).map((cid) => idMap.get(cid) || cid),
           };
           map.set(newId, cloned);
@@ -112,7 +114,9 @@ export function OmniViewRenderer() {
         }
 
         const updated = { ...map.get(id)! };
-        updated.children = [...updated.children, ...newChildIds];
+        if ("children" in updated) {
+          updated.children = [...updated.children, ...newChildIds];
+        }
         map.set(id, updated);
         foundNew = true;
       }
@@ -122,8 +126,10 @@ export function OmniViewRenderer() {
   }, [elements, componentDefs]);
 
   const renderElement = (el: ElementData): React.ReactNode => {
+    if (!("children" in el && "tag" in el)) return null;
+
     const expanded = expandedElements.get(el.id);
-    if (expanded && expanded.children !== el.children) {
+    if (expanded && "children" in expanded && "tag" in expanded) {
       el = expanded;
     }
 
@@ -131,7 +137,7 @@ export function OmniViewRenderer() {
     const isSelected = !isInsideCustom && selectedIds.includes(el.id);
 
     const children = el.children
-      .map((cid) => expandedElements.get(cid) || elements.find((e) => e.id === cid))
+      .map((cid: string) => expandedElements.get(cid) || elements.find((e: ElementData) => e.id === cid))
       .filter((e): e is ElementData => e !== undefined);
 
     const defaultStyles = getDefaultInlineStyles(el);

@@ -4,6 +4,8 @@
 //! that eliminate expression formatting duplication across 8 backends.
 
 pub mod expr;
+pub(crate) mod generator;
+pub(crate) mod inline_handler;
 pub(crate) mod stmt;
 pub(crate) mod types;
 pub(crate) mod visitor;

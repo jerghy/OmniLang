@@ -128,5 +128,5 @@ impl FormatExpr for PythonFormatExpr {
 
 /// Format a TypeIR as a Python type annotation string.
 pub(super) fn format_type_ir(ty: &TypeIR) -> String {
-    PythonTypeFormatter.format_type(&ty.kind, &ty.type_args)
+    PythonTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }

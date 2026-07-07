@@ -44,7 +44,7 @@ pub(crate) fn emit_driven_by_effects_tsx(w: &mut CodeWriter, node: &ViewTree) {
 fn has_driven_by(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.driven_by.is_some() {
+            if el.motion_behavior().and_then(|m| m.driven_by.as_ref()).is_some() {
                 return true;
             }
             el.children.iter().any(has_driven_by)
@@ -109,9 +109,8 @@ fn has_inview_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
             if el
-                .motion_triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::InView))
+                .motion_behavior()
+                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)))
             {
                 return true;
             }
@@ -229,9 +228,8 @@ fn has_scroll_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
             if el
-                .motion_triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+                .motion_behavior()
+                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)))
             {
                 return true;
             }
@@ -259,12 +257,12 @@ fn has_scroll_trigger(node: &ViewTree) -> bool {
 fn has_drag_trigger(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_triggers.iter().any(|t| {
+            if el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
                 matches!(
                     t.kind,
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical
                 )
-            }) {
+            })) {
                 return true;
             }
             el.children.iter().any(has_drag_trigger)

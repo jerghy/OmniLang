@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/import-collector.ts
+// poiesis/src/services/codegen/import-collector.ts
 // Collects import statements from component tags, store refs, and cross-tab function references.
 
 import type { CodeTab } from "../../core/types";
@@ -23,7 +23,8 @@ export function collectImports(
   for (const tab of codeTabs) {
     if ((tab.type === "logic" || tab.type === "event") && tab.id !== "main") {
       for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config) {
+        if (!("tag" in el)) continue;
+        if (el.tag === "customFn" && "config" in el && el.config) {
           const fnName: unknown = el.config.fnName;
           if (typeof fnName === "string") {
             logicFnMap.set(fnName, tab.label);

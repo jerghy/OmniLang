@@ -65,14 +65,14 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
             w.emit_fmt(format_args!(
                 "{}: Option<{}>,",
                 prop_name,
-                rs_type(&prop_type.kind, &prop_type.type_args)
+                rs_type(&prop_type.kind.as_str(), &prop_type.type_args)
             ));
         }
         for state in &comp.states {
             w.emit_fmt(format_args!(
                 "{}: {},",
                 state.name,
-                rs_type(&state.r#type.kind, &state.r#type.type_args)
+                rs_type(&state.r#type.kind.as_str(), &state.r#type.type_args)
             ));
         }
         w.dedent();
@@ -116,7 +116,7 @@ fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
     // Computed properties as methods
     for computed in &comp.computeds {
         let body = format_expr_ir(&computed.body);
-        let ret_type = rs_type(&computed.r#type.kind, &computed.r#type.type_args);
+        let ret_type = rs_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
         w.emit_fmt(format_args!(
             "fn {}(&self) -> {} {{",
             computed.name, ret_type
@@ -165,7 +165,7 @@ fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
         w.emit_fmt(format_args!(
             "{}: {},",
             signal_name,
-            rs_type(&signal_type.kind, &signal_type.type_args)
+            rs_type(&signal_type.kind.as_str(), &signal_type.type_args)
         ));
     }
     w.dedent();
@@ -218,7 +218,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
     for p in &func.params {
         let mut s = p.name.clone();
         if let Some(ref ty) = p.r#type {
-            let ann = rs_type(&ty.kind, &ty.type_args);
+            let ann = rs_type(&ty.kind.as_str(), &ty.type_args);
             s.push_str(&format!(": {}", ann));
         }
         param_strs.push(s);
@@ -228,7 +228,7 @@ fn generate_function(w: &mut CodeWriter, func: &FunctionIR) {
     let ret_ann = func
         .return_type
         .as_ref()
-        .map(|rt| format!(" -> {}", rs_type(&rt.kind, &rt.type_args)))
+        .map(|rt| format!(" -> {}", rs_type(&rt.kind.as_str(), &rt.type_args)))
         .unwrap_or_default();
 
     let all_params = param_strs.join(", ");
@@ -286,7 +286,7 @@ impl FormatStmt for RustStmtFormatter {
 
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
-            .map(|t| format!(": {}", rs_type(&t.kind, &t.type_args)))
+            .map(|t| format!(": {}", rs_type(&t.kind.as_str(), &t.type_args)))
             .unwrap_or_default()
     }
 

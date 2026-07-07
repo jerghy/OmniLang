@@ -93,8 +93,6 @@ impl OmniViewGenerator {
         // Re-render loop
         // If key_expr is present, use key-based identity tracking for enter/leave animations.
         // Otherwise, clear and re-render all items.
-        let has_key = list.key_expr.is_some();
-
         // Clear existing rendered items (elements between tpl template and container marker)
         self.js.push_str("  // Clear existing rendered items\n");
         self.js
@@ -104,12 +102,8 @@ impl OmniViewGenerator {
         self.js.push_str("  }\n");
 
         // Key-based map
-        if has_key {
-            let key_js = self.expr_to_js(
-                list.key_expr
-                    .as_ref()
-                    .expect("key_expr is Some when has_key is true"),
-            );
+        if let Some(ref key_expr) = list.key_expr {
+            let key_js = self.expr_to_js(key_expr);
             self.js
                 .push_str("  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());\n");
             self.js

@@ -51,14 +51,18 @@ export function ComponentTree({ treeDropState }: ComponentTreeProps) {
         .filter((e: any): e is ElementData => e !== undefined);
     };
 
-    const buildNode = (el: ElementData): TreeNode => ({
-      id: el.id,
-      tag: el.tag,
-      htmlTag: resolveHtmlTag(el.tag, el.props as Record<string, unknown>),
-      displayLabel: getDisplayLabel(el.props as Record<string, unknown>),
-      componentRef: el.componentRef,
-      children: childrenOf(el.id).map(buildNode),
-    });
+    const buildNode = (el: ElementData): TreeNode => {
+      const tag = "tag" in el ? el.tag : "div";
+      const props = "props" in el ? (el.props as Record<string, unknown>) : {};
+      return {
+        id: el.id,
+        tag,
+        htmlTag: resolveHtmlTag(tag, props),
+        displayLabel: getDisplayLabel(props),
+        componentRef: "componentRef" in el ? el.componentRef : undefined,
+        children: childrenOf(el.id).map(buildNode),
+      };
+    };
 
     return rootIds
       .map((id: string) => {
@@ -265,9 +269,8 @@ function ContextMenu({
   const handleMoveUp = useCallback(() => {
     const el = elements.find((e) => e.id === elementId);
     if (!el) return;
-    const siblings = el.parentId
-      ? elements.find((e) => e.id === el.parentId)?.children || []
-      : rootOrder;
+    const parent = el.parentId ? elements.find((e) => e.id === el.parentId) : undefined;
+    const siblings = parent && "children" in parent ? parent.children : rootOrder;
     const idx = siblings.indexOf(elementId);
     if (idx <= 0) return;
     usePoiesisStore.getState().reorderElement(elementId, siblings[idx - 1], "before");
@@ -277,9 +280,8 @@ function ContextMenu({
   const handleMoveDown = useCallback(() => {
     const el = elements.find((e) => e.id === elementId);
     if (!el) return;
-    const siblings = el.parentId
-      ? elements.find((e) => e.id === el.parentId)?.children || []
-      : rootOrder;
+    const parent = el.parentId ? elements.find((e) => e.id === el.parentId) : undefined;
+    const siblings = parent && "children" in parent ? parent.children : rootOrder;
     const idx = siblings.indexOf(elementId);
     if (idx < 0 || idx >= siblings.length - 1) return;
     usePoiesisStore.getState().reorderElement(elementId, siblings[idx + 1], "after");
@@ -292,7 +294,8 @@ function ContextMenu({
   }, [elementId, onClose]);
 
   const handleEditComponent = useCallback(() => {
-    if (contextElement?.componentRef) enterCanvas(contextElement.componentRef);
+    const compRef = contextElement && "componentRef" in contextElement ? contextElement.componentRef : undefined;
+    if (compRef) enterCanvas(compRef);
     onClose();
   }, [contextElement, enterCanvas, onClose]);
 
@@ -400,7 +403,7 @@ function ContextMenu({
       <MenuRow label="上移" shortcut="Ctrl+↑" onClick={handleMoveUp} />
       <MenuRow label="下移" shortcut="Ctrl+↓" onClick={handleMoveDown} />
       <MenuRow label="删除" shortcut="Delete" onClick={handleDelete} />
-      {contextElement?.componentRef && (
+      {contextElement && "componentRef" in contextElement && contextElement.componentRef && (
         <>
           <Separator />
           <MenuRow

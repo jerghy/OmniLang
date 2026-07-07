@@ -2,6 +2,7 @@
 // View parsing functions extracted from the Parser class.
 
 import type { Token } from "./omni-tokenizer";
+import type { ElementData } from "../../core/types/element";
 import type { ParserInternals } from "./parser";
 import type { ViewElementAttrs } from "./parser-types";
 import { isAttrBound } from "./parser-types";
@@ -116,9 +117,9 @@ export function parseViewTextContent(internals: ParserInternals): void {
         : null;
     if (parentId) {
       const idx = internals.ctx.elements.findIndex(e => e.id === parentId);
-      if (idx !== -1 && !internals.ctx.elements[idx].props.label) {
+      if (idx !== -1 && "props" in internals.ctx.elements[idx] && !internals.ctx.elements[idx].props.label) {
         const parent = internals.ctx.elements[idx];
-        internals.ctx.elements[idx] = { ...parent, props: { ...parent.props, label: text } };
+        internals.ctx.elements[idx] = { ...parent, props: { ...parent.props, label: text } } as ElementData;
       }
     }
   }
@@ -146,8 +147,8 @@ export function parseViewElement(internals: ParserInternals): void {
 
   // @edit flags
   if (internals.ctx.pendingEditFlags) {
-    if (internals.ctx.pendingEditFlags.includes("folded")) el.isFolded = true;
-    if (internals.ctx.pendingEditFlags.includes("render=canvas")) el.renderMode = "canvas";
+    if (internals.ctx.pendingEditFlags.includes("folded")) (el as any).isFolded = true;
+    if (internals.ctx.pendingEditFlags.includes("render=canvas")) (el as any).renderMode = "canvas";
     internals.ctx.pendingEditFlags = null;
   }
 
@@ -179,10 +180,10 @@ export function parseViewElement(internals: ParserInternals): void {
 
         // Set text content if we collected any
         const textContent = textTokens.join("").trim();
-        if (textContent) {
+        if (textContent && "props" in el) {
           const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
-          if (elIdx !== -1 && !internals.ctx.elements[elIdx].props.label) {
-            internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } };
+          if (elIdx !== -1 && "props" in internals.ctx.elements[elIdx] && !internals.ctx.elements[elIdx].props.label) {
+            internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } } as ElementData;
           }
         }
         return;
@@ -193,10 +194,10 @@ export function parseViewElement(internals: ParserInternals): void {
 
     // If no closing tag on same line, set text content from any collected text
     const textContent = textTokens.join("").trim();
-    if (textContent) {
+    if (textContent && "props" in el) {
       const elIdx = internals.ctx.elements.findIndex(e => e.id === el.id);
-      if (elIdx !== -1 && !internals.ctx.elements[elIdx].props.label) {
-        internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } };
+      if (elIdx !== -1 && "props" in internals.ctx.elements[elIdx] && !internals.ctx.elements[elIdx].props.label) {
+        internals.ctx.elements[elIdx] = { ...el, props: { ...el.props, label: textContent } } as ElementData;
       }
     }
   }

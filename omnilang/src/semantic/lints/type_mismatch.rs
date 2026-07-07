@@ -36,16 +36,16 @@ impl LintRule for TypeMismatch {
 
             // Check signal initializer types
             for state in &comp.states {
-                let type_kind = &state.r#type.kind;
+                let type_kind_str = state.r#type.kind.as_str();
                 let init = &state.initial_value;
-                if !Self::types_compatible(type_kind, init) {
+                if !Self::types_compatible(type_kind_str, init) {
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
                         message: format!(
                             "Signal '{}' in component '{}': initializer type \
                              does not match declared type '{}'",
-                            state.name, comp_name, type_kind
+                            state.name, comp_name, type_kind_str
                         ),
                         file: comp_file.to_string(),
                         line: 0,
@@ -59,7 +59,7 @@ impl LintRule for TypeMismatch {
                 if let Some(ref ret_type) = func.return_type {
                     Self::check_function_returns(
                         &func.body,
-                        &ret_type.kind,
+                        ret_type.kind.as_str(),
                         comp_name,
                         &func.name,
                         comp_file,
@@ -131,19 +131,29 @@ impl TypeMismatch {
                     else_body,
                     ..
                 } => {
-                    Self::check_function_returns(then_body, ret_type, comp_name, func_name, file_path, diags);
+                    Self::check_function_returns(
+                        then_body, ret_type, comp_name, func_name, file_path, diags,
+                    );
                     if let Some(ref eb) = else_body {
-                        Self::check_function_returns(eb, ret_type, comp_name, func_name, file_path, diags);
+                        Self::check_function_returns(
+                            eb, ret_type, comp_name, func_name, file_path, diags,
+                        );
                     }
                 }
                 StatementIR::WhileStmtIR { body, .. } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
+                    Self::check_function_returns(
+                        body, ret_type, comp_name, func_name, file_path, diags,
+                    );
                 }
                 StatementIR::ForInStmtIR { body, .. } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
+                    Self::check_function_returns(
+                        body, ret_type, comp_name, func_name, file_path, diags,
+                    );
                 }
                 StatementIR::BlockStmtIR { body } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
+                    Self::check_function_returns(
+                        body, ret_type, comp_name, func_name, file_path, diags,
+                    );
                 }
                 _ => {}
             }
@@ -182,8 +192,6 @@ mod tests {
                         kind: "void".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     }),
                     body: BlockIR {
                         statements: vec![StatementIR::ReturnStmtIR {

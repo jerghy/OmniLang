@@ -5,10 +5,6 @@ use super::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 
-// Disambiguate Visibility between parser AST and IR
-use crate::ir::logic::Visibility as IRVisibility;
-use crate::parser::ast::Visibility as ParserVisibility;
-
 pub fn lower_function(
     func: &FunctionDef,
     variant_map: &HashMap<String, String>,
@@ -16,10 +12,7 @@ pub fn lower_function(
 ) -> FunctionIR {
     FunctionIR {
         name: func.name.clone(),
-        visibility: match func.visibility {
-            ParserVisibility::Public => IRVisibility::Public,
-            ParserVisibility::Private => IRVisibility::Private,
-        },
+        visibility: func.visibility,
         params: func
             .params
             .iter()
@@ -37,17 +30,14 @@ pub fn lower_function(
 pub fn lower_struct(s: &StructDef) -> StructIR {
     StructIR {
         name: s.name.clone(),
-        visibility: match s.visibility {
-            ParserVisibility::Public => IRVisibility::Public,
-            ParserVisibility::Private => IRVisibility::Private,
-        },
+        visibility: s.visibility,
         fields: s
             .fields
             .iter()
             .map(|f| FieldIR {
                 name: f.name.clone(),
                 r#type: lower_type(&f.type_ann),
-                visibility: IRVisibility::Public,
+                visibility: Visibility::Public,
             })
             .collect(),
     }
@@ -56,7 +46,7 @@ pub fn lower_struct(s: &StructDef) -> StructIR {
 pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
     EnumIR {
         name: tu.name.clone(),
-        visibility: IRVisibility::Public,
+        visibility: Visibility::Public,
         variants: tu
             .variants
             .iter()
@@ -71,10 +61,7 @@ pub fn lower_enum(tu: &TaggedUnionDef) -> EnumIR {
 pub fn lower_type_alias(ta: &TypeAlias) -> TypeAliasIR {
     TypeAliasIR {
         name: ta.name.clone(),
-        visibility: match ta.visibility {
-            ParserVisibility::Public => IRVisibility::Public,
-            ParserVisibility::Private => IRVisibility::Private,
-        },
+        visibility: ta.visibility,
         target: lower_type(&ta.type_ann),
     }
 }

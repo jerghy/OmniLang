@@ -3,10 +3,9 @@
  *  Extracted from OmniDriver god class. */
 
 import { getDesignStore, getCodeGraphStore, nextId, ensureHelp } from "./store";
-import { useCodeGraphStore, type CodeEditorState } from "../services/codegraph/store";
-import type { StoreApi } from "zustand";
+import { useCodeGraphStore, type CodeGraphStoreState } from "../services/codegraph/store";
 import { ElementHandle } from "./ElementHandle";
-import type { ElementData } from "../core/types/element";
+import type { ElementData, PortData, ViewElementData, CodeblockElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { CodeTab, CodeTabVariable } from "../services/codegraph/types";
 import type {
@@ -19,16 +18,28 @@ import type {
   TabExportData,
 } from "./types";
 
+/** Minimal typed interface for the code graph store methods used by CodeDriver. */
+interface CodeStoreState {
+  tabs: CodeTab[];
+  activeTabId: string;
+  addTab: (type: string, label: string, options?: Record<string, unknown>) => string;
+  switchTab: (tabId: string) => void;
+  removeTab: (tabId: string) => void;
+  getActiveTab: () => CodeTab | undefined;
+  defineVariable: (v: CodeTabVariable) => void;
+  removeVariable: (name: string) => void;
+}
+
 // ═══════════════════════════════════════════════════════
 // CodeDriver
 // ═══════════════════════════════════════════════════════
 
 export class CodeDriver {
   /** @internal Access the code graph store, trying global singleton first. */
-  private _codeStore(): ReturnType<StoreApi<CodeEditorState>["getState"]> | null {
+  private _codeStore(): CodeStoreState | null {
     const global = window.__CODE_GRAPH_STORE__;
-    if (global?.getState) return global.getState();
-    try { return useCodeGraphStore.getState(); } catch (e) { console.debug("[CodeDriver] Store access failed:", e); return null; }
+    if (global?.getState) return global.getState() as unknown as CodeStoreState;
+    try { return useCodeGraphStore.getState() as unknown as CodeStoreState; } catch (e) { console.debug("[CodeDriver] Store access failed:", e); return null; }
   }
 
   // ── Event Binding Queries (v2) ─────────────────────
@@ -42,11 +53,11 @@ export class CodeDriver {
       const bindings = handle.getEventBindings();
       for (const b of bindings) {
         let tabId = "";
-        const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
+        const codeStore = window.__CODE_GRAPH_STORE__?.getState?.() as unknown as CodeStoreState | undefined;
         if (codeStore?.tabs) {
           for (const tab of codeStore.tabs) {
             const hasFn = tab.graph.elements.some(
-              (e: ElementData) => e.tag === "customFn" && e.config?.fnName === b.fnName,
+              (e: ElementData) => "tag" in e && e.tag === "customFn" && "config" in e && e.config?.fnName === b.fnName,
             );
             if (hasFn) { tabId = tab.id; break; }
           }
@@ -67,12 +78,12 @@ export class CodeDriver {
     _eventName: string,
   ): Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string }> {
     const result: Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string }> = [];
-    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.() as unknown as CodeStoreState | undefined;
     if (!codeStore?.tabs) return result;
     for (const tab of codeStore.tabs) {
       if (tabId !== "*" && tab.id !== tabId) continue;
       for (const el of tab.graph.elements) {
-        if (el.tag === "customFn" && el.config?.fnName) {
+        if ("tag" in el && el.tag === "customFn" && "config" in el && el.config?.fnName) {
           result.push({
             fnName: el.config.fnName as string,
             params: (el.config.fnParams as FnParam[]) || [],
@@ -150,13 +161,17 @@ export class CodeDriver {
     const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const cloneElements = srcTab.graph.elements.map((el: ElementData) => {
       const newElId = newId(); idMap.set(el.id, newElId);
-      return { ...el, id: newElId, children: [] as string[], parentId: null as string | null };
+      const base = { id: newElId, parentId: null as string | null };
+      if ("children" in el) {
+        return { ...el, ...base, children: [] as string[] } as CodeblockElementData;
+      }
+      return { ...el, ...base } as CodeblockElementData;
     });
     for (let i = 0; i < cloneElements.length; i++) {
       const orig = srcTab.graph.elements[i];
       if (orig.parentId && idMap.has(orig.parentId)) cloneElements[i].parentId = idMap.get(orig.parentId)!;
-      if (orig.children.length > 0) {
-        cloneElements[i].children = orig.children.map((cid: string) => idMap.get(cid) || cid).filter(Boolean);
+      if ("children" in orig && orig.children.length > 0) {
+        (cloneElements[i] as ViewElementData | GroupElementData).children = orig.children.map((cid: string) => idMap.get(cid) || cid).filter(Boolean);
       }
     }
     const cloneWires = srcTab.graph.wires.map((w: WireData) => ({
@@ -207,7 +222,7 @@ export class CodeDriver {
     if (!store) throw new Error("[OmniDriver] Code graph store not available.");
     const prevTab = store.activeTabId;
     store.switchTab(tabId);
-    store.defineVariable({ name, type, defaultValue, description });
+    store.defineVariable({ name, type, defaultValue, description } as CodeTabVariable);
     store.switchTab(prevTab);
   }
 
@@ -258,9 +273,9 @@ export class CodeDriver {
     }));
     const outPort: PortDescriptor = { name: "return", direction: "out", portType: "data", type: fnReturnType, label: `返回: ${fnReturnType}` };
     const id = nextId();
-    const el: ElementData = {
-      id, nodeType: "codeblock", tag: "customFn", props: { name: fnName }, children: [], parentId: null,
-      ports: [...inPorts, outPort], nodeCategory: "function" as ElementData["nodeCategory"],
+    const el: CodeblockElementData = {
+      id, nodeType: "codeblock", tag: "customFn", props: { name: fnName }, parentId: null,
+      ports: [...inPorts, outPort], nodeCategory: "function" as CodeblockElementData["nodeCategory"],
       config: { fnName, fnParams, fnReturnType, description: "" },
     };
     // customFn always goes to code graph store
@@ -270,18 +285,18 @@ export class CodeDriver {
 
   /** Create a return node associated with a customFn. */
   returnNode(parentFnId: string): ElementHandle {
-    const cgStore = getCodeGraphStore();
+    const cgStore = getCodeGraphStore() as unknown as CodeGraphStoreState;
     const fnEl = cgStore.getActiveGraph().elements.find((e: ElementData) => e.id === parentFnId);
-    if (!fnEl || fnEl.tag !== "customFn") {
+    if (!fnEl || !("tag" in fnEl) || fnEl.tag !== "customFn" || !("config" in fnEl)) {
       throw new Error(`[OmniDriver] returnNode: parentFnId "${parentFnId}" is not a customFn node`);
     }
     const returnType = (fnEl.config?.fnReturnType as string) || "void";
     const id = nextId();
-    const el: ElementData = {
+    const el: CodeblockElementData = {
       id, nodeType: "codeblock", tag: "return", props: { name: `return ${parentFnId.slice(-6)}` },
-      children: [], parentId: parentFnId,
+      parentId: parentFnId,
       ports: [{ name: "value", direction: "in", portType: "data", type: returnType, label: "返回值" }],
-      nodeCategory: "function" as ElementData["nodeCategory"],
+      nodeCategory: "function" as CodeblockElementData["nodeCategory"],
       config: { parentFnId, returnType },
     };
     getCodeGraphStore().addElement(el);
@@ -290,12 +305,12 @@ export class CodeDriver {
 
   /** Validate a customFn — scan for return nodes and check type consistency. */
   validateFunction(fnId: string): FunctionValidationReport {
-    const graph = getCodeGraphStore().getActiveGraph();
+    const graph = (getCodeGraphStore() as unknown as CodeGraphStoreState).getActiveGraph();
     const el = graph.elements.find((e: ElementData) => e.id === fnId);
-    if (!el || el.tag !== "customFn") {
+    if (!el || !("tag" in el) || el.tag !== "customFn") {
       return { valid: false, returnType: "unknown", errors: [`Element "${fnId}" is not a customFn node`], reachableReturnPaths: 0 };
     }
-    const expectedType = (el.config?.fnReturnType as string) || "void";
+    const expectedType = ("config" in el ? (el.config?.fnReturnType as string) : undefined) || "void";
     const wires = graph.wires;
 
     // BFS from customFn to find all reachable return nodes
@@ -309,14 +324,14 @@ export class CodeDriver {
       for (const w of wires.filter((wr: WireData) => wr.fromId === current)) {
         const target = graph.elements.find((e: ElementData) => e.id === w.toId);
         if (!target) continue;
-        if (target.tag === "return") { reachableReturnNodes.push(target); }
+        if ("tag" in target && target.tag === "return") { reachableReturnNodes.push(target); }
         else { queue.push(target.id); }
       }
     }
 
     // Also find return nodes that reference this fn as parent (fallback for disconnected tests)
     const parentRefReturns = graph.elements.filter(
-      (e: ElementData) => e.tag === "return" && e.config?.parentFnId === fnId,
+      (e: ElementData) => "tag" in e && e.tag === "return" && "config" in e && e.config?.parentFnId === fnId,
     );
     const allReturnNodes = [...new Map(
       [...reachableReturnNodes, ...parentRefReturns].map((n) => [n.id, n]),
@@ -327,7 +342,7 @@ export class CodeDriver {
       errors.push("No return node reachable from customFn. A function must have at least one return path.");
     }
     for (const rn of allReturnNodes) {
-      const port = rn.ports?.find((p) => p.name === "value");
+      const port = ("ports" in rn ? rn.ports : undefined)?.find((p: PortData) => p.name === "value");
       const actualType = port?.type || "any";
       if (actualType !== expectedType && actualType !== "any" && expectedType !== "any") {
         errors.push(`Return type mismatch at node ${rn.id}: value port type "${actualType}" but function expects "${expectedType}"`);
@@ -347,7 +362,7 @@ export class CodeDriver {
     const result: Array<{ fnName: string; params: FnParam[]; returnType: string; tabId: string; description: string }> = [];
     // Search editor store (design)
     for (const el of getDesignStore().elements) {
-      if (el.tag === "customFn" && el.config?.fnName) {
+      if ("tag" in el && el.tag === "customFn" && "config" in el && el.config?.fnName) {
         result.push({
           fnName: el.config.fnName as string,
           params: (el.config.fnParams as FnParam[]) || [],
@@ -357,11 +372,11 @@ export class CodeDriver {
       }
     }
     // Search code graph store (code mode tabs)
-    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.() as unknown as CodeStoreState | undefined;
     if (codeStore?.tabs) {
       for (const tab of codeStore.tabs) {
         for (const el of tab.graph.elements) {
-          if (el.tag === "customFn" && el.config?.fnName) {
+          if ("tag" in el && el.tag === "customFn" && "config" in el && el.config?.fnName) {
             result.push({
               fnName: el.config.fnName as string,
               params: (el.config.fnParams as FnParam[]) || [],
@@ -379,7 +394,7 @@ export class CodeDriver {
   findFunctionByName(fnName: string): { fnName: string; params: FnParam[]; returnType: string; tabId: string; description: string; nodeId: string } | null {
     // Search editor store first
     for (const el of getDesignStore().elements) {
-      if (el.tag === "customFn" && el.config?.fnName === fnName) {
+      if ("tag" in el && el.tag === "customFn" && "config" in el && el.config?.fnName === fnName) {
         return {
           fnName: el.config.fnName as string,
           params: (el.config.fnParams as FnParam[]) || [],
@@ -390,11 +405,11 @@ export class CodeDriver {
       }
     }
     // Search code graph store
-    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.();
+    const codeStore = window.__CODE_GRAPH_STORE__?.getState?.() as unknown as CodeStoreState | undefined;
     if (codeStore?.tabs) {
       for (const tab of codeStore.tabs) {
         for (const el of tab.graph.elements) {
-          if (el.tag === "customFn" && el.config?.fnName === fnName) {
+          if ("tag" in el && el.tag === "customFn" && "config" in el && el.config?.fnName === fnName) {
             return {
               fnName: el.config.fnName as string,
               params: (el.config.fnParams as FnParam[]) || [],
@@ -420,7 +435,7 @@ export class CodeDriver {
   /** Get function signature summary. */
   getFunctionSignature(fnId: string): FunctionSignature | null {
     const el = getDesignStore().elements.find((e) => e.id === fnId);
-    if (!el || el.tag !== "customFn") return null;
+    if (!el || !("tag" in el) || el.tag !== "customFn") return null;
     const wires = getDesignStore().wires;
     const visited = new Set<string>([fnId]);
     const queue = [fnId];
@@ -430,10 +445,11 @@ export class CodeDriver {
         if (!visited.has(w.toId)) { visited.add(w.toId); queue.push(w.toId); }
       }
     }
+    const cfg = "config" in el ? el.config : undefined;
     return {
-      fnName: (el.config?.fnName as string) || "",
-      params: (el.config?.fnParams as FnParam[]) || [],
-      returnType: (el.config?.fnReturnType as string) || "void",
+      fnName: (cfg?.fnName as string) || "",
+      params: (cfg?.fnParams as FnParam[]) || [],
+      returnType: (cfg?.fnReturnType as string) || "void",
       bodyNodeCount: visited.size - 1,
     };
   }

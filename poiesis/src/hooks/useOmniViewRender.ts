@@ -23,7 +23,7 @@ export function useOmniViewRender(elementIds: string[]) {
 
       const inlineStyles: Record<string, string> = {};
 
-      if (el.style?.inlineProperties) {
+      if ("style" in el && el.style?.inlineProperties) {
         for (const prop of el.style.inlineProperties) {
           if (
             prop.segments.length > 0 &&
@@ -35,7 +35,7 @@ export function useOmniViewRender(elementIds: string[]) {
       }
 
       map.set(id, {
-        className: el.componentRef ? `cmp-${el.componentRef}` : "",
+        className: "componentRef" in el && el.componentRef ? `cmp-${el.componentRef}` : "",
         inlineStyles,
       });
     }

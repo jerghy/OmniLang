@@ -1,9 +1,9 @@
-// poiesis/src/omni-gen/store-extractor.ts
+// poiesis/src/services/codegen/store-extractor.ts
 // Two-phase store extraction from code blocks.
 // Phase 1: scan for tag==="store" -> StoreDef skeleton
 // Phase 2: group signal/computed/action into parent stores
 
-import type { ElementData } from "../../core/types";
+import type { ElementData, CodeblockElementData } from "../../core/types";
 import type { StoreDef } from "./types";
 
 export interface StoreExtractResult {
@@ -45,7 +45,7 @@ export function extractStores(elements: ElementData[]): StoreExtractResult {
    * Resolve the parent store name for a codeblock element.
    * Checks props.parentStore first, then walks the parentId chain.
    */
-  function resolveParentStore(el: ElementData): string | undefined {
+  function resolveParentStore(el: CodeblockElementData): string | undefined {
     // Check explicit parentStore prop
     const explicit = el.props.parentStore as string | undefined;
     if (explicit && storeDefs.has(explicit)) return explicit;
@@ -55,7 +55,7 @@ export function extractStores(elements: ElementData[]): StoreExtractResult {
     while (current) {
       const parent = elById.get(current);
       if (!parent) break;
-      if (parent.nodeType === "codeblock" && parent.tag === "store") {
+      if ("tag" in parent && parent.nodeType === "codeblock" && parent.tag === "store") {
         return parent.props.name as string;
       }
       current = parent.parentId;
@@ -67,9 +67,9 @@ export function extractStores(elements: ElementData[]): StoreExtractResult {
    * Get the return type for a computed element.
    * Checks output ports first, falls back to props.typeAnnotation, then "unknown".
    */
-  function getComputedReturnType(el: ElementData): string {
+  function getComputedReturnType(el: CodeblockElementData): string {
     if (el.ports) {
-      const outPort = el.ports.find(p => p.direction === "out");
+      const outPort = el.ports.find((p: { direction: string; type?: string }) => p.direction === "out");
       if (outPort?.type) return outPort.type;
     }
     return (el.props.typeAnnotation as string) || "unknown";
@@ -78,7 +78,7 @@ export function extractStores(elements: ElementData[]): StoreExtractResult {
   /**
    * Get the signal type from a signal element.
    */
-  function getSignalType(el: ElementData): string {
+  function getSignalType(el: CodeblockElementData): string {
     return (el.props.typeAnnotation as string) || "unknown";
   }
 

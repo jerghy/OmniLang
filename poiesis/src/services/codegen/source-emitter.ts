@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/source-emitter.ts
+// poiesis/src/services/codegen/source-emitter.ts
 // CodeWriter helper + SourceEmitter for view and style generation.
 
 import type { EmitInput, AnnotationStrategy, ChainBlock } from "./types";
@@ -239,15 +239,11 @@ export class SourceEmitter {
     // ── Non-element node kinds (don't need resolvedStyle) ──
 
     if (node.kind === "text") {
-      if (node.expression) {
-        w.emit(`{${node.expression}}`);
-      } else if (node.text) {
-        w.emit(node.text);
-      }
+      w.emit(node.text);
       return;
     }
     if (node.kind === "interpolation") {
-      w.emit(`{${node.expression ?? ""}}`);
+      w.emit(`{${node.expression}}`);
       return;
     }
 

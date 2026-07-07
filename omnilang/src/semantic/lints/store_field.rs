@@ -130,8 +130,6 @@ mod tests {
                         kind: "i32".into(),
                         type_args: vec![],
                         is_nullable: false,
-                        needs_clone: false,
-                        needs_partial_eq: false,
                     },
                 )]
                 .into_iter()

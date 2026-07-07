@@ -244,9 +244,10 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props
-                    .get_or_insert_with(HashMap::new)
-                    .insert(name.clone(), lower_expr(value, variant_map, None, semantics));
+                props.get_or_insert_with(HashMap::new).insert(
+                    name.clone(),
+                    lower_expr(value, variant_map, None, semantics),
+                );
             }
             ElementProp::Bind { name, signal_path } => {
                 if name == "value" {
@@ -278,10 +279,8 @@ fn lower_element(
                             let block_ir =
                                 lower_block(body, variant_map, Some(&mut event_fields), semantics);
 
-                            EventHandlerIR {
-                                kind: EventHandlerKind::InlineFn,
-                                body: Some(block_ir),
-                                r#ref: None,
+                            EventHandlerIR::InlineFn {
+                                body: block_ir,
                                 params: params.iter().map(|p| p.name.clone()).collect(),
                                 event_data: event_data.clone(),
                                 used_fields: Some(event_fields),
@@ -289,10 +288,8 @@ fn lower_element(
                                 needs_stop_propagation: needs_sp,
                             }
                         } else {
-                            EventHandlerIR {
-                                kind: EventHandlerKind::InlineFn,
-                                body: Some(lower_block(body, variant_map, None, semantics)),
-                                r#ref: None,
+                            EventHandlerIR::InlineFn {
+                                body: lower_block(body, variant_map, None, semantics),
                                 params: params.iter().map(|p| p.name.clone()).collect(),
                                 event_data: None,
                                 used_fields: None,
@@ -303,10 +300,8 @@ fn lower_element(
                     }
                     EventHandler::FnRef(fn_name) => {
                         // Defer used_fields to Pass 2 (fn_ref backfill)
-                        EventHandlerIR {
-                            kind: EventHandlerKind::FnRef,
-                            body: None,
-                            r#ref: Some(fn_name.clone()),
+                        EventHandlerIR::FnRef {
+                            r#ref: fn_name.clone(),
                             params: vec![],
                             event_data: event_data.clone(),
                             used_fields: None, // backfilled in Pass 2
@@ -316,15 +311,9 @@ fn lower_element(
                     }
                     EventHandler::StoreAction { store, action } => {
                         // Store actions receive no event data
-                        EventHandlerIR {
-                            kind: EventHandlerKind::StoreAction,
-                            body: None,
-                            r#ref: Some(format!("{}.{}", store, action)),
-                            params: vec![],
+                        EventHandlerIR::StoreAction {
+                            r#ref: format!("{}.{}", store, action),
                             event_data: None,
-                            used_fields: None,
-                            needs_prevent_default: false,
-                            needs_stop_propagation: false,
                         }
                     }
                 };
@@ -357,8 +346,10 @@ fn lower_element(
                             }
                             // Collect dynamic bindings (non-literal values) for reactive JS toggling
                             if !matches!(val_expr, Expr::Literal(Literal::Bool(_), _)) {
-                                class_map_bindings
-                                    .insert(key.clone(), lower_expr(val_expr, variant_map, None, semantics));
+                                class_map_bindings.insert(
+                                    key.clone(),
+                                    lower_expr(val_expr, variant_map, None, semantics),
+                                );
                             }
                         }
                         static_classes.join(" ")
@@ -565,28 +556,77 @@ fn lower_element(
         class_map_bindings: class_map_bindings_from_prop.unwrap_or_default(),
         source_line: el.span.line,
         source_col: el.span.col,
-        motion_triggers,
-        states: states_map.map(|s| StatesIR {
-            states: s,
-            signal: animate_signal,
-        }),
-        paused_override,
-        driven_by,
-        hover_reverse,
-        in_view_once,
-        in_view_repeat,
-        in_view_threshold,
-        scroll_start,
-        scroll_end,
-        scroll_scrub,
-        drag_constraints,
-        drag_elastic,
-        drag_scrub,
-        drag_momentum,
-        drag_threshold,
-        drag_velocity_max,
-        hero_tag,
-        hero_transition,
+        motion: {
+            let has_any = !motion_triggers.is_empty()
+                || states_map.is_some()
+                || paused_override.is_some()
+                || driven_by.is_some()
+                || hover_reverse.is_some()
+                || in_view_once.is_some()
+                || in_view_repeat.is_some()
+                || in_view_threshold.is_some();
+            if has_any {
+                Some(Box::new(MotionBehavior {
+                    triggers: motion_triggers,
+                    states: states_map.map(|s| StatesIR {
+                        states: s,
+                        signal: animate_signal,
+                    }),
+                    paused_override,
+                    driven_by,
+                    hover_reverse,
+                    in_view_once,
+                    in_view_repeat,
+                    in_view_threshold,
+                }))
+            } else {
+                None
+            }
+        },
+        scroll: {
+            if scroll_start.is_some()
+                || scroll_end.is_some()
+                || scroll_scrub.is_some()
+            {
+                Some(Box::new(ScrollBehavior {
+                    start: scroll_start,
+                    end: scroll_end,
+                    scrub: scroll_scrub,
+                }))
+            } else {
+                None
+            }
+        },
+        drag: {
+            if drag_constraints.is_some()
+                || drag_elastic.is_some()
+                || drag_scrub.is_some()
+                || drag_momentum.is_some()
+                || drag_threshold.is_some()
+                || drag_velocity_max.is_some()
+            {
+                Some(Box::new(DragBehavior {
+                    constraints: drag_constraints,
+                    elastic: drag_elastic,
+                    scrub: drag_scrub,
+                    momentum: drag_momentum,
+                    threshold: drag_threshold,
+                    velocity_max: drag_velocity_max,
+                }))
+            } else {
+                None
+            }
+        },
+        hero: {
+            if hero_tag.is_some() || hero_transition.is_some() {
+                Some(Box::new(HeroBehavior {
+                    tag: hero_tag,
+                    transition: hero_transition,
+                }))
+            } else {
+                None
+            }
+        },
     })
 }
 
@@ -702,24 +742,9 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         class_map_bindings: HashMap::new(),
         source_line: 0,
         source_col: 0,
-        motion_triggers: vec![],
-        states: None,
-        paused_override: None,
-        driven_by: None,
-        hover_reverse: None,
-        in_view_once: None,
-        in_view_repeat: None,
-        in_view_threshold: None,
-        scroll_start: None,
-        scroll_end: None,
-        scroll_scrub: None,
-        drag_constraints: None,
-        drag_elastic: None,
-        drag_scrub: None,
-        drag_momentum: None,
-        drag_threshold: None,
-        drag_velocity_max: None,
-        hero_tag: None,
-        hero_transition: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        hero: None,
     })
 }

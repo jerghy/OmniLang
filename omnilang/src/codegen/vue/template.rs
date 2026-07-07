@@ -3,6 +3,7 @@
 use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
 use crate::codegen::emit_event_object as emit_event_object_js;
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 
@@ -20,10 +21,8 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 let vue_attr = to_vue_attr(prop_name);
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value
-                            .as_str()
-                            .unwrap_or_default(); // defense-in-depth fallback
-                        // Escape quotes for HTML attribute
+                        let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
+                                                                    // Escape quotes for HTML attribute
                         let escaped = s.replace('"', "&quot;");
                         attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
                     }
@@ -43,53 +42,47 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
             // Events -> @event="handler"
             for (event_name, handler) in &el.events {
                 let vue_event = to_vue_event(event_name);
-                match handler.kind {
-                    EventHandlerKind::FnRef => {
-                        if let Some(ref fn_name) = handler.r#ref {
-                            if handler.event_data.is_some() {
-                                let event_obj = emit_event_object_js(
-                                    &handler.event_data,
-                                    &handler.used_fields,
-                                    "e",
-                                );
-                                attrs.push(format!(
-                                    "@{}=\"(e) => {{ {}({}) }}\"",
-                                    vue_event, fn_name, event_obj
-                                ));
-                            } else {
-                                attrs.push(format!("@{}=\"{}\"", vue_event, fn_name));
-                            }
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                        if event_data.is_some() {
+                            let event_obj = emit_event_object_js(
+                                event_data,
+                                used_fields,
+                                "e",
+                            );
+                            attrs.push(format!(
+                                "@{}=\"(e) => {{ {}({}) }}\"",
+                                vue_event, r#ref, event_obj
+                            ));
+                        } else {
+                            attrs.push(format!("@{}=\"{}\"", vue_event, r#ref));
                         }
                     }
-                    EventHandlerKind::InlineFn => {
-                        if let Some(ref body) = handler.body {
-                            if handler.event_data.is_some() {
-                                let _event_obj = emit_event_object_js(
-                                    &handler.event_data,
-                                    &handler.used_fields,
-                                    "e",
-                                );
-                                let mut hw = CodeWriter::new();
-                                for stmt in &body.statements {
-                                    generate_statement_vue(&mut hw, stmt);
-                                }
-                                let content = hw.into_string();
-                                let mut result = String::from("(e) => {\n");
-                                for line in content.lines() {
-                                    result.push_str(&format!("        {}\n", line));
-                                }
-                                result.push_str("      }");
-                                attrs.push(format!("@{}=\"{}\"", vue_event, result));
-                            } else {
-                                let handler_str = format_inline_handler_vue(body);
-                                attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
+                    EventHandlerIR::InlineFn { body, event_data, used_fields, .. } => {
+                        if event_data.is_some() {
+                            let _event_obj = emit_event_object_js(
+                                event_data,
+                                used_fields,
+                                "e",
+                            );
+                            let mut hw = CodeWriter::new();
+                            for stmt in &body.statements {
+                                generate_statement_vue(&mut hw, stmt);
                             }
+                            let content = hw.into_string();
+                            let mut result = String::from("(e) => {\n");
+                            for line in content.lines() {
+                                result.push_str(&format!("        {}\n", line));
+                            }
+                            result.push_str("      }");
+                            attrs.push(format!("@{}=\"{}\"", vue_event, result));
+                        } else {
+                            let handler_str = format_inline_handler_vue(body);
+                            attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
                         }
                     }
-                    EventHandlerKind::StoreAction => {
-                        if let Some(ref action) = handler.r#ref {
-                            attrs.push(format!("@{}=\"{}()\"", vue_event, action));
-                        }
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        attrs.push(format!("@{}=\"{}()\"", vue_event, r#ref));
                     }
                 }
             }
@@ -248,20 +241,14 @@ pub(super) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
 
 /// Build an inline arrow function string from a BlockIR for Vue event handlers.
 pub(super) fn format_inline_handler_vue(body: &BlockIR) -> String {
-    if body.statements.is_empty() {
-        return "() => {}".to_string();
-    }
-    let mut hw = CodeWriter::new();
-    for stmt in &body.statements {
-        generate_statement_vue(&mut hw, stmt);
-    }
-    let content = hw.into_string();
-    let mut result = String::from("() => {\n");
-    for line in content.lines() {
-        result.push_str(&format!("        {}\n", line));
-    }
-    result.push_str("      }");
-    result
+    let config = InlineHandlerConfig {
+        opener: "() => {\n".into(),
+        closer: "\n      }".into(),
+        empty_handler: "() => {}".into(),
+        indent: "        ",
+        use_writer: false,
+    };
+    build_inline_handler(body, &config, |w, s| generate_statement_vue(w, s))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -273,7 +260,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
     for p in &func.params {
         let mut s = p.name.clone();
         if let Some(ref ty) = p.r#type {
-            let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
+            let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
             if !ann.is_empty() {
                 s.push_str(&format!(": {}", ann));
             }
@@ -285,7 +272,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
         .return_type
         .as_ref()
         .map(|rt| {
-            let ann = JsTypeFormatter.format_type(&rt.kind, &rt.type_args);
+            let ann = JsTypeFormatter.format_type(&rt.kind.as_str(), &rt.type_args);
             if ann.is_empty() {
                 String::new()
             } else {

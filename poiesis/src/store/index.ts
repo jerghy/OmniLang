@@ -49,10 +49,6 @@ export interface PoiesisState {
   // ── Component definitions (parsed from .omni, cached) ──
   componentDefs: Record<string, ComponentDef>;
 
-  /** Legacy definitions field — set at runtime via componentRegistry adapter.
-   *  May overlap with componentDefs during migration. */
-  definitions?: Record<string, Record<string, unknown>>;
-
   // ── PID index ──
   pidIndex: Record<string, PidEntry>;
 
@@ -72,27 +68,7 @@ export interface PoiesisState {
   compileErrors: Array<{ code: string; message: string; line: number }>;
   previewUrl: string | null;
 
-  // ── File explorer (runtime-only, not persisted) ──
-  files?: Array<{ name: string; path: string; type: "file" | "directory"; ext?: string }>;
-
-  // ── Legacy runtime fields (backward compat with driver/service code) ──
-
-  /** @deprecated Legacy — use designPage.activeTabId instead */
-  activeDocId?: string;
-
-  /** @deprecated Legacy — use activeFileContent instead */
-  sourceCode?: string;
-
-  /** @deprecated Legacy — component canvas backup for save */
-  docBackup?: { elements: unknown[]; wires: unknown[] };
-
-  /** @deprecated Legacy — per-doc tab states */
-  tabStates?: Record<string, unknown>;
-
-  /** @deprecated Legacy — use designPage.openTabs instead */
-  openTabs: string[];
-
-  // ── Editor metadata (for project.json save/load) ──
+   // ── Editor metadata (for project.json save/load) ──
   nodeMeta: Record<string, NodeMeta>;
   wireMeta: Record<string, WireMeta>;
   canvasStates: Record<string, { zoom: number; panX: number; panY: number }>;
@@ -198,9 +174,6 @@ export interface PoiesisState {
 
   /** @deprecated Legacy — use activeFileContent + generateOmniSource instead */
   setSourceCode: (content: string) => void;
-
-  /** @deprecated Legacy — file loading will be consolidated */
-  loadFiles: (files: Array<{ name: string; path: string; type: string }>) => void;
 }
 
 // ── Initial State ──
@@ -247,7 +220,6 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   isDirty: false,
   activeFilePath: null,
   activeFileContent: null,
-  openTabs: [],
   mode: "design",
   compileTarget: "react",
   compileErrors: [],
@@ -320,7 +292,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
 
   // ── Element/wire CRUD ──
   addElement: (el) => set((s) => {
-    const normalized = { ...el, props: el.props || {} };
+    const normalized = "props" in el ? { ...el, props: el.props || {} } : el;
     const elements = [...s.elements, normalized];
     const undoUpdate = buildUndoUpdate(
       s.undoStacks,
@@ -331,7 +303,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
       return {
         ...undoUpdate,
         elements: elements.map(e =>
-          e.id === normalized.parentId ? { ...e, children: [...e.children, normalized.id] } : e
+          e.id === normalized.parentId
+            ? { ...e, children: "children" in e ? [...e.children, normalized.id] : [normalized.id] }
+            : e
         ),
         isDirty: true,
       };
@@ -354,7 +328,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     let elements = s.elements.filter(e => !removedIds.has(e.id));
     if (el?.parentId) {
       elements = elements.map(e =>
-        e.id === el.parentId ? { ...e, children: e.children.filter(cid => !removedIds.has(cid)) } : e
+        e.id === el.parentId
+          ? { ...e, children: "children" in e ? e.children.filter(cid => !removedIds.has(cid)) : [] }
+          : e
       );
     }
     const undoAction = undoPayload
@@ -373,9 +349,13 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   }),
 
   setProp: (id, prop, value) => set((s) => {
-    const elements = s.elements.map(e => e.id === id ? { ...e, props: { ...e.props, [prop]: value } } : e);
+    const elements = s.elements.map(e => {
+      if (e.id !== id) return e;
+      if (!("props" in e)) return e;
+      return { ...e, props: { ...e.props, [prop]: value } };
+    });
     const oldEl = s.elements.find(e => e.id === id);
-    const oldValue = oldEl?.props[prop];
+    const oldValue = oldEl && "props" in oldEl ? oldEl.props[prop] : undefined;
     const undoUpdate = buildUndoUpdate(
       s.undoStacks,
       s.designPage.activeTabId,
@@ -384,7 +364,10 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     return { ...undoUpdate, elements, isDirty: true };
   }),
 
-  getProp: (id, prop) => get().elements.find(e => e.id === id)?.props[prop],
+  getProp: (id, prop) => {
+    const el = get().elements.find(e => e.id === id);
+    return el && "props" in el ? el.props[prop] : undefined;
+  },
 
   selectElement: (id, multi = false) => set((s) => {
     if (id === null) return { selectedElementIds: [] };
@@ -424,12 +407,12 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   }),
 
   setElementSource: (id, source) => set((s) => ({
-    elements: s.elements.map(e => e.id === id ? { ...e, source } : e),
+    elements: s.elements.map(e => e.id === id ? { ...e, source } as ElementData : e),
     isDirty: true,
   })),
 
   setElementPosition: (id, pos) => set((s) => ({
-    elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } : e),
+    elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } as ElementData : e),
     isDirty: true,
   })),
 
@@ -460,7 +443,9 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     // Remove from old parent
     if (oldParentId) {
       elements = elements.map(e =>
-        e.id === oldParentId ? { ...e, children: e.children.filter(cid => cid !== elementId) } : e
+        e.id === oldParentId
+          ? { ...e, children: "children" in e ? e.children.filter(cid => cid !== elementId) : [] }
+          : e
       );
     } else {
       rootOrder = rootOrder.filter(id => id !== elementId);
@@ -469,7 +454,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
     // Add to new parent
     if (newParentId) {
       const newParent = elements.find(e => e.id === newParentId);
-      if (newParent) {
+      if (newParent && "children" in newParent) {
         const newChildren = [...newParent.children];
         if (targetSiblingId && newChildren.includes(targetSiblingId)) {
           const idx = newChildren.indexOf(targetSiblingId);
@@ -477,7 +462,14 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
         } else {
           newChildren.push(elementId);
         }
-        elements = elements.map(e => e.id === newParentId ? { ...e, children: newChildren } : e);
+        elements = elements.map(e =>
+          e.id === newParentId
+            ? { ...e, children: newChildren } as ElementData
+            : e
+        );
+      } else if (newParent) {
+        // Parent exists but has no children property (e.g., codeblock)
+        throw new Error(`Element "${newParentId}" cannot have children`);
       }
     } else {
       // Moving to root level — insert into rootOrder
@@ -500,18 +492,20 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   }),
 
   setElementClassRefs: (elementId, classRefs) => set((s) => ({
-    elements: s.elements.map(e => e.id === elementId
-      ? { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), classRefs } }
-      : e
-    ),
+    elements: s.elements.map(e => {
+      if (e.id !== elementId) return e;
+      if (e.nodeType !== "view") return e;
+      return { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), classRefs } } as ElementData;
+    }),
     isDirty: true,
   })),
 
   setElementInlineStyles: (elementId, properties) => set((s) => ({
-    elements: s.elements.map(e => e.id === elementId
-      ? { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), inlineProperties: properties } }
-      : e
-    ),
+    elements: s.elements.map(e => {
+      if (e.id !== elementId) return e;
+      if (e.nodeType !== "view") return e;
+      return { ...e, style: { ...(e.style ?? { classRefs: [], inlineProperties: [] }), inlineProperties: properties } } as ElementData;
+    }),
     isDirty: true,
   })),
 
@@ -524,7 +518,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
       log.warn('reorderElement: parent not found for', elementId);
       return s;
     }
-    const siblings = parent ? parent.children : s.rootOrder;
+    const siblings = parent && "children" in parent ? parent.children : s.rootOrder;
     const idx = siblings.indexOf(elementId);
     if (idx === -1) return s;
     const targetIdx = siblings.indexOf(targetSiblingId);
@@ -543,7 +537,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
       return {
         ...undoUpdate,
         elements: s.elements.map(e =>
-          e.id === parentId ? { ...e, children: newSiblings } : e
+          e.id === parentId ? { ...e, children: newSiblings } as ElementData : e
         ),
         isDirty: true,
       };
@@ -763,36 +757,20 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   })),
 
   // ── Legacy runtime methods (backward compat; minimal no-ops) ──
-  setElementPorts: (id, ports) => set((s) => ({
-    elements: s.elements.map(e => e.id === id ? { ...e, ports } : e),
-  })),
-  setEventBindings: (id, eventName, bindings) => set((s) => ({
-    elements: s.elements.map(e =>
-      e.id === id
-        ? { ...e, config: { ...(e.config || {}), _eventBindings: { ...((e.config?._eventBindings as Record<string, unknown>) || {}), [eventName]: bindings } } }
-        : e
-    ),
-  })),
-  removeEventBindings: (id, eventName) => set((s) => ({
-    elements: s.elements.map(e =>
-      e.id === id && e.config?._eventBindings
-        ? { ...e, config: { ...e.config, _eventBindings: Object.fromEntries(Object.entries(e.config._eventBindings as Record<string, unknown>).filter(([k]) => k !== eventName)) } }
-        : e
-    ),
-  })),
-  setSourceCode: (content) => set({ sourceCode: content }),
-  loadFiles: (files) => set({ files: files.filter((f: any) => f.type === 'file' || f.type === 'directory') as PoiesisState["files"] }),
+  setElementPorts: () => { console.warn("setElementPorts is deprecated"); },
+  setEventBindings: () => { console.warn("setEventBindings is deprecated"); },
+  removeEventBindings: () => { console.warn("removeEventBindings is deprecated"); },
+  setSourceCode: (content) => set({ activeFileContent: content }),
 }));
 
 // ── Utility accessors (used by codegen services and UI components) ──
 
 /**
- * Safe accessor for component definitions — reads from componentDefs with
- * fallback to legacy `definitions` field for compatibility.
+ * Safe accessor for component definitions — reads from componentDefs.
  */
 export function getComponentDefinitions(): Record<string, Record<string, unknown>> {
   const state = usePoiesisStore.getState();
-  return (state?.componentDefs ?? state?.definitions ?? {}) as unknown as Record<string, Record<string, unknown>>;
+  return (state?.componentDefs ?? {}) as unknown as Record<string, Record<string, unknown>>;
 }
 
 /** Return unified component metadata (built-in + custom). */

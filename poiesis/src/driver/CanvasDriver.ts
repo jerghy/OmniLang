@@ -7,7 +7,7 @@ import { COMPONENT_PROTOCOL } from "../components/panels/ComponentPalette";
 import { getNodeConfig } from "../components/canvas/shared/nodeRegistry";
 import { usePoiesisStore } from "../store";
 import { ElementHandle } from "./ElementHandle";
-import type { ElementData } from "../core/types/element";
+import type { ViewElementData, CodeblockElementData } from "../core/types/element";
 import type { CodeBlockOptions, ElementQuery, PortDescriptor } from "./types";
 
 const log = new Logger({ prefix: "OmniDriver" });
@@ -28,26 +28,28 @@ export class CanvasDriver {
   /** Find all elements matching the given tag. */
   findByTag(tag: string): ElementHandle[] {
     return getDesignStore()
-      .elements.filter((e) => e.tag === tag)
+      .elements.filter((e): e is ViewElementData | CodeblockElementData => "tag" in e && e.tag === tag)
       .map((e) => new ElementHandle(e.id));
   }
 
   /** Find elements matching a query object. */
   find(query: ElementQuery): ElementHandle[] {
     let results = getDesignStore().elements;
-    if (query.tag) results = results.filter((e) => e.tag === query.tag);
+    if (query.tag) results = results.filter((e): e is ViewElementData | CodeblockElementData => "tag" in e && e.tag === query.tag);
     if (query.nodeType)
       results = results.filter((e) => e.nodeType === query.nodeType);
     if (query.props) {
-      results = results.filter((e) =>
-        Object.entries(query.props!).every(
+      results = results.filter((e): e is ViewElementData | CodeblockElementData => {
+        if (!("props" in e)) return false;
+        return Object.entries(query.props!).every(
           ([k, v]) => (e.props as Record<string, unknown>)[k] === v,
-        ),
-      );
+        );
+      });
     }
     if (query.text) {
       const lower = query.text.toLowerCase();
-      results = results.filter((e) => {
+      results = results.filter((e): e is ViewElementData | CodeblockElementData => {
+        if (!("props" in e)) return false;
         const label = (e.props as Record<string, unknown>)["label"];
         return typeof label === "string" && label.toLowerCase().includes(lower);
       });
@@ -59,7 +61,7 @@ export class CanvasDriver {
   findByProp(prop: string, value: unknown): ElementHandle[] {
     return getDesignStore()
       .elements.filter(
-        (e) => (e.props as Record<string, unknown>)[prop] === value,
+        (e): e is ViewElementData | CodeblockElementData => "props" in e && (e.props as Record<string, unknown>)[prop] === value,
       )
       .map((e) => new ElementHandle(e.id));
   }
@@ -108,7 +110,7 @@ export class CanvasDriver {
     }
 
     const id = nextId();
-    const el: ElementData = {
+    const el: ViewElementData = {
       id,
       nodeType: "view",
       tag,
@@ -125,7 +127,7 @@ export class CanvasDriver {
       usePoiesisStore.setState({
         elements: usePoiesisStore.getState().elements.map((e) => {
           if (e.id === child.id) return { ...e, parentId: id };
-          if (e.id === id) return { ...e, children: [...e.children, child.id] };
+          if (e.id === id && "children" in e) return { ...e, children: [...e.children, child.id] };
           return e;
         }),
       });
@@ -153,24 +155,26 @@ export class CanvasDriver {
 
     // Clone default ports, mapping value-typed ports to the caller's valueType.
     // Keep deps as "any" (it accepts dependencies of any type).
-    const defaultPorts: PortDescriptor[] = config.defaultPorts.map((p: PortDescriptor) => {
-      const shouldMapType =
-        p.type === "any" &&
-        p.name !== "deps";       // computed deps always accepts "any"
-      return {
-        name: p.name,
-        direction: p.direction,
-        portType: p.portType,
-        type: shouldMapType ? valueType : p.type,
-        label: p.label,
-      };
-    });
+    const defaultPorts: PortDescriptor[] = config
+      ? (config.defaultPorts ?? []).map((p: PortDescriptor) => {
+          const shouldMapType =
+            p.type === "any" &&
+            p.name !== "deps";
+          return {
+            name: p.name,
+            direction: p.direction,
+            portType: p.portType,
+            type: shouldMapType ? valueType : p.type,
+            label: p.label,
+          };
+        })
+      : [];
 
     const id = nextId();
     const parentStore = options.parentStore || "";
     const parentId = parentStore ? `cb-store-${parentStore}` : null;
 
-    const el: ElementData = {
+    const el: CodeblockElementData = {
       id,
       nodeType: "codeblock",
       tag: blockType,
@@ -179,12 +183,10 @@ export class CanvasDriver {
         parentStore,
         typeAnnotation: options.typeAnnotation || "",
       },
-      children: [],
       parentId,
       ports: options.ports || defaultPorts,
-      isFolded: options.isFolded ?? false,
       source: options.source || "",
-      nodeCategory: config.category,
+      nodeCategory: (config?.category ?? undefined) as CodeblockElementData["nodeCategory"],
     };
 
     // Route to code graph store when in code mode

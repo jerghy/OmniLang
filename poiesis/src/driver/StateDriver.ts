@@ -118,21 +118,25 @@ export class StateDriver {
       if (!prevEl) continue;
       const changes: Record<string, { from: unknown; to: unknown }> = {};
       // Check props
-      if (currEl.props) {
+      if ("props" in currEl) {
         for (const [k, v] of Object.entries(currEl.props)) {
-          const prevV = (prevEl.props as Record<string, unknown>)?.[k];
+          const prevV = ("props" in prevEl ? prevEl.props : undefined)?.[k];
           if (JSON.stringify(v) !== JSON.stringify(prevV)) {
             changes[k] = { from: prevV, to: v };
           }
         }
       }
       // Check source
-      if (currEl.source !== prevEl.source) {
-        changes["source"] = { from: prevEl.source, to: currEl.source };
+      if ("source" in currEl && "source" in prevEl) {
+        if (currEl.source !== prevEl.source) {
+          changes["source"] = { from: prevEl.source, to: currEl.source };
+        }
       }
       // Check ports
-      if (JSON.stringify(currEl.ports) !== JSON.stringify(prevEl.ports)) {
-        changes["ports"] = { from: prevEl.ports, to: currEl.ports };
+      if ("ports" in currEl && "ports" in prevEl) {
+        if (JSON.stringify(currEl.ports) !== JSON.stringify(prevEl.ports)) {
+          changes["ports"] = { from: prevEl.ports, to: currEl.ports };
+        }
       }
       if (Object.keys(changes).length > 0) {
         modified.push({ id: currEl.id, changes });

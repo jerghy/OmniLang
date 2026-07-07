@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/dioxus.rs
-assertion_line: 24
 expression: "&format_output(&output)"
 ---
 === Counter.rs ===
@@ -27,7 +26,7 @@ pub fn Counter(props: CounterProps) -> Element {
     rsx! {
         div {
             "Hello",
-            "{}",
+            "count",
         }
     }
 }

@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/chain-emitter.ts
+// poiesis/src/services/codegen/chain-emitter.ts
 // Converts code graph elements and wires to @chain/@node/@wire annotation blocks.
 // EmitChains maps each lowered function to a ChainBlock describing its subgraph.
 
@@ -93,8 +93,10 @@ function collectReachable(
  * Checks config first (for CustomFunctionMeta attrs), then props.
  */
 function resolveAttr(el: ElementData, attrName: string): unknown {
+  // Must have tag to be a codeblock or view element
+  if (!("tag" in el)) return undefined;
   // For customFn attributes stored in config
-  if (el.tag === "customFn" && el.config) {
+  if (el.tag === "customFn" && "config" in el && el.config) {
     const config = el.config as Record<string, unknown>;
     if (attrName === "fnName") return config.fnName;
     if (attrName === "returnType") return config.fnReturnType;
@@ -112,7 +114,7 @@ function resolveAttr(el: ElementData, attrName: string): unknown {
 
   // Default: look up in props, then fallback to config for any node type
   if (attrName in el.props) return el.props[attrName];
-  if (el.config && attrName in el.config) return (el.config as Record<string, unknown>)[attrName];
+  if ("config" in el && el.config && attrName in el.config) return (el.config as Record<string, unknown>)[attrName];
   return undefined;
 }
 
@@ -136,6 +138,7 @@ function formatAttrValue(value: unknown, isLiteralValue: boolean): string {
  * Format a single element as an @node comment line.
  */
 function formatNode(el: ElementData): string {
+  if (!("tag" in el)) return "";
   const parts: string[] = ["//   @node", el.id, el.tag];
 
   const attrs = NODE_ATTRS[el.tag];
@@ -175,7 +178,7 @@ function formatWire(w: WireData, elMap: Map<string, ElementData>): string {
   const src = elMap.get(w.fromId);
 
   // fn/customFn nodes skip port name on the from side
-  if (src && src.tag === "customFn") {
+  if (src && "tag" in src && src.tag === "customFn") {
     return `//   @wire ${w.id} ${w.fromId} -> ${w.toId}.${w.toPort}`;
   }
 
@@ -194,6 +197,7 @@ function validateScope(
   const warnings: string[] = [];
 
   for (const el of nodes) {
+    if (!("tag" in el)) continue;
     if (el.tag === "getVariable" || el.tag === "setVariable") {
       const name = el.props.name as string | undefined;
       if (name && !validNames.has(name)) {
@@ -229,7 +233,7 @@ export function emitChains(
     // Find matching customFn element
     const fnEl = tab.graph.elements.find(
       (el) =>
-        el.tag === "customFn" &&
+        "tag" in el && "config" in el && el.tag === "customFn" &&
         (el.config as Record<string, unknown>)?.fnName === fn.name,
     );
 

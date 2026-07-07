@@ -59,7 +59,9 @@ export function ContextInspector() {
   const el = elements.find((e) => e.id === selectedIds[0]);
   if (!el) return null;
 
-  const isBasic = BASIC_TAGS.has(el.tag);
+  const isBasic = "tag" in el && BASIC_TAGS.has(el.tag);
+  const tag = "tag" in el ? el.tag : "unknown";
+  const componentRef = "componentRef" in el ? el.componentRef : undefined;
 
   return (
     <div
@@ -80,8 +82,8 @@ export function ContextInspector() {
           color: "#374151",
         }}
       >
-        {el.tag}
-        {el.componentRef ? ` (${el.componentRef})` : ""}
+        {tag}
+        {componentRef ? ` (${componentRef})` : ""}
       </h3>
 
       <PropsSection element={el} />

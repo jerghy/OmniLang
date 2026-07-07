@@ -9,6 +9,7 @@ const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "val
 
 function buildLocalProps(element: ElementData): Record<string, string> {
   const initial: Record<string, string> = {};
+  if (!("props" in element)) return initial;
   for (const key of KNOWN_PROPS) {
     const val = element.props[key];
     if (val !== undefined) {
@@ -45,7 +46,7 @@ export function PropsSection({ element }: PropsSectionProps) {
   );
 
   // Compute which props are relevant based on tag
-  const relevantProps = getRelevantProps(element.tag);
+  const relevantProps = getRelevantProps("tag" in element ? element.tag : "div");
 
   return (
     <div style={{ marginBottom: 12 }}>

@@ -1,4 +1,4 @@
-//! Semantic analysis — multi-pass: collect, resolve, type-check, deps, validate.
+//! Semantic analysis — 2-pass: collect, then resolve+validate inline.
 
 pub mod cycles;
 pub mod lints;
@@ -9,6 +9,7 @@ mod collect;
 mod helpers;
 mod motion;
 mod resolve;
+mod validate_inline;
 mod validate_motion;
 mod validate_motion_triggers;
 mod validate_store_access;
@@ -79,24 +80,14 @@ impl SemanticAnalyzer {
     }
 
     pub fn analyze(&mut self, program: &Program) -> SemanticResult {
-        // Pass 1: Collect symbols from all modules
+        // Pass 1: Collect symbols from all modules (includes dependency collection)
         for module in program.modules.values() {
             self.collect_module_symbols(module);
         }
 
-        // Pass 2: Resolve types per module
+        // Pass 2: Resolve types + validate control flow inline per module
         for module in program.modules.values() {
-            self.resolve_module_types(module);
-        }
-
-        // Pass 3: Collect dependencies per module
-        for module in program.modules.values() {
-            self.collect_module_dependencies(module);
-        }
-
-        // Pass 4: Validate per module
-        for module in program.modules.values() {
-            self.validate_module(module);
+            self.resolve_and_validate_module(module);
         }
 
         // Always return what we have — diagnostics accumulated in self.diagnostics

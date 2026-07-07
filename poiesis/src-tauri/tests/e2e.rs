@@ -44,7 +44,10 @@ async fn app_starts_and_is_healthy() {
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
     eprintln!("Connected to Victauri v{}", version);
-    assert!(info.get("version").is_some(), "plugin_info should have version");
+    assert!(
+        info.get("version").is_some(),
+        "plugin_info should have version"
+    );
 
     // Full health report — IPC integrity + no console errors
     // console errors would include Vite "Failed to resolve import" overlays
@@ -85,7 +88,10 @@ async fn open_project_and_read_files_via_commands() {
         .await
         .expect("open_project should succeed");
     assert!(
-        result.get("success").and_then(|v| v.as_bool()).unwrap_or(false),
+        result
+            .get("success")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         "open_project should return success: {:?}",
         result
     );
@@ -168,10 +174,7 @@ async fn ui_project_opens_and_shows_tabs() {
         .unwrap();
     if is_editor.as_bool().unwrap_or(false) {
         eprintln!("Editor is open from a previous test — returning to welcome");
-        client
-            .invoke_command("close_project", None)
-            .await
-            .unwrap();
+        client.invoke_command("close_project", None).await.unwrap();
         client.eval_js("window.location.reload()").await.unwrap();
         client
             .expect_text_with_timeout("打开项目", 5000)
@@ -288,10 +291,7 @@ async fn file_read_write_roundtrip() {
     eprintln!("Roundtrip OK — {} bytes match", test_content.len());
 
     // 4. Clean up — close project so file cleanup can happen
-    client
-        .invoke_command("close_project", None)
-        .await
-        .unwrap();
+    client.invoke_command("close_project", None).await.unwrap();
 }
 
 // ── Close and Reopen Project ────────────────────────────────────────────────
@@ -323,16 +323,10 @@ async fn close_and_reopen_project() {
     // ── Navigate back to welcome ──
     // The app doesn't have a "close project" button in the UI,
     // so we call the Tauri command + reload the frontend state.
-    client
-        .invoke_command("close_project", None)
-        .await
-        .unwrap();
+    client.invoke_command("close_project", None).await.unwrap();
 
     // Reload the page to reset frontend state
-    client
-        .eval_js("window.location.reload()")
-        .await
-        .unwrap();
+    client.eval_js("window.location.reload()").await.unwrap();
 
     // Wait for the welcome page to render
     client

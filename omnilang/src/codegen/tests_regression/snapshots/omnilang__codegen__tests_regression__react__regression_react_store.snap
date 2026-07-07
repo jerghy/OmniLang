@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/react.rs
-assertion_line: 34
 expression: "&format_output(&output)"
 ---
 === useAppStore.ts ===
@@ -12,6 +11,6 @@ export function useAppStore() {
     const doubleCount = useMemo(() => { return count * 2; }, [count]);
     const increment = useCallback(() => {
         setCount(prev => prev + 1);
-    }, []);
+    }, [count]);
     return { increment, count, doubleCount };
 }

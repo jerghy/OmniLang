@@ -85,10 +85,9 @@ export function useCompile(
             nodeType: "codeblock",
             tag: b.blockType,
             props: { name: b.name, parentStore, typeAnnotation: b.typeAnnotation },
-            children: [],
             parentId: parentStore ? `cb-store-${parentStore}` : null,
             ports: portDefs[b.blockType] || [],
-            isFolded: false,
+            source: "",
           };
           codeElements.push(el);
         }
@@ -103,10 +102,9 @@ export function useCompile(
               nodeType: "codeblock",
               tag: "store",
               props: { name: storeName },
-              children: [el.id],
+              source: "",
               parentId: null,
               ports: portDefs.store,
-              isFolded: false,
             });
           }
         }

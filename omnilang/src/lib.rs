@@ -262,47 +262,72 @@ fn extract_body_html(html: &str) -> String {
     }
 }
 
-/// Compile multiple .omni sources to a target language.
-///
-/// Pipeline: parse all sources → cross-file validation → per-file semantic analysis
-/// → IR lowering → merged IR → target codegen.
-///
-/// Returns JSON with structured Diagnostic errors (severity, code, file, line, col, …)
-/// plus a flat `warnings` array from lint rules.
+/// Internal compile result struct (avoids JSON round-trip for native consumers).
+pub struct InternalCompileResult {
+    pub success: bool,
+    pub files: HashMap<String, String>,
+    pub errors: Vec<crate::error::Diagnostic>,
+    pub warnings: Vec<crate::error::Diagnostic>,
+}
+
+/// Compile multiple .omni sources to a target language, returning a struct.
+/// Same as compile_multi_to_target but returns structured data instead of JSON.
 #[must_use]
 #[allow(unused_variables)]
-pub fn compile_multi_to_target(
+pub fn compile_multi_internal(
     sources: HashMap<String, String>,
     target: codegen::Target,
     path_mapping: HashMap<String, String>,
     editor_mode: bool,
-) -> String {
-    // Run the unified analysis pipeline (parse → validate → semantic → lint)
+) -> InternalCompileResult {
     let analysis = crate::analyse::analyse_multi(&sources, &path_mapping);
+    compile_multi_internal_post(analysis, &sources, target, editor_mode)
+}
+
+/// Compile multiple .omni sources with incremental cache support.
+///
+/// Same as `compile_multi_internal` but uses `analyse_multi_cached` to
+/// skip parsing and analysis of unchanged files.  Pass the cache from
+/// `ProjectState::compile_cache` for editor/workflow use.
+#[must_use]
+#[allow(unused_variables)]
+pub fn compile_multi_internal_cached(
+    sources: HashMap<String, String>,
+    target: codegen::Target,
+    path_mapping: HashMap<String, String>,
+    editor_mode: bool,
+    cache: &mut crate::analyse::IncrementalCache,
+) -> InternalCompileResult {
+    let analysis = crate::analyse::analyse_multi_cached(&sources, &path_mapping, cache);
+    compile_multi_internal_post(analysis, &sources, target, editor_mode)
+}
+
+/// Shared post-analysis codegen + post-processing for compile_multi_* functions.
+#[must_use]
+#[allow(unused_variables)]
+fn compile_multi_internal_post(
+    analysis: crate::analyse::AnalyseOutput,
+    sources: &HashMap<String, String>,
+    target: codegen::Target,
+    editor_mode: bool,
+) -> InternalCompileResult {
     let mut diags = analysis.diagnostics;
     let warnings = analysis.warnings;
 
     let merged_ir = match analysis.ir {
         Some(ir) => ir,
         None => {
-            // Parse failed — return errors early
-            return serde_json::to_string(&serde_json::json!({
-                "success": false,
-                "files": {},
-                "errors": diags,
-                "warnings": [],
-            }))
-            .unwrap_or_else(|e| {
-                format!(
-                    r#"{{"success":false,"files":{{}},"errors":[{{"severity":"error","code":"E_SERIALIZE","message":"{}","file":null,"line":0,"col":0,"end_line":0,"end_col":0,"suggestion":null}}],"warnings":[]}}"#,
-                    e
-                )
-            });
+            return InternalCompileResult {
+                success: false,
+                files: HashMap::new(),
+                errors: diags,
+                warnings,
+            };
         }
     };
 
-    // Phase 5: Dispatch to target codegen
-    let output = codegen::compile(&merged_ir, target, &sources);
+    // Dispatch to target codegen
+    let output = codegen::compile(&merged_ir, target, sources);
     #[allow(unused_mut)]
     let mut files_map: HashMap<String, String> = output
         .files
@@ -349,11 +374,34 @@ pub fn compile_multi_to_target(
     }
 
     let success = diags.iter().all(|d| d.severity != error::Severity::Error);
+    InternalCompileResult {
+        success,
+        files: files_map,
+        errors: diags,
+        warnings,
+    }
+}
+
+/// Compile multiple .omni sources to a target language, returning JSON.
+///
+/// Pipeline: parse all sources → cross-file validation → per-file semantic analysis
+/// → IR lowering → merged IR → target codegen.
+///
+/// Returns JSON with structured Diagnostic errors (severity, code, file, line, col, …)
+/// plus a flat `warnings` array from lint rules.
+#[must_use]
+pub fn compile_multi_to_target(
+    sources: HashMap<String, String>,
+    target: codegen::Target,
+    path_mapping: HashMap<String, String>,
+    editor_mode: bool,
+) -> String {
+    let result = compile_multi_internal(sources, target, path_mapping, editor_mode);
     serde_json::to_string(&serde_json::json!({
-        "success": success,
-        "files": files_map,
-        "errors": diags,
-        "warnings": warnings,
+        "success": result.success,
+        "files": result.files,
+        "errors": result.errors,
+        "warnings": result.warnings,
     }))
     .unwrap_or_else(|e| {
         format!(

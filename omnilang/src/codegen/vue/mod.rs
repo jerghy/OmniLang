@@ -17,35 +17,36 @@ use std::collections::HashMap;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::format_json_value;
 use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::JSON_VUE;
 use crate::ir::*;
 
 pub struct VueCodegen;
 
+impl PerComponentCodegen for VueCodegen {
+    fn gen_component_file(
+        &self,
+        name: &str,
+        comp: &ComponentIR,
+        ir: &IRProgram,
+    ) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("{}.vue", name),
+            content: self.gen_component_sfc(name, comp, ir),
+        }]
+    }
+    fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("use{}.ts", name),
+            content: self.gen_store_hook(name, store),
+        }]
+    }
+}
+
 impl Codegen for VueCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-        let mut files = Vec::new();
-
-        // Each component -> .vue SFC
-        for (name, comp) in ir.all_components() {
-            let sfc = self.gen_component_sfc(name, comp, ir);
-            files.push(CompiledFile {
-                path: format!("{}.vue", name),
-                content: sfc,
-            });
-        }
-
-        // Each store -> useXxx.ts composable
-        for (name, store) in ir.all_stores() {
-            let hook = self.gen_store_hook(name, store);
-            files.push(CompiledFile {
-                path: format!("use{}.ts", name),
-                content: hook,
-            });
-        }
-
-        CompileOutput::success(files)
+        generate_per_component(self, ir)
     }
 }
 
@@ -148,7 +149,7 @@ impl VueCodegen {
             w.emit("const props = defineProps<{");
             w.indent();
             for (prop_name, prop_type) in &comp.props {
-                let ts_type = JsTypeFormatter.format_type(&prop_type.kind, &prop_type.type_args);
+                let ts_type = JsTypeFormatter.format_type(&prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("  {}: {};", prop_name, ts_type));
             }
             w.dedent();
@@ -167,7 +168,7 @@ impl VueCodegen {
         // State (ref declarations)
         for state in &comp.states {
             let init_val = fmt.format_expr(&state.initial_value);
-            let ts_type = JsTypeFormatter.format_type(&state.r#type.kind, &state.r#type.type_args);
+            let ts_type = JsTypeFormatter.format_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
             if ts_type.is_empty() {
                 w.emit_fmt(format_args!("const {} = ref({});", state.name, init_val));
             } else {
@@ -291,7 +292,7 @@ impl VueCodegen {
                 .get(sig_name)
                 .map(|v| format_json_value(v, &JSON_VUE))
                 .unwrap_or_else(|| "null".into());
-            let ts_type = JsTypeFormatter.format_type(&sig_type.kind, &sig_type.type_args);
+            let ts_type = JsTypeFormatter.format_type(&sig_type.kind.as_str(), &sig_type.type_args);
             if ts_type.is_empty() {
                 w.emit_fmt(format_args!("const {} = ref({});", sig_name, init));
             } else {
@@ -317,7 +318,7 @@ impl VueCodegen {
             for p in &action.params {
                 let mut s = p.name.clone();
                 if let Some(ref ty) = p.r#type {
-                    let ann = JsTypeFormatter.format_type(&ty.kind, &ty.type_args);
+                    let ann = JsTypeFormatter.format_type(&ty.kind.as_str(), &ty.type_args);
                     if !ann.is_empty() {
                         s.push_str(&format!(": {}", ann));
                     }

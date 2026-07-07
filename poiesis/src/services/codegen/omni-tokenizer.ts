@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/omni-tokenizer.ts
+// poiesis/src/services/codegen/omni-tokenizer.ts
 // Tokenizer for the OmniLang parser — walks source char-by-char and emits a flat Token[].
 
 export type TokenKind =

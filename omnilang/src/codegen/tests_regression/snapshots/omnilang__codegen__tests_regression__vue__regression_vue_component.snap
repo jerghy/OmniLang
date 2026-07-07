@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/vue.rs
-assertion_line: 24
 expression: "&format_output(&output)"
 ---
 === Counter.vue ===
@@ -9,19 +8,19 @@ expression: "&format_output(&output)"
 <template>
     <div>
         Hello
-        {{ }}
+        {{ count }}
     </div>
 </template>
 
 <script setup lang="ts">
-    import { ref, computed, watchEffect } from 'vue';
+    import { ref, computed, watch } from 'vue';
 
     const props = defineProps<{
           name: string;
     }>();
 
     const count = ref<number>(0);
-    watchEffect(() => {
+    watch([count], () => {
         console.log(count);
     });
     const doubled = computed(() => {

@@ -13,24 +13,42 @@ export interface PortData {
   defaultValue?: unknown;
 }
 
-export interface ElementData {
+interface ElementDataBase {
   id: string;
-  nodeType: "view" | "codeblock" | "group";
+  parentId: string | null;
+}
+
+export interface ViewElementData extends ElementDataBase {
+  nodeType: "view";
   tag: string;
   props: Record<string, unknown>;
   style?: ElementStyle;
   children: string[];
-  parentId: string | null;
   ports?: PortData[];
   renderMode?: "dom" | "canvas";
-  isFolded?: boolean;
   typeAnnotation?: string;
   storeName?: string;
-  source?: string;
+  position?: { x: number; y: number };
+  componentRef?: string;
+}
+
+export interface CodeblockElementData extends ElementDataBase {
+  nodeType: "codeblock";
+  tag: string;
+  props: Record<string, unknown>;
+  ports?: PortData[];
+  source: string;
   outputValue?: unknown;
   position?: { x: number; y: number };
   nodeCategory?: "flow" | "event" | "action" | "data" | "variable" | "code" | "function" | "ui";
   config?: Record<string, unknown>;
   flowOrder?: number;
-  componentRef?: string;
 }
+
+export interface GroupElementData extends ElementDataBase {
+  nodeType: "group";
+  children: string[];
+  isFolded?: boolean;
+}
+
+export type ElementData = ViewElementData | CodeblockElementData | GroupElementData;

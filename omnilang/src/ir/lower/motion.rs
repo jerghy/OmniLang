@@ -90,18 +90,22 @@ pub(super) fn lower_keyframe_body(
         .callbacks
         .iter()
         .map(|cs| match cs {
-            crate::parser::ast::CallbackSpec::OnStart(e) => {
-                (CallbackKindIR::OnStart, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnUpdate(e) => {
-                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnComplete(e) => {
-                (CallbackKindIR::OnComplete, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnRepeat(e) => {
-                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None, semantics))
-            }
+            crate::parser::ast::CallbackSpec::OnStart(e) => (
+                CallbackKindIR::OnStart,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnUpdate(e) => (
+                CallbackKindIR::OnUpdate,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnComplete(e) => (
+                CallbackKindIR::OnComplete,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnRepeat(e) => (
+                CallbackKindIR::OnRepeat,
+                lower_expr(e, variant_map, None, semantics),
+            ),
             crate::parser::ast::CallbackSpec::OnInterrupt(e) => (
                 CallbackKindIR::OnInterrupt,
                 lower_expr(e, variant_map, None, semantics),
@@ -191,7 +195,10 @@ pub(super) fn lower_timeline_items(
                             .collect(),
                         over: lower_expr(&di.over, variant_map, None, semantics),
                         ease: di.ease.as_ref().map(lower_easing),
-                        delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map, None, semantics)),
+                        delay: di
+                            .delay
+                            .as_ref()
+                            .map(|e| lower_expr(e, variant_map, None, semantics)),
                         color_space: di.color_space.clone(),
                         start: di.start.as_ref().map(format_position_value),
                         path: di.path.clone(),
@@ -232,7 +239,10 @@ pub(super) fn lower_timeline_item_kind_simple(
                 .collect(),
             over: lower_expr(&di.over, variant_map, None, semantics),
             ease: di.ease.as_ref().map(lower_easing),
-            delay: di.delay.as_ref().map(|e| lower_expr(e, variant_map, None, semantics)),
+            delay: di
+                .delay
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
             color_space: di.color_space.clone(),
             start: di.start.as_ref().map(format_position_value),
             path: di.path.clone(),
@@ -251,7 +261,9 @@ pub(super) fn lower_timeline_item_kind_simple(
             Box::new(lower_motion_expr(&sc.motion, variant_map)),
             StaggerTimingIR {
                 each: match &sc.timing {
-                    crate::parser::ast::StaggerTiming::Each(e) => lower_expr(e, variant_map, None, semantics),
+                    crate::parser::ast::StaggerTiming::Each(e) => {
+                        lower_expr(e, variant_map, None, semantics)
+                    }
                     crate::parser::ast::StaggerTiming::Amount(a) => {
                         lower_expr(a, variant_map, None, semantics)
                     }
@@ -262,7 +274,8 @@ pub(super) fn lower_timeline_item_kind_simple(
         ),
         crate::parser::ast::TimelineItemKind::Label(name, cb) => TimelineItemKindIR::Label(
             name.clone(),
-            cb.as_ref().map(|e| lower_expr(e, variant_map, None, semantics)),
+            cb.as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
         ),
         crate::parser::ast::TimelineItemKind::StartPos(_pos) => {
             TimelineItemKindIR::Label("__start_pos__".into(), None)
@@ -280,18 +293,22 @@ pub(super) fn lower_callback_body(
         .callbacks
         .iter()
         .map(|cs| match cs {
-            crate::parser::ast::CallbackSpec::OnStart(e) => {
-                (CallbackKindIR::OnStart, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnUpdate(e) => {
-                (CallbackKindIR::OnUpdate, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnComplete(e) => {
-                (CallbackKindIR::OnComplete, lower_expr(e, variant_map, None, semantics))
-            }
-            crate::parser::ast::CallbackSpec::OnRepeat(e) => {
-                (CallbackKindIR::OnRepeat, lower_expr(e, variant_map, None, semantics))
-            }
+            crate::parser::ast::CallbackSpec::OnStart(e) => (
+                CallbackKindIR::OnStart,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnUpdate(e) => (
+                CallbackKindIR::OnUpdate,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnComplete(e) => (
+                CallbackKindIR::OnComplete,
+                lower_expr(e, variant_map, None, semantics),
+            ),
+            crate::parser::ast::CallbackSpec::OnRepeat(e) => (
+                CallbackKindIR::OnRepeat,
+                lower_expr(e, variant_map, None, semantics),
+            ),
             crate::parser::ast::CallbackSpec::OnInterrupt(e) => (
                 CallbackKindIR::OnInterrupt,
                 lower_expr(e, variant_map, None, semantics),

@@ -32,7 +32,7 @@ impl ReactCodegen {
         if has_props {
             w.emit_fmt(format_args!("interface {}Props {{", name));
             for (prop_name, prop_type) in &comp.props {
-                let ts_type = JsTypeFormatter.format_type(&prop_type.kind, &prop_type.type_args);
+                let ts_type = JsTypeFormatter.format_type(&prop_type.kind.as_str(), &prop_type.type_args);
                 let optional = if comp.prop_defaults.contains_key(prop_name) {
                     "?"
                 } else {

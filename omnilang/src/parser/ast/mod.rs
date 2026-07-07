@@ -8,7 +8,6 @@ pub mod view;
 pub use motion::*;
 pub use view::*;
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::lexer::Span;
@@ -374,12 +373,7 @@ pub struct TypeAlias {
 // ── Visibility ────────────────────────────────────────
 
 /// Visibility modifier for declarations.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub enum Visibility {
-    Public,
-    #[default]
-    Private,
-}
+pub use crate::ir::visibility::Visibility;
 
 // ── Import / Export Types ─────────────────────────────
 

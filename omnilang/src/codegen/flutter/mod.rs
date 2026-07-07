@@ -26,32 +26,35 @@ mod tests;
 use std::collections::HashMap;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::ir::*;
 
 pub struct FlutterCodegen;
 
+impl PerComponentCodegen for FlutterCodegen {
+    fn gen_component_file(
+        &self,
+        name: &str,
+        comp: &ComponentIR,
+        ir: &IRProgram,
+    ) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("{}.dart", name),
+            content: self.gen_component_dart(name, comp, ir),
+        }]
+    }
+    fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("{}_store.dart", name),
+            content: self.gen_store_dart(name, store),
+        }]
+    }
+}
+
 impl Codegen for FlutterCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-        let mut files = Vec::new();
-
-        for (name, comp) in ir.all_components() {
-            let dart = self.gen_component_dart(name, comp, ir);
-            files.push(CompiledFile {
-                path: format!("{}.dart", name),
-                content: dart,
-            });
-        }
-
-        for (name, store) in ir.all_stores() {
-            let store_dart = self.gen_store_dart(name, store);
-            files.push(CompiledFile {
-                path: format!("{}_store.dart", name),
-                content: store_dart,
-            });
-        }
-
-        CompileOutput::success(files)
+        generate_per_component(self, ir)
     }
 }
 
@@ -102,7 +105,7 @@ impl FlutterCodegen {
             // Field declarations for props
             w.emit("");
             for (prop_name, prop_type) in &comp.props {
-                let ann = super::dart::dart_type(&prop_type.kind, &prop_type.type_args);
+                let ann = super::dart::dart_type(&prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("final {} {};", ann, prop_name));
             }
         }
@@ -132,7 +135,7 @@ impl FlutterCodegen {
 
         // State variables as class fields
         for state in &comp.states {
-            let ann = super::dart::dart_type(&state.r#type.kind, &state.r#type.type_args);
+            let ann = super::dart::dart_type(&state.r#type.kind.as_str(), &state.r#type.type_args);
             let init = format_expr_ir_flutter(&state.initial_value);
             w.emit_fmt(format_args!("{} {} = {};", ann, state.name, init));
         }
@@ -165,7 +168,7 @@ impl FlutterCodegen {
         // Computed properties as getters
         for computed in &comp.computeds {
             let ret_type =
-                super::dart::dart_type(&computed.r#type.kind, &computed.r#type.type_args);
+                super::dart::dart_type(&computed.r#type.kind.as_str(), &computed.r#type.type_args);
             w.emit_fmt(format_args!("{} get {} {{", ret_type, computed.name));
             w.indent();
             w.emit_fmt(format_args!(
@@ -378,7 +381,7 @@ impl FlutterCodegen {
 
         // Fields (signals)
         for (sig_name, sig_type) in &store.signals {
-            let ann = super::dart::dart_type(&sig_type.kind, &sig_type.type_args);
+            let ann = super::dart::dart_type(&sig_type.kind.as_str(), &sig_type.type_args);
             let default_val = store
                 .signal_defaults
                 .get(sig_name)
@@ -425,7 +428,7 @@ impl FlutterCodegen {
                     let ty = p
                         .r#type
                         .as_ref()
-                        .map(|t| super::dart::dart_type(&t.kind, &t.type_args))
+                        .map(|t| super::dart::dart_type(&t.kind.as_str(), &t.type_args))
                         .unwrap_or_else(|| "dynamic".into());
                     format!("{} {}", ty, p.name)
                 })
@@ -454,7 +457,7 @@ impl FlutterCodegen {
         for (sig_name, sig_type) in &store.signals {
             w.emit("");
             let setter_name = format!("set{}", capitalize_first(sig_name));
-            let ann = super::dart::dart_type(&sig_type.kind, &sig_type.type_args);
+            let ann = super::dart::dart_type(&sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!("void {}({} value) {{", setter_name, ann));
             w.indent();
             w.emit_fmt(format_args!("this.{} = value;", sig_name));

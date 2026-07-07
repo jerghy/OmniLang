@@ -2,6 +2,7 @@
 
 use super::{emit_event_object_dioxus, format_expr_ir_dioxus, to_dioxus_attr, to_dioxus_event};
 use super::{generate_statement_dioxus, CodeWriter};
+use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::ir::*;
 
 /// Generate a Dioxus RSX view node.
@@ -19,9 +20,7 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 let attr_name = to_dioxus_attr(prop_name);
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value
-                            .as_str()
-                            .unwrap_or_default(); // defense-in-depth fallback
+                        let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
                         let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
                         attrs.push(format!(r#"{}: "{}","#, attr_name, escaped));
                     }
@@ -45,59 +44,47 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
             // Events
             for (event_name, handler) in &el.events {
                 let dioxus_event = to_dioxus_event(event_name);
-                match handler.kind {
-                    EventHandlerKind::FnRef => {
-                        if let Some(ref fn_name) = handler.r#ref {
-                            if handler.event_data.is_some() {
-                                let event_obj = emit_event_object_dioxus(
-                                    &handler.event_data,
-                                    &handler.used_fields,
-                                    "e",
-                                );
-                                attrs.push(format!(
-                                    "{}: move |e| {{ {}({}); }},",
-                                    dioxus_event, fn_name, event_obj
-                                ));
-                            } else {
-                                attrs.push(format!("{}: {},", dioxus_event, fn_name));
-                            }
-                        }
-                    }
-                    EventHandlerKind::InlineFn => {
-                        if let Some(ref body) = handler.body {
-                            if handler.event_data.is_some() {
-                                let _event_obj = emit_event_object_dioxus(
-                                    &handler.event_data,
-                                    &handler.used_fields,
-                                    "e",
-                                );
-                                let mut hw = CodeWriter::new();
-                                for stmt in &body.statements {
-                                    generate_statement_dioxus(&mut hw, stmt);
-                                }
-                                let content = hw.into_string();
-                                let mut result = String::from("move |e| {\n");
-                                for line in content.lines() {
-                                    result.push_str(&format!("                {}\n", line));
-                                }
-                                result.push_str("            }");
-                                attrs.push(format!("{}: {},", dioxus_event, result));
-                            } else {
-                                attrs.push(format!(
-                                    "{}: {},",
-                                    dioxus_event,
-                                    format_inline_handler_dioxus(body)
-                                ));
-                            }
-                        }
-                    }
-                    EventHandlerKind::StoreAction => {
-                        if let Some(ref action) = handler.r#ref {
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                        if event_data.is_some() {
+                            let event_obj = emit_event_object_dioxus(
+                                event_data,
+                                used_fields,
+                                "e",
+                            );
                             attrs.push(format!(
-                                "{}: move |_| {{ {}(); }},",
-                                dioxus_event, action
+                                "{}: move |e| {{ {}({}); }},",
+                                dioxus_event, r#ref, event_obj
                             ));
+                        } else {
+                            attrs.push(format!("{}: {},", dioxus_event, r#ref));
                         }
+                    }
+                    EventHandlerIR::InlineFn { body, event_data, used_fields, .. } => {
+                        if event_data.is_some() {
+                            let _event_obj = emit_event_object_dioxus(
+                                event_data,
+                                used_fields,
+                                "e",
+                            );
+                            let mut hw = CodeWriter::new();
+                            for stmt in &body.statements {
+                                generate_statement_dioxus(&mut hw, stmt);
+                            }
+                            let content = hw.into_string();
+                            let mut result = String::from("move |e| {\n");
+                            for line in content.lines() {
+                                result.push_str(&format!("                {}\n", line));
+                            }
+                            result.push_str("            }");
+                            attrs.push(format!("{}: {},", dioxus_event, result));
+                        } else {
+                            let handler_str = format_inline_handler_dioxus(body);
+                            attrs.push(format!("{}: {},", dioxus_event, handler_str));
+                        }
+                    }
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        attrs.push(format!("{}: move |_| {{ {}(); }},", dioxus_event, r#ref));
                     }
                 }
             }
@@ -221,18 +208,12 @@ pub(super) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
 
 /// Build an inline Rust closure string from a BlockIR for Dioxus event handlers.
 pub(super) fn format_inline_handler_dioxus(body: &BlockIR) -> String {
-    if body.statements.is_empty() {
-        return "move |_| {}".to_string();
-    }
-    let mut hw = CodeWriter::new();
-    for stmt in &body.statements {
-        generate_statement_dioxus(&mut hw, stmt);
-    }
-    let content = hw.into_string();
-    let mut result = String::from("move |_| {\n");
-    for line in content.lines() {
-        result.push_str(&format!("                {}\n", line));
-    }
-    result.push_str("            }");
-    result
+    let config = InlineHandlerConfig {
+        opener: "move |_| {\n".into(),
+        closer: "\n            }".into(),
+        empty_handler: "move |_| {}".into(),
+        indent: "            ",
+        use_writer: false,
+    };
+    build_inline_handler(body, &config, |w, s| generate_statement_dioxus(w, s))
 }

@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/parser.ts
+// poiesis/src/services/codegen/parser.ts
 // Recursive-descent Parser class for OmniLang sources.
 
 import type { Token } from "./omni-tokenizer";
@@ -567,8 +567,8 @@ export class Parser {
             nodeType: "codeblock",
             tag: nodeTag,
             props: attrs,
+            source: "",
             position: { x: posX, y: posY },
-            children: [],
             parentId: null,
           });
           this.stream.skipNewlines();
@@ -651,7 +651,7 @@ export class Parser {
   }
 
   private pushError(
-    severity: string,
+    severity: "error" | "warning" | "info",
     code: string,
     message: string,
     tok: Token,

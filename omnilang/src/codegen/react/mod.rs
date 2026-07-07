@@ -7,6 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use crate::codegen::shared::generator::{generate_per_component, PerComponentCodegen};
 use crate::codegen::shared::types::FormatType;
 use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
@@ -21,35 +22,35 @@ pub(crate) mod view;
 
 pub struct ReactCodegen;
 
+impl PerComponentCodegen for ReactCodegen {
+    fn gen_component_file(
+        &self,
+        name: &str,
+        comp: &ComponentIR,
+        ir: &IRProgram,
+    ) -> Vec<CompiledFile> {
+        vec![
+            CompiledFile {
+                path: format!("{}.tsx", name),
+                content: self.gen_component_tsx(name, comp, ir),
+            },
+            CompiledFile {
+                path: format!("{}.module.css", name),
+                content: self.gen_component_css(name, comp),
+            },
+        ]
+    }
+    fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
+        vec![CompiledFile {
+            path: format!("use{}.ts", name),
+            content: self.gen_store_hook(name, store),
+        }]
+    }
+}
+
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &HashMap<String, String>) -> CompileOutput {
-        let mut files = Vec::new();
-
-        for (name, comp) in ir.all_components() {
-            // .tsx
-            let tsx = self.gen_component_tsx(name, comp, ir);
-            files.push(CompiledFile {
-                path: format!("{}.tsx", name),
-                content: tsx,
-            });
-
-            // .module.css
-            let css = self.gen_component_css(name, comp);
-            files.push(CompiledFile {
-                path: format!("{}.module.css", name),
-                content: css,
-            });
-        }
-
-        for (name, store) in ir.all_stores() {
-            let hook = self.gen_store_hook(name, store);
-            files.push(CompiledFile {
-                path: format!("use{}.ts", name),
-                content: hook,
-            });
-        }
-
-        CompileOutput::success(files)
+        generate_per_component(self, ir)
     }
 }
 
@@ -83,7 +84,7 @@ impl ReactCodegen {
                 .unwrap_or_else(|| "null".into());
             let setter = format!("set{}", super::capitalize_first(sig_name));
             let ts_type = crate::codegen::shared::types::JsTypeFormatter
-                .format_type(&sig_type.kind, &sig_type.type_args);
+                .format_type(&sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!(
                 "const [{}, {}] = useState<{}>({});",
                 sig_name, setter, ts_type, init

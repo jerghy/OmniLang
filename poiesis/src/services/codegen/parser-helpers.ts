@@ -5,7 +5,7 @@ import type { Token } from "./omni-tokenizer";
 import type { TokenStream } from "./token-stream";
 import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
-import type { ElementData } from "../../core/types/element";
+import type { ElementData, CodeblockElementData } from "../../core/types/element";
 import { getComponentDefinitions } from "../../store";
 import { Logger } from "../../lib/utils/logger";
 
@@ -27,7 +27,7 @@ export function skipUntilSemicolon(stream: TokenStream): void {
 
 export function pushError(
   ctx: ParseContext,
-  severity: string,
+  severity: "error" | "warning" | "info",
   code: string,
   message: string,
   tok: Token,
@@ -110,7 +110,7 @@ export function createElement(
   // Set parent/child relationships
   if (parentId) {
     const parent = ctx.elements.find((e) => e.id === parentId);
-    if (parent) parent.children.push(finalId);
+    if (parent && "children" in parent) parent.children.push(finalId);
   }
 
   // Store indent on the element (for parent inference)
@@ -164,8 +164,8 @@ export function codeblockEl(
     id,
     nodeType: "codeblock",
     tag,
-    props: props as Record<string, unknown>,
-    children: [],
+    props,
+    source: "",
     parentId: null,
-  };
+  } as CodeblockElementData;
 }

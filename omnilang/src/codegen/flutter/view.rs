@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
@@ -71,28 +72,16 @@ fn format_element(
         }
         // Events become callback parameters
         for (event_name, handler) in &el.events {
-            let cb = match handler.kind {
-                EventHandlerKind::FnRef => {
-                    if let Some(ref fn_name) = handler.r#ref {
-                        format!("() {{ {}(); }}", fn_name)
-                    } else {
-                        "() {}".to_string()
-                    }
+            let cb = match handler {
+                EventHandlerIR::FnRef { r#ref, .. } => {
+                    format!("() {{ {}(); }}", r#ref)
                 }
-                EventHandlerKind::InlineFn => {
-                    if let Some(ref body) = handler.body {
-                        format_inline_handler_flutter(body)
-                    } else {
-                        "() {}".to_string()
-                    }
+                EventHandlerIR::InlineFn { body, .. } => {
+                    format_inline_handler_flutter(body)
                 }
-                EventHandlerKind::StoreAction => {
-                    if let Some(ref action) = handler.r#ref {
-                        let action_fn = action.split('.').next_back().unwrap_or(action);
-                        format!("() {{ {}(); }}", action_fn)
-                    } else {
-                        "() {}".to_string()
-                    }
+                EventHandlerIR::StoreAction { r#ref, .. } => {
+                    let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                    format!("() {{ {}(); }}", action_fn)
                 }
             };
             child_args.push(format!("on{}: {}", capitalize_first(event_name), cb));
@@ -168,57 +157,45 @@ fn format_element(
     // Events -> callback parameters
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
-        let body = match handler.kind {
-            EventHandlerKind::FnRef => {
-                if let Some(ref fn_name) = handler.r#ref {
-                    if handler.event_data.is_some() {
-                        let event_obj = emit_event_object_flutter(
-                            &handler.event_data,
-                            &handler.used_fields,
-                            "event",
-                        );
-                        format!("(event) {{ {}({}); }}", fn_name, event_obj)
-                    } else {
-                        format!("() {{ {}(); }}", fn_name)
-                    }
+        let body = match handler {
+            EventHandlerIR::FnRef { r#ref, event_data, .. } => {
+                if event_data.is_some() {
+                    let event_obj = emit_event_object_flutter(
+                        &handler.event_data(),
+                        &handler.used_fields(),
+                        "event",
+                    );
+                    format!("(event) {{ {}({}); }}", r#ref, event_obj)
                 } else {
-                    "() {}".to_string()
+                    format!("() {{ {}(); }}", r#ref)
                 }
             }
-            EventHandlerKind::InlineFn => {
-                if let Some(ref body) = handler.body {
-                    if handler.event_data.is_some() {
-                        let _event_obj = emit_event_object_flutter(
-                            &handler.event_data,
-                            &handler.used_fields,
-                            "e",
-                        );
-                        let mut hw = CodeWriter::new();
-                        hw.emit("(e) {");
-                        hw.indent();
-                        for stmt in &body.statements {
-                            generate_statement_flutter(&mut hw, stmt);
-                        }
-                        hw.dedent();
-                        hw.emit("}");
-                        let result = hw.into_string().trim().to_string();
-                        // Replace the extracted event object usage: the body references
-                        // e via the parameter, which already has the extracted fields
-                        result
-                    } else {
-                        format_inline_handler_flutter(body)
+            EventHandlerIR::InlineFn { body, event_data, .. } => {
+                if event_data.is_some() {
+                    let _event_obj = emit_event_object_flutter(
+                        &handler.event_data(),
+                        &handler.used_fields(),
+                        "e",
+                    );
+                    let mut hw = CodeWriter::new();
+                    hw.emit("(e) {");
+                    hw.indent();
+                    for stmt in &body.statements {
+                        generate_statement_flutter(&mut hw, stmt);
                     }
+                    hw.dedent();
+                    hw.emit("}");
+                    let result = hw.into_string().trim().to_string();
+                    // Replace the extracted event object usage: the body references
+                    // e via the parameter, which already has the extracted fields
+                    result
                 } else {
-                    "() {}".to_string()
+                    format_inline_handler_flutter(body)
                 }
             }
-            EventHandlerKind::StoreAction => {
-                if let Some(ref action) = handler.r#ref {
-                    let action_fn = action.split('.').next_back().unwrap_or(action);
-                    format!("() {{ {}(); }}", action_fn)
-                } else {
-                    "() {}".to_string()
-                }
+            EventHandlerIR::StoreAction { r#ref, .. } => {
+                let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                format!("() {{ {}(); }}", action_fn)
             }
         };
         args.push(format!("{}: {}", callback_name, body));
@@ -254,18 +231,18 @@ fn format_element(
     };
 
     // Wrap with motion animation widgets if the element has triggers
-    let has_inview = el.in_view_once.is_some() || el.in_view_repeat.is_some();
-    let has_scroll = el.scroll_start.is_some() || el.scroll_end.is_some();
-    let mut result = if !el.motion_triggers.is_empty()
-        || el.driven_by.is_some()
-        || el.states.is_some()
+    let has_inview = el.motion_behavior().and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref())).is_some();
+    let has_scroll = el.scroll_behavior().is_some();
+    let mut result = if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty())
+        || el.motion_behavior().and_then(|m| m.driven_by.as_ref()).is_some()
+        || el.motion_behavior().and_then(|m| m.states.as_ref()).is_some()
         || has_inview
         || has_scroll
     {
         let mut result = inner;
 
         // Handle @driven-by: wrap with signal-driven animation progress
-        if let Some(ref driven_expr) = el.driven_by {
+        if let Some(driven_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
             let driven_dart = format_expr_ir_flutter(driven_expr);
             // Generate a listener that seeks the animation controller based on signal value
             result = format!(
@@ -275,30 +252,29 @@ fn format_element(
         }
 
         // Handle states:: wrap with gesture-detector or signal-driven state machine
-        if let Some(ref states_ir) = el.states {
+        if let Some(states_ir) = el.motion_behavior().and_then(|m| m.states.as_ref()) {
             result = wrap_flutter_states(result, states_ir, el);
         }
 
         // Standard motion triggers (enter, hover, press, etc.)
-        if !el.motion_triggers.is_empty() {
-            result = wrap_with_motion_widgets(result, &el.motion_triggers, motions);
+        if el.motion_behavior().map_or(false, |m| !m.triggers.is_empty()) {
+            result = wrap_with_motion_widgets(result, el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers), motions);
         }
 
         // Handle @in-view trigger: wrap with _OmniInViewWidget
         if has_inview {
-            let threshold = match &el.in_view_threshold {
+            let threshold = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
-            let once = if el.in_view_once.is_some() {
+            let once = if el.motion_behavior().and_then(|m| m.in_view_once.as_ref()).is_some() {
                 "true"
             } else {
                 "false"
             };
             let motion_ref = el
-                .motion_triggers
-                .iter()
-                .find(|t| matches!(t.kind, TriggerKind::InView))
+                .motion_behavior()
+                .and_then(|m| m.triggers.iter().find(|t| matches!(t.kind, TriggerKind::InView)))
                 .and_then(|t| t.motion_ref.as_ref());
 
             if let Some(motion_name) = motion_ref {
@@ -312,16 +288,15 @@ fn format_element(
 
         // Handle @scroll trigger: wrap with _OmniScrollDrivenWidget
         if has_scroll {
-            let scroll_start = el.scroll_start.as_deref().unwrap_or("top 80%");
-            let scroll_end = el.scroll_end.as_deref().unwrap_or("bottom 20%");
-            let scrub = match &el.scroll_scrub {
+            let scroll_start = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
+            let scroll_end = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+            let scrub = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                 Some(expr) => format_expr_ir_flutter(expr),
                 None => "0.0".to_string(),
             };
             let motion_ref = el
-                .motion_triggers
-                .iter()
-                .find(|t| matches!(t.kind, TriggerKind::Scroll))
+                .motion_behavior()
+                .and_then(|m| m.triggers.iter().find(|t| matches!(t.kind, TriggerKind::Scroll)))
                 .and_then(|t| t.motion_ref.as_ref());
 
             if let Some(motion_name) = motion_ref {
@@ -334,14 +309,14 @@ fn format_element(
         }
 
         // Handle @drag-horizontal / @drag-vertical trigger: wrap with _OmniDragWidget
-        let has_drag = el.motion_triggers.iter().any(|t| {
+        let has_drag = el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
             matches!(
                 t.kind,
                 TriggerKind::DragHorizontal | TriggerKind::DragVertical
             )
-        });
+        }));
         if has_drag {
-            for trigger in &el.motion_triggers {
+            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
                 match trigger.kind {
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         if let Some(motion_name) = trigger.motion_ref.as_ref() {
@@ -352,12 +327,12 @@ fn format_element(
                                 "Axis.vertical"
                             };
                             let ctrl_name = format!("_{}Controller", motion_name);
-                            let constraints_str = el.drag_constraints.as_deref().unwrap_or("");
-                            let elastic_val = match &el.drag_elastic {
+                            let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
+                            let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
                                 Some(expr) => format_expr_ir_flutter(expr),
                                 None => "0.0".to_string(),
                             };
-                            let threshold_val = match &el.drag_threshold {
+                            let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
                                 Some(expr) => format_expr_ir_flutter(expr),
                                 None => "0.0".to_string(),
                             };
@@ -378,9 +353,9 @@ fn format_element(
     };
 
     // Wrap with Hero widget if hero_tag is set (shared element transition)
-    if let Some(ref hero_tag) = el.hero_tag {
+    if let Some(hero_tag) = el.hero_behavior().and_then(|h| h.tag.as_ref()) {
         let tag_dart = format!("'{}'", hero_tag);
-        if let Some(ref transition) = el.hero_transition {
+        if let Some(transition) = el.hero_behavior().and_then(|h| h.transition.as_ref()) {
             let trans_dart = format_expr_ir_flutter(transition);
             result = format!(
                 "Hero(\n  tag: {},\n  flightShuttleBuilder: ({}, child, animation, flightDirection, fromHeroContext, toHeroContext) {{\n    return child!;\n  }},\n  child: {},\n)",
@@ -485,16 +460,12 @@ fn format_list_rendering(
 
 /// Build an inline callback string from a BlockIR for Flutter event handlers.
 fn format_inline_handler_flutter(body: &BlockIR) -> String {
-    if body.statements.is_empty() {
-        return "() {}".to_string();
-    }
-    let mut hw = CodeWriter::new();
-    hw.emit("() {");
-    hw.indent();
-    for stmt in &body.statements {
-        generate_statement_flutter(&mut hw, stmt);
-    }
-    hw.dedent();
-    hw.emit("}");
-    hw.into_string().trim().to_string()
+    let config = InlineHandlerConfig {
+        opener: "() {".into(),
+        closer: "}".into(),
+        empty_handler: "() {}".into(),
+        indent: "    ",
+        use_writer: true,
+    };
+    build_inline_handler(body, &config, |w, s| generate_statement_flutter(w, s))
 }

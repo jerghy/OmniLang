@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 
@@ -40,27 +41,21 @@ pub(super) fn gen_view_node_tsx(
                 }
                 for (event_name, handler) in &el.events {
                     let jsx_event = to_react_event(event_name);
-                    match handler.kind {
-                        EventHandlerKind::FnRef => {
-                            if let Some(ref fn_name) = handler.r#ref {
-                                comp_attrs.push(format!("{}={{{}}}", jsx_event, fn_name));
-                            }
+                    match handler {
+                        EventHandlerIR::FnRef { r#ref, .. } => {
+                            comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
                         }
-                        EventHandlerKind::InlineFn => {
-                            if let Some(ref body) = handler.body {
-                                let handler_str =
-                                    format_inline_handler(body, signal_names, &handler.params);
-                                comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
-                            }
+                        EventHandlerIR::InlineFn { body, params, .. } => {
+                            let handler_str =
+                                format_inline_handler(body, signal_names, params);
+                            comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
-                        EventHandlerKind::StoreAction => {
-                            if let Some(ref action) = handler.r#ref {
-                                let action_fn = action.split('.').next_back().unwrap_or(action);
-                                comp_attrs.push(format!(
-                                    "{}={{() => {{ {}(); }}}}",
-                                    jsx_event, action_fn
-                                ));
-                            }
+                        EventHandlerIR::StoreAction { r#ref, .. } => {
+                            let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                            comp_attrs.push(format!(
+                                "{}={{() => {{ {}(); }}}}",
+                                jsx_event, action_fn
+                            ));
                         }
                     }
                 }
@@ -107,10 +102,8 @@ pub(super) fn gen_view_node_tsx(
                 }
                 match prop_value {
                     ExprIR::LiteralExpr { value } if value.is_string() => {
-                        let s = value
-                            .as_str()
-                            .unwrap_or_default(); // defense-in-depth fallback
-                        // Use CSS module syntax for className props
+                        let s = value.as_str().unwrap_or_default(); // defense-in-depth fallback
+                                                                    // Use CSS module syntax for className props
                         if jsx_attr == "className" {
                             // Split multi-class names: "browserTab tabActive" → styles['browserTab'] + ' ' + styles['tabActive']
                             // Exclude class names that are handled by class_map_bindings
@@ -163,7 +156,7 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // Motion triggers — add data-motion-enter for @enter effects, inline handlers for interactive
-            for trigger in &el.motion_triggers {
+            for trigger in el.motion_behavior().map_or(&[] as &[TriggerIntent], |m| &m.triggers) {
                 match trigger.kind {
                     TriggerKind::Enter => {
                         attrs.push("data-motion-enter=\"true\"".into());
@@ -184,7 +177,7 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push("onBlur={(e) => { e.currentTarget.animate([{ boxShadow: '0 0 0 3px rgba(59,130,246,0.5)' }, { boxShadow: '0 0 0 0 rgba(59,130,246,0)' }], { duration: 200, easing: 'ease-out', fill: 'both' }); }}".into());
                     }
                     TriggerKind::InView => {
-                        let threshold_val = match &el.in_view_threshold {
+                        let threshold_val = match el.motion_behavior().and_then(|m| m.in_view_threshold.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
@@ -192,9 +185,9 @@ pub(super) fn gen_view_node_tsx(
                         attrs.push(format!("data-inview-threshold=\"{}\"", threshold_val));
                     }
                     TriggerKind::Scroll => {
-                        let scroll_start_str = el.scroll_start.as_deref().unwrap_or("top 80%");
-                        let scroll_end_str = el.scroll_end.as_deref().unwrap_or("bottom 20%");
-                        let scrub_val = match &el.scroll_scrub {
+                        let scroll_start_str = el.scroll_behavior().and_then(|s| s.start.as_deref()).unwrap_or("top 80%");
+                        let scroll_end_str = el.scroll_behavior().and_then(|s| s.end.as_deref()).unwrap_or("bottom 20%");
+                        let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
@@ -206,16 +199,16 @@ pub(super) fn gen_view_node_tsx(
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
                         let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
                         let axis_str = if is_horizontal { "x" } else { "y" };
-                        let constraints_str = el.drag_constraints.as_deref().unwrap_or("");
-                        let elastic_val = match &el.drag_elastic {
+                        let constraints_str = el.drag_behavior().and_then(|d| d.constraints.as_deref()).unwrap_or("");
+                        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
-                        let threshold_val = match &el.drag_threshold {
+                        let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "0".to_string(),
                         };
-                        let velocity_max_val = match &el.drag_velocity_max {
+                        let velocity_max_val = match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
                             Some(expr) => format_expr_ir_tsx(expr),
                             None => "2000".to_string(),
                         };
@@ -230,7 +223,7 @@ pub(super) fn gen_view_node_tsx(
             }
 
             // @driven-by — external progress control marker attribute
-            if let Some(ref driven_expr) = el.driven_by {
+            if let Some(driven_expr) = el.motion_behavior().and_then(|m| m.driven_by.as_ref()) {
                 let driven_js = format_expr_ir_tsx(driven_expr);
                 attrs.push(format!("data-driven-by={{{}}}", driven_js));
             }
@@ -238,88 +231,82 @@ pub(super) fn gen_view_node_tsx(
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {
                 let react_event = to_react_event(event_name);
-                match handler.kind {
-                    EventHandlerKind::FnRef => {
-                        if let Some(ref fn_name) = handler.r#ref {
-                            // Skip motion names — they're animation references, not functions
-                            if motion_names.contains(fn_name.as_str()) {
-                                continue;
-                            }
-                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
-                                if handler.event_data.is_some() {
-                                    let event_obj = emit_event_object_react(
-                                        &handler.event_data,
-                                        &handler.used_fields,
-                                        "e",
-                                    );
-                                    attrs.push(format!(
-                                        "{}={{(e) => {{ {}; {}({}); }}}}",
-                                        react_event, setter_call, fn_name, event_obj
-                                    ));
-                                } else {
-                                    attrs.push(format!(
-                                        "{}={{(e) => {{ {}; {}(e); }}}}",
-                                        react_event, setter_call, fn_name
-                                    ));
-                                }
-                            } else if handler.event_data.is_some() {
+                match handler {
+                    EventHandlerIR::FnRef { r#ref, event_data, used_fields, .. } => {
+                        // Skip motion names — they're animation references, not functions
+                        if motion_names.contains(r#ref.as_str()) {
+                            continue;
+                        }
+                        if let Some(setter_call) = binding_events_map.remove(&react_event) {
+                            if event_data.is_some() {
                                 let event_obj = emit_event_object_react(
-                                    &handler.event_data,
-                                    &handler.used_fields,
+                                    event_data,
+                                    used_fields,
                                     "e",
                                 );
                                 attrs.push(format!(
-                                    "{}={{(e) => {{ {}({}) }}}}",
-                                    react_event, fn_name, event_obj
-                                ));
-                            } else {
-                                attrs.push(format!("{}={{{}}}", react_event, fn_name));
-                            }
-                        }
-                    }
-                    EventHandlerKind::InlineFn => {
-                        if let Some(ref body) = handler.body {
-                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
-                                // Generate body with binding setter prepended
-                                let mut merged_hw = CodeWriter::new();
-                                merged_hw.emit_fmt(format_args!("{};", setter_call));
-                                for stmt in &body.statements {
-                                    generate_statement_tsx(&mut merged_hw, stmt, signal_names);
-                                }
-                                let content = merged_hw.into_string();
-                                let params_str = if handler.params.is_empty() {
-                                    "e".to_string()
-                                } else {
-                                    handler.params.join(", ")
-                                };
-                                let mut result = format!("({}) => {{\n", params_str);
-                                for line in content.lines() {
-                                    result.push_str(&format!("        {}\n", line));
-                                }
-                                result.push_str("      }");
-                                attrs.push(format!("{}={{{}}}", react_event, result));
-                            } else {
-                                let handler_str =
-                                    format_inline_handler(body, signal_names, &handler.params);
-                                attrs.push(format!("{}={{{}}}", react_event, handler_str));
-                            }
-                        }
-                    }
-                    EventHandlerKind::StoreAction => {
-                        if let Some(ref action) = handler.r#ref {
-                            let action_fn = action.split('.').next_back().unwrap_or(action);
-                            if let Some(setter_call) = binding_events_map.remove(&react_event) {
-                                attrs.push(format!(
-                                    "{}={{(e) => {{ {}; {}(); }}}}",
-                                    react_event, setter_call, action_fn
+                                    "{}={{(e) => {{ {}; {}({}); }}}}",
+                                    react_event, setter_call, r#ref, event_obj
                                 ));
                             } else {
                                 attrs.push(format!(
-                                    "{react_event}={{() => {{ {action_fn}(); }}}}",
-                                    react_event = react_event,
-                                    action_fn = action_fn
+                                    "{}={{(e) => {{ {}; {}(e); }}}}",
+                                    react_event, setter_call, r#ref
                                 ));
                             }
+                        } else if event_data.is_some() {
+                            let event_obj = emit_event_object_react(
+                                event_data,
+                                used_fields,
+                                "e",
+                            );
+                            attrs.push(format!(
+                                "{}={{(e) => {{ {}({}) }}}}",
+                                react_event, r#ref, event_obj
+                            ));
+                        } else {
+                            attrs.push(format!("{}={{{}}}", react_event, r#ref));
+                        }
+                    }
+                    EventHandlerIR::InlineFn { body, params, .. } => {
+                        if let Some(setter_call) = binding_events_map.remove(&react_event) {
+                            // Generate body with binding setter prepended
+                            let mut merged_hw = CodeWriter::new();
+                            merged_hw.emit_fmt(format_args!("{};", setter_call));
+                            for stmt in &body.statements {
+                                generate_statement_tsx(&mut merged_hw, stmt, signal_names);
+                            }
+                            let content = merged_hw.into_string();
+                            let params_str = if params.is_empty() {
+                                "e".to_string()
+                            } else {
+                                params.join(", ")
+                            };
+                            let mut result = format!("({}) => {{\n", params_str);
+                            for line in content.lines() {
+                                result.push_str(&format!("        {}\n", line));
+                            }
+                            result.push_str("      }");
+                            attrs.push(format!("{}={{{}}}", react_event, result));
+                        } else {
+                            let handler_str =
+                                format_inline_handler(body, signal_names, params);
+                            attrs.push(format!("{}={{{}}}", react_event, handler_str));
+                        }
+                    }
+                    EventHandlerIR::StoreAction { r#ref, .. } => {
+                        let action_fn = r#ref.split('.').next_back().unwrap_or(r#ref);
+                        if let Some(setter_call) = binding_events_map.remove(&react_event) {
+                            attrs.push(format!(
+                                "{}={{(e) => {{ {}; {}(); }}}}",
+                                react_event, setter_call, action_fn
+                            ));
+                        } else {
+                            attrs.push(format!(
+                                "{react_event}={{() => {{ {action_fn}(); }}}}",
+                                react_event = react_event,
+                                action_fn = action_fn
+                            ));
                         }
                     }
                 }
@@ -706,24 +693,19 @@ fn format_inline_handler(
     signal_names: &HashSet<String>,
     params: &[String],
 ) -> String {
-    let params_str = if params.is_empty() {
+    let param_str = if params.is_empty() {
         "e".to_string()
     } else {
         params.join(", ")
     };
-    if body.statements.is_empty() {
-        return format!("({}) => {{}}", params_str);
-    }
-    let mut hw = CodeWriter::new();
-    for stmt in &body.statements {
-        generate_statement_tsx(&mut hw, stmt, signal_names);
-    }
-    let content = hw.into_string();
-    // Build a multi-line arrow function
-    let mut result = format!("({}) => {{\n", params_str);
-    for line in content.lines() {
-        result.push_str(&format!("        {}\n", line));
-    }
-    result.push_str("      }");
-    result
+    let config = InlineHandlerConfig {
+        opener: format!("({}) => {{\n", param_str),
+        closer: format!("\n      }}"),
+        empty_handler: format!("({}) => {{}}", param_str),
+        indent: "        ",
+        use_writer: false,
+    };
+    build_inline_handler(body, &config, |w, s| {
+        generate_statement_tsx(w, s, signal_names)
+    })
 }

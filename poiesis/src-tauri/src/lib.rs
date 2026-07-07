@@ -99,8 +99,90 @@ impl CompileResult {
     }
 }
 
+fn do_compile(
+    sources: HashMap<String, String>,
+    codegen_target: omnilang::codegen::Target,
+    cache: Option<&mut omnilang::analyse::IncrementalCache>,
+) -> CompileResult {
+    // Check total input size
+    let total_bytes: usize = sources.values().map(|s| s.len()).sum();
+    const MAX_TOTAL_SIZE: usize = 10 * 1024 * 1024; // 10 MB
+    if total_bytes > MAX_TOTAL_SIZE {
+        return CompileResult {
+            success: false,
+            files: HashMap::new(),
+            errors: vec![CompileDiagnostic {
+                severity: "error".into(),
+                code: "INPUT_TOO_LARGE".into(),
+                message: format!("Total source size {} exceeds maximum of 10 MB", total_bytes),
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: 0,
+                end_col: 0,
+                suggestion: None,
+            }],
+            warnings: vec![],
+        };
+    }
+
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+    let output = match cache {
+        Some(c) => omnilang::compile_multi_internal_cached(sources, codegen_target, path_mapping, false, c),
+        None => omnilang::compile_multi_internal(sources, codegen_target, path_mapping, false),
+    };
+    CompileResult {
+        success: output.success,
+        files: output.files,
+        errors: output
+            .errors
+            .into_iter()
+            .map(|d| CompileDiagnostic {
+                severity: match d.severity {
+                    omnilang::error::Severity::Error => "error",
+                    omnilang::error::Severity::Warning => "warning",
+                    omnilang::error::Severity::Info => "info",
+                }
+                .to_string(),
+                code: d.kind.code_str().to_string(),
+                message: d.message,
+                file: d.file,
+                line: d.line,
+                col: d.col,
+                end_line: d.end_line.unwrap_or(0),
+                end_col: d.end_col.unwrap_or(0),
+                suggestion: d.suggestion,
+            })
+            .collect(),
+        warnings: output
+            .warnings
+            .into_iter()
+            .map(|d| CompileDiagnostic {
+                severity: match d.severity {
+                    omnilang::error::Severity::Error => "error",
+                    omnilang::error::Severity::Warning => "warning",
+                    omnilang::error::Severity::Info => "info",
+                }
+                .to_string(),
+                code: d.kind.code_str().to_string(),
+                message: d.message,
+                file: d.file,
+                line: d.line,
+                col: d.col,
+                end_line: d.end_line.unwrap_or(0),
+                end_col: d.end_col.unwrap_or(0),
+                suggestion: d.suggestion,
+            })
+            .collect(),
+    }
+}
+
 #[tauri::command]
-fn compile_project(project_path: String, target: String) -> CompileResult {
+fn compile_project(
+    project_path: String,
+    target: String,
+    state: tauri::State<ProjectState>,
+) -> CompileResult {
     // Convert target string to codegen::Target
     let codegen_target = match target.as_str() {
         "python" => omnilang::codegen::Target::Python,
@@ -139,6 +221,19 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
     let mut discover_errors: Vec<String> = Vec::new();
 
     if project_dir.is_dir() {
+        // Check file list cache
+        let root_mtime = std::fs::metadata(project_dir)
+            .ok()
+            .and_then(|m| m.modified().ok());
+        if let Ok(cache) = state.file_list_cache.lock() {
+            if let Some(ref cached) = *cache {
+                if cached.root_mtime == root_mtime {
+                    let mut compile_cache = state.compile_cache.lock().unwrap_or_else(|e| e.into_inner());
+                    return do_compile(cached.sources.clone(), codegen_target, Some(&mut *compile_cache));
+                }
+            }
+        }
+
         for entry in walkdir::WalkDir::new(project_dir)
             .follow_links(false)
             .into_iter()
@@ -165,6 +260,13 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
                     discover_errors.push(format!("Cannot read {:?}: {}", path, e));
                 }
             }
+        }
+        // Update file list cache
+        if let Ok(mut cache) = state.file_list_cache.lock() {
+            *cache = Some(CachedFileList {
+                sources: sources.clone(),
+                root_mtime,
+            });
         }
     } else if project_dir.is_file() && project_dir.extension().is_some_and(|e| e == "omni") {
         // Also discover sibling .omni files for import resolution
@@ -235,20 +337,8 @@ fn compile_project(project_path: String, target: String) -> CompileResult {
         return CompileResult::from_errors(all_errors, "E_IO");
     }
 
-    // Build path mapping for cross-file imports
-    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
-
-    // Compile via omnilang crate
-    let result_json =
-        omnilang::compile_multi_to_target(sources, codegen_target, path_mapping, false);
-
-    // Parse result JSON
-    match serde_json::from_str::<CompileResult>(&result_json) {
-        Ok(result) => result,
-        Err(e) => {
-            CompileResult::from_error(&format!("Failed to parse compile result: {}", e), "E_PARSE")
-        }
-    }
+    let mut compile_cache = state.compile_cache.lock().unwrap_or_else(|e| e.into_inner());
+    do_compile(sources, codegen_target, Some(&mut *compile_cache))
 }
 
 // ── Analyse source ──
@@ -325,9 +415,41 @@ pub struct ExportResult {
 }
 
 #[tauri::command]
-fn project_export(project_path: String, output_dir: String, target: String) -> ExportResult {
+fn project_export(
+    project_path: String,
+    output_dir: String,
+    target: String,
+    state: tauri::State<ProjectState>,
+) -> ExportResult {
+    // Validate output_dir
+    if output_dir.is_empty() {
+        return ExportResult {
+            success: false,
+            output_dir,
+            file_count: 0,
+            errors: vec!["Output directory cannot be empty".into()],
+        };
+    }
+    let out_path_check = std::path::Path::new(&output_dir);
+    if out_path_check.is_absolute() {
+        return ExportResult {
+            success: false,
+            output_dir,
+            file_count: 0,
+            errors: vec!["Absolute paths are not allowed for output directory".into()],
+        };
+    }
+    if output_dir.contains("..") {
+        return ExportResult {
+            success: false,
+            output_dir,
+            file_count: 0,
+            errors: vec!["Path traversal detected in output directory".into()],
+        };
+    }
+
     // First compile the project
-    let compile_result = compile_project(project_path.clone(), target.clone());
+    let compile_result = compile_project(project_path.clone(), target.clone(), state);
 
     if !compile_result.success {
         return ExportResult {
@@ -379,9 +501,17 @@ fn project_export(project_path: String, output_dir: String, target: String) -> E
 // ── Project state management ──
 
 use std::sync::Mutex;
+use std::time::SystemTime;
+
+struct CachedFileList {
+    sources: HashMap<String, String>,
+    root_mtime: Option<SystemTime>,
+}
 
 struct ProjectState {
     project_dir: Mutex<Option<String>>,
+    file_list_cache: Mutex<Option<CachedFileList>>,
+    compile_cache: Mutex<omnilang::analyse::IncrementalCache>,
     store_snapshot: Mutex<String>,
     pid_index: Mutex<String>,
 }
@@ -390,6 +520,8 @@ impl Default for ProjectState {
     fn default() -> Self {
         Self {
             project_dir: Mutex::new(None),
+            file_list_cache: Mutex::new(None),
+            compile_cache: Mutex::new(omnilang::analyse::IncrementalCache::new()),
             store_snapshot: Mutex::new(String::new()),
             pid_index: Mutex::new("{}".to_string()),
         }
@@ -448,6 +580,8 @@ fn save_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, 
 #[tauri::command]
 fn close_project(state: tauri::State<ProjectState>) -> Result<serde_json::Value, String> {
     *state.project_dir.lock().map_err(|e| e.to_string())? = None;
+    *state.file_list_cache.lock().map_err(|e| e.to_string())? = None;
+    state.compile_cache.lock().map_err(|e| e.to_string())?.clear();
     *state.store_snapshot.lock().map_err(|e| e.to_string())? = String::new();
     *state.pid_index.lock().map_err(|e| e.to_string())? = "{}".to_string();
     Ok(serde_json::json!({"success": true}))

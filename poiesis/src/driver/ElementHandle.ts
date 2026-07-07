@@ -1,4 +1,4 @@
-/** ElementHandle — locator-style handle for programmatic element control.
+/** ElementHandle -- locator-style handle for programmatic element control.
  *  Extracted from OmniDriver god class.
  *  Constructor takes only the element ID (imports store directly). */
 
@@ -41,12 +41,16 @@ export class ElementHandle {
    *  Warns to console if the prop key does not exist in the element's current props. */
   setProp(prop: string, value: unknown): this {
     const d = this._require();
+    if (!("props" in d)) {
+      log.warn('setProp: element "' + this.id + '" has no props (group elements don\'t support props)');
+      return this;
+    }
     // Warn if setting a prop that doesn't exist yet (might be intentional or a typo)
-    if (!(prop in (d.props as object)) && prop !== "children") {
+    if (!(prop in d.props) && prop !== "children") {
       log.warn(
-        `setProp: "${prop}" is not an existing property on <${d.tag}>. ` +
-        `Existing props: ${Object.keys(d.props as object).join(", ") || "(none)"}. ` +
-        `This may be intentional for new props, or could be a typo.`,
+        'setProp: "' + prop + '" is not an existing property on <' + d.tag + '>. ' +
+        'Existing props: ' + Object.keys(d.props as object).join(", ") + ' or "(none)". ' +
+        "This may be intentional for new props, or could be a typo.",
       );
     }
     getDesignStore().setProp(this.id, prop, value);
@@ -116,17 +120,19 @@ export class ElementHandle {
   text(): string {
     const d = this.data;
     if (!d) return "";
+    if (!("props" in d)) return "";
     return String(
-      (d.props as Record<string, unknown>)["label"] ||
-      (d.props as Record<string, unknown>)["text"] ||
-      (d.props as Record<string, unknown>)["placeholder"] ||
+      d.props["label"] ||
+      d.props["text"] ||
+      d.props["placeholder"] ||
       ""
     );
   }
 
-  /** Get child elements (READ-ONLY — use `parentId` on creation to set parent). */
+  /** Get child elements (READ-ONLY -- use `parentId` on creation to set parent). */
   children(): ElementHandle[] {
     const d = this._require();
+    if (!("children" in d)) return [];
     return d.children.map((cid) => new ElementHandle(cid));
   }
 
@@ -148,6 +154,7 @@ export class ElementHandle {
   /** Get the source code of a code block. */
   getSource(): string | undefined {
     const d = this._require();
+    if (!("source" in d)) return undefined;
     return d.source;
   }
 
@@ -173,14 +180,17 @@ export class ElementHandle {
     options: EventBindingOptions = {},
   ): this {
     const d = this._require();
+    if (!("tag" in d)) {
+      throw new Error("bindEvent is only available on view/codeblock elements");
+    }
     const meta = COMPONENT_PROTOCOL[d.tag];
-    if (!meta) throw new Error(`No component protocol for tag "${d.tag}"`);
+    if (!meta) throw new Error('No component protocol for tag "' + d.tag + '"');
 
     const eventCfg = meta.events[eventName];
     if (!eventCfg) {
       const available = Object.keys(meta.events).join(", ");
       throw new Error(
-        `Event "${eventName}" not found on ${d.tag}. Available: ${available || "(none)"}`,
+        'Event "' + eventName + '" not found on ' + d.tag + '. Available: ' + (available || "(none)"),
       );
     }
 
@@ -201,9 +211,13 @@ export class ElementHandle {
   /** Remove an event binding from this element. */
   unbindEvent(eventName: string): this {
     const d = this._require();
-    const currentVal = (d.props as Record<string, unknown>)[eventName];
+    if (!("props" in d) || !("tag" in d)) {
+      log.warn('unbindEvent: element "' + this.id + '" has no props/tag');
+      return this;
+    }
+    const currentVal = d.props[eventName];
     if (currentVal === undefined) {
-      log.warn(`unbindEvent: "${eventName}" is not bound on <${d.tag}>`);
+      log.warn('unbindEvent: "' + eventName + '" is not bound on <' + d.tag + ">");
       return this;
     }
     getDesignStore().setProp(d.id, eventName, undefined as unknown);
@@ -227,12 +241,15 @@ export class ElementHandle {
     const meta = COMPONENT_PROTOCOL[d.tag];
     if (!meta?.events) return [];
     for (const [evtName] of Object.entries(meta.events)) {
-      const boundFn = (d.props as Record<string, unknown>)[evtName];
+      const boundFn = d.props[evtName];
       if (typeof boundFn === "string" && boundFn.length > 0) {
+        // config is not on ViewElementData, so access via cast for _eventBindings
+        const elementCfg = (d as unknown as { config?: Record<string, unknown> }).config;
+        const eventBindings = elementCfg?._eventBindings as Record<string, Record<string, ParamBinding>> | undefined;
         bindings.push({
           eventName: evtName,
           fnName: boundFn,
-          paramBindings: ((d.config?._eventBindings as Record<string, Record<string, ParamBinding>>)?.[evtName]) || {},
+          paramBindings: eventBindings?.[evtName] || {},
         });
       }
     }
@@ -242,18 +259,20 @@ export class ElementHandle {
   /** Add a parameter to a customFn (dynamically adds input port). */
   addParam(name: string, type: string, defaultValue?: unknown): this {
     const d = this._require();
-    if (d.tag !== "customFn") throw new Error("addParam is only available on customFn nodes");
+    if (!("tag" in d) || d.tag !== "customFn" || !("config" in d)) {
+      throw new Error("addParam is only available on customFn nodes");
+    }
     const config = (d.config || {}) as Record<string, unknown>;
     const params = [...((config.fnParams as FnParam[]) || []), { name, type, default: defaultValue }];
     const newConfig = { ...config, fnParams: params } as Record<string, unknown>;
     getDesignStore().setProp(this.id, "config", newConfig);
     const inPorts = params.map((p) => ({
       name: p.name, direction: "in" as const, portType: "data" as const,
-      type: p.type, label: `${p.name}: ${p.type}`,
+      type: p.type, label: p.name + ": " + p.type,
     }));
     const outPort = {
       name: "return", direction: "out" as const, portType: "data" as const,
-      type: (newConfig.fnReturnType as string) || "void", label: `返回: ${newConfig.fnReturnType || "void"}`,
+      type: (newConfig.fnReturnType as string) || "void", label: "return: " + (newConfig.fnReturnType || "void"),
     };
     getDesignStore().setElementPorts(this.id, [...inPorts, outPort]);
     return this;
@@ -262,12 +281,14 @@ export class ElementHandle {
   /** Set the return type of a customFn. */
   setReturnType(type: string): this {
     const d = this._require();
-    if (d.tag !== "customFn") throw new Error("setReturnType is only available on customFn nodes");
+    if (!("tag" in d) || d.tag !== "customFn" || !("config" in d)) {
+      throw new Error("setReturnType is only available on customFn nodes");
+    }
     const config = { ...d.config, fnReturnType: type };
     getDesignStore().setProp(this.id, "config", config);
-    const ports = d.ports || [];
+    const ports = ("ports" in d ? d.ports : undefined) || [];
     const updated = ports.map((p) =>
-      p.name === "return" ? { ...p, type, label: `返回: ${type}` } : p,
+      p.name === "return" ? { ...p, type, label: "return: " + type } : p,
     );
     getDesignStore().setElementPorts(this.id, updated);
     return this;
@@ -276,7 +297,9 @@ export class ElementHandle {
   /** Set the description of a customFn. */
   setDescription(desc: string): this {
     const d = this._require();
-    if (d.tag !== "customFn") throw new Error("setDescription is only available on customFn nodes");
+    if (!("tag" in d) || d.tag !== "customFn" || !("config" in d)) {
+      throw new Error("setDescription is only available on customFn nodes");
+    }
     const config = { ...d.config, description: desc };
     getDesignStore().setProp(this.id, "config", config);
     return this;
@@ -291,6 +314,6 @@ export class ElementHandle {
       }
       await new Promise((r) => setTimeout(r, 50));
     }
-    throw new Error(`Element ${this.id} did not appear within ${timeout}ms`);
+    throw new Error("Element " + this.id + " did not appear within " + timeout + "ms");
   }
 }

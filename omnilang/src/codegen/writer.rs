@@ -10,6 +10,7 @@ pub struct CodeWriter {
     lines: Vec<String>,
     indent_level: usize,
     indent_str: &'static str,
+    cached_indent: String,
 }
 
 impl CodeWriter {
@@ -19,6 +20,7 @@ impl CodeWriter {
             lines: vec![],
             indent_level: 0,
             indent_str: "    ",
+            cached_indent: String::new(),
         }
     }
 
@@ -28,8 +30,7 @@ impl CodeWriter {
         if line.is_empty() {
             self.lines.push(String::new());
         } else {
-            let pad = self.indent_str.repeat(self.indent_level);
-            self.lines.push(format!("{}{}", pad, line));
+            self.lines.push(format!("{}{}", self.cached_indent, line));
         }
     }
 
@@ -41,8 +42,7 @@ impl CodeWriter {
     /// w.emit_fmt(format_args!("let {name}{ty} = {rhs};"));
     /// ```
     pub fn emit_fmt(&mut self, args: fmt::Arguments<'_>) {
-        let indent = self.indent_str.repeat(self.indent_level);
-        let mut line = indent;
+        let mut line = self.cached_indent.clone();
         // write! to String never fails
         let _ = fmt::write(&mut line, args);
         self.lines.push(line);
@@ -51,11 +51,13 @@ impl CodeWriter {
     /// Increase indentation by one level.
     pub fn indent(&mut self) {
         self.indent_level += 1;
+        self.cached_indent = self.indent_str.repeat(self.indent_level);
     }
 
     /// Decrease indentation by one level (clamped at 0).
     pub fn dedent(&mut self) {
         self.indent_level = self.indent_level.saturating_sub(1);
+        self.cached_indent = self.indent_str.repeat(self.indent_level);
     }
 
     /// Finalize the output string (lines joined by newline, trailing newline).

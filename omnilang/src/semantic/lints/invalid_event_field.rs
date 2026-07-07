@@ -47,8 +47,8 @@ fn check_view_invalid_fields(
     match tree {
         ViewTree::Element(el) => {
             for handler in el.events.values() {
-                if let (Some(ref kind), Some(ref used)) =
-                    (&handler.event_data, &handler.used_fields)
+                if let (Some(kind), Some(used)) =
+                    (handler.event_data(), handler.used_fields())
                 {
                     let schema = event_data_schema(kind);
                     let valid: HashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
@@ -102,7 +102,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::{
-        ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind,
+        BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
     };
 
@@ -160,10 +160,8 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onChange".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::InlineFn,
-                    body: None,
-                    r#ref: None,
+                EventHandlerIR::InlineFn {
+                    body: BlockIR { statements: vec![] },
                     params: vec![],
                     event_data: Some(EventDataKind::InputEvent),
                     used_fields: Some(vec!["nonexistent_field".into()]),
@@ -182,25 +180,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 10,
             source_col: 5,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -231,10 +214,8 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onChange".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::InlineFn,
-                    body: None,
-                    r#ref: None,
+                EventHandlerIR::InlineFn {
+                    body: BlockIR { statements: vec![] },
                     params: vec![],
                     event_data: Some(EventDataKind::InputEvent),
                     used_fields: Some(vec!["value".into()]),
@@ -253,25 +234,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -290,10 +256,8 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onCustomEvent".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::InlineFn,
-                    body: None,
-                    r#ref: None,
+                EventHandlerIR::InlineFn {
+                    body: BlockIR { statements: vec![] },
                     params: vec![],
                     event_data: None,
                     used_fields: Some(vec!["whatever".into()]),
@@ -312,25 +276,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("Widget", view);
 

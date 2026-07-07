@@ -143,68 +143,62 @@ impl OmniViewGenerator {
                     // Emit event bindings for the component element
                     for (event_name, handler) in &el.events {
                         let js_event = map_event(event_name);
-                        let pd = if handler.needs_prevent_default || js_event == "submit" {
+                        let pd = if handler.needs_prevent_default() || js_event == "submit" {
                             " e.preventDefault();"
                         } else {
                             ""
                         };
-                        let sp = if handler.needs_stop_propagation {
+                        let sp = if handler.needs_stop_propagation() {
                             " e.stopPropagation();"
                         } else {
                             ""
                         };
-                        match handler.kind {
-                            EventHandlerKind::FnRef => {
-                                if let Some(ref fn_name) = handler.r#ref {
-                                    if self.motion_names.contains(fn_name.as_str()) {
-                                        // Motion reference: create AnimationPlayer and play on event
-                                        self.js.push_str(&format!(
-                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
-                                            nid = nid,
-                                            js_event = js_event,
-                                            motion = fn_name,
-                                        ));
-                                    } else {
-                                        let prefixed =
-                                            format!("{}_{}", self.current_component, fn_name);
-                                        let event_obj = emit_event_object(
-                                            &handler.event_data,
-                                            &handler.used_fields,
-                                            "e",
-                                        );
-                                        self.js.push_str(&format!(
-                                            "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
-                                            nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
-                                        ));
-                                    }
-                                }
-                            }
-                            EventHandlerKind::StoreAction => {
-                                if let Some(ref action_path) = handler.r#ref {
-                                    let var_name = action_path.replace('.', "_");
+                        match handler {
+                            EventHandlerIR::FnRef { r#ref, .. } => {
+                                if self.motion_names.contains(r#ref.as_str()) {
+                                    // Motion reference: create AnimationPlayer and play on event
                                     self.js.push_str(&format!(
-                                        "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
-                                        nid, js_event, sp, pd, var_name
+                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ if (el.offsetParent !== null) {{ var p = __omni_motion_{motion}(el, {{}}); __omni_animations.set(\"{nid}_{js_event}\", p); p.play(); }} }}); }}\n",
+                                        nid = nid,
+                                        js_event = js_event,
+                                        motion = r#ref,
+                                    ));
+                                } else {
+                                    let prefixed =
+                                        format!("{}_{}", self.current_component, r#ref);
+                                    let event_obj = emit_event_object(
+                                        &handler.event_data(),
+                                        &handler.used_fields(),
+                                        "e",
+                                    );
+                                    self.js.push_str(&format!(
+                                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ {sp} {pd} {prefixed}({event_obj}); }}); }}\n",
+                                        nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
                                     ));
                                 }
                             }
-                            EventHandlerKind::InlineFn => {
+                            EventHandlerIR::StoreAction { r#ref, .. } => {
+                                let var_name = r#ref.replace('.', "_");
+                                self.js.push_str(&format!(
+                                    "{{ const el = __omni_el(\"{}\"); if (el) el.addEventListener(\"{}\", (e) => {{ {} {} {}(); }}); }}\n",
+                                    nid, js_event, sp, pd, var_name
+                                ));
+                            }
+                            EventHandlerIR::InlineFn { body, params, .. } => {
                                 let wrapper_name =
                                     format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                                let params_str = handler.params.join(", ");
+                                let params_str = params.join(", ");
                                 self.js.push_str(&format!(
                                     "function {}({}) {{\n",
                                     wrapper_name, params_str
                                 ));
-                                if let Some(ref body) = handler.body {
-                                    for stmt in &body.statements {
-                                        self.emit_statement(stmt);
-                                    }
+                                for stmt in &body.statements {
+                                    self.emit_statement(stmt);
                                 }
                                 self.js.push_str("}\n");
                                 let event_obj = emit_event_object(
-                                    &handler.event_data,
-                                    &handler.used_fields,
+                                    &handler.event_data(),
+                                    &handler.used_fields(),
                                     "e",
                                 );
                                 self.js.push_str(&format!(

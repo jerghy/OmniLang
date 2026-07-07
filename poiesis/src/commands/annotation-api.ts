@@ -28,6 +28,10 @@ async function resolveProjectDir(): Promise<string | null> {
 }
 
 function joinPath(base: string, rel: string): string {
+  // Reject path traversal attempts
+  if (rel.split("/").some(seg => seg === ".." || seg === "~")) {
+    throw new Error(`Path traversal rejected: ${rel}`);
+  }
   const b = base.replace(/\\/g, "/").replace(/\/$/, "");
   const r = rel.replace(/\\/g, "/");
   return `${b}/${r}`;

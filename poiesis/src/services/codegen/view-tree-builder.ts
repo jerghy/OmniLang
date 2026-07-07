@@ -1,6 +1,6 @@
-// poiesis/src/omni-gen/view-tree-builder.ts
-import type { ElementData } from "../../core/types";
-import type { ViewNode } from "./types";
+// poiesis/src/services/codegen/view-tree-builder.ts
+import type { ElementData, ViewElementData } from "../../core/types";
+import type { ViewNode, ElementViewNode } from "./types";
 
 /**
  * Build a view tree from flat element array.
@@ -14,7 +14,7 @@ export function buildViewTree(
   compName: string,
   rootOrder?: string[],
 ): { roots: ViewNode[]; pascalCaseTags: string[] } {
-  const byId = new Map<string, ElementData>();
+  const byId = new Map<string, ViewElementData>();
   const pascalCaseTags: string[] = [];
 
   for (const el of elements) {
@@ -33,7 +33,7 @@ export function buildViewTree(
     }
   }
 
-  function buildNode(el: ElementData, currentPath: string): ViewNode {
+  function buildNode(el: ViewElementData, currentPath: string): ViewNode {
     // Only PascalCase tags that don't match a built-in entry are custom components.
     const isPascal = /^[A-Z]/.test(el.tag);
     if (isPascal && !pascalCaseTags.includes(el.tag)) {
@@ -43,7 +43,7 @@ export function buildViewTree(
     // Use el.children order instead of flat-array iteration order
     const childElements = (el.children || [])
       .map((cid) => byId.get(cid))
-      .filter((c): c is ElementData => c !== undefined);
+      .filter((c): c is ViewElementData => c !== undefined);
     const children = childElements.map((c, i) =>
       buildNode(c, `${currentPath}.${c.tag.toLowerCase()}.${i}`),
     );
@@ -55,19 +55,19 @@ export function buildViewTree(
       props: { ...el.props },
       children,
       kind: "element",
-      isFolded: el.isFolded,
+      isFolded: (el as any).isFolded as boolean | undefined,
       renderMode: el.renderMode,
-    };
+    } as ElementViewNode;
   }
 
   // Use rootOrder for root element ordering; fall back to byParent(null) order
-  let rootElements: ElementData[];
+  let rootElements: ViewElementData[];
   if (rootOrder) {
     rootElements = rootOrder
       .map((id) => byId.get(id))
-      .filter((el): el is ElementData => el !== undefined);
+      .filter((el): el is ViewElementData => el !== undefined && el.nodeType === "view");
   } else {
-    rootElements = elements.filter((el) => el.parentId === null && el.nodeType === "view");
+    rootElements = elements.filter((el): el is ViewElementData => el.parentId === null && el.nodeType === "view");
   }
   const roots = rootElements.map((el) => buildNode(el, compName));
 

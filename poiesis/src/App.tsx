@@ -70,10 +70,13 @@ async function loadOmniFiles(): Promise<void> {
         const rootOrder = parseResult.designElements
           .filter((e: ElementData) => !e.parentId)
           .map((e: ElementData) => e.id);
-        const positionedElements = parseResult.designElements.map((el, idx) => ({
-          ...el,
-          position: el.position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
-        }));
+        const positionedElements = parseResult.designElements.map((el, idx) => {
+          const position = el.nodeType !== "group" ? el.position : undefined;
+          return {
+            ...el,
+            position: position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
+          };
+        });
         return {
           filePath, componentName,
           content: res.content,

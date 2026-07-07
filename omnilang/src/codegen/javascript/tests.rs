@@ -38,15 +38,11 @@ fn test_ts_type_generics() {
         kind: "i32".into(),
         type_args: vec![],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
     let string_arg = TypeIR {
         kind: "string".into(),
         type_args: vec![],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
 
     assert_eq!(
@@ -65,8 +61,6 @@ fn test_ts_type_option() {
         kind: "i32".into(),
         type_args: vec![],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
     assert_eq!(js_type("Option", &[i32_arg], true), "number | null");
 }
@@ -138,8 +132,14 @@ fn test_format_expr_identifier() {
 fn test_format_expr_binary() {
     let expr = ExprIR::BinaryOpExpr {
         op: "add".into(),
-        left: Box::new(ExprIR::IdentifierExpr { name: "a".into(), type_ann: None }),
-        right: Box::new(ExprIR::IdentifierExpr { name: "b".into(), type_ann: None }),
+        left: Box::new(ExprIR::IdentifierExpr {
+            name: "a".into(),
+            type_ann: None,
+        }),
+        right: Box::new(ExprIR::IdentifierExpr {
+            name: "b".into(),
+            type_ann: None,
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "a + b");
 }
@@ -147,7 +147,10 @@ fn test_format_expr_binary() {
 #[test]
 fn test_format_expr_ternary() {
     let expr = ExprIR::TernaryIR {
-        cond: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+        cond: Box::new(ExprIR::IdentifierExpr {
+            name: "x".into(),
+            type_ann: None,
+        }),
         then_expr: Box::new(ExprIR::LiteralExpr {
             value: serde_json::json!(1),
         }),
@@ -161,7 +164,10 @@ fn test_format_expr_ternary() {
 #[test]
 fn test_format_expr_field_access() {
     let expr = ExprIR::FieldAccessExpr {
-        object: Box::new(ExprIR::IdentifierExpr { name: "obj".into(), type_ann: None }),
+        object: Box::new(ExprIR::IdentifierExpr {
+            name: "obj".into(),
+            type_ann: None,
+        }),
         field: "prop".into(),
     };
     assert_eq!(format_expr_ir(&expr, false), "obj.prop");
@@ -183,7 +189,10 @@ fn test_format_expr_unary_not() {
 fn test_format_expr_unary_neg() {
     let expr = ExprIR::UnaryOpExpr {
         op: "neg".into(),
-        operand: Box::new(ExprIR::IdentifierExpr { name: "x".into(), type_ann: None }),
+        operand: Box::new(ExprIR::IdentifierExpr {
+            name: "x".into(),
+            type_ann: None,
+        }),
     };
     assert_eq!(format_expr_ir(&expr, false), "-x");
 }
@@ -217,8 +226,6 @@ fn test_generate_function_empty_ts() {
             kind: "void".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
@@ -240,16 +247,12 @@ fn test_generate_function_with_params_ts() {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }),
         }],
         return_type: Some(TypeIR {
             kind: "string".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
@@ -271,8 +274,6 @@ fn test_generate_function_with_params_js() {
                 kind: "string".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }),
         }],
         return_type: None,
@@ -296,8 +297,6 @@ fn test_generate_async_function_js() {
             kind: "String".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         }),
         body: BlockIR { statements: vec![] },
         is_async: true,
@@ -322,8 +321,6 @@ fn test_generate_async_function_ts() {
             kind: "String".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         }),
         body: BlockIR { statements: vec![] },
         is_async: true,
@@ -471,8 +468,6 @@ fn test_js_component_with_state() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
@@ -515,8 +510,6 @@ fn test_ts_component_with_state() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
             initial_value: ExprIR::LiteralExpr {
                 value: serde_json::json!(0),
@@ -560,8 +553,6 @@ fn test_js_generate_store() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             ),
             (
@@ -570,8 +561,6 @@ fn test_js_generate_store() {
                     kind: "string".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
             ),
         ]),
@@ -602,8 +591,6 @@ fn test_ts_generate_store() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             },
         )]),
         signal_defaults: HashMap::from([("count".into(), serde_json::json!(0))]),
@@ -775,8 +762,6 @@ fn test_ts_full_pipeline_through_trait() {
                                 kind: "void".into(),
                                 type_args: vec![],
                                 is_nullable: false,
-                                needs_clone: false,
-                                needs_partial_eq: false,
                             }),
                             body: BlockIR { statements: vec![] },
                             is_async: false,
@@ -825,8 +810,6 @@ fn test_js_generate_struct() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 visibility: Visibility::Public,
             },
@@ -836,8 +819,6 @@ fn test_js_generate_struct() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 visibility: Visibility::Public,
             },
@@ -864,8 +845,6 @@ fn test_ts_generate_struct() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 visibility: Visibility::Public,
             },
@@ -875,8 +854,6 @@ fn test_ts_generate_struct() {
                     kind: "i32".into(),
                     type_args: vec![],
                     is_nullable: false,
-                    needs_clone: false,
-                    needs_partial_eq: false,
                 },
                 visibility: Visibility::Public,
             },
@@ -956,8 +933,6 @@ fn test_ts_generate_type_alias() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     };
     visitor(true).generate_type_alias(&mut w, &alias);
@@ -974,8 +949,6 @@ fn test_js_skip_type_alias() {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         },
     };
     visitor(false).generate_type_alias(&mut w, &alias);
@@ -1012,16 +985,12 @@ fn test_ts_generate_standalone_function() {
                 kind: "i32".into(),
                 type_args: vec![],
                 is_nullable: false,
-                needs_clone: false,
-                needs_partial_eq: false,
             }),
         }],
         return_type: Some(TypeIR {
             kind: "i32".into(),
             type_args: vec![],
             is_nullable: false,
-            needs_clone: false,
-            needs_partial_eq: false,
         }),
         body: BlockIR { statements: vec![] },
         is_async: false,
@@ -1054,8 +1023,6 @@ fn test_format_type_ir_js() {
         kind: "i32".into(),
         type_args: vec![],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
     assert_eq!(format_type_ir_js(&ty, false), "");
     assert_eq!(format_type_ir_js(&ty, true), "number");
@@ -1064,8 +1031,6 @@ fn test_format_type_ir_js() {
         kind: "string".into(),
         type_args: vec![],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
     assert_eq!(format_type_ir_js(&str_ty, true), "string");
 
@@ -1073,8 +1038,6 @@ fn test_format_type_ir_js() {
         kind: "Vec".into(),
         type_args: vec![ty.clone()],
         is_nullable: false,
-        needs_clone: false,
-        needs_partial_eq: false,
     };
     assert_eq!(format_type_ir_js(&vec_ty, true), "number[]");
 }
@@ -1164,7 +1127,10 @@ fn test_match_expr_single_variant() {
 #[test]
 fn test_match_expr_with_wildcard() {
     let expr = ExprIR::MatchExpr {
-        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into(), type_ann: None }),
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "r".into(),
+            type_ann: None,
+        }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {
@@ -1175,7 +1141,10 @@ fn test_match_expr_with_wildcard() {
                 },
                 body: BlockIR {
                     statements: vec![StatementIR::ReturnStmtIR {
-                        value: Some(ExprIR::IdentifierExpr { name: "v".into(), type_ann: None }),
+                        value: Some(ExprIR::IdentifierExpr {
+                            name: "v".into(),
+                            type_ann: None,
+                        }),
                     }],
                 },
             },
@@ -1211,7 +1180,10 @@ fn test_match_expr_with_wildcard() {
 #[test]
 fn test_match_expr_multiple_variants() {
     let expr = ExprIR::MatchExpr {
-        matched: Box::new(ExprIR::IdentifierExpr { name: "r".into(), type_ann: None }),
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "r".into(),
+            type_ann: None,
+        }),
         arms: vec![
             MatchArmIR {
                 pattern: MatchPatternIR {

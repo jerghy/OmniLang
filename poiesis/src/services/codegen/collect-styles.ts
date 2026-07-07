@@ -19,8 +19,27 @@ export function applyStyles(roots: ViewNode[]): void {
     walkApply(r);
   }
   function walkApply(n: ViewNode): void {
-    n.resolvedStyle = resolveStyle(n);
-    for (const c of n.children) walkApply(c);
+    if (n.kind === "element") {
+      n.resolvedStyle = resolveStyle(n);
+    }
+    switch (n.kind) {
+      case "element":
+      case "for":
+      case "slot":
+        for (const c of n.children) walkApply(c);
+        break;
+      case "if":
+        for (const branch of n.branches) {
+          for (const c of branch.body) walkApply(c);
+        }
+        if (n.fallback) {
+          for (const c of n.fallback) walkApply(c);
+        }
+        break;
+      case "text":
+      case "interpolation":
+        break;
+    }
   }
 }
 
@@ -86,7 +105,7 @@ export function collectStylesFromEntries(
   // emitted style block, not just as inline HTML attrs.
   if (roots) {
     walkViewNodes(roots, (n) => {
-      if (!n.resolvedStyle) return;
+      if (n.kind !== "element" || !n.resolvedStyle) return;
       const { cssRules, cssClassName } = n.resolvedStyle;
       if (!cssRules || Object.keys(cssRules).length === 0) return;
 
@@ -134,6 +153,21 @@ export function compileSegments(segments: StyleValueSegment[]): string {
 export function walkViewNodes(nodes: ViewNode[], callback: (node: ViewNode) => void): void {
   for (const n of nodes) {
     callback(n);
-    walkViewNodes(n.children, callback);
+    switch (n.kind) {
+      case "element":
+      case "for":
+      case "slot":
+        walkViewNodes(n.children, callback);
+        break;
+      case "if":
+        for (const branch of n.branches) {
+          walkViewNodes(branch.body, callback);
+        }
+        if (n.fallback) walkViewNodes(n.fallback, callback);
+        break;
+      case "text":
+      case "interpolation":
+        break;
+    }
   }
 }

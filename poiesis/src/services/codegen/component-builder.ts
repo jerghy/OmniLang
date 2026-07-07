@@ -8,6 +8,7 @@ import type {
   ComponentPart,
   ComponentMeta,
   ViewNode,
+  ElementViewNode,
   BindingResult,
   LoweredCode,
   ChainBlock,
@@ -143,7 +144,7 @@ export function buildComponentPart(
               cssRules: {},
               usedClassNames: [],
             },
-          }
+          } as ElementViewNode
         : null,
     style: phaseC.styleCollection.componentStyle,
   };

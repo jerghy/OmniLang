@@ -4,6 +4,8 @@ import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import { computeInverse } from "./undo-apply";
 
+const MAX_UNDO_SIZE = 100;
+
 // ── Types ──
 
 export type UndoAction =
@@ -33,11 +35,16 @@ export function buildUndoUpdate(
 ): { undoStacks?: Record<string, UndoStack> } {
   if (!tabId) return {};
   const existingStack = undoStacks[tabId];
+  const nextUndo = [...(existingStack?.undo ?? []), action];
+  // Keep undo stack bounded
+  if (nextUndo.length > MAX_UNDO_SIZE) {
+    nextUndo.splice(0, nextUndo.length - MAX_UNDO_SIZE);
+  }
   return {
     undoStacks: {
       ...undoStacks,
       [tabId]: {
-        undo: [...(existingStack?.undo ?? []), action],
+        undo: nextUndo,
         redo: [] as UndoAction[],
       },
     },

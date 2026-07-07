@@ -19,5 +19,5 @@ pub(super) fn format_type_ir_js(ty: &TypeIR, ts_mode: bool) -> String {
     if !ts_mode {
         return String::new();
     }
-    JsTypeFormatter.format_type(&ty.kind, &ty.type_args)
+    JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }

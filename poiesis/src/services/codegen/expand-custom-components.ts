@@ -41,7 +41,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
   const registry = getComponentDefinitions();
 
   // Check for elements that reference custom components (by componentRef OR by tag in registry)
-  const hasRefs = elements.some((el) => el.componentRef || registry[el.tag]);
+  const hasRefs = elements.some((el) => ("componentRef" in el && el.componentRef) || ("tag" in el && registry[el.tag]));
   if (!hasRefs) return elements;
 
   // Build element map (shallow clone so we can safely update children arrays)
@@ -58,7 +58,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
     foundNew = false;
     for (const [id, el] of [...elementMap]) {
       // Match by componentRef first, then by tag if the tag is in the registry
-      const compRef: string | undefined = el.componentRef || (registry?.[el.tag] ? el.tag : undefined);
+      const compRef: string | undefined = ("componentRef" in el ? el.componentRef : undefined) || ("tag" in el && registry?.[el.tag] ? el.tag : undefined);
       if (!compRef || expandedRefs.has(id)) continue;
       expandedRefs.add(id);
 
@@ -89,7 +89,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
             ? el.id
             : idMap.get(defEl.parentId ?? "") || defEl.parentId,
           children: defEl.children.map((cid) => idMap.get(cid) || cid),
-        };
+        } as unknown as ElementData;
 
         elementMap.set(newId, cloned);
         foundNew = true;
@@ -97,12 +97,15 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
       }
 
       // Append definition root IDs to the referencing element's children
-      const updatedContainer = { ...elementMap.get(id)! };
+      const container = elementMap.get(id)!;
+      const updatedContainer = { ...container };
       let changed = false;
-      for (const rootId of rootIds) {
-        if (!updatedContainer.children.includes(rootId)) {
-          updatedContainer.children = [...updatedContainer.children, rootId];
-          changed = true;
+      if ("children" in updatedContainer) {
+        for (const rootId of rootIds) {
+          if (!updatedContainer.children.includes(rootId)) {
+            updatedContainer.children = [...updatedContainer.children, rootId];
+            changed = true;
+          }
         }
       }
       if (changed) elementMap.set(id, updatedContainer);

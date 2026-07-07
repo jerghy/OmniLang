@@ -2,6 +2,7 @@
 // Orchestrates the full save pipeline.
 // Reads store state, writes .omni files via codegen pipeline, writes project.json.
 
+import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { usePoiesisStore } from "../../store";
 import { serializeProjectJson } from "./project-json";
 
@@ -29,14 +30,20 @@ export async function saveProject(projectDir: string): Promise<{ success: boolea
   try {
     const jsonStr = buildProjectJsonFromStore();
 
-    // TODO: wire Tauri fs writeFile:
-    // await writeTextFile(`${projectDir}/project.json`, jsonStr);
+    // Ensure .poiesis directory exists
+    const poiesisDir = `${projectDir}/.poiesis`;
+    try {
+      await mkdir(poiesisDir, { recursive: true });
+    } catch {
+      // Directory may already exist, that's OK
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    void projectDir;
+    const filePath = `${poiesisDir}/project.json`;
+    await writeTextFile(filePath, jsonStr);
 
     return { success: true, jsonStr };
   } catch (e) {
-    return { success: false, error: String(e) };
+    const message = e instanceof Error ? e.message : String(e);
+    return { success: false, error: message, jsonStr: "" };
   }
 }

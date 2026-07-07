@@ -1,4 +1,4 @@
-// poiesis/src/omni-gen/wire-analyzer.ts
+// poiesis/src/services/codegen/wire-analyzer.ts
 // Analyzes wire connections between elements to extract signal/ref/dep bindings.
 
 import type { ElementData, WireData } from "../../core/types";
@@ -15,6 +15,7 @@ export function analyzeWires(elements: ElementData[], wires: WireData[]): Bindin
     const src = elMap.get(w.fromId);
     const tgt = elMap.get(w.toId);
     if (!src || !tgt) continue;
+    if (!("tag" in src) || !("tag" in tgt)) continue;
 
     // signal.value → view.prop
     if ((src.tag === "signal" || src.tag === "computed") && w.fromPort === "value" && tgt.nodeType === "view") {

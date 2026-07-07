@@ -60,7 +60,7 @@ export function buildPidAnnotations(
       let finalPid = generatedPid;
       if (existingPidMap) {
         for (const [existingPid, entry] of Object.entries(existingPidMap.entries)) {
-          if (entry.blockName === node.path || entry.blockName === node.tag) {
+          if (entry.blockName === node.path || entry.blockName === (node.kind === "element" ? node.tag : node.kind)) {
             // Reuse existing PID for same path to preserve stability
             finalPid = existingPid;
             break;
@@ -71,24 +71,28 @@ export function buildPidAnnotations(
       pidAnnotations.set(node.path, {
         pid: finalPid,
         blockType,
-        blockName: node.tag,
+        blockName: node.kind === "element" ? node.tag : node.kind,
       });
 
-      if (node.children.length > 0) {
-        walk(node.children);
-      }
-
-      // Handle conditional branches
-      if (node.branches) {
-        for (const branch of node.branches) {
-          walk(branch.body);
-        }
-      }
-      if (node.fallback) {
-        walk(node.fallback);
-      }
-      if (node.emptyBody) {
-        walk(node.emptyBody);
+      // Walk children based on kind
+      switch (node.kind) {
+        case "element":
+          walk(node.children);
+          break;
+        case "if":
+          for (const branch of node.branches) {
+            walk(branch.body);
+          }
+          if (node.fallback) walk(node.fallback);
+          break;
+        case "for":
+          walk(node.children);
+          if (node.emptyBody) walk(node.emptyBody);
+          break;
+        case "slot":
+          walk(node.children);
+          break;
+        // text and interpolation are skipped above
       }
     }
   }

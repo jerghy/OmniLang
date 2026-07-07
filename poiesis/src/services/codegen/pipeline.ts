@@ -243,14 +243,31 @@ function walkAndApplyBindings(
   node: ViewNode,
   elBindings: Map<string, Record<string, string>>,
 ): void {
-  if (node.resolvedStyle) {
+  if (node.kind === "element" && node.resolvedStyle) {
     const bindings = elBindings.get(node.id);
     if (bindings) {
       node.resolvedStyle.bindings = { ...node.resolvedStyle.bindings, ...bindings };
     }
   }
-  for (const child of node.children) {
-    walkAndApplyBindings(child, elBindings);
+  switch (node.kind) {
+    case "element":
+    case "for":
+    case "slot":
+      for (const child of node.children) {
+        walkAndApplyBindings(child, elBindings);
+      }
+      break;
+    case "if":
+      for (const branch of node.branches) {
+        for (const child of branch.body) walkAndApplyBindings(child, elBindings);
+      }
+      if (node.fallback) {
+        for (const child of node.fallback) walkAndApplyBindings(child, elBindings);
+      }
+      break;
+    case "text":
+    case "interpolation":
+      break;
   }
 }
 
@@ -378,10 +395,11 @@ export function generateOmniFragment(options: {
 
   // Filter elements belonging to this component
   const componentElements = designElements.filter((el) => {
+    const ref = "componentRef" in el ? el.componentRef : undefined;
     if (componentName === "App" || componentName === "main") {
-      return !el.componentRef || el.componentRef === componentName;
+      return !ref || ref === componentName;
     }
-    return el.componentRef === componentName;
+    return ref === componentName;
   });
 
   // If no elements for this component, return empty

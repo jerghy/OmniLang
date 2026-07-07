@@ -1,12 +1,11 @@
-// @ts-nocheck — Legacy feature, needs refactoring for unified store
 import { useEffect, useCallback } from "react";
 import { usePoiesisStore } from "../store";
-import { useCodeGraphStore } from "../services/codegraph/store";
+import { useCodeGraphStore, type CodeGraphStoreState } from "../services/codegraph/store";
 import { parseOmniSource } from "../services/codegen";
 import { api } from "../commands";
 import { loadComponentDefinitionsFromServer, saveComponentDefinitionsToServer } from "../services/project/component-service";
 import { computeAutoLayout } from "../components/canvas/shared/layoutUtils";
-import type { ElementData, WireData } from "../core/types";
+import type { ElementData, WireData, ViewElementData, GroupElementData } from "../core/types";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("init");
@@ -17,9 +16,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
     (async () => {
       const proj = await api.project.getProject();
       if (proj.dir) usePoiesisStore.getState().setProjectDir(proj.dir);
-      const list = await api.project.listDir(".");
-      if (list.entries) usePoiesisStore.getState().loadFiles(list.entries);
-      setShowWelcome(true);
+      await api.project.listDir(".");
     })();
   }, [setShowWelcome]);
 
@@ -30,8 +27,8 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
-        const defs = (state as Record<string, unknown>).definitions as Record<string, Record<string, unknown>> | undefined;
-        saveComponentDefinitionsToServer(defs ?? {}).catch((e) => log.error("Failed to save component defs:", e));
+        const defs = state.componentDefs;
+        saveComponentDefinitionsToServer((defs ?? {}) as unknown as Parameters<typeof saveComponentDefinitionsToServer>[0]).catch((e) => log.error("Failed to save component defs:", e));
       }, 2000);
     });
     return () => {
@@ -56,7 +53,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
 
       (async () => {
         try {
-          const loadResult = await api.annotation.annotatedLoad("src/main.omni");
+          const loadResult = await (api.annotation as unknown as { annotatedLoad: (path: string) => Promise<{ success: boolean; source?: string; annotations?: Record<string, unknown> }> }).annotatedLoad("src/main.omni");
           if (loadResult.success && loadResult.source) {
             usePoiesisStore.setState({
               activeFileContent: loadResult.source,
@@ -69,10 +66,10 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 .filter((e: ElementData) => !e.parentId)
                 .map((e: ElementData) => e.id);
               // Compute auto-layout positions for all elements
-              const layout = computeAutoLayout(parseResult.designElements, parseResult.designWires || []);
+              const layout = computeAutoLayout(parseResult.designElements || []) as unknown as Record<string, { x: number; y: number }>;
               const positionedElements = parseResult.designElements.map((el) => ({
                 ...el,
-                position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
+                position: layout[el.id] ?? ("position" in el ? el.position : undefined) ?? { x: 100, y: 100 },
               }));
               usePoiesisStore.setState({
                 elements: positionedElements,
@@ -80,7 +77,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 rootOrder,
               });
               if (parseResult.codeTabs?.length) {
-                useCodeGraphStore.getState().loadFromData(parseResult.codeTabs);
+                (useCodeGraphStore.getState() as unknown as CodeGraphStoreState).loadFromData(parseResult.codeTabs);
               }
             }
 
@@ -94,8 +91,8 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                     if (marker) {
                       return {
                         ...el,
-                        isFolded: marker.isFolded ?? el.isFolded,
-                        renderMode: marker.renderMode || el.renderMode,
+                        ...("isFolded" in el ? { isFolded: marker.isFolded ?? (el as GroupElementData).isFolded } : {}),
+                        ...("renderMode" in el ? { renderMode: marker.renderMode || (el as ViewElementData).renderMode } : {}),
                       } as ElementData;
                     }
                     return el;
@@ -117,7 +114,7 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                     props: node.attrs || {},
                     position: { x: node.posX ?? 0, y: node.posY ?? 0 },
                     nodeType: "codeblock" as const,
-                    children: [],
+                    source: "",
                     parentId: null,
                   } as ElementData);
                 }
@@ -144,10 +141,10 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
                 const rootOrder = parseResult.designElements
                   .filter((e: ElementData) => !e.parentId)
                   .map((e: ElementData) => e.id);
-                const layout = computeAutoLayout(parseResult.designElements, parseResult.designWires || []);
+                const layout = computeAutoLayout(parseResult.designElements || []) as unknown as Record<string, { x: number; y: number }>;
                 const positionedElements = parseResult.designElements.map((el) => ({
                   ...el,
-                  position: layout[el.id] ?? el.position ?? { x: 100, y: 100 },
+                  position: layout[el.id] ?? ("position" in el ? el.position : undefined) ?? { x: 100, y: 100 },
                 }));
                 usePoiesisStore.setState({
                   elements: positionedElements,
@@ -166,21 +163,10 @@ export function useProjectInit(setShowWelcome: (v: boolean) => void) {
         try {
           const merged = await loadComponentDefinitionsFromServer();
           if (Object.keys(merged).length > 0) {
-            usePoiesisStore.setState({ definitions: merged as Record<string, Record<string, unknown>> });
+            usePoiesisStore.setState({ componentDefs: merged as unknown as Record<string, import("../core/types/project-json").ComponentDef> });
           }
         } catch (e) {
           log.warn("Failed to load component definitions:", e);
-        }
-      })();
-
-      (async () => {
-        try {
-          const tomlResult = await api.annotation.loadEditorToml();
-          if (tomlResult.state?.open_files?.length) {
-            usePoiesisStore.setState({ openTabs: tomlResult.state.open_files });
-          }
-        } catch (e) {
-          log.debug("Failed to restore editor state:", e);
         }
       })();
 

@@ -57,8 +57,9 @@ pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
 /// Compile IR to the specified target.
 ///
-/// Routes to each target's codegen module. Framework targets and
-/// stub modules return error until implemented.
+/// Routes to each target's codegen module. All 10 targets are now
+/// implemented (OmniView, Python, JavaScript, TypeScript, Rust, Dart,
+/// React, Vue, Dioxus, Flutter).
 #[must_use]
 pub fn compile(
     ir: &IRProgram,

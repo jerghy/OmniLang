@@ -17,7 +17,7 @@ export interface CompileResult {
 }
 
 export interface Diagnostic {
-  severity: string;
+  severity: "error" | "warning" | "info";
   code: string;
   message: string;
   file: string;

@@ -111,7 +111,7 @@ export function useDragHandlers() {
         if (draggedEl && targetEl && draggedEl.parentId === targetEl.parentId) {
           usePoiesisStore.getState().reorderElement(draggedId, targetId, position);
         } else if (targetEl) {
-          usePoiesisStore.getState().moveElement(draggedId, targetEl.parentId ?? (null as unknown as string), targetId, position);
+          usePoiesisStore.getState().moveElement(draggedId, targetEl.parentId ?? null, targetId, position);
         }
       }
       return;

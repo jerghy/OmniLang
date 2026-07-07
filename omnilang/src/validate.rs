@@ -38,12 +38,12 @@ pub struct MultiFileResult {
 
 /// Validate multiple .omni source files with cross-file checks.
 ///
-/// Python does all file I/O and path resolution, then passes:
+/// The Rust-native `validate_multi` receives:
 ///   - `sources`: HashMap<ResolvedAbsolutePath, SourceText>
 ///   - `path_mapping`: HashMap<OriginalImportPath, ResolvedAbsolutePath>
 ///
-/// The compiler parses all files, resolves cross-file imports using the mapping,
-/// validates visibility and cycles. Codegen is done separately in Python.
+/// It parses all files, resolves cross-file imports using the mapping,
+/// validates visibility and cycles, then returns results for downstream codegen.
 #[must_use]
 pub fn validate_multi(
     sources: HashMap<String, String>,
@@ -159,14 +159,12 @@ fn validate_file_consistency(file_path: &str, program: &Program) -> Result<(), V
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 enum CrossFileSymbolKind {
     Function,
     Struct,
     TypeAlias,
     Component,
     Store,
-    Theme, // reserved for future theme support
     ReExport(String),
 }
 

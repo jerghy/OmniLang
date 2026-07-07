@@ -12,9 +12,8 @@ pub(crate) fn has_trigger_kind_in_view(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
             if el
-                .motion_triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::InView))
+                .motion_behavior()
+                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::InView)))
             {
                 return true;
             }
@@ -49,9 +48,8 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
             if el
-                .motion_triggers
-                .iter()
-                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+                .motion_behavior()
+                .map_or(false, |m| m.triggers.iter().any(|t| matches!(t.kind, TriggerKind::Scroll)))
             {
                 return true;
             }
@@ -323,12 +321,12 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
 pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
-            if el.motion_triggers.iter().any(|t| {
+            if el.motion_behavior().map_or(false, |m| m.triggers.iter().any(|t| {
                 matches!(
                     t.kind,
                     TriggerKind::DragHorizontal | TriggerKind::DragVertical
                 )
-            }) {
+            })) {
                 return true;
             }
             el.children.iter().any(has_trigger_kind_drag)

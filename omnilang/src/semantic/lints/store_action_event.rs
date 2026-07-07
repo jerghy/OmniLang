@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use super::{LintDiagnostic, LintRule, LintSeverity};
-use crate::ir::{EventHandlerKind, IRProgram, ViewTree};
+use crate::ir::{EventHandlerIR, IRProgram, ViewTree};
 
 pub struct StoreActionEventData;
 
@@ -46,27 +46,24 @@ fn check_view_store_actions(
 ) {
     if let ViewTree::Element(el) = tree {
         for handler in el.events.values() {
-            if handler.kind == EventHandlerKind::StoreAction
-                && handler.used_fields.is_some()
-                && !handler
-                    .used_fields
-                    .as_ref()
-                    .expect("used_fields is Some as checked above")
-                    .is_empty()
-            {
-                diags.push(LintDiagnostic {
-                    rule: rule.name().into(),
-                    severity: rule.severity(),
-                    message: format!(
-                        "Store action `{}` cannot access event data. \
+            if let EventHandlerIR::StoreAction { r#ref, .. } = handler {
+                // StoreAction type cannot hold used_fields, so we check event_data
+                // as an indicator that event data was referenced.
+                if handler.event_data().is_some() {
+                    diags.push(LintDiagnostic {
+                        rule: rule.name().into(),
+                        severity: rule.severity(),
+                        message: format!(
+                            "Store action `{}` cannot access event data. \
                              Store actions receive no arguments. \
                              Use an inline handler or fn_ref instead.",
-                        handler.r#ref.as_deref().unwrap_or("?")
-                    ),
-                    file: comp_file.to_string(),
-                    line: el.source_line,
-                    col: el.source_col,
-                });
+                            r#ref
+                        ),
+                        file: comp_file.to_string(),
+                        line: el.source_line,
+                        col: el.source_col,
+                    });
+                }
             }
         }
         for child in &el.children {
@@ -80,7 +77,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::{
-        ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR, EventHandlerKind,
+        BlockIR, ComponentIR, ConstructionKind, ElementIR, EventDataKind, EventHandlerIR,
         IRProgram, ModuleIR, ViewTree,
     };
 
@@ -138,15 +135,9 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onClick".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::StoreAction,
-                    body: None,
-                    r#ref: Some("MyStore.increment".into()),
-                    params: vec![],
+                EventHandlerIR::StoreAction {
+                    r#ref: "MyStore.increment".into(),
                     event_data: Some(EventDataKind::PointerEvent),
-                    used_fields: Some(vec!["x".into()]),
-                    needs_prevent_default: false,
-                    needs_stop_propagation: false,
                 },
             )]
             .into_iter()
@@ -160,25 +151,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 5,
             source_col: 3,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("App", view);
 
@@ -204,15 +180,9 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onClick".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::StoreAction,
-                    body: None,
-                    r#ref: Some("MyStore.increment".into()),
-                    params: vec![],
+                EventHandlerIR::StoreAction {
+                    r#ref: "MyStore.increment".into(),
                     event_data: None,
-                    used_fields: None,
-                    needs_prevent_default: false,
-                    needs_stop_propagation: false,
                 },
             )]
             .into_iter()
@@ -226,25 +196,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("App", view);
 
@@ -263,10 +218,8 @@ mod tests {
             bindings: HashMap::new(),
             events: [(
                 "onClick".into(),
-                EventHandlerIR {
-                    kind: EventHandlerKind::InlineFn,
-                    body: None,
-                    r#ref: None,
+                EventHandlerIR::InlineFn {
+                    body: BlockIR { statements: vec![] },
                     params: vec![],
                     event_data: Some(EventDataKind::PointerEvent),
                     used_fields: Some(vec!["x".into(), "y".into()]),
@@ -285,25 +238,10 @@ mod tests {
             class_map_bindings: HashMap::new(),
             source_line: 0,
             source_col: 0,
-            motion_triggers: vec![],
-            states: None,
-            paused_override: None,
-            driven_by: None,
-            hover_reverse: None,
-            in_view_once: None,
-            in_view_repeat: None,
-            in_view_threshold: None,
-            scroll_start: None,
-            scroll_end: None,
-            scroll_scrub: None,
-            drag_constraints: None,
-            drag_elastic: None,
-            drag_scrub: None,
-            drag_momentum: None,
-            drag_threshold: None,
-            drag_velocity_max: None,
-            hero_tag: None,
-            hero_transition: None,
+            motion: None,
+            scroll: None,
+            drag: None,
+            hero: None,
         }));
         let ir = make_test_ir_with_view("App", view);
 

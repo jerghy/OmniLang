@@ -30,7 +30,7 @@ const COMMON_STYLES = [
 ];
 
 function buildLocalStyles(element: ElementData): Record<string, string> {
-  const existingProperties = element.style?.inlineProperties ?? [];
+  const existingProperties = "style" in element ? (element.style?.inlineProperties ?? []) : [];
   const initial: Record<string, string> = {};
   for (const p of existingProperties) {
     if (

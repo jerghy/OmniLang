@@ -4,12 +4,7 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Visibility {
-    Public,
-    Private,
-}
+pub use super::visibility::Visibility;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionIR {

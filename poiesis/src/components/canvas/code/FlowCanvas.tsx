@@ -13,7 +13,7 @@ import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
 import { useCodeElements, useWires } from "../../../store/hooks";
 import { uid } from "../../../core/utils/id";
-import type { ElementData } from "../../../core/types/element";
+import type { CodeblockElementData } from "../../../core/types/element";
 import { FunctionHeaderNode } from "./nodes/FunctionHeaderNode";
 import { SkeletonNode } from "./nodes/SkeletonNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
@@ -48,9 +48,9 @@ function FlowCanvasInner() {
   const registeredFns = useMemo(() => {
     const registered = new Set<string>();
     for (const el of elements) {
-      if (el.tag === "customFn" && el.config?.fnName) {
+      if (el.nodeType === "codeblock" && el.tag === "customFn" && el.config?.fnName) {
         registered.add(el.config.fnName as string);
-      } else if (el.tag === "fn" && el.props?.name) {
+      } else if ("tag" in el && "props" in el && el.tag === "fn" && el.props?.name) {
         registered.add(el.props.name as string);
       }
     }
@@ -124,14 +124,14 @@ function FlowCanvasInner() {
         props.literal = "''";
       }
 
-      const newEl: ElementData = {
+      const newEl: CodeblockElementData = {
         id,
-        nodeType: "codeblock" as const,
+        nodeType: "codeblock",
         tag,
         props,
-        children: [],
         parentId: null,
         position: { x: contextMenu.flowX + jitter, y: contextMenu.flowY + jitter },
+        source: "",
         ...(Object.keys(config).length > 0 ? { config } : {}),
       };
       addElement(newEl);
@@ -195,8 +195,8 @@ function FlowCanvasInner() {
       e.preventDefault();
       for (const id of ids) {
         const el = elementsRef.current.find((x) => x.id === id);
-        if (el) {
-          const pos = el.position || { x: 0, y: 0 };
+        if (el && "position" in el) {
+          const pos = el.position ?? { x: 0, y: 0 };
           setElementPosition(id, { x: pos.x + dx, y: pos.y + dy });
         }
       }
@@ -231,7 +231,7 @@ function FlowCanvasInner() {
   // the nodeType guard, deleting a code-flow node would cascade-delete the
   // OmniView root element and all its children.
   const codeElements = useMemo(
-    () => elements.filter((e) => e.nodeType === "codeblock" && CODE_TAGS.has(e.tag)),
+    () => elements.filter((e): e is CodeblockElementData => e.nodeType === "codeblock" && CODE_TAGS.has(e.tag)),
     [elements],
   );
 
@@ -247,7 +247,7 @@ function FlowCanvasInner() {
               : el.tag === "return"
                 ? "return"
                 : "code-block",
-        position: el.position || { x: 0, y: 0 },
+        position: el.position ?? { x: 0, y: 0 },
         data: {
           label: TAG_CN[el.tag] || el.tag,
           source: el.source,

@@ -1,5 +1,5 @@
-// poiesis/src/omni-gen/style-resolver.ts
-import type { ResolvedStyle, ViewNode } from "./types";
+// poiesis/src/services/codegen/style-resolver.ts
+import type { ResolvedStyle, ElementViewNode } from "./types";
 
 interface TagMapping {
   tag: string;
@@ -48,7 +48,7 @@ const STYLE_PROPS: Record<string, string[]> = {
   Progress: ["width"],
 };
 
-export function resolveStyle(node: ViewNode): ResolvedStyle {
+export function resolveStyle(node: ElementViewNode): ResolvedStyle {
   const mapping = TAG_HTML_MAP[node.tag];
   const htmlTag = mapping ? mapping.tag : node.tag;
 

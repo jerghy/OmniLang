@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/dioxus.rs
-assertion_line: 44
 expression: "&format_output(&output)"
 ---
 === CounterWithStore.rs ===
@@ -17,9 +16,9 @@ pub fn CounterWithStore() -> Element {
 
     rsx! {
         div {
-            onClick: move |_| { /* TODO: action AppStore.increment */ },
+            onClick: move |_| { AppStore.increment(); },
             "Count: ",
-            "{}",
+            "AppStore.count",
         }
     }
 }
