@@ -70,35 +70,14 @@ theme AppTheme {
 }
 ```
 
-**编译器输出：**
+**Poiesis 内部行为：** 用户通过 Poiesis Token 编辑器管理 token 值，保存时：
 
-```css
-:root {
-  --color-primary: #6366f1;
-  --color-surface: #ffffff;
-  --color-text: #111827;
-  --color-border: #d4d4d8;
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-}
-
-[data-theme="dark"] {
-  --color-primary: #a5b4fc;
-  --color-surface: #111827;
-  --color-text: #f9fafb;
-  --color-border: #4b5563;
-}
-```
+- 组件 `.omni` 中 token 引用写成 `var(--color-primary)`——omnic 原样透传
+- `theme.omni` 中写 `theme AppTheme { }` 块——omnic 能解析不报错
+- CSS 变量解析靠运行时——沿用 learn-omniview 已有模式（ThemeStore + `style: { --var: signal }` → `setProperty()`），无需 omnic 改动
 
 **命名约定：** `{category}-{key}` → `--color-primary`, `--spacing-md`, `--radius-lg`
 嵌套 token (`gray.50`) → `--color-gray-50`
-
-**引用方式（与现在一致）：** `var(--color-primary)` — 编译器检查引用 token 是否存在，给出警告
 
 ### 3.2 Layer 2: Style Recipes (`recipes/*.omni`)
 
