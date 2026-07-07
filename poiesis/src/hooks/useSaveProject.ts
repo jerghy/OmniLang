@@ -13,8 +13,10 @@ const log = createLogger("save");
 export function useSaveProject() {
   const markClean = usePoiesisStore((s) => s.markClean);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
+    setSaveError(null);
     setSaving(true);
     try {
       const store = usePoiesisStore.getState();
@@ -23,12 +25,26 @@ export function useSaveProject() {
         ? store.designPage.openTabs.find((t) => t.id === activeTabId)
         : null;
 
-      // ── 0. Design tab save path: write design.omni directly ──
-      if (activeTab?.tabType === "design") {
+      // ── 0. Always save design.omni if design state is non-empty ──
+      // Design state (activeDesign) is global, not per-tab, so we must persist
+      // it regardless of which tab is currently active.
+      const hasDesignContent =
+        store.activeDesign?.tokens?.length ||
+        store.activeDesign?.classes?.length ||
+        store.activeDesign?.variants?.length;
+      if (hasDesignContent) {
         const { emitDesignSource } = await import("../services/codegen/design-emitter");
         const source = emitDesignSource(store.activeDesign);
-        await api.project.writeFile(activeTab.filePath || "src/design.omni", source);
-        const result = await api.annotation.saveProject(); // still save project.json for editor metadata
+        const designFilePath = activeTab?.tabType === "design" && activeTab?.filePath
+          ? activeTab.filePath
+          : "src/design.omni";
+        await api.project.writeFile(designFilePath, source);
+      }
+
+      // If we're on the design tab, design.omni save above is sufficient.
+      // Skip component file generation (elements/wires are from a different tab).
+      if (activeTab?.tabType === "design") {
+        const result = await api.annotation.saveProject();
         if (result.ok) markClean();
         return;
       }
@@ -91,10 +107,11 @@ export function useSaveProject() {
       }
     } catch (e) {
       log.error("failed:", e);
+      setSaveError(String(e));
     } finally {
       setSaving(false);
     }
   }, [markClean]);
 
-  return { saving, handleSave };
+  return { saving, saveError, handleSave };
 }

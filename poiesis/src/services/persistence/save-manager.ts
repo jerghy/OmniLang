@@ -32,11 +32,7 @@ export async function saveProject(projectDir: string): Promise<{ success: boolea
 
     // Ensure .poiesis directory exists
     const poiesisDir = `${projectDir}/.poiesis`;
-    try {
-      await mkdir(poiesisDir, { recursive: true });
-    } catch {
-      // Directory may already exist, that's OK
-    }
+    await mkdir(poiesisDir, { recursive: true });
 
     const filePath = `${poiesisDir}/project.json`;
     await writeTextFile(filePath, jsonStr);

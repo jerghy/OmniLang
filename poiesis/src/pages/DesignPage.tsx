@@ -58,7 +58,7 @@ export function DesignPage() {
   // Side panels are visible only for component tabs NOT in code-flow mode
   const showSidePanels = activeTabType === "component" && !codeFlowVisible;
 
-  const { saving, handleSave } = useSaveProject();
+  const { saving, saveError, handleSave } = useSaveProject();
   const { handleDragStart, handleDragMove, handleDragEnd, activeComponent, activeTreeId, treeDropState } = useDragHandlers();
 
   // ── @dnd-kit sensors (unified context handles both palette and tree drags) ──
@@ -131,21 +131,22 @@ export function DesignPage() {
           >
             {saving ? "⏳" : "💾"}
           </button>
-          <button
-            title="CSS 样式设计"
-            style={{
-              padding: "2px 10px",
-              fontSize: 12,
-              border: "1px solid #d1d5db",
-              borderRadius: 4,
-              background: "#fff",
-              cursor: "pointer",
-              color: "#6366F1",
-              fontWeight: 600,
-            }}
-          >
-            🎨 CSS 样式
-          </button>
+          {saveError && (
+            <span
+              title={saveError}
+              style={{
+                marginLeft: 8,
+                fontSize: 12,
+                color: "#dc2626",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 300,
+              }}
+            >
+              ⚠ {saveError}
+            </span>
+          )}
         </div>
 
         {/* Left panel: ComponentPalette + ComponentTree (component tabs, hidden in code-flow mode) */}
@@ -181,6 +182,7 @@ export function DesignPage() {
             gridColumn: showSidePanels ? 2 : "1 / -1",
             overflow: "hidden",
             display: "flex",
+            flexDirection: "column",
             background: "#f1f5f9",
           }}
         >
