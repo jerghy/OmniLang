@@ -15,8 +15,38 @@
 //! | `DioxusStmtFormatter` | Dioxus | `let`, `Default::default()`, bare for-in, `.set()` mutations |
 //! | `PythonStmtFormatter` | Python | bare name, `None`, no semicolons, `elif` keyword |
 
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue",
+    feature = "codegen-dart",
+    feature = "codegen-flutter",
+    feature = "codegen-rust",
+    feature = "codegen-dioxus",
+    feature = "codegen-python"
+))]
 use crate::codegen::shared::expr::FormatExpr;
+#[cfg_attr(not(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue",
+    feature = "codegen-dart",
+    feature = "codegen-flutter",
+    feature = "codegen-rust",
+    feature = "codegen-dioxus",
+    feature = "codegen-python"
+)), allow(unused_imports))]
 use crate::codegen::CodeWriter;
+#[cfg_attr(not(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue",
+    feature = "codegen-dart",
+    feature = "codegen-flutter",
+    feature = "codegen-rust",
+    feature = "codegen-dioxus",
+    feature = "codegen-python"
+)), allow(unused_imports))]
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -27,7 +57,16 @@ use crate::ir::*;
 ///
 /// Default implementations produce C-family syntax (JS/Dart/Rust style).
 /// Backends override only the methods that differ.
-#[allow(dead_code)]
+#[cfg(any(
+    feature = "codegen-javascript",
+    feature = "codegen-react",
+    feature = "codegen-vue",
+    feature = "codegen-dart",
+    feature = "codegen-flutter",
+    feature = "codegen-rust",
+    feature = "codegen-dioxus",
+    feature = "codegen-python"
+))]
 pub(crate) trait FormatStmt {
     /// The expression formatter used by this statement formatter.
     type ExprFormatter: FormatExpr;

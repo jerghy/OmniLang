@@ -231,7 +231,19 @@ impl OmniCompiler {
         }
         let result = if self.sources.len() == 1 {
             // Single file: use compile_omniview_full for full result with IR
-            let source = self.sources.values().next().expect("len checked above");
+            let source = match self.sources.values().next() {
+                Some(s) => s,
+                None => {
+                    return serde_json::json!({
+                        "success": false,
+                        "files": null,
+                        "components": null,
+                        "source_map": null,
+                        "errors": [{"message": "no source files in compiler"}]
+                    })
+                    .to_string()
+                }
+            };
             let opts = match parse_options_or_error(options_json) {
                 Ok(o) => o,
                 Err(error_json) => return error_json,
