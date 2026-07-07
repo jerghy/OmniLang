@@ -1,7 +1,7 @@
 // components/panels/inspector/StylesSection.tsx
 // Inline style editor with simple key-value pair rows.
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
 import type { StyleProperty } from "../../../core/types/style";
@@ -58,8 +58,6 @@ export function StylesSection({ element }: StylesSectionProps) {
     setLocalStyles(buildLocalStyles(element));
   }
 
-  const [addingStyle, setAddingStyle] = useState<string>("");
-
   const commitStyles = useCallback(
     (updated: Record<string, string>) => {
       const properties: StyleProperty[] = Object.entries(updated)
@@ -74,21 +72,41 @@ export function StylesSection({ element }: StylesSectionProps) {
     [element.id, setElementInlineStyles]
   );
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestStylesRef = useRef(localStyles);
+
+  const debouncedCommitStyles = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      commitStyles(latestStylesRef.current);
+    }, 200);
+  }, [commitStyles]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const [addingStyle, setAddingStyle] = useState<string>("");
+
   const handleChange = useCallback(
     (styleName: string, value: string) => {
       setLocalStyles((prev) => {
         const updated = { ...prev, [styleName]: value };
-        commitStyles(updated);
+        latestStylesRef.current = updated;
         return updated;
       });
+      debouncedCommitStyles();
     },
-    [commitStyles]
+    [debouncedCommitStyles]
   );
 
   const handleRemove = useCallback(
     (styleName: string) => {
       setLocalStyles((prev) => {
         const { [styleName]: _, ...rest } = prev;
+        latestStylesRef.current = rest;
         commitStyles(rest);
         return rest;
       });

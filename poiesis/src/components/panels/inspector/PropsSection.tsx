@@ -1,7 +1,7 @@
 // components/panels/inspector/PropsSection.tsx
 // Editable form for element properties (id, class binding, label, etc.).
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
 
@@ -37,12 +37,30 @@ export function PropsSection({ element }: PropsSectionProps) {
     setLocalProps(buildLocalProps(element));
   }
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedSetProp = useCallback(
+    (id: string, prop: string, value: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        setProp(id, prop, value);
+      }, 200);
+    },
+    [setProp]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const handleChange = useCallback(
     (propName: string, value: string) => {
       setLocalProps((prev) => ({ ...prev, [propName]: value }));
-      setProp(element.id, propName, value);
+      debouncedSetProp(element.id, propName, value);
     },
-    [element.id, setProp]
+    [element.id, debouncedSetProp]
   );
 
   // Compute which props are relevant based on tag
