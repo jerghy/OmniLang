@@ -659,8 +659,13 @@ impl OmniViewGenerator {
                 let js_expr = self.expr_to_js(expr);
                 class_map.insert(class_name.clone(), serde_json::Value::String(js_expr));
             }
-            if let Ok(json) = serde_json::to_string(&class_map) {
-                attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+            match serde_json::to_string(&class_map) {
+                Ok(json) => {
+                    attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+                }
+                Err(e) => {
+                    eprintln!("warning: failed to serialize class_map: {}", e);
+                }
             }
         }
 
@@ -685,8 +690,13 @@ impl OmniViewGenerator {
                         let js_expr = self.expr_to_js(expr);
                         class_map.insert(class_name.clone(), serde_json::Value::String(js_expr));
                     }
-                    if let Ok(json) = serde_json::to_string(&class_map) {
-                        attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+                    match serde_json::to_string(&class_map) {
+                        Ok(json) => {
+                            attrs.push_str(&format!(" data-class-expr=\"{}\"", escape_html(&json)));
+                        }
+                        Err(e) => {
+                            eprintln!("warning: failed to serialize class_map: {}", e);
+                        }
                     }
                 } else {
                     for (class_name, expr) in &el.class_map_bindings {

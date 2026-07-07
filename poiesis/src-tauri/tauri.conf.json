@@ -24,10 +24,10 @@
   },
   "plugins": {
     "fs": {
-      "scope": ["$RESOURCE/**", "$APPDATA/**"]
+      "requireLiteralLeadingDot": false
     },
     "shell": {
-      "scope": []
+      "open": true
     }
   }
 }

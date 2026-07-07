@@ -16,11 +16,31 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
     openTab: (filePath: string, componentName: string, tabType: import("../core/types/design-page").TabType = "component") => set((s) => {
       const existing = s.designPage.openTabs.find(t => t.filePath === filePath);
       if (existing) {
-        // Restore the existing tab's canvas data from tabData
+        const oldTabId = s.designPage.activeTabId;
         const td = s.tabData[existing.id];
+        // Save current tab's data before switching (if different tab)
+        const saveEntry = oldTabId && oldTabId !== existing.id
+          ? {
+              elements: s.elements,
+              wires: s.wires,
+              rootOrder: s.rootOrder,
+              selectedElementIds: s.selectedElementIds,
+              codeFlowVisible: s.designPage.codeFlowVisible,
+              codeFlowElementId: s.designPage.codeFlowElementId,
+            }
+          : undefined;
+        const updatedTabData = saveEntry
+          ? { ...s.tabData, [oldTabId!]: { ...s.tabData[oldTabId!], ...saveEntry } }
+          : s.tabData;
         return {
           currentPage: "design",
-          designPage: { ...s.designPage, activeTabId: existing.id },
+          designPage: {
+            ...s.designPage,
+            activeTabId: existing.id,
+            codeFlowVisible: td?.codeFlowVisible ?? false,
+            codeFlowElementId: td?.codeFlowElementId ?? null,
+          },
+          tabData: updatedTabData,
           elements: td?.elements ?? s.elements,
           wires: td?.wires ?? s.wires,
           rootOrder: td?.rootOrder ?? s.rootOrder,
@@ -34,10 +54,17 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
         pidMap: { entries: {}, lineToPid: {} },
         tabType,
       };
-      // Save current tab's data before switching to new tab
+      // Save current tab's data before switching to new tab (including code flow view state)
       const oldTabId = s.designPage.activeTabId;
       const saveEntry = oldTabId
-        ? { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds }
+        ? {
+            elements: s.elements,
+            wires: s.wires,
+            rootOrder: s.rootOrder,
+            selectedElementIds: s.selectedElementIds,
+            codeFlowVisible: s.designPage.codeFlowVisible,
+            codeFlowElementId: s.designPage.codeFlowElementId,
+          }
         : undefined;
       const updatedTabData = saveEntry
         ? { ...s.tabData, [oldTabId!]: saveEntry }
@@ -49,6 +76,8 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
           openTabs: [...s.designPage.openTabs, newTab],
           tabOrder: [...s.designPage.tabOrder, id],
           activeTabId: id,
+          codeFlowVisible: false,
+          codeFlowElementId: null,
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
         tabData: updatedTabData,
@@ -72,7 +101,14 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
       }
       // Save current canvas state for the tab being closed BEFORE removing its data.
       // This ensures unsaved canvas state is persisted in tabData for undo/redo history.
-      const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
+      const saveEntry = {
+        elements: s.elements,
+        wires: s.wires,
+        rootOrder: s.rootOrder,
+        selectedElementIds: s.selectedElementIds,
+        codeFlowVisible: s.designPage.codeFlowVisible,
+        codeFlowElementId: s.designPage.codeFlowElementId,
+      };
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
       // Clean up the closed tab's data
       const { [tabId]: _, ...restTabData } = tabDataWithSave;
@@ -93,7 +129,14 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
       // If a neighbor tab becomes active, restore its data
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       return {
-        designPage: { ...s.designPage, openTabs: newTabs, tabOrder: newOrder, activeTabId },
+        designPage: {
+          ...s.designPage,
+          openTabs: newTabs,
+          tabOrder: newOrder,
+          activeTabId,
+          codeFlowVisible: restoreEntry?.codeFlowVisible ?? false,
+          codeFlowElementId: restoreEntry?.codeFlowElementId ?? null,
+        },
         tabData: prunedTabData,
         elements: restoreEntry?.elements ?? (activeTabId ? [] : s.elements),
         wires: restoreEntry?.wires ?? (activeTabId ? [] : s.wires),
@@ -105,15 +148,27 @@ export function createTabSlice(set: SetFn, _get: GetFn) {
     switchTab: (tabId: string) => set((s) => {
       const oldTabId = s.designPage.activeTabId;
       if (oldTabId === tabId) return s;
-      // Save current tab's data into tabData
-      const saveEntry = { elements: s.elements, wires: s.wires, rootOrder: s.rootOrder, selectedElementIds: s.selectedElementIds };
+      // Save current tab's data into tabData (including code flow view state)
+      const saveEntry = {
+        elements: s.elements,
+        wires: s.wires,
+        rootOrder: s.rootOrder,
+        selectedElementIds: s.selectedElementIds,
+        codeFlowVisible: s.designPage.codeFlowVisible,
+        codeFlowElementId: s.designPage.codeFlowElementId,
+      };
       const savedTabData = oldTabId
         ? { [oldTabId]: saveEntry }
         : {};
       // Restore target tab's data (or empty if not yet loaded)
       const restoreEntry = s.tabData[tabId];
       return {
-        designPage: { ...s.designPage, activeTabId: tabId },
+        designPage: {
+          ...s.designPage,
+          activeTabId: tabId,
+          codeFlowVisible: restoreEntry?.codeFlowVisible ?? false,
+          codeFlowElementId: restoreEntry?.codeFlowElementId ?? null,
+        },
         tabData: { ...s.tabData, ...savedTabData },
         elements: restoreEntry?.elements ?? [],
         wires: restoreEntry?.wires ?? [],

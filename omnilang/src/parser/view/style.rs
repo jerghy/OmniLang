@@ -529,6 +529,12 @@ pub(super) fn try_consume_dimension_part(parser: &mut Parser, val: f64) -> Style
 }
 
 /// Try to parse a string like "16px" into (16.0, "px").
+///
+/// Returns `None` when the string does not match any known CSS unit suffix,
+/// or when the numeric portion cannot be parsed as an `f64`. Callers that
+/// receive `None` should fall back to treating the value as a raw CSS literal
+/// (e.g. `var(--x)`, `calc(...)`, or an unrecognized custom function) rather
+/// than silently skipping the style declaration.
 pub(super) fn try_parse_dimension(s: &str) -> Option<(f64, String)> {
     let units = [
         "px", "rem", "em", "vh", "vw", "%", "pt", "cm", "mm", // CSS Grid

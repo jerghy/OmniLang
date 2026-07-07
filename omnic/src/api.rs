@@ -17,12 +17,21 @@ pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, Strin
     if paths.is_empty() {
         for dir in &["src", "."] {
             let pattern = format!("{dir}/**/*.omni");
-            let mut found: Vec<_> = glob::glob(&pattern)
-                .ok()
-                .into_iter()
-                .flatten()
-                .filter_map(|r| r.ok())
-                .collect();
+            let mut found: Vec<_> = match glob::glob(&pattern) {
+                Ok(entries) => entries
+                    .filter_map(|r| match r {
+                        Ok(path) => Some(path),
+                        Err(e) => {
+                            eprintln!("warning: glob read error for '{}': {}", pattern, e);
+                            None
+                        }
+                    })
+                    .collect(),
+                Err(e) => {
+                    eprintln!("warning: invalid glob pattern '{}': {}", pattern, e);
+                    Vec::new()
+                }
+            };
             found.sort();
             if !found.is_empty() {
                 source_files = found;
@@ -34,12 +43,21 @@ pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, Strin
             let path = Path::new(p);
             if path.is_dir() {
                 let pattern = format!("{p}/**/*.omni");
-                let found: Vec<_> = glob::glob(&pattern)
-                    .ok()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|r| r.ok())
-                    .collect();
+                let found: Vec<_> = match glob::glob(&pattern) {
+                    Ok(entries) => entries
+                        .filter_map(|r| match r {
+                            Ok(path) => Some(path),
+                            Err(e) => {
+                                eprintln!("warning: glob read error for '{}': {}", pattern, e);
+                                None
+                            }
+                        })
+                        .collect(),
+                    Err(e) => {
+                        eprintln!("warning: invalid glob pattern '{}': {}", pattern, e);
+                        Vec::new()
+                    }
+                };
                 source_files.extend(found);
             } else if path.exists() {
                 source_files.push(path.to_path_buf());

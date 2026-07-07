@@ -465,9 +465,13 @@ impl Lexer {
                                 if self.peek() == Some('}') {
                                     self.advance();
                                 }
-                                if let Ok(code) = u32::from_str_radix(&hex, 16) {
-                                    if let Some(c) = char::from_u32(code) {
-                                        s.push(c);
+                                match u32::from_str_radix(&hex, 16) {
+                                    Ok(code) => match char::from_u32(code) {
+                                        Some(c) => s.push(c),
+                                        None => s.push('\u{FFFD}'),
+                                    },
+                                    Err(_) => {
+                                        s.push_str(&format!("\\u{{{}}}", hex));
                                     }
                                 }
                             }

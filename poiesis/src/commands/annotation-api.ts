@@ -3,7 +3,7 @@
 // Replaces the old annotatedLoad/annotatedSave with v2 PID-based versions.
 // Implemented via Tauri plugin-fs for file I/O
 
-import { readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, mkdir, remove } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
 import type { EditorTomlState } from "../core/types/annotation";
 import type { PidMap, PidEntry } from "../core/types/pid";
@@ -119,12 +119,33 @@ export function createAnnotationApi() {
         const dir = await resolveProjectDir();
         if (!dir) return { ok: false, error: "未设置项目目录" };
         const path = joinPath(dir, COMPONENT_DEFS_FILE);
-        const content = await readTextFile(path);
-        const defs = JSON.parse(content) as Record<string, unknown>;
+        let defs: Record<string, unknown> = {};
+        try {
+          const content = await readTextFile(path);
+          defs = JSON.parse(content) as Record<string, unknown>;
+        } catch {
+          // File doesn't exist yet — nothing to clean up, still success
+        }
         for (const name of names) {
           delete defs[name];
         }
+        await ensurePoiesisDir(dir);
         await writeTextFile(path, JSON.stringify(defs, null, 2));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    /** Delete the .omni source file for a custom component. */
+    async deleteComponentFile(
+      componentName: string,
+    ): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const dir = await resolveProjectDir();
+        if (!dir) return { ok: false, error: "未设置项目目录" };
+        const filePath = joinPath(dir, `src/components/${componentName}.omni`);
+        await remove(filePath);
         return { ok: true };
       } catch (e) {
         return { ok: false, error: String(e) };

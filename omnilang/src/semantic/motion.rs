@@ -247,13 +247,22 @@ pub(super) fn contains_velocity_stmt(stmt: &Stmt) -> bool {
 }
 
 /// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
-pub(super) fn parse_duration_ms(val: &str) -> Option<f64> {
+/// Returns `Err` with a description if the value cannot be parsed.
+pub(super) fn parse_duration_ms(val: &str) -> Result<f64, String> {
     let val = val.trim();
     if let Some(ms_part) = val.strip_suffix("ms") {
-        ms_part.parse::<f64>().ok()
+        ms_part
+            .parse::<f64>()
+            .map_err(|_| format!("invalid number in duration: '{}'", val))
     } else if let Some(s_part) = val.strip_suffix('s') {
-        s_part.parse::<f64>().ok().map(|s| s * 1000.0)
+        s_part
+            .parse::<f64>()
+            .map(|s| s * 1000.0)
+            .map_err(|_| format!("invalid number in duration: '{}'", val))
     } else {
-        None
+        Err(format!(
+            "invalid duration format: '{}' (expected e.g. '300ms' or '1.5s')",
+            val
+        ))
     }
 }

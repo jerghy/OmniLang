@@ -40,6 +40,8 @@ export interface PoiesisState {
     wires: WireData[];
     rootOrder: string[];
     selectedElementIds: string[];
+    codeFlowVisible?: boolean;
+    codeFlowElementId?: string | null;
   }>;
 
   // ── Component definitions (parsed from .omni, cached) ──

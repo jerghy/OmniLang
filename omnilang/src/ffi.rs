@@ -314,12 +314,14 @@ pub unsafe extern "C" fn omni_compile_multi_to_target(
     if warnings.is_empty() {
         rust_to_c_string(result)
     } else {
-        let mut response: serde_json::Value =
-            serde_json::from_str(&result).unwrap_or(serde_json::json!({
+        let mut response: serde_json::Value = match serde_json::from_str(&result) {
+            Ok(v) => v,
+            Err(e) => serde_json::json!({
                 "success": false,
                 "files": {},
-                "errors": []
-            }));
+                "errors": [{"severity":"error","code":"E_SERIALIZE","message":format!("Failed to deserialize compile result: {}", e)}]
+            }),
+        };
         response["warnings"] = serde_json::json!(warnings);
         rust_to_c_string(response.to_string())
     }
