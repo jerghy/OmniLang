@@ -2,8 +2,9 @@
 //!
 //! Mirrors Python `omnilang/api.py` and `omnilang/rust_bridge.py`.
 
-use std::collections::HashMap;
 use std::path::Path;
+
+use rustc_hash::FxHashMap;
 
 /// Collect .omni source files from the given paths.
 ///
@@ -11,7 +12,7 @@ use std::path::Path;
 /// - Empty list: auto-discover `src/**/*.omni` then `./*.omni`
 /// - Directories: glob `**/*.omni` inside them
 /// - Files: added directly
-pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, String>> {
+pub fn collect_sources(paths: &[String]) -> anyhow::Result<FxHashMap<String, String>> {
     let mut source_files: Vec<std::path::PathBuf> = Vec::new();
 
     if paths.is_empty() {
@@ -71,7 +72,7 @@ pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, Strin
         anyhow::bail!("No .omni files found. Specify file(s) or run from a project directory.");
     }
 
-    let mut sources = HashMap::new();
+    let mut sources = FxHashMap::default();
     for f in &source_files {
         let content = std::fs::read_to_string(f)
             .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", f.display()))?;
@@ -86,7 +87,7 @@ pub fn collect_sources(paths: &[String]) -> anyhow::Result<HashMap<String, Strin
 ///
 /// Mirrors Python `_detect_target()` in cli.py:120.
 /// Priority: --target flag > auto-detect (UI or logic).
-pub fn detect_target(sources: &HashMap<String, String>, preferred: Option<&str>) -> String {
+pub fn detect_target(sources: &FxHashMap<String, String>, preferred: Option<&str>) -> String {
     if let Some(t) = preferred {
         return t.to_string();
     }
@@ -109,7 +110,7 @@ pub fn detect_target(sources: &HashMap<String, String>, preferred: Option<&str>)
 /// Accepts the same JSON shape:
 ///   { "sources": { path: source, ... }, "path_mapping": { ... } }
 pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
-    let sources: HashMap<String, String> = match request["sources"].as_object() {
+    let sources: FxHashMap<String, String> = match request["sources"].as_object() {
         Some(s) => s
             .iter()
             .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
@@ -117,13 +118,13 @@ pub fn analyse_direct(request: serde_json::Value) -> serde_json::Value {
         None => return serde_json::json!({ "success": false, "diagnostics": [] }),
     };
 
-    let path_mapping: HashMap<String, String> =
+    let path_mapping: FxHashMap<String, String> =
         match request.get("path_mapping").and_then(|v| v.as_object()) {
             Some(obj) => obj
                 .iter()
                 .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
                 .collect(),
-            None => HashMap::new(),
+            None => FxHashMap::default(),
         };
 
     // Run the unified analysis pipeline

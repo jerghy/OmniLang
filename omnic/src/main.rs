@@ -11,7 +11,6 @@
 
 mod api;
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
@@ -623,6 +622,14 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         anyhow::bail!("File not found: {file}");
     }
 
+    // Collect ALL project sources for multi-file import support
+    let base_sources = api::collect_sources(&[])?;
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&base_sources);
+
+    let t: omnilang::codegen::Target = target
+        .parse()
+        .map_err(|_| anyhow::anyhow!("unknown target: {target}"))?;
+
     println!("Watching {file} (target={target}, output={output_dir})");
     println!("Press Ctrl+C to stop.\n");
 
@@ -631,10 +638,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
         .and_then(|m| m.modified().ok());
 
     let mut build_count: u64 = 0;
-
-    let t: omnilang::codegen::Target = target
-        .parse()
-        .map_err(|_| anyhow::anyhow!("unknown target: {target}"))?;
+    let mut cache = omnilang::analyse::IncrementalCache::new();
 
     loop {
         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -662,7 +666,7 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
             )
         };
 
-        // Read source — Python cli.py:517
+        // Read the watched file's current content
         let source = match std::fs::read_to_string(filepath) {
             Ok(s) => s,
             Err(e) => {
@@ -671,63 +675,50 @@ fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<()> {
             }
         };
 
-        let mut sources = HashMap::new();
+        // Update sources with the changed file's content
+        let mut sources = base_sources.clone();
         sources.insert(file.to_string(), source);
-        let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
 
-        let result_json = omnilang::compile_multi_to_target(sources, t, path_mapping, false);
-        let data: serde_json::Value = match serde_json::from_str(&result_json) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("[{timestamp}] #{build_count} JSON error: {e}");
-                continue;
-            }
-        };
+        // Use the cached compilation path — skips re-parsing unchanged files
+        let result = omnilang::compile_multi_internal_cached(
+            sources,
+            t,
+            path_mapping.clone(),
+            false,
+            &mut cache,
+        );
 
-        if data["success"].as_bool().unwrap_or(false) {
-            // Write files — Python cli.py:526-531
+        if result.success {
+            // Write output files
             std::fs::create_dir_all(output_dir)?;
-            if let Some(files) = data["files"].as_object() {
-                for (fname, content) in files {
-                    if let Err(e) = validate_output_filename(fname) {
-                        eprintln!("[{timestamp}] #{build_count} Invalid filename: {e}");
-                        continue;
-                    }
-                    let out_path = Path::new(output_dir).join(fname);
-                    if let Some(parent) = out_path.parent() {
-                        if let Err(e) = std::fs::create_dir_all(parent) {
-                            eprintln!("[{timestamp}] #{build_count} Create dir error: {e}");
-                            continue;
-                        }
-                    }
-                    let content_str = match content.as_str() {
-                        Some(s) => s,
-                        None => {
-                            eprintln!("[{timestamp}] #{build_count} Warning: null or non-string content for file '{fname}', skipping");
-                            continue;
-                        }
-                    };
-                    if let Err(e) = std::fs::write(&out_path, content_str) {
-                        eprintln!("[{timestamp}] #{build_count} Write error: {e}");
+            let file_count = result.files.len();
+            for (fname, content) in &result.files {
+                if let Err(e) = validate_output_filename(fname) {
+                    eprintln!("[{timestamp}] #{build_count} Invalid filename: {e}");
+                    continue;
+                }
+                let out_path = Path::new(output_dir).join(fname);
+                if let Some(parent) = out_path.parent() {
+                    if let Err(e) = std::fs::create_dir_all(parent) {
+                        eprintln!("[{timestamp}] #{build_count} Create dir error: {e}");
                         continue;
                     }
                 }
-                let file_count = files.len();
-                println!(
-                    "[{timestamp}] #{build_count} Build succeeded — {file_count} file(s) -> {output_dir}/"
-                );
+                if let Err(e) = std::fs::write(&out_path, content) {
+                    eprintln!("[{timestamp}] #{build_count} Write error: {e}");
+                    continue;
+                }
             }
+            println!(
+                "[{timestamp}] #{build_count} Build succeeded — {file_count} file(s) -> {output_dir}/"
+            );
         } else {
-            // Error output — Python cli.py:535-541
-            let msg = data["errors"]
-                .as_array()
-                .map(|arr| {
-                    arr.iter()
-                        .map(|v| v.as_str().unwrap_or("?"))
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                })
-                .unwrap_or_else(|| "Build failed".to_string());
+            let msg = result
+                .errors
+                .iter()
+                .map(|d| d.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; ");
             println!("[{timestamp}] #{build_count} {msg}");
         }
     }
@@ -827,7 +818,7 @@ mod tests {
 
     #[test]
     fn derive_path_mapping_basic() {
-        let mut sources = std::collections::HashMap::new();
+        let mut sources = rustc_hash::FxHashMap::default();
         sources.insert("src/main.omni".to_string(), "fn main() {}".to_string());
         sources.insert(
             "src/lib/helper.omni".to_string(),
