@@ -111,6 +111,17 @@ class OmniCompilerCache {
     return output;
   }
 
+  /**
+   * Store a pre-compiled result in the cache without re-running the pipeline.
+   * Used by the compiler pipeline to populate the cache from already-compiled output.
+   */
+  cachePut(omniSource: string, output: CompileProjectOutput): void {
+    this.cache.set(omniSource, { output, timestamp: Date.now() });
+    this.lastOutput = output;
+    this.lastOutputTimestamp = Date.now();
+    this.consecutiveFailures = 0;
+  }
+
   /** Invalidate the entire cache (e.g. when compiler reloads). */
   invalidate(): void {
     this.cache.clear();

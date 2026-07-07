@@ -141,23 +141,34 @@ export function useCompile(
       if (runStatus.running && compileResponse.files) {
         api.compile.writeRunFiles(compileResponse.files).catch((e) => log.warn("Failed to write run files:", e));
       }
-      const s = usePoiesisStore.getState();
-      if (s.elements.length > 0) {
-        const ct = serializeCodeTabs().tabs;
-        const out = compilerCache.compileProject(
-          {
-            designElements: s.elements,
-            designWires: s.wires,
-            codeTabs: ct,
-            componentName,
-            rootOrder: s.rootOrder,
-          },
-          true,
+      // Populate cache from already-compiled output instead of re-running the pipeline
+      if (compileResult.generatedSource && compileResponse.files) {
+        const files = compileResponse.files;
+        const srcdoc = [
+          "<!DOCTYPE html>",
+          '<html lang="en">',
+          "<head>",
+          '<meta charset="UTF-8">',
+          '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          "<title>OmniView Preview</title>",
+          "<style>",
+          "*,*::before,*::after{box-sizing:border-box}",
+          "body{margin:0;padding:8px;font-family:system-ui,sans-serif}",
+          (files['index.css'] || ''),
+          "</style>",
+          "</head>",
+          "<body>",
+          (files['index.html'] || ''),
+          "<script>",
+          (files['index.js'] || ''),
+          "</script>",
+          "</body>",
+          "</html>",
+        ].join("\n");
+        compilerCache.cachePut(compileResult.generatedSource, { srcdoc, omniSource: compileResult.generatedSource });
+        window.dispatchEvent(
+          new CustomEvent("omni-srcdoc-update", { detail: { srcdoc } }),
         );
-        if (out)
-          window.dispatchEvent(
-            new CustomEvent("omni-srcdoc-update", { detail: { srcdoc: out.srcdoc } }),
-          );
       }
     }
   }, [target, runStatus.running, setCompileErrors, setFnToNodeMap, setStatus]);
