@@ -11,6 +11,9 @@ pub fn tokenize(source: &str) -> Vec<Token> {
     Lexer::new(source).tokenize()
 }
 
+/// Maximum input size: 64 MB. Prevents DoS from pathological inputs.
+const MAX_INPUT_SIZE: usize = 64 * 1024 * 1024;
+
 /// Hand-written lexer: character-by-character, no regex.
 pub struct Lexer {
     source: Vec<char>,
@@ -22,6 +25,12 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn new(source: &str) -> Self {
+        assert!(
+            source.len() <= MAX_INPUT_SIZE,
+            "input size {} exceeds maximum of {} bytes",
+            source.len(),
+            MAX_INPUT_SIZE
+        );
         let chars: Vec<char> = source.chars().collect();
         let mut byte_offsets = Vec::with_capacity(chars.len() + 1);
         let mut offset = 0;
