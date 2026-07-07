@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { getUnifiedComponentMeta } from "../../store/componentRegistry";
+import { getUnifiedComponentMeta } from "../../store";
 import { useComponentDefs } from "../../store/hooks";
 import { usePoiesisStore } from "../../store";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";

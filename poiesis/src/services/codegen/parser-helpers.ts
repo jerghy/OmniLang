@@ -6,7 +6,7 @@ import type { TokenStream } from "./token-stream";
 import type { ParseContext, ViewElementAttrs } from "./parser-types";
 import type { ParserInternals } from "./parser";
 import type { ElementData } from "../../core/types/element";
-import { getComponentDefinitions } from "../../store/componentRegistry";
+import { getComponentDefinitions } from "../../store";
 import { Logger } from "../../lib/utils/logger";
 
 const log = new Logger({ prefix: "omni-parser" });

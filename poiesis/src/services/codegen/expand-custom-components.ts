@@ -2,8 +2,7 @@
 // Custom component expansion — inline referenced components' element trees
 // so the pipeline can process them as a flat element set.
 
-import { getComponentDefinitions } from "../../core/state/componentRegistry";
-import type { ComponentDefinition } from "../../core/state/componentRegistry";
+import { getComponentDefinitions } from "../../store";
 import type { ElementData } from "../../core/types";
 
 /** Minimal shape of a component definition's element needed for expansion. */
@@ -19,7 +18,7 @@ interface DefElement {
 }
 
 /** Narrow a component definition to an object with an elements array. */
-function getDefElements(def: ComponentDefinition): DefElement[] | null {
+function getDefElements(def: Record<string, unknown>): DefElement[] | null {
   if (!def || typeof def !== "object") return null;
   const maybe = def as Record<string, unknown>;
   if (!Array.isArray(maybe.elements)) return null;
@@ -63,7 +62,7 @@ export function expandCustomComponents(elements: ElementData[]): ElementData[] {
       if (!compRef || expandedRefs.has(id)) continue;
       expandedRefs.add(id);
 
-      const def: ComponentDefinition | undefined = registry?.[compRef];
+      const def = registry?.[compRef];
       const defElements = def ? getDefElements(def) : null;
       if (!defElements || defElements.length === 0) continue;
 

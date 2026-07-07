@@ -6,6 +6,8 @@ import type { DesignPageState, Breadcrumb } from "../core/types/design-page";
 import { detectTabType } from "../core/types/design-page";
 import type { PidEntry } from "../core/types/pid";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
+import { COMPONENT_PROTOCOL } from "../data/componentProtocol";
+import type { ComponentProtocolEntry } from "../data/componentProtocol";
 import type { StyleProperty } from "../core/types/style";
 import { DEFAULT_PROJECT_NAME, DEFAULT_PANEL_LAYOUT } from "../constants";
 import type { UndoStack } from "./undo-slice";
@@ -781,6 +783,42 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   setSourceCode: (content) => set({ sourceCode: content }),
   loadFiles: (files) => set({ files: files.filter((f: any) => f.type === 'file' || f.type === 'directory') as PoiesisState["files"] }),
 }));
+
+// ── Utility accessors (used by codegen services and UI components) ──
+
+/**
+ * Safe accessor for component definitions — reads from componentDefs with
+ * fallback to legacy `definitions` field for compatibility.
+ */
+export function getComponentDefinitions(): Record<string, Record<string, unknown>> {
+  const state = usePoiesisStore.getState();
+  return (state?.componentDefs ?? state?.definitions ?? {}) as unknown as Record<string, Record<string, unknown>>;
+}
+
+/** Return unified component metadata (built-in + custom). */
+export function getUnifiedComponentMeta(): Record<string, ComponentProtocolEntry> {
+  const state = usePoiesisStore.getState();
+  const customDefs = state.componentDefs ?? {};
+
+  const unified: Record<string, ComponentProtocolEntry> = COMPONENT_PROTOCOL
+    ? { ...COMPONENT_PROTOCOL }
+    : {};
+
+  for (const [name, def] of Object.entries(customDefs)) {
+    const typedDef = def as unknown as Record<string, unknown>;
+    unified[name] = {
+      component: name,
+      category: (typedDef.category as string) || "Custom",
+      description: (typedDef.description as string) || "",
+      props: {},
+      events: {},
+      styleProperties: (typedDef.styleProperties as string[]) || [],
+      children: (typedDef.children as boolean) ?? true,
+    };
+  }
+
+  return unified;
+}
 
 // ── Window exposure for E2E / Victauri ──
 if (typeof window !== "undefined" && typeof (window as unknown as Record<string, unknown>).__ZUSTAND_STORE__ === "undefined") {

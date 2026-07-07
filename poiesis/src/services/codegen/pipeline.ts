@@ -16,7 +16,7 @@ import { expandCustomComponents } from "./expand-custom-components";
 import { collectStylesFromEntries, applyStyles } from "./collect-styles";
 import type { ElementData, WireData, CodeTab } from "../../core/types";
 // import type { PidMap } from "../../core/types/pid";
-import { getComponentDefinitions } from "../../core/state/componentRegistry";
+import { getComponentDefinitions } from "../../store";
 import { useStyleRegistryStore } from "../../core/state/styleRegistry";
 import type {
   StageResult,
