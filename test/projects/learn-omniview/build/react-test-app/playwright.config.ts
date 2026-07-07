@@ -12,13 +12,16 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['json', { outputFile: 'test-results.json' }],
+    ['html', { outputFolder: 'playwright-report' }],
   ],
   use: {
-    channel: 'msedge',
+    browserName: 'chromium',
     headless: true,
     viewport: { width: 1280, height: 900 },
     ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
   },
   projects: [
     {
@@ -26,4 +29,10 @@ export default defineConfig({
       testMatch: '**/*.spec.ts',
     },
   ],
+  webServer: {
+    command: 'npx vite',
+    port: 5173,
+    timeout: 30000,
+    reuseExistingServer: true,
+  },
 });
