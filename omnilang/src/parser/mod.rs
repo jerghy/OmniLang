@@ -1,6 +1,7 @@
 //! Parser module — recursive descent + Pratt expression parsing.
 
 pub mod ast;
+pub mod design;
 pub mod expr;
 pub mod stmt;
 pub mod top_level;
