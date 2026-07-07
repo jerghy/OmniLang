@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
+import { useElements, useWires, useRootOrder, useComponentDefs, useActiveTabId } from "../../store/hooks";
 import { generateOmniSource } from "../../services/codegen";
 import { rustCompiler } from "../../commands/rustCompiler";
 
@@ -12,20 +13,21 @@ import { rustCompiler } from "../../commands/rustCompiler";
 const DEBOUNCE_MS = 400;
 
 export function CompilerPreview() {
-  const elements = usePoiesisStore((s) => s.elements);
-  const wires = usePoiesisStore((s) => s.wires);
-  const rootOrder = usePoiesisStore((s) => s.rootOrder);
+  const elements = useElements();
+  const wires = useWires();
+  const rootOrder = useRootOrder();
+  const activeTabId = useActiveTabId();
   const designPage = usePoiesisStore((s) => s.designPage);
   // Subscribe to componentDefs so preview recompiles when a custom
   // component's definition changes (e.g. after editing and saving MyCard.omni).
-  const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  const componentDefs = useComponentDefs();
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeTab = designPage.openTabs.find((t) => t.id === designPage.activeTabId);
+  const activeTab = designPage.openTabs.find((t) => t.id === activeTabId);
   const componentName = activeTab?.componentName ?? "main";
 
   const compile = useCallback(async () => {

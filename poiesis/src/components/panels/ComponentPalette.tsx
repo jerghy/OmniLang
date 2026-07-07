@@ -5,7 +5,8 @@
 
 import { useState, useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
+import { getUnifiedComponentMeta } from "../../store/componentRegistry";
+import { useComponentDefs } from "../../store/hooks";
 import { usePoiesisStore } from "../../store";
 import { COMPONENT_PROTOCOL } from "../../data/componentProtocol";
 import { CATEGORY_LABELS, CATEGORY_ORDER, COMPONENT_ICONS } from "../../core/constants";
@@ -127,7 +128,7 @@ export function ComponentPalette() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  const definitions = useComponentRegistry((s) => s.componentDefs) ?? {};
+  const definitions = useComponentDefs() ?? {};
   const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
   const defineComponent = usePoiesisStore((s) => s.defineComponent);
   const removeComponent = usePoiesisStore((s) => s.removeComponent);

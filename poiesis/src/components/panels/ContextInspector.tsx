@@ -2,7 +2,7 @@
 // Context-sensitive right panel showing properties, styles, or events
 // based on the selected element type.
 
-import { usePoiesisStore } from "../../store";
+import { useSelectedElementIds, useElements } from "../../store/hooks";
 import { PropsSection } from "./inspector/PropsSection";
 import { EventsSection } from "./inspector/EventsSection";
 import { StylesSection } from "./inspector/StylesSection";
@@ -34,8 +34,8 @@ const BASIC_TAGS = new Set([
 ]);
 
 export function ContextInspector() {
-  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
-  const elements = usePoiesisStore((s) => s.elements);
+  const selectedIds = useSelectedElementIds();
+  const elements = useElements();
 
   if (selectedIds.length === 0) {
     return (

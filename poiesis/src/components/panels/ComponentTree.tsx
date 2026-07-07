@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { usePoiesisStore } from "../../store";
+import { useElements, useRootOrder, useSelectedElementIds } from "../../store/hooks";
 import type { ElementData } from "../../core/types";
 import { getUnifiedComponentMeta, useComponentRegistry } from "../../store/componentRegistry";
 import styles from "./ComponentTree.module.css";
@@ -23,9 +24,9 @@ interface ComponentTreeProps {
 }
 
 export function ComponentTree({ treeDropState }: ComponentTreeProps) {
-  const elements = usePoiesisStore((s) => s.elements);
-  const rootOrder = usePoiesisStore((s) => s.rootOrder);
-  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
+  const elements = useElements();
+  const rootOrder = useRootOrder();
+  const selectedIds = useSelectedElementIds();
   const selectElement = usePoiesisStore((s) => s.selectElement);
   const enterCanvas = usePoiesisStore((s) => s.enterComponentCanvas);
 
