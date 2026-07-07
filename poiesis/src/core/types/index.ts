@@ -7,6 +7,9 @@ export * from "./design-page";
 export * from "./project-json";
 export * from "./node-flow";
 
+// Design system types
+export * from "./design";
+
 // Keep legacy types that are still needed for migration
 export * from "./element";
 export * from "./wire";
