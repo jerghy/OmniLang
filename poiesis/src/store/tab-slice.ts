@@ -2,6 +2,7 @@
 
 import type { DesignTab } from "../core/types/design-page";
 import type { PoiesisState } from "./index";
+import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "./tab-helpers";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
@@ -19,31 +20,29 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         const td = s.tabData[existing.id];
         // Save current tab's data before switching (if different tab)
         const saveEntry = oldTabId && oldTabId !== existing.id
-          ? {
+          ? buildTabSaveEntry({
               elements: s.elements,
               wires: s.wires,
               rootOrder: s.rootOrder,
               selectedElementIds: s.selectedElementIds,
-              codeFlowVisible: s.designPage.codeFlowVisible,
-              codeFlowElementId: s.designPage.codeFlowElementId,
-            }
+              designPage: s.designPage,
+            })
           : undefined;
         const updatedTabData = saveEntry
           ? { ...s.tabData, [oldTabId!]: { ...s.tabData[oldTabId!], ...saveEntry } }
           : s.tabData;
+
+        const canvasPartial = tabRestoreCanvasPartial(td, s.elements);
+        const codeFlowPartial = tabRestoreDesignPagePartial(td);
         return {
           currentPage: "design",
           designPage: {
             ...s.designPage,
             activeTabId: existing.id,
-            codeFlowVisible: td?.codeFlowVisible ?? false,
-            codeFlowElementId: td?.codeFlowElementId ?? null,
+            ...codeFlowPartial,
           },
           tabData: updatedTabData,
-          elements: td?.elements ?? s.elements,
-          wires: td?.wires ?? s.wires,
-          rootOrder: td?.rootOrder ?? s.rootOrder,
-          selectedElementIds: td?.selectedElementIds ?? [],
+          ...canvasPartial,
         };
       }
       const id = generateTabId();
@@ -56,14 +55,13 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       // Save current tab's data before switching to new tab (including code flow view state)
       const oldTabId = s.designPage.activeTabId;
       const saveEntry = oldTabId
-        ? {
+        ? buildTabSaveEntry({
             elements: s.elements,
             wires: s.wires,
             rootOrder: s.rootOrder,
             selectedElementIds: s.selectedElementIds,
-            codeFlowVisible: s.designPage.codeFlowVisible,
-            codeFlowElementId: s.designPage.codeFlowElementId,
-          }
+            designPage: s.designPage,
+          })
         : undefined;
       const updatedTabData = saveEntry
         ? { ...s.tabData, [oldTabId!]: saveEntry }
@@ -100,14 +98,13 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       }
       // Save current canvas state for the tab being closed BEFORE removing its data.
       // This ensures unsaved canvas state is persisted in tabData for undo/redo history.
-      const saveEntry = {
+      const saveEntry = buildTabSaveEntry({
         elements: s.elements,
         wires: s.wires,
         rootOrder: s.rootOrder,
         selectedElementIds: s.selectedElementIds,
-        codeFlowVisible: s.designPage.codeFlowVisible,
-        codeFlowElementId: s.designPage.codeFlowElementId,
-      };
+        designPage: s.designPage,
+      });
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
       // Clean up the closed tab's data
       const { [tabId]: _, ...restTabData } = tabDataWithSave;
@@ -127,20 +124,18 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       }
       // If a neighbor tab becomes active, restore its data
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
+      const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? undefined : s.elements);
+      const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
       return {
         designPage: {
           ...s.designPage,
           openTabs: newTabs,
           tabOrder: newOrder,
           activeTabId,
-          codeFlowVisible: restoreEntry?.codeFlowVisible ?? false,
-          codeFlowElementId: restoreEntry?.codeFlowElementId ?? null,
+          ...codeFlowPartial,
         },
         tabData: prunedTabData,
-        elements: restoreEntry?.elements ?? (activeTabId ? [] : s.elements),
-        wires: restoreEntry?.wires ?? (activeTabId ? [] : s.wires),
-        rootOrder: restoreEntry?.rootOrder ?? (activeTabId ? [] : s.rootOrder),
-        selectedElementIds: restoreEntry?.selectedElementIds ?? [],
+        ...canvasPartial,
       };
     }),
 
@@ -148,31 +143,28 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       const oldTabId = s.designPage.activeTabId;
       if (oldTabId === tabId) return s;
       // Save current tab's data into tabData (including code flow view state)
-      const saveEntry = {
+      const saveEntry = buildTabSaveEntry({
         elements: s.elements,
         wires: s.wires,
         rootOrder: s.rootOrder,
         selectedElementIds: s.selectedElementIds,
-        codeFlowVisible: s.designPage.codeFlowVisible,
-        codeFlowElementId: s.designPage.codeFlowElementId,
-      };
+        designPage: s.designPage,
+      });
       const savedTabData = oldTabId
         ? { [oldTabId]: saveEntry }
         : {};
       // Restore target tab's data (or empty if not yet loaded)
       const restoreEntry = s.tabData[tabId];
+      const canvasPartial = tabRestoreCanvasPartial(restoreEntry);
+      const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
       return {
         designPage: {
           ...s.designPage,
           activeTabId: tabId,
-          codeFlowVisible: restoreEntry?.codeFlowVisible ?? false,
-          codeFlowElementId: restoreEntry?.codeFlowElementId ?? null,
+          ...codeFlowPartial,
         },
         tabData: { ...s.tabData, ...savedTabData },
-        elements: restoreEntry?.elements ?? [],
-        wires: restoreEntry?.wires ?? [],
-        rootOrder: restoreEntry?.rootOrder ?? [],
-        selectedElementIds: restoreEntry?.selectedElementIds ?? [],
+        ...canvasPartial,
       };
     }),
 
