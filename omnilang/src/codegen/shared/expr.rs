@@ -377,10 +377,13 @@ impl FormatExpr for DartFormatExpr {
 /// Rust-family expression formatter.
 ///
 /// Defaults: `if/else` ternary, `vec![]` arrays, `.await`, `None` fallback.
-#[cfg(feature = "codegen-rust")]
-pub(crate) struct RustFormatExpr;
+/// When `move_closures` is true (Dioxus), closures emit `move ||` syntax.
+#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
+pub(crate) struct RustFormatExpr {
+    pub move_closures: bool,
+}
 
-#[cfg(feature = "codegen-rust")]
+#[cfg(any(feature = "codegen-rust", feature = "codegen-dioxus"))]
 impl FormatExpr for RustFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &crate::codegen::JSON_RUST
@@ -411,10 +414,11 @@ impl FormatExpr for RustFormatExpr {
     }
 
     fn format_closure(&self, params: &str, body: &str) -> String {
+        let move_kw = if self.move_closures { "move " } else { "" };
         if params.is_empty() {
-            format!("(|| {body})")
+            format!("({move_kw}|| {body})")
         } else {
-            format!("(|{params}| {body})")
+            format!("({move_kw}|{params}| {body})")
         }
     }
 

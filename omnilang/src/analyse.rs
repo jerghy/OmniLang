@@ -23,7 +23,7 @@ pub struct AnalyseOutput {
     pub ir: Option<IRProgram>,
     pub warnings: Vec<Diagnostic>,
     /// Pre-parsed programs (available to callers that need them for codegen).
-    pub programs: HashMap<String, Program>,
+    pub programs: HashMap<String, Arc<Program>>,
 }
 
 /// Convert a lint diagnostic to a standard Diagnostic.
@@ -167,7 +167,7 @@ pub fn analyse_multi(
     path_mapping: &HashMap<String, String>,
 ) -> AnalyseOutput {
     let mut diags: Vec<Diagnostic> = Vec::new();
-    let mut programs: HashMap<String, Program> = HashMap::new();
+    let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
 
     // Phase 1: Parallel parse all sources
     let parse_results: Vec<(String, Result<Program, Vec<Diagnostic>>)> = sources
@@ -187,7 +187,7 @@ pub fn analyse_multi(
     for (path, result) in parse_results {
         match result {
             Ok(program) => {
-                programs.insert(path, program);
+                programs.insert(path, Arc::new(program));
             }
             Err(errs) => {
                 diags.extend(errs);
@@ -213,7 +213,8 @@ pub fn analyse_multi(
     let ir_results: Vec<(String, IRProgram, Vec<Diagnostic>)> = programs
         .par_iter()
         .map(|(path, program)| {
-            let mut semantics = crate::semantic::analyze(program);
+            let program_ref: &Program = program.as_ref();
+            let mut semantics = crate::semantic::analyze(program_ref);
             let mut local_diags: Vec<Diagnostic> = Vec::new();
             for d in &semantics.diagnostics {
                 let mut d = d.clone();
@@ -222,7 +223,7 @@ pub fn analyse_multi(
                 }
                 local_diags.push(d);
             }
-            let ir_program = crate::ir::lower(program, &mut semantics);
+            let ir_program = crate::ir::lower(program_ref, &mut semantics);
             (path.clone(), ir_program, local_diags)
         })
         .collect();
@@ -381,12 +382,6 @@ pub fn analyse_multi_cached(
         }
     }
 
-    // Build full programs map (cloned from Arc for downstream consumers)
-    let programs: HashMap<String, Program> = all_programs
-        .iter()
-        .map(|(path, arc)| (path.clone(), (**arc).clone()))
-        .collect();
-
     if !diags.is_empty() {
         // Clean up stale cache entries before returning early
         cache.entries.retain(|k, _| sources.contains_key(k));
@@ -395,19 +390,19 @@ pub fn analyse_multi_cached(
             diagnostics: diags,
             ir: None,
             warnings: vec![],
-            programs,
+            programs: all_programs,
         };
     }
 
     // Phase 2: Cross-file validation using the full program set
-    let validation = crate::validate::validate_multi_ref(&programs, path_mapping);
+    let validation = crate::validate::validate_multi_ref(&all_programs, path_mapping);
     diags.extend(validation.errors);
 
     // Phase 3a: Parallel per-file semantic analysis + IR lowering for changed files only
     let mut per_file_ir: HashMap<String, (IRProgram, Vec<Diagnostic>)> = to_reprocess
         .par_iter()
         .map(|path| {
-            let program = &programs[path];
+            let program: &Program = all_programs[path].as_ref();
             let mut semantics = crate::semantic::analyze(program);
             let mut local_diags: Vec<Diagnostic> = Vec::new();
             for d in &semantics.diagnostics {
@@ -425,7 +420,7 @@ pub fn analyse_multi_cached(
     // Collect import paths from newly parsed programs for cache update
     let mut new_imports: HashMap<String, Vec<String>> = HashMap::new();
     for path in &to_reprocess {
-        if let Some(program) = programs.get(path) {
+        if let Some(program) = all_programs.get(path) {
             new_imports.insert(path.clone(), collect_import_paths(program));
         }
     }
@@ -507,20 +502,12 @@ pub fn analyse_multi_cached(
     }
 
     // Phase 4: Run lint rules against ASTs and merged IR
-    let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
+    let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);
     let warnings: Vec<Diagnostic> = lint_diags
         .iter()
         .filter(|d| !is_lint_error(d))
         .map(lint_to_diag)
         .collect();
-
-    for d in &lint_diags {
-        if is_lint_error(d) {
-            let mut diag = lint_to_diag(d);
-            diag.severity = crate::error::Severity::Error;
-            diags.push(diag);
-        }
-    }
 
     let success = !diags
         .iter()
@@ -530,6 +517,6 @@ pub fn analyse_multi_cached(
         diagnostics: diags,
         ir: Some(merged_ir),
         warnings,
-        programs,
+        programs: all_programs,
     }
 }

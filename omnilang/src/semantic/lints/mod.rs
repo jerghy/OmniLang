@@ -24,6 +24,7 @@ mod unused_import;
 use std::collections::HashMap;
 
 use crate::ir::IRProgram;
+use std::sync::Arc;
 use crate::parser::ast::Program;
 
 /// Severity of a lint diagnostic.
@@ -71,7 +72,7 @@ pub trait LintRule {
 // ═══════════════════════════════════════════════════════════
 
 /// Run all registered lint rules against ASTs and merged IR.
-pub fn run_all(programs: &HashMap<String, Program>, ir: &IRProgram) -> Vec<LintDiagnostic> {
+pub fn run_all(programs: &HashMap<String, Arc<Program>>, ir: &IRProgram) -> Vec<LintDiagnostic> {
     let rules: Vec<Box<dyn LintRule>> = all_rules();
     let mut diags = Vec::new();
 
@@ -114,13 +115,14 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::ir::IRProgram;
+use std::sync::Arc;
     use crate::parser::ast::Program;
 
     use super::*;
 
     #[test]
     fn test_run_all_empty_programs() {
-        let programs: HashMap<String, Program> = HashMap::new();
+        let programs: HashMap<String, Arc<Program>> = HashMap::new();
         let ir = IRProgram {
             version: "1.0".into(),
             modules: HashMap::new(),

@@ -12,26 +12,16 @@ pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {
 // ══════════════════════════════════════════════════════════
 
 /// Map omni component tags to HTML tags.
+/// Delegates to the shared `to_html_tag` and then applies OmniView-specific
+/// kebab-case conversion for custom components (web component style).
 pub(super) fn map_tag(tag: &str) -> String {
-    match tag {
-        "Text" => "span".into(),
-        "Button" => "button".into(),
-        "Container" | "Card" => "div".into(),
-        "Flex" => "div".into(),
-        "Heading" => "h2".into(),
-        "Image" | "Img" => "img".into(),
-        "TextInput" | "Input" => "input".into(),
-        "Link" => "a".into(),
-        "List" => "ul".into(),
-        "ListItem" => "li".into(),
-        "CheckBox" | "Checkbox" => "input".into(),
-        "Select" => "select".into(),
-        "TextArea" | "Textarea" => "textarea".into(),
-        t if t.chars().next().is_some_and(|c| c.is_uppercase()) => {
-            // Custom component → web component style kebab-case
-            to_kebab(t)
-        }
-        t => t.to_string(),
+    let base = crate::codegen::shared::html::to_html_tag(tag);
+    // If the shared function returned the tag unchanged and it starts with uppercase,
+    // convert to kebab-case for web component style (e.g., MyComponent → my-component).
+    if base == tag && tag.chars().next().is_some_and(|c| c.is_uppercase()) {
+        to_kebab(tag)
+    } else {
+        base
     }
 }
 

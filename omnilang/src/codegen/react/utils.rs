@@ -176,26 +176,17 @@ pub(super) fn to_jsx_attr(prop_name: &str) -> String {
 }
 
 /// Map OmniView custom element tags to their React/HTML equivalents.
-/// OmniView uses PascalCase aliases (Button, Card, Text, Flex, etc.) for native HTML elements.
+/// Delegates to the shared `to_html_tag` and then applies React-specific
+/// lowercasing for custom components (JSX treats uppercase tags as components).
 pub(super) fn to_react_tag(tag: &str) -> String {
-    match tag {
-        "Text" => "span".into(),
-        "Button" => "button".into(),
-        "Card" | "Container" => "div".into(),
-        "Flex" => "div".into(),
-        "Heading" => "h2".into(),
-        "Image" | "Img" => "img".into(),
-        "TextInput" | "Input" => "input".into(),
-        "Link" => "a".into(),
-        "List" => "ul".into(),
-        "ListItem" => "li".into(),
-        "CheckBox" | "Checkbox" => "input".into(),
-        "Select" => "select".into(),
-        "TextArea" | "Textarea" => "textarea".into(),
-        // For other PascalCase tags not in the map, lowercase the first letter
-        // to avoid React treating them as component references.
-        t if t.chars().next().is_some_and(|c| c.is_uppercase()) => t.to_lowercase(),
-        t => t.to_string(),
+    let base = crate::codegen::shared::html::to_html_tag(tag);
+    // If the shared function returned the tag unchanged and it starts with uppercase,
+    // lowercase the first letter to avoid React treating it as a component reference.
+    if base == tag && tag.chars().next().is_some_and(|c| c.is_uppercase()) {
+        let mut chars = tag.chars();
+        chars.next().unwrap().to_lowercase().collect::<String>() + chars.as_str()
+    } else {
+        base
     }
 }
 

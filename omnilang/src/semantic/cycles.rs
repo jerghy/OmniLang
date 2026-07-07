@@ -4,6 +4,7 @@
 
 use crate::parser::ast::{ImportStmt, Program};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Detect circular imports using Tarjan's strongly connected components algorithm.
 ///
@@ -12,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Returns list of cycles found (each cycle is a list of file paths).
 pub fn detect_cycles(
-    programs: &HashMap<String, Program>,
+    programs: &HashMap<String, Arc<Program>>,
     path_mapping: &HashMap<String, String>,
 ) -> Vec<Vec<String>> {
     let file_paths: Vec<&String> = programs.keys().collect();
@@ -174,9 +175,9 @@ mod tests {
         })]);
         let b = make_program(vec![]);
 
-        let mut programs = HashMap::new();
-        programs.insert("/proj/a.omni".into(), a);
-        programs.insert("/proj/b.omni".into(), b);
+        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+programs.insert("/proj/a.omni".into(), Arc::new(a));
+programs.insert("/proj/b.omni".into(), Arc::new(b));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
@@ -198,9 +199,9 @@ mod tests {
             span: span(),
         })]);
 
-        let mut programs = HashMap::new();
-        programs.insert("/proj/a.omni".into(), a);
-        programs.insert("/proj/b.omni".into(), b);
+        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+programs.insert("/proj/a.omni".into(), Arc::new(a));
+programs.insert("/proj/b.omni".into(), Arc::new(b));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());
@@ -229,10 +230,10 @@ mod tests {
             span: span(),
         })]);
 
-        let mut programs = HashMap::new();
-        programs.insert("/proj/a.omni".into(), a);
-        programs.insert("/proj/b.omni".into(), b);
-        programs.insert("/proj/c.omni".into(), c);
+        let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
+programs.insert("/proj/a.omni".into(), Arc::new(a));
+programs.insert("/proj/b.omni".into(), Arc::new(b));
+programs.insert("/proj/c.omni".into(), Arc::new(c));
 
         let mut path_mapping = HashMap::new();
         path_mapping.insert("./b.omni".into(), "/proj/b.omni".into());

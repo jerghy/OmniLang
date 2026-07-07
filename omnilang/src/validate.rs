@@ -4,6 +4,7 @@
 //! per-file consistency (e.g., omniview marker matching UI declarations).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -50,14 +51,14 @@ pub fn validate_multi(
     path_mapping: HashMap<String, String>,
 ) -> MultiFileResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
-    let mut programs: HashMap<String, Program> = HashMap::new();
+    let mut programs: HashMap<String, Arc<Program>> = HashMap::new();
 
     // Phase 1: Parse all sources
     for (path, source) in &sources {
         let tokens = crate::lexer::tokenize(source);
         match crate::parser::parse(&tokens, source) {
             Ok(program) => {
-                programs.insert(path.clone(), program);
+                programs.insert(path.clone(), Arc::new(program));
             }
             Err(e) => {
                 let diag: Diagnostic = e.into();
@@ -80,7 +81,7 @@ pub fn validate_multi(
 /// Avoids re-parsing when callers already have parsed ASTs.
 #[must_use]
 pub fn validate_multi_ref(
-    programs: &HashMap<String, Program>,
+    programs: &HashMap<String, Arc<Program>>,
     path_mapping: &HashMap<String, String>,
 ) -> MultiFileResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
@@ -170,7 +171,7 @@ enum CrossFileSymbolKind {
 
 /// Build pub-visible symbol tables for cross-file validation.
 fn build_pub_symbols(
-    programs: &HashMap<String, Program>,
+    programs: &HashMap<String, Arc<Program>>,
 ) -> HashMap<String, HashMap<String, CrossFileSymbolKind>> {
     let mut pub_symbols: HashMap<String, HashMap<String, CrossFileSymbolKind>> = HashMap::new();
 
@@ -217,7 +218,7 @@ fn build_pub_symbols(
 }
 
 fn validate_cross_file(
-    programs: &HashMap<String, Program>,
+    programs: &HashMap<String, Arc<Program>>,
     path_mapping: &HashMap<String, String>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut errors: Vec<Diagnostic> = Vec::new();

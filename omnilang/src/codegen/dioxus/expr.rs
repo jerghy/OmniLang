@@ -1,99 +1,14 @@
 //! Expression formatting, helpers, and event data extraction for Dioxus codegen.
 
-use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::{JsonFormatConfig, Target, JSON_DIOXUS};
 use crate::ir::*;
 
 /// Dioxus-family expression formatter.
 ///
-/// Identical to `RustFormatExpr` except closures use `move` (required by Dioxus).
-pub(crate) struct DioxusFormatExpr;
-
-impl FormatExpr for DioxusFormatExpr {
-    fn json_config(&self) -> &JsonFormatConfig {
-        &JSON_DIOXUS
-    }
-
-    fn codegen_target(&self) -> Target {
-        Target::Dioxus
-    }
-
-    fn null_fallback(&self) -> &str {
-        "None"
-    }
-
-    fn format_ternary(&self, cond: &str, t: &str, e: &str) -> String {
-        format!("if {cond} {{ {t} }} else {{ {e} }}")
-    }
-
-    fn format_array(&self, items: &str) -> String {
-        format!("vec![{items}]")
-    }
-
-    fn format_await(&self, expr: &str) -> String {
-        format!("{expr}.await")
-    }
-
-    fn format_index(&self, obj: &str, idx: &str) -> String {
-        format!("({obj})[{idx} as usize]")
-    }
-
-    fn format_closure(&self, params: &str, body: &str) -> String {
-        if params.is_empty() {
-            format!("(move || {body})")
-        } else {
-            format!("(move |{params}| {body})")
-        }
-    }
-
-    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
-        if fields.is_empty() {
-            "{}".to_string()
-        } else {
-            format!("{{ {fields} }}")
-        }
-    }
-
-    fn format_struct_field(&self, key: &str, value: &str) -> String {
-        format!("{key}: {value}")
-    }
-
-    fn format_variant_literal(
-        &self,
-        union_type: &str,
-        variant: &str,
-        fields: &[(String, ExprIR)],
-    ) -> String {
-        if fields.is_empty() {
-            format!("{union_type}::{variant}")
-        } else {
-            let entries: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("{k}: {}", self.format_expr(v)))
-                .collect();
-            format!("{union_type}::{variant} {{ {} }}", entries.join(", "))
-        }
-    }
-
-    fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
-        let cases: Vec<String> = arms
-            .iter()
-            .map(|arm| {
-                let body = self.format_block_as_expr(&arm.body);
-                match &arm.pattern.kind {
-                    MatchPatternKindIR::Variant { name, .. } => {
-                        let type_prefix = arm.union_type.as_deref().unwrap_or("UnionType");
-                        format!("    {type_prefix}::{name} {{ .. }} => {body},")
-                    }
-                    MatchPatternKindIR::Wildcard => {
-                        format!("    _ => {body},")
-                    }
-                    _ => String::new(),
-                }
-            })
-            .collect();
-        format!("match &{matched} {{\n{}\n}}", cases.join("\n"))
-    }
+/// Uses the shared `RustFormatExpr` with `move_closures: true` (required by Dioxus).
+fn dioxus_format_expr() -> RustFormatExpr {
+    RustFormatExpr { move_closures: true }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -105,7 +20,7 @@ impl FormatExpr for DioxusFormatExpr {
 // ═══════════════════════════════════════════════════════════
 
 pub(super) fn format_expr_ir_dioxus(expr: &ExprIR) -> String {
-    DioxusFormatExpr.format_expr(expr)
+    dioxus_format_expr().format_expr(expr)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -117,24 +32,14 @@ pub(super) fn to_snake_case(name: &str) -> String {
 }
 
 /// Map OmniView attribute names to Dioxus attribute names.
+/// Delegates to the shared `to_html_attr` and then overrides with
+/// Dioxus-specific syntax (e.g., `r#for` for the `for` attribute).
 pub(super) fn to_dioxus_attr(prop_name: &str) -> String {
-    match prop_name {
-        "class" | "className" => "class".into(),
-        "for" | "htmlFor" => "r#for".into(),
-        "tabindex" => "tabindex".into(),
-        "readonly" => "readonly".into(),
-        "maxlength" => "maxlength".into(),
-        "minlength" => "minlength".into(),
-        "autocomplete" => "autocomplete".into(),
-        "autofocus" => "autofocus".into(),
-        "autoplay" => "autoplay".into(),
-        "enctype" => "enctype".into(),
-        "formaction" => "formaction".into(),
-        "formenctype" => "formenctype".into(),
-        "formmethod" => "formmethod".into(),
-        "formnovalidate" => "formnovalidate".into(),
-        "formtarget" => "formtarget".into(),
-        _ => prop_name.to_string(),
+    let base = crate::codegen::shared::html::to_html_attr(prop_name);
+    // Dioxus uses raw identifier syntax for `for` (Rust keyword)
+    match base {
+        "for" => "r#for".into(),
+        _ => base.to_string(),
     }
 }
 

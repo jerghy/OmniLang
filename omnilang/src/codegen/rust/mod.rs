@@ -339,7 +339,7 @@ impl FormatStmt for RustStmtFormatter {
 
 fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = RustStmtFormatter {
-        expr: RustFormatExpr,
+        expr: RustFormatExpr { move_closures: false },
     };
     fmt.format_stmt(w, stmt);
 }
