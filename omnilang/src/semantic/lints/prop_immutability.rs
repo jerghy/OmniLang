@@ -115,6 +115,7 @@ mod tests {
                 type_aliases: vec![],
                 stores: vec![],
                 themes: vec![],
+                designs: vec![],
                 motions: vec![],
                 timelines: vec![],
                 imports: vec![],

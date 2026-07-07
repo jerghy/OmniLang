@@ -143,6 +143,7 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                designs: vec![],
                 motions: vec![],
                 timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {
@@ -221,6 +222,7 @@ mod tests {
                 components: vec![],
                 stores: vec![],
                 themes: vec![],
+                designs: vec![],
                 motions: vec![],
                 timelines: vec![],
                 imports: vec![ImportStmt::Named(NamedImport {

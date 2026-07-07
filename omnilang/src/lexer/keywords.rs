@@ -60,6 +60,7 @@ pub(super) fn ident_to_keyword(ident: &str) -> Option<TokenKind> {
         "action" => Some(TokenKind::Action),
         "getter" => Some(TokenKind::Getter),
         "theme" => Some(TokenKind::Theme),
+        "design" => Some(TokenKind::Design),
         "bind" => Some(TokenKind::Bind),
         "emit" => Some(TokenKind::Emit),
         // Motion keywords (context-sensitive, recognized in @motion blocks)

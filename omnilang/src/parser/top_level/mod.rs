@@ -1,6 +1,7 @@
 //! Top-level declaration parsers.
 
 pub mod component;
+pub mod design;
 pub mod function;
 pub mod module;
 pub mod motion;
@@ -32,6 +33,9 @@ impl<'a> Parser<'a> {
                     }
                     TokenKind::Store => {
                         module.stores.push(self.parse_store_def()?);
+                    }
+                    TokenKind::Design => {
+                        module.designs.push(self.parse_design_def()?);
                     }
                     TokenKind::Theme => {
                         module.themes.push(self.parse_theme_def()?);

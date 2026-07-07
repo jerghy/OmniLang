@@ -259,6 +259,7 @@ impl<'a> Parser<'a> {
             TokenKind::Component,
             TokenKind::Store,
             TokenKind::Theme,
+            TokenKind::Design,
             TokenKind::Struct,
             TokenKind::Type,
             TokenKind::Const,

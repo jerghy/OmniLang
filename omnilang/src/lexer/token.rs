@@ -61,6 +61,7 @@ pub enum TokenKind {
     Action,
     Getter,
     Theme,
+    Design,
     AtStore,
     AtIf,
     AtElse,
