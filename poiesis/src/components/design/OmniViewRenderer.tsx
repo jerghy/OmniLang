@@ -2,75 +2,18 @@
 // React direct renderer — walks the element tree, expanding custom components
 // inline so their internal elements render correctly. Elements inside custom
 // components are non-interactive (cannot be selected individually).
+//
+// Performance: all element lookups use O(1) Map/Set ops; inline styles are
+// pre-computed once per tree; OmniViewElement is React.memo'd for subtree
+// skipping; callbacks are useCallback'd for stable references.
 
-import React, { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { usePoiesisStore } from "../../store";
 import { useElements, useRootOrder, useSelectedElementIds, useComponentDefs } from "../../store/hooks";
+import { OmniViewElement } from "./OmniViewElement";
+import { buildInlineStyleMap } from "./render-utils";
 import type { ElementData, ViewElementData } from "../../core/types/element";
-import type { StyleValueSegment } from "../../core/types/style";
 import type { ComponentDef } from "../../core/types/project-json";
-import type { DesignToken } from "../../core/types/design";
-
-function isTextSegment(
-  s: StyleValueSegment
-): s is StyleValueSegment & { type: "text"; value: string } {
-  return s.type === "text";
-}
-
-const tagMap: Record<string, string> = {
-  container: "div", flex: "div", grid: "div", card: "div",
-  text: "span", heading: "h1", button: "button", input: "input",
-  textarea: "textarea", select: "select", checkbox: "input",
-  list: "ul", listitem: "li", image: "img", spinner: "div",
-  progress: "progress", alert: "div", link: "a", form: "form",
-  div: "div", span: "span", img: "img", a: "a", p: "p",
-  h1: "h1", h2: "h2", h3: "h3", h4: "h4", h5: "h5", h6: "h6",
-  section: "section", article: "article", header: "header",
-  footer: "footer", nav: "nav", main: "main",
-  ul: "ul", ol: "ol", li: "li", label: "label", hr: "hr",
-};
-
-const blockTags = new Set([
-  "div", "section", "article", "header", "footer", "nav", "main",
-  "ul", "ol", "li", "form", "h1", "h2", "h3", "h4", "h5", "h6", "p",
-]);
-
-function resolveTag(tag: string): string {
-  return tagMap[tag.toLowerCase()] || tagMap[tag] || "div";
-}
-
-function getDefaultInlineStyles(el: ElementData): Record<string, string> {
-  const styles: Record<string, string> = {};
-  if (!("tag" in el)) return styles;
-  const htmlTag = resolveTag(el.tag);
-  if (blockTags.has(htmlTag)) {
-    styles.display = "block";
-    if (!el.props?.label && (!("children" in el) || !el.children || el.children.length === 0)) {
-      styles.minHeight = "32px";
-    }
-  }
-  if (htmlTag === "span" && !el.props?.label) {
-    styles.display = "inline-block";
-    styles.minWidth = "32px";
-    styles.minHeight = "20px";
-  }
-  return styles;
-}
-
-/** Resolve a style value from segments, following var-ref through tokens. */
-function resolveSegmentsValue(
-  segments: StyleValueSegment[],
-  tokens: DesignToken[],
-): string | null {
-  for (const seg of segments) {
-    if (seg.type === "text") return seg.value;
-    if (seg.type === "var-ref") {
-      const token = tokens.find((t) => t.name === seg.name);
-      if (token) return token.value;
-    }
-  }
-  return null;
-}
 
 export function OmniViewRenderer() {
   const elements = useElements();
@@ -146,83 +89,31 @@ export function OmniViewRenderer() {
     return { expandedElements: map, customChildIds: innerIds };
   }, [elements, componentDefs]);
 
-  const renderElement = (el: ElementData): React.ReactNode => {
-    if (!("children" in el && "tag" in el)) return null;
+  // Pre-compute inline styles for all elements: O(1) class lookup via Map
+  const inlineStyleMap = useMemo(
+    () => buildInlineStyleMap(expandedElements, activeDesign),
+    [expandedElements, activeDesign],
+  );
 
-    const expanded = expandedElements.get(el.id);
-    if (expanded && "children" in expanded && "tag" in expanded) {
-      el = expanded;
-    }
+  // Convert selectedIds array to Set for O(1) .has() lookup
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-    const isInsideCustom = customChildIds.has(el.id);
-    const isSelected = !isInsideCustom && selectedIds.includes(el.id);
+  // Resolve root elements via Map.get() — O(1) instead of Array.find() O(n)
+  const rootElements: ViewElementData[] = useMemo(
+    () =>
+      rootOrder
+        .map((id) => expandedElements.get(id))
+        .filter((e): e is ViewElementData => e !== undefined && "children" in e && "tag" in e),
+    [rootOrder, expandedElements],
+  );
 
-    const children = el.children
-      .map((cid: string) => expandedElements.get(cid) || elements.find((e: ElementData) => e.id === cid))
-      .filter((e): e is ElementData => e !== undefined);
+  // Stable callbacks — no closures created per render in children
+  const handleSelect = useCallback((id: string) => selectElement(id), [selectElement]);
 
-    const defaultStyles = getDefaultInlineStyles(el);
-    const inlineStyles: Record<string, string> = { ...defaultStyles };
-    if (el.style?.inlineProperties) {
-      for (const prop of el.style.inlineProperties) {
-        const textSeg = prop.segments.find(isTextSegment);
-        if (textSeg) inlineStyles[prop.name] = textSeg.value;
-      }
-    }
-
-    // Resolve class bindings: merge base class properties into inlineStyles
-    if (el.style?.classRefs && activeDesign) {
-      for (const ref of el.style.classRefs) {
-        // Strip namespace prefix (e.g. "AppDesign.Card" → "Card")
-        const className = ref.includes(".") ? ref.split(".").slice(1).join(".") : ref;
-        const classDef = activeDesign.classes.find((c) => c.name === className);
-        if (!classDef) continue;
-        for (const prop of classDef.properties) {
-          const resolved = resolveSegmentsValue(prop.segments, activeDesign.tokens);
-          if (resolved != null) {
-            inlineStyles[prop.name] = resolved;
-          }
-        }
-      }
-    }
-
-    const style: React.CSSProperties = {
-      outline: isSelected ? "2px solid #7C3AED" : "none",
-      outlineOffset: "-2px",
-      cursor: isInsideCustom ? "default" : "pointer",
-      ...inlineStyles,
-    };
-
-    const tagName = resolveTag(el.tag);
-
-    const handleClick = isInsideCustom ? undefined : (e: React.MouseEvent) => {
-      e.stopPropagation();
-      selectElement(el.id);
-    };
-
-    const handleDoubleClick = isInsideCustom ? undefined : (e: React.MouseEvent) => {
-      e.stopPropagation();
-      // Toggle: if already in code-flow mode, exit; otherwise enter for this element
-      toggleCodeFlow(codeFlowVisible ? null : el.id);
-    };
-
-    return React.createElement(
-      tagName,
-      {
-        key: el.id,
-        "data-pid": el.id,
-        style,
-        onClick: handleClick,
-        onDoubleClick: handleDoubleClick,
-      },
-      el.props?.label != null ? String(el.props.label) : null,
-      ...children.map(renderElement)
-    );
-  };
-
-  const rootElements = rootOrder
-    .map((id) => elements.find((e) => e.id === id))
-    .filter((e): e is ElementData => e !== undefined);
+  const handleDoubleClick = useCallback(
+    (id: string) => toggleCodeFlow(codeFlowVisible ? null : id),
+    [toggleCodeFlow, codeFlowVisible],
+  );
 
   return (
     <div
@@ -240,7 +131,18 @@ export function OmniViewRenderer() {
           空画布 — 从组件面板拖入元素
         </div>
       ) : (
-        rootElements.map(renderElement)
+        rootElements.map((el) => (
+          <OmniViewElement
+            key={el.id}
+            element={el}
+            expandedElements={expandedElements}
+            customChildIds={customChildIds}
+            selectedIds={selectedIdSet}
+            inlineStyleMap={inlineStyleMap}
+            onSelect={handleSelect}
+            onDoubleClick={handleDoubleClick}
+          />
+        ))
       )}
     </div>
   );
