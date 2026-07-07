@@ -1,6 +1,5 @@
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { usePoiesisStore } from "./store";
-import { ArchitecturePage } from "./pages/ArchitecturePage";
-import { DesignPage } from "./pages/DesignPage";
 import { WelcomePage } from "./pages/WelcomePage";
 import { StatusBar } from "./components/shell/StatusBar";
 import { api } from "./commands";
@@ -8,10 +7,12 @@ import { DEFAULT_PROJECT_NAME } from "./constants";
 import { parseOmniSource } from "./services/codegen";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";
-import { useEffect, useRef } from "react";
 import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
 import "./styles/tokens.css";
+
+const DesignPage = lazy(() => import("./pages/DesignPage").then((m) => ({ default: m.DesignPage })));
+const ArchitecturePage = lazy(() => import("./pages/ArchitecturePage").then((m) => ({ default: m.ArchitecturePage })));
 
 const log = createLogger("App");
 
@@ -53,37 +54,44 @@ async function loadOmniFiles(): Promise<void> {
     wires: WireData[];
     rootOrder: string[];
   }
+
+  // Batch-load files in parallel (BATCH_SIZE=5) to avoid too many concurrent I/O ops
+  const BATCH_SIZE = 5;
   const parsed: ParsedFile[] = [];
-  for (const filePath of omniPaths) {
-    try {
-      const res = await api.project.readFile(filePath);
-      if (!res.content) continue;
-      const parseResult = parseOmniSource(res.content);
-      if (!parseResult.designElements) continue;
-      const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
-      const rootOrder = parseResult.designElements
-        .filter((e: ElementData) => !e.parentId)
-        .map((e: ElementData) => e.id);
-      const positionedElements = parseResult.designElements.map((el, idx) => ({
-        ...el,
-        position: el.position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
-      }));
-      parsed.push({
-        filePath, componentName,
-        content: res.content,
-        elements: positionedElements,
-        wires: parseResult.designWires || [],
-        rootOrder,
-      });
-    } catch (e) {
-      log.warn("Failed to parse .omni file:", filePath, e);
+  for (let i = 0; i < omniPaths.length; i += BATCH_SIZE) {
+    const batch = omniPaths.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (filePath) => {
+      try {
+        const res = await api.project.readFile(filePath);
+        if (!res.content) return null;
+        const parseResult = parseOmniSource(res.content);
+        if (!parseResult.designElements) return null;
+        const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
+        const rootOrder = parseResult.designElements
+          .filter((e: ElementData) => !e.parentId)
+          .map((e: ElementData) => e.id);
+        const positionedElements = parseResult.designElements.map((el, idx) => ({
+          ...el,
+          position: el.position ?? { x: 100 + idx * 50, y: 100 + idx * 50 },
+        }));
+        return {
+          filePath, componentName,
+          content: res.content,
+          elements: positionedElements,
+          wires: parseResult.designWires || [],
+          rootOrder,
+        } as ParsedFile;
+      } catch (e) {
+        log.warn("Failed to parse .omni file:", filePath, e);
+        return null;
+      }
+    }));
+    for (const r of results) {
+      if (r) parsed.push(r);
     }
   }
 
   // Batch-apply parsed results to store.
-  // Strategy: populate tabData for ALL tabs, set canvas to last-parsed file's elements,
-  // then switchTab to main — which correctly saves current elements to the last tab
-  // and restores main's elements from tabData.
   if (parsed.length > 0) {
     const store = usePoiesisStore.getState();
     const stateUpdate: Partial<{
@@ -96,7 +104,6 @@ async function loadOmniFiles(): Promise<void> {
     const newTabData = { ...store.tabData };
     const newComponentDefs: Record<string, import("./core/types/project-json").ComponentDef> = { ...store.componentDefs };
 
-    // Last parsed file = current active tab (last opened via openTab)
     const lastParsed = parsed[parsed.length - 1];
 
     for (const p of parsed) {
@@ -123,7 +130,6 @@ async function loadOmniFiles(): Promise<void> {
       }
     }
 
-    // Canvas shows last tab's elements (current active tab before switchTab)
     stateUpdate.elements = lastParsed.elements;
     stateUpdate.wires = lastParsed.wires;
     stateUpdate.rootOrder = lastParsed.rootOrder;
@@ -134,7 +140,6 @@ async function loadOmniFiles(): Promise<void> {
       componentDefs: newComponentDefs,
     });
 
-    // Switch to main tab (unless it's already active)
     if (mainPath && mainPath !== lastParsed.filePath) {
       const mainTabs = usePoiesisStore.getState().designPage.openTabs
         .filter((t) => t.filePath === mainPath);
@@ -161,6 +166,15 @@ export default function App() {
       ? `${compileErrors.length} 个错误`
       : "就绪";
 
+  // ── Global unhandled promise rejection handler ──
+  useEffect(() => {
+    const handler = (event: PromiseRejectionEvent) => {
+      log.error("Unhandled promise rejection:", event.reason);
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
   // ── On mount: if projectDir is set, load .omni files into canvas ──
   const loadedRef = useRef(false);
   useEffect(() => {
@@ -173,7 +187,7 @@ export default function App() {
   const handleProjectOpened = async (path: string, name: string) => {
     resetEditorState();
     setProjectName(name);
-    loadedRef.current = false; // allow re-loading
+    loadedRef.current = false;
     setProjectDir(path);
   };
 
@@ -195,7 +209,9 @@ export default function App() {
         >
           {/* Page content */}
           <div style={{ flex: 1, overflow: "hidden" }}>
-            {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage />}
+            <Suspense fallback={<div style={{ padding: 40, color: "#6b7280", fontSize: 14 }}>Loading...</div>}>
+              {currentPage === "architecture" ? <ArchitecturePage /> : <DesignPage />}
+            </Suspense>
           </div>
 
           {/* Page-switch toggle — top-right floating */}
@@ -228,7 +244,6 @@ export default function App() {
             </PageToggleButton>
           </div>
 
-          {/* Status bar at bottom */}
           <StatusBar
             status={{ text: statusText, isError: compileErrors.length > 0 }}
             isDirty={isDirty}

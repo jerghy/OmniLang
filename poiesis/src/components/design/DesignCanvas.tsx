@@ -4,10 +4,12 @@
 // droppable target that accepts palette draggables and delegates creation to DesignPage's
 // DndContext onDragEnd handler.
 
+import { lazy, Suspense } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { usePoiesisStore } from "../../store";
 import { OmniViewRenderer } from "./OmniViewRenderer";
-import { CodeFlowCanvas } from "./CodeFlowCanvas";
+
+const CodeFlowCanvas = lazy(() => import("./CodeFlowCanvas").then((m) => ({ default: m.CodeFlowCanvas })));
 
 export function DesignCanvas() {
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
@@ -53,8 +55,6 @@ export function DesignCanvas() {
       {codeFlowVisible && (
         <div
           onDoubleClick={(e) => {
-            // Only navigate back to Design Canvas when double-clicking the
-            // empty canvas — not when double-clicking a code-flow node.
             const target = e.target as HTMLElement;
             if (target.closest(".react-flow__node, .react-flow__controls")) return;
             toggleCodeFlow(null);
@@ -68,7 +68,9 @@ export function DesignCanvas() {
             zIndex: 0,
           }}
         >
-          <CodeFlowCanvas />
+          <Suspense fallback={<div style={{ padding: 20, color: "#6b7280", fontSize: 13 }}>Loading flow editor...</div>}>
+            <CodeFlowCanvas />
+          </Suspense>
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use crate::codegen::Target;
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 
 /// Pre-built O(1) lookup map: fn_name -> (module, fn_name_in_registry).
 static STDLIB_FN_MAP: LazyLock<HashMap<&'static str, (&'static str, &'static str)>> =
@@ -39,7 +40,7 @@ pub fn try_format_stdlib_call(name: &str, args: &[String], target: Target) -> Op
 pub fn validate_stdlib_imports(
     ir: &crate::ir::IRProgram,
     target: Target,
-) -> Result<(), Vec<String>> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut errors = Vec::new();
     for module in &ir.stdlib_imports {
         if !crate::stdlib::module_available(module, target) {
@@ -48,12 +49,22 @@ pub fn validate_stdlib_imports(
                 .iter()
                 .map(|t| format!("{:?}", t).to_lowercase())
                 .collect();
-            errors.push(format!(
-                "stdlib module 'std/{}' is not available on target '{:?}'. Available targets: {}",
-                module,
-                target,
-                available_str.join(", ")
-            ));
+            errors.push(Diagnostic {
+                severity: Severity::Error,
+                kind: DiagnosticKind::ECodegen,
+                message: format!(
+                    "stdlib module 'std/{}' is not available on target '{:?}'. Available targets: {}",
+                    module,
+                    target,
+                    available_str.join(", ")
+                ),
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            });
         }
     }
     if errors.is_empty() {
@@ -125,9 +136,9 @@ mod tests {
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
         assert!(
-            errors[0].contains("not available"),
+            errors[0].message.contains("not available"),
             "Error should mention not available. Got: {}",
-            errors[0]
+            errors[0].message
         );
     }
 

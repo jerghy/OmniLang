@@ -16,28 +16,35 @@ export function CompilerPreview() {
   const wires = usePoiesisStore((s) => s.wires);
   const rootOrder = usePoiesisStore((s) => s.rootOrder);
   const designPage = usePoiesisStore((s) => s.designPage);
-  // Subscribe to componentDefs so preview recompiles when a custom
-  // component's definition changes (e.g. after editing and saving MyCard.omni).
-  const componentDefs = usePoiesisStore((s) => s.componentDefs);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Stable refs to avoid dependency-array-driven recreation of compile()
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  const wiresRef = useRef(wires);
+  wiresRef.current = wires;
+  const rootOrderRef = useRef(rootOrder);
+  rootOrderRef.current = rootOrder;
+
   const activeTab = designPage.openTabs.find((t) => t.id === designPage.activeTabId);
   const componentName = activeTab?.componentName ?? "main";
 
   const compile = useCallback(async () => {
+    const el = elementsRef.current;
+    const wi = wiresRef.current;
+    const ro = rootOrderRef.current;
     setError(null);
     try {
-      // Generate .omni source from current editor state
       const genResult = generateOmniSource({
-        designElements: elements,
-        designWires: wires,
-        codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "📄", graph: { elements, wires }, variables: [] }],
+        designElements: el,
+        designWires: wi,
+        codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "📄", graph: { elements: el, wires: wi }, variables: [] }],
         componentName,
-        rootOrder,
+        rootOrder: ro,
       });
 
       if (!genResult.value) {
@@ -45,7 +52,6 @@ export function CompilerPreview() {
         return;
       }
 
-      // Compile via Rust WASM compiler
       await rustCompiler.init();
       if (!rustCompiler.isReady) {
         setError("OmniLang 编译器未加载");
@@ -59,7 +65,6 @@ export function CompilerPreview() {
         return;
       }
 
-      // Build full HTML document for the iframe
       const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -77,9 +82,8 @@ ${result.files.html}
     } catch (e) {
       setError(String(e));
     }
-  }, [elements, wires, rootOrder, componentName, componentDefs]);
+  }, [componentName]); // stable — only recreated when componentName changes
 
-  // Debounced compilation on store changes
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(compile, DEBOUNCE_MS);
@@ -88,7 +92,6 @@ ${result.files.html}
     };
   }, [compile]);
 
-  // Write srcdoc to iframe when htmlContent changes
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !htmlContent) return;

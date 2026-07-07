@@ -18,4 +18,17 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-core": ["react", "react-dom", "zustand", "sonner"],
+          "vendor-flow": ["@xyflow/react"],
+          "vendor-dnd": ["@dnd-kit/core", "@dnd-kit/utilities"],
+          "vendor-layout": ["dagre"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 500,
+  },
 }));

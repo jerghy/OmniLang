@@ -8,7 +8,6 @@ import {
   Background,
   BackgroundVariant,
   type Node as RFNode,
-  type OnNodesChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
@@ -205,17 +204,13 @@ function FlowCanvasInner() {
     return () => window.removeEventListener("keydown", handler);
   }, []); // stable — bind once
 
-  // ── Drag: sync position back to store in real time ──
-  // In React Flow controlled mode, the nodes prop is the source of truth.
-  // We must update the store on every position change (including during drag),
-  // otherwise React Flow resets the node to the old prop position each frame.
-  const onNodesChange: OnNodesChange = useCallback(
-    (changes) => {
-      for (const change of changes) {
-        if (change.type === "position" && change.position) {
-          setElementPosition(change.id, change.position);
-        }
-      }
+  // ── Drag: commit position only on drag end ──
+  // During drag, ReactFlow manages node positions internally (uncontrolled for position).
+  // We only commit to the Zustand store when the user finishes dragging,
+  // avoiding excessive store updates on every pixel of movement.
+  const onNodeDragStop = useCallback(
+    (_event: MouseEvent | TouchEvent, node: RFNode) => {
+      setElementPosition(node.id, node.position);
     },
     [setElementPosition],
   );
@@ -308,7 +303,7 @@ function FlowCanvasInner() {
           nodesConnectable
           elementsSelectable
           panOnScroll
-          onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
         >

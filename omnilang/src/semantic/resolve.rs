@@ -114,9 +114,9 @@ impl SemanticAnalyzer {
         }
     }
 
-    /// Find a scope by name (linear scan — sufficient for our scale).
+    /// Find a scope by name (hash lookup, O(1) average).
     fn find_scope(&self, name: &str) -> Option<usize> {
-        self.symbols.scopes.iter().position(|s| s.name == name)
+        self.symbols.find_scope_by_name(name)
     }
 
     fn resolve_block_refs(&mut self, block: &Block) {

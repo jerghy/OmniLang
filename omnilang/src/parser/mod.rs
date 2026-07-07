@@ -82,22 +82,22 @@ impl<'a> Parser<'a> {
         self.depth = self.depth.saturating_sub(1);
     }
 
-    fn peek(&self) -> Token {
+    fn peek(&self) -> &Token {
         self.tokens
             .get(self.pos)
-            .cloned()
-            .unwrap_or_else(|| Token::new(TokenKind::Eof, 0, 0, 0, 0))
+            .unwrap_or_else(|| {
+                // Static fallback — initialized once
+                static EOF: std::sync::OnceLock<Token> = std::sync::OnceLock::new();
+                EOF.get_or_init(|| Token::new(TokenKind::Eof, 0, 0, 0, 0))
+            })
     }
 
     fn peek_kind(&self) -> TokenKind {
-        self.tokens
-            .get(self.pos)
-            .map(|t| t.kind.clone())
-            .unwrap_or(TokenKind::Eof)
+        self.peek().kind.clone()
     }
 
     fn advance(&mut self) -> Token {
-        let t = self.peek();
+        let t = self.peek().clone();
         if t.kind != TokenKind::Eof {
             self.pos += 1;
         }
