@@ -25,7 +25,7 @@ impl LintRule for DeadCode {
         LintSeverity::Warning
     }
 
-    fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
+    fn check_ast(&self, program: &Program, file_path: &str) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for module in program.modules.values() {
@@ -76,7 +76,7 @@ impl LintRule for DeadCode {
                                 "Signal '{}' in component '{}' is never used",
                                 name, comp.name
                             ),
-                            file: String::new(),
+                            file: file_path.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -92,7 +92,7 @@ impl LintRule for DeadCode {
                                 "Computed '{}' in component '{}' is never used",
                                 name, comp.name
                             ),
-                            file: String::new(),
+                            file: file_path.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -108,7 +108,7 @@ impl LintRule for DeadCode {
                                 "Function '{}' in component '{}' is never called",
                                 name, comp.name
                             ),
-                            file: String::new(),
+                            file: file_path.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -120,7 +120,7 @@ impl LintRule for DeadCode {
         diags
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         let mut used_stores: HashSet<&str> = HashSet::new();
@@ -130,13 +130,27 @@ impl LintRule for DeadCode {
             }
         }
 
+        // Determine the best file path to use: first component's source_file, or first entry from file_map
+        let default_file = ir
+            .all_components()
+            .values()
+            .find_map(|c| c.source_file.as_deref())
+            .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+            .unwrap_or("")
+            .to_string();
+
         for store_name in ir.all_stores().keys() {
             if !used_stores.contains(store_name) {
+                let store_file = ir
+                    .all_stores()
+                    .get(store_name)
+                    .and_then(|s| s.source_file.as_deref())
+                    .unwrap_or(&default_file);
                 diags.push(LintDiagnostic {
                     rule: self.name().into(),
                     severity: self.severity(),
                     message: format!("Store '{}' is never used by any component", store_name),
-                    file: String::new(),
+                    file: store_file.to_string(),
                     line: 0,
                     col: 0,
                 });

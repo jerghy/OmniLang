@@ -53,8 +53,58 @@ fn statement_contains_ident(stmt: &StatementIR, ident: &str) -> bool {
                     .as_ref()
                     .is_some_and(|i| getter_expr_contains_ident(i, ident))
         }
+        StatementIR::BlockStmtIR { body } => body
+            .statements
+            .iter()
+            .any(|s| statement_contains_ident(s, ident)),
+        StatementIR::WhileStmtIR { condition, body } => {
+            getter_expr_contains_ident(condition, ident)
+                || body
+                    .statements
+                    .iter()
+                    .any(|s| statement_contains_ident(s, ident))
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            getter_expr_contains_ident(iterable, ident)
+                || body
+                    .statements
+                    .iter()
+                    .any(|s| statement_contains_ident(s, ident))
+        }
+        StatementIR::ThrowStmtIR { expr } => getter_expr_contains_ident(expr, ident),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body
+                .statements
+                .iter()
+                .any(|s| statement_contains_ident(s, ident))
+                || catch_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| statement_contains_ident(s, ident))
+                })
+                || finally_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| statement_contains_ident(s, ident))
+                })
+        }
         _ => false,
     }
+}
+
+/// Check if any statement in the action body references the given identifier.
+/// Returns true if the identifier is referenced anywhere in the action's statements.
+pub(super) fn action_body_contains_ident(action: &crate::ir::FunctionIR, ident: &str) -> bool {
+    action
+        .body
+        .statements
+        .iter()
+        .any(|s| statement_contains_ident(s, ident))
 }
 
 /// Check if an ExprIR references a given identifier anywhere in its tree.

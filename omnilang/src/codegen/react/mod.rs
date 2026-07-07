@@ -110,7 +110,16 @@ impl ReactCodegen {
         // Build set of store signal names so mutations use setter calls
         let store_signal_names: HashSet<String> = store.signals.keys().cloned().collect();
 
+        // Build all store names (signals + getters) for dependency analysis
+        let all_store_names: HashSet<String> = store
+            .signals
+            .keys()
+            .chain(store.getters.keys())
+            .cloned()
+            .collect();
+
         // Actions: each becomes a useCallback function calling signal setters
+        // with precise dependency arrays to avoid stale closures.
         let mut return_keys: Vec<String> = Vec::new();
         for action in &store.actions {
             let params: Vec<String> = action
@@ -134,7 +143,17 @@ impl ReactCodegen {
                 expr::generate_statement_tsx(&mut w, stmt, &store_signal_names);
             }
             w.dedent();
-            w.emit("}, []);");
+            // Compute precise dependency array
+            let action_deps: Vec<String> = all_store_names
+                .iter()
+                .filter(|name| utils::action_body_contains_ident(action, name))
+                .cloned()
+                .collect();
+            if action_deps.is_empty() {
+                w.emit("}, []);");
+            } else {
+                w.emit_fmt(format_args!("}}, [{}]);", action_deps.join(", ")));
+            }
             // Return key is always the original action name; value may differ
             if local_action_name != action.name {
                 return_keys.push(format!("{}: {}", action.name, local_action_name));

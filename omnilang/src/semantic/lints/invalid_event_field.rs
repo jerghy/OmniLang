@@ -22,11 +22,16 @@ impl LintRule for InvalidEventField {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (_comp_name, comp) in ir.all_components() {
             if let Some(ref view) = comp.view {
-                check_view_invalid_fields(view, &comp.name, self, &mut diags);
+                let comp_file = comp
+                    .source_file
+                    .as_deref()
+                    .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                    .unwrap_or(&comp.name);
+                check_view_invalid_fields(view, comp_file, self, &mut diags);
             }
         }
         diags
@@ -35,7 +40,7 @@ impl LintRule for InvalidEventField {
 
 fn check_view_invalid_fields(
     tree: &ViewTree,
-    comp_name: &str,
+    comp_file: &str,
     rule: &InvalidEventField,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -58,7 +63,7 @@ fn check_view_invalid_fields(
                                     kind,
                                     schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
                                 ),
-                                file: comp_name.to_string(),
+                                file: comp_file.to_string(),
                                 line: el.source_line,
                                 col: el.source_col,
                             });
@@ -67,25 +72,25 @@ fn check_view_invalid_fields(
                 }
             }
             for child in &el.children {
-                check_view_invalid_fields(child, comp_name, rule, diags);
+                check_view_invalid_fields(child, comp_file, rule, diags);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(ref body) = branch.body {
-                    check_view_invalid_fields(body, comp_name, rule, diags);
+                    check_view_invalid_fields(body, comp_file, rule, diags);
                 }
             }
             if let Some(ref fallback) = cond.fallback {
-                check_view_invalid_fields(fallback, comp_name, rule, diags);
+                check_view_invalid_fields(fallback, comp_file, rule, diags);
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
-                check_view_invalid_fields(body, comp_name, rule, diags);
+                check_view_invalid_fields(body, comp_file, rule, diags);
             }
             if let Some(ref empty) = list.empty_body {
-                check_view_invalid_fields(empty, comp_name, rule, diags);
+                check_view_invalid_fields(empty, comp_file, rule, diags);
             }
         }
         _ => {}

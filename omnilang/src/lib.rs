@@ -310,23 +310,8 @@ pub fn compile_multi_to_target(
         .map(|f| (f.path, f.content))
         .collect();
 
-    // Convert codegen errors (plain strings) to Diagnostic objects
-    let codegen_diags: Vec<error::Diagnostic> = output
-        .errors
-        .into_iter()
-        .map(|msg| error::Diagnostic {
-            severity: error::Severity::Error,
-            kind: error::DiagnosticKind::ECodegen,
-            message: msg,
-            file: None,
-            line: 0,
-            col: 0,
-            end_line: None,
-            end_col: None,
-            suggestion: None,
-        })
-        .collect();
-    diags.extend(codegen_diags);
+    // Codegen errors are already Diagnostic objects
+    diags.extend(output.errors);
 
     // Post-process: wrap debug HTML for editor mode.
     // Only available when the omniview codegen backend is enabled.

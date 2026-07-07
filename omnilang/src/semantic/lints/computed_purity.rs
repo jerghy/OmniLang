@@ -23,7 +23,7 @@ impl LintRule for ComputedPurity {
         LintSeverity::Error
     }
 
-    fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
+    fn check_ast(&self, program: &Program, file_path: &str) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for module in program.modules.values() {
@@ -41,7 +41,7 @@ impl LintRule for ComputedPurity {
                                  computed values must be pure (no mutations or assignments)",
                                 computed.name, comp.name
                             ),
-                            file: String::new(),
+                            file: file_path.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -62,7 +62,7 @@ impl LintRule for ComputedPurity {
                                      getters must be pure",
                                     getter.name, store.name
                                 ),
-                                file: String::new(),
+                                file: file_path.to_string(),
                                 line: 0,
                                 col: 0,
                             });

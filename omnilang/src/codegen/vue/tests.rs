@@ -486,8 +486,8 @@ mod tests {
             .get("Watcher")
             .unwrap();
         let sfc = codegen.gen_component_sfc("Watcher", comp_ref, &ir);
-        assert!(sfc.contains("watchEffect(() => {"));
-        assert!(sfc.contains("import { ref, watchEffect } from 'vue';"));
+        assert!(sfc.contains("watch([count], () => {"));
+        assert!(sfc.contains("import { ref, watch } from 'vue';"));
     }
 
     #[test]

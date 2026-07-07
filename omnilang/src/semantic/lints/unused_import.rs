@@ -25,7 +25,7 @@ impl LintRule for UnusedImport {
         LintSeverity::Warning
     }
 
-    fn check_ast(&self, program: &Program, _file_path: &str) -> Vec<LintDiagnostic> {
+    fn check_ast(&self, program: &Program, file_path: &str) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         let mut imported: HashMap<&str, (&ImportStmt, &[String])> = HashMap::new();
@@ -107,7 +107,7 @@ impl LintRule for UnusedImport {
                     rule: self.name().into(),
                     severity: self.severity(),
                     message: format!("Import '{}' is never used", name),
-                    file: String::new(),
+                    file: file_path.to_string(),
                     line,
                     col,
                 });

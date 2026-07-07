@@ -24,10 +24,16 @@ impl LintRule for TypeMismatch {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
 
         for (comp_name, comp) in ir.all_components() {
+            let comp_file = comp
+                .source_file
+                .as_deref()
+                .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                .unwrap_or(comp_name);
+
             // Check signal initializer types
             for state in &comp.states {
                 let type_kind = &state.r#type.kind;
@@ -41,7 +47,7 @@ impl LintRule for TypeMismatch {
                              does not match declared type '{}'",
                             state.name, comp_name, type_kind
                         ),
-                        file: String::new(),
+                        file: comp_file.to_string(),
                         line: 0,
                         col: 0,
                     });
@@ -56,6 +62,7 @@ impl LintRule for TypeMismatch {
                         &ret_type.kind,
                         comp_name,
                         &func.name,
+                        comp_file,
                         &mut diags,
                     );
                 }
@@ -95,6 +102,7 @@ impl TypeMismatch {
         ret_type: &str,
         comp_name: &str,
         func_name: &str,
+        file_path: &str,
         diags: &mut Vec<LintDiagnostic>,
     ) {
         let ret_type_lower = ret_type.to_lowercase();
@@ -112,7 +120,7 @@ impl TypeMismatch {
                                 "Function '{}.{}' has void return type but returns a value",
                                 comp_name, func_name
                             ),
-                            file: String::new(),
+                            file: file_path.to_string(),
                             line: 0,
                             col: 0,
                         });
@@ -123,19 +131,19 @@ impl TypeMismatch {
                     else_body,
                     ..
                 } => {
-                    Self::check_function_returns(then_body, ret_type, comp_name, func_name, diags);
+                    Self::check_function_returns(then_body, ret_type, comp_name, func_name, file_path, diags);
                     if let Some(ref eb) = else_body {
-                        Self::check_function_returns(eb, ret_type, comp_name, func_name, diags);
+                        Self::check_function_returns(eb, ret_type, comp_name, func_name, file_path, diags);
                     }
                 }
                 StatementIR::WhileStmtIR { body, .. } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, diags);
+                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
                 }
                 StatementIR::ForInStmtIR { body, .. } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, diags);
+                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
                 }
                 StatementIR::BlockStmtIR { body } => {
-                    Self::check_function_returns(body, ret_type, comp_name, func_name, diags);
+                    Self::check_function_returns(body, ret_type, comp_name, func_name, file_path, diags);
                 }
                 _ => {}
             }

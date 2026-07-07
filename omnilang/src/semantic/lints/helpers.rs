@@ -91,6 +91,7 @@ pub(super) fn check_block_ir_for_store_mutations(
     block: &BlockIR,
     store_signals: &HashMap<&str, HashSet<&str>>,
     context_name: &str,
+    file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     for stmt in &block.statements {
@@ -109,7 +110,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                                          store data must only be changed through store actions",
                                     owner, mutation.target.name, context_name
                                 ),
-                                file: String::new(),
+                                file: file_path.to_string(),
                                 line: 0,
                                 col: 0,
                             });
@@ -123,19 +124,19 @@ pub(super) fn check_block_ir_for_store_mutations(
                 else_body,
                 ..
             } => {
-                check_block_ir_for_store_mutations(then_body, store_signals, context_name, diags);
+                check_block_ir_for_store_mutations(then_body, store_signals, context_name, file_path, diags);
                 for (_, body) in else_ifs {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
                 }
                 if let Some(ref body) = else_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
                 }
             }
             StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
-                check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
             }
             StatementIR::BlockStmtIR { body } => {
-                check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
             }
             StatementIR::TryCatchStmtIR {
                 try_body,
@@ -143,12 +144,12 @@ pub(super) fn check_block_ir_for_store_mutations(
                 finally_body,
                 ..
             } => {
-                check_block_ir_for_store_mutations(try_body, store_signals, context_name, diags);
+                check_block_ir_for_store_mutations(try_body, store_signals, context_name, file_path, diags);
                 if let Some(ref body) = catch_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
                 }
                 if let Some(ref body) = finally_body {
-                    check_block_ir_for_store_mutations(body, store_signals, context_name, diags);
+                    check_block_ir_for_store_mutations(body, store_signals, context_name, file_path, diags);
                 }
             }
             StatementIR::ExprStmtIR { expr }
@@ -162,7 +163,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                              store data must only be changed through store actions",
                         context_name
                     ),
-                    file: String::new(),
+                    file: file_path.to_string(),
                     line: 0,
                     col: 0,
                 });
@@ -289,6 +290,7 @@ pub(super) fn expr_ir_contains_store_mutation(
 pub(super) fn check_view_tree_events_for_store_mutations(
     tree: &ViewTree,
     store_signals: &HashMap<&str, HashSet<&str>>,
+    file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     match tree {
@@ -299,30 +301,31 @@ pub(super) fn check_view_tree_events_for_store_mutations(
                         body,
                         store_signals,
                         "inline event handler",
+                        file_path,
                         diags,
                     );
                 }
             }
             for child in &el.children {
-                check_view_tree_events_for_store_mutations(child, store_signals, diags);
+                check_view_tree_events_for_store_mutations(child, store_signals, file_path, diags);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 if let Some(ref body) = branch.body {
-                    check_view_tree_events_for_store_mutations(body, store_signals, diags);
+                    check_view_tree_events_for_store_mutations(body, store_signals, file_path, diags);
                 }
             }
             if let Some(ref fallback) = cond.fallback {
-                check_view_tree_events_for_store_mutations(fallback, store_signals, diags);
+                check_view_tree_events_for_store_mutations(fallback, store_signals, file_path, diags);
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
-                check_view_tree_events_for_store_mutations(body, store_signals, diags);
+                check_view_tree_events_for_store_mutations(body, store_signals, file_path, diags);
             }
             if let Some(ref empty) = list.empty_body {
-                check_view_tree_events_for_store_mutations(empty, store_signals, diags);
+                check_view_tree_events_for_store_mutations(empty, store_signals, file_path, diags);
             }
         }
         _ => {}
@@ -335,6 +338,7 @@ pub(super) fn check_block_for_prop_assign(
     prop_names: &HashSet<&str>,
     comp_name: &str,
     context_name: &str,
+    file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     for stmt in &block.stmts {
@@ -352,7 +356,7 @@ pub(super) fn check_block_for_prop_assign(
                              component props are read-only",
                             name, context_name, comp_name
                         ),
-                        file: String::new(),
+                        file: file_path.to_string(),
                         line: 0,
                         col: 0,
                     });
@@ -364,16 +368,16 @@ pub(super) fn check_block_for_prop_assign(
                 else_body,
                 ..
             } => {
-                check_block_for_prop_assign(then_body, prop_names, comp_name, context_name, diags);
+                check_block_for_prop_assign(then_body, prop_names, comp_name, context_name, file_path, diags);
                 for (_, body) in else_ifs {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, diags);
+                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
                 }
                 if let Some(ref body) = else_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, diags);
+                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
                 }
             }
             Stmt::While { body, .. } | Stmt::ForIn { body, .. } => {
-                check_block_for_prop_assign(body, prop_names, comp_name, context_name, diags);
+                check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
             }
             Stmt::TryCatch {
                 try_body,
@@ -381,12 +385,12 @@ pub(super) fn check_block_for_prop_assign(
                 finally_body,
                 ..
             } => {
-                check_block_for_prop_assign(try_body, prop_names, comp_name, context_name, diags);
+                check_block_for_prop_assign(try_body, prop_names, comp_name, context_name, file_path, diags);
                 if let Some(ref body) = catch_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, diags);
+                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
                 }
                 if let Some(ref body) = finally_body {
-                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, diags);
+                    check_block_for_prop_assign(body, prop_names, comp_name, context_name, file_path, diags);
                 }
             }
             _ => {}
@@ -402,7 +406,7 @@ pub(super) fn check_block_for_prop_assign(
                      component props are read-only",
                     context_name, comp_name
                 ),
-                file: String::new(),
+                file: file_path.to_string(),
                 line: 0,
                 col: 0,
             });
@@ -451,6 +455,7 @@ pub(super) fn check_view_for_prop_assign(
     nodes: &[ViewNode],
     prop_names: &HashSet<&str>,
     comp_name: &str,
+    file_path: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     for node in nodes {
@@ -467,25 +472,26 @@ pub(super) fn check_view_for_prop_assign(
                             prop_names,
                             comp_name,
                             "inline event handler",
+                            file_path,
                             diags,
                         );
                     }
                 }
-                check_view_for_prop_assign(&el.children, prop_names, comp_name, diags);
+                check_view_for_prop_assign(&el.children, prop_names, comp_name, file_path, diags);
             }
             ViewNode::IfDirective(if_dir) => {
-                check_view_for_prop_assign(&if_dir.body, prop_names, comp_name, diags);
+                check_view_for_prop_assign(&if_dir.body, prop_names, comp_name, file_path, diags);
                 for (_, body) in &if_dir.else_ifs {
-                    check_view_for_prop_assign(body, prop_names, comp_name, diags);
+                    check_view_for_prop_assign(body, prop_names, comp_name, file_path, diags);
                 }
                 if let Some(ref else_body) = if_dir.else_body {
-                    check_view_for_prop_assign(else_body, prop_names, comp_name, diags);
+                    check_view_for_prop_assign(else_body, prop_names, comp_name, file_path, diags);
                 }
             }
             ViewNode::ForDirective(for_dir) => {
-                check_view_for_prop_assign(&for_dir.body, prop_names, comp_name, diags);
+                check_view_for_prop_assign(&for_dir.body, prop_names, comp_name, file_path, diags);
                 if let Some(ref empty_body) = for_dir.empty_body {
-                    check_view_for_prop_assign(empty_body, prop_names, comp_name, diags);
+                    check_view_for_prop_assign(empty_body, prop_names, comp_name, file_path, diags);
                 }
             }
             _ => {}

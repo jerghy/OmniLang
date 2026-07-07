@@ -22,9 +22,14 @@ impl LintRule for UndefinedRef {
         LintSeverity::Error
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (name, comp) in ir.all_components() {
+            let comp_file = comp
+                .source_file
+                .as_deref()
+                .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                .unwrap_or(name);
             for store_ref in &comp.store_refs {
                 if !ir.all_stores().contains_key(store_ref.as_str()) {
                     diags.push(LintDiagnostic {
@@ -34,7 +39,7 @@ impl LintRule for UndefinedRef {
                             "Component '{}' references undefined store '{}'",
                             name, store_ref
                         ),
-                        file: name.to_string(),
+                        file: comp_file.to_string(),
                         line: 0,
                         col: 0,
                     });

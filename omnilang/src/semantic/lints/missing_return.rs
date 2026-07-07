@@ -23,9 +23,14 @@ impl LintRule for MissingReturn {
         LintSeverity::Warning
     }
 
-    fn check_ir(&self, ir: &IRProgram, _file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
+    fn check_ir(&self, ir: &IRProgram, file_map: &HashMap<String, String>) -> Vec<LintDiagnostic> {
         let mut diags = Vec::new();
         for (comp_name, comp) in ir.all_components() {
+            let comp_file = comp
+                .source_file
+                .as_deref()
+                .or_else(|| file_map.keys().next().map(|s| s.as_str()))
+                .unwrap_or(comp_name);
             for func in &comp.fns {
                 if let Some(ref ret_type) = func.return_type {
                     let kind = ret_type.kind.as_str();
@@ -40,7 +45,7 @@ impl LintRule for MissingReturn {
                                      has return type '{}' but no return statement",
                                     func.name, comp_name, ret_type.kind
                                 ),
-                                file: String::new(),
+                                file: comp_file.to_string(),
                                 line: 0,
                                 col: 0,
                             });
