@@ -52,7 +52,13 @@ export function DesignCanvas() {
       {/* Lower layer: CodeFlowCanvas (code node flow, Phase 5) */}
       {codeFlowVisible && (
         <div
-          onDoubleClick={() => toggleCodeFlow(null)}
+          onDoubleClick={(e) => {
+            // Only navigate back to Design Canvas when double-clicking the
+            // empty canvas — not when double-clicking a code-flow node.
+            const target = e.target as HTMLElement;
+            if (target.closest(".react-flow__node, .react-flow__controls")) return;
+            toggleCodeFlow(null);
+          }}
           style={{
             position: "absolute",
             top: 0,

@@ -11,7 +11,7 @@ import { detectTabType } from "./core/types/design-page";
 import { useEffect, useRef } from "react";
 import { ErrorBoundary } from "./components/error/ErrorBoundary";
 import { createLogger } from "./lib/utils/logger";
-import "../styles/tokens.css";
+import "./styles/tokens.css";
 
 const log = createLogger("App");
 

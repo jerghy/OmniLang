@@ -270,7 +270,8 @@ export function ComponentPalette() {
                             if (window.confirm(`确定删除自定义组件"${m.component}"？`)) {
                               removeComponent(m.component);
                               import("../../commands").then(({ api }) => {
-                                api.annotation.deleteComponentDefinitions([m.component]).catch((e) => { log.warn("Failed to delete component:", e); });
+                                api.annotation.deleteComponentFile(m.component).catch((e) => { log.warn("Failed to delete component file:", e); });
+                                api.annotation.deleteComponentDefinitions([m.component]).catch((e) => { log.warn("Failed to delete component defs:", e); });
                               });
                             }
                           }

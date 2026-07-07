@@ -667,8 +667,8 @@ impl SemanticAnalyzer {
                         &motion.span,
                     ));
                 }
-                if let Some(ms) = parse_duration_ms(val) {
-                    if ms > 3_600_000.0 {
+                match parse_duration_ms(val) {
+                    Ok(ms) if ms > 3_600_000.0 => {
                         self.diagnostics.push(Diagnostic::warning(
                             DiagnosticKind::WMotion,
                             &format!(
@@ -678,6 +678,14 @@ impl SemanticAnalyzer {
                             &motion.span,
                         ));
                     }
+                    Err(err_msg) => {
+                        self.diagnostics.push(Diagnostic::warning(
+                            DiagnosticKind::WMotion,
+                            &format!("@motion '{}': {}", motion.name, err_msg),
+                            &motion.span,
+                        ));
+                    }
+                    _ => {}
                 }
             }
         }

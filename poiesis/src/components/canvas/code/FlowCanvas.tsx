@@ -4,6 +4,9 @@ import {
   ReactFlowProvider,
   useReactFlow,
   useOnSelectionChange,
+  Controls,
+  Background,
+  BackgroundVariant,
   type Node as RFNode,
   type OnNodesChange,
 } from "@xyflow/react";
@@ -35,6 +38,8 @@ function FlowCanvasInner() {
   );
 
   const { screenToFlowPosition } = useReactFlow();
+  const flowWrapperRef = useRef<HTMLDivElement>(null);
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
@@ -200,15 +205,15 @@ function FlowCanvasInner() {
     return () => window.removeEventListener("keydown", handler);
   }, []); // stable — bind once
 
-  // ── Drag: sync position back to store ──
+  // ── Drag: sync position back to store in real time ──
+  // In React Flow controlled mode, the nodes prop is the source of truth.
+  // We must update the store on every position change (including during drag),
+  // otherwise React Flow resets the node to the old prop position each frame.
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       for (const change of changes) {
         if (change.type === "position" && change.position) {
-          // Update store when node is dragged to new position
-          if (!change.dragging) {
-            setElementPosition(change.id, change.position);
-          }
+          setElementPosition(change.id, change.position);
         }
       }
     },
@@ -225,8 +230,12 @@ function FlowCanvasInner() {
   );
 
   // ── Build nodes/edges ──
+  // Filter to code-block elements only. CODE_TAGS may overlap with view-element
+  // tags (e.g., "div" means both HTML <div> and the division operator). Without
+  // the nodeType guard, deleting a code-flow node would cascade-delete the
+  // OmniView root element and all its children.
   const codeElements = useMemo(
-    () => elements.filter((e) => CODE_TAGS.has(e.tag)),
+    () => elements.filter((e) => e.nodeType === "codeblock" && CODE_TAGS.has(e.tag)),
     [elements],
   );
 
@@ -267,7 +276,7 @@ function FlowCanvasInner() {
   );
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div ref={flowWrapperRef} style={{ width: "100%", height: "100%" }}>
       {nodes.length === 0 ? (
         <div
           onContextMenu={handlePaneContextMenu}
@@ -298,10 +307,19 @@ function FlowCanvasInner() {
           nodesDraggable
           nodesConnectable
           elementsSelectable
+          panOnScroll
           onNodesChange={onNodesChange}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
-        />
+        >
+          <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#e2e8f0" />
+          <Controls
+            showZoom
+            showFitView
+            showInteractive={false}
+            position="bottom-right"
+          />
+        </ReactFlow>
       )}
 
       {/* Right-click context menu with collapsible sections and overflow handling */}

@@ -682,7 +682,10 @@ pub(crate) fn format_style_value_expr(val: &serde_json::Value) -> String {
                 return format!("`{}`", template_parts.join(""));
             }
             // Unknown object — emit as-is by serializing
-            serde_json::to_string(val).unwrap_or_default()
+            serde_json::to_string(val).unwrap_or_else(|e| {
+                eprintln!("react/codegen: style value serialization failed: {}", e);
+                "\"__STYLE_ERROR__\"".into()
+            })
         }
         // Boolean, null
         serde_json::Value::Bool(b) => b.to_string(),

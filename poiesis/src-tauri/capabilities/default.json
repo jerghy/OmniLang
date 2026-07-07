@@ -8,10 +8,13 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME/.omnilang/**" },
-        { "path": "$APPDATA/omnilang/**" },
-        { "path": "$HOME/Documents/omnilang/**" },
-        { "path": "$TEMP/omnilang/**" }
+        { "path": "$HOME/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "$TEMP/**" },
+        { "path": "C:/**" },
+        { "path": "D:/**" },
+        { "path": "E:/**" },
+        { "path": "F:/**" }
       ]
     },
     "fs:allow-read-text-file",

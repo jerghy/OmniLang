@@ -278,7 +278,7 @@ impl OmniCompiler {
                 all_success = false;
             }
             for err in &result.errors {
-                all_errors.push(serde_json::to_value(err).unwrap_or_default());
+                all_errors.push(err.to_json_value());
             }
         }
         let result = serde_json::json!({
