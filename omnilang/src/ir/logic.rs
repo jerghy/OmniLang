@@ -100,6 +100,8 @@ pub struct ModuleIR {
     pub motions: Vec<super::MotionIntent>,
     #[serde(default)]
     pub timelines: Vec<super::TimelineIntent>,
+    #[serde(default)]
+    pub designs: Vec<super::DesignIR>,
 }
 
 #[cfg(test)]

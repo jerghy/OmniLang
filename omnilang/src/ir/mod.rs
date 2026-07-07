@@ -2,6 +2,7 @@
 //!
 //! Pipeline: AST → IR types → codegen / JSON serialization.
 
+pub mod design;
 pub mod logic;
 mod lower;
 pub mod lower_logic;
@@ -10,6 +11,7 @@ mod types_motion;
 pub mod visibility;
 
 pub use lower::lower;
+pub use lower::lower_design;
 
 // ── Explicit re-exports from types.rs ──
 pub use types::{
@@ -25,6 +27,13 @@ pub use types::{
 pub use logic::{
     EnumIR, ExportIR, FieldIR, FunctionIR, ImportIR, ImportKind, ModuleIR, StructIR, TypeAliasIR,
     VariantIR, Visibility,
+};
+
+// ── Explicit re-exports from design.rs ──
+// Note: VariantIR is NOT re-exported here to avoid a name conflict with
+// `logic::VariantIR` (tagged union variant). Use `ir::design::VariantIR` instead.
+pub use design::{
+    ClassIR, DesignIR, PseudoStateIR, TokenIR, TokenTypeIR, VariantBranchIR, VariantDimIR,
 };
 
 // ── Explicit re-exports from types_motion.rs ──

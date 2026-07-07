@@ -10,6 +10,7 @@
 //!   7. SourceMap: nodeId → source location
 
 mod component_html;
+pub mod design;
 mod editor;
 mod expr;
 mod html;

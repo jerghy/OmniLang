@@ -5,12 +5,14 @@
 //! statements, and motion/animation definitions.
 
 mod component;
+pub(crate) mod design;
 mod expr;
 mod motion;
 mod stmt;
 mod view;
 
 pub(crate) use component::*;
+pub use design::lower_design;
 #[allow(unused_imports)]
 pub(super) use motion::*;
 pub(crate) use stmt::*;
@@ -106,6 +108,12 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             .map(|t| lower_timeline_def(t, &variant_map, semantics))
             .collect();
 
+        let designs: Vec<super::DesignIR> = module
+            .designs
+            .iter()
+            .map(|d| lower_design(d))
+            .collect();
+
         let module_ir = ModuleIR {
             name: module_name.clone(),
             functions,
@@ -119,6 +127,7 @@ pub fn lower(program: &Program, semantics: &mut SemanticResult) -> IRProgram {
             exports,
             motions,
             timelines,
+            designs,
         };
 
         modules.insert(module_name.clone(), module_ir);
