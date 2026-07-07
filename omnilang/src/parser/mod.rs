@@ -280,6 +280,935 @@ impl<'a> Parser<'a> {
 mod roundtrip_tests {
     use super::*;
     use crate::lexer::tokenize;
+    use crate::lexer::Span;
+    use crate::parser::ast::*;
+
+    // ── Helpers ────────────────────────────────────────────
+
+    /// Parse source as a function body and return the first statement.
+    /// Appends a semicolon to prevent the expression from becoming a trailing expression.
+    fn first_stmt(source: &str) -> Stmt {
+        // Wrap with semicolon to ensure it goes into stmts[], not trailing_expr
+        let wrapped = format!("pub fn test() {{ {}; }}", source);
+        let tokens = tokenize(&wrapped);
+        let program = parse(tokens, &wrapped).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        let body = &module.functions[0].body;
+        if !body.stmts.is_empty() {
+            body.stmts[0].clone()
+        } else if let Some(expr) = &body.trailing_expr {
+            // Even with semicolon, some constructs end up as trailing_expr
+            Stmt::ExprStmt {
+                expr: *expr.clone(),
+                span: Span {
+                    start: 0,
+                    end: 0,
+                    line: 0,
+                    col: 0,
+                },
+            }
+        } else {
+            panic!("function body is empty for source: {}", wrapped);
+        }
+    }
+
+    /// Parse source as a function body, return the ExprStmt's inner expression.
+    fn first_expr(source: &str) -> Expr {
+        let e = match first_stmt(source) {
+            Stmt::ExprStmt { expr, .. } => expr,
+            other => panic!("expected ExprStmt, got {:?}", other),
+        };
+        e
+    }
+
+    /// Parse a component definition and return its view children.
+    fn view_children(source: &str) -> Vec<ViewNode> {
+        let tokens = tokenize(source);
+        let program = parse(tokens, source).unwrap();
+        let module = program.modules.get("input.omni").unwrap();
+        module.components[0]
+            .view
+            .as_ref()
+            .expect("component should have view")
+            .children
+            .clone()
+    }
+
+    // ════════════════════════════════════════════════════════
+    // Expression parsing tests
+    // ════════════════════════════════════════════════════════
+
+    // ── Binary expressions ────────────────────────────────
+
+    #[test]
+    fn expr_binary_add() {
+        let expr = first_expr("1 + 2");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Add,
+                ..
+            }
+        ));
+        if let Expr::BinaryOp { left, right, .. } = &expr {
+            assert!(matches!(**left, Expr::Literal(Literal::Int(1), _)));
+            assert!(matches!(**right, Expr::Literal(Literal::Int(2), _)));
+        }
+    }
+
+    #[test]
+    fn expr_binary_mul() {
+        let expr = first_expr("a * b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Mul,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_binary_sub() {
+        let expr = first_expr("a - b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Sub,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_binary_div() {
+        let expr = first_expr("a / b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Div,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_binary_comparison() {
+        let expr = first_expr("a == b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Eq,
+                ..
+            }
+        ));
+        let expr = first_expr("a != b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Neq,
+                ..
+            }
+        ));
+        let expr = first_expr("a < b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Lt,
+                ..
+            }
+        ));
+        let expr = first_expr("a > b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Gt,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_binary_logical() {
+        let expr = first_expr("a && b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::And,
+                ..
+            }
+        ));
+        let expr = first_expr("a || b");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Or,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_precedence_mul_over_add() {
+        // a * b + c should parse as ((a * b) + c)
+        let expr = first_expr("a * b + c");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Add,
+                ..
+            }
+        ));
+        if let Expr::BinaryOp { left, right, .. } = &expr {
+            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Mul, .. }));
+            assert!(matches!(**right, Expr::VarRef(_, _)));
+            if let Expr::VarRef(name, _) = &**right {
+                assert_eq!(name, "c");
+            }
+        }
+    }
+
+    #[test]
+    fn expr_precedence_add_over_comparison() {
+        // a + b == c + d should parse as ((a + b) == (c + d))
+        let expr = first_expr("a + b == c + d");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Eq,
+                ..
+            }
+        ));
+        if let Expr::BinaryOp { left, right, .. } = &expr {
+            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
+            assert!(matches!(**right, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
+        }
+    }
+
+    #[test]
+    fn expr_precedence_parenthesized() {
+        // (a + b) * c should parse as ((a + b) * c), overriding default precedence
+        let expr = first_expr("(a + b) * c");
+        assert!(matches!(
+            expr,
+            Expr::BinaryOp {
+                op: BinaryOpKind::Mul,
+                ..
+            }
+        ));
+        if let Expr::BinaryOp { left, .. } = &expr {
+            assert!(matches!(**left, Expr::BinaryOp { op: BinaryOpKind::Add, .. }));
+        }
+    }
+
+    // ── Unary expressions ──────────────────────────────────
+
+    #[test]
+    fn expr_unary_not() {
+        let expr = first_expr("!flag");
+        assert!(matches!(
+            expr,
+            Expr::UnaryOp {
+                op: UnaryOpKind::Not,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_unary_neg() {
+        let expr = first_expr("-value");
+        assert!(matches!(
+            expr,
+            Expr::UnaryOp {
+                op: UnaryOpKind::Neg,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn expr_unary_await() {
+        let expr = first_expr("await promise");
+        assert!(matches!(expr, Expr::AwaitExpr { .. }));
+        if let Expr::AwaitExpr { operand, .. } = &expr {
+            assert!(matches!(**operand, Expr::VarRef(_, _)));
+        }
+    }
+
+    // ── Function calls ─────────────────────────────────────
+
+    #[test]
+    fn expr_call_no_args() {
+        let expr = first_expr("foo()");
+        assert!(matches!(
+            expr,
+            Expr::FuncCall { ref args, .. } if args.is_empty()
+        ));
+        if let Expr::FuncCall { func, .. } = &expr {
+            assert!(matches!(**func, Expr::VarRef(_, _)));
+        }
+    }
+
+    #[test]
+    fn expr_call_with_args() {
+        let expr = first_expr("bar(1, \"two\")");
+        assert!(matches!(
+            expr,
+            Expr::FuncCall { ref args, .. } if args.len() == 2
+        ));
+        if let Expr::FuncCall { args, .. } = &expr {
+            assert!(matches!(args[0], Expr::Literal(Literal::Int(1), _)));
+            assert!(matches!(&args[1], Expr::Literal(Literal::String(s), _) if s == "two"));
+        }
+    }
+
+    #[test]
+    fn expr_call_nested() {
+        let expr = first_expr("foo(bar(x))");
+        assert!(matches!(
+            expr,
+            Expr::FuncCall { ref args, .. } if args.len() == 1
+        ));
+        if let Expr::FuncCall { args, .. } = &expr {
+            assert!(matches!(&args[0], Expr::FuncCall { .. }));
+        }
+    }
+
+    // ── Member access ──────────────────────────────────────
+
+    #[test]
+    fn expr_field_access() {
+        let expr = first_expr("obj.field");
+        assert!(matches!(
+            expr,
+            Expr::FieldAccess { ref field, .. } if field == "field"
+        ));
+        if let Expr::FieldAccess { object, .. } = &expr {
+            assert!(matches!(**object, Expr::VarRef(_, _)));
+        }
+    }
+
+    #[test]
+    fn expr_method_call() {
+        let expr = first_expr("obj.method()");
+        assert!(matches!(
+            expr,
+            Expr::MethodCall { ref method, ref args, .. }
+                if method == "method" && args.is_empty()
+        ));
+    }
+
+    #[test]
+    fn expr_method_call_with_args() {
+        let expr = first_expr("obj.method(a, b)");
+        assert!(matches!(
+            expr,
+            Expr::MethodCall { ref method, ref args, .. }
+                if method == "method" && args.len() == 2
+        ));
+    }
+
+    #[test]
+    fn expr_chained_field_access() {
+        let expr = first_expr("a.b.c");
+        // Should parse as FieldAccess { object: FieldAccess { object: VarRef("a"), field: "b" }, field: "c" }
+        assert!(matches!(
+            expr,
+            Expr::FieldAccess { ref field, .. } if field == "c"
+        ));
+        if let Expr::FieldAccess { object, .. } = &expr {
+            assert!(matches!(**object, Expr::FieldAccess { ref field, .. } if field == "b"));
+        }
+    }
+
+    // ── Index access ───────────────────────────────────────
+
+    #[test]
+    fn expr_index_int() {
+        let expr = first_expr("arr[0]");
+        assert!(matches!(
+            expr,
+            Expr::IndexGet { .. }
+        ));
+        if let Expr::IndexGet { object, index, .. } = &expr {
+            assert!(matches!(**object, Expr::VarRef(_, _)));
+            assert!(matches!(**index, Expr::Literal(Literal::Int(0), _)));
+        }
+    }
+
+    #[test]
+    fn expr_index_string() {
+        let expr = first_expr("map[\"key\"]");
+        assert!(matches!(
+            expr,
+            Expr::IndexGet { .. }
+        ));
+        if let Expr::IndexGet { index, .. } = &expr {
+            assert!(matches!(&**index, Expr::Literal(Literal::String(s), _) if s == "key"));
+        }
+    }
+
+    #[test]
+    fn expr_index_var() {
+        let expr = first_expr("map[idx]");
+        if let Expr::IndexGet { object, index, .. } = &expr {
+            assert!(matches!(**object, Expr::VarRef(_, _)));
+            assert!(matches!(**index, Expr::VarRef(_, _)));
+        }
+    }
+
+    // ── String templates ───────────────────────────────────
+
+    #[test]
+    fn expr_template_string_simple() {
+        // Template strings without interpolation are parsed as plain strings
+        let expr = first_expr("`hello world`");
+        assert!(matches!(
+            expr,
+            Expr::Literal(Literal::String(ref s), _) if s == "hello world"
+        ));
+    }
+
+    // ── Array literals ─────────────────────────────────────
+
+    #[test]
+    fn expr_array_literal_empty() {
+        let expr = first_expr("[]");
+        assert!(matches!(
+            expr,
+            Expr::ArrayLiteral { ref elements, .. } if elements.is_empty()
+        ));
+    }
+
+    #[test]
+    fn expr_array_literal_numbers() {
+        let expr = first_expr("[1, 2]");
+        assert!(matches!(
+            expr,
+            Expr::ArrayLiteral { ref elements, .. } if elements.len() == 2
+        ));
+        if let Expr::ArrayLiteral { elements, .. } = &expr {
+            assert!(matches!(elements[0], Expr::Literal(Literal::Int(1), _)));
+            assert!(matches!(elements[1], Expr::Literal(Literal::Int(2), _)));
+        }
+    }
+
+    #[test]
+    fn expr_array_literal_trailing_comma() {
+        let expr = first_expr("[1,]");
+        assert!(matches!(
+            expr,
+            Expr::ArrayLiteral { ref elements, .. } if elements.len() == 1
+        ));
+    }
+
+    #[test]
+    fn expr_array_literal_mixed() {
+        let expr = first_expr("[1, \"two\", x]");
+        if let Expr::ArrayLiteral { elements, .. } = &expr {
+            assert_eq!(elements.len(), 3);
+            assert!(matches!(elements[0], Expr::Literal(Literal::Int(1), _)));
+            assert!(matches!(&elements[1], Expr::Literal(Literal::String(s), _) if s == "two"));
+            assert!(matches!(elements[2], Expr::VarRef(_, _)));
+        }
+    }
+
+    // ── Object literals ────────────────────────────────────
+
+    #[test]
+    fn expr_map_literal_simple() {
+        // Use let binding to put {a: 1} in expression context (not statement context)
+        let stmt = first_stmt("let _m = {a: 1}");
+        if let Stmt::VarDecl { init: Some(expr), .. } = &stmt {
+            assert!(matches!(*expr, Expr::MapLiteral { .. }));
+            if let Expr::MapLiteral { entries, .. } = expr {
+                assert!(!entries.is_empty());
+            }
+        } else {
+            panic!("expected VarDecl with map literal init");
+        }
+    }
+
+    #[test]
+    fn expr_map_literal_multi() {
+        let stmt = first_stmt("let _m = {a: 1, b: 2}");
+        if let Stmt::VarDecl { init: Some(expr), .. } = &stmt {
+            if let Expr::MapLiteral { entries, .. } = expr {
+                assert_eq!(entries.len(), 2);
+            }
+        } else {
+            panic!("expected VarDecl with map literal init");
+        }
+    }
+
+    #[test]
+    fn expr_map_literal_shorthand() {
+        // Shorthand { x } should be accepted; keys are converted to string literals
+        let stmt = first_stmt("let _a = 1; let _m = {_a}");
+        let body = {
+            // Parse directly to handle multi-stmt
+            let wrapped = "pub fn test() { let _a = 1; let _m = {_a} }";
+            let tokens = tokenize(wrapped);
+            let program = parse(tokens, wrapped).unwrap();
+            let module = program.modules.get("input.omni").unwrap();
+            module.functions[0].body.stmts[1].clone()
+        };
+        if let Stmt::VarDecl { init: Some(expr), .. } = &body {
+            assert!(matches!(*expr, Expr::MapLiteral { .. }));
+        } else {
+            panic!("expected VarDecl with map literal init");
+        }
+    }
+
+    // ── Variable declarations ──────────────────────────────
+
+    #[test]
+    fn stmt_var_decl_init() {
+        let stmt = first_stmt("let x = 5");
+        assert!(matches!(
+            stmt,
+            Stmt::VarDecl { ref name, ref init, mutable: false, .. }
+                if name == "x" && init.is_some()
+        ));
+    }
+
+    #[test]
+    fn stmt_var_decl_no_init() {
+        let stmt = first_stmt("let x: i32");
+        assert!(matches!(
+            stmt,
+            Stmt::VarDecl { ref name, ref init, .. }
+                if name == "x" && init.is_none()
+        ));
+    }
+
+    #[test]
+    fn stmt_var_decl_mutable() {
+        let stmt = first_stmt("let mut x = 10");
+        assert!(matches!(
+            stmt,
+            Stmt::VarDecl { ref name, mutable: true, .. } if name == "x"
+        ));
+    }
+
+    #[test]
+    fn stmt_var_decl_type_annotation() {
+        let stmt = first_stmt("let x: String = \"hello\"");
+        assert!(matches!(
+            stmt,
+            Stmt::VarDecl { ref name, ref type_ann, .. } if name == "x" && type_ann.is_some()
+        ));
+    }
+
+    // ── Assignments ────────────────────────────────────────
+
+    #[test]
+    fn stmt_assignment() {
+        let stmt = first_stmt("x = 10");
+        assert!(matches!(
+            stmt,
+            Stmt::ExprStmt { ref expr, .. }
+        ));
+        if let Stmt::ExprStmt { expr, .. } = &stmt {
+            assert!(matches!(*expr, Expr::BinaryOp {
+                op: BinaryOpKind::Assign, ..
+            }));
+        }
+    }
+
+    #[test]
+    fn stmt_compound_assign_add() {
+        let stmt = first_stmt("x += 1");
+        if let Stmt::ExprStmt { expr, .. } = &stmt {
+            assert!(matches!(*expr, Expr::BinaryOp { op: BinaryOpKind::AddAssign, .. }));
+        }
+    }
+
+    #[test]
+    fn stmt_compound_assign_sub() {
+        let stmt = first_stmt("x -= 1");
+        if let Stmt::ExprStmt { expr, .. } = &stmt {
+            assert!(matches!(*expr, Expr::BinaryOp { op: BinaryOpKind::SubAssign, .. }));
+        }
+    }
+
+    // ── If statements ──────────────────────────────────────
+
+    #[test]
+    fn stmt_if_simple() {
+        let stmt = first_stmt("if (true) { 42 }");
+        assert!(matches!(stmt, Stmt::If { ref else_body, ref else_ifs, .. }
+            if else_body.is_none() && else_ifs.is_empty()
+        ));
+        if let Stmt::If { condition, then_body, .. } = &stmt {
+            assert!(matches!(condition, Expr::Literal(Literal::Bool(true), _)));
+            assert_eq!(then_body.stmts.len(), 0);
+            assert!(then_body.trailing_expr.is_some());
+        }
+    }
+
+    #[test]
+    fn stmt_if_else() {
+        let stmt = first_stmt("if (a) { b } else { c }");
+        if let Stmt::If { else_body, .. } = &stmt {
+            assert!(else_body.is_some());
+        }
+    }
+
+    #[test]
+    fn stmt_if_else_if() {
+        let stmt = first_stmt("if (a) { b } else if (c) { d } else { e }");
+        if let Stmt::If { else_ifs, else_body, .. } = &stmt {
+            assert!(!else_ifs.is_empty());
+            assert!(else_body.is_some());
+        }
+    }
+
+    // ── While loops ────────────────────────────────────────
+
+    #[test]
+    fn stmt_while_loop() {
+        let stmt = first_stmt("while (true) { break }");
+        assert!(matches!(stmt, Stmt::While { .. }));
+        if let Stmt::While { condition, body, .. } = &stmt {
+            assert!(matches!(condition, Expr::Literal(Literal::Bool(true), _)));
+            assert!(!body.stmts.is_empty());
+        }
+    }
+
+    // ── For loops ──────────────────────────────────────────
+
+    #[test]
+    fn stmt_for_in() {
+        let stmt = first_stmt("for item in items { print item }");
+        assert!(matches!(stmt, Stmt::ForIn { ref var_name, .. } if var_name == "item"));
+        if let Stmt::ForIn { iterable, body, .. } = &stmt {
+            assert!(matches!(iterable, Expr::VarRef(_, _)));
+            assert!(!body.stmts.is_empty());
+        }
+    }
+
+    // ── Return / break / continue ──────────────────────────
+
+    #[test]
+    fn stmt_return_value() {
+        let stmt = first_stmt("return 42");
+        assert!(matches!(stmt, Stmt::Return { ref value, .. }
+            if value.is_some()
+        ));
+    }
+
+    #[test]
+    fn stmt_return_void() {
+        let stmt = first_stmt("return");
+        assert!(matches!(stmt, Stmt::Return { ref value, .. }
+            if value.is_none()
+        ));
+    }
+
+    #[test]
+    fn stmt_break() {
+        let stmt = first_stmt("break");
+        assert!(matches!(stmt, Stmt::Break(_)));
+    }
+
+    #[test]
+    fn stmt_continue() {
+        let stmt = first_stmt("continue");
+        assert!(matches!(stmt, Stmt::Continue(_)));
+    }
+
+    // ── Print ──────────────────────────────────────────────
+
+    #[test]
+    fn stmt_print() {
+        let stmt = first_stmt("print \"hello\"");
+        assert!(matches!(stmt, Stmt::Print { newline: false, .. }));
+        if let Stmt::Print { arg, .. } = &stmt {
+            assert!(matches!(arg, Expr::Literal(Literal::String(s), _) if s == "hello"));
+        }
+    }
+
+    #[test]
+    fn stmt_println() {
+        let stmt = first_stmt("println \"hello\"");
+        assert!(matches!(stmt, Stmt::Print { newline: true, .. }));
+    }
+
+    // ── Try / catch / throw ────────────────────────────────
+
+    #[test]
+    fn stmt_throw() {
+        let stmt = first_stmt("throw \"error\"");
+        assert!(matches!(stmt, Stmt::Throw { .. }));
+    }
+
+    #[test]
+    fn stmt_try_catch() {
+        let stmt = first_stmt("try { 1 } catch { 2 }");
+        assert!(matches!(stmt, Stmt::TryCatch { .. }));
+        if let Stmt::TryCatch { catch_var, .. } = &stmt {
+            assert!(catch_var.is_none());
+        }
+    }
+
+    #[test]
+    fn stmt_try_catch_with_var() {
+        let stmt = first_stmt("try { 1 } catch e { 2 }");
+        if let Stmt::TryCatch { catch_var, .. } = &stmt {
+            assert_eq!(catch_var.as_deref(), Some("e"));
+        }
+    }
+
+    #[test]
+    fn stmt_try_catch_finally() {
+        let stmt = first_stmt("try { 1 } catch { 2 } finally { 3 }");
+        assert!(matches!(stmt, Stmt::TryCatch { finally_body: Some(..), .. }));
+    }
+
+    // ── Emit ───────────────────────────────────────────────
+
+    #[test]
+    fn stmt_emit_no_args() {
+        let stmt = first_stmt("emit done()");
+        assert!(matches!(stmt, Stmt::EventEmit { ref name, ref args, .. }
+            if name == "done" && args.is_empty()
+        ));
+    }
+
+    #[test]
+    fn stmt_emit_with_args() {
+        let stmt = first_stmt("emit update(x, y)");
+        if let Stmt::EventEmit { name, args, .. } = &stmt {
+            assert_eq!(name, "update");
+            assert_eq!(args.len(), 2);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // View parsing tests
+    // ════════════════════════════════════════════════════════
+
+    #[test]
+    fn view_simple_element_text() {
+        let children = view_children(
+            "component App { view { Text { \"hello\" } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Text");
+                // Text { "hello" } is NOT self-closing — it has a children block
+                assert!(!el.self_closing);
+                assert_eq!(el.children.len(), 1);
+                assert!(matches!(&el.children[0], ViewNode::Text(s) if s == "hello"));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_element_with_props() {
+        // Component call syntax: Button(label: "Click") — props in parentheses
+        let children = view_children(
+            "component App { view { Button(label: \"Click\") } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Button");
+                assert_eq!(el.props.len(), 1);
+                match &el.props[0] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "label");
+                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "Click"));
+                    }
+                    _ => panic!("expected Static prop"),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_nested_elements() {
+        let children = view_children(
+            "component App { view { View { Text { \"a\" } Text { \"b\" } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "View");
+                assert_eq!(el.children.len(), 2);
+                assert!(matches!(&el.children[0], ViewNode::Element(child) if child.tag == "Text"));
+                assert!(matches!(&el.children[1], ViewNode::Element(child) if child.tag == "Text"));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_html_element() {
+        let children = view_children(
+            "component App { view { <div class=\"container\">Text content</div> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "div");
+                assert!(!el.self_closing);
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_self_closing_html_element() {
+        let children = view_children(
+            "component App { view { <br/> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "br");
+                assert!(el.self_closing);
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_if_directive() {
+        let children = view_children(
+            "component App { view { @if (show) { Text { \"visible\" } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        assert!(matches!(&children[0], ViewNode::IfDirective(_)));
+        if let ViewNode::IfDirective(dir) = &children[0] {
+            assert_eq!(dir.body.len(), 1);
+        }
+    }
+
+    #[test]
+    fn view_for_directive() {
+        // @for does NOT use parentheses — syntax: @for item in items { body }
+        let children = view_children(
+            "component App { view { @for item in items { Text { item } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        assert!(matches!(&children[0], ViewNode::ForDirective(_)));
+        if let ViewNode::ForDirective(dir) = &children[0] {
+            assert_eq!(dir.item_name, "item");
+            assert_eq!(dir.body.len(), 1);
+        }
+    }
+
+    #[test]
+    fn view_interpolation() {
+        let children = view_children(
+            "component App { view { Text { {name} } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.children.len(), 1);
+                assert!(matches!(&el.children[0], ViewNode::Interpolation(_)));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_component_call_syntax() {
+        let children = view_children(
+            "component App { view { Card(title: \"Hello\") { Text { \"body\" } } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Card");
+                assert_eq!(el.props.len(), 1);
+                assert!(!el.self_closing);
+                assert_eq!(el.children.len(), 1);
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_element_prop_types() {
+        let children = view_children(
+            "component App { view { <button id=\"btn\" disabled={true}>click</button> } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "button");
+                assert_eq!(el.props.len(), 2);
+                // Check string prop
+                match &el.props[0] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "id");
+                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "btn"));
+                    }
+                    _ => panic!("expected Static prop"),
+                }
+                // Check expression prop
+                match &el.props[1] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "disabled");
+                        assert!(matches!(value, Expr::Literal(Literal::Bool(true), _)));
+                    }
+                    _ => panic!("expected Static prop"),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_text_only() {
+        let children = view_children(
+            "component App { view { Text { \"hello world\" } } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Text");
+                assert_eq!(el.children.len(), 1);
+                assert!(matches!(&el.children[0], ViewNode::Text(s) if s == "hello world"));
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_string_literal_prop() {
+        let children = view_children(
+            "component App { view { Input(placeholder: \"Enter name\") } }",
+        );
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "Input");
+                assert!(el.self_closing);
+                assert_eq!(el.props.len(), 1);
+                match &el.props[0] {
+                    ElementProp::Static { name, value } => {
+                        assert_eq!(name, "placeholder");
+                        assert!(matches!(value, Expr::Literal(Literal::String(s), _) if s == "Enter name"));
+                    }
+                    _ => panic!("expected Static prop"),
+                }
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // Original roundtrip tests (preserved)
+    // ════════════════════════════════════════════════════════
 
     #[test]
     fn roundtrip_function_def() {
